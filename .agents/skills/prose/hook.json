@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "default": "enabled",
+  "hooks": [
+    {
+      "summary": "Reports any commit that lands without a valid Prose: trailer.",
+      "command": "scripts/check-commit-trailer.sh",
+      "events": {
+        "claude": {
+          "event": "PostToolUse",
+          "matcher": "Bash"
+        },
+        "cursor": {
+          "event": "postToolUse",
+          "matcher": "Shell"
+        }
+      }
+    },
+    {
+      "summary": "Blocks a GitHub post whose body does not end with a valid prose footer.",
+      "command": "scripts/check-post.sh",
+      "events": {
+        "claude": {
+          "event": "PreToolUse",
+          "matcher": "^(Bash|mcp__github__.*|mcp__plugin_.*_github__.*)$"
+        },
+        "cursor": {
+          "event": "beforeShellExecution"
+        }
+      }
+    },
+    {
+      "summary": "Blocks a GitHub MCP post whose body does not end with a valid prose footer (Cursor; unverified).",
+      "command": "scripts/check-post.sh",
+      "events": {
+        "cursor": {
+          "event": "beforeMCPExecution"
+        }
+      }
+    },
+    {
+      "summary": "Blocks a session's first file write or GitHub post until prose's first call has printed the rules (Claude Code only).",
+      "command": "scripts/require-first-call.sh",
+      "events": {
+        "claude": {
+          "event": "PreToolUse",
+          "matcher": "^(Write|Edit|MultiEdit|NotebookEdit|Bash|mcp__github__.*|mcp__plugin_.*_github__.*)$"
+        }
+      }
+    }
+  ]
+}
