@@ -99,16 +99,22 @@ unclosed ```` ``` ```` fence is ordinary text too, matching how Discord displays
 after an unmatched backtick.** The first missed ``` ``@adam`` ```; the second
 silently dropped every mention after a backtick in prose ("press the ` key").
 
-## Member search may need a privileged intent; failing it is a warning
+## Member search needs no privileged intent
 
-**Decision.** Names are looked up with Discord's member-search endpoint. If
-Discord refuses it, names stay plain text, the output carries one warning,
-and the post still goes out. `check` reports `memberSearch`.
+**Decision.** Setup leaves all privileged intents off. Names are looked up
+with Discord's member-search endpoint, which worked with Server Members Intent
+off: tested 2026-10-02 against a real server, where a post's `@name` became a
+mention that notified the person. If Discord ever refuses the search, names
+stay plain text with one warning and the post still goes out.
 
-**Why.** Whether that endpoint needs the Server Members intent isn't settled
-by Discord's documentation, and the old service's README recorded plain-text
-mentions as the symptom of it being off. A post with an unresolved name is
-still worth sending; one that fails over it isn't.
+**Why.** A bot should hold only the access it uses. The intent would also let
+it read the whole member list.
+
+`check` reports `memberSearch: true` only when a search for the bot's own name
+returns members. Discord can accept a search and return nobody, so a request
+that merely succeeds proves nothing. Requiring the bot itself in the answer was
+rejected: the search is capped at 100 and unordered, so in a server where 100
+names start with the bot's, the bot can be missing while search works.
 
 ## Permissions are computed in `check`, not before every post
 

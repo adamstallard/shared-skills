@@ -540,13 +540,20 @@ def cmd_check(api, config, args):
     except Failure as e:
         entry["permissions"] = {"ok": False, "error": str(e)}
     result["defaultChannel"] = entry
+    # Discord can accept a search and still return nobody; a search for the bot's
+    # own name always has a match, so an empty answer means search is not working.
     try:
-        api.request("GET", f"/guilds/{guild_id}/members/search", query={"query": "a", "limit": 1})
-        result["memberSearch"] = True
+        found = api.request(
+            "GET", f"/guilds/{guild_id}/members/search",
+            query={"query": me["username"], "limit": MEMBER_SEARCH_LIMIT},
+        )
+        result["memberSearch"] = bool(found)
     except Failure as e:
-        if not e.no_access():
-            raise
-        result["memberSearch"] = False
+        if e.no_access():
+            result["memberSearch"] = False
+        else:
+            result["memberSearch"] = None
+            result["memberSearchError"] = str(e)
     return result
 
 

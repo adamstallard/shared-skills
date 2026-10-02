@@ -596,5 +596,40 @@ class Regressions(unittest.TestCase):
         self.assertEqual(len(warnings), 1)
 
 
+class Check(unittest.TestCase):
+    def run_check(self, search):
+        routes = guild_routes(search=search)
+        routes[("GET", "/users/@me")] = {"id": BOT, "username": "helper-bot"}
+        routes[("GET", f"/guilds/{GUILD}")] = {"id": GUILD, "owner_id": "1", "roles": [
+            {"id": GUILD, "permissions": str(d.PERMISSIONS["viewChannel"] | d.PERMISSIONS["sendMessages"])}]}
+        routes[("GET", f"/guilds/{GUILD}/members/{BOT}")] = {"roles": []}
+        with mock.patch.dict(os.environ, {}, clear=True):
+            return d.cmd_check(FakeApi(routes), {"defaultChannel": "agents"}, args())
+
+    def test_member_search_counts_when_the_bot_is_found(self):
+        self.assertTrue(self.run_check([member(BOT, "helper-bot")])["memberSearch"])
+
+    def test_a_search_that_returns_nobody_is_not_working(self):
+        self.assertFalse(self.run_check([])["memberSearch"])
+
+    def test_a_refused_search_is_not_working(self):
+        self.assertFalse(self.run_check(d.Failure("Missing Access", status=403, code=50001))["memberSearch"])
+
+    def test_a_crowded_name_still_counts_as_working(self):
+        others = [member(str(i), f"helper-bot{i}") for i in range(100)]
+        self.assertTrue(self.run_check(others)["memberSearch"])
+
+    def test_a_search_outage_keeps_the_rest_of_the_report(self):
+        result = self.run_check(d.Failure("Internal", status=500))
+        self.assertIsNone(result["memberSearch"])
+        self.assertIn("Internal", result["memberSearchError"])
+        self.assertIn("permissions", result["defaultChannel"])
+
+    def test_check_reports_the_default_channel_permissions(self):
+        perms = self.run_check([member(BOT, "helper-bot")])["defaultChannel"]["permissions"]
+        self.assertTrue(perms["viewChannel"] and perms["sendMessages"])
+        self.assertFalse(perms["createPublicThreads"])
+
+
 if __name__ == "__main__":
     unittest.main()

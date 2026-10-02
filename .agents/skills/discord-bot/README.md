@@ -28,8 +28,8 @@ Do this in a browser, once per bot. The script can't do any of it.
 2. **Bot** tab → set the same username, then **Reset Token** and copy it.
    Discord shows it once; you'll store it in step 3. Resetting it later stops
    the old token immediately.
-3. Leave the privileged intents off for now. If `@name` mentions later come
-   out as plain text, see [Mentions](#mentions-stay-plain-text).
+3. Leave all three privileged intents off. The skill needs none of them;
+   `@name` mentions were tested with Server Members Intent off.
 4. Invite the bot to your server with this URL, using your Application ID:
 
    ```
@@ -113,7 +113,8 @@ python3 ~/.agents/skills/discord-bot/scripts/discord_bot.py --identity acme chec
 ```
 
 You should see the bot's name, your server, the default channel with every
-permission `true`, and `"memberSearch": true`.
+permission `true`, and `"memberSearch": true`, which means a search for the
+bot's own name returned members, so `@name` mentions will work.
 
 ---
 
@@ -143,12 +144,12 @@ or the channel is private and the bot's role wasn't added (setup step 1.5).
 
 **"#… exists in more than one server"**: set `server` in the config.
 
-<a id="mentions-stay-plain-text"></a>**Mentions stay plain text.** If the
-warning says Discord refused member search, turn on **Server Members Intent**
-on the developer portal's Bot tab; `check` shows `"memberSearch": false` until
-you do. If it says no member, or several members, have that name, use the
-person's exact username, display name or server nickname: partial names are
-never guessed.
+**Mentions stay plain text.** If the warning says no member, or several
+members, have that name, use the person's exact username, display name or
+server nickname: partial names are never guessed. If it says Discord refused
+member search, `check` shows `"memberSearch": false`; turning on **Server
+Members Intent** on the developer portal's Bot tab is the setting that
+controls it.
 
 **A permission is `false` in `check`**, or a post fails with status 403: grant
 it on the bot's role (Server Settings → Roles), or on the channel for a private
