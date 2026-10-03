@@ -858,8 +858,52 @@ over the `takes` fix, 2026-09-26.
 
 **Where this stops applying.** Before the `--` the same slip is refused: a
 vanished or split word there lands where `--` or an option must be (see *A
-missing argument is not a value*). If the interface ever takes the subject and
-body some other way — a file, stdin — this gap goes with it.
+missing argument is not a value*). With `--message-file` there is no subject or
+body word to split, so the gap does not arise (see *The message comes from a
+file*).
+
+---
+
+## The message comes from a file
+
+**Decision.** `commit-with-trailers.sh --message-file <path> --` reads the
+message from a file: the first line is the subject, the next line must be blank,
+and the rest is the body. Bug-hunter's wrapper takes `-F <file>` in place of
+`<subject> <body>` and passes it through. prose's and bug-hunter's SKILL.md show
+this form first; the two-word form still works.
+
+**Why.** A multi-line message passed as shell arguments has to be quoted, and
+agents get the quoting wrong: apostrophes need `'"'"'`, and `$`, backticks and
+`--` inside a message change what the shell or a reader makes of the command.
+Claude Code also refuses a command its guard cannot parse with confidence, and
+it refused commits here repeatedly on exactly that kind of message (2026-10-03).
+The message already exists as a file, because prose signs `msg.txt`; reading
+that same file means the text the verifier checks is the text prose signed,
+with no retyping in between.
+
+**Rejected.**
+- *Teaching agents the quoting rules.* That fixes one shell, not the guard, and
+  every new rule is one more thing to get wrong.
+- *A heredoc into the script.* Still message text inside the command, which is
+  what the guard refuses; and stdin is already the verifiers' channel.
+- *The option after `--`, in place of the two words.* The option goes before the
+  `--`, with nothing after it, so a vanished path is refused like any vanished
+  option word (`--message-file --` is a missing argument), and a stray word
+  after the `--` is refused as "not both". The option written after the `--`
+  (`-- --message-file <path>`, or `-- -F <path>`) is refused too, rather than
+  committed as a subject; bug-hunter's wrapper likewise refuses any other
+  dash-led word where the subject goes (`-Fmsg.txt`, `--message-file=…`), so
+  a subject there cannot start with `-`.
+
+**Where this stops applying.** The file is read as the commit's message with
+`-m` paragraphs, so git's comment-line stripping does not apply to it, the same
+as the two-word form; a file holding `#` lines commits them. Blank lines before
+the subject are dropped, as git's cleanup and prose's signing drop them. Blank
+means spaces, tabs and CRs only, as git and prose count it: a line of `\f` or
+U+00A0 is text, so it is never dropped. As the subject, such a line is refused
+as empty, as in the two-word form; git would accept it, but no real subject
+is only a form feed. A first line followed by a non-blank second line is
+refused, because git would read both as one subject.
 
 ---
 
