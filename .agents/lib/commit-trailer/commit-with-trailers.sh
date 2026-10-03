@@ -220,7 +220,7 @@ if [ "$has_message_file" = y ]; then
   [ "$saw_end" = y ] || usage
   [ "$#" -eq 0 ] ||
     refuse "give the message with --message-file or as <subject> <body> after '--', not both"
-  [ -f "$message_file" ] && [ -r "$message_file" ] ||
+  [ -f "$message_file" ] ||
     refuse "cannot read the message file '$message_file'"
   # $(...) drops the file's trailing newlines, as git's own cleanup would.
   content=$(cat -- "$message_file") || refuse "cannot read the message file '$message_file'"
