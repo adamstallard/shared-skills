@@ -122,6 +122,26 @@ visible to this user's other processes for the instant the command runs. Linux
 `secret-tool` reads it from standard input. Anyone who can't accept that can
 add the entries in Keychain Access; the script only reads them.
 
+## On Linux, `forget` trusts a lookup, not `secret-tool clear`'s exit code
+
+**Decision.** If `secret-tool clear` exits 0, the entry is gone. If it exits
+any other way, the entry counts as gone when `secret-tool lookup` can't find it.
+
+**Why.** `clear` exits 1 both when nothing matched and when it failed outright,
+for example on a server with no secret service.
+
+**Rejected: reading `clear`'s stderr.** Treating a silent exit 1 as "nothing
+matched" and anything on stderr as a failure warned "could not delete" on every
+`forget` on a server with no secret service, where nothing can be stored.
+
+**Where it stops applying.** On Linux, `forget` can't detect a locked
+collection. Tested 2026-10-02 with libsecret 0.21.7 in a Debian container: with
+the login collection locked and no prompter, `clear` and `lookup` both exit 1
+and print nothing, exactly as for a missing entry. `forget` reported a clean
+forget, and after an unlock the secret was still stored. No reading of
+`secret-tool`'s output can tell the two apart. macOS does report a locked
+keychain, because `security` exits 36.
+
 ## Output
 
 **Decision.** `token` and `headers` print bare values, for `$(...)` and for
@@ -132,12 +152,18 @@ JSON object with `ok`, and exits 0 or 1.
 
 ## Open questions
 
-### `forget`'s final warning logic hasn't had a review pass (2026-10-02)
+### `forget` removes the cache without taking the lock (2026-10-02)
 
-Bug-hunter's second run ended its budget on a rewrite of `cmd_forget`'s
-warnings: after deleting, it checks every source the identity could still
-use (a full or half environment pair, its own entries if the delete failed,
-kept entries under another service) and names each. No pass has read that
-rewrite. It changes only `forget`'s warnings, which nothing else depends on,
-and 4 regression tests cover the cases found so far. Recommended: one
-bug-hunter run scoped to `cmd_forget`, when it is next changed.
+A process minting while `forget` runs can write a fresh cache after `forget`
+reports. A later `token` still fails on the missing credentials, but a live
+token is left on disk. Taking the lock in `forget` would fix it.
+
+### The keychain helpers can't tell "absent" from "unreachable" (2026-10-02)
+
+`read_keychain` returns None both when an entry doesn't exist and when the
+keychain can't be reached (locked, a denied prompt, no secret service). So
+`forget` can't confirm that entries kept under another service survive a
+locked keychain, and on Linux it counts entries as gone when the lookup fails
+(see "On Linux, `forget` trusts a lookup"). A read that returns present,
+absent or unreachable would close both. It touches credential lookup, which
+every command uses, so it is not done here.

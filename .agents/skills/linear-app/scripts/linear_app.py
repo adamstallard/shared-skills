@@ -145,12 +145,25 @@ def write_keychain(service, account, value, label, run=subprocess.run, which=shu
         raise Failure(f"storing {account} failed: {result.stderr.strip()}")
 
 
-def delete_keychain(service, account, run=subprocess.run, which=shutil.which):
+def delete_keychain(service, account, run=subprocess.run, which=shutil.which, lookup=read_keychain):
+    """True when the entry is gone afterwards, False when the delete failed (a locked keychain, say).
+
+    `lookup` is bound to the real read_keychain when this is defined, so it runs
+    through the same `run` and `which` even where read_keychain is replaced.
+    """
     tool = keychain_tool(which)
     if tool == "security":
-        run(["security", "delete-generic-password", "-s", service, "-a", account], capture_output=True)
-    elif tool == "secret-tool":
-        run(["secret-tool", "clear", "service", service, "account", account], capture_output=True)
+        result = run(["security", "delete-generic-password", "-s", service, "-a", account], capture_output=True)
+        return result.returncode in (0, 44)  # 44: no such entry
+    if tool == "secret-tool":
+        result = run(["secret-tool", "clear", "service", service, "account", account], capture_output=True)
+        if result.returncode == 0:
+            return True
+        # Any other exit can't tell "nothing matched" from "no secret service"
+        # or a locked collection, so the entry counts as gone when a lookup
+        # can't find it either. See DECISIONS.md for the gap this leaves.
+        return lookup(service, account, run, which) is None
+    return True  # no keychain tool, so nothing can be stored
 
 
 def env_identity(env):
@@ -428,9 +441,18 @@ def cmd_wire(args, config, run=subprocess.run, which=shutil.which):
 def cmd_forget(args, config):
     service, id_account, secret_account = keychain_entries(args.identity, config)
     forgotten = {"identity": args.identity, "forgotten": True}
+    left_over = []  # own entries that may still be stored
+    found = []  # of those, the ones the read-back actually found
     if service == KEYCHAIN_SERVICE:
         for account in (id_account, secret_account):
-            delete_keychain(service, account)
+            # A failed delete counts even when the read-back finds nothing: a
+            # locked keychain fails the read too.
+            deleted = delete_keychain(service, account) is not False
+            if read_keychain(service, account):
+                found.append(account)
+            elif deleted:
+                continue
+            left_over.append(account)
     else:  # entries another tool made, which it may still use
         forgotten["keptKeychain"] = {"service": service, "accounts": [id_account, secret_account]}
     path = cache_path(args.identity)
@@ -440,18 +462,30 @@ def cmd_forget(args, config):
         except FileNotFoundError:
             pass
     # Report what is actually left, not what should be: check each source directly.
-    sources, warnings = [], []
+    sources, warnings, half_pair, unsure = [], [], False, False
     if env_overrides_keychain(args.identity):
         if os.environ.get("LINEAR_CLIENT_ID", "").strip() and os.environ.get("LINEAR_CLIENT_SECRET", "").strip():
             sources.append("the environment (LINEAR_CLIENT_ID/LINEAR_CLIENT_SECRET)")
         else:
+            half_pair = True
             warnings.append("only one of LINEAR_CLIENT_ID/LINEAR_CLIENT_SECRET is set in the environment; unset it")
-    if read_keychain(service, id_account) and read_keychain(service, secret_account):
-        sources.append(f"the keychain entries in service {service!r}, "
-                       + ("which the delete did not remove (a locked keychain or a denied prompt?)"
-                          if service == KEYCHAIN_SERVICE else "which forget keeps"))
-    if sources and warnings:  # the half pair blocks the keychain until it is unset
-        warnings.append("once it is unset, this identity works again from " + " and ".join(sources))
+    for account in left_over:
+        warnings.append(f"could not delete keychain entry {account} in service {service!r} "
+                        "(a locked keychain or a denied prompt?)")
+    if len(found) == 2:
+        sources.append(f"the keychain entries in service {service!r}, which the delete did not remove")
+    elif len(left_over) == 2:  # the keychain could not be read, so they may or may not be there
+        unsure = True
+        sources.append(f"the keychain entries in service {service!r}, which may still be stored")
+    elif service != KEYCHAIN_SERVICE and read_keychain(service, id_account) and read_keychain(service, secret_account):
+        sources.append(f"the keychain entries in service {service!r}, which forget keeps")
+    keychain_only = unsure and len(sources) == 1
+    if sources and half_pair:  # the half pair blocks the keychain until it is unset
+        warnings.append(("once it is unset, this identity may work again from " if unsure
+                         else "once it is unset, this identity works again from ") + " and ".join(sources))
+    elif keychain_only:
+        warnings.append("this identity may still have credentials, and works again once the keychain "
+                        "is reachable, from " + sources[0])
     elif sources:
         warnings.append("this identity still has credentials and keeps working, from " + " and ".join(sources))
     if warnings:

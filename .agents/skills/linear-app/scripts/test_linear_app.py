@@ -19,6 +19,9 @@ from unittest import mock
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import linear_app as la  # noqa: E402
 
+# The real keychain functions, kept before each test replaces them with stubs.
+REAL_READ, REAL_DELETE = la.read_keychain, la.delete_keychain
+
 DAY = 24 * 3600
 
 
@@ -483,6 +486,74 @@ class Regressions(Env):
         os.environ.pop("LINEAR_CLIENT_SECRET")
         la.read_keychain.return_value = "from-stub"
         self.assertEqual(la.client_credentials("default", {}), ("from-stub", "from-stub"))
+
+
+class ForgetAgainstAKeychain(Env):
+    """forget run against a fake `security`, through the real keychain functions."""
+
+    def keychain(self, entries, locked=False, undeletable=()):
+        store = dict(entries)
+
+        def run(cmd, capture_output=True, text=False, input=None):
+            account = cmd[cmd.index("-a") + 1]
+            key = (cmd[cmd.index("-s") + 1], account)
+            if locked:
+                return types.SimpleNamespace(returncode=36, stdout="", stderr="User interaction is not allowed.")
+            if key not in store:
+                return types.SimpleNamespace(returncode=44, stdout="", stderr="could not be found")
+            if cmd[1] == "delete-generic-password":
+                if account in undeletable:
+                    return types.SimpleNamespace(returncode=1, stdout="", stderr="denied")
+                del store[key]
+                return types.SimpleNamespace(returncode=0, stdout="", stderr="")
+            return types.SimpleNamespace(returncode=0, stdout=store[key] + "\n", stderr="")
+
+        which = lambda tool: tool == "security"
+        la.read_keychain.side_effect = lambda s, a: REAL_READ(s, a, run=run, which=which)
+        la.delete_keychain.side_effect = lambda s, a: REAL_DELETE(s, a, run=run, which=which)
+        return store
+
+    def forget(self, identity, config):
+        os.environ.pop("LINEAR_CLIENT_ID")
+        os.environ.pop("LINEAR_CLIENT_SECRET")
+        return la.cmd_forget(types.SimpleNamespace(identity=identity), config)
+
+    def test_a_locked_keychain_is_not_reported_as_a_clean_forget(self):
+        self.keychain({("linear-app", "default:client-id"): "cid",
+                       ("linear-app", "default:client-secret"): "sek"}, locked=True)
+        result = self.forget("default", {})
+        self.assertIn("warnings", result)
+
+    def test_a_secret_that_survives_the_delete_is_named(self):
+        store = self.keychain({("linear-app", "default:client-id"): "cid",
+                               ("linear-app", "default:client-secret"): "sek"},
+                              undeletable=("default:client-secret",))
+        result = self.forget("default", {})
+        self.assertIn(("linear-app", "default:client-secret"), store)
+        self.assertIn("default:client-secret", " ".join(result.get("warnings", [])))
+
+    def test_nothing_stored_on_linux_is_a_clean_forget(self):
+        # `secret-tool clear` exits 1, printing nothing, when no item matches.
+        quiet_miss = lambda cmd, capture_output=True, text=False, input=None: types.SimpleNamespace(
+            returncode=1, stdout="", stderr="")
+        which = lambda tool: tool == "secret-tool"
+        la.read_keychain.side_effect = lambda s, a: REAL_READ(s, a, run=quiet_miss, which=which)
+        la.delete_keychain.side_effect = lambda s, a: REAL_DELETE(s, a, run=quiet_miss, which=which)
+        self.assertNotIn("warnings", self.forget("default", {}))
+
+    def test_an_unreadable_keychain_is_not_said_to_keep_working(self):
+        self.keychain({("linear-app", "default:client-id"): "cid",
+                       ("linear-app", "default:client-secret"): "sek"}, locked=True)
+        warnings = " ".join(self.forget("default", {})["warnings"])
+        self.assertNotIn("keeps working", warnings)
+
+    def test_no_secret_service_on_a_server_is_a_clean_forget(self):
+        no_service = lambda cmd, capture_output=True, text=False, input=None: types.SimpleNamespace(
+            returncode=1, stdout=b"", stderr=b"secret-tool: Cannot autolaunch D-Bus without X11 $DISPLAY\n")
+        which = lambda tool: tool == "secret-tool"
+        la.read_keychain.side_effect = lambda s, a: REAL_READ(s, a, run=no_service, which=which)
+        la.delete_keychain.side_effect = lambda s, a: REAL_DELETE(s, a, run=no_service, which=which)
+        self.assertNotIn("warnings", self.forget("default", {}))
 
 
 if __name__ == "__main__":
