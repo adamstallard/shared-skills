@@ -572,8 +572,9 @@ only the path to the script is absolute, never the git command it runs.
 ## The commit is assembled by a script, not by hand
 
 **Decision.** `SKILL.md`'s commit step names one command —
-`scripts/commit-with-trailer.sh <subject> <body> <Bug-hunter value>
-[<Co-Authored-By value>]` — for every commit this skill makes, skips included.
+`scripts/commit-with-trailer.sh -F msg.txt <Bug-hunter value>
+[<Co-Authored-By value>]`, or with the message as `<subject> <body>` in place
+of `-F msg.txt` — for every commit this skill makes, skips included.
 The hook's report names the same script wherever it used to show a
 `git commit … --trailer …` example. `--trailer` and `mint-trailer.sh` are still
 the mechanism; `reference.md` now documents them as what the script does, not

@@ -1693,7 +1693,7 @@ class CommitTrailerTests(unittest.TestCase):
             self.assertNotIn('-m  ', ctx, "double quotes stripped out of the example")
         # The cursor channel replaces every `"` and `\` with a space, so the
         # example command has to be quoted and laid out so that it survives.
-        self.assertIn("commit-with-trailer.sh 'Handle empty input in the parser'", ctx)
+        self.assertIn("commit-with-trailer.sh -F msg.txt '1 iteration, 1 bug fixed'", ctx)
 
     def test_the_misplaced_trailer_note_points_at_the_commit_script(self):
         # The note used to show a hand-typed `git commit -m ... --trailer ...`

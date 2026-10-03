@@ -18,14 +18,16 @@ wrapped line whose continuation is not indented.
 
 Rather than placing it by hand, let git place it. This skill's own commit
 script takes the value as an argument and passes it as --trailer, so it lands
-in the trailer block whatever the body looks like:
+in the trailer block whatever the body looks like. Write the message (subject,
+a blank line, body) to msg.txt, then:
 
-  ~/.agents/skills/bug-hunter/scripts/commit-with-trailer.sh 'Handle empty input in the parser' 'Body text here.' '1 iteration, 1 bug fixed'
+  ~/.agents/skills/bug-hunter/scripts/commit-with-trailer.sh -F msg.txt '1 iteration, 1 bug fixed'
 
 (under ~/.claude/skills/bug-hunter/scripts/ if only that target is installed).
-A fourth argument is the Co-Authored-By value, placed the same way, so the two
-cannot drift into separate paragraphs; any value that is not a skip note also
-gets its Bug-hunter-Tree binding minted against what is staged.
+The file keeps the message off the command line, so nothing in it needs
+quoting. A last argument is the Co-Authored-By value, placed the same way, so
+the two cannot drift into separate paragraphs; any value that is not a skip
+note also gets its Bug-hunter-Tree binding minted against what is staged.
 "
 
 REPORT=""
@@ -79,9 +81,9 @@ REPORT="${REPORT}
 A trailer belongs in the last paragraph of the message, and a wrapped one must
 indent its continuation lines; passing --trailer lets git place it, which is
 that whole class of mistake gone. This skill's commit step is one command, not
-a hand-built git commit: commit-with-trailer.sh <subject> <body> <Bug-hunter
-value> [<Co-Authored-By value>], under ~/.agents/skills/bug-hunter/scripts/ or
-~/.claude/skills/bug-hunter/scripts/. Rewriting a commit that is already pushed
+a hand-built git commit: commit-with-trailer.sh -F msg.txt <Bug-hunter value>
+[<Co-Authored-By value>], with the message in msg.txt, under
+~/.agents/skills/bug-hunter/scripts/ or ~/.claude/skills/bug-hunter/scripts/. Rewriting a commit that is already pushed
 rewrites published history — ask before doing that.
 
 To stop this check entirely:
