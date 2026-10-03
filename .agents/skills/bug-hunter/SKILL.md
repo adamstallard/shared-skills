@@ -111,8 +111,8 @@ the user can see: **"running bug-hunter on N files"**, or **"skipping bug-hunter
 — <reason>"**. Not in your reasoning — in the reply. Skipping while saying
 nothing looks exactly like running it and finding nothing. A stated skip can be
 overruled in four words; an unstated one is a decision you made for them. If you
-skip, the commit carries the trailer too — `commit-with-trailer.sh <subject>
-<body> "skipped — <reason>"`, as in [Step 9](#step-9--report-and-commit). Both, not either.
+skip, the commit carries the trailer too — `commit-with-trailer.sh -F msg.txt
+"skipped — <reason>"`, as in [Step 9](#step-9--report-and-commit). Both, not either.
 Under *caller commits*, the skip goes to the result script instead
 ([When the caller commits](#when-the-caller-commits)).
 
@@ -549,12 +549,14 @@ everything first, then, standing in the project:
 ```bash
 BH=~/.agents/skills/bug-hunter/scripts/commit-with-trailer.sh
 [ -x "$BH" ] || BH=~/.claude/skills/bug-hunter/scripts/commit-with-trailer.sh
-"$BH" "Handle empty input in the parser" "Body text here." \
-  "1 iteration, 1 bug fixed" "Claude Opus 5 (1M context) <noreply@anthropic.com>"
+"$BH" -F msg.txt "1 iteration, 1 bug fixed" "Claude Opus 5 (1M context) <noreply@anthropic.com>"
 ```
 
-Four arguments: subject, body (`""` if none — never a trailer in it), the
-`Bug-hunter:` value, and optionally the `Co-Authored-By` value. Each trailer is
+`msg.txt` holds the message: the subject, a blank line, then the body (never a
+trailer in it). Write it to a file so the message never has to be quoted on the
+command line; prose's pass uses the same file. Then come the `Bug-hunter:`
+value and, optionally, the `Co-Authored-By` value. The message as two words,
+`"<subject>" "<body>"` in place of `-F msg.txt`, still works. Each trailer is
 passed as `--trailer`, so where it lands is git's problem; and for any value that
 is not `skipped …` the script runs `mint-trailer.sh` against the tree staged at
 that instant and adds the `Bug-hunter-Tree` binding — the one line a hand-typed
@@ -590,11 +592,10 @@ a blank line, body) to `msg.txt`, unstaged, and:
 
 ```bash
 "$BH" --verified-value "$S/verify-staged.sh" Prose "✓ 4d593e935186:9138830a72a2" -- \
-  "Handle empty input in the parser" "Body text here." \
-  "1 iteration, 1 bug fixed" "Claude Opus 5 (1M context) <noreply@anthropic.com>"
+  -F msg.txt "1 iteration, 1 bug fixed" "Claude Opus 5 (1M context) <noreply@anthropic.com>"
 ```
 
-The subject and body are `msg.txt`'s text. Stage and edit nothing between the
+The message is `msg.txt` itself, the file prose signed. Stage and edit nothing between the
 second call and the commit: the script runs prose's verifier first and refuses
 the commit if the tree or the message changed. A skip gets the prose pass too.
 
@@ -623,7 +624,8 @@ why it stopped is useful, and at one line it costs nothing to skim. The commit
 is still made the same way as any other (under *caller commits*, handed back
 the same way — [When the caller commits](#when-the-caller-commits)), and the same sentence is the third
 argument to the script above:
-`"$BH" "Fix a typo in the README" "" "skipped at triage (docs only, no executable code)"`.
+`"$BH" -F msg.txt "skipped at triage (docs only, no executable code)"`, with
+`msg.txt` holding `Fix a typo in the README`.
 Keep no-op output proportional — the expensive thing is never a short line
 saying nothing happened, it is a long report demanding work that does not need
 doing.

@@ -254,8 +254,7 @@ paragraphs:
 ```bash
 BH=~/.agents/skills/bug-hunter/scripts/commit-with-trailer.sh
 [ -x "$BH" ] || BH=~/.claude/skills/bug-hunter/scripts/commit-with-trailer.sh
-"$BH" "Handle empty input in the parser" "Body text here." \
-  "1 iteration, 1 bug fixed" "Someone <someone@example.com>"
+"$BH" -F msg.txt "1 iteration, 1 bug fixed" "Someone <someone@example.com>"
 ```
 
 What that runs is `git commit -m <subject> -m <body> --trailer "Bug-hunter: …"`,
@@ -337,7 +336,7 @@ command:
 git add fix.py test_fix.py
 BH=~/.agents/skills/bug-hunter/scripts/commit-with-trailer.sh
 [ -x "$BH" ] || BH=~/.claude/skills/bug-hunter/scripts/commit-with-trailer.sh
-"$BH" "Handle empty input in the parser" "Body text here." "1 iteration, 1 bug fixed"
+"$BH" -F msg.txt "1 iteration, 1 bug fixed"
 ```
 
 Run by hand — to understand it, or to re-mint after a repository's own hooks
@@ -726,8 +725,9 @@ Bug-hunter: 3 iterations, aborted — see report
 Bug-hunter-Tree: 4b825dc642cb6eb9a060e54bf8d69288fbee4904   ← and this one
 ```
 
-**Make the commit with `commit-with-trailer.sh`** (SKILL.md, Step 9) — subject,
-body, the `Bug-hunter:` value, and optionally the `Co-Authored-By` value. It
+**Make the commit with `commit-with-trailer.sh`** (SKILL.md, Step 9) — the
+message file (`-F msg.txt`, or subject and body as two words), the
+`Bug-hunter:` value, and optionally the `Co-Authored-By` value. It
 passes each as a real git trailer (last paragraph, beside the others, with a
 value — see [Trailer placement](#trailer-placement)) and, for any value that is
 not a skip note, mints the `Bug-hunter-Tree` binding against the staged tree

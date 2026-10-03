@@ -1738,6 +1738,17 @@ class CommitScript(unittest.TestCase):
         verified = self.repo.verify()
         self.assertEqual((verified.returncode, verified.stdout), (0, "checked\n"))
 
+    def test_a_message_signed_from_a_file_commits_from_that_file(self):
+        self.repo.write("README.md", "# Hi\n")
+        message = "DOCS(x): add a readme\n\nWhy it's needed: \"quotes\", $HOME and `ticks`.\n"
+        trailer = self.repo.trailers(message)  # signs the file .msg
+        made = run(["sh", str(COMMIT_SCRIPT), *self.prose_family(trailer),
+                    "--message-file", ".msg", "--"], cwd=self.repo.path)
+        self.assertEqual(made.returncode, 0, made.stderr)
+        self.assertEqual(self.repo.git("log", "-1", "--format=%s").strip(), "DOCS(x): add a readme")
+        verified = self.repo.verify()
+        self.assertEqual((verified.returncode, verified.stdout), (0, "checked\n"))
+
     def test_an_edited_message_is_refused_before_the_commit(self):
         self.repo.write("README.md", "# Hi\n")
         trailer = self.repo.trailers("DOCS(x): add a readme\n")

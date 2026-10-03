@@ -106,14 +106,19 @@ final message as they were when the signing `prose check` ran.
 
 Commit through the shared commit script, with nothing staged or edited
 between the signing call and the commit. Pass the block's `Prose:` value (the text
-after `Prose: `) with `--verified-value`, and the message as subject and body,
-the same text as `msg.txt`:
+after `Prose: `) with `--verified-value`, and the message as the file you signed,
+`msg.txt`, with `--message-file`:
 
 ```sh
 C=$S/../../../lib/commit-trailer/commit-with-trailers.sh
 $C --verified-value $S/verify-staged.sh Prose "✓ 4d593e935186:9138830a72a2" \
-   --co-authored-by "<co-author>" -- "<subject>" "<body>"
+   --co-authored-by "<co-author>" --message-file msg.txt --
 ```
+
+The file keeps the message off the command line, so it never needs quoting:
+apostrophes, quotes and `$` in it are safe. Its first line is the subject, the
+next line must be blank, and the rest is the body. Passing the message as two
+words instead, `-- "<subject>" "<body>"`, still works.
 
 Just before it commits, the script runs `verify-staged.sh`, which refuses the
 commit if the staged files or the message no longer match the trailer. If it
@@ -129,7 +134,7 @@ uses `--minted-by` with its own minter:
 ```sh
 $C --minted-by ~/.agents/skills/bug-hunter/scripts/mint-trailer.sh Bug-hunter "1 iteration, 1 bug fixed" \
    --verified-value $S/verify-staged.sh Prose "✓ 4d593e935186:9138830a72a2" \
-   --co-authored-by "<co-author>" -- "<subject>" "<body>"
+   --co-authored-by "<co-author>" --message-file msg.txt --
 ```
 
 **To amend,** run both calls with `--amend`, so the first lists the change

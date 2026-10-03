@@ -13,9 +13,18 @@
 # ../DECISIONS.md "The commit is assembled by a script, not by hand".
 #
 # Usage:
-#   commit-with-trailer.sh <subject> <body> <bug-hunter-value> [co-authored-by]
+#   commit-with-trailer.sh -F <message-file> <bug-hunter-value> [co-authored-by]
 #   commit-with-trailer.sh --verified-value <verifier> <Key> <value>... -- \
-#       <subject> <body> <bug-hunter-value> [co-authored-by]
+#       -F <message-file> <bug-hunter-value> [co-authored-by]
+#
+#   The same, with the message as two words instead of a file (still supported):
+#   commit-with-trailer.sh [--verified-value ... --] <subject> <body> <bug-hunter-value> [co-authored-by]
+#
+#   -F <message-file> The message: its first line is the subject, the next line
+#                    must be blank, and the rest is the body. Prefer it: the
+#                    message is never quoted on the command line. prose's
+#                    msg.txt is this file. Read by the library's
+#                    --message-file option.
 #
 #   --verified-value <verifier> <Key> <value>
 #                    Another skill's trailer, carried on the same commit (e.g.
@@ -78,24 +87,22 @@
 # not make. Run your `git add` first, then call this.
 #
 # Example:
-#   scripts/commit-with-trailer.sh \
-#     "Handle empty input in the parser" \
-#     "Body text explaining the fix." \
+#   scripts/commit-with-trailer.sh -F msg.txt \
 #     "1 iteration, 1 bug fixed" \
 #     "Claude Opus 5 (1M context) <noreply@anthropic.com>"
 #
-#   With prose's trailer too (its value from prose's second `check` call):
+#   With prose's trailer too (its value from prose's second `check` call on
+#   the same msg.txt):
 #   scripts/commit-with-trailer.sh \
 #     --verified-value ~/.agents/skills/prose/scripts/verify-staged.sh \
 #       Prose "✓ 4d593e935186:9138830a72a2" -- \
-#     "FIX(Parser): handle empty input" \
-#     "Body text explaining the fix." \
-#     "1 iteration, 1 bug fixed"
+#     -F msg.txt "1 iteration, 1 bug fixed"
 set -eu
 
 me=commit-with-trailer.sh
 usage() {
-  echo "usage: commit-with-trailer.sh [--verified-value <verifier> <Key> <value>]... [--] <subject> <body> <bug-hunter-value> [co-authored-by]" >&2
+  echo "usage: commit-with-trailer.sh [--verified-value <verifier> <Key> <value>]... [--] -F <message-file> <bug-hunter-value> [co-authored-by]" >&2
+  echo "       commit-with-trailer.sh [--verified-value <verifier> <Key> <value>]... [--] <subject> <body> <bug-hunter-value> [co-authored-by]" >&2
   exit 2
 }
 refuse() { echo "$me: $*; nothing committed" >&2; exit 2; }
@@ -130,7 +137,17 @@ done
 case ${1-} in --minted|--minted-by|--co-authored-by|--verified-value|--)
   refuse "'$1' in place of the subject: this script takes only --verified-value families, and adds the Bug-hunter and Co-Authored-By trailers itself" ;;
 esac
+# Any other dash-led word where the subject goes is taken as a misspelt file
+# option (-Fmsg.txt, --message-file=msg.txt, --file), not committed as the
+# subject. A real subject starting with `-` is refused with it.
+case ${1-} in -F) ;; -?*)
+  refuse "'$1' in place of the subject: give the message file as -F <file>, two words, or the message as <subject> <body>, with a subject that does not start with '-'" ;;
+esac
 [ "$#" -ge 3 ] && [ "$#" -le 4 ] || usage
+# -F <file> takes the place of <subject> <body>: the same number of words, so
+# the counts above hold for both forms.
+from_file=n
+[ "$1" = -F ] && from_file=y
 
 # -P resolves an install symlink, so the paths below, and any error naming
 # them, point into the clone.
@@ -144,5 +161,10 @@ fi
 subject=$1 body=$2 value=$3 co=${4-}
 args="--minted-by $(q "$here/mint-trailer.sh") Bug-hunter $(q "$value")$families"
 [ -n "$co" ] && args="$args --co-authored-by $(q "$co")"
+if [ "$from_file" = y ]; then
+  # $body holds the file's path here; the library reads and checks the file.
+  eval "set -- $args"
+  exec sh "$lib" "$@" --message-file "$body" --
+fi
 eval "set -- $args"
 exec sh "$lib" "$@" -- "$subject" "$body"
