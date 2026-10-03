@@ -9,11 +9,15 @@ decision, why it was made, and what was tried and rejected.
 
 **Decision.** Each identity stores its OAuth client ID and secret. Tokens are
 minted from them with the `client_credentials` grant whenever the cached one
-has less than 5 days left.
+is past half its life.
 
 **Why.** Linear's `client_credentials` tokens last 30 days and come with no
 refresh token. Storing the token means someone renews it every month; storing
-the secret means nobody does.
+the secret means nobody does. Half the life Linear reports, rather than a fixed
+number of days, works whatever lifetime Linear issues, and a session that keeps
+the token it got at start always has at least half of it left. Renewing early
+costs nothing, because a mint with the same scopes leaves earlier tokens
+valid.
 
 **Rejected: storing the token and renewing it by hand.** That was the
 aura-workroom script this replaces. Its agent skill existed mainly to explain

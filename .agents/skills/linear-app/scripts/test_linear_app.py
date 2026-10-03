@@ -160,12 +160,12 @@ class Cache(Env):
 
     def test_a_fresh_token_is_reused(self):
         self.assertEqual(self.token()[0], "tok1")
-        self.assertEqual(self.token(now=1000 + 20 * DAY)[0], "tok1")
+        self.assertEqual(self.token(now=1000 + 14 * DAY)[0], "tok1")
         self.assertEqual(len(self.mints), 1)
 
-    def test_a_token_near_expiry_is_replaced(self):
+    def test_a_token_past_half_its_life_is_replaced(self):
         self.token()
-        self.assertEqual(self.token(now=1000 + 26 * DAY)[0], "tok2")
+        self.assertEqual(self.token(now=1000 + 16 * DAY)[0], "tok2")
 
     def test_changed_scopes_mint_a_new_token(self):
         self.token()
@@ -201,7 +201,7 @@ class Cache(Env):
             if len(calls) == 2:  # the re-read under the lock sees another process's token
                 return {"token": "theirs", "scopes": la.DEFAULT_SCOPES,
                         "credential": la.fingerprint("cid", "secret", la.DEFAULT_SCOPES),
-                        "expiresAt": 1000 + 30 * DAY}
+                        "renewAt": 1000 + 15 * DAY, "expiresAt": 1000 + 30 * DAY}
             return real_read(p)
 
         with mock.patch.object(la, "read_cache", side_effect=read):

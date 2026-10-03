@@ -33,9 +33,6 @@ GRAPHQL_URL = "https://api.linear.app/graphql"
 MCP_URL = "https://mcp.linear.app/mcp"
 KEYCHAIN_SERVICE = "linear-app"
 DEFAULT_SCOPES = "read,write,app:assignable,app:mentionable"
-# Replace a token once less than this much of its life is left, or less than
-# half of it for a token issued with a shorter life.
-RENEW_MARGIN = 5 * 24 * 3600
 IDENTITY_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 VIEWER_QUERY = "{ viewer { id name } organization { name urlKey } }"
 
@@ -297,18 +294,12 @@ def fingerprint(client_id, secret, scopes):
 
 
 def usable(cached, credential, now):
-    expires_at = cached.get("expiresAt", 0)
-    lifetime = expires_at - cached.get("mintedAt", expires_at - 2 * RENEW_MARGIN)
-    return (
-        cached.get("token")
-        and cached.get("credential") == credential
-        and expires_at - now > min(RENEW_MARGIN, lifetime / 2)
-    )
+    return cached.get("token") and cached.get("credential") == credential and now < cached.get("renewAt", 0)
 
 
 def current_token(identity, config, env=None, now=None, opener=urllib.request.urlopen, read=None,
                   refused=None):
-    """A token with at least RENEW_MARGIN left, minting a new one only when needed.
+    """A token in the first half of its life, minting a new one only when needed.
 
     Every process acting as this identity shares one cached token, under a lock,
     so they never mint over each other. `refused` is a token Linear rejected: it
@@ -330,8 +321,10 @@ def current_token(identity, config, env=None, now=None, opener=urllib.request.ur
         if usable(cached, credential, now) and cached.get("token") != refused:
             return cached["token"], cached
         token, expires_in = mint(client_id, secret, scopes, opener)
+        # Renewed halfway through its life, whatever life Linear gives it, so a
+        # session that keeps the token it got at start has at least half left.
         cached = {"token": token, "scopes": scopes, "credential": credential,
-                  "mintedAt": int(now), "expiresAt": int(now + expires_in)}
+                  "renewAt": int(now + expires_in / 2), "expiresAt": int(now + expires_in)}
         write_cache(path, cached)
     return token, cached
 
