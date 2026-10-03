@@ -58,7 +58,7 @@ and refreshes `manage-skills`, the one skill installed as a copy.
 | `manage-skills` | Installs, removes, and diagnoses the skills below. Start here                                         | [README](.agents/skills/manage-skills/README.md) | [SKILL.md](.agents/skills/manage-skills/SKILL.md) |
 | `bug-hunter`    | Catch bugs in code just written, before it is committed — every bug proven with a failing test first | [README](.agents/skills/bug-hunter/README.md)    | [SKILL.md](.agents/skills/bug-hunter/SKILL.md)    |
 | `prose`         | Makes agents rewrite the text you review — docs, comments, commit messages, PR descriptions — so it reads in one pass, and proves the pass ran | [README](.agents/skills/prose/README.md) | [SKILL.md](.agents/skills/prose/SKILL.md) |
-| `github-app`    | Gives an agent its own GitHub identity, a GitHub App whose work shows as a bot, with tokens minted on demand and wiring scoped to one repository | [README](.agents/skills/github-app/README.md) | [SKILL.md](.agents/skills/github-app/SKILL.md) |
+| `github-app`    | Gives an agent its own GitHub identity, a GitHub App whose work shows as a bot, with tokens minted on demand and its identity only in the environment of the processes that act as it | [README](.agents/skills/github-app/README.md) | [SKILL.md](.agents/skills/github-app/SKILL.md) |
 
 The **Setup & usage** column is written for people. The **Agent instructions**
 column is what the agent reads; you don't need to.

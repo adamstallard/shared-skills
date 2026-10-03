@@ -292,99 +292,604 @@ class Credential(Env):
         self.assertFalse(os.path.exists(ga.cache_path("default")))
 
 
-class Wire(Env):
+NAME, EMAIL = "acme-agent[bot]", "41+acme-agent[bot]@users.noreply.github.com"
+WRONG_HELPER = "!f() { echo username=person; echo password=WRONG; }; f"
+
+
+def git(*args, env=None, check=True):
+    return subprocess.run(["git", *args], capture_output=True, text=True, env=env, check=check).stdout
+
+
+def config_files(root):
+    """Every git config file under `root`, with its bytes, to prove none was written."""
+    found = {}
+    for folder, _, files in os.walk(root):
+        for name in files:
+            if name in ("config", ".gitconfig", "config.worktree") or name.endswith(".inc"):
+                path = os.path.join(folder, name)
+                with open(path, "rb") as f:
+                    found[path] = f.read()
+    return found
+
+
+class AgentEnv(Env):
+    """The agent's environment, built by `run`, applied to real git with a scratch HOME."""
+
     def setUp(self):
         super().setUp()
         if not shutil.which("git"):
             self.skipTest("git not installed")
-        self.repo = os.path.join(self.tmp.name, "repo")
-        subprocess.run(["git", "init", "-q", self.repo], check=True)
-        subprocess.run(["git", "-C", self.repo, "remote", "add", "origin", "https://github.com/acme/web.git"], check=True)
+        patches = [mock.patch.object(ga, "commit_identity", return_value=(NAME, EMAIL)),
+                   mock.patch.object(ga, "current_token", return_value=("ghs_x", {}))]
+        for p in patches:
+            p.start()
+            self.addCleanup(p.stop)
+        git("config", "--global", "user.name", "Person")
+        git("config", "--global", "user.email", "person@example.com")
 
-    def wire(self, **kw):
-        args = types.SimpleNamespace(identity="default", repo=self.repo, **kw)
-        return ga.cmd_wire(args, self.config, opener=self.github, signer=fake_signer)
+    def agent(self, *command):
+        seen = {}
+        args = types.SimpleNamespace(identity="default", rest=["--", *(command or ["git"])])
+        ga.cmd_run(args, self.config, execvpe=lambda n, argv, env: seen.update(env), which=lambda c: "/bin/" + c)
+        return seen
 
-    def local(self, *a):
-        return subprocess.run(["git", "-C", self.repo, "config", "--local", *a], capture_output=True, text=True).stdout
+    def repo(self, name="repo"):
+        path = os.path.join(self.tmp.name, name)
+        git("init", "-q", path)
+        return path
 
-    def test_wire_sets_the_helper_and_identity_in_this_repo_only(self):
-        result = self.wire()
-        helpers = self.local("--get-all", ga.HELPER_KEY).splitlines()
-        self.assertEqual(helpers[0], "")
-        self.assertIn("credential", helpers[1])
-        self.assertEqual(self.local("user.name").strip(), "acme-agent[bot]")
-        self.assertEqual(result["commitsAs"], "acme-agent[bot] <41+acme-agent[bot]@users.noreply.github.com>")
-        global_name = subprocess.run(["git", "config", "--global", "user.name"], capture_output=True, text=True,
-                                     env=dict(os.environ, HOME=self.tmp.name)).stdout
-        self.assertEqual(global_name, "")
+    def commit(self, repo, env=None):
+        git("-C", repo, "commit", "-q", "--allow-empty", "-m", "x", env=env)
+        return git("-C", repo, "log", "-1", "--format=%an <%ae>|%cn <%ce>").strip()
 
-    def test_the_persons_global_helper_never_answers_in_a_wired_repo(self):
-        subprocess.run(["git", "config", "--global", ga.HELPER_KEY,
-                        "!f() { echo username=person; echo password=WRONG; }; f"], check=True)
-        self.wire()
-        fill = subprocess.run(["git", "-C", self.repo, "credential", "fill"], input="protocol=https\nhost=github.com\n\n",
-                              capture_output=True, text=True, env=dict(os.environ, GIT_TERMINAL_PROMPT="0"))
+    def test_run_commits_as_the_bot(self):
+        repo = self.repo()
+        bot = f"{NAME} <{EMAIL}>"
+        self.assertEqual(self.commit(repo, self.agent()), f"{bot}|{bot}")
+
+    def test_the_persons_global_helper_never_answers_for_the_agent(self):
+        git("config", "--global", ga.HELPER_KEY, WRONG_HELPER)
+        repo = self.repo()
+        fill = subprocess.run(["git", "-C", repo, "credential", "fill"], input="protocol=https\nhost=github.com\n\n",
+                              capture_output=True, text=True, env=dict(self.agent(), GIT_TERMINAL_PROMPT="0"))
         self.assertNotIn("WRONG", fill.stdout)
 
-    def test_wiring_twice_leaves_one_helper(self):
-        self.wire()
-        self.wire()
-        self.assertEqual(len(self.local("--get-all", ga.HELPER_KEY).splitlines()), 2)
+    def test_the_persons_signing_key_never_signs_the_apps_commits(self):
+        git("config", "--global", "commit.gpgsign", "true")
+        repo = self.repo()
+        self.assertEqual(git("-C", repo, "config", "commit.gpgsign", env=self.agent()).strip(), "false")
 
-    def test_an_ssh_remote_is_warned_about(self):
-        subprocess.run(["git", "-C", self.repo, "remote", "set-url", "origin", "git@github.com:acme/web.git"], check=True)
-        self.assertIn("SSH", " ".join(self.wire()["warnings"]))
+    def test_gh_gets_a_token_for_its_process_only(self):
+        self.assertEqual(self.agent("gh")["GH_TOKEN"], "ghs_x")
+        self.assertNotIn("GH_TOKEN", os.environ)
 
-    def test_unwire_removes_what_wire_set(self):
-        self.wire()
-        ga.cmd_unwire(types.SimpleNamespace(identity="default", repo=self.repo), self.config)
-        self.assertEqual(self.local("--get-all", ga.HELPER_KEY), "")
-        self.assertEqual(self.local("user.name"), "")
+    # Regressions from repository wiring, which wrote .git/config; each failed under it.
 
-    def test_a_folder_outside_a_repo_is_refused(self):
-        outside = os.path.join(self.tmp.name, "plain")
-        os.makedirs(outside)
-        with self.assertRaisesRegex(ga.Failure, "not inside a git repository"):
-            ga.cmd_wire(types.SimpleNamespace(identity="default", repo=outside), self.config,
-                        opener=self.github, signer=fake_signer)
+    def test_the_agent_in_a_worktree_never_changes_the_main_checkout(self):
+        main = self.repo("main")
+        self.commit(main)
+        worktree = os.path.join(main, ".claude", "worktrees", "agent")
+        git("-C", main, "worktree", "add", "-q", worktree, "-b", "agent")
+        before = config_files(self.tmp.name)
+        self.assertEqual(self.commit(worktree, self.agent()).split("|")[0], f"{NAME} <{EMAIL}>")
+        self.assertEqual(config_files(self.tmp.name), before)
+        self.assertEqual(self.commit(main), "Person <person@example.com>|Person <person@example.com>")
+
+    def test_a_global_author_setting_never_beats_the_bot(self):
+        git("config", "--global", "author.name", "Person")
+        git("config", "--global", "author.email", "person@example.com")
+        git("config", "--global", "committer.email", "person@example.com")
+        bot = f"{NAME} <{EMAIL}>"
+        self.assertEqual(self.commit(self.repo(), self.agent()), f"{bot}|{bot}")
+
+    def test_an_included_email_never_beats_the_bot(self):
+        inc = os.path.join(self.tmp.name, "work.inc")
+        with open(inc, "w") as f:
+            f.write("[user]\n\temail = person@work.example\n")
+        repo = self.repo()
+        git("-C", repo, "config", "user.name", "Person")
+        git("-C", repo, "config", "include.path", inc)
+        self.assertEqual(self.commit(repo, self.agent()).split("|")[0], f"{NAME} <{EMAIL}>")
+
+    def test_nothing_writes_git_config_even_with_git_dir_set(self):
+        other = self.repo("other")
+        repo = self.repo()
+        os.environ["GIT_DIR"] = os.path.join(other, ".git")
+        before = config_files(self.tmp.name)
+        self.agent()
+        ga.cmd_env(types.SimpleNamespace(identity="default", offset=None), self.config)
+        ga.cmd_wire(types.SimpleNamespace(identity="default", project=repo), self.config)
+        ga.cmd_unwire(types.SimpleNamespace(identity="default", project=repo), self.config)
+        self.assertEqual(config_files(self.tmp.name), before)
+
+    def test_run_keeps_the_callers_own_git_config_variables(self):
+        os.environ.update(GIT_CONFIG_COUNT="1", GIT_CONFIG_KEY_0="safe.directory", GIT_CONFIG_VALUE_0="/srv/x")
+        env = self.agent()
+        repo = self.repo()
+        self.assertEqual(git("-C", repo, "config", "--get-all", "safe.directory", env=env).strip(), "/srv/x")
+        self.assertEqual(git("-C", repo, "config", "commit.gpgsign", env=env).strip(), "false")
 
 
 class EnvLines(Env):
+    def setUp(self):
+        super().setUp()
+        patcher = mock.patch.object(ga, "commit_identity", return_value=(NAME, EMAIL))
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def lines(self, offset=None, identity="default"):
+        return ga.cmd_env(types.SimpleNamespace(identity=identity, offset=offset), self.config)
+
+    def sourced(self, *texts):
+        """What `set -a; . file` in sh gives a process, for each file in turn."""
+        paths = []
+        for i, text in enumerate(texts):
+            paths.append(os.path.join(self.tmp.name, f"role{i}.env"))
+            with open(paths[-1], "w") as f:
+                f.write(text + "\n")
+        script = "set -a; " + " ".join(f'. "{p}";' for p in paths) + \
+            ' exec "$0" -c "import json, os; print(json.dumps(dict(os.environ)))"'
+        out = subprocess.run(["sh", "-c", script, sys.executable], capture_output=True, text=True,
+                             env={"PATH": os.environ["PATH"], "HOME": self.tmp.name}, check=True)
+        return json.loads(out.stdout)
+
     def test_env_lines_hold_no_token_or_key(self):
-        text = ga.cmd_env(types.SimpleNamespace(identity="default"), self.config, opener=self.github,
-                          signer=fake_signer)
-        self.assertIn("GIT_CONFIG_KEY_1=" + ga.HELPER_KEY, text)
-        self.assertIn("GIT_AUTHOR_NAME=acme-agent[bot]", text)
+        text = self.lines()
         self.assertNotIn("ghs_", text)
         self.assertNotIn("KEY1", text)
 
-    @unittest.skipUnless(shutil.which("git"), "git not installed")
+    @unittest.skipUnless(shutil.which("sh"), "sh not installed")
+    def test_env_lines_source_in_sh_to_exact_values(self):
+        tricky = 'acme "agent" $HOME `id` \\ it\'s [bot]'
+        with mock.patch.object(ga, "commit_identity", return_value=(tricky, EMAIL)):
+            text = self.lines()
+            wanted = ga.agent_env("default", tricky, EMAIL)
+        got = self.sourced(text)
+        self.assertEqual({k: got.get(k) for k in wanted}, wanted)
+
+    def test_env_lines_follow_systemds_double_quote_rules(self):
+        # systemd.exec(5), EnvironmentFile=: inside "…", a backslash before any of "\`$ keeps that
+        # character; any other character is kept as is. Every value is wrapped this way.
+        for line in self.lines().splitlines():
+            key, value = line.split("=", 1)
+            self.assertRegex(key, r"^[A-Z_][A-Z0-9_]*$")
+            self.assertTrue(value.startswith('"') and value.endswith('"'), line)
+            self.assertNotRegex(value[1:-1], r'(?<!\\)(\\\\)*["$`]')
+
+    def test_env_lines_turn_off_signing_too(self):
+        pairs = ga.agent_env("default", NAME, EMAIL)
+        keys = {pairs[k]: pairs[k.replace("KEY", "VALUE")] for k in pairs if k.startswith("GIT_CONFIG_KEY_")}
+        self.assertEqual(keys.get("commit.gpgsign"), "false")
+        self.assertEqual(int(pairs["GIT_CONFIG_COUNT"]), sum(k.startswith("GIT_CONFIG_KEY_") for k in pairs))
+
+    @unittest.skipUnless(shutil.which("git") and shutil.which("sh"), "git or sh not installed")
     def test_env_lines_outrank_the_global_helper(self):
-        subprocess.run(["git", "config", "--global", ga.HELPER_KEY,
-                        "!f() { echo username=person; echo password=WRONG; }; f"], check=True)
-        text = ga.cmd_env(types.SimpleNamespace(identity="default"), self.config, opener=self.github,
-                          signer=fake_signer)
-        env = dict(os.environ, GIT_TERMINAL_PROMPT="0", **dict(line.split("=", 1) for line in text.splitlines()))
+        subprocess.run(["git", "config", "--global", ga.HELPER_KEY, WRONG_HELPER], check=True)
+        env = dict(os.environ, GIT_TERMINAL_PROMPT="0", **{k: v for k, v in self.sourced(self.lines()).items()
+                                                            if k.startswith(("GIT_", "GITHUB_"))})
         repo = os.path.join(self.tmp.name, "r")
         subprocess.run(["git", "init", "-q", repo], check=True)
         fill = subprocess.run(["git", "-C", repo, "credential", "fill"], input="protocol=https\nhost=github.com\n\n",
                               capture_output=True, text=True, env=env)
         self.assertNotIn("WRONG", fill.stdout)
 
+    def test_env_refuses_when_git_config_variables_are_already_set(self):
+        os.environ.update(GIT_CONFIG_COUNT="1", GIT_CONFIG_KEY_0="safe.directory", GIT_CONFIG_VALUE_0="*")
+        with self.assertRaisesRegex(ga.Failure, "--offset"):
+            self.lines()
 
-class Gh(Env):
-    def test_gh_gets_the_token_for_its_process_only(self):
+    @unittest.skipUnless(shutil.which("git") and shutil.which("sh"), "git or sh not installed")
+    def test_offset_lines_appended_to_a_file_keep_its_settings(self):
+        existing = 'GIT_CONFIG_COUNT="1"\nGIT_CONFIG_KEY_0="safe.directory"\nGIT_CONFIG_VALUE_0="/srv/x"'
+        got = self.sourced(existing, self.lines(offset=1))
+        env = dict(os.environ, **{k: v for k, v in got.items() if k.startswith("GIT_")})
+        repo = os.path.join(self.tmp.name, "r")
+        subprocess.run(["git", "init", "-q", repo], check=True)
+        read = lambda *a: subprocess.run(["git", "-C", repo, "config", *a], capture_output=True, text=True,
+                                         env=env).stdout.strip()
+        self.assertEqual(read("--get-all", "safe.directory"), "/srv/x")
+        self.assertEqual(read("commit.gpgsign"), "false")
+
+
+class WiringFixture(Env):
+    """A project folder with a .claude folder, and the bot's name and email without asking GitHub."""
+
+    def setUp(self):
+        super().setUp()
+        patcher = mock.patch.object(ga, "commit_identity", return_value=(NAME, EMAIL))
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.project = os.path.realpath(os.path.join(self.tmp.name, "project"))
+        os.makedirs(os.path.join(self.project, ".claude"))
+        self.path = ga.settings_path(self.project)
+
+    def wire(self, identity="default"):
+        return ga.cmd_wire(types.SimpleNamespace(identity=identity, project=self.project), self.config)
+
+    def unwire(self):
+        return ga.cmd_unwire(types.SimpleNamespace(identity="default", project=self.project), self.config)
+
+    def settings(self):
+        with open(self.path) as f:
+            return json.load(f)
+
+    def write(self, settings):
+        with open(self.path, "w") as f:
+            json.dump(settings, f)
+
+
+class ProjectWiring(WiringFixture):
+    """`wire --project` edits only the env keys it adds to .claude/settings.local.json."""
+
+    def test_wire_adds_the_agents_env_and_no_token(self):
+        self.wire()
+        env = self.settings()["env"]
+        self.assertIn(ga.WIRED_KEY, env)  # wire's record of what it wrote
+        del env[ga.WIRED_KEY]
+        self.assertEqual(env, ga.agent_env("default", NAME, EMAIL))
+        self.assertNotIn("GH_TOKEN", env)
+
+    def test_wire_then_unwire_gives_back_the_file_exactly(self):
+        mine = {"permissions": {"allow": ["Bash(ls)"]}, "env": {"MY_VAR": "1", "PATH_EXTRA": "/x"}}
+        self.write(mine)
+        self.wire()
+        self.assertEqual(self.settings()["permissions"], mine["permissions"])
+        self.assertEqual(self.settings()["env"]["MY_VAR"], "1")
+        self.wire()  # twice
+        self.unwire()
+        self.assertEqual(self.settings(), mine)
+
+    def test_a_file_wire_created_is_removed_by_unwire(self):
+        self.wire()
+        self.unwire()
+        self.assertFalse(os.path.exists(self.path))
+
+    def test_unwire_without_wire_changes_nothing(self):
+        mine = {"env": {"GIT_AUTHOR_EMAIL": "person@work.example", "GIT_CONFIG_COUNT": "1"}}
+        self.write(mine)
+        with self.assertRaisesRegex(ga.Failure, "no record"):
+            self.unwire()
+        self.assertEqual(self.settings(), mine)
+
+    def test_wire_never_overwrites_the_persons_own_keys(self):
+        for mine in ({"env": {"GIT_AUTHOR_EMAIL": "person@work.example"}},
+                     {"env": {"GIT_CONFIG_COUNT": "1", "GIT_CONFIG_KEY_0": "safe.directory",
+                              "GIT_CONFIG_VALUE_0": "*"}}):
+            self.write(mine)
+            with self.assertRaisesRegex(ga.Failure, "already sets"):
+                self.wire()
+            self.assertEqual(self.settings(), mine)
+
+    def test_unwire_leaves_a_key_the_person_changed_since_wire(self):
+        self.wire()
+        settings = self.settings()
+        settings["env"]["GIT_AUTHOR_EMAIL"] = "person@work.example"
+        self.write(settings)
+        result = self.unwire()
+        self.assertEqual(self.settings()["env"], {"GIT_AUTHOR_EMAIL": "person@work.example"})
+        self.assertIn("GIT_AUTHOR_EMAIL", " ".join(result["warnings"]))
+
+    def test_rewiring_to_another_identity_replaces_only_its_own_keys(self):
+        self.write({"env": {"MY_VAR": "1"}})
+        self.wire()
+        self.wire(identity="other")
+        self.assertEqual(self.settings()["env"]["GITHUB_APP_ACT_AS"], "other")
+        self.unwire()
+        self.assertEqual(self.settings(), {"env": {"MY_VAR": "1"}})
+
+    def test_forget_leaves_a_wired_project_undoable(self):
+        self.wire()
+        ga.cmd_forget(types.SimpleNamespace(identity="default"), self.config)
+        self.unwire()
+        self.assertFalse(os.path.exists(self.path))
+
+    def test_keys_whose_marker_was_deleted_by_hand_are_the_persons(self):
+        self.wire()
+        settings = self.settings()
+        del settings["env"][ga.WIRED_KEY]
+        self.write(settings)
+        with self.assertRaisesRegex(ga.Failure, "no record"):
+            self.unwire()
+        with self.assertRaisesRegex(ga.Failure, "already sets"):
+            self.wire()
+        self.assertEqual(self.settings(), settings)
+
+    def test_rewire_refuses_a_key_the_person_changed_since_wire(self):
+        self.wire()
+        settings = self.settings()
+        settings["env"]["GIT_AUTHOR_EMAIL"] = "person@work.example"
+        self.write(settings)
+        with self.assertRaisesRegex(ga.Failure, "already sets GIT_AUTHOR_EMAIL"):
+            self.wire(identity="other")
+        self.assertEqual(self.settings(), settings)
+
+    def test_an_unreadable_marker_is_refused_and_nothing_changes(self):
+        mine = {"env": {ga.WIRED_KEY: "not json", "GIT_AUTHOR_NAME": "x"}}
+        self.write(mine)
+        for step in (self.wire, self.unwire):
+            with self.assertRaisesRegex(ga.Failure, ga.WIRED_KEY):
+                step()
+        self.assertEqual(self.settings(), mine)
+
+
+class SecondReview(WiringFixture):
+    """Bugs found by the second review of the environment-only wiring; each test failed before its fix."""
+
+    def child_env(self, identity="default", config=None):
         seen = {}
-
-        def execvpe(name, argv, env):
-            seen.update(name=name, argv=argv, token=env.get("GH_TOKEN"))
-
-        args = types.SimpleNamespace(identity="default", gh_args=["--", "pr", "list"])
         with mock.patch.object(ga, "current_token", return_value=("ghs_x", {})):
-            ga.cmd_gh(args, self.config, execvpe=execvpe, which=lambda t: "/usr/bin/gh")
-        self.assertEqual(seen, {"name": "gh", "argv": ["gh", "pr", "list"], "token": "ghs_x"})
-        self.assertNotIn("GH_TOKEN", os.environ)
+            ga.cmd_run(types.SimpleNamespace(identity=identity, rest=["--", "git", "push"]),
+                       self.config if config is None else config,
+                       execvpe=lambda name, argv, env: seen.update(env), which=lambda c: "/bin/" + c)
+        return seen
+
+    def test_a_child_never_uses_credentials_that_belong_to_another_identity(self):
+        other_key = os.path.join(self.tmp.name, "other.pem")
+        with open(other_key, "wb") as f:
+            f.write(b"OTHERKEY")
+        os.environ.update(GITHUB_APP_ID="999", GITHUB_APP_PRIVATE_KEY_FILE=other_key)  # the default role's
+        acme = {"appId": "123", "owner": "acme"}
+        with open(ga.config_path("acme"), "w") as f:
+            json.dump(acme, f)
+        with open(ga.default_key_path("acme"), "wb") as f:
+            f.write(b"ACMEKEY")
+        child = self.child_env("acme", acme)
+        self.assertEqual(ga.app_credentials("acme", acme, env=child), ("123", b"ACMEKEY"))
+        self.assertEqual(ga.resolve_identity(None, child), "acme")
+
+    def test_a_server_roles_file_still_pairs_its_identity_with_its_credentials(self):
+        key = os.path.join(self.tmp.name, "reviewer.pem")
+        with open(key, "wb") as f:
+            f.write(b"REVIEWERKEY")
+        role = {"GITHUB_APP_IDENTITY": "reviewer", "GITHUB_APP_ID": "555", "GITHUB_APP_PRIVATE_KEY_FILE": key,
+                **ga.agent_env("reviewer", NAME, EMAIL)}
+        self.assertEqual(ga.resolve_identity(None, role), "reviewer")
+        self.assertEqual(ga.app_credentials("reviewer", {}, env=role), ("555", b"REVIEWERKEY"))
+
+    def test_another_identitys_owner_in_the_environment_is_not_used(self):
+        os.environ["GITHUB_APP_OWNER"] = "person-org"  # the default role's, not acme's
+        with open(ga.default_key_path("acme"), "wb") as f:
+            f.write(b"ACMEKEY")
+        token, cached = self.token("acme", config={"appId": "123"})
+        self.assertEqual(cached["installationId"], "7")
+
+    def test_wire_keeps_the_settings_files_permissions(self):
+        self.write({"env": {"ANTHROPIC_API_KEY": "secret"}})
+        os.chmod(self.path, 0o600)
+        self.wire()
+        self.assertEqual(stat.S_IMODE(os.stat(self.path).st_mode), 0o600)
+
+    def test_wire_writes_through_a_symlinked_settings_file(self):
+        real = os.path.join(self.tmp.name, "dotfiles-settings.json")
+        with open(real, "w") as f:
+            json.dump({"env": {"MINE": "1"}}, f)
+        os.symlink(real, self.path)
+        self.wire()
+        self.assertTrue(os.path.islink(self.path))
+        with open(real) as f:
+            self.assertIn("GIT_CONFIG_COUNT", json.load(f)["env"])
+
+    def test_a_failed_wire_changes_nothing(self):
+        os.environ["GIT_CONFIG_COUNT"] = "x"
+        with self.assertRaises(ga.Failure):
+            self.wire()
+        self.assertFalse(os.path.exists(self.path))
+
+    def test_the_helper_answers_however_github_com_is_spelled(self):
+        args = types.SimpleNamespace(identity="default", operation="get")
+        with mock.patch.object(ga, "current_token", side_effect=lambda i, c: ("ghs_x", {})):
+            for host in ("GitHub.com", "github.com:443"):
+                got = ga.cmd_credential(args, self.config, stdin=io.StringIO(f"protocol=https\nhost={host}\n"))
+                self.assertIn("password=ghs_x", got, host)
+
+
+class ThirdReview(WiringFixture):
+    """Bugs found by the third review; each test failed before its fix."""
+
+    def test_unwire_through_a_dangling_symlink_cleans_the_file_wire_wrote(self):
+        target = os.path.join(self.tmp.name, "dotfiles", "settings.json")
+        os.makedirs(os.path.dirname(target))
+        os.symlink(target, self.path)  # the target doesn't exist yet
+        self.wire()
+        self.unwire()
+        self.assertTrue(os.path.islink(self.path))
+        env = {}
+        if os.path.exists(target):
+            with open(target) as f:
+                env = json.load(f).get("env", {})
+        self.assertEqual([k for k in env if k.startswith(("GIT_", "GITHUB_APP_"))], [])
+
+    def test_a_failed_settings_write_leaves_the_earlier_wiring_undoable(self):
+        self.write({"permissions": {}})
+        self.wire()
+        with mock.patch.object(ga, "write_json", side_effect=PermissionError("read-only")):
+            with self.assertRaises(PermissionError):
+                self.wire("other")
+        self.unwire()
+        self.assertEqual(self.settings(), {"permissions": {}})
+
+    def test_a_failed_settings_write_changes_nothing(self):
+        self.write({"permissions": {}})
+        with mock.patch.object(ga.os, "replace", side_effect=PermissionError("read-only")):
+            with self.assertRaises(PermissionError):
+                self.wire()
+        self.assertEqual(self.settings(), {"permissions": {}})
+
+    def test_the_no_credentials_error_never_suggests_lending_another_identitys_app(self):
+        os.environ.update(GITHUB_APP_IDENTITY="reviewer", GITHUB_APP_ID="555", GITHUB_APP_PRIVATE_KEY="k")
+        with self.assertRaises(ga.Failure) as e:
+            ga.app_credentials("bob", {})
+        self.assertNotIn("GITHUB_APP_IDENTITY=bob", str(e.exception))
+
+
+class FourthReview(WiringFixture):
+    """Bugs found by the review of wire's write order and symlink handling; each test failed before its fix."""
+
+    def app_keys(self, path):
+        if not os.path.exists(path):
+            return []
+        with open(path) as f:
+            return [k for k in json.load(f).get("env", {}) if k.startswith(("GIT_", "GITHUB_APP_"))]
+
+    def linked_to(self, target, env):
+        with open(target, "w") as f:
+            json.dump({"env": env}, f)
+        if os.path.lexists(self.path):
+            os.remove(self.path)
+        os.symlink(target, self.path)
+
+    def test_repointing_the_settings_link_never_orphans_the_apps_keys(self):
+        a, b = os.path.join(self.tmp.name, "a.json"), os.path.join(self.tmp.name, "b.json")
+        self.linked_to(a, {"MINE": "a"})
+        self.wire()
+        self.linked_to(b, {"MINE": "b"})
+        self.wire()
+        self.unwire()
+        self.assertEqual(self.app_keys(b), [])
+        os.remove(self.path)
+        os.symlink(a, self.path)  # a.json carries its own record, so it can still be undone
+        self.unwire()
+        with open(a) as f:
+            self.assertEqual(json.load(f), {"env": {"MINE": "a"}})
+
+    def test_a_link_to_another_projects_file_shares_that_files_wiring(self):
+        # The file is the unit: linked to the other project's file, this project's
+        # settings are that file, so unwiring through either leaves no stale state.
+        a = os.path.join(self.tmp.name, "a.json")
+        other = os.path.realpath(os.path.join(self.tmp.name, "other"))
+        os.makedirs(os.path.join(other, ".claude"))
+        other_file = ga.settings_path(other)
+        with open(other_file, "w") as f:
+            json.dump({"env": {"THEIRS": "1"}}, f)
+        self.linked_to(a, {"MINE": "a"})
+        self.wire()
+        ga.cmd_wire(types.SimpleNamespace(identity="default", project=other), self.config)
+        os.remove(self.path)
+        os.symlink(other_file, self.path)
+        self.wire()
+        self.unwire()
+        with open(other_file) as f:
+            self.assertEqual(json.load(f), {"env": {"THEIRS": "1"}})
+        with self.assertRaisesRegex(ga.Failure, "no record"):
+            ga.cmd_unwire(types.SimpleNamespace(identity="default", project=other), self.config)
+
+    def test_a_settings_file_recreated_by_wire_is_removed_by_unwire(self):
+        self.write({"permissions": {}})
+        self.wire()
+        os.remove(self.path)
+        self.wire()
+        self.unwire()
+        self.assertFalse(os.path.exists(self.path))
+
+
+class FifthReview(WiringFixture):
+    """Bugs found by the review of wire's record check; each test failed before its fix."""
+
+    app_keys, linked_to = FourthReview.app_keys, FourthReview.linked_to
+
+    def test_a_moved_project_can_still_be_unwired(self):
+        self.write({"env": {"MINE": "1"}})
+        self.wire()
+        moved = self.project + "-moved"
+        os.rename(self.project, moved)
+        self.project, self.path = moved, ga.settings_path(moved)
+        self.unwire()
+        self.assertEqual(self.app_keys(self.path), [])
+
+
+class SixthReview(WiringFixture):
+    """Bugs found by the review of wire's in-file bookkeeping; each test failed before its fix."""
+
+    def test_overlapping_writes_never_corrupt_the_settings_file(self):
+        import threading
+        self.write({"env": {"MINE": "keep"}})
+        first_inside, release = threading.Event(), threading.Event()
+        real_dump, calls = json.dump, []
+
+        def slow_dump(data, f, **kw):
+            calls.append(1)
+            if len(calls) == 1:  # the first writer stops halfway, with its temp file open
+                f.write("{")
+                first_inside.set()
+                release.wait(5)
+                f.seek(0)
+            real_dump(data, f, **kw)
+
+        with mock.patch.object(ga.json, "dump", side_effect=slow_dump):
+            # The writer that finishes last writes less, so any leftover bytes from the other show.
+            first = threading.Thread(target=lambda: ga.write_json(self.path, {"env": {"A": "x"}}))
+            first.start()
+            first_inside.wait(5)
+            try:
+                ga.write_json(self.path, {"env": {"B": "y" * 400}})
+            except OSError:
+                pass
+            release.set()
+            first.join(5)
+        self.settings()  # parses: the file is whole, whichever writer won
+
+    def test_a_wired_value_edited_to_a_non_string_is_treated_as_changed(self):
+        self.wire()
+        settings = self.settings()
+        settings["env"]["GIT_CONFIG_COUNT"] = 4
+        self.write(settings)
+        result = self.unwire()
+        self.assertIn("GIT_CONFIG_COUNT", " ".join(result.get("warnings", [])))
+        self.assertNotIn("GIT_AUTHOR_NAME", self.settings().get("env", {}))
+
+
+class LockPlacement(WiringFixture):
+    def test_wire_and_unwire_leave_no_lock_file_in_the_project(self):
+        self.write({"env": {"MINE": "1"}})
+        self.wire()
+        self.unwire()
+        self.assertEqual([n for n in os.listdir(os.path.dirname(self.path)) if n.endswith(".lock")], [])
+
+
+class LockReview(WiringFixture):
+    """Bugs found by the review of the write path and its lock; each test failed before its fix."""
+
+    def test_two_spellings_of_one_settings_file_share_one_lock(self):
+        upper = os.path.join(self.tmp.name, "CaseProj")
+        os.makedirs(os.path.join(upper, ".claude"))
+        lower = os.path.join(self.tmp.name, "caseproj")
+        if not os.path.exists(lower):
+            self.skipTest("needs a case-insensitive file system")
+        for project in (upper, lower):
+            with ga.settings_lock(ga.settings_path(project)):
+                pass
+        self.assertEqual(len(os.listdir(os.path.join(ga.xdg_dir("state"), "locks"))), 1)
+
+    def test_two_spellings_of_the_settings_files_own_name_share_one_lock(self):
+        shared = os.path.join(self.tmp.name, "shared")
+        os.makedirs(shared)
+        with open(os.path.join(shared, "S.json"), "w") as f:
+            f.write("{}")
+        if not os.path.exists(os.path.join(shared, "s.json")):
+            self.skipTest("needs a case-insensitive file system")
+        for name in ("S.json", "s.json", "café.json", "café.json"):
+            with ga.settings_lock(os.path.join(shared, name)):
+                pass
+        self.assertEqual(len(os.listdir(os.path.join(ga.xdg_dir("state"), "locks"))), 2)
+
+    def test_greek_names_that_fold_to_decomposed_forms_share_one_lock(self):
+        folder = os.path.join(self.tmp.name, "greek")
+        os.makedirs(folder)
+        # One file on APFS: precomposed U+0390, and capital iota + dialytika + tonos.
+        for name in ("sΐ.json", "sΪ́.json"):
+            with ga.settings_lock(os.path.join(folder, name)):
+                pass
+        self.assertEqual(len(os.listdir(os.path.join(ga.xdg_dir("state"), "locks"))), 1)
+
+    def test_a_new_settings_file_follows_the_umask(self):
+        old = os.umask(0o077)
+        self.addCleanup(os.umask, old)
+        self.wire()
+        self.assertEqual(stat.S_IMODE(os.stat(self.path).st_mode), 0o600)
+
+    def test_a_path_that_is_not_utf8_can_be_locked(self):
+        with ga.settings_lock(os.path.join(self.tmp.name, "proj\udcff", ".claude", "settings.local.json")):
+            pass
 
 
 class StoreAndForget(Env):
@@ -438,6 +943,7 @@ class Regressions(Env):
         seen = {}
         with mock.patch.object(ga, "current_token", return_value=("ghs_x", {})), \
                 mock.patch.object(ga.shutil, "which", return_value="/usr/bin/gh"), \
+                mock.patch.object(ga, "commit_identity", return_value=("b[bot]", "1+b[bot]@x")), \
                 mock.patch.object(ga.os, "execvpe", side_effect=lambda n, argv, env: seen.update(argv=argv)):
             code = ga.main(["--identity", "default", "gh", "-R", "acme/web", "pr", "list"])
         self.assertEqual(code, 0)
@@ -460,39 +966,6 @@ class Regressions(Env):
         token, cached = ga.current_token("default", self.config, now=NOW + 31 * 60, opener=opener,
                                          signer=fake_signer)
         self.assertEqual(cached["installationId"], "8")
-
-
-class SigningRegression(Env):
-    """Found by bug-hunter's second iteration; failed before its fix."""
-
-    @unittest.skipUnless(shutil.which("git"), "git not installed")
-    def test_the_persons_signing_key_never_signs_the_apps_commits(self):
-        subprocess.run(["git", "config", "--global", "commit.gpgsign", "true"], check=True)
-        repo = os.path.join(self.tmp.name, "signed")
-        subprocess.run(["git", "init", "-q", repo], check=True)
-        ga.cmd_wire(types.SimpleNamespace(identity="default", repo=repo), self.config, opener=self.github,
-                    signer=fake_signer)
-        effective = subprocess.run(["git", "-C", repo, "config", "commit.gpgsign"], capture_output=True, text=True)
-        self.assertEqual(effective.stdout.strip(), "false")
-
-    def test_env_lines_turn_off_signing_too(self):
-        text = ga.cmd_env(types.SimpleNamespace(identity="default"), self.config, opener=self.github,
-                          signer=fake_signer)
-        pairs = dict(line.split("=", 1) for line in text.splitlines())
-        keys = {pairs[k]: pairs[k.replace("KEY", "VALUE")] for k in pairs if k.startswith("GIT_CONFIG_KEY_")}
-        self.assertEqual(keys.get("commit.gpgsign"), "false")
-        self.assertEqual(int(pairs["GIT_CONFIG_COUNT"]), sum(k.startswith("GIT_CONFIG_KEY_") for k in pairs))
-
-    @unittest.skipUnless(shutil.which("git"), "git not installed")
-    def test_unwire_gives_back_the_persons_own_repo_settings(self):
-        repo = os.path.join(self.tmp.name, "mine")
-        subprocess.run(["git", "init", "-q", repo], check=True)
-        subprocess.run(["git", "-C", repo, "config", "user.email", "me@work.example"], check=True)
-        ga.cmd_wire(types.SimpleNamespace(identity="default", repo=repo), self.config, opener=self.github,
-                    signer=fake_signer)
-        ga.cmd_unwire(types.SimpleNamespace(identity="default", repo=repo), self.config)
-        after = subprocess.run(["git", "-C", repo, "config", "--local", "user.email"], capture_output=True, text=True)
-        self.assertEqual(after.stdout.strip(), "me@work.example")
 
 
 class Main(Env):

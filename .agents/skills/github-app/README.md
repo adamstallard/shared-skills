@@ -48,7 +48,8 @@ Then, on the App's page:
 ### 2. Name the identity
 
 Pick a short name for this agent on your machine: `acme`, `reviewer`.
-Commands take `--identity <name>`, else `GITHUB_APP_IDENTITY`, else `default`.
+Commands take `--identity <name>`, else `GITHUB_APP_ACT_AS` (which `run`,
+`wire` and `env` set), else `GITHUB_APP_IDENTITY`, else `default`.
 
 ### 3. Store the key
 
@@ -90,38 +91,75 @@ permissions, the repositories it can reach, and
 
 ### 5. Connect the agent
 
-**On your own machine, one repository at a time:**
+The agent's identity lives only in the environment of the processes that act
+as it. Nothing is ever written to a git config file, so your own git, in every
+repository, checkout and worktree, stays yours. The environment holds:
+
+- `GIT_AUTHOR_NAME`, `GIT_AUTHOR_EMAIL`, `GIT_COMMITTER_NAME` and
+  `GIT_COMMITTER_EMAIL` for the App's bot. They outrank `user.*`, `author.*`,
+  `committer.*` and anything included from another config file.
+- `GIT_CONFIG_*` (git 2.31+), which outranks every config file: an empty
+  credential helper for `https://github.com`, which clears yours (such as the
+  macOS keychain), then a helper that hands git a fresh token, and commit and
+  tag signing off, so your signing key never signs the App's commits.
+- `GITHUB_APP_ACT_AS`, the identity the script itself uses there. It is not
+  `GITHUB_APP_IDENTITY`, which says only whose `GITHUB_APP_*` credentials an
+  environment holds.
+
+It holds no key and no token. `origin` must be an `https://` URL: an SSH
+remote pushes with your SSH key.
+
+**A Claude Code project:**
 
 ```bash
-cd ~/code/web
-python3 ~/.agents/skills/github-app/scripts/github_app.py --identity acme wire
+python3 ~/.agents/skills/github-app/scripts/github_app.py --identity acme wire --project ~/code/web
 ```
 
-That sets this repository's **local** git config only: a credential helper
-that hands git a fresh token for `https://github.com`, `user.name` and
-`user.email` for the App's bot, and commit signing off, so your own signing key
-never signs the App's commits. Your other repositories, and your own global
-git and `gh` login, are untouched. `origin` must be an `https://` URL; `wire`
-warns if it uses SSH. `unwire` undoes it and gives back any name, email or
-signing setting the repository had of its own.
+This adds those variables to the `env` object of
+`~/code/web/.claude/settings.local.json`, creating the file if needed. Claude
+Code applies that `env` to the commands it runs, and a session in a worktree
+under `.claude/worktrees/` uses the main checkout's file. So every session in
+that project acts as the App, and your own terminal doesn't. `wire` refuses to
+overwrite any key you set there yourself. It records what it added in the
+same `env`, as `GITHUB_APP_WIRED`, so `unwire --project ~/code/web` works
+even after you move the folder. It removes exactly the keys `wire` added and
+leaves a key you changed since. If you delete `GITHUB_APP_WIRED` by hand, the
+keys become yours to remove.
+Claude Code applies project and local `env` only after you trust the folder.
+It also ignores a settings value for a variable that the Claude Desktop app's
+or a self-hosted runner's launch environment already sets.
 
-The agent runs `gh` through the script, so `gh` acts as the App for that one
-command and nothing is exported:
+The agent runs `gh` through the script, so `gh` gets a fresh token for that
+one command and nothing is exported:
 
 ```bash
 python3 ~/.agents/skills/github-app/scripts/github_app.py --identity acme gh pr create --draft --fill
 ```
 
-**On a server, one process per role:** print the git settings for the role's
+**Any other agent or script:** run each command through `run`, which sets the
+same variables, plus `GH_TOKEN`, for that one process:
+
+```bash
+python3 ~/.agents/skills/github-app/scripts/github_app.py --identity acme run -- git push -u origin my-branch
+```
+
+`GH_TOKEN` lasts an hour, so `run` suits a command, not a long session. The
+caller's own `GIT_CONFIG_*` entries keep working: `run` numbers the App's
+after them.
+
+**On a server, one process per role:** print the lines for the role's
 environment file:
 
 ```bash
 python3 ~/.agents/skills/github-app/scripts/github_app.py --identity reviewer env >> /etc/<service>/reviewer.env
 ```
 
-The lines set the commit name and email and the credential helper through
-`GIT_CONFIG_*` variables, which apply to that process only and outrank every
-config file. They hold no key and no token.
+Every value is double-quoted and escaped, so the same file works as a systemd
+`EnvironmentFile` and with `set -a; . reviewer.env` in a shell. If that file
+already sets `GIT_CONFIG_COUNT=N`, pass `--offset N`: the App's entries are
+then numbered after yours, and its `GIT_CONFIG_COUNT` line, coming later,
+counts both. `env` refuses to run without `--offset` when `GIT_CONFIG_COUNT`
+is already set in its own environment.
 
 **Programs:** `github_app.py --identity acme token` prints a token to use as a
 bearer token. It lasts an hour; ask again rather than storing it.
@@ -166,12 +204,16 @@ or it's damaged. Generate a new key on the App's page.
 step 1, then accept the new permissions on the installation (GitHub asks the
 account's owner).
 
-**git still pushes as you, or asks for a password**: run `wire` in that
-repository, and make sure `origin` is an `https://` URL.
+**git still commits or pushes as you, or asks for a password**: the command
+ran without the App's environment. Check `echo $GIT_AUTHOR_NAME`; use `run --`,
+or `wire --project` in a trusted Claude Code project. Make sure
+`origin` is an `https://` URL.
 
 **A key is lost or leaked:** delete it on the App's page under **Private
 keys** and generate another. Tokens minted from it stop working within the
 hour.
 
 To remove an identity from a machine: `github_app.py --identity <name>
-forget`, then `unwire` in each repository you wired.
+forget`, then `unwire --project` in each project still wired to it. To find
+wired projects, search for the marker, for example `grep -l GITHUB_APP_WIRED
+~/code/*/.claude/settings.local.json`.

@@ -11,6 +11,7 @@ Why it is built this way, and what was tried and rejected: ../DECISIONS.md.
 
 import argparse
 import base64
+import contextlib
 import datetime
 import hashlib
 import json
@@ -18,10 +19,12 @@ import os
 import re
 import shlex
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
 import time
+import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -35,13 +38,7 @@ API = "https://api.github.com"
 API_VERSION = "2022-11-28"
 IDENTITY_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 HELPER_KEY = "credential.https://github.com.helper"
-# The repository settings wire replaces, and gives back on unwire.
-SAVED = ("user.name", "user.email", "commit.gpgsign", "tag.gpgsign")
-WIRED_MARK = "github-app.wired"
-
-
-def saved_key(key):
-    return "github-app.saved-" + key.replace(".", "-")
+WIRED_KEY = "GITHUB_APP_WIRED"  # wire's record, in the env it wrote
 # What an App needs to push branches and open pull requests.
 NEEDED = {"contents": "write", "pull_requests": "write"}
 
@@ -58,8 +55,9 @@ class Failure(Exception):
 
 
 def resolve_identity(arg, env=None):
+    """--identity, else GITHUB_APP_ACT_AS (set by run, wire and env), else GITHUB_APP_IDENTITY, else default."""
     env = os.environ if env is None else env
-    identity = arg or env.get("GITHUB_APP_IDENTITY") or "default"
+    identity = arg or env.get("GITHUB_APP_ACT_AS") or env.get("GITHUB_APP_IDENTITY") or "default"
     if not IDENTITY_RE.match(identity):
         raise Failure(f"identity {identity!r} may use only letters, digits, '_', '.' and '-'")
     return identity
@@ -103,8 +101,17 @@ def key_path(identity, config, env=None):
 
 
 def env_identity(env):
-    """The one identity that the GITHUB_APP_* credentials in the environment belong to."""
+    """The one identity that the GITHUB_APP_* credentials in the environment belong to.
+
+    Only GITHUB_APP_IDENTITY says this, never GITHUB_APP_ACT_AS: a child that
+    run or wire points at another identity must not borrow these credentials.
+    """
     return env.get("GITHUB_APP_IDENTITY") or "default"
+
+
+def env_for(identity, env):
+    """The environment's GITHUB_APP_* settings if they belong to `identity`, else none of them."""
+    return env if identity == env_identity(env) else {}
 
 
 def env_credentials_set(env):
@@ -137,8 +144,9 @@ def app_credentials(identity, config, env=None):
     if present:
         raise Failure(
             f"no App credentials for identity {identity!r}: GITHUB_APP_* is set in the environment, but it "
-            f"belongs to identity {env_identity(env)!r} (GITHUB_APP_IDENTITY); set GITHUB_APP_IDENTITY={identity} "
-            f"to use it for {identity!r}, or run 'github_app.py --identity {identity} store-credentials'")
+            f"belongs to identity {env_identity(env)!r} (GITHUB_APP_IDENTITY) and is never lent to another; "
+            f"run 'github_app.py --identity {identity} store-credentials', or give {identity!r} its own "
+            "environment with its own GITHUB_APP_IDENTITY, GITHUB_APP_ID and key")
     missing = "an appId in " + config_path(identity, env) if not app_id else "the key file " + path
     raise Failure(f"no App credentials for identity {identity!r}: {missing} is missing; "
                   f"run 'github_app.py --identity {identity} store-credentials', or set GITHUB_APP_ID and "
@@ -306,7 +314,8 @@ def current_token(identity, config, env=None, now=None, opener=urllib.request.ur
     env = os.environ if env is None else env
     now = time.time() if now is None else now
     app_id, key = app_credentials(identity, config, env)
-    credential = fingerprint(app_id, key, config, env)
+    target_env = env_for(identity, env)  # GITHUB_APP_OWNER and _INSTALLATION_ID belong to one identity too
+    credential = fingerprint(app_id, key, config, target_env)
     path = cache_path(identity, env)
     cached = read_cache(path)
     if refused is None and usable(cached, credential, now):
@@ -320,14 +329,14 @@ def current_token(identity, config, env=None, now=None, opener=urllib.request.ur
             return cached["token"], cached
         jwt = app_jwt(app_id, key, now, signer)
         remembered = cached.get("installationId") if cached.get("credential") == credential else None
-        installation = remembered or find_installation(jwt, config, env, opener)
+        installation = remembered or find_installation(jwt, config, target_env, opener)
         try:
             body = api("POST", f"/app/installations/{installation}/access_tokens", jwt, body={}, opener=opener)
         except Failure as e:
             if e.status != 404 or not remembered:
                 raise
             # A reinstalled App has a new installation ID; look it up again once.
-            installation = find_installation(jwt, config, env, opener)
+            installation = find_installation(jwt, config, target_env, opener)
             body = api("POST", f"/app/installations/{installation}/access_tokens", jwt, body={}, opener=opener)
         token = body.get("token")
         if not token:
@@ -372,6 +381,7 @@ def cmd_token(args, config):
 
 def cmd_check(args, config, opener=urllib.request.urlopen, signer=sign):
     app, name, email, token, cached = describe(args.identity, config, opener, signer)
+    remember_bot(args.identity, cached["appId"], name, email)  # check refreshes what `run` and `env` use
     permissions = cached.get("permissions") or {}
     repos = api("GET", "/installation/repositories?per_page=100", token, opener=opener)
     names = sorted(r["full_name"] for r in repos.get("repositories", []))
@@ -456,82 +466,337 @@ def script_command(identity, *rest, python=None, script=None):
     return " ".join(shlex.quote(p) for p in (python, script, "--identity", identity, *rest))
 
 
-def git(repo, *args, run=subprocess.run):
-    return run(["git", "-C", repo, *args], capture_output=True, text=True)
+# --- the agent's environment -------------------------------------------------------
+#
+# The agent's identity lives only in the environment of the processes that act
+# as it. Nothing here writes a git config file: see ../DECISIONS.md.
 
 
-def repo_root(path, run=subprocess.run):
-    result = git(path, "rev-parse", "--show-toplevel", run=run)
-    if result.returncode != 0:
-        raise Failure(f"{path!r} is not inside a git repository")
-    return result.stdout.strip()
+def bot_cache_path(identity, env=None):
+    return os.path.join(xdg_dir("state", env), identity + ".bot.json")
 
 
-def cmd_wire(args, config, run=subprocess.run, opener=urllib.request.urlopen, signer=sign):
-    repo = repo_root(os.path.abspath(args.repo or "."), run)
-    app, name, email, _, _ = describe(args.identity, config, opener, signer)
-
-    def setting(*a):
-        result = git(repo, "config", "--local", *a, run=run)
-        if result.returncode != 0:
-            raise Failure(f"git config failed in {repo}: {result.stderr.strip()}")
-
-    # The first wire keeps the repository's own values, such as a work email,
-    # so unwire can put them back; a rewire must not save the bot's as theirs.
-    if git(repo, "config", "--local", "--get", WIRED_MARK, run=run).returncode != 0:
-        for key in SAVED:
-            own = git(repo, "config", "--local", "--get", key, run=run)
-            if own.returncode == 0:
-                setting(saved_key(key), own.stdout.rstrip("\n"))
-        setting(WIRED_MARK, args.identity)
-    git(repo, "config", "--local", "--unset-all", HELPER_KEY, run=run)
-    # The empty value first clears helpers from the global config, such as the
-    # macOS keychain, for github.com in this repository only.
-    setting("--add", HELPER_KEY, "")
-    setting("--add", HELPER_KEY, "!" + script_command(args.identity, "credential"))
-    setting("user.name", name)
-    setting("user.email", email)
-    # A person who signs every commit would otherwise sign the App's with their own key.
-    setting("commit.gpgsign", "false")
-    setting("tag.gpgsign", "false")
-    wired ={"identity": args.identity, "repo": repo, "app": app.get("slug"), "commitsAs": f"{name} <{email}>"}
-    remote = git(repo, "remote", "get-url", "origin", run=run)
-    url = remote.stdout.strip() if remote.returncode == 0 else ""
-    if url and not url.startswith("https://"):
-        wired["warnings"] = [f"origin is {url}, which pushes with your SSH key, not the App; run "
-                             "'git remote set-url origin https://github.com/<owner>/<repo>.git' in " + repo]
-    return wired
+def remember_bot(identity, app_id, name, email, env=None):
+    write_cache(bot_cache_path(identity, env), {"appId": str(app_id), "name": name, "email": email})
 
 
-def cmd_unwire(args, config, run=subprocess.run):
-    repo = repo_root(os.path.abspath(args.repo or "."), run)
-    git(repo, "config", "--local", "--unset-all", HELPER_KEY, run=run)
-    for key in SAVED:
-        git(repo, "config", "--local", "--unset-all", key, run=run)
-        own = git(repo, "config", "--local", "--get", saved_key(key), run=run)
-        if own.returncode == 0:
-            git(repo, "config", "--local", key, own.stdout.rstrip("\n"), run=run)
-            git(repo, "config", "--local", "--unset-all", saved_key(key), run=run)
-    git(repo, "config", "--local", "--unset-all", WIRED_MARK, run=run)
-    return {"identity": args.identity, "repo": repo, "unwired": True}
+def commit_identity(identity, config, opener=urllib.request.urlopen, signer=sign, env=None):
+    """The bot's commit name and email, remembered per App, so `run` asks GitHub only once."""
+    env = os.environ if env is None else env
+    app_id, _ = app_credentials(identity, config, env)
+    known = read_cache(bot_cache_path(identity, env))
+    if known.get("appId") == str(app_id) and known.get("name") and known.get("email"):
+        return known["name"], known["email"]
+    _, name, email, _, _ = describe(identity, config, opener, signer, env)
+    remember_bot(identity, app_id, name, email, env)
+    return name, email
+
+
+def agent_env(identity, name, email, offset=0):
+    """Every variable that makes git and gh act as the App: the one source for `env`, `run` and `wire`.
+
+    GIT_CONFIG_* outranks every git config file, and GIT_AUTHOR_*/GIT_COMMITTER_*
+    outrank user.*, author.*, committer.* and anything included. No token: the
+    helper mints one when git asks. `offset` numbers the GIT_CONFIG_* entries
+    after ones the environment already has.
+    """
+    settings = [
+        # The empty value first clears every helper from config files, such as
+        # the macOS keychain, for github.com.
+        (HELPER_KEY, ""),
+        (HELPER_KEY, "!" + script_command(identity, "credential")),
+        # Never the person's own signing key on the App's commits.
+        ("commit.gpgsign", "false"),
+        ("tag.gpgsign", "false"),
+    ]
+    variables = {
+        # Not GITHUB_APP_IDENTITY: that names whose GITHUB_APP_* credentials the
+        # environment holds, and a child may inherit another identity's.
+        "GITHUB_APP_ACT_AS": identity,
+        "GIT_AUTHOR_NAME": name, "GIT_AUTHOR_EMAIL": email,
+        "GIT_COMMITTER_NAME": name, "GIT_COMMITTER_EMAIL": email,
+        "GIT_CONFIG_COUNT": str(offset + len(settings)),
+    }
+    for i, (key, value) in enumerate(settings, offset):
+        variables[f"GIT_CONFIG_KEY_{i}"] = key
+        variables[f"GIT_CONFIG_VALUE_{i}"] = value
+    return variables
+
+
+def config_count(env):
+    """GIT_CONFIG_COUNT already in an environment, or 0."""
+    raw = env.get("GIT_CONFIG_COUNT", "").strip()
+    if not raw:
+        return 0
+    if not raw.isdigit():
+        raise Failure(f"GIT_CONFIG_COUNT is {raw!r}, which git refuses; fix or unset it")
+    return int(raw)
+
+
+def env_file_line(key, value):
+    """KEY="value", read identically by systemd's EnvironmentFile= and by `set -a; . file` in sh.
+
+    Inside double quotes both treat a backslash before \\ " $ ` as an escape and
+    keep every other character as it is.
+    """
+    return key + '="' + re.sub(r'([\\"$`])', r"\\\1", value) + '"'
 
 
 def cmd_env(args, config, opener=urllib.request.urlopen, signer=sign):
-    """Environment lines for a server role's environment file: git identity and helper, no secrets."""
-    app, name, email, _, _ = describe(args.identity, config, opener, signer)
-    lines = [
-        f"GITHUB_APP_IDENTITY={args.identity}",
-        f"GIT_AUTHOR_NAME={name}", f"GIT_AUTHOR_EMAIL={email}",
-        f"GIT_COMMITTER_NAME={name}", f"GIT_COMMITTER_EMAIL={email}",
-        # Config passed this way outranks every config file, for this process only.
-        "GIT_CONFIG_COUNT=4",
-        f"GIT_CONFIG_KEY_0={HELPER_KEY}", "GIT_CONFIG_VALUE_0=",
-        f"GIT_CONFIG_KEY_1={HELPER_KEY}", "GIT_CONFIG_VALUE_1=!" + script_command(args.identity, "credential"),
-        # Never the account's own signing key on the App's commits.
-        "GIT_CONFIG_KEY_2=commit.gpgsign", "GIT_CONFIG_VALUE_2=false",
-        "GIT_CONFIG_KEY_3=tag.gpgsign", "GIT_CONFIG_VALUE_3=false",
-    ]
-    return "\n".join(lines)
+    """Lines for a server role's environment file: git identity and helper, no secrets."""
+    offset = args.offset
+    if offset is None:
+        present = config_count(os.environ)
+        if present:
+            raise Failure(f"GIT_CONFIG_COUNT={present} is already set here, and these lines would replace "
+                          f"those settings; pass --offset N, where N is the GIT_CONFIG_COUNT of the "
+                          f"environment the lines go into")
+        offset = 0
+    if offset < 0:
+        raise Failure("--offset must be 0 or more")
+    name, email = commit_identity(args.identity, config, opener, signer)
+    return "\n".join(env_file_line(k, v) for k, v in agent_env(args.identity, name, email, offset).items())
+
+
+def cmd_run(args, config, execvpe=None, which=None, opener=urllib.request.urlopen, signer=sign):
+    """Run one command as the App: git's identity and helper, and GH_TOKEN, for that process only."""
+    execvpe = execvpe or os.execvpe  # looked up now, so a stub of os.execvpe applies
+    which = which or shutil.which
+    command = args.rest[1:] if args.rest[:1] == ["--"] else list(args.rest)
+    if not command:
+        raise Failure("give a command to run, e.g. 'run -- git push'")
+    if not which(command[0]):
+        raise Failure(f"{command[0]!r} is not on PATH")
+    name, email = commit_identity(args.identity, config, opener, signer)
+    token, _ = current_token(args.identity, config)
+    # Numbered after any GIT_CONFIG_* the caller already has, which keep working.
+    env = dict(os.environ, **agent_env(args.identity, name, email, config_count(os.environ)), GH_TOKEN=token)
+    env.pop("GITHUB_TOKEN", None)  # gh prefers GH_TOKEN, but a stray one should not confuse anyone reading env
+    execvpe(command[0], command, env)
+    return ""
+
+
+def cmd_gh(args, config, execvpe=None, which=None, opener=urllib.request.urlopen, signer=sign):
+    """`run -- gh …`."""
+    rest = args.rest[1:] if args.rest[:1] == ["--"] else args.rest
+    return cmd_run(argparse.Namespace(identity=args.identity, rest=["gh", *rest]), config, execvpe, which,
+                   opener, signer)
+
+
+# --- Claude Code projects ----------------------------------------------------------
+
+
+def settings_path(project):
+    return os.path.join(project, ".claude", "settings.local.json")
+
+
+def value_digest(value):
+    """Enough of a value's SHA-256 to tell whether it still matches what wire wrote.
+
+    None for anything but a string, which wire never writes, so such a value
+    never matches and is the person's.
+    """
+    if not isinstance(value, str):
+        return None
+    return hashlib.sha256(value.encode("utf-8", "surrogatepass")).hexdigest()[:16]
+
+
+def read_marker(env, path):
+    """What wire recorded in this env object, or None if it holds no marker."""
+    raw = env.get(WIRED_KEY)
+    if raw is None:
+        return None
+    try:
+        marker = json.loads(raw)
+    except (TypeError, ValueError):
+        marker = None
+    if (not isinstance(marker, dict) or not isinstance(marker.get("sha256"), dict)
+            or not all(isinstance(v, str) for v in marker["sha256"].values())):
+        raise Failure(f"{path} has a {WIRED_KEY} that this script can't read; fix or remove it by hand; "
+                      "nothing was changed")
+    return marker
+
+
+def read_settings(path):
+    try:
+        with open(path, encoding="utf-8") as f:
+            settings = json.load(f)
+    except FileNotFoundError:
+        return None
+    except (OSError, ValueError) as e:
+        raise Failure(f"cannot read {path}: {e}; fix it first, nothing was changed")
+    if not isinstance(settings, dict) or not isinstance(settings.get("env", {}), dict):
+        raise Failure(f"{path} must hold a JSON object whose 'env' is an object; nothing was changed")
+    return settings
+
+
+def current_umask():
+    """The process umask. Python can only read it by setting it, so put it straight back."""
+    umask = os.umask(0o022)
+    os.umask(umask)
+    return umask
+
+
+def write_json(path, data):
+    """Replace a JSON file atomically: through a symlink to its target, keeping an existing file's mode.
+
+    A new file gets what open() would give it, 0666 less the umask.
+    """
+    path = os.path.realpath(path)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    try:
+        mode = stat.S_IMODE(os.stat(path).st_mode)
+    except FileNotFoundError:
+        mode = 0o666 & ~current_umask()
+    # A temp file of its own, so two writers never write into one file.
+    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path), prefix=os.path.basename(path) + ".", suffix=".tmp")
+    try:
+        os.fchmod(fd, mode)  # mkstemp makes it 0600
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+            f.write("\n")
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.remove(tmp)
+        except FileNotFoundError:
+            pass
+        raise
+
+
+@contextlib.contextmanager
+def settings_lock(real):
+    """Hold an exclusive lock on one settings file's read, work-out and write.
+
+    Without it, two wires (or a wire and an unwire) both read the old file and
+    the later write drops the earlier one's change, marker included. The lock
+    file lives in this script's state folder, so nothing is left in the person's
+    project.
+
+    It is named by the device and inode of the file's folder and the file's name
+    in one canonical form (case-folded, canonically normalised), not by its path: on macOS ~/Proj
+    and ~/proj, or links to S.json and s.json, are one file under several real
+    paths, and two lock names would not exclude each other. Folding can give two
+    genuinely different files one lock, which only makes them take turns. Only
+    when the folder doesn't exist yet is the whole path used. Names go to bytes
+    with os.fsencode, since a path need not be UTF-8.
+    """
+    if not fcntl:
+        yield
+        return
+    folder = os.path.join(xdg_dir("state"), "locks")
+    os.makedirs(folder, mode=0o700, exist_ok=True)
+    real = os.path.realpath(real)
+
+    def canonical(name):
+        # Unicode's canonical caseless match: casefold can produce decomposed
+        # forms (Greek ΐ), so normalise on both sides of it.
+        return os.fsencode(unicodedata.normalize("NFD", unicodedata.normalize("NFD", name).casefold()))
+
+    try:
+        st = os.stat(os.path.dirname(real))
+        key = f"{st.st_dev}:{st.st_ino}/".encode() + canonical(os.path.basename(real))
+    except FileNotFoundError:
+        key = canonical(real)
+    name = hashlib.sha256(key).hexdigest()[:24] + ".lock"
+    with open(os.path.join(folder, name), "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        yield
+
+
+def project_dir(path):
+    project = os.path.realpath(os.path.expanduser(path))
+    if not os.path.isdir(project):
+        raise Failure(f"{path!r} is not a folder")
+    return project
+
+
+def cmd_wire(args, config, opener=urllib.request.urlopen, signer=sign):
+    """Make Claude Code sessions in one project act as the App, through its settings.local.json env."""
+    project = project_dir(args.project)
+    path = settings_path(project)
+    # The file actually written: through a symlink, its target, so the person's link stays.
+    real = os.path.realpath(path)
+    os.makedirs(os.path.dirname(real), exist_ok=True)  # wire writes here anyway; the lock needs it now
+    with settings_lock(real):
+        return wire_locked(args, config, opener, signer, project, path, real)
+
+
+def wire_locked(args, config, opener, signer, project, path, real):
+    settings = read_settings(real)
+    existed = settings is not None
+    settings = settings or {}
+    env = dict(settings.get("env") or {})
+    # The marker in the file is the only record of what wire wrote there.
+    marker = read_marker(env, real)
+    ours = marker["sha256"] if marker else {}
+    mine = lambda k: k in ours and value_digest(env[k]) == ours[k]
+    name, email = commit_identity(args.identity, config, opener, signer)
+    wanted = agent_env(args.identity, name, email)
+    # Anything this script didn't put there, or that no longer matches what it wrote, is the person's:
+    # never overwrite it, and never mix GIT_CONFIG_* numbering with theirs.
+    theirs = sorted(k for k in env if (k in wanted or k.startswith("GIT_CONFIG_")) and not mine(k))
+    if theirs:
+        raise Failure(f"{path} already sets {', '.join(theirs)} in 'env'; remove them first, or use 'run' "
+                      "instead; nothing was changed")
+    # Whether the first wire created the file or its env, so unwire removes only that.
+    if marker:
+        created_file, created_env = bool(marker.get("createdFile")), bool(marker.get("createdEnv"))
+    else:
+        created_file, created_env = not existed, "env" not in settings
+    warnings = []
+    if config_count(os.environ) and os.environ.get("GIT_CONFIG_VALUE_1") != wanted["GIT_CONFIG_VALUE_1"]:
+        warnings.append("GIT_CONFIG_* is set in this shell; in Claude Code sessions in this project the "
+                        "App's GIT_CONFIG_* replace it")
+    for k in list(ours):
+        if k not in wanted and k in env and mine(k):
+            del env[k]
+    env.update(wanted)
+    env[WIRED_KEY] = json.dumps({"identity": args.identity, "createdFile": created_file, "createdEnv": created_env,
+                                 "sha256": {k: value_digest(v) for k, v in wanted.items()}},
+                                separators=(",", ":"), sort_keys=True)
+    settings["env"] = env
+    # Everything is worked out above; this one atomic write is the only change.
+    write_json(real, settings)
+    wired = {"identity": args.identity, "project": project, "settings": path, "commitsAs": f"{name} <{email}>"}
+    if warnings:
+        wired["warnings"] = warnings
+    return wired
+
+
+def cmd_unwire(args, config):
+    """Remove exactly the env keys wire added to a project's settings.local.json, and nothing else."""
+    project = project_dir(args.project)
+    real = os.path.realpath(settings_path(project))
+    with settings_lock(real):
+        return unwire_locked(project, real)
+
+
+def unwire_locked(project, real):
+    settings = read_settings(real)
+    env = (settings or {}).get("env") or {}
+    marker = read_marker(env, real)
+    if not marker:
+        raise Failure(f"{real} has no record of being wired by this script (no {WIRED_KEY} in its 'env'); "
+                      "nothing was changed")
+    ours = marker["sha256"]
+    changed = sorted(k for k in ours if k in env and value_digest(env[k]) != ours[k])
+    for k in ours:
+        if k in env and value_digest(env[k]) == ours[k]:
+            del env[k]
+    del env[WIRED_KEY]
+    if env or not marker.get("createdEnv"):
+        settings["env"] = env
+    else:
+        settings.pop("env", None)
+    if not settings and marker.get("createdFile"):
+        os.remove(real)
+    else:
+        write_json(real, settings)
+    unwired = {"identity": marker.get("identity"), "project": project, "settings": real, "unwired": True}
+    if changed:
+        unwired["warnings"] = [f"left {', '.join(changed)} in {real}: changed since wire, so they are yours"]
+    return unwired
 
 
 def cmd_credential(args, config, stdin=None):
@@ -550,24 +815,13 @@ def cmd_credential(args, config, stdin=None):
         if "=" in line:
             k, v = line.split("=", 1)
             fields[k] = v
-    if fields.get("protocol") != "https" or fields.get("host") != "github.com":
+    host = fields.get("host", "").lower()
+    if host.endswith(":443"):  # the default port, which git's URL matching ignores too
+        host = host[:-len(":443")]
+    if fields.get("protocol") != "https" or host != "github.com":
         return ""
     token, _ = current_token(args.identity, config)
     return f"username=x-access-token\npassword={token}"
-
-
-def cmd_gh(args, config, execvpe=None, which=None):
-    """Run `gh` as the App: GH_TOKEN set for that one process, never exported."""
-    execvpe = execvpe or os.execvpe  # looked up now, so a stub of os.execvpe applies
-    which = which or shutil.which
-    if not which("gh"):
-        raise Failure("'gh' is not on PATH")
-    token, _ = current_token(args.identity, config)
-    env = dict(os.environ, GH_TOKEN=token)
-    env.pop("GITHUB_TOKEN", None)  # gh prefers GH_TOKEN, but a stray one should not confuse anyone reading env
-    gh_args = args.gh_args[1:] if args.gh_args[:1] == ["--"] else args.gh_args
-    execvpe("gh", ["gh", *gh_args], env)
-    return ""
 
 
 def cmd_forget(args, config):
@@ -584,7 +838,7 @@ def cmd_forget(args, config):
         except OSError as e:
             warnings.append(f"could not delete the key file {path}: {e.strerror}")
     state = cache_path(args.identity)
-    for p in (state, state + ".lock"):
+    for p in (state, state + ".lock", bot_cache_path(args.identity)):
         try:
             os.remove(p)
         except FileNotFoundError:
@@ -596,8 +850,8 @@ def cmd_forget(args, config):
                         "unset " + ", ".join(present))
     if "keptKeyFile" in forgotten and os.path.exists(forgotten["keptKeyFile"]) and config.get("appId"):
         warnings.append(f"this identity still works from {forgotten['keptKeyFile']}, which forget keeps")
-    warnings.append("repositories wired with 'wire' still point at this identity; run 'unwire' in each")
-    forgotten["warnings"] = warnings
+    if warnings:
+        forgotten["warnings"] = warnings
     return forgotten
 
 
@@ -606,7 +860,8 @@ def cmd_forget(args, config):
 
 def parser():
     p = argparse.ArgumentParser(prog="github_app.py", description="Act on GitHub as a GitHub App.")
-    p.add_argument("--identity", help="which App to act as (default: $GITHUB_APP_IDENTITY, else 'default')")
+    p.add_argument("--identity", help="which App to act as (default: $GITHUB_APP_ACT_AS, else "
+                                         "$GITHUB_APP_IDENTITY, else 'default')")
     sub = p.add_subparsers(dest="command", required=True)
     sub.add_parser("token", help="print a valid installation token, minting one if needed")
     sub.add_parser("check", help="show which App and installation this is, and what it may do")
@@ -614,14 +869,18 @@ def parser():
     s.add_argument("--app-id", required=True, help="the App's numeric ID, from its settings page")
     s.add_argument("--key-file", required=True, help="the .pem file GitHub generated")
     s.add_argument("--owner", help="the account the App is installed on, if it is installed on several")
-    w = sub.add_parser("wire", help="make git in one repository push and commit as the App")
-    w.add_argument("--repo", help="the repository to wire (default: the one this folder is in)")
-    u = sub.add_parser("unwire", help="undo 'wire' in one repository")
-    u.add_argument("--repo", help="the repository to unwire (default: the one this folder is in)")
-    sub.add_parser("env", help="print environment lines that wire git for a server process")
+    sub.add_parser("run", help="run one command as the App, e.g. 'run -- git push'; everything after 'run' is the command")
+    sub.add_parser("gh", help="run gh as the App, e.g. 'gh pr create ...'; everything after 'gh' goes to gh")
+    w = sub.add_parser("wire", help="make Claude Code sessions in one project act as the App, through its "
+                                    ".claude/settings.local.json")
+    w.add_argument("--project", required=True, help="the project folder Claude Code is started in")
+    u = sub.add_parser("unwire", help="undo 'wire' in one project")
+    u.add_argument("--project", required=True, help="the project folder that was wired")
+    e = sub.add_parser("env", help="print environment-file lines that make a server process act as the App")
+    e.add_argument("--offset", type=int, help="number the GIT_CONFIG_* lines after the N the target "
+                                              "environment already has")
     c = sub.add_parser("credential", help="git credential helper; git runs this itself")
     c.add_argument("operation", choices=["get", "store", "erase"])
-    sub.add_parser("gh", help="run gh as the App, e.g. 'gh pr create ...'; everything after 'gh' goes to gh")
     sub.add_parser("forget", help="delete this identity's stored key and cached token")
     return p
 
@@ -634,17 +893,19 @@ COMMANDS = {
     "unwire": cmd_unwire,
     "env": cmd_env,
     "credential": cmd_credential,
+    "run": cmd_run,
     "gh": cmd_gh,
     "forget": cmd_forget,
 }
-RAW_OUTPUT = {"token", "env", "credential", "gh"}  # printed bare, for $(...), env files, git and gh
+RAW_OUTPUT = {"token", "env", "credential", "run", "gh"}  # printed bare, for $(...), env files, git and gh
+PASS_THROUGH = {"run", "gh"}  # commands whose remaining arguments belong to another program
 
 
-def split_gh(argv):
-    """The command line up to and including `gh`, and gh's own arguments after it.
+def split_rest(argv):
+    """The command line up to and including `run` or `gh`, and the other program's arguments after it.
 
     argparse can't pass on arguments that begin with an option, such as
-    `gh -R owner/repo pr list`, so everything after `gh` skips it.
+    `gh -R owner/repo pr list`, so everything after `run` or `gh` skips it.
     """
     i = 0
     while i < len(argv):
@@ -652,7 +913,7 @@ def split_gh(argv):
             i += 2
         elif argv[i].startswith("--identity="):
             i += 1
-        elif argv[i] == "gh":
+        elif argv[i] in PASS_THROUGH:
             return argv[:i + 1], argv[i + 1:]
         else:
             break
@@ -660,9 +921,9 @@ def split_gh(argv):
 
 
 def main(argv=None):
-    head, gh_args = split_gh(sys.argv[1:] if argv is None else list(argv))
+    head, rest = split_rest(sys.argv[1:] if argv is None else list(argv))
     args = parser().parse_args(head)
-    args.gh_args = gh_args
+    args.rest = rest
     try:
         args.identity = resolve_identity(args.identity)
         result = COMMANDS[args.command](args, load_config(args.identity))
