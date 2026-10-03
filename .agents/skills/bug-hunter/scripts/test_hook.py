@@ -1693,7 +1693,7 @@ class CommitTrailerTests(unittest.TestCase):
             self.assertNotIn('-m  ', ctx, "double quotes stripped out of the example")
         # The cursor channel replaces every `"` and `\` with a space, so the
         # example command has to be quoted and laid out so that it survives.
-        self.assertIn("commit-with-trailer.sh 'Handle empty input in the parser'", ctx)
+        self.assertIn("commit-with-trailer.sh -F msg.txt '1 iteration, 1 bug fixed'", ctx)
 
     def test_the_misplaced_trailer_note_points_at_the_commit_script(self):
         # The note used to show a hand-typed `git commit -m ... --trailer ...`
@@ -3669,6 +3669,130 @@ class CommitFamiliesTests(unittest.TestCase):
                 self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
                 self.assertFalse(self.verified_marker.exists(), "verifier ran after a bad argument")
                 self.assertFalse(self.commit_marker.exists(), "git commit was invoked")
+
+    # --message-file: the message from a file, never quoted on a command line.
+    # See ../../../lib/commit-trailer/DECISIONS.md#the-message-comes-from-a-file.
+
+    def message_file(self, text, name="msg.txt"):
+        path = self.tmp / name
+        path.write_text(text)
+        return path
+
+    def test_a_message_file_gives_the_subject_body_and_both_families(self):
+        self.stage()
+        subject, body = "FEAT: it's \"quoted\" $HOME `id`", "First line.\n\nSecond paragraph, it's fine."
+        value = self.demo_value(subject, body)
+        path = self.message_file(f"{subject}\n\n{body}\n")
+        families = self.two_families(value)[:-3]  # every family, without '--' <subject> <body>
+        result = self.commit(*families, "--message-file", str(path), "--")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.git("log", "-1", "--format=%s"), subject)
+        self.assertTrue(self.git("log", "-1", "--format=%b").startswith(body), self.git("log", "-1", "--format=%b"))
+        self.assert_both_families_landed(value)
+
+    def test_a_message_file_with_only_a_subject_commits(self):
+        self.stage()
+        value = self.demo_value("FEAT: x", "")
+        families = self.two_families(value)[:-3]
+        result = self.commit(*families, "--message-file", str(self.message_file("FEAT: x\n")), "--")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.git("log", "-1", "--format=%s"), "FEAT: x")
+        self.assert_both_families_landed(value)
+
+    def test_a_bad_message_file_is_refused_and_nothing_is_committed(self):
+        self.stage()
+        head = self.git("rev-parse", "HEAD")
+        families = self.two_families("✓ 0123abcd4567:89abcdef0123")[:-3]
+        cases = {
+            "missing": (["--message-file", str(self.tmp / "nope.txt"), "--"], "cannot read"),
+            "empty subject": (["--message-file", str(self.message_file("\n  \n\n", "e.txt")), "--"],
+                              "subject is empty"),
+            "no blank second line": (["--message-file", str(self.message_file("FEAT: x\nmore\n", "s.txt")), "--"],
+                                     "second line is not blank"),
+            "a file and words": (["--message-file", str(self.message_file("FEAT: x\n", "b.txt")), "--",
+                                  "FEAT: x", "body"], "not both"),
+            "no '--' after it": (["--message-file", str(self.message_file("FEAT: x\n", "d.txt"))], "usage:"),
+            "given twice": (["--message-file", str(self.message_file("FEAT: x\n", "t.txt")),
+                             "--message-file", str(self.message_file("FEAT: x\n", "t2.txt")), "--"], "twice"),
+            "a vanished path": (["--message-file", "--"], "missing an argument"),
+        }
+        for name, (tail, expected) in cases.items():
+            with self.subTest(name):
+                result = self.commit(*families, *tail)
+                self.assertEqual(result.returncode, 2, result.stderr)
+                self.assertIn(expected, result.stderr)
+                self.assertEqual(self.git("rev-parse", "HEAD"), head)
+
+    def test_a_message_file_starting_with_a_blank_line_commits_like_git_would(self):
+        self.stage()
+        value = self.demo_value("FEAT: x", "body")
+        families = self.two_families(value)[:-3]
+        result = self.commit(*families, "--message-file", str(self.message_file("\nFEAT: x\n\nbody\n")), "--")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.git("log", "-1", "--format=%s"), "FEAT: x")
+
+    def test_the_message_file_option_after_the_dashes_is_refused(self):
+        self.stage()
+        head = self.git("rev-parse", "HEAD")
+        families = self.two_families("✓ 0123abcd4567:89abcdef0123")[:-3]
+        path = str(self.message_file("FEAT: x\n"))
+        for words in (["--message-file", path], ["-F", path]):
+            with self.subTest(words[0]):
+                result = self.commit(*families, "--", *words)
+                self.assertEqual(result.returncode, 2, result.stderr)
+                self.assertIn("before", result.stderr)
+                self.assertEqual(self.git("rev-parse", "HEAD"), head)
+
+    def test_bug_hunters_script_refuses_other_spellings_of_the_file_option(self):
+        self.stage()
+        head = self.git("rev-parse", "HEAD")
+        path = str(self.message_file("FEAT: x\n\nbody\n"))
+        for first in ("-F" + path, "--message-file=" + path, "--file"):
+            with self.subTest(first):
+                result = subprocess.run(["sh", str(WRAPPER), first, "1 iteration, 0 bugs found", "A <a@x>"],
+                                        cwd=self.repo, capture_output=True, text=True, env=self.env)
+                self.assertEqual(result.returncode, 2, result.stderr)
+                self.assertIn("-F <file>", result.stderr)
+                self.assertEqual(self.git("rev-parse", "HEAD"), head)
+
+    def test_a_line_git_keeps_is_never_dropped_from_a_message_file(self):
+        # git and prose count only space, tab and CR as blank; a form feed or a
+        # no-break space is text, so dropping that line would change the message.
+        for name, text in (("form feed first", "\f\nFEAT: x\n\nbody\n"),
+                           ("no-break space between", "FEAT: x\n \nbody\n")):
+            with self.subTest(name):
+                self.stage(content=name)
+                result = self.commit("--minted", "Bug-hunter", "1 iteration, 0 bugs found",
+                                     "--message-file", str(self.message_file(text)), "--")
+                committed = self.git("log", "-1", "--format=%B")
+                self.assertFalse(result.returncode == 0 and "\f" not in committed and " " not in committed,
+                                 f"a line git keeps was dropped: {committed!r}")
+
+    def test_a_positional_subject_starting_with_dash_f_still_commits(self):
+        self.stage()
+        result = self.commit("--minted", "Bug-hunter", "1 iteration, 0 bugs found", "--", "-Fix typo", "body")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.git("log", "-1", "--format=%s"), "-Fix typo")
+
+    def test_bug_hunters_script_takes_a_message_file(self):
+        self.stage()
+        path = self.message_file("FEAT: x\n\nbody\n")
+        result = subprocess.run(["sh", str(WRAPPER), "-F", str(path), "1 iteration, 0 bugs found", "A <a@x>"],
+                                cwd=self.repo, capture_output=True, text=True, env=self.env)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.git("log", "-1", "--format=%s"), "FEAT: x")
+        self.assertEqual(self.trailer("Bug-hunter-Tree"), self.git("rev-parse", "HEAD^{tree}"))
+        self.assertEqual(self.trailer("Co-Authored-By"), "A <a@x>")
+
+    def test_bug_hunters_script_takes_a_message_file_beside_another_family(self):
+        self.stage()
+        value = self.demo_value("FEAT: x", "body")
+        path = self.message_file("FEAT: x\n\nbody\n")
+        result = subprocess.run(["sh", str(WRAPPER), "--verified-value", str(self.demo), "Prose", value, "--",
+                                 "-F", str(path), "1 iteration, 0 bugs found", "A <a@x>"],
+                                cwd=self.repo, capture_output=True, text=True, env=self.env)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assert_both_families_landed(value)
 
 
 class SkillVerifyTests(unittest.TestCase):

@@ -9,7 +9,14 @@
 # tree, not recalled by the agent".
 #
 # Usage:
+#   commit-with-trailers.sh <family>... [--co-authored-by <value>]... --message-file <path> --
 #   commit-with-trailers.sh <family>... [--co-authored-by <value>]... -- <subject> <body>
+#
+# --message-file <path> reads the message from a file instead of from
+# <subject> <body>: the first line is the subject, the line after it must be
+# blank, and everything after that is the body. It is the form to use: the
+# message never has to be quoted on a command line (DECISIONS.md, "The message
+# comes from a file"). Give it before the `--`, with nothing after the `--`.
 #
 # A family is one of:
 #   --minted <Key> <value>
@@ -51,9 +58,10 @@
 # - --co-authored-by adds `Co-Authored-By: <value>` after the families; an
 #   empty value is left out.
 # - No word an option takes may be `--` or an option name (--minted,
-#   --minted-by, --verified-value, --co-authored-by). That is refused as a
-#   missing argument, not accepted as a value.
-# - The `--` before <subject> is required.
+#   --minted-by, --verified-value, --co-authored-by, --message-file). That is
+#   refused as a missing argument, not accepted as a value.
+# - The `--` before <subject> is required, and so is the `--` after
+#   --message-file's options, with no words after it.
 #
 # Order of steps. A failure at any step commits nothing:
 # 1. validate every argument (exit 2)
@@ -73,7 +81,8 @@ me=commit-with-trailers
 lib_dir=$(CDPATH= cd -P -- "$(dirname -- "$0")" && pwd -P)
 
 usage() {
-  echo "usage: commit-with-trailers.sh <family>... [--co-authored-by <value>]... -- <subject> <body>" >&2
+  echo "usage: commit-with-trailers.sh <family>... [--co-authored-by <value>]... --message-file <path> --" >&2
+  echo "       commit-with-trailers.sh <family>... [--co-authored-by <value>]... -- <subject> <body>" >&2
   echo "  family: --minted <Key> <value> | --minted-by <minter> <Key> <value> | --verified-value <verifier> <Key> <value>" >&2
   exit 2
 }
@@ -101,6 +110,13 @@ q() {
 }
 
 nl=$(printf '\nx'); nl=${nl%x}
+cr=$(printf '\r')
+# blank <text>: whether <text> holds only spaces, tabs, CRs and line breaks,
+# which is blank to git's cleanup and to prose's signing. Not trim's
+# [[:space:]]: that also takes \f, \v and, in a UTF-8 locale, U+00A0, which
+# git keeps as text.
+blanks=" 	$cr$nl"
+blank() { case $1 in *[!$blanks]*) return 1 ;; esac; }
 one_line() { # <what> <value>
   case $2 in *"$nl"*) refuse "$1 contains a line break; a trailer is one line" ;; esac
 }
@@ -113,6 +129,9 @@ binds=n       # y once any value is not a skip note
 keys=' '      # every key so far, lowercased, space-separated
 co_authors='' # quoted --trailer words
 nfam=0
+message_file=''
+has_message_file=n
+saw_end=n     # y once the `--` that ends the options is seen
 
 add_key() {
   k=$1
@@ -144,7 +163,7 @@ takes() {
   n=$1 opt=$2; shift 2
   [ "$#" -ge "$n" ] || usage
   while [ "$n" -gt 0 ]; do
-    case $1 in --|--minted|--minted-by|--verified-value|--co-authored-by)
+    case $1 in --|--minted|--minted-by|--verified-value|--co-authored-by|--message-file)
       refuse "$opt is missing an argument: '$1' was taken as one of them" ;;
     esac
     shift; n=$((n - 1))
@@ -171,7 +190,12 @@ while [ "$#" -gt 0 ]; do
       one_line "the Co-Authored-By value" "$co"
       [ -n "$co" ] && co_authors="$co_authors --trailer $(q "Co-Authored-By: $co")"
       continue ;;
-    --) shift; break ;;
+    --message-file)
+      takes 1 "$@"
+      [ "$has_message_file" = n ] || refuse "--message-file is given twice"
+      has_message_file=y message_file=$2; shift 2
+      continue ;;
+    --) shift; saw_end=y; break ;;
     -*) echo "$me: unknown option $1" >&2; usage ;;
     # The `--` is required so that a missing or split word shows up here, as
     # a stray word, and is refused. Without it, an empty unquoted value plus a
@@ -191,10 +215,44 @@ while [ "$#" -gt 0 ]; do
   nfam=$((nfam + 1))
 done
 
-[ "$#" -eq 2 ] || usage
 [ "$nfam" -gt 0 ] || refuse "no trailer family was given; this script exists to add one"
-subject=$1
-body=$2
+if [ "$has_message_file" = y ]; then
+  [ "$saw_end" = y ] || usage
+  [ "$#" -eq 0 ] ||
+    refuse "give the message with --message-file or as <subject> <body> after '--', not both"
+  [ -f "$message_file" ] ||
+    refuse "cannot read the message file '$message_file'"
+  # $(...) drops the file's trailing newlines, as git's own cleanup would.
+  content=$(cat -- "$message_file") || refuse "cannot read the message file '$message_file'"
+  # Blank lines before the subject go, as git's cleanup and prose's signing
+  # both drop them; otherwise the subject would be read as empty. A line of
+  # \f or U+00A0 is text to both, so it is not dropped here; as the subject it
+  # is then refused as empty by the subject check, which counts it as space.
+  while blank "${content%%"$nl"*}"; do
+    case $content in *"$nl"*) content=${content#*"$nl"} ;; *) content=''; break ;; esac
+  done
+  subject=${content%%"$nl"*}
+  body=''
+  case $content in *"$nl"*)
+    rest=${content#*"$nl"}
+    # git reads a message's whole first paragraph as its subject, so a second
+    # line that is not blank would make the commit's subject two lines long.
+    blank "${rest%%"$nl"*}" ||
+      refuse "the message file's second line is not blank: git would read the first two lines as one subject; put a blank line after the subject"
+    case $rest in *"$nl"*) body=${rest#*"$nl"} ;; esac
+    ! blank "$body" || body='' ;;
+  esac
+else
+  # The file option placed after the `--` would otherwise commit its own name
+  # as the subject and the path as the body. Only these exact words: a real
+  # subject may start with -F ("-Fix typo").
+  case ${1-} in --message-file|--message-file=*|-F)
+    refuse "'$1' in place of the subject: give --message-file <path> before the '--', with nothing after it" ;;
+  esac
+  [ "$#" -eq 2 ] || usage
+  subject=$1
+  body=$2
+fi
 # Why an empty subject is refused: with an empty body as well, the trailers
 # would become the message's first paragraph, which git never reads as
 # trailers. git itself does not refuse a trailers-only message as empty.
