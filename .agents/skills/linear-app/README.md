@@ -120,23 +120,6 @@ Claim work by **delegate**, never assignee. An app user can't be an assignee,
 and Linear accepts the request and silently ignores it, so always read the
 issue back after claiming it.
 
-## Moving over from the aura-workroom script
-
-Point the config at the Keychain entries that script already made, so nothing
-is retyped:
-
-```json
-{
-  "scopes": "read,write,app:assignable,app:mentionable",
-  "keychain": {"service": "aura-linear-agent",
-               "clientIdAccount": "linear-client-id",
-               "clientSecretAccount": "linear-client-secret"}
-}
-```
-
-Keep `scopes` identical to what the old token was minted with, or the first
-mint revokes it. Then run `check` and `wire`.
-
 ---
 
 ## When something goes wrong
@@ -164,5 +147,5 @@ revokes every token minted from it.
 
 To remove an identity from a machine: `linear_app.py --identity <name> forget`.
 It deletes the cached token and any credentials stored under the `linear-app`
-keychain service. Entries the config points at under another service, such
-as the aura-workroom script's, are left alone, and `forget` lists them.
+keychain service. Entries the config points at under another service are
+left alone, and `forget` lists them.
