@@ -50,9 +50,11 @@ script, and revoked their working token on the first run.
 (mode 600), and minting happens under an exclusive lock that re-reads the cache
 before minting.
 
-**Why.** A service may run many processes of one identity. Each minting its own
-token is wasteful at best, and if a mint ever revokes earlier tokens, they
-would revoke each other.
+**Why.** A service may run many processes of one identity, and each minting its
+own token would be wasteful. Minting again with the *same* scopes does not
+revoke earlier tokens: observed 2026-10-02, when a token minted by this script
+left the aura-workroom script's token working. Only a different scope string
+revokes them, so the lock prevents waste, not breakage.
 
 **Rejected: the keychain as the token cache.** A server has no keychain, and
 two caches mean two code paths. The token is short-lived and derived; the
