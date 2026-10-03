@@ -18,6 +18,7 @@ import subprocess
 import sys
 import time
 import traceback
+import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -50,16 +51,34 @@ ALL_PERMISSIONS = (1 << 64) - 1
 # Discord error codes that mean the bot lacks access or a permission.
 NO_ACCESS = {50001, 50013}
 
-# A mention is "@name" not preceded by an ASCII letter or digit, which skips
-# email addresses while keeping "_@adam_" (emphasis) and "请@adam" (Chinese and
-# Japanese use no spaces). The name takes any word character, so "@José" is
-# read whole rather than as "Jos".
-MENTION_RE = re.compile(r"(?<![A-Za-z0-9@<])@([\w.-]{2,32})")
+# User and channel mentions, matched in one pass so both lookbehinds see the
+# original text: in "@adam#agents" the "#" follows "m", so it isn't a channel.
+#
+# "@name" is not a mention after:
+# - an ASCII letter or digit, or one of them and then "._-": an email address
+#   ("adam@x.com", "adam_@gmail.com"). is_email() checks other letters.
+# - "/": a path ("youtube.com/@adam").
+# - a backslash: an escape, as in Discord.
+# So "_@adam_" (emphasis) and "请@adam" (Chinese and Japanese use no spaces)
+# are mentions. The name takes word characters and combining accents, so
+# "@José" is read whole however the accent is typed. It has no length cap, so
+# a long word is never cut down to a shorter member's name.
+#
+# "#channel" must start a word, so "repo#47" is left alone.
+MENTION_RE = re.compile(
+    r"(?<![A-Za-z0-9@<\\/])(?<![A-Za-z0-9][._-])@(?P<user>[\w.\u0300-\u036f-]{2,})"
+    r"|(?<![\w<#\\])#(?P<channel>[a-z0-9_-]{1,100})"
+)
+# After a name, "/" and a word character make it a package scope ("@types/node").
+SCOPE_RE = re.compile(r"/\w")
 # Trailing characters that may be punctuation or emphasis rather than part of a name.
 NAME_TAIL = "._-"
+# Scripts that space their words, so a letter of theirs right before "@" makes an email address.
+# "EXTENDED ARABIC" covers the Persian and Urdu digits ("EXTENDED ARABIC-INDIC DIGIT ONE").
+SPACED_SCRIPTS = ("LATIN", "GREEK", "CYRILLIC", "ARMENIAN", "GEORGIAN", "HEBREW", "ARABIC",
+                  "EXTENDED ARABIC")
+MAX_NAME = 32  # Discord's longest username or nickname
 MEMBER_SEARCH_LIMIT = 100
-# A channel mention starts a word, so "repo#47" is left alone.
-CHANNEL_MENTION_RE = re.compile(r"(?<![\w<#])#([a-z0-9_-]{1,100})")
 NEVER_MENTION = {"everyone", "here"}
 # Code and links, which mention conversion leaves untouched. Code follows
 # CommonMark's code-span rule, which also covers ``` fences: a run of N
@@ -269,15 +288,41 @@ def header(agent, session, project):
     return "  ".join(prefix + v for prefix, v in zip(HEADER_PREFIXES, values) if v)
 
 
+def folded(name):
+    """A name as mentions compare it: accents composed (NFC), case ignored."""
+    return unicodedata.normalize("NFC", name).lower()
+
+
+def is_email(text, at):
+    """Whether the "@" at `at` follows a letter or digit of a script that spaces its words ("josé@x.com").
+
+    The regex already skips ASCII letters and digits; this catches the rest.
+    Other scripts, such as Chinese, Japanese, Korean and Thai, use no spaces,
+    so "请@adam", "ขอบคุณ@adam" and "質問１@adam" (a fullwidth digit) are
+    still mentions.
+    """
+    i = at
+    while i > 0 and unicodedata.category(text[i - 1]).startswith("M"):
+        i -= 1  # a combining accent belongs to the letter before it
+    if i == 0:
+        return False
+    c = text[i - 1]
+    return (c.isalpha() or c.isdecimal()) and unicodedata.name(c, "").startswith(SPACED_SCRIPTS)
+
+
+def member_names(member):
+    user = member.get("user") or {}
+    return [folded(n) for n in (user.get("username"), user.get("global_name"), member.get("nick")) if n]
+
+
 def exact_members(handle, members):
     """Ids of the members whose username, global name or nickname is `handle`, ignoring case."""
-    handle = handle.lower()
+    handle = folded(handle)
     ids = []
     for member in members:
-        user = member.get("user") or {}
-        names = (user.get("username"), user.get("global_name"), member.get("nick"))
-        if any(n and n.lower() == handle for n in names) and user.get("id") not in ids:
-            ids.append(user.get("id"))
+        user_id = (member.get("user") or {}).get("id")
+        if handle in member_names(member) and user_id not in ids:
+            ids.append(user_id)
     return ids
 
 
@@ -287,59 +332,89 @@ def convert_mentions(api, guild_id, text, channels):
     Returns the text, the ids of users it mentions, and warnings for names that
     stayed as plain text.
     """
-    warnings, user_ids, found = [], [], {}
+    warnings, warned, user_ids, found = [], set(), [], {}
     search_refused = False
 
-    def note(warning):
-        if warning not in warnings:
+    def note(key, warning):
+        """Warn once per key, which is a name and ignores case."""
+        if folded(key) not in warned:
+            warned.add(folded(key))
             warnings.append(warning)
 
-    def member_ids(handle):
-        """Ids of the members named exactly `handle`; empty if search is refused."""
+    def search(handle):
+        """The members a search for `handle` returns; empty if search is refused."""
         nonlocal search_refused
-        if handle not in found and not search_refused:
+        query, key = unicodedata.normalize("NFC", handle), folded(handle)
+        # A name longer than Discord allows belongs to nobody, so it isn't searched.
+        if key not in found and not search_refused and len(query) <= MAX_NAME:
             try:
-                members = api.request(
+                found[key] = api.request(
                     "GET", f"/guilds/{guild_id}/members/search",
-                    query={"query": handle, "limit": MEMBER_SEARCH_LIMIT},
-                )
-                found[handle] = exact_members(handle, members)
+                    query={"query": query, "limit": MEMBER_SEARCH_LIMIT},
+                ) or []
             except Failure as e:
                 if not e.no_access():
                     raise
                 search_refused = True
-                note("Discord refused member search, so @names stay plain text; "
-                     "see the README's 'Mentions' section")
-        return found.get(handle, [])
+                note("@", "Discord refused member search, so @names stay plain text; "
+                          "see the README's 'Mentions' section")
+        return found.get(key, [])
+
+    def verdict(handle, rest):
+        """The id of the one member `handle` can only mean, or None and a warning.
+
+        `rest` is the text from the start of the name. Search returns members
+        whose names start with `handle`, so it also shows when the text goes on
+        to spell a longer name ("@Adam Smith", "@Jo'Anne"). That name stops the
+        ping but is never picked: the writer may mean neither.
+        """
+        members = search(handle)
+        if len(members) >= MEMBER_SEARCH_LIMIT:
+            # The page is full, so another member with this exact name may be missing from it.
+            return None, f"too many members' names start with @{handle} to be sure; left as plain text"
+        ids = exact_members(handle, members)
+        if len(ids) > 1:
+            return None, f"several members are named @{handle}; left as plain text"
+        # Both sides folded, since folding can change a name's length ("İ" lowercases to two).
+        name, rest = folded(handle), folded(rest)
+        longer = next((n for m in members for n in member_names(m)
+                       if len(n) > len(name) and rest.startswith(n)), None)
+        if ids and longer:
+            return None, f"@{handle} could be the start of @{longer}; left as plain text"
+        return (ids[0] if ids else None), None
 
     def user(match):
-        name = match.group(1)
+        name = match.group("user")
+        if SCOPE_RE.match(match.string, match.end("user")):
+            return match.group(0)  # a package scope, checked here because a lookahead would backtrack
+        if is_email(match.string, match.start()):
+            return match.group(0)
+        if name.rstrip(NAME_TAIL).lower() in NEVER_MENTION:
+            return match.group(0)  # "@everyone." and "_@here_" too, never a member named with the tail
         # The whole name first; then without a trailing "._-", which may be
         # punctuation ("Thanks @adam.") or emphasis ("_@adam_") and is put back.
         handles = [h for h in dict.fromkeys((name, name.rstrip(NAME_TAIL)))
-                   if len(h) >= 2 and h.lower() not in NEVER_MENTION]
+                   if len(unicodedata.normalize("NFC", h)) >= 2]
         if not handles or not guild_id:
             return match.group(0)
-        ambiguous = False
+        why = None  # the first handle's reason for not pinging, if it had one
         for handle in handles:
-            ids = member_ids(handle)
-            if len(ids) == 1:
+            user_id, reason = verdict(handle, match.string[match.start("user"):])
+            if user_id:
                 break
-            ambiguous = ambiguous or len(ids) > 1
+            why = why or (reason and (handle, reason))
         else:
             if not search_refused:
-                if ambiguous:
-                    note(f"several members are named @{handles[-1]}; left as plain text")
-                else:
-                    note(f"no member is named @{handles[-1]}; left as plain text")
+                note(*(why or (handles[-1], f"no member is named @{handles[-1]}; left as plain text")))
             return match.group(0)
-        user_id = ids[0]
         if user_id not in user_ids:
             user_ids.append(user_id)
         return f"<@{user_id}>{name[len(handle):]}"
 
-    def channel(match):
-        channel_id = channels.get(match.group(1))
+    def mention(match):
+        if match.group("user"):
+            return user(match)
+        channel_id = channels.get(match.group("channel"))
         return f"<#{channel_id}>" if channel_id else match.group(0)
 
     verbatim = []
@@ -349,8 +424,7 @@ def convert_mentions(api, guild_id, text, channels):
         return f"\x00{len(verbatim) - 1}\x00"
 
     text = VERBATIM_RE.sub(hide, text.replace("\x00", ""))  # no NUL can pose as a placeholder
-    text = MENTION_RE.sub(user, text)
-    text = CHANNEL_MENTION_RE.sub(channel, text)
+    text = MENTION_RE.sub(mention, text)
     text = PLACEHOLDER_RE.sub(lambda m: verbatim[int(m.group(1))], text)
     return text, user_ids, warnings
 

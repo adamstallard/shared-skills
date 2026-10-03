@@ -59,7 +59,8 @@ the text, which the caller is better placed to make.
 
 **Decision.** Every post sends `allowed_mentions` with `parse: []` and only the
 user ids the script resolved itself. `@everyone` and `@here` are never
-converted.
+converted, nor are they searched. That holds with a trailing `.`, `_` or `-`
+too (`@everyone.`, `_@here_`), so a member named `everyone.` is not pinged.
 
 **Why.** Message text often comes from a model, and from what it read.
 Without this, a quoted `@everyone` or a role mention would notify a whole
@@ -71,7 +72,41 @@ server.
 username, display name or server nickname equals the name, ignoring case. If a
 name ends in `.`, `_` or `-`, the name without them is tried next, and the
 stripped characters stay after the mention (`Thanks @adam.`, `_@adam_`).
-Anything else stays plain text, with one warning per name.
+Anything else stays plain text, with one warning per name. Names are compared
+with accents composed (NFC), so `José` typed as `e` plus a combining accent
+still matches only `José`. A name must be at least two characters once
+composed, so `@é` is too short however the accent is typed. Only the
+comparison is normalized: the message text is sent as written, apart from
+the mentions themselves.
+
+Some `@`s are not mentions at all, so they get no search and no warning:
+
+- **After a letter or digit of a script that spaces its words, or an ASCII
+  letter or digit and then `.`, `_` or `-`.** These are email addresses
+  (`adam@x.com`, `josé@x.com`, `١٢٣@x.com`, `adam_@gmail.com`). The scripts
+  that count are Latin, Greek, Cyrillic, Armenian, Georgian, Hebrew and Arabic.
+  After any other letter or digit, such as Chinese, Japanese, Korean or Thai,
+  which use no spaces (`请@adam`, `ขอบคุณ@adam`, or `質問１@adam` with a
+  fullwidth digit), the name is looked up: it pings or warns.
+- **After `/`.** This is a path (`youtube.com/@adam`).
+- **A name followed by `/` and a word character.** This is a package scope
+  (`@types/node`).
+
+Two more cases don't ping, even though one member's name matches:
+
+- **The text goes on to spell a longer name.** A name ends where word
+  characters stop, so `@Adam Smith`, `@Jo'Anne` and `@Jo🎸` are read as `Adam`
+  or `Jo`. If the search for that name also returns a member whose name the
+  text spells out from the `@` (`Adam Smith`), nobody is pinged. The longer
+  name is never chosen: this check only stops a ping, so it is not the
+  rejected prefix matching below.
+- **The search returns a full page of 100 members.** Discord returns at most
+  100, in no set order, so a second member with the same exact name may be
+  missing from the page.
+
+A name longer than Discord's 32-character limit is read whole and belongs to
+nobody, so it isn't cut down to a shorter member's name. `\@name` and
+`\#channel` are escapes and stay as text.
 
 **Why.** Pinging the wrong person is the failure that matters; missing a ping
 is visible in the warnings and fixed by retrying with the right name.
@@ -80,12 +115,38 @@ is visible in the warnings and fixed by retrying with the right name.
 this, and it was ported first. Over three review passes it pinged the wrong
 member for `@acme-reviewer` (cut at the hyphen), `@José` (cut at the `é`) and
 `_@adam_` (which matched `adam_smith` first). Each was patched, and the next
-pass found another. Exact matching removes the whole class.
+pass found another. Exact matching, with the longer-name check above, removes
+the class.
 
 **Where it stops applying.** A nickname typed partially (`@ada` for `adam`)
 no longer resolves. That is deliberate. So does a name followed directly by Chinese or Japanese
 text with no space (`请@adam看看` reads as the name `adam看看`); it gets a warning
-rather than a ping.
+rather than a ping. The longer-name check only knows members whose names
+start with the shorter one, which are the ones search returns. In a server
+where 100 names start with a short name (`@jo`), that name can't be mentioned
+at all, and the warning says why.
+
+An email address whose local part ends in a non-ASCII letter and then `.`,
+`_` or `-` (`é_@x.com`) is still read as a mention of the domain. It gets a
+search and a warning, and pings only a member named like the domain.
+
+Hindi and other Indic scripts space their words but are not in the list of
+scripts, so an email address after one of their letters (`राम@gmail.com`) is
+looked up too: a search and a warning, and a ping only for a member named like
+the domain. Someone has to maintain the list of scripts that count, so it
+stays short.
+
+`@adam/@bob` pings only `adam`, because the `@bob` follows a `/`. A missed
+ping costs less than pinging someone from a path.
+
+Display names are matched, but Discord documents its search as matching
+usernames and nicknames only. A member known only by a display name may
+never be returned, so a clash with one goes undetected. `@Adam Smith` can
+ping the member whose username is `adam` when the Adam Smith in the server
+uses that name only as a display name.
+
+Channel mentions inside `_` emphasis (`_#general_`) are not converted. `_` is
+a word character, so the `#` doesn't start a word.
 
 ## Code spans and links are never rewritten
 
@@ -152,12 +213,12 @@ emoji there would crash after a post was already made.
 
 ## Open questions
 
-### Exact-name mention matching hasn't had a bug-finding pass (2026-10-02)
+### Indic and Thai names are dropped with no warning (2026-10-02)
 
-Bug-hunter's third and last review pass replaced prefix matching with exact
-names (see "Mentions match exact names only"). Its budget ended before a pass
-could read that rewrite. Unreviewed: `convert_mentions` and its member lookup,
-`MENTION_RE` and what may precede `@`, one warning per name, and ASCII-only
-JSON output in `main()`. 75 tests cover them, five of them regressions from
-that pass. Recommended: one bug-hunter run scoped to those parts; it is cheap
-and likely to find little, since the rewrite removed the riskiest logic.
+`@सीता` stays plain text and gets no warning, so the missed ping goes
+unnoticed. Vowel signs and other combining marks (Unicode category M) are not
+word characters in Python's `re`, so the name is cut to one character. That is
+below the two-character minimum, so the regex never matches. Nobody is pinged
+wrongly, but the rule of one warning per unresolved name is broken. Python's
+`re` has no `\p{M}`. Fixing this means listing the mark ranges in the
+pattern, or checking `unicodedata.category` after a match. Undecided.

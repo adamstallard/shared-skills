@@ -596,6 +596,136 @@ class Regressions(unittest.TestCase):
         self.assertEqual(len(warnings), 1)
 
 
+    def by_any_name(self, members):
+        """A member search that, like Discord's, matches the start of any of a member's names."""
+        def search(body, query):
+            q = query["query"].lower()
+            return [m for m in members if any(n and n.lower().startswith(q) for n in
+                                              (m["user"]["username"], m["user"]["global_name"], m["nick"]))]
+        return FakeApi(guild_routes(search=search))
+
+    def test_decomposed_accent_does_not_cut_the_name(self):
+        api = self.by_any_name([member("1", "jose"), member("2", "x", nick="Jos\u00e9")])
+        text, ids, warnings = d.convert_mentions(api, GUILD, "@Jose\u0301 hi", {})
+        self.assertEqual(ids, ["2"])
+
+    def test_a_longer_name_the_text_spells_out_is_not_cut_short(self):
+        for text_in, longer in (("@Adam Smith please review", member("2", "x", global_name="Adam Smith")),
+                                ("@Jo'Anne hi", member("2", "x", nick="Jo'Anne")),
+                                ("@Jo\U0001f3b8 hi", member("2", "x", nick="Jo\U0001f3b8"))):
+            short = member("1", text_in[1:3].lower() if text_in.startswith("@Jo") else "adam")
+            api = self.by_any_name([short, longer])
+            text, ids, warnings = d.convert_mentions(api, GUILD, text_in, {})
+            self.assertEqual(ids, [], text_in)
+            self.assertEqual(text, text_in)
+            self.assertEqual(len(warnings), 1)
+
+    def test_a_possessive_still_pings(self):
+        (text, ids, _), _ = self.mentions("@adam's review", [member("8", "adam")])
+        self.assertEqual(text, "<@8>'s review")
+
+    def test_a_name_longer_than_discord_allows_is_not_cut_to_a_member(self):
+        name = "a" * 16 + "b" * 16
+        (text, ids, warnings), _ = self.mentions(f"@{name}cdefghij is a token", [member("1", name)])
+        self.assertEqual(ids, [])
+        self.assertEqual(len(warnings), 1)
+
+    def test_a_full_page_of_search_results_pings_nobody(self):
+        crowd = [member(str(100 + i), f"jo{i:03}") for i in range(d.MEMBER_SEARCH_LIMIT - 1)]
+        api = FakeApi(guild_routes(search=[member("1", "jo")] + crowd))
+        text, ids, warnings = d.convert_mentions(api, GUILD, "@jo hi", {})
+        self.assertEqual(ids, [])
+        self.assertEqual(len(warnings), 1)
+
+    def test_escaped_mentions_are_left_alone(self):
+        (text, ids, _), _ = self.mentions(r"use \@adam, see \#agents", [member("8", "adam")])
+        self.assertEqual(text, r"use \@adam, see \#agents")
+        self.assertEqual(ids, [])
+
+    def test_a_hash_right_after_a_mention_is_not_a_channel(self):
+        (text, _, _), _ = self.mentions("@adam#agents", [member("8", "adam")])
+        self.assertEqual(text, "<@8>#agents")
+
+    def test_the_ambiguity_warning_names_the_ambiguous_name(self):
+        api = FakeApi(guild_routes(search=[member("1", "adam."), member("2", "x", nick="adam.")]))
+        _, _, warnings = d.convert_mentions(api, GUILD, "@adam. hi", {})
+        self.assertEqual(warnings, ["several members are named @adam.; left as plain text"])
+
+    def test_one_name_in_two_cases_is_searched_and_warned_about_once(self):
+        api = FakeApi(guild_routes(members=[]))
+        _, _, warnings = d.convert_mentions(api, GUILD, "@Bob and @bob", {})
+        self.assertEqual(len(warnings), 1)
+        self.assertEqual(len([c for c in api.calls if c[1].endswith("members/search")]), 1)
+
+    def test_a_link_without_a_scheme_is_not_a_mention(self):
+        for text_in in ("see youtube.com/@adam for that", "my post at medium.com/@adam/why-x"):
+            (text, ids, _), _ = self.mentions(text_in, [member("8", "adam")])
+            self.assertEqual((text, ids), (text_in, []))
+
+    def test_an_email_address_with_punctuation_before_the_at_is_not_a_mention(self):
+        (text, ids, _), _ = self.mentions("mail adam_@gmail.com", [member("1", "gmail.com")])
+        self.assertEqual((text, ids), ("mail adam_@gmail.com", []))
+
+    def test_a_package_scope_is_not_a_mention(self):
+        (text, ids, _), _ = self.mentions("install @types/node first", [member("1", "types")])
+        self.assertEqual((text, ids), ("install @types/node first", []))
+
+    def test_a_dotted_capital_i_does_not_veto_its_own_member(self):
+        api = self.by_any_name([member("1", "izzy_t", nick="\u0130zzy")])
+        text, ids, warnings = d.convert_mentions(api, GUILD, "thanks @\u0130zzy", {})
+        self.assertEqual((text, ids, warnings), ("thanks <@1>", ["1"], []))
+
+    def test_text_without_a_mention_keeps_its_exact_characters(self):
+        text_in = "\u212b and \uf900 and \u2126, @Jose\u0301 hi"
+        api = self.by_any_name([member("2", "x", nick="Jos\u00e9")])
+        text, ids, _ = d.convert_mentions(api, GUILD, text_in, {})
+        self.assertEqual(text, "\u212b and \uf900 and \u2126, <@2> hi")
+        self.assertEqual(ids, ["2"])
+
+    def test_an_email_address_ending_in_an_accented_letter_is_not_a_mention(self):
+        (text, ids, warnings), _ = self.mentions("mail jos\u00e9@adam or zo\u00eb@gmail.com", [member("1", "adam")])
+        self.assertEqual((text, ids, warnings), ("mail jos\u00e9@adam or zo\u00eb@gmail.com", [], []))
+
+    def test_a_mention_after_halfwidth_katakana_still_pings(self):
+        (text, ids, _), _ = self.mentions("\uff71@adam \u898b\u3066", [member("8", "adam")])
+        self.assertEqual((text, ids), ("\uff71<@8> \u898b\u3066", ["8"]))
+
+    def test_a_one_letter_name_is_too_short_however_its_accent_is_typed(self):
+        api = self.by_any_name([member("1", "\u00e9")])
+        text, ids, _ = d.convert_mentions(api, GUILD, "hi @e\u0301 there", {})
+        self.assertEqual((text, ids), ("hi @e\u0301 there", []))
+
+    def test_a_mention_after_thai_or_another_unspaced_script_still_pings(self):
+        for before in ("\u0e02\u0e2d\u0e1a\u0e04\u0e38\u0e13", "\u0eaa\u0eb0\u0e9a\u0eb2\u0e8d\u0e94\u0eb5",
+                       "\u179f\u17bd\u179f\u17d2\u178f\u17b8", "\u1019\u1004\u103a\u1039\u1002\u101c\u102c\u1015\u102b"):
+            (text, ids, _), _ = self.mentions(before + "@adam hi", [member("8", "adam")])
+            self.assertEqual((text, ids), (before + "<@8> hi", ["8"]), ascii(before))
+
+    def test_a_dotted_capital_i_alone_is_too_short(self):
+        api = self.by_any_name([member("4", "zz", nick="\u0130")])
+        text, ids, _ = d.convert_mentions(api, GUILD, "@\u0130. hi", {})
+        self.assertEqual((text, ids), ("@\u0130. hi", []))
+
+    def test_an_email_address_ending_in_a_persian_digit_is_not_a_mention(self):
+        (text, ids, warnings), _ = self.mentions("\u06f1\u06f2\u06f3@gmail.com", [member("5", "gmail.com")])
+        self.assertEqual((text, ids, warnings), ("\u06f1\u06f2\u06f3@gmail.com", [], []))
+
+    def test_an_email_address_ending_in_a_non_ascii_digit_is_not_a_mention(self):
+        (text, ids, warnings), _ = self.mentions("\u0661\u0662\u0663@gmail.com", [member("5", "gmail.com")])
+        self.assertEqual((text, ids, warnings), ("\u0661\u0662\u0663@gmail.com", [], []))
+
+    def test_a_mention_after_a_fullwidth_or_thai_digit_still_pings(self):
+        for before in ("\u8cea\u554f\uff11", "\u0e02\u0e2d\u0e1a\u0e04\u0e38\u0e13\u0e51"):
+            (text, ids, _), _ = self.mentions(before + "@adam hi", [member("8", "adam")])
+            self.assertEqual((text, ids), (before + "<@8> hi", ["8"]), ascii(before))
+
+    def test_everyone_or_here_with_a_tail_never_pings(self):
+        for text_in in ("Hey @everyone. ready?", "_@here_ please"):
+            api = FakeApi(guild_routes(search=[member("2", "x", nick="everyone."), member("3", "here_")]))
+            text, ids, _ = d.convert_mentions(api, GUILD, text_in, {})
+            self.assertEqual((text, ids), (text_in, []), text_in)
+
+
 class Check(unittest.TestCase):
     def run_check(self, search):
         routes = guild_routes(search=search)
