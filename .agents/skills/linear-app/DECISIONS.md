@@ -116,6 +116,22 @@ fresh token.
 aura-workroom PR #18 (AUR-330). Its first half, limiting the server to one
 project folder, is `wire --project`.
 
+## A broken helper is detected, not prevented
+
+**Decision.** The helper names the installed skill's script
+(`~/.claude/skills/linear-app/...`) when that leads to this file, and the
+Python that ran `wire`. `check` reads Claude Code's config
+(`$CLAUDE_CONFIG_DIR/.claude.json`, else `~/.claude.json`) and warns about any
+server wired to the identity whose Python or script no longer exists, with the
+command that wires it again.
+
+**Why.** The script path is easy to make stable: manage-skills repairs the
+installed links when the clone moves. The Python path isn't. An attempt to
+record a name that survives upgrades (`python3` on PATH, a venv's base
+interpreter) needed fixes in three review iterations in a row: venvs, relative
+PATH entries, Homebrew's versioned Cellar folders. Re-running `wire` after an
+upgrade is one command, so `check` saying when it is needed is enough.
+
 ## `store-credentials` passes the secret to `security` as an argument
 
 **Decision.** On macOS the secret is stored with
