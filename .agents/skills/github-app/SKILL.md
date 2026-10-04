@@ -63,7 +63,8 @@ person who logged it in.
 Run `python3 $G check`.
 
 - **`ok: true`**: the App works. `commitsAs` is who commits will show as, and
-  `canPushAndOpenPullRequests` must be `true`. Warnings name any missing
+  `canPushAndOpenPullRequests` must be `true`. `canClaimIssues` must be
+  `true` before you claim or comment on an issue. Warnings name any missing
   permission or unreachable repository; tell the user, who changes the App's
   settings or installation in a browser.
 - **"no App credentials"**: this identity isn't set up on this machine. Point

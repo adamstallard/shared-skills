@@ -33,7 +33,7 @@ App per agent identity.
 | GitHub App name       | The agent's name, e.g. `acme-agent`. Commits show as `acme-agent[bot]`. |
 | Homepage URL          | Anything; your repository's URL is fine. |
 | Webhook               | **Untick Active.** Nothing needs to receive events. |
-| Repository permissions | **Contents: Read and write**, **Pull requests: Read and write**, **Metadata: Read-only** (always on). Add **Issues: Read and write** if the agent claims or comments on issues. |
+| Repository permissions | **Contents: Read and write**, **Pull requests: Read and write**, **Metadata: Read-only** (always on). Add **Issues: Read and write** if the agent claims or comments on issues (`check` shows `canClaimIssues`), and **Workflows: Read and write** if it changes files under `.github/workflows/`, without which GitHub rejects the push. |
 | Where can it be installed | **Only on this account.** |
 
 Then, on the App's page:

@@ -13,6 +13,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import time
 import types
 import unittest
 import urllib.error
@@ -258,6 +259,23 @@ class Check(Env):
         result = self.run_check()
         self.assertFalse(result["canPushAndOpenPullRequests"])
         self.assertIn("contents: write", " ".join(result["warnings"]))
+
+    def test_check_says_whether_the_app_can_claim_issues(self):
+        for issues, can in (("write", True), ("admin", True), ("read", False), (None, False)):
+            with self.subTest(issues=issues):
+                self.github.permissions = {"contents": "write", "pull_requests": "write"}
+                if issues:
+                    self.github.permissions["issues"] = issues
+                result = self.run_check()
+                self.assertIs(result["canClaimIssues"], can)
+                # Claiming issues is optional, so lacking it is no warning.
+                self.assertNotIn("warnings", result)
+
+    def test_check_sees_a_permission_granted_since_the_token_was_minted(self):
+        self.github.now = time.time()  # so the first check's token is still fresh for the second
+        self.assertFalse(self.run_check()["canClaimIssues"])
+        self.github.permissions = dict(self.github.permissions, issues="write")
+        self.assertTrue(self.run_check()["canClaimIssues"])
 
     def test_a_configured_repo_the_app_cannot_reach_is_named(self):
         result = self.run_check(dict(self.config, repos=["acme/web", "acme/secret"]))

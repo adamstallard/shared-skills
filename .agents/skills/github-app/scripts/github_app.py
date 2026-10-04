@@ -304,12 +304,15 @@ def usable(cached, credential, now):
     return cached.get("token") and cached.get("credential") == credential and now < cached.get("renewAt", 0)
 
 
-def current_token(identity, config, env=None, now=None, opener=urllib.request.urlopen, signer=sign, refused=None):
+def current_token(identity, config, env=None, now=None, opener=urllib.request.urlopen, signer=sign, refused=None,
+                  fresh=False):
     """An installation token in the first half of its life, minting a new one only when needed.
 
     Every process acting as this identity shares one cached token, under a lock,
     so they never mint over each other. `refused` is a token GitHub rejected: it
-    is replaced, unless another process has already replaced it.
+    is replaced, unless another process has already replaced it. `fresh` always
+    mints: a token keeps the permissions it was minted with, so one granted
+    since then shows only on a new token.
     """
     env = os.environ if env is None else env
     now = time.time() if now is None else now
@@ -318,14 +321,14 @@ def current_token(identity, config, env=None, now=None, opener=urllib.request.ur
     credential = fingerprint(app_id, key, config, target_env)
     path = cache_path(identity, env)
     cached = read_cache(path)
-    if refused is None and usable(cached, credential, now):
+    if refused is None and not fresh and usable(cached, credential, now):
         return cached["token"], cached
     os.makedirs(os.path.dirname(path), mode=0o700, exist_ok=True)
     with open(path + ".lock", "w") as lock:
         if fcntl:
             fcntl.flock(lock, fcntl.LOCK_EX)
         cached = read_cache(path)  # another process may have minted while we waited
-        if usable(cached, credential, now) and cached.get("token") != refused:
+        if not fresh and usable(cached, credential, now) and cached.get("token") != refused:
             return cached["token"], cached
         jwt = app_jwt(app_id, key, now, signer)
         remembered = cached.get("installationId") if cached.get("credential") == credential else None
@@ -361,10 +364,10 @@ def bot_identity(slug, token, opener=urllib.request.urlopen):
     return login, f"{user['id']}+{login}@users.noreply.github.com"
 
 
-def describe(identity, config, opener=urllib.request.urlopen, signer=sign, env=None):
+def describe(identity, config, opener=urllib.request.urlopen, signer=sign, env=None, fresh=False):
     """The App's slug, bot name and email, and a valid token, for the commands that need all of them."""
     env = os.environ if env is None else env
-    token, cached = current_token(identity, config, env, opener=opener, signer=signer)
+    token, cached = current_token(identity, config, env, opener=opener, signer=signer, fresh=fresh)
     app_id, key = app_credentials(identity, config, env)
     app = api("GET", "/app", app_jwt(app_id, key, time.time(), signer), opener=opener)
     name, email = bot_identity(app["slug"], token, opener)
@@ -380,7 +383,8 @@ def cmd_token(args, config):
 
 
 def cmd_check(args, config, opener=urllib.request.urlopen, signer=sign):
-    app, name, email, token, cached = describe(args.identity, config, opener, signer)
+    # A fresh token, so permissions granted since the last mint show, and `run` and `gh` get them too.
+    app, name, email, token, cached = describe(args.identity, config, opener, signer, fresh=True)
     remember_bot(args.identity, cached["appId"], name, email)  # check refreshes what `run` and `env` use
     permissions = cached.get("permissions") or {}
     repos = api("GET", "/installation/repositories?per_page=100", token, opener=opener)
@@ -392,6 +396,8 @@ def cmd_check(args, config, opener=urllib.request.urlopen, signer=sign):
         "installationId": cached["installationId"],
         "permissions": permissions,
         "canPushAndOpenPullRequests": all(permissions.get(k) in ("write", "admin") for k in NEEDED),
+        # Optional: claiming an issue adds a label and a comment.
+        "canClaimIssues": permissions.get("issues") in ("write", "admin"),
         "repositories": repos.get("total_count", len(names)),
         "tokenMinutesLeft": max(0, int((cached["expiresAt"] - time.time()) // 60)),
     }
