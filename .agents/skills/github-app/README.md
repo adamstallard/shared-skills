@@ -69,18 +69,25 @@ under the organization that owns the repositories (or your own account).
 | Repository permissions | **Contents: Read and write**, **Pull requests: Read and write**, **Metadata: Read-only** (always on). Add **Issues: Read and write** if the agent claims or comments on issues (`check` shows `canClaimIssues`), and **Workflows: Read and write** if it changes files under `.github/workflows/`. |
 | Where can this GitHub App be installed? | **Only on this account**, or **Any account** if the agent will work on other accounts too. |
 
-Then, on the App's page:
+Then, on the App's **General** page:
 
-- Note the **App ID** near the top.
-- Under **Private keys**, at the bottom of the App's **General** page,
-  **Generate a private key**. GitHub downloads a `.pem` file. It is the App's
-  password; treat it like an SSH key.
+- The **App ID** is near the top. Step 3 asks for it, because the script
+  identifies the App by it when it asks GitHub for tokens. Copy it from here
+  then; it stays on this page and isn't secret.
+- Under **Private keys**, at the bottom of the page, **Generate a private
+  key**. GitHub downloads a `.pem` file. It is the App's password; treat it
+  like an SSH key.
 
 ### 2. Install it
 
-On the App's page, **Install App**, on each account the agent works on, for
-**only the repositories** it works in. For an organization you don't own, an
-owner approves the installation.
+In the App's settings, open **Install App** in the left sidebar. It lists your
+account and the organizations you can install the App on. For each one the
+agent works on:
+
+1. Click **Install**.
+2. Choose **Only select repositories**, and pick the ones the agent works in.
+3. Confirm with **Install**. For an organization you don't own, this sends a
+   request that an owner approves.
 
 Steps 1 and 2 happen on GitHub. The rest runs on your machine: type the
 commands below, or have your agent run them ([Asking your
