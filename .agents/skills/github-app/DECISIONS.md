@@ -15,10 +15,12 @@ mints tokens, so no personal access token expires on anyone; and its work is
 marked `[bot]`, so nobody mistakes it for a person. It needs no server.
 
 **Where it stops applying.** An App's bot user can't be an issue assignee
-(the assignment request returns 403) or a requested reviewer. Where GitHub is
-the surface an agent claims work on by assignment, it needs a machine user,
-which this skill doesn't manage. This skill is for agents that claim on an
-issue tracker and use GitHub for code.
+(the assignment request returns 403) or a requested reviewer. That doesn't
+stop an App claiming GitHub issues: it claims with a label naming the agent
+(igor uses `igor:<role>`) and a comment, and the assignee stays the person's,
+as Linear's delegate is separate from its assignee. An agent needs a machine
+user, which this skill doesn't manage, only where it must be the assignee
+itself or a requested reviewer.
 
 ## The key stays a file, never the keychain
 

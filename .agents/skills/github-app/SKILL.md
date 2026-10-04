@@ -77,9 +77,10 @@ Run `python3 $G check`.
 
 ## What an App can't do
 
-An App **can't be an issue's assignee** or a **requested reviewer**. Claim
-work on the issue tracker the team uses for claims, such as Linear by
-delegate, not on GitHub. A person reviews and merges every pull request an App
+An App **can't be an issue's assignee** or a **requested reviewer**. Never
+try to assign yourself. To claim a GitHub issue, add the label that names you
+and comment; the assignee is a person's. On Linear, claim by delegation.
+Claim only on the tracker the team uses for claims. A person reviews and merges every pull request an App
 opens; never merge your own.
 
 ## Rules

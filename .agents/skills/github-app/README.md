@@ -10,10 +10,9 @@ one is needed, so nobody renews a token by hand.
 No server is needed. Minting a token and calling GitHub are outbound
 requests; the App's webhook stays off.
 
-**What an App can't do:** be an issue's assignee or a requested reviewer. If
-your agents claim work, claim it on your issue tracker (for example by
-delegating a Linear issue to the agent), and let GitHub carry the branches
-and pull requests.
+**What an App can't do:** be an issue's assignee or a requested reviewer. It
+can still claim GitHub issues: with a label naming the agent and a comment,
+leaving the assignee to a person. On Linear, an agent claims by delegation.
 
 ---
 
@@ -34,7 +33,7 @@ App per agent identity.
 | GitHub App name       | The agent's name, e.g. `acme-agent`. Commits show as `acme-agent[bot]`. |
 | Homepage URL          | Anything; your repository's URL is fine. |
 | Webhook               | **Untick Active.** Nothing needs to receive events. |
-| Repository permissions | **Contents: Read and write**, **Pull requests: Read and write**, **Metadata: Read-only** (always on). Add **Issues: Read and write** only if the agent comments on issues. |
+| Repository permissions | **Contents: Read and write**, **Pull requests: Read and write**, **Metadata: Read-only** (always on). Add **Issues: Read and write** if the agent claims or comments on issues. |
 | Where can it be installed | **Only on this account.** |
 
 Then, on the App's page:
