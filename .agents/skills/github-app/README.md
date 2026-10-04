@@ -67,7 +67,7 @@ under the organization that owns the repositories (or your own account).
 | Homepage URL          | Anything; your repository's URL is fine. |
 | Webhook               | **Untick Active.** Nothing needs to receive events. |
 | Repository permissions | **Contents: Read and write**, **Pull requests: Read and write**, **Metadata: Read-only** (always on). Add **Issues: Read and write** if the agent claims or comments on issues (`check` shows `canClaimIssues`), and **Workflows: Read and write** if it changes files under `.github/workflows/`. |
-| Where can this GitHub App be installed? | **Only on this account**, or **Any account** if the agent will work on other accounts too (step 2). |
+| Where can this GitHub App be installed? | **Only on this account**, or **Any account** if the agent will work on other accounts too. |
 
 Then, on the App's page:
 
@@ -77,25 +77,9 @@ Then, on the App's page:
 
 ### 2. Install it
 
-On the App's page, **Install App**, on the account that owns the
-repositories, for **only the repositories** the agent works in.
-
-**On more than one account,** such as two organizations, or an organization
-and your own account, the App must be set to **Any account**; set to **Only
-on this account**, it can be installed only on the account that created it.
-With **Any account**, any user or organization can install it, and it reaches
-only what each grants; your key stays yours. Install it on each account the
-same way, from **Install App** or from its page,
-`https://github.com/apps/<app-slug>`. For an
-organization you don't own, an owner approves the installation.
-
-GitHub calls these settings public and private. To change one after creating
-the App: its settings → **Advanced** → **Danger zone** → **Make public** or
-**Make private**. It can be made private again only while it's installed on
-no other account.
-
-The alternative is one App per account, each set to **Only on this account**,
-with its own bot name and key.
+On the App's page, **Install App**, on each account the agent works on, for
+**only the repositories** it works in. For an organization you don't own, an
+owner approves the installation.
 
 Steps 1 and 2 happen on GitHub. The rest runs on your machine: type the
 commands below, or have your agent run them ([Asking your
@@ -229,6 +213,27 @@ for example a systemd `EnvironmentFile` readable only by that service.
 
 Processes of one role share its cached token, with a lock so they never mint
 over each other.
+
+---
+
+## Where an App can be installed
+
+The **Where can this GitHub App be installed?** setting from step 1:
+
+- **Only on this account:** the App can be installed only on the account that
+  created it.
+- **Any account:** any user or organization can install it, and it reaches
+  only the repositories each one grants. Your key stays yours. Others install
+  it from **Install App** or from its page,
+  `https://github.com/apps/<app-slug>`.
+
+GitHub calls these private and public. To change it after creating the App:
+its settings → **Advanced** → **Danger zone** → **Make public** or **Make
+private**. It can be made private again only while it's installed on no
+other account.
+
+The alternative to one App set to **Any account** is one App per account, each
+set to **Only on this account**, with its own bot name and key.
 
 ---
 
