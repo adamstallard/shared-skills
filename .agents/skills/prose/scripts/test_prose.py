@@ -977,8 +977,8 @@ class Check(unittest.TestCase):
             self.assertIn(f"\n### {number}. ", out)
         self.assertIn("Before: The hook reports commits landed without trailers skipped.", out)
         self.assertIn("A longer sentence that reads once beats a shorter one read twice.", out)
-        self.assertIn("  [ ] 8. Say who acts", out)
-        self.assertIn("  [ ] 12. Commit subject says what changed; the body says why", out)
+        self.assertIn("  [ ] 9. Say who acts", out)
+        self.assertIn("  [ ] 13. Commit subject says what changed; the body says why", out)
         self.assertNotIn(f"### {prose.RULES_IN_FULL + 1}.", out)
 
     def test_the_signing_call_prints_only_the_result_block_holding_the_one_trailer(self):
