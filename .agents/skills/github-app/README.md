@@ -72,8 +72,9 @@ under the organization that owns the repositories (or your own account).
 Then, on the App's page:
 
 - Note the **App ID** near the top.
-- Under **Private keys**, **Generate a private key**. GitHub downloads a
-  `.pem` file. It is the App's password; treat it like an SSH key.
+- Under **Private keys**, at the bottom of the App's **General** page,
+  **Generate a private key**. GitHub downloads a `.pem` file. It is the App's
+  password; treat it like an SSH key.
 
 ### 2. Install it
 
