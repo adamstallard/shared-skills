@@ -577,7 +577,8 @@ def cmd_run(args, config, execvpe=None, which=None, opener=urllib.request.urlope
     token, _ = current_token(args.identity, config)
     # Numbered after any GIT_CONFIG_* the caller already has, which keep working.
     env = dict(os.environ, **agent_env(args.identity, name, email, config_count(os.environ)), GH_TOKEN=token)
-    env.pop("GITHUB_TOKEN", None)  # gh prefers GH_TOKEN, but a stray one should not confuse anyone reading env
+    # gh prefers GH_TOKEN, but other tools called from 'run' might use GITHUB_TOKEN and act as the person.
+    env.pop("GITHUB_TOKEN", None)
     execvpe(command[0], command, env)
     return ""
 
