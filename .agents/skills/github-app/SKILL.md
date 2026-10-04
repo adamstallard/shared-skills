@@ -81,7 +81,8 @@ Run `python3 $G check`.
 ## Doing it for the user
 
 Only a person can do these, on GitHub in a browser: create the App, generate
-its private key, install it on an account, make it public, and accept new
+its private key, install it on an account, set it to install on any account
+(GitHub's **Make public**), and accept new
 permissions on an installation. When one of them is what's missing, say
 exactly which, and point at that step in the README.
 
@@ -91,7 +92,7 @@ to an identity, and report what it shows.
 | The user asks | You run |
 | --- | --- |
 | Store an identity from a key | `python3 $G --identity <name> store-credentials --app-id <ID> --key-file <path>`, then tell them to delete the downloaded `.pem` |
-| Add the App for another account | the same, under a new `--identity`, with `--owner <account>`. The App must be public and installed on that account |
+| Add the App for another account | the same, under a new `--identity`, with `--owner <account>`. The App must be installable on any account, and installed on that one |
 | Check an identity | `python3 $G --identity <name> check` |
 | Make a project act as the App | `python3 $G --identity <name> wire --project <folder>`. Only the folder they named |
 | Stop a project acting as the App | `python3 $G unwire --project <folder>` |

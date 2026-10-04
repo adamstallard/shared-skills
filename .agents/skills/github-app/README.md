@@ -46,7 +46,7 @@ One is on your machine:
 - **Two roles on one account:** two Apps, so two identities.
 - **One App on two accounts,** such as an organization and your personal
   account: two identities, made from the same App ID and key, each naming
-  its own owner. The App has to be public (step 2).
+  its own owner. The App has to be installable on **Any account** (step 1).
 
 ---
 
@@ -67,30 +67,27 @@ under the organization that owns the repositories (or your own account).
 | Homepage URL          | Anything; your repository's URL is fine. |
 | Webhook               | **Untick Active.** Nothing needs to receive events. |
 | Repository permissions | **Contents: Read and write**, **Pull requests: Read and write**, **Metadata: Read-only** (always on). Add **Issues: Read and write** if the agent claims or comments on issues (`check` shows `canClaimIssues`), and **Workflows: Read and write** if it changes files under `.github/workflows/`. |
-| Where can it be installed | **Only on this account**, unless the agent will work on other accounts too (step 2). |
+| Where can this GitHub App be installed? | **Only on this account**, or **Any account** if the agent will work on other accounts too. |
 
-Then, on the App's page:
+Then, on the App's **General** page:
 
-- Note the **App ID** near the top.
-- Under **Private keys**, **Generate a private key**. GitHub downloads a
-  `.pem` file. It is the App's password; treat it like an SSH key.
+- The **App ID** is near the top. Step 3 asks for it, because the script
+  identifies the App by it when it asks GitHub for tokens. Copy it from here
+  then; it stays on this page and isn't secret.
+- Under **Private keys**, at the bottom of the page, **Generate a private
+  key**. GitHub downloads a `.pem` file. It is the App's password; treat it
+  like an SSH key.
 
 ### 2. Install it
 
-On the App's page, **Install App**, on the account that owns the
-repositories, for **only the repositories** the agent works in.
+In the App's settings, open **Install App** in the left sidebar. It lists your
+account and the organizations you can install the App on. For each one the
+agent works on:
 
-**On more than one account,** such as two organizations, or an organization
-and your own account, the App has to be **public**: a private App ("Only on
-this account") can be installed only on the account that created it. Under
-**Advanced**, choose **Make public**. Any account can then install it, and it
-reaches only what each grants; your key stays yours. Install it on each
-account the same way, from **Install App** or from its public page,
-`https://github.com/apps/<app-slug>`. For an organization you don't own, an
-owner approves the installation.
-
-The alternative is one private App per account, each with its own bot name
-and key.
+1. Click **Install**.
+2. Choose **Only select repositories**, and pick the ones the agent works in.
+3. Confirm with **Install**. For an organization you don't own, this sends a
+   request that an owner approves.
 
 Steps 1 and 2 happen on GitHub. The rest runs on your machine: type the
 commands below, or have your agent run them ([Asking your
@@ -224,6 +221,27 @@ for example a systemd `EnvironmentFile` readable only by that service.
 
 Processes of one role share its cached token, with a lock so they never mint
 over each other.
+
+---
+
+## Where an App can be installed
+
+The **Where can this GitHub App be installed?** setting from step 1:
+
+- **Only on this account:** the App can be installed only on the account that
+  created it.
+- **Any account:** any user or organization can install it, and it reaches
+  only the repositories each one grants. Your key stays yours. Others install
+  it from **Install App** or from its page,
+  `https://github.com/apps/<app-slug>`.
+
+GitHub calls these private and public. To change it after creating the App:
+its settings → **Advanced** → **Danger zone** → **Make public** or **Make
+private**. It can be made private again only while it's installed on no
+other account.
+
+The alternative to one App set to **Any account** is one App per account, each
+set to **Only on this account**, with its own bot name and key.
 
 ---
 
