@@ -34,7 +34,7 @@ App per agent identity.
 | Homepage URL          | Anything; your repository's URL is fine. |
 | Webhook               | **Untick Active.** Nothing needs to receive events. |
 | Repository permissions | **Contents: Read and write**, **Pull requests: Read and write**, **Metadata: Read-only** (always on). Add **Issues: Read and write** if the agent claims or comments on issues (`check` shows `canClaimIssues`), and **Workflows: Read and write** if it changes files under `.github/workflows/`, without which GitHub rejects the push. |
-| Where can it be installed | **Only on this account.** |
+| Where can it be installed | **Only on this account.** For one App on several accounts, see [One App on several accounts](#one-app-on-several-accounts). |
 
 Then, on the App's page:
 
@@ -184,6 +184,32 @@ its own `GITHUB_APP_IDENTITY`, `GITHUB_APP_ID` and key, plus the lines from
 `env`. Processes of the same role share one cached token under
 `~/.local/state/github-app/` (or `$XDG_STATE_HOME`), with a lock so they never
 mint over each other.
+
+## One App on several accounts
+
+To use one App, with one bot name, on several organizations or on your own
+account as well, it has to be **public**. A private App ("Only on this
+account") can be installed only on the account that owns it.
+
+1. On the App's page, under **Advanced**, choose **Make public**. Public
+   means any account can install it, and it then reaches what that account
+   grants. Your key stays yours.
+2. **Install App** on each account, for only the repositories the agent works
+   in. Each account's owner approves its installation.
+3. Store the same key and App ID once per account, as its own identity:
+
+   ```bash
+   G=~/.agents/skills/github-app/scripts/github_app.py
+   python3 $G --identity acme     store-credentials --app-id 123456 --key-file agent.pem --owner acme
+   python3 $G --identity personal store-credentials --app-id 123456 --key-file agent.pem --owner your-login
+   ```
+
+A token covers one installation, so a command acts on one account at a time:
+pick it with `--identity`, and `wire` each project to the identity for its
+account.
+
+The alternative is one private App per account. Each gets its own bot name
+and key, and nothing is installable by others.
 
 ---
 
