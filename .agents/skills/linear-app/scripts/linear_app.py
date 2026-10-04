@@ -369,6 +369,9 @@ def cmd_check(args, config):
     for key in ("teams", "people", "notes"):
         if config.get(key):
             result[key] = config[key]
+    warnings = stale_helpers(args.identity)
+    if warnings:
+        result["warnings"] = warnings
     return result
 
 
@@ -392,10 +395,68 @@ def cmd_store_credentials(args, config):
     return stored
 
 
+def stable_script(home=None, current=None):
+    """This script's path under an installed skill folder, when it leads here, else the file itself.
+
+    Installed skills are links into a clone; manage-skills repairs those links
+    when the clone moves, so a command naming the link keeps working.
+    """
+    current = os.path.abspath(current or __file__)
+    home = home or os.path.expanduser("~")
+    for target in (".claude", ".agents"):
+        candidate = os.path.join(home, target, "skills", "linear-app", "scripts", os.path.basename(current))
+        if os.path.exists(candidate) and os.path.realpath(candidate) == os.path.realpath(current):
+            return candidate
+    return current
+
+
 def helper_command(identity, script=None, python=None):
-    script = script or os.path.abspath(__file__)
+    script = script or stable_script()
     python = python or sys.executable
     return " ".join(shlex.quote(p) for p in (python, script, "--identity", identity, "headers"))
+
+
+def stale_helpers(identity, path=None):
+    """Warnings for Claude Code servers wired to this identity whose helper can't run."""
+    # Claude Code keeps its config in CLAUDE_CONFIG_DIR when that is set.
+    path = path or os.path.join(os.environ.get("CLAUDE_CONFIG_DIR") or os.path.expanduser("~"), ".claude.json")
+    try:
+        with open(path, encoding="utf-8") as f:
+            claude = json.load(f)
+    except (OSError, ValueError):
+        return []
+    if not isinstance(claude, dict):
+        return []
+    # (servers, project folder or None for every session)
+    tables = [(claude.get("mcpServers"), None)]
+    projects = claude.get("projects")
+    if isinstance(projects, dict):
+        # A project whose folder is gone starts no session, so its servers can't fail.
+        tables += [(p.get("mcpServers"), folder) for folder, p in projects.items()
+                   if isinstance(p, dict) and os.path.isdir(folder)]
+    warnings = []
+    for servers, folder in tables:
+        if not isinstance(servers, dict):
+            continue
+        for name, server in servers.items():
+            helper = server.get("headersHelper") if isinstance(server, dict) else None
+            try:
+                words = shlex.split(helper) if isinstance(helper, str) else []
+            except ValueError:
+                continue
+            if len(words) < 4 or not words[1].endswith("linear_app.py") or words[2:4] != ["--identity", identity]:
+                continue
+            # As the shell would find them: a bare name on PATH, and ~ expanded.
+            interpreter = shutil.which(words[0]) if "/" not in words[0] else os.path.expanduser(words[0])
+            missing = [w for w, found in ((words[0], interpreter), (words[1], os.path.expanduser(words[1])))
+                       if not found or not os.path.exists(found)]
+            if missing:
+                rewire = [sys.executable, stable_script(), "--identity", identity, "wire", "--name", name]
+                if folder:
+                    rewire += ["--project", folder]
+                warnings.append(f"the {name!r} MCP server runs {missing[0]}, which no longer exists, so Linear "
+                                f"fails at session start; run: {shlex.join(rewire)}")
+    return warnings
 
 
 def cmd_wire(args, config, run=subprocess.run, which=shutil.which):

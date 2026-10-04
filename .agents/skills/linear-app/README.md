@@ -135,6 +135,12 @@ with 401 or `invalid_client`, the client secret was rotated in Linear, or
 client credentials were disabled on the application: run `store-credentials`
 with the current secret.
 
+**Linear fails at every session start after a Python upgrade**: the server
+runs the Python that ran `wire`, and an upgrade can remove it. `check` warns
+about any server whose Python or script is gone and prints the command that
+wires it again. `wire` records the installed skill's path, not the clone's, so
+moving the clone and repairing the install with manage-skills doesn't break it.
+
 **Linear tools fail in a session after `wire` or a scope change**: MCP servers
 connect at session start. Run `/mcp` and reconnect, or start a new session.
 
