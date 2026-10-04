@@ -46,7 +46,7 @@ One is on your machine:
 - **Two roles on one account:** two Apps, so two identities.
 - **One App on two accounts,** such as an organization and your personal
   account: two identities, made from the same App ID and key, each naming
-  its own owner. The App has to be public (step 2).
+  its own owner. The App has to be installable on **Any account** (step 1).
 
 ---
 
@@ -67,7 +67,7 @@ under the organization that owns the repositories (or your own account).
 | Homepage URL          | Anything; your repository's URL is fine. |
 | Webhook               | **Untick Active.** Nothing needs to receive events. |
 | Repository permissions | **Contents: Read and write**, **Pull requests: Read and write**, **Metadata: Read-only** (always on). Add **Issues: Read and write** if the agent claims or comments on issues (`check` shows `canClaimIssues`), and **Workflows: Read and write** if it changes files under `.github/workflows/`. |
-| Where can it be installed | **Only on this account**, unless the agent will work on other accounts too (step 2). |
+| Where can this GitHub App be installed? | **Only on this account**, or **Any account** if the agent will work on other accounts too (step 2). |
 
 Then, on the App's page:
 
@@ -81,16 +81,21 @@ On the App's page, **Install App**, on the account that owns the
 repositories, for **only the repositories** the agent works in.
 
 **On more than one account,** such as two organizations, or an organization
-and your own account, the App has to be **public**: a private App ("Only on
-this account") can be installed only on the account that created it. Under
-**Advanced**, choose **Make public**. Any account can then install it, and it
-reaches only what each grants; your key stays yours. Install it on each
-account the same way, from **Install App** or from its public page,
-`https://github.com/apps/<app-slug>`. For an organization you don't own, an
-owner approves the installation.
+and your own account, the App must be set to **Any account**; set to **Only
+on this account**, it can be installed only on the account that created it.
+With **Any account**, any user or organization can install it, and it reaches
+only what each grants; your key stays yours. Install it on each account the
+same way, from **Install App** or from its page,
+`https://github.com/apps/<app-slug>`. For an
+organization you don't own, an owner approves the installation.
 
-The alternative is one private App per account, each with its own bot name
-and key.
+GitHub calls these settings public and private. To change one after creating
+the App: its settings → **Advanced** → **Danger zone** → **Make public** or
+**Make private**. It can be made private again only while it's installed on
+no other account.
+
+The alternative is one App per account, each set to **Only on this account**,
+with its own bot name and key.
 
 Steps 1 and 2 happen on GitHub. The rest runs on your machine: type the
 commands below, or have your agent run them ([Asking your
