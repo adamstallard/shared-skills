@@ -44,6 +44,25 @@ line — "Checked: X. Not checked: Y." — is narrowing, not hedging.
 
 ---
 
+## Rule 4: each sentence follows from the last
+
+**Decision (Adam, 2026-10-04).** No abrupt switch to a subject the reader
+wasn't expecting, or may not know or care about. A new subject the reader
+does need gets its own paragraph that introduces it.
+
+**Why.** Agents' text kept making non-sequiturs after the prose pass existed,
+and they slowed reading down: a README about GitHub saying in passing how
+claiming works on Linear. Each one makes the reader hesitate, reread, or ask
+the agent what it meant.
+
+**Ranked fourth,** after *Read once, understood once*, because an abrupt
+switch fails the same way: the reader stops and goes back. It is not *One
+topic per block*, which is about how text is divided; this is about whether
+one sentence leads to the next. `RULES_IN_FULL` became 7, so *Spend words
+where they save reading time* is still printed in full with its example.
+
+---
+
 ## Scope: anything a human reviews
 
 READMEs and other docs, code comments, architecture docs, specs, commit
@@ -256,7 +275,7 @@ the pass. `SKILL.md` keeps no copy; it says that `prose check` prints the rules
 and `rules.md` is their only copy.
 
 `prose check` prints it by its headings, every time: everything before the
-rules section, rules 1 to 6 in full, the rest as one-line checklist items (their
+rules section, rules 1 to 7 in full, the rest as one-line checklist items (their
 `###` heading), and the cheat list. It refuses when a section is missing or out
 of order, or the rules are not numbered 1, 2, 3, even on a signing call.
 

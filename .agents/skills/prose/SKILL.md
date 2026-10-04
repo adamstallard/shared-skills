@@ -73,7 +73,7 @@ It prints:
 - the prose in the change (Markdown, specs, the comments the diff touches, the
   message);
 - history-language flags in those comments, as warnings;
-- the rules: the pass, rules 1 to 6 in full, the rest as a checklist, and how
+- the rules: the pass, rules 1 to 7 in full, the rest as a checklist, and how
   agents cheat on the pass;
 - the pass token, and the command to run next.
 

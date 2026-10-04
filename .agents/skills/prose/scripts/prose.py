@@ -409,7 +409,7 @@ def prose_in(root, base, read: Callable[[str], str]):
 # start of its `## ` heading. The rules section holds `### <n>. <title>`
 # subsections.
 RULE_SECTIONS = ("Scope", "The pass", "The rules", "How agents cheat")
-RULES_IN_FULL = 6
+RULES_IN_FULL = 7
 
 
 def _fenced_lines(lines):
