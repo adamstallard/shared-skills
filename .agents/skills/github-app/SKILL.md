@@ -67,8 +67,10 @@ Run `python3 $G check`.
   `true` before you claim or comment on an issue. Warnings name any missing
   permission or unreachable repository; tell the user, who changes the App's
   settings or installation in a browser.
-- **"no App credentials"**: this identity isn't set up on this machine. Point
-  the user at the README's setup. A person has to do the first steps.
+- **"no App credentials"**: this identity isn't set up on this machine. Ask
+  the user for the App ID and the path to its `.pem` file, and store it (see
+  *Doing it for the user*). If the App doesn't exist yet, point them at the
+  README's setup, steps 1 and 2.
 - **"is not installed on"** or **"several accounts"**: the App isn't
   installed where the config says, or the config needs an `owner`.
 - **git push asks for a password**, or commits or pushes as the person: the
@@ -76,13 +78,36 @@ Run `python3 $G check`.
   bot), or `origin` uses SSH, which pushes with the person's SSH key. Use
   `run --` and an `https://` remote.
 
+## Doing it for the user
+
+Only a person can do these, on GitHub in a browser: create the App, generate
+its private key, install it on an account, make it public, and accept new
+permissions on an installation. When one of them is what's missing, say
+exactly which, and point at that step in the README.
+
+Everything else you can run when the user asks. Run `check` after each change
+to an identity, and report what it shows.
+
+| The user asks | You run |
+| --- | --- |
+| Store an identity from a key | `python3 $G --identity <name> store-credentials --app-id <ID> --key-file <path>`, then tell them to delete the downloaded `.pem` |
+| Add the App for another account | the same, under a new `--identity`, with `--owner <account>`. The App must be public and installed on that account |
+| Check an identity | `python3 $G --identity <name> check` |
+| Make a project act as the App | `python3 $G --identity <name> wire --project <folder>`. Only the folder they named |
+| Stop a project acting as the App | `python3 $G unwire --project <folder>` |
+| Set up a server role | `python3 $G --identity <name> env >> <env file>`, with `--offset N` if that file already sets `GIT_CONFIG_COUNT=N` |
+| Remove an identity | `python3 $G --identity <name> forget`, then `unwire` each project still wired to it, found with `grep -l GITHUB_APP_WIRED <folders>/.claude/settings.local.json` |
+
+If `wire` refuses because the project's settings already set a key, tell the
+user which keys and let them decide; never remove their keys yourself.
+
 ## What an App can't do
 
 An App **can't be an issue's assignee** or a **requested reviewer**. Never
 try to assign yourself. To claim a GitHub issue, add the label that names you
-and comment; the assignee is a person's. On Linear, claim by delegation.
-Claim only on the tracker the team uses for claims. A person reviews and merges every pull request an App
-opens; never merge your own.
+and comment; the assignee is a person's. Claim only on the tracker the team
+uses for claims. A person reviews and merges every pull request an App opens;
+never merge your own.
 
 ## Rules
 
