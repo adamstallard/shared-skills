@@ -1,8 +1,8 @@
-// What the hint line shows, or null to leave it as the engine draws it.
-export type UsageTail = string | null
+// One usage window as the engine reports it (SessionRateLimit's fields).
+export type UsageLimit = { kind: string; percentUsed: number; resetsAt?: string }
 
 declare module 'claude-code' {
   interface PluginState {
-    'usage-hint': { tail: UsageTail }
+    'usage-hint': { limits: UsageLimit[] }
   }
 }

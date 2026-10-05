@@ -4,12 +4,17 @@ Shows your Claude subscription usage at the end of the hint line under the
 prompt in Claude Code:
 
 ```
-? for shortcuts  5h 31% 3p · 7d 18% Fri 9a
+? for shortcuts  5h 60% ⇡ 12p · 7d 18% ⇣ Fri 9a
 ```
 
 `5h` and `7d` are the five-hour and weekly windows: how much of each you have
 used, and when it resets. A reset today shows only its time (`3p`, `3:07p`);
 a later one adds the weekday (`Fri 9a`).
+
+The arrow is your pace. Even pace is the share of the window already gone by:
+two hours into a five-hour window is 40%. `⇡` means you have used more than
+that, so at this rate you'll hit the limit before it resets; `⇣` means less.
+Within 5 points of even pace there is no arrow.
 
 It sends no requests and costs nothing. Claude Code already receives these
 figures with every response, and the mod reads them from there.
