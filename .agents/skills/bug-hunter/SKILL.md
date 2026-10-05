@@ -251,9 +251,12 @@ those files are still context worth reading.
 
 ## Step 1 — Triage
 
-**Triage decides from the diff, not from the commit message.** Delegate a
-single fast pass to a **small, cheap model**. Give it the file list, the diff,
-and whether the user asked for a checkpoint (below). Ask for one of `REVIEW` or
+**Triage decides from the diff, not from the commit message.** For a diff of
+up to about 300 changed lines, **triage it yourself**, in the loop you are
+already in: a sub-agent costs more to start than reading a diff that size.
+Delegate a larger diff to a single fast pass on a **small, cheap model**. Either
+way, the pass gets the file list, the diff, and whether the user asked for a
+checkpoint (below). Ask for one of `REVIEW` or
 `SKIP` plus a one-line reason. Do not ask for a commit message first, and do
 not read a subject prefix as a signal — this skill imposes no commit
 convention ([reference.md](reference.md#what-triage-skips)).
@@ -311,8 +314,9 @@ Run the project's test suite, typecheck, or build — whatever it already has �
 and record the result. If something is already failing, note it as the
 baseline. You are not responsible for pre-existing failures, but you must not
 add to them, and you must not mistake one for a bug you found. This is running a
-command and writing down what it printed — a **small, cheap model** is
-sufficient.
+command and writing down what it printed: **run it yourself**. Never start a
+sub-agent to run a command; starting one costs more than reading its output.
+Keep only the summary lines of a long output.
 
 ## Step 3 — Find candidates
 
@@ -450,7 +454,7 @@ that is what catches a fix breaking its neighbours while it is still cheap to
 attribute. **Never modify, weaken, delete or skip an existing test to reach
 green.** If a pre-existing test now fails, the fix broke it — fix the fix, or
 revert it and report it unresolved. Running tests and comparing counts to the
-baseline — a **small, cheap model** is sufficient.
+baseline is running commands: **do it yourself**, as in Step 2.
 
 ## Step 8 — Iterate
 
