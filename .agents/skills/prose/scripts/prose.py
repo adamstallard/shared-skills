@@ -1027,10 +1027,15 @@ def runs_only_prose(command):
 # Commands that treat their arguments and stdin as data, never as shell code,
 # so a gh post named in them only mentions one. The list is closed on purpose:
 # any other command may run the text it is given (sh -c, eval, trap, env -S,
-# ssh, xargs), and a list of those is never complete. python3 and node can run
-# gh themselves, like any script file, which the hook does not read either.
-# printf, test and [ are left out: bash 4+ evaluates the array subscript in
-# `printf -v 'a[$(…)]'` and `test -v 'a[$(…)]'`, so their text can run.
+# ssh, xargs), and a list of those is never complete.
+#
+# python3, node and git are listed although they can run gh: what they run is
+# code handed to them on purpose (a script, -e, a git alias or rebase -x),
+# which the hook does not read, as it does not read a script file. Leaving them
+# out blocked ordinary scripts that only mention gh, the case this list is for.
+# printf, test and [ are left out: their arguments look like data, yet bash 4+
+# evaluates the array subscript in `printf -v 'a[$(…)]'` and
+# `test -v 'a[$(…)]'`, so text that reads as data can run.
 DATA_COMMANDS = {"echo", "cat", "tee", "grep", "egrep", "fgrep", "rg", "git",
                  "python", "python3", "node", "jq", "head", "tail", "wc", "sort", "uniq",
                  "cut", "tr", "ls", "cd", "true", "false"}
@@ -1038,8 +1043,9 @@ DATA_COMMANDS = {"echo", "cat", "tee", "grep", "egrep", "fgrep", "rg", "git",
 # and `gh_x` are other names. Nothing is excluded in front, since `${GH:-gh}`
 # and `/usr/bin/gh` run gh.
 GH_TEXT = re.compile(r"\bgh(?![\w-])")
-# Reserved words that may come before a simple command and do not run their
-# words: in `if grep …` and `then gh …` the command is grep or gh. Not for,
+# Reserved words that may come before a simple command and are not commands
+# themselves, so the word after them is the command, checked like any other:
+# in `if grep …` and `then gh …` the command is grep or gh. Not for,
 # case, select, coproc, function, [[ or zsh's repeat, foreach, nocorrect and
 # noglob, whose words are not a command or are run another way.
 RESERVED = {"if", "then", "elif", "else", "do", "while", "until", "!", "{", "time"}
