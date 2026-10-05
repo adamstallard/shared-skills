@@ -106,8 +106,12 @@ A new Claude Code session loads a newly installed mod.
 ## Using a private skills repository too
 
 `manage-skills` can install skills from a second clone, such as your own
-private skills repository laid out like this one. Point `SHARED_SKILLS_REPO` at
-that clone for the one command:
+private skills repository laid out like this one. Ask your agent, naming the
+clone: *"Install my-skill from ~/my-skills"*, and later *"Update the skills from
+~/my-skills"*.
+
+To run it yourself, point `SHARED_SKILLS_REPO` at that clone for the one
+command:
 
 ```bash
 SHARED_SKILLS_REPO=~/my-skills python3 $SK install my-skill
