@@ -869,6 +869,17 @@ BODY_SOURCES = {
 }
 NO_SOURCES = (set(), "")
 SOURCE = "source"
+# gh subcommands that send no text, from `gh <noun> --help`: a gh read such
+# as `gh pr list --search 'review-requested:@me'` is no post, though it names
+# a post verb. A closed list, so merge (a known gap) and a verb gh adds later
+# stay unread. cobra takes the first word after the noun as the subcommand,
+# exactly as written.
+NO_TEXT_VERBS = {
+    "pr": {"list", "ls", "status", "checkout", "co", "checks", "diff", "view", "ready",
+           "lock", "unlock", "update-branch"},
+    "issue": {"list", "ls", "status", "delete", "develop", "lock", "unlock", "pin",
+              "unpin", "transfer", "view"},
+}
 
 
 class Unreadable:
@@ -942,8 +953,9 @@ def _body_flag(args, i, flags=BODY_FLAGS, values="", sources=""):
     return None, None, i + 1
 
 
-# Any command that mentions a gh post verb is treated as a post. A false match
-# only blocks the command; a missed post lets text out unchecked.
+# A command that mentions a gh post verb is read as a post unless
+# _posts_nothing shows that the shell runs no gh post in it. A false match only
+# blocks the command; a missed post lets text out unchecked.
 POST_WORDS = re.compile(
     r"\bgh\b[\s\S]*\b(?:pr|issue)\b[\s\S]*\b(?:"
     + "|".join(sorted({verb for verbs in GH_VERBS.values() for verb in verbs})) + r")\b")
@@ -1012,21 +1024,282 @@ def runs_only_prose(command):
     return program == "prose.py" or program.endswith("/prose.py")
 
 
+# Commands that treat their arguments and stdin as data, never as shell code,
+# so a gh post named in them only mentions one. The list is closed on purpose:
+# any other command may run the text it is given (sh -c, eval, trap, env -S,
+# ssh, xargs), and a list of those is never complete. python3 and node can run
+# gh themselves, like any script file, which the hook does not read either.
+# printf, test and [ are left out: bash 4+ evaluates the array subscript in
+# `printf -v 'a[$(…)]'` and `test -v 'a[$(…)]'`, so their text can run.
+DATA_COMMANDS = {"echo", "cat", "tee", "grep", "egrep", "fgrep", "rg", "git",
+                 "python", "python3", "node", "jq", "head", "tail", "wc", "sort", "uniq",
+                 "cut", "tr", "ls", "cd", "true", "false"}
+# Text names gh when gh is not followed by a word character or `-`: `gh-pages`
+# and `gh_x` are other names. Nothing is excluded in front, since `${GH:-gh}`
+# and `/usr/bin/gh` run gh.
+GH_TEXT = re.compile(r"\bgh(?![\w-])")
+# Reserved words that may come before a simple command and do not run their
+# words: in `if grep …` and `then gh …` the command is grep or gh. Not for,
+# case, select, coproc, function, [[ or zsh's repeat, foreach, nocorrect and
+# noglob, whose words are not a command or are run another way.
+RESERVED = {"if", "then", "elif", "else", "do", "while", "until", "!", "{", "time"}
+# Reserved words that end a compound command and run nothing, so `fi` beside
+# a pipe is no command. Only a command made of nothing else: in `done sh`,
+# sh runs. Not esac, whose case patterns are not read.
+CLOSERS = {"fi", "done", "}"}
+EXPANSION = re.compile(r"\$(?:[A-Za-z_][A-Za-z0-9_]*|[0-9#?$!@*-]|\{[A-Za-z_][A-Za-z0-9_]*\})")
+REDIRECT = re.compile(r"&>>?|<<<|<<-|<<|<>|<&|<|>>|>&|>\||>")
+METACHARS = " \t\n;&|()<>"
+
+
+def _word(command, i):
+    """(text, end, source) for the shell word starting at command[i], or None.
+
+    text is the word after quote removal, with simple expansions ($NAME,
+    ${NAME}, $1, $?) left out, since only literal text can name gh. source
+    is the word as written, minus each backslash-newline outside single
+    quotes, which both shells remove before reading the word: `i\\<newline>f`
+    is `if`, and a lone `\\<newline>` is no word. None when the word holds
+    anything that could run a command or that bash and zsh read differently:
+    a command substitution, $'…', $"…", ${…} beyond a name, an unterminated
+    quote, a leading `#`, or a `[` left open after the first character
+    (`a[1<<EOF]=5` is not a heredoc to bash).
+    """
+    text, source, n, bracket = [], [], len(command), False
+    while i < n and command[i] not in METACHARS:
+        char, start = command[i], i
+        if char == "'":
+            close = command.find("'", i + 1)
+            if close == -1:
+                return None
+            text.append(command[i + 1:close])
+            i = close + 1
+        elif char == '"':
+            i += 1
+            while True:
+                if i >= n or command[i] == "`":
+                    return None
+                if command[i] == '"':
+                    i += 1
+                    break
+                if command[i] == "\\":
+                    if i + 1 >= n:
+                        return None
+                    if command[i + 1] == "\n":
+                        source.append(command[start:i])
+                        i += 2
+                        start = i
+                        continue
+                    # In double quotes a backslash stays unless it escapes
+                    # one of these: `<<"E\OF"` ends at a line `E\OF`.
+                    if command[i + 1] not in '$`"\\':
+                        text.append("\\")
+                    text.append(command[i + 1])
+                    i += 2
+                elif command[i] == "$" and command[i + 1:i + 2] != '"':
+                    found = EXPANSION.match(command, i)
+                    if not found:
+                        return None
+                    i = found.end()
+                else:
+                    text.append(command[i])
+                    i += 1
+        elif char == "\\":
+            if i + 1 >= n:
+                return None
+            if command[i + 1] == "\n":
+                i += 2
+                continue
+            text.append(command[i + 1])
+            i += 2
+        elif char == "`":
+            return None
+        elif char == "$" and i + 1 < n and command[i + 1] not in METACHARS:
+            found = EXPANSION.match(command, i)
+            if not found:
+                return None
+            i = found.end()
+        else:
+            if char == "[" and set("".join(source)) - {"["}:
+                bracket = True
+            elif char == "]":
+                bracket = False
+            text.append(char)
+            i += 1
+        source.append(command[start:i])
+    source = "".join(source)
+    if bracket or source.startswith("#"):
+        return None
+    return "".join(text), i, source
+
+
+def _heredoc_end(command, i, delimiter, quoted, strip_tabs):
+    """The index just past a heredoc body starting at command[i], or None
+    when it has no terminating line, or is unquoted and could run a command
+    (a substitution) or join lines (a backslash)."""
+    while i < len(command):
+        end = command.find("\n", i)
+        line = command[i:] if end == -1 else command[i:end]
+        if (line.lstrip("\t") if strip_tabs else line) == delimiter:
+            return len(command) if end == -1 else end + 1
+        if end == -1 or (not quoted and re.search(r"\$\(|`|\\", line)):
+            return None
+        i = end + 1
+    return None
+
+
+def _commands(command):
+    """(simple commands, feeds stdin) for a shell command, or None when any
+    part of it is beyond what this reads exactly.
+
+    Each simple command is [(text, source)]: each word's text and source as
+    _word gives them. A word that is only line continuations is no word.
+    Redirections are left out. feeds stdin is True when the
+    command holds a pipe or an input redirection anywhere. Which command
+    reads it is not worked out: subshells, groups and line breaks make that
+    easy to get wrong. Heredoc bodies and comments are skipped, since the
+    shell runs neither. None for anything whose reading differs between
+    shells or could hide a command: what _word refuses, process
+    substitution, a heredoc inside parentheses (bash 3.2 reads those its own
+    way) or whose body would start inside an open `(`, an unquoted heredoc
+    body that could run or join lines, a heredoc with no end, a number
+    before a redirection other than one ASCII digit, a comment holding
+    quotes or operators, unbalanced parentheses.
+    """
+    commands, feeds, pending, depth, i, n = [[]], False, [], 0, 0, len(command)
+    while i < n:
+        char = command[i]
+        if char in " \t":
+            i += 1
+        elif char == "\n":
+            if pending and depth:
+                # A `(` still open: bash and zsh read the heredoc body only
+                # after it closes, so the lines below are code.
+                return None
+            i += 1
+            for heredoc in pending:
+                i = _heredoc_end(command, i, *heredoc)
+                if i is None:
+                    return None
+            pending = []
+            commands.append([])
+        elif char == "#":
+            end = command.find("\n", i)
+            end = n if end == -1 else end
+            if re.search(r"[;&|()<>`$\\'\"]", command[i:end]):
+                return None
+            i = end
+        elif char in "<>" or command.startswith("&>", i):
+            op = REDIRECT.match(command, i).group()
+            i += len(op)
+            if command.startswith("(", i):
+                return None
+            while i < n and command[i] in " \t":
+                i += 1
+            word = _word(command, i)
+            if word is None or not word[2]:
+                return None
+            if op in ("<<", "<<-"):
+                source = word[2]
+                if depth or "$" in source:
+                    return None
+                pending.append((word[0], any(q in source for q in "'\"\\"), op == "<<-"))
+            feeds = feeds or op.startswith("<")
+            i = word[1]
+        elif char in ";&|":
+            end = i
+            while end < n and command[end] in ";&|":
+                end += 1
+            feeds = feeds or ("|" in command[i:end] and command[i:end] != "||")
+            commands.append([])
+            i = end
+        elif char in "()":
+            depth += 1 if char == "(" else -1
+            if depth < 0:
+                return None
+            commands.append([])
+            i += 1
+        else:
+            word = _word(command, i)
+            if word is None:
+                return None
+            text, end, source = word
+            if command[end:end + 1] in ("<", ">") and source.isdigit():
+                # Both shells read one ASCII digit as a descriptor. zsh reads
+                # `12>` as the word 12, bash as descriptor 12, and neither
+                # reads a non-ASCII digit as one.
+                if not re.fullmatch("[0-9]", source):
+                    return None
+            elif text or source:
+                commands[-1].append((text, source))
+            i = end
+    return None if pending or depth else ([words for words in commands if words], feeds)
+
+
+def _posts_nothing(command, cwd):
+    """True when the shell provably runs no gh post in this command.
+
+    That holds when each simple command is one of:
+    - a gh command given as plain words, gh first, that sends no text the
+      hook checks: a label edit, `gh pr ready`, a close without a comment.
+      A gh post with a body must be the whole command;
+    - a command from DATA_COMMANDS, which may name gh in its arguments,
+      quotes or heredoc, as data;
+    - any other command that names no gh.
+    Leading reserved words (RESERVED) are skipped first, and a command made
+    only of closers (CLOSERS) is no command, both matched on the source, so
+    a quoted 'if' is still the command.
+    With a pipe or an input redirection anywhere, every command must be from
+    DATA_COMMANDS, gh included, since any other may run what it reads.
+    Anything _commands cannot read makes this False.
+    """
+    read = _commands(command)
+    if read is None:
+        return False
+    commands, feeds = read
+    for words in commands:
+        while words and words[0][1] in RESERVED:
+            words = words[1:]
+        if all(source in CLOSERS for _, source in words):
+            continue
+        names = [text.lstrip("=").rsplit("/", 1)[-1] for text, _ in words]
+        source = " ".join(source for _, source in words)
+        if feeds or (GH_TEXT.search(source) and "gh" not in names):
+            if names[0] not in DATA_COMMANDS:
+                return False
+        elif "gh" in names:
+            plain = _words(source)
+            if not plain or plain[0] != ("gh", False):
+                return False
+            if POST_WORDS.search(" ".join(text for text, _ in plain)) and _read_gh(plain, cwd):
+                return False
+    return True
+
+
 def gh_bodies(command, cwd):
     """[(where, text or Unreadable)] for the post a Bash command makes.
 
-    Nothing when the command mentions no gh post verb. Otherwise the command
-    must be one of the accepted forms (see ACCEPTED), or the post is
-    reported unreadable.
+    Nothing when the command mentions no gh post verb, or runs no gh post
+    (see _posts_nothing). Otherwise the command must be one of the accepted
+    forms (see ACCEPTED), or the post is reported unreadable.
     """
     if not POST_WORDS.search(command) or runs_only_prose(command):
         return []
     words = _words(command.strip())
-    if not words or words[0] != ("gh", False):
-        return [("gh", NOT_ALLOWED)]
+    if words and words[0] == ("gh", False):
+        return _read_gh(words, cwd)
+    return [] if _posts_nothing(command, cwd) else [("gh", NOT_ALLOWED)]
+
+
+def _read_gh(words, cwd):
+    """[(where, text or Unreadable)] for a gh command given as plain words,
+    words[0] being gh: the bodies it posts, or NOT_ALLOWED when its shape is
+    not one the hook reads."""
     args = list(words[1:])
     while args and (args[0][0] in ("-R", "--repo") or args[0][0].startswith(("--repo=", "-R"))):
         args = args[2:] if args[0][0] in ("-R", "--repo") else args[1:]
+    if len(args) >= 2 and args[1][0] in NO_TEXT_VERBS.get(args[0][0], ()):
+        return []
     if len(args) < 2 or args[1][0] not in GH_VERBS.get(args[0][0], {}):
         return [("gh", NOT_ALLOWED)]
     noun, verb = args[0][0], args[1][0]
@@ -1067,7 +1340,7 @@ def gh_bodies(command, cwd):
                 target = pathlib.Path(cwd or ".") / target
             try:
                 found.append((f"{where} {flag} {text}", target.read_text(encoding="utf-8")))
-            except (OSError, UnicodeDecodeError):
+            except (OSError, UnicodeDecodeError, ValueError):  # ValueError: a NUL byte
                 found.append((f"{where} {flag} {text}", Unreadable(
                     f"{text} could not be read. " + ACCEPTED)))
         else:
@@ -1316,9 +1589,9 @@ def gated_call(payload):
         return None
     if tool == "Bash":
         command = tool_input.get("command")
-        if not isinstance(command, str) or runs_only_prose(command):
+        if not isinstance(command, str):
             return None
-        return "this gh post" if POST_WORDS.search(command) else None
+        return "this gh post" if gh_bodies(command, payload.get("cwd")) else None
     if GITHUB_MCP.match(tool):
         return f"this post through {tool}" if body_fields(tool_input) else None
     if tool in FILE_TOOLS:

@@ -1353,9 +1353,8 @@ class PostingHook(unittest.TestCase):
 
     def test_an_unparsable_command_without_a_gh_post_passes(self):
         self.assertEqual(self.hook(self.bash("echo 'unterminated gh")).returncode, 0)
-        # Mentions a gh post verb, so it is treated as a post and blocked: the
-        # allow-list errs toward blocking. An agent writes such a file with its
-        # file-editing tool instead.
+        # Mentions a gh post verb and cannot be read to the end, so whether it
+        # runs one is unknown: blocked.
         command = "cat > notes.md <<'EOF'\nrun gh pr create, it's easy\nEOF\necho 'x"
         self.assertEqual(self.hook(self.bash(command)).returncode, 2)
 
@@ -1578,6 +1577,228 @@ class PostingHook(unittest.TestCase):
         self.assertEqual(json.loads(deny.stdout)["permission"], "deny")
         passing = self.hook({"command": "gh pr view 3", "cwd": str(self.dir)}, host="cursor")
         self.assertEqual(json.loads(passing.stdout), {"permission": "allow"})
+
+    def test_a_command_that_only_mentions_a_gh_post_passes(self):
+        for command in (
+            # A script whose text names a gh post, as data, in a quoted heredoc.
+            "python3 - <<'EOF'\n# then run gh issue edit 5 --add-label x\n"
+            "open('notes.md', 'w').write('Claim it with `gh issue edit 5 --add-label claimed`.')\nEOF\n",
+            "cat > notes.md <<'EOF'\nrun gh pr create, it's easy\nEOF",
+            "cat > notes.md <<-EOF\n\tgh pr comment 1 --body 'x'\n\tEOF\necho done",
+            'grep -rn "gh pr create" .',
+            "git commit -m 'docs: explain gh issue comment' && git push",
+            "ls # later: gh pr create --fill",
+            "python3 /x/prose.py sign --goals 'gh pr create' && echo ok",
+        ):
+            with self.subTest(command):
+                result = self.hook(self.bash(command))
+                self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_a_gh_command_that_posts_no_prose_passes_in_a_compound_command(self):
+        for command in (
+            "cd /tmp && gh issue edit 12 --add-label claimed",
+            "gh issue edit 12 --add-label claimed 2>&1",
+            "gh issue edit 12 --add-label claimed --remove-label ready && gh issue view 12",
+            "gh pr ready 3 && gh pr edit 3 --add-reviewer x --milestone v1 >/dev/null",
+            "gh issue close 3; gh issue reopen 4",
+            "(cd sub && gh pr edit 3 --add-assignee @me)",
+            "git push -u origin HEAD\ngh pr edit 3 --remove-label wip",
+        ):
+            with self.subTest(command):
+                result = self.hook(self.bash(command))
+                self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_a_post_in_a_compound_command_is_still_blocked(self):
+        (self.dir / "body.md").write_text(self.good)
+        for command in (
+            "cd /tmp && gh issue edit 12 --add-label x --body 'unsigned'",
+            "gh issue edit 12 --add-label x && gh issue comment 12 --body 'unsigned'",
+            "gh issue comment 1 --body 'unsigned' 2>&1",
+            "cd sub && gh pr comment 3 --body-file body.md",
+            "gh issue edit 12 --add-label x < body.md",
+            "cat body.md | gh issue edit 12 --add-label x",
+            "cat > a.md <<'EOF'\ngh pr create\nEOF\ngh pr comment 1 --body 'unsigned'",
+            "python3 - <<'EOF' && gh pr comment 1 --body 'unsigned'\nprint(1)\nEOF\n",
+            "gh --verbose pr comment 1 --body 'unsigned' && true",
+            "GH_REPO=o/r gh issue edit 1 --add-label x; true",
+        ):
+            with self.subTest(command):
+                self.assertEqual(self.hook(self.bash(command)).returncode, 2)
+
+    def test_text_a_shell_would_run_is_not_read_as_data(self):
+        for command in (
+            "bash <<'EOF'\ngh pr comment 1 --body 'unsigned'\nEOF",
+            "sh -c 'gh pr comment 1 --body unsigned'",
+            "echo 'gh issue comment 1 --body x' | /bin/bash",
+            "eval 'gh pr create --body x'",
+            "ssh host 'gh pr comment 1 --body x'",
+            "xargs -n1 gh pr comment --body x < list",
+            "env gh pr comment 1 --body x",
+            "cat <<EOF\n$(gh pr comment 1 --body x)\nEOF",
+            "cat <<EOF\n`gh pr comment 1 --body x`\nEOF",
+            "cat <<EOF\nend \\\nEOF\ngh pr comment 1 --body x\nEOF",
+            "# it's\ngh pr comment 1 --body x\n# '",
+            "echo x # ; gh pr comment 1 --body x",
+            "cat <<'EOF'\ngh pr comment 1 --body x\n",
+            "(cat <<'EOF'\ngh pr create\nEOF\n); gh pr comment 1 --body x",
+            "[ -f x ] || gh pr comment 1 --body x",
+        ):
+            with self.subTest(command):
+                self.assertEqual(self.hook(self.bash(command)).returncode, 2)
+
+    def test_text_another_command_may_run_is_not_read_as_data(self):
+        for command in (
+            "xargs gh <<< 'pr comment 1 --body hi'",
+            "xargs gh pr <<'EOF'\ncomment 1 --body hi\nEOF",
+            "echo comment 1 --body hi | xargs gh pr # then gh pr comment",
+            "trap 'gh pr comment 1 --body hi' EXIT",
+            "env -S 'gh pr comment 1 --body hi'",
+            "echo 'gh pr comment 1 --body hi' | xargs env -S",
+            "echo 'gh pr comment 1 --body hi' |\nsh",
+            "echo 'gh pr comment 1 --body hi' | # run it\nsh",
+            "echo 'gh pr comment 1 --body hi' | (true; sh)",
+            "(sh) <<< 'gh pr comment 1 --body hi'",
+            "(sh) <<'EOF'\ngh pr comment 1 --body hi\nEOF",
+            'cat <<"E\\OF"\nx\nE\\OF\ngh pr comment 1 --body hi\nEOF',
+        ):
+            with self.subTest(command):
+                self.assertEqual(self.hook(self.bash(command)).returncode, 2)
+
+    def test_a_heredoc_body_after_an_open_substitution_is_not_skipped(self):
+        # bash and zsh run the $( … ) first and read the heredoc body after
+        # its closing line, so the lines below the operator are code.
+        for command in (
+            "cat <<echo $(\ngh pr comment 1 -b hello\necho\n)\necho",
+            'cat <<true >/dev/null "$x" $(\ngh pr comment 1 -b hello\ntrue\n)\ntrue',
+        ):
+            with self.subTest(command):
+                self.assertEqual(self.hook(self.bash(command)).returncode, 2)
+
+    def test_only_a_single_ascii_digit_before_a_redirection_is_a_descriptor(self):
+        # zsh reads `12>` as the argument 12 and a redirection; neither shell
+        # reads a non-ASCII digit as a descriptor. Either way gh gets the word.
+        for command in (
+            "gh pr comment 1 -F 12>/dev/stderr",
+            "cd . && gh pr comment 1 -b 12>/dev/stderr",
+            "gh pr comment 1 -b ١>/dev/stderr",
+        ):
+            with self.subTest(command):
+                self.assertEqual(self.hook(self.bash(command)).returncode, 2)
+
+    def test_a_gh_post_split_by_quotes_in_a_longer_command_is_read(self):
+        for command in (
+            "echo 'gh pr comment' ; gh p''r comment 1 -b hello",
+            "gh pr edit 5 --add-label x && gh p''r comment 5 -b hello",
+        ):
+            with self.subTest(command):
+                self.assertEqual(self.hook(self.bash(command)).returncode, 2)
+
+    def test_a_body_file_path_with_a_nul_byte_is_blocked(self):
+        result = self.hook(self.bash("cd /tmp && gh pr comment 5 --body-file 'a\x00b'"))
+        self.assertEqual(result.returncode, 2, result.stderr)
+
+    def test_a_command_after_a_reserved_word_is_read_as_that_command(self):
+        for command in (
+            'if grep -q "gh pr create" README.md; then echo yes; fi',
+            "! grep -q 'gh pr create' README.md",
+            "time grep -rn 'gh pr create' .",
+            "while false; do grep -n 'gh pr create' a.md; done",
+            "{ echo 'gh pr create'; echo x; } > notes.md",
+            'if [ -n "$x" ]; then gh issue edit 3 --add-label claimed; fi',
+            "if gh pr view 3 >/dev/null 2>&1; then gh pr ready 3; "
+            "else gh issue edit 3 --add-label blocked; fi",
+            "for n in 3 4; do gh issue edit 3 --add-label x; done",
+            "{ gh issue edit 3 --add-label x; }",
+        ):
+            with self.subTest(command):
+                result = self.hook(self.bash(command))
+                self.assertEqual(result.returncode, 0, result.stderr)
+        for command in (
+            "if true; then gh pr comment 1 --body x; fi",
+            "{ gh pr comment 1 --body x; }",
+            "! time gh issue comment 1 --body x",
+            "if sh -c 'gh pr comment 1 --body x'; then true; fi",
+            # A reserved word alone on a line leaves no command to read.
+            "if true\nthen\ngh pr comment 1 --body x\nfi",
+            "{\ngh pr comment 1 --body x\n}",
+        ):
+            with self.subTest(command):
+                self.assertEqual(self.hook(self.bash(command)).returncode, 2)
+
+    def test_a_word_that_only_contains_gh_does_not_name_it(self):
+        for command in (
+            "make gh-pages && gh issue edit 3 --add-label deployed",
+            "npm run deploy:gh-pages && gh issue edit 3 --add-label deployed",
+            "chmod +x scripts/gh-post.sh && gh issue edit 3 --add-label x",
+        ):
+            with self.subTest(command):
+                result = self.hook(self.bash(command))
+                self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_a_line_continuation_is_not_a_word(self):
+        for command in (
+            "cd repo && \\\n  grep -rn 'gh pr create' .",
+            "cd repo && \\\n  gh issue edit 3 --add-label x",
+            "cd repo && gh issue edit 3 \\\n  --add-label a \\\n  --add-label b",
+            "git push && gh pr edit 3 \\\n  --add-reviewer alice",
+        ):
+            with self.subTest(command):
+                result = self.hook(self.bash(command))
+                self.assertEqual(result.returncode, 0, result.stderr)
+        for command in (
+            "cd repo && \\\n  gh pr comment 3 --body x",
+            "cd repo && gh pr comment 3 \\\n  --body x",
+            "cd repo && \\\ngh pr comment 3 --body x",
+            # The shell removes the continuation first, so the delimiter is
+            # unquoted and the body's $( … ) runs.
+            "cat <<\\\nEOF\n$(gh pr comment 3 --body x)\nEOF\n",
+            "cat <<E\\\nOF\n$(gh pr comment 3 --body x)\nEOF\n",
+        ):
+            with self.subTest(command):
+                self.assertEqual(self.hook(self.bash(command)).returncode, 2)
+
+    def test_a_closing_reserved_word_is_no_command_beside_a_pipe(self):
+        for command in (
+            "if git log --oneline | grep -q 'gh pr create'; then echo found; fi",
+            "{ echo '# Notes'; echo 'Run gh pr create'; } | tee notes.md",
+            "if grep -q 'gh pr create' a.md < /dev/null; then echo yes; fi",
+            "while false; do echo 'gh pr create'; done | cat",
+        ):
+            with self.subTest(command):
+                result = self.hook(self.bash(command))
+                self.assertEqual(result.returncode, 0, result.stderr)
+        for command in (
+            "echo 'gh pr comment 1 --body x' | { sh; }",
+            "echo 'gh pr comment 1 --body x' | if true; then sh; fi",
+        ):
+            with self.subTest(command):
+                self.assertEqual(self.hook(self.bash(command)).returncode, 2)
+
+    def test_a_gh_read_command_naming_a_post_verb_passes_in_a_longer_command(self):
+        for command in (
+            "cd repo && gh pr list --search 'review-requested:@me'",
+            "cd repo && gh issue list --label new",
+        ):
+            with self.subTest(command):
+                result = self.hook(self.bash(command))
+                self.assertEqual(result.returncode, 0, result.stderr)
+        for command in (
+            "cd repo && gh pr -R o/r comment 1 --body x",
+            "cd repo && gh pr --repo=o/r comment 1 --body x",
+        ):
+            with self.subTest(command):
+                self.assertEqual(self.hook(self.bash(command)).returncode, 2)
+
+    def test_printf_and_test_may_run_a_subscript_so_their_text_is_not_data(self):
+        # bash 4+ evaluates an array subscript in `printf -v` and `test -v`,
+        # command substitution included, so the quoted text can run gh.
+        for command in (
+            "printf -v 'a[$(gh pr comment 1 --body hi)]' x",
+            "test -v 'a[$(gh pr comment 1 --body hi)]'",
+            "[ -v 'a[$(gh pr comment 1 --body hi)]' ]",
+        ):
+            with self.subTest(command):
+                self.assertEqual(self.hook(self.bash(command)).returncode, 2)
 
 
 class CommitHookBase(unittest.TestCase):
@@ -2200,7 +2421,9 @@ class Gate(unittest.TestCase):
         self.assertBlocked(self.gate("Bash", {"command": "gh pr create --body-file signed.md"}),
                            "this gh post")
         self.assertBlocked(self.gate("mcp__github__add_issue_comment", {"body": "Hi."}), "mcp__github__")
-        for command in ("ls", "gh pr view 3", "git commit -m x"):
+        for command in ("ls", "gh pr view 3", "git commit -m x",
+                        "cd /tmp && gh issue edit 1 --add-label y",
+                        "cat > a.md <<'EOF'\nrun gh pr create\nEOF"):
             with self.subTest(command):
                 self.assertAllowed(self.gate("Bash", {"command": command}))
         self.assertAllowed(self.gate("mcp__github__get_pull_request", {"pullNumber": 3}))

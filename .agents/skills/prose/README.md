@@ -70,19 +70,28 @@ The posting hook reads the body only when `gh` is the whole command and the
 body is `--body '<text>'` or `--body-file <existing file>`. For longer text,
 sign it into a file and pass that. `gh api` calls are not checked.
 
-Any other command that mentions a `gh` post (`gh pr create`, `gh issue comment`
-and the rest) is blocked, heredocs included, even one that only searches for
-those words or writes them into a file. So are `--fill`, `--editor`, `--web`
-and `--template`, since the hook cannot read the text they post. The block
-message lists the forms that work.
+A `gh` post in any other shape is blocked: inside a longer command, after `cd`,
+in a heredoc, or through `bash -c`. So are `--fill`, `--editor`, `--web` and
+`--template`, since the hook cannot read the text they post. The block message
+lists the forms that work.
 
-To run a command that only mentions a `gh` post:
+A command passes when the shell runs no `gh` post in it:
 
-- Keep the literal phrase out of the command, as in `grep "gh pr crea[t]e"`, or
-  put the command in a script file and run that.
-- Run it yourself in your own terminal. Agent hooks never see it.
-- As a last resort, turn the hooks off, as in
-  [What is enforced where](#what-is-enforced-where), and back on afterwards.
+- one that only mentions a post: in a comment with no quotes or `;&|()<>`
+  in it, or in quotes or a quoted heredoc given to a command that treats them
+  as data (`echo`, `cat`, `grep`, `git`, `python3` and a few others), such as
+  `grep "gh pr create"` or a Python script that writes the phrase to a file;
+- a `gh` command that sends no text, anywhere in a longer command with no
+  pipe: a label, assignee or milestone edit, `gh pr ready`, a close without
+  `--comment`. A `--title` is not checked.
+
+The hook still blocks a command it cannot read to the end, such as one with
+backticks or an unterminated quote. It also blocks a mention given to any other
+command, since that command might run it (`sh -c`, `eval`, `xargs`), and any
+command with a pipe or input redirection unless every part is one of those
+data commands. To run one that only mentions a post, put it in a script file,
+run it in your own terminal, or, as a last resort, turn the hooks off as in
+[What is enforced where](#what-is-enforced-where).
 
 ## Tests
 
