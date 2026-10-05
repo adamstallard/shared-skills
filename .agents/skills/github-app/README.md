@@ -170,6 +170,27 @@ steps 1 and 2 on GitHub, you can ask it, for example:
 
 ---
 
+## Where an App can be installed
+
+The **Where can this GitHub App be installed?** setting from step 1:
+
+- **Only on this account:** the App can be installed only on the account that
+  created it.
+- **Any account:** any user or organization can install it, and it reaches
+  only the repositories each one grants. Your key stays yours. Others install
+  it from **Install App** or from its page,
+  `https://github.com/apps/<app-slug>`.
+
+GitHub calls these private and public. To change it after creating the App:
+its settings → **Advanced** → **Danger zone** → **Make public** or **Make
+private**. It can be made private again only while it's installed on no
+other account.
+
+The alternative to one App set to **Any account** is one App per account, each
+set to **Only on this account**, with its own bot name and key.
+
+---
+
 ## Other agents and scripts
 
 Outside a wired Claude Code project, run a command through `run`. That
