@@ -19,25 +19,27 @@ Within 5 points of even pace there is no arrow.
 It sends no requests and costs nothing. Claude Code already receives these
 figures with every response, and the mod reads them from there.
 
-This is a Claude Code mod, not a skill: there is nothing to ask the agent and
-no command to run. Other agents don't load it.
+This is a Claude Code mod, not a skill: once it's installed, there is nothing
+to ask the agent and no command to run. Other agents don't load it.
 
 ## Install
 
-```bash
-python3 ~/.claude/skills/manage-skills/scripts/skills.py install usage-hint
-```
+Ask your agent:
+
+> "Install the usage-hint mod"
 
 It is linked into `~/.claude/skills/` only. A new Claude Code session loads it;
-the one you installed it from may not.
+the one you installed it from may not. This needs the shared skills set up
+first; see the [repository's README](../../../README.md#install).
 
 ## What to expect
 
 - **Blank at first.** A new session has no figures until its first response
   comes back, so the usage appears after your first message.
-- **Updates as you work, not on a timer.** It changes when a response reports
-  a window moving a whole point, and holds still while the session is idle.
-  Usage from your other sessions shows up here at this session's next response.
+- **Figures update as you work, not on a timer.** They change when a response
+  reports a window moving a whole point, and hold still while the session is
+  idle; the arrow still follows the clock. Usage from your other sessions
+  shows up here at this session's next response.
 - **Only the account this session is logged into.**
 - **Nothing off a subscription.** With API-key billing or a third-party
   provider there are no figures, and the hint line is left as it is.
@@ -46,6 +48,4 @@ the one you installed it from may not.
 
 ## Uninstall
 
-```bash
-python3 ~/.claude/skills/manage-skills/scripts/skills.py uninstall usage-hint
-```
+Ask your agent to "uninstall the usage-hint mod".
