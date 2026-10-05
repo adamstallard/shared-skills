@@ -83,6 +83,26 @@ landed in one and not the other:
 
 ---
 
+## Claude Code mods
+
+A mod changes Claude Code itself: a line it draws, a command it adds, a tool
+call it checks. It isn't a skill, so there's nothing to ask the agent; once
+installed, it just runs. `usage-hint` is one.
+
+You install and remove a mod like a skill, but only Claude Code runs mods, so
+it's linked into `~/.claude/skills/` alone. `list` shows `n/a` in the other
+column, tags the description `(mod)`, and doesn't count the mod as half
+installed:
+
+```
+  agents      claude      skill        what it does
+  n/a         installed   usage-hint   (mod) Your Claude subscription usage …
+```
+
+A new Claude Code session loads a newly installed mod.
+
+---
+
 ## Using a private skills repository too
 
 `manage-skills` can install skills from a second clone, such as your own

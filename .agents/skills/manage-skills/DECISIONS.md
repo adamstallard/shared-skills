@@ -17,6 +17,41 @@ which platforms enable rewrites and `STRAY` inspects.
   different question, answered by `owns` (the skill's directory in the path), so
   a renamed script stays removable.
 
+## Mods are linked only into `.claude/skills` targets
+
+A folder with `.claude-plugin/plugin.json` and no `SKILL.md` is a mod, and
+`targets_for` gives it only the targets whose path ends in `.claude/skills`
+(`takes_mods`). `list` shows `n/a` for the others; `doctor`'s `MISSING` and
+`ORPHAN` checks only look at the targets a name belongs in.
+
+- **Why:** only Claude Code loads mods, from `.claude/skills/<name>`. A link in
+  `~/.agents/skills` would do nothing for the agents that read it, and the
+  per-target gap checks would flag the mod as half installed forever.
+- **Rejected:** a `SKILL.md` in each mod so the manager needs no change. Every
+  agent reading `~/.agents/skills` would list a skill that does nothing for it.
+- **Stops applying:** if another agent starts loading Claude Code mods, or Claude
+  Code loads them from another directory: change `takes_mods`.
+
+## A mod left in a target that cannot load it: `rm`, reported by doctor
+
+`doctor` reports any entry named like a mod, in a target that cannot load mods,
+as `NOT HERE` with `fix: rm <path>` (`rm -r` for a real directory). That covers
+a broken link, a link to another clone, and a valid link to this one. `list`
+shows the entry's real state there, and `n/a` only when nothing is present.
+`loads_here` exempts a target that is the same directory as one the mod belongs
+in, comparing each pair separately (`same_dir`).
+
+- **Why:** before this, doctor said `install --force`, which never touches that
+  target, so the problem never cleared. Without the same-directory check, a
+  `~/.agents/skills` linked to `~/.claude/skills` would get advice to delete the
+  only working link; that happened once, when one missing target ended the
+  whole comparison.
+- **Rejected:** `uninstall <name>` as the fix (it walks every target and drops
+  the working `.claude` link too); `install --force` cleaning other targets
+  (install would start deleting in targets it otherwise never touches).
+- **Stops applying:** entries are still matched by exact name and regular files
+  are still ignored, as everywhere else in doctor.
+
 ## Skill names and case
 
 A name is written in the skill directory's own spelling (`skill_dir_name`), and

@@ -1,10 +1,11 @@
 ---
 name: manage-skills
 description: >-
-  Install, remove, and inspect skills from a clone of the shared-skills
-  repo. Use when someone asks to install or add a skill, see which skills they
-  have, remove or uninstall a skill, update their shared skills, or when a
-  skill that should be available isn't showing up.
+  Install, remove, and inspect skills and Claude Code mods from a clone of the
+  shared-skills repo. Use when someone asks to install or add a skill or mod,
+  see which skills they have, remove or uninstall a skill or mod, update their
+  shared skills, or when a skill or mod that should be available isn't showing
+  up.
 ---
 
 # Managing shared skills
@@ -127,6 +128,18 @@ seen.
 
 That records the clone's location and copies this skill into every target.
 Everything else is installed with `install` afterwards.
+
+## Mods
+
+A folder with `.claude-plugin/plugin.json` and no `SKILL.md` is a Claude Code
+mod: a plugin that changes Claude Code itself and runs without being asked.
+`list`, `install`, `uninstall` and `doctor` handle it like a skill, except that
+it's linked only into targets that are a `.claude/skills` directory, since
+nothing else loads mods. `list` shows `n/a` in the other targets and tags its
+description `(mod)`, and `doctor` doesn't report it missing from them. A mod
+found in one of those targets anyway is `NOT HERE` in `doctor`, with an `rm`
+fix that leaves the working install alone. A new Claude Code session loads a
+newly installed mod. A folder with both files is a skill.
 
 ## Hooks
 

@@ -31,7 +31,8 @@ The installer adds one skill, `manage-skills`. Ask your agent for the rest:
 > "What skills are available?"
 > "Install the bug-hunter skill"
 
-Each skill is installed into both `~/.agents/skills/` and `~/.claude/skills/`.
+Each skill is installed into both `~/.agents/skills/` and `~/.claude/skills/`;
+a Claude Code mod, into `~/.claude/skills/` only.
 Try a new skill in the session you're in; if the agent doesn't see it, start a
 new session. [manage-skills' README](.agents/skills/manage-skills/README.md)
 has the commands to run yourself.
@@ -60,6 +61,7 @@ and refreshes `manage-skills`, the one skill installed as a copy.
 | `prose`         | Makes agents rewrite the text you review — docs, comments, commit messages, PR descriptions — so it reads in one pass, and proves the pass ran | [README](.agents/skills/prose/README.md) | [SKILL.md](.agents/skills/prose/SKILL.md) |
 | `linear-app`    | Gives an agent its own Linear identity, an app user that can be delegated issues, with tokens minted on demand so nothing is renewed by hand | [README](.agents/skills/linear-app/README.md) | [SKILL.md](.agents/skills/linear-app/SKILL.md) |
 | `github-app`    | Gives an agent its own GitHub identity, a GitHub App whose work shows as a bot, with tokens minted on demand and its identity only in the environment of the processes that act as it | [README](.agents/skills/github-app/README.md) | [SKILL.md](.agents/skills/github-app/SKILL.md) |
+| `usage-hint`    | Claude Code mod: shows your subscription usage (5-hour and weekly, with reset times) at the end of the hint line under the prompt, using no requests | [README](.agents/skills/usage-hint/README.md) | none: a mod, not a skill |
 
 The **Setup & usage** column is written for people. The **Agent instructions**
 column is what the agent reads; you don't need to.
@@ -109,6 +111,12 @@ column is what the agent reads; you don't need to.
      clone, so a skill folder copied on its own loses it and says so.
 4. **Add a row to the table above** with a one-line description and links to
    both the README and `SKILL.md`.
+
+A Claude Code mod lives in `.agents/skills/<mod-name>/` too, with
+`.claude-plugin/plugin.json` in place of `SKILL.md`, a `README.md`, and its
+tests. Give it a `.gitignore` for `.claude-plugin/types/`, which Claude Code
+writes into the mod's folder each time it loads it. See
+[usage-hint](.agents/skills/usage-hint/).
 
 Keep skills tool-agnostic. `SKILL.md` is a portable format, and every skill
 here is installed into more than one location and read by more than one agent —
