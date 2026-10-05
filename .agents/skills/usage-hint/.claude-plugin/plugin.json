@@ -1,0 +1,7 @@
+{
+  "name": "usage-hint",
+  "version": "0.1.0",
+  "description": "Your Claude subscription usage (5-hour and weekly) at the end of the hint line under the prompt, free: no requests",
+  "author": { "name": "Adam Stallard" },
+  "types": "./types/index.d.ts"
+}

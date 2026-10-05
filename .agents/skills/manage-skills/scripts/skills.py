@@ -87,6 +87,7 @@ COPY = "copy"
 FOREIGN = "other"
 BROKEN = "broken"
 ABSENT = "-"
+NOT_HERE = "n/a"
 
 MARKERS = {
     LINKED: "installed",
@@ -94,7 +95,14 @@ MARKERS = {
     FOREIGN: "other",
     BROKEN: "broken",
     ABSENT: "-",
+    NOT_HERE: "n/a",
 }
+
+# A Claude Code mod is a plugin folder: .claude-plugin/plugin.json and a hooks
+# module, no SKILL.md. Claude Code loads one from a `.claude/skills/<name>`
+# directory, and no other agent runs it, so a mod is linked only into targets
+# that are such a directory (see takes_mods).
+MOD_MANIFEST = pathlib.Path(".claude-plugin") / "plugin.json"
 
 PRESENT = (LINKED, COPY, FOREIGN, BROKEN)
 
@@ -287,15 +295,41 @@ def skill_dir_name(repo, name):
     return name
 
 
+def is_mod(repo, name):
+    source = repo / SKILLS_SUBDIR / name
+    return not (source / "SKILL.md").is_file() and (source / MOD_MANIFEST).is_file()
+
+
 def available(repo):
     root = repo / SKILLS_SUBDIR
     return sorted(
-        entry.name for entry in root.iterdir() if (entry / "SKILL.md").is_file()
+        entry.name
+        for entry in root.iterdir()
+        if (entry / "SKILL.md").is_file() or (entry / MOD_MANIFEST).is_file()
     )
 
 
+def takes_mods(target):
+    """Whether Claude Code loads mods from this target: a `.claude/skills` dir."""
+    return target.path.parts[-2:] == (".claude", "skills")
+
+
+def targets_for(repo, name):
+    """The targets a skill or mod belongs in: every one for a skill."""
+    if is_mod(repo, name):
+        return tuple(target for target in TARGETS if takes_mods(target))
+    return TARGETS
+
+
 def describe(repo, name):
-    """Pull the description out of a skill's YAML frontmatter."""
+    """A skill's description from its YAML frontmatter; a mod's from plugin.json."""
+    if is_mod(repo, name):
+        try:
+            manifest = json.loads((repo / SKILLS_SUBDIR / name / MOD_MANIFEST).read_text())
+        except (OSError, ValueError):
+            return ""
+        description = manifest.get("description") if isinstance(manifest, dict) else None
+        return "(mod) " + description if isinstance(description, str) else "(mod)"
     try:
         lines = (repo / SKILLS_SUBDIR / name / "SKILL.md").read_text().splitlines()
     except OSError:
@@ -391,11 +425,15 @@ def install_one(repo, name, force=False):
         return 0
 
     source = repo / SKILLS_SUBDIR / name
-    if not (source / "SKILL.md").is_file():
-        print(f"  {name}: not a skill in this repo")
+    if not (source / "SKILL.md").is_file() and not (source / MOD_MANIFEST).is_file():
+        print(f"  {name}: not a skill or mod in this repo")
         return 0
 
-    return sum(install_into(repo, name, target, force) for target in TARGETS)
+    targets = targets_for(repo, name)
+    if not targets:
+        print(f"  {name}: a Claude Code mod, and no target is a .claude/skills directory")
+        return 0
+    return sum(install_into(repo, name, target, force) for target in targets)
 
 
 def uninstall_from(repo, name, target):
@@ -1131,6 +1169,14 @@ def cmd_bootstrap(args):
     print("skills you want.")
 
 
+def cell(repo, name, target, belongs):
+    """A name's state in one target, for `list`: `n/a` where the name does not
+    belong and nothing is there, otherwise the real state, so `list` shows
+    whatever `doctor` reports on."""
+    state = status(repo, name, target)
+    return NOT_HERE if target not in belongs and state == ABSENT else state
+
+
 def cmd_list(args):
     repo = find_repo()
     names = available(repo)
@@ -1142,9 +1188,11 @@ def cmd_list(args):
 
     gaps = []
     for name in names:
-        states = statuses(repo, name)
+        belongs = targets_for(repo, name)
+        states = [(target, state) for target, state in statuses(repo, name) if target in belongs]
         cells = "  ".join(
-            f"{MARKERS[state]:<{LABEL_WIDTH}}" for _, state in states
+            f"{MARKERS[cell(repo, name, target, belongs)]:<{LABEL_WIDTH}}"
+            for target in TARGETS
         )
         summary = describe(repo, name)
         if len(summary) > 60:
@@ -1155,6 +1203,8 @@ def cmd_list(args):
             gaps.append(name)
 
     print(f"\n{MANAGER} is a copy by design; everything else is a symlink.")
+    if any(is_mod(repo, name) for name in names):
+        print("A mod runs only in Claude Code, so it is linked only where Claude Code loads it (n/a elsewhere).")
 
     for name, manifest in hooked_skills(repo):
         states = hook_state(repo, name, manifest)
@@ -1356,6 +1406,23 @@ def cmd_hooks(args):
         print()
 
 
+def loads_here(repo, name, target):
+    """Does `name` belong in `target`? Also true when `target` is the same
+    directory as one it belongs in (~/.agents/skills linked to ~/.claude/skills),
+    so doctor never advises removing the one link that works."""
+    belongs = targets_for(repo, name)
+    return target in belongs or any(same_dir(target.path, other.path) for other in belongs)
+
+
+def same_dir(a, b):
+    """Are `a` and `b` the same directory? False when either is missing, so one
+    target not created yet cannot hide a match with another."""
+    try:
+        return os.path.samefile(a, b)
+    except OSError:
+        return False
+
+
 def check_target(repo, target, known):
     """Report on one target directory. Returns a list of problem lines."""
     lines = []
@@ -1367,7 +1434,15 @@ def check_target(repo, target, known):
             name = entry.name
             if name in known:
                 state = status(repo, name, target)
-                if state == BROKEN:
+                if not loads_here(repo, name, target):
+                    # A mod in a target that cannot load it. install skips this
+                    # target, so install --force would not clear it.
+                    lines.append(
+                        ("problem", f"NOT HERE   {name}: a Claude Code mod; nothing loads it from here")
+                    )
+                    remove = "rm" if entry.is_symlink() else "rm -r"
+                    lines.append(("cont", f"           fix: {remove} {entry}"))
+                elif state == BROKEN:
                     lines.append(
                         ("problem", f"BROKEN     {name}: points at something missing")
                     )
@@ -1404,6 +1479,8 @@ def check_target(repo, target, known):
     # "is installed" still isn't found.
     others = [other for other in TARGETS if other.path != target.path]
     for name in sorted(known):
+        if target not in targets_for(repo, name):
+            continue
         if status(repo, name, target) != ABSENT:
             continue
         if any(status(repo, name, other) in PRESENT for other in others):
@@ -1490,7 +1567,7 @@ def cmd_doctor(args):
                 problems += 1
                 print(f"  STRAY      wired, but no declared hook accounts for it: {command}")
                 print(f"             fix: enable-hook {name}   (or disable-hook {name})")
-        if on and any(status(repo, name, t) == ABSENT for t in TARGETS):
+        if on and any(status(repo, name, t) == ABSENT for t in targets_for(repo, name)):
             problems += 1
             print(f"  ORPHAN     hook is enabled but {name} is not installed everywhere")
             print(f"             fix: install {name}   (or disable-hook {name})")
