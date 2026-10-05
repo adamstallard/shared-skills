@@ -889,3 +889,36 @@ it lands in a commit that is not a checkpoint.
   learn to write, and a repository with a different one gets wrong skips or
   reviews it can't explain. The hint added nothing the diff didn't already
   decide.
+
+---
+
+## Commands run in the main loop; small diffs are triaged there too
+
+**Decision.** The run itself runs the test suite (Steps 2 and 7) and triages a
+diff of up to about 300 changed lines (Step 1). Neither is handed to a
+sub-agent; a larger diff is still triaged by a small, cheap model. Decided by
+Adam, 2026-10-05.
+
+**Why.** Every sub-agent costs about 23k tokens before it does any work, so a
+"cheap" agent that only runs `python3 -m unittest` cost about 24k tokens, where
+reading the command's output in the main loop costs well under 1k. A benchmark
+of 7 staged changes, run twice each against the previous version with
+skill-creator's benchmark harness, measured it:
+
+- **Tokens:** 4.64M to 3.02M across the 14 runs, 35% fewer; 24 to 44% per
+  change. A clean change now spawns one sub-agent, the finder, not four.
+- **Time:** about 15% shorter.
+- **Effectiveness:** unchanged. Every seeded bug was found, proven red and
+  fixed in both versions, clean changes were left alone, and docs-only changes
+  skipped at triage.
+
+**Where it stops applying.** The test set had nothing that either version
+missed, so it shows this change costs no effectiveness, not that a riskier one
+would cost none. Running a command and reading a diff are the same work
+wherever they happen, which is why this change needed no harder cases.
+
+**Rejected.**
+- **Skipping the refuter when the red test matches the finder's prediction.**
+  It would save about 15%, but in the benchmark the refuter killed real false
+  positives (a rounding display, an extra-key crash outside the documented
+  record shape). Not without a test set that can show the loss.
