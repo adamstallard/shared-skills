@@ -30,12 +30,14 @@ next restart. That happened.
 the bot, that needs a service. Build it separately; don't turn this script into
 one.
 
-## The token comes from the environment, then the keychain, never a file
+## The token comes from the environment, then the keychain
 
-**Decision.** `DISCORD_BOT_TOKEN` wins. Otherwise the token is read from the
-macOS Keychain or Linux `secret-tool`, under service `discord-bot` and the
-identity's name as account. The config file holds no secrets; its `keychain`
-field can name a different entry, but never holds the token itself.
+**Decision.** For its own identity (next entry), a token in the environment
+wins: `DISCORD_BOT_TOKEN`, or `DISCORD_BOT_TOKEN_FILE` naming a file that holds
+it. Otherwise the token is read from the macOS Keychain or Linux `secret-tool`,
+under service `discord-bot` and the identity's name as account. The config
+file holds no secrets; its `keychain` field can name a different entry, but
+never holds the token itself.
 
 **Why.** A server runs each bot as its own process with its own environment
 file, and that file is its identity; a laptop has a keychain and no such
@@ -43,6 +45,39 @@ file. Naming entries by identity lets one machine hold several bots.
 
 **Rejected: one fixed keychain entry per machine.** That was the old service's
 design, and it can't hold a second bot.
+
+## The environment's token belongs to one identity
+
+Decided by Adam, 2026-10-05.
+
+**Decision.** As in `github-app`: `DISCORD_BOT_TOKEN` and
+`DISCORD_BOT_TOKEN_FILE` apply only to the identity named by
+`DISCORD_BOT_IDENTITY`, or `default` when that is unset. Any other
+`--identity` ignores them and uses its keychain entry; with none, the error
+says whose token the environment holds. `store-token` warns when the
+environment's token would override the one it stores.
+
+**Why.** A server's environment file holds one role's token. Before this
+decision, a token inherited from another identity's environment silently acted
+as that bot: `--identity reviewer`, run in a process holding another bot's
+token, posted as the other bot.
+
+**`DISCORD_BOT_TOKEN_FILE`** lets that environment file point to the token
+instead of holding it. The file's content is stripped of surrounding
+whitespace and a leading byte order mark. A missing, unreadable or empty file
+is an error and never falls back to the keychain, so a broken server setup
+shows. Setting both variables is refused rather than guessing which was meant,
+as `github-app` refuses both `GITHUB_APP_PRIVATE_KEY` and
+`GITHUB_APP_PRIVATE_KEY_FILE`.
+
+**Either variable's token must be printable ASCII with no spaces,** or it is
+refused with an error that doesn't quote it. Without this check, Python's HTTP
+library rejects the header with an error that quotes the token, and the script
+prints that error.
+
+**Rejected: allowing only the characters Discord's tokens use today.** Discord
+doesn't document them, and a token wrapped in stray quotes already fails
+visibly with Discord's 401.
 
 ## Refuse a message over 2,000 characters
 

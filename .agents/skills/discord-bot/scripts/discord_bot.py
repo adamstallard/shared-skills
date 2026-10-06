@@ -154,18 +154,67 @@ def read_keychain(service, account, run=subprocess.run, which=shutil.which):
     return token or None
 
 
-def resolve_token(identity, config, env=None, read=read_keychain):
-    env = os.environ if env is None else env
+def env_identity(env):
+    """The one identity that DISCORD_BOT_TOKEN or DISCORD_BOT_TOKEN_FILE belongs to.
+
+    Another identity never borrows it: a process holding one bot's token would
+    otherwise act as that bot whatever --identity says. See DECISIONS.md.
+    """
+    return env.get("DISCORD_BOT_IDENTITY") or "default"
+
+
+def env_token_set(env):
+    """The token variables set, not blank, in the environment."""
+    return [k for k in ("DISCORD_BOT_TOKEN", "DISCORD_BOT_TOKEN_FILE") if env.get(k, "").strip()]
+
+
+def env_token(env):
+    """The environment's token, given inline or in a file; set exactly one of them."""
     token = env.get("DISCORD_BOT_TOKEN", "").strip()
-    if token:
-        return token
+    path = env.get("DISCORD_BOT_TOKEN_FILE", "").strip()
+    if token and path:
+        raise Failure("set DISCORD_BOT_TOKEN or DISCORD_BOT_TOKEN_FILE, not both")
+    source = "DISCORD_BOT_TOKEN"
+    if not token:
+        source = f"DISCORD_BOT_TOKEN_FILE {path}"
+        try:
+            # utf-8-sig drops the byte order mark some editors write first.
+            with open(path, encoding="utf-8-sig") as f:
+                token = f.read().strip()
+        except OSError as e:
+            raise Failure(f"cannot read {source}: {e.strerror or e}")
+        except UnicodeDecodeError:
+            raise Failure(f"{source} is not a text file")
+        if not token:
+            raise Failure(f"{source} is empty")
+    # A token is printable ASCII with no spaces. Anything else would fail in the
+    # HTTP header with an error quoting the token, so refuse it here unquoted.
+    if not re.fullmatch(r"[!-~]+", token):
+        raise Failure(f"{source} must hold only the token: one line of printable ASCII, no spaces")
+    return token
+
+
+def token_advice(identity, env):
+    """How to give `identity` a token in the environment, which belongs to DISCORD_BOT_IDENTITY's bot only."""
+    name = "" if identity == env_identity(env) else f"DISCORD_BOT_IDENTITY={identity} with "
+    return f"set {name}DISCORD_BOT_TOKEN or DISCORD_BOT_TOKEN_FILE"
+
+
+def resolve_token(identity, config, env=None, read=read_keychain):
+    """The environment's token if it belongs to `identity`, else the identity's keychain entry."""
+    env = os.environ if env is None else env
+    present = env_token_set(env)
+    if present and identity == env_identity(env):
+        return env_token(env)
     service, account = keychain_entry(identity, config)
     token = read(service, account)
     if token:
         return token
+    reason = (f"{' and '.join(present)} in the environment belongs to identity {env_identity(env)!r} "
+              "and is never lent to another; " if present else "")
     raise Failure(
-        f"no bot token for identity {identity!r}: set DISCORD_BOT_TOKEN, or run "
-        f"'discord_bot.py store-token --identity {identity}' to keep it in the keychain "
+        f"no bot token for identity {identity!r}: {reason}{token_advice(identity, env)}, or run "
+        f"'discord_bot.py --identity {identity} store-token' to keep it in the keychain "
         f"(service {service!r}, account {account!r})"
     )
 
@@ -632,6 +681,7 @@ def cmd_check(api, config, args):
 
 
 def cmd_store_token(args, env=None, run=subprocess.run, which=shutil.which):
+    env = os.environ if env is None else env
     config, _ = load_config(args.identity, env)
     service, account = keychain_entry(args.identity, config)
     token = getpass.getpass(f"Bot token for {args.identity!r} (input hidden): ").strip()
@@ -646,10 +696,18 @@ def cmd_store_token(args, env=None, run=subprocess.run, which=shutil.which):
         cmd = ["secret-tool", "store", "--label", f"Discord bot token ({account})", "service", service, "account", account]
         result = run(cmd, input=token, capture_output=True, text=True)
     else:
-        raise Failure("no keychain tool found (macOS 'security' or Linux 'secret-tool'); use DISCORD_BOT_TOKEN instead")
+        raise Failure("no keychain tool found (macOS 'security' or Linux 'secret-tool'); "
+                      f"{token_advice(args.identity, env)} instead")
     if result.returncode != 0:
         raise Failure(f"storing the token failed: {result.stderr.strip()}")
-    return {"identity": args.identity, "stored": True, "service": service, "account": account}
+    stored = {"identity": args.identity, "stored": True, "service": service, "account": account}
+    present = env_token_set(env)
+    if present and args.identity == env_identity(env):
+        stored["warnings"] = [
+            f"{' and '.join(present)} in the environment overrides the stored token for this identity; "
+            "unset it for the stored token to take effect"
+        ]
+    return stored
 
 
 def message_url(guild_id, channel_id, message_id):

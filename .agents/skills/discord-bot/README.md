@@ -70,10 +70,26 @@ python3 ~/.agents/skills/discord-bot/scripts/discord_bot.py --identity acme stor
 It asks for the token without echoing it, and stores it under service
 `discord-bot`, account `acme`.
 
-On a server or in a container, set `DISCORD_BOT_TOKEN` in that process's
-environment instead, for example in a systemd `EnvironmentFile` or a Docker env
-file readable only by the service. The environment variable wins over the
-keychain.
+On a server or in a container, give each bot's process its token in its own
+environment instead, for example a systemd `EnvironmentFile` or a Docker env
+file readable only by the service:
+
+```bash
+DISCORD_BOT_IDENTITY=reviewer
+DISCORD_BOT_TOKEN_FILE=/etc/discord-bot/reviewer.token
+```
+
+`DISCORD_BOT_TOKEN_FILE` names a file holding only the token, so the
+environment file needn't hold it. Set `DISCORD_BOT_TOKEN` to the token itself
+instead if you prefer; setting both is an error.
+
+Either one belongs to the identity named by `DISCORD_BOT_IDENTITY`, or to
+`default` when that is unset. For that identity it wins over the keychain. A
+command run with any other `--identity` ignores it and uses that identity's
+keychain entry, so a process can't act as one bot with another bot's token.
+
+Where one agent role runs per process, name the identity after the role, the
+same name its GitHub App identity uses.
 
 ### 4. Describe the channels and people
 
@@ -136,8 +152,10 @@ line.
 ## When something goes wrong
 
 **"no bot token for identity …"**: nothing is stored for that identity. Run
-`store-token`, or set `DISCORD_BOT_TOKEN`. Check the identity name too: without
-`--identity` or `DISCORD_BOT_IDENTITY`, it's `default`.
+`store-token`, or set `DISCORD_BOT_TOKEN` or `DISCORD_BOT_TOKEN_FILE`. Check the
+identity name too: without `--identity` or `DISCORD_BOT_IDENTITY`, it's
+`default`. If the error says the token in the environment belongs to another
+identity, that token is another bot's; give this identity its own.
 
 **"no text channel #… that the bot can see"**: the bot isn't in that server,
 or the channel is private and the bot's role wasn't added (setup step 1.5).

@@ -367,7 +367,7 @@ class Identity(unittest.TestCase):
 class Token(unittest.TestCase):
     def test_environment_wins_over_keychain(self):
         read = mock.Mock(return_value="from-keychain")
-        self.assertEqual(d.resolve_token("x", {}, {"DISCORD_BOT_TOKEN": "from-env"}, read), "from-env")
+        self.assertEqual(d.resolve_token("default", {}, {"DISCORD_BOT_TOKEN": "from-env"}, read), "from-env")
         read.assert_not_called()
 
     def test_keychain_entry_defaults_to_the_identity(self):
@@ -395,6 +395,158 @@ class Token(unittest.TestCase):
 
     def test_no_keychain_tool_means_none(self):
         self.assertIsNone(d.read_keychain("s", "a", run=None, which=lambda t: None))
+
+
+class EnvironmentToken(unittest.TestCase):
+    """The environment's token belongs to DISCORD_BOT_IDENTITY's bot only (DECISIONS.md)."""
+
+    def token_file(self, content):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        path = os.path.join(tmp.name, "token")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(content)
+        return path
+
+    def test_another_identity_ignores_the_environment_token(self):
+        read = mock.Mock(return_value="reviewer-token")
+        env = {"DISCORD_BOT_TOKEN": "acme-token", "DISCORD_BOT_IDENTITY": "acme"}
+        self.assertEqual(d.resolve_token("reviewer", {}, env, read), "reviewer-token")
+        read.assert_called_once_with("discord-bot", "reviewer")
+
+    def test_another_identity_ignores_the_default_identitys_token(self):
+        read = mock.Mock(return_value="reviewer-token")
+        self.assertEqual(d.resolve_token("reviewer", {}, {"DISCORD_BOT_TOKEN": "default-token"}, read),
+                         "reviewer-token")
+
+    def test_the_environment_token_applies_to_discord_bot_identity(self):
+        read = mock.Mock(return_value="from-keychain")
+        env = {"DISCORD_BOT_TOKEN": "acme-token", "DISCORD_BOT_IDENTITY": "acme"}
+        self.assertEqual(d.resolve_token("acme", {}, env, read), "acme-token")
+        read.assert_not_called()
+
+    def test_the_environment_token_applies_to_default_when_no_identity_is_named(self):
+        read = mock.Mock(return_value="from-keychain")
+        self.assertEqual(d.resolve_token("default", {}, {"DISCORD_BOT_TOKEN": "t"}, read), "t")
+        read.assert_not_called()
+
+    def test_a_borrowed_token_is_refused_with_the_reason(self):
+        env = {"DISCORD_BOT_TOKEN": "acme-token", "DISCORD_BOT_IDENTITY": "acme"}
+        with self.assertRaisesRegex(d.Failure, "belongs to identity 'acme'.*never lent"):
+            d.resolve_token("reviewer", {}, env, lambda s, a: None)
+
+    def test_the_advice_puts_identity_before_the_command(self):
+        with self.assertRaisesRegex(d.Failure, "--identity x store-token"):
+            d.resolve_token("x", {}, {}, lambda s, a: None)
+        self.assertEqual(d.parser().parse_args(["--identity", "x", "store-token"]).command, "store-token")
+
+    def test_token_file_is_read_and_stripped(self):
+        path = self.token_file("  file-token\n\n")
+        read = mock.Mock()
+        self.assertEqual(d.resolve_token("default", {}, {"DISCORD_BOT_TOKEN_FILE": path}, read), "file-token")
+        read.assert_not_called()
+
+    def test_token_file_belongs_to_one_identity_too(self):
+        path = self.token_file("acme-token\n")
+        read = mock.Mock(return_value="reviewer-token")
+        env = {"DISCORD_BOT_TOKEN_FILE": path, "DISCORD_BOT_IDENTITY": "acme"}
+        self.assertEqual(d.resolve_token("acme", {}, env, read), "acme-token")
+        self.assertEqual(d.resolve_token("reviewer", {}, env, read), "reviewer-token")
+
+    def test_a_missing_token_file_fails_without_falling_back(self):
+        read = mock.Mock(return_value="from-keychain")
+        env = {"DISCORD_BOT_TOKEN_FILE": os.path.join(tempfile.gettempdir(), "no-such-discord-token")}
+        with self.assertRaisesRegex(d.Failure, "cannot read DISCORD_BOT_TOKEN_FILE"):
+            d.resolve_token("default", {}, env, read)
+        read.assert_not_called()
+
+    def test_an_unreadable_token_file_fails(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaisesRegex(d.Failure, "cannot read DISCORD_BOT_TOKEN_FILE"):
+                d.resolve_token("default", {}, {"DISCORD_BOT_TOKEN_FILE": tmp}, lambda s, a: "k")
+
+    def test_an_empty_token_file_fails(self):
+        with self.assertRaisesRegex(d.Failure, "is empty"):
+            d.resolve_token("default", {}, {"DISCORD_BOT_TOKEN_FILE": self.token_file(" \n")}, lambda s, a: "k")
+
+    def test_a_token_file_with_more_than_the_token_fails(self):
+        path = self.token_file("DISCORD_BOT_TOKEN=a\nother=b\n")
+        with self.assertRaisesRegex(d.Failure, "only the token"):
+            d.resolve_token("default", {}, {"DISCORD_BOT_TOKEN_FILE": path}, lambda s, a: "k")
+
+    def test_a_binary_token_file_fails(self):
+        path = self.token_file("")
+        with open(path, "wb") as f:
+            f.write(b"\xff\xfe")
+        with self.assertRaisesRegex(d.Failure, "not a text file"):
+            d.resolve_token("default", {}, {"DISCORD_BOT_TOKEN_FILE": path}, lambda s, a: "k")
+
+    def test_both_token_variables_are_refused(self):
+        env = {"DISCORD_BOT_TOKEN": "a", "DISCORD_BOT_TOKEN_FILE": self.token_file("b")}
+        with self.assertRaisesRegex(d.Failure, "not both"):
+            d.resolve_token("default", {}, env, lambda s, a: "k")
+
+    def test_blank_variables_count_as_unset(self):
+        env = {"DISCORD_BOT_TOKEN": "  ", "DISCORD_BOT_TOKEN_FILE": ""}
+        self.assertEqual(d.resolve_token("default", {}, env, lambda s, a: "k"), "k")
+
+
+    def test_a_byte_order_mark_is_not_part_of_the_token(self):
+        path = self.token_file("\ufeffabc.def\n")
+        self.assertEqual(d.resolve_token("default", {}, {"DISCORD_BOT_TOKEN_FILE": path}, lambda s, a: "k"), "abc.def")
+
+    def test_a_non_ascii_token_fails_without_echoing_it(self):
+        path = self.token_file("abc\u200bsecret\n")
+        out = io.StringIO()
+        with mock.patch.dict(os.environ, {"XDG_CONFIG_HOME": tempfile.gettempdir(),
+                                          "DISCORD_BOT_TOKEN_FILE": path}, clear=True), \
+                mock.patch.object(d, "read_keychain", return_value=None), \
+                mock.patch.object(sys, "stderr", io.StringIO()), redirect_stdout(out):
+            code = d.main(["read", "--channel", "x"])
+        self.assertEqual(code, 1)
+        self.assertNotIn("secret", out.getvalue())
+        self.assertNotIn("unexpected", out.getvalue())
+
+    def test_an_inline_token_with_a_line_break_fails_without_echoing_it(self):
+        with self.assertRaises(d.Failure) as e:
+            d.resolve_token("default", {}, {"DISCORD_BOT_TOKEN": "abc\nsecret"}, lambda s, a: "k")
+        self.assertNotIn("secret", str(e.exception))
+
+    def test_advice_for_another_identity_names_discord_bot_identity(self):
+        with self.assertRaisesRegex(d.Failure, "DISCORD_BOT_IDENTITY=reviewer"):
+            d.resolve_token("reviewer", {}, {}, lambda s, a: None)
+
+class StoreToken(unittest.TestCase):
+    def store(self, identity, env):
+        run = mock.Mock(return_value=types.SimpleNamespace(returncode=0, stderr=""))
+        args = types.SimpleNamespace(identity=identity)
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(d.getpass, "getpass", return_value="tok"):
+            result = d.cmd_store_token(args, {"XDG_CONFIG_HOME": tmp, **env}, run=run,
+                                       which=lambda t: t == "secret-tool")
+        self.assertEqual(run.call_args[0][0][:2], ["secret-tool", "store"])
+        return result
+
+    def test_warns_when_the_environment_token_overrides_this_identity(self):
+        result = self.store("acme", {"DISCORD_BOT_TOKEN": "t", "DISCORD_BOT_IDENTITY": "acme"})
+        self.assertIn("overrides the stored token", result["warnings"][0])
+        self.assertIn("DISCORD_BOT_TOKEN", result["warnings"][0])
+
+    def test_warns_for_default_and_a_token_file(self):
+        result = self.store("default", {"DISCORD_BOT_TOKEN_FILE": "/x"})
+        self.assertIn("DISCORD_BOT_TOKEN_FILE", result["warnings"][0])
+
+    def test_no_warning_for_another_identity(self):
+        result = self.store("reviewer", {"DISCORD_BOT_TOKEN": "t", "DISCORD_BOT_IDENTITY": "acme"})
+        self.assertNotIn("warnings", result)
+
+    def test_no_warning_without_an_environment_token(self):
+        self.assertNotIn("warnings", self.store("acme", {}))
+
+    def test_no_keychain_tool_advice_names_the_identity(self):
+        args = types.SimpleNamespace(identity="reviewer")
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(d.getpass, "getpass", return_value="tok"), \
+                self.assertRaisesRegex(d.Failure, "DISCORD_BOT_IDENTITY=reviewer"):
+            d.cmd_store_token(args, {"XDG_CONFIG_HOME": tmp}, run=None, which=lambda t: None)
 
 
 class Http(unittest.TestCase):

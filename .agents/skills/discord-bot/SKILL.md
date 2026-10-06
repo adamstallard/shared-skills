@@ -41,7 +41,9 @@ user at the skill's README; don't try to find a token yourself.
 `--identity <name>`, else `$DISCORD_BOT_IDENTITY`, else `default`. A machine with
 several bots, one per project or team, sets `DISCORD_BOT_IDENTITY` per project.
 Use the identity you are given; never switch to another one to get around a
-refusal.
+refusal. A token in the environment belongs only to `$DISCORD_BOT_IDENTITY`'s
+bot, or `default`'s when that is unset; any other identity uses its own
+keychain entry.
 
 ## Posting
 
