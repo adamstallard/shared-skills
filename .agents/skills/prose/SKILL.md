@@ -73,7 +73,7 @@ It prints:
 - the prose in the change (Markdown, specs, the comments the diff touches, the
   message);
 - history-language flags in those comments, as warnings;
-- the rules: the pass, rules 1 to 6 in full, the rest as a checklist, and how
+- the rules: the pass, rules 1 to 7 in full, the rest as a checklist, and how
   agents cheat on the pass;
 - the pass token, and the command to run next.
 
@@ -168,9 +168,10 @@ gh pr create --title "..." --body-file signed.md
 
 Run `gh` as the whole command, with the body as `--body-file <file>` or
 `--body '<text>'`; a heredoc is not accepted. A hook blocks any other shape of
-`gh` post, and any post whose footer does not match. It also blocks a command
-that only mentions a `gh` post; [README.md](README.md#posting-through-gh) says
-how to run one. Any edit after signing breaks the footer; sign again after
+`gh` post, and any post whose footer does not match. A command that only
+mentions a `gh` post, or a `gh` command that sends no text (a label edit), may
+run inside a longer command; [README.md](README.md#posting-through-gh) says
+what the hook reads. Any edit after signing breaks the footer; sign again after
 editing.
 
 ## Never

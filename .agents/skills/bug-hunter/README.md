@@ -13,7 +13,8 @@ something.
 
 ## What it does
 
-1. **Triages** the staged change with a cheap model, from the diff alone —
+1. **Triages** the staged change from the diff alone, itself for a small diff
+   and with a cheap model for a large one —
    docs-only, formatting, renames and reverts are skipped, and so is a
    checkpoint you ask for, so it doesn't hound you on every checkpoint commit.
 2. **Finds** candidate bugs with a strong model. Each one has to name a real

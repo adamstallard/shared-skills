@@ -1389,5 +1389,136 @@ class UpdateTests(unittest.TestCase):
 
 
 
+class ModTests(unittest.TestCase):
+    """A Claude Code mod: a plugin folder with no SKILL.md, linked only into
+    targets that are a `.claude/skills` directory."""
+
+    def setUp(self):
+        self.tmp = pathlib.Path(tempfile.mkdtemp(prefix="skills-mod-test-")).resolve()
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+
+        self.clone = self.tmp / "clone"
+        skills = self.clone / ".agents" / "skills"
+        mod = skills / "demo-mod"
+        (mod / ".claude-plugin").mkdir(parents=True)
+        (mod / ".claude-plugin" / "plugin.json").write_text(
+            json.dumps({"name": "demo-mod", "description": "A mod that does a thing."})
+        )
+        (skills / "demo-skill").mkdir(parents=True)
+        (skills / "demo-skill" / "SKILL.md").write_text(
+            "---\nname: demo-skill\ndescription: A plain skill.\n---\n"
+        )
+
+        self.agents = self.tmp / "home" / ".agents" / "skills"
+        self.claude = self.tmp / "home" / ".claude" / "skills"
+        self.config = self.tmp / "config.json"
+        self.hook_home = self.tmp / "hook-home"
+        self.hook_home.mkdir()
+
+    def run_cli(self, *args, targets=None):
+        env = dict(os.environ)
+        env["SHARED_SKILLS_REPO"] = str(self.clone)
+        env["SHARED_SKILLS_TARGET"] = os.pathsep.join(
+            str(t) for t in (targets or (self.agents, self.claude))
+        )
+        env["SHARED_SKILLS_CONFIG"] = str(self.config)
+        env["SHARED_SKILLS_HOOK_HOME"] = str(self.hook_home)
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT), *args], capture_output=True, text=True, env=env
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        return result.stdout
+
+    def test_install_links_a_mod_only_where_claude_code_loads_it(self):
+        self.run_cli("install", "demo-mod")
+        self.assertTrue((self.claude / "demo-mod").is_symlink())
+        self.assertFalse((self.agents / "demo-mod").exists())
+
+    def test_a_plain_skill_still_goes_into_every_target(self):
+        self.run_cli("install", "demo-skill")
+        self.assertTrue((self.claude / "demo-skill").is_symlink())
+        self.assertTrue((self.agents / "demo-skill").is_symlink())
+
+    def test_install_all_includes_mods(self):
+        self.run_cli("install", "--all")
+        self.assertTrue((self.claude / "demo-mod").is_symlink())
+        self.assertFalse((self.agents / "demo-mod").exists())
+
+    def test_list_shows_a_mod_with_its_description_and_no_gap(self):
+        self.run_cli("install", "demo-mod")
+        out = self.run_cli("list")
+        row = next(line for line in out.splitlines() if "demo-mod" in line)
+        self.assertIn("n/a", row)
+        self.assertIn("installed", row)
+        self.assertIn("(mod) A mod that does a thing.", row)
+        self.assertNotIn("Installed in some targets but not all", out)
+
+    def test_doctor_does_not_call_a_mod_missing_from_a_target_that_cannot_load_it(self):
+        self.run_cli("install", "--all")
+        out = self.run_cli("doctor")
+        self.assertNotIn("MISSING", out)
+        self.assertIn("No problems found in any target.", out)
+
+    def test_install_says_so_when_no_target_loads_mods(self):
+        out = self.run_cli("install", "demo-mod", targets=(self.agents,))
+        self.assertIn("no target is a .claude/skills directory", out)
+        self.assertFalse((self.agents / "demo-mod").exists())
+
+    def test_uninstall_removes_a_mod(self):
+        self.run_cli("install", "demo-mod")
+        self.run_cli("uninstall", "demo-mod")
+        self.assertFalse((self.claude / "demo-mod").exists())
+
+    def test_doctors_fix_clears_a_mod_left_in_a_target_that_cannot_load_it(self):
+        # A link from before the folder was a mod, now pointing nowhere.
+        self.agents.mkdir(parents=True)
+        (self.agents / "demo-mod").symlink_to(self.tmp / "gone" / "demo-mod")
+        self.run_cli("install", "demo-mod")
+        first = self.run_cli("doctor")
+        fix = next(
+            line.split("fix:", 1)[1].strip()
+            for line in first.splitlines()
+            if "fix:" in line and "demo-mod" in line
+        )
+        if fix.startswith("rm "):
+            os.unlink(fix[3:])
+        else:
+            self.run_cli(*fix.split())
+        self.assertIn("No problems found in any target.", self.run_cli("doctor"))
+
+    def test_list_shows_a_mod_left_in_a_target_that_cannot_load_it(self):
+        self.agents.mkdir(parents=True)
+        (self.agents / "demo-mod").symlink_to(self.tmp / "gone" / "demo-mod")
+        row = next(line for line in self.run_cli("list").splitlines() if "demo-mod" in line)
+        self.assertEqual(row.split()[0], "broken")
+
+    def test_doctor_keeps_a_mod_when_the_other_target_is_the_same_directory(self):
+        # ~/.agents/skills linked to ~/.claude/skills: one directory, two targets.
+        self.claude.mkdir(parents=True)
+        self.agents.parent.mkdir(parents=True)
+        self.agents.symlink_to(self.claude)
+        self.run_cli("install", "demo-mod")
+        self.assertIn("No problems found in any target.", self.run_cli("doctor"))
+
+    def test_doctor_keeps_the_shared_link_when_another_mod_target_is_missing(self):
+        # ~/.agents/skills is ~/.claude/skills; a project target not made yet
+        # comes before it in the list.
+        self.claude.mkdir(parents=True)
+        self.agents.parent.mkdir(parents=True)
+        self.agents.symlink_to(self.claude, target_is_directory=True)
+        self.run_cli("install", "demo-mod", targets=(self.agents, self.claude))
+        missing = self.tmp / "proj" / ".claude" / "skills"
+        out = self.run_cli("doctor", targets=(self.agents, missing, self.claude))
+        self.assertNotIn("NOT HERE", out)
+
+    def test_a_folder_with_both_skill_md_and_a_plugin_manifest_is_a_skill(self):
+        both = self.clone / ".agents" / "skills" / "demo-skill" / ".claude-plugin"
+        both.mkdir()
+        (both / "plugin.json").write_text("{}")
+        self.run_cli("install", "demo-skill")
+        self.assertTrue((self.agents / "demo-skill").is_symlink())
+
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

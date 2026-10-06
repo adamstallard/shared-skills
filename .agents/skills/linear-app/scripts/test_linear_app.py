@@ -7,6 +7,7 @@ Run from the clone's root:  python3 .agents/skills/linear-app/scripts/test_linea
 import io
 import json
 import os
+import shlex
 import stat
 import sys
 import tempfile
@@ -43,6 +44,8 @@ class Env(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.env = {"XDG_CONFIG_HOME": os.path.join(self.tmp.name, "config"),
                     "XDG_STATE_HOME": os.path.join(self.tmp.name, "state"),
+                    # check reads ~/.claude.json: never the person's own.
+                    "HOME": self.tmp.name,
                     "LINEAR_CLIENT_ID": "cid", "LINEAR_CLIENT_SECRET": "secret"}
         patcher = mock.patch.dict(os.environ, self.env, clear=True)
         patcher.start()
@@ -310,6 +313,100 @@ class Wire(Env):
     def test_helper_command_quotes_paths_with_spaces(self):
         cmd = la.helper_command("me", script="/a b/linear_app.py", python="/usr/bin/python3")
         self.assertEqual(cmd, "/usr/bin/python3 '/a b/linear_app.py' --identity me headers")
+
+    def test_the_helper_names_the_installed_skill_when_it_leads_here(self):
+        installed = os.path.join(self.tmp.name, ".claude", "skills", "linear-app")
+        os.makedirs(os.path.dirname(installed))
+        os.symlink(os.path.dirname(os.path.dirname(os.path.abspath(la.__file__))), installed)
+        self.assertEqual(la.stable_script(home=self.tmp.name),
+                         os.path.join(installed, "scripts", os.path.basename(la.__file__)))
+
+    def test_the_helper_names_the_file_itself_when_no_skill_is_installed(self):
+        self.assertEqual(la.stable_script(home=self.tmp.name), os.path.abspath(la.__file__))
+
+    def test_check_warns_when_the_wired_helper_can_no_longer_run(self):
+        gone = os.path.join(self.tmp.name, "python@3.14", "bin", "python3.14")
+        helper = la.helper_command("default", script=os.path.abspath(la.__file__), python=gone)
+        claude = {"mcpServers": {"linear": {"type": "http", "headersHelper": helper}},
+                  "projects": {"/p": {"mcpServers": {"other": {"headersHelper": "echo hi"}}}}}
+        with open(os.path.join(self.tmp.name, ".claude.json"), "w") as f:
+            json.dump(claude, f)
+        warnings = la.stale_helpers("default")
+        self.assertEqual(len(warnings), 1)
+        self.assertIn(gone, warnings[0])
+        self.assertEqual(la.stale_helpers("someone-else"), [])
+
+    def test_check_reads_the_config_claude_code_uses_when_claude_config_dir_is_set(self):
+        gone = os.path.join(self.tmp.name, "gone", "python3")
+        helper = la.helper_command("default", script=os.path.abspath(la.__file__), python=gone)
+        config = os.path.join(self.tmp.name, "elsewhere")
+        os.makedirs(config)
+        with open(os.path.join(config, ".claude.json"), "w") as f:
+            json.dump({"mcpServers": {"linear": {"headersHelper": helper}}}, f)
+        os.environ["CLAUDE_CONFIG_DIR"] = config
+        self.assertEqual(len(la.stale_helpers("default")), 1)
+
+    def test_the_warning_names_the_server_and_project_to_rewire(self):
+        project = os.path.join(self.tmp.name, "proj")
+        os.makedirs(project)
+        gone = os.path.join(self.tmp.name, "gone", "python3.13")
+        helper = la.helper_command("acme", script=os.path.abspath(la.__file__), python=gone)
+        claude = {"mcpServers": {"linear-acme": {"headersHelper": helper}},
+                  "projects": {project: {"mcpServers": {"linear": {"headersHelper": helper}}}}}
+        with open(os.path.join(self.tmp.name, ".claude.json"), "w") as f:
+            json.dump(claude, f)
+        warnings = " | ".join(la.stale_helpers("acme"))
+        self.assertIn("--name linear-acme", warnings)
+        self.assertIn(f"--project {project}", warnings)
+
+    def test_a_server_in_a_deleted_project_folder_is_not_warned_about(self):
+        gone = os.path.join(self.tmp.name, "gone", "python3.13")
+        helper = la.helper_command("acme", script=os.path.abspath(la.__file__), python=gone)
+        claude = {"projects": {os.path.join(self.tmp.name, "deleted-worktree"):
+                               {"mcpServers": {"linear": {"headersHelper": helper}}}}}
+        with open(os.path.join(self.tmp.name, ".claude.json"), "w") as f:
+            json.dump(claude, f)
+        self.assertEqual(la.stale_helpers("acme"), [])
+
+    def test_a_malformed_claude_json_never_breaks_check(self):
+        for text in ("null", "[]", '{"projects": [1, 2]}', '{"mcpServers": "x"}'):
+            with self.subTest(text):
+                with open(os.path.join(self.tmp.name, ".claude.json"), "w") as f:
+                    f.write(text)
+                self.assertEqual(la.stale_helpers("acme"), [])
+
+    def test_a_hand_written_helper_using_path_and_tilde_is_not_flagged(self):
+        script = os.path.join(self.tmp.name, ".agents", "skills", "linear-app", "scripts", "linear_app.py")
+        os.makedirs(os.path.dirname(script))
+        with open(script, "w") as f:
+            f.write("")
+        os.makedirs(os.path.join(self.tmp.name, "bin"))
+        os.symlink(sys.executable, os.path.join(self.tmp.name, "bin", "python3"))
+        os.environ["PATH"] = os.path.join(self.tmp.name, "bin")
+        helper = "python3 ~/.agents/skills/linear-app/scripts/linear_app.py --identity acme headers"
+        with open(os.path.join(self.tmp.name, ".claude.json"), "w") as f:
+            json.dump({"mcpServers": {"linear": {"headersHelper": helper}}}, f)
+        self.assertEqual(la.stale_helpers("acme"), [])
+
+    def test_the_suggested_command_can_be_pasted_into_a_shell(self):
+        project = os.path.join(self.tmp.name, "my proj")
+        os.makedirs(project)
+        gone = os.path.join(self.tmp.name, "gone", "python3.13")
+        helper = la.helper_command("acme", script=os.path.abspath(la.__file__), python=gone)
+        with open(os.path.join(self.tmp.name, ".claude.json"), "w") as f:
+            json.dump({"projects": {project: {"mcpServers": {"it's linear": {"headersHelper": helper}}}}}, f)
+        [warning] = la.stale_helpers("acme")
+        self.assertIn("; run: ", warning)
+        words = shlex.split(warning.split("; run: ", 1)[1])
+        self.assertTrue(words[1].endswith("linear_app.py"), words)
+        self.assertEqual(words[words.index("--name") + 1], "it's linear")
+        self.assertEqual(words[words.index("--project") + 1], project)
+
+    def test_a_working_helper_gets_no_warning(self):
+        helper = la.helper_command("default", script=os.path.abspath(la.__file__), python=sys.executable)
+        with open(os.path.join(self.tmp.name, ".claude.json"), "w") as f:
+            json.dump({"mcpServers": {"linear": {"headersHelper": helper}}}, f)
+        self.assertEqual(la.stale_helpers("default"), [])
 
 
 class Forget(Env):

@@ -48,6 +48,10 @@ python3 $L check
 - **"Linear answered 401"** or **"invalid_client"**: the client secret was
   rotated in Linear. Ask the user to run `store-credentials` again. Never ask
   them to paste a secret to you.
+- **A warning that an MCP server "runs … which no longer exists"**: Python was
+  upgraded, or the clone the server was wired from moved. The warning ends with
+  the command that wires it again; run it, then tell the user to reconnect with
+  `/mcp` or start a new session.
 
 `check` also shows the app user's name and workspace. If the name is a
 person's, the wrong credentials are stored: stop and tell the user.

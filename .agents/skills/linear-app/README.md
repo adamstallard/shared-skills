@@ -42,10 +42,15 @@ secret**.
 Pick a short name for this agent on your machine: `acme`, `reviewer`.
 Commands use `--identity <name>`, else `LINEAR_APP_IDENTITY`, else `default`.
 
+You type step 3 yourself, because it takes the client secret. Your agent can
+do steps 4 and 5: ask it, or type the commands shown.
+
 ### 3. Store the credentials
 
 On your own machine, keep them in the keychain (macOS Keychain or Linux
-`secret-tool`):
+`secret-tool`). Type this yourself, not through your agent: it asks for the
+client ID and then the secret, with the input hidden, so the secret never
+reaches the agent. Never paste the secret into a chat.
 
 ```bash
 python3 ~/.agents/skills/linear-app/scripts/linear_app.py --identity acme store-credentials
@@ -59,6 +64,8 @@ for that identity only; set both or neither.
 
 ### 4. Check it
 
+Ask your agent to *"check the acme linear-app identity"*, or run:
+
 ```bash
 python3 ~/.agents/skills/linear-app/scripts/linear_app.py --identity acme check
 ```
@@ -69,7 +76,8 @@ must be the agent's name, not yours.**
 
 ### 5. Connect the agent
 
-**Claude Code:**
+**Claude Code:** ask your agent to *"wire Linear to the acme identity"* for
+every session, or *"… for ~/code/acme"* for one project. Or run:
 
 ```bash
 python3 ~/.agents/skills/linear-app/scripts/linear_app.py --identity acme wire
@@ -128,12 +136,19 @@ issue back after claiming it.
 identity. Run `store-credentials` or set the environment variables, and check
 the identity name.
 
-**Linear tools fail with 401:** run `check`. If Linear revoked the cached
+**Linear tools fail with 401:** ask your agent to check the identity, or run
+`check`. If Linear revoked the cached
 token (for example, the same application minted with other scopes elsewhere),
 `check` mints a replacement and answers `ok: true`. If `check` itself fails
 with 401 or `invalid_client`, the client secret was rotated in Linear, or
 client credentials were disabled on the application: run `store-credentials`
 with the current secret.
+
+**Linear fails at every session start after a Python upgrade**: the server
+runs the Python that ran `wire`, and an upgrade can remove it. `check` warns
+about any server whose Python or script is gone and prints the command that
+wires it again. `wire` records the installed skill's path, not the clone's, so
+moving the clone and repairing the install with manage-skills doesn't break it.
 
 **Linear tools fail in a session after `wire` or a scope change**: MCP servers
 connect at session start. Run `/mcp` and reconnect, or start a new session.
@@ -145,7 +160,8 @@ is using them.
 **A machine is lost:** rotate the application's client secret in Linear. That
 revokes every token minted from it.
 
-To remove an identity from a machine: `linear_app.py --identity <name> forget`.
-It deletes the cached token and any credentials stored under the `linear-app`
+To remove an identity from a machine, ask your agent to *"forget the <name>
+linear-app identity"*, or run `linear_app.py --identity <name> forget`. It
+deletes the cached token and any credentials stored under the `linear-app`
 keychain service. Entries the config points at under another service are
 left alone, and `forget` lists them.
