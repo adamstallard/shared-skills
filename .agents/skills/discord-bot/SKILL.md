@@ -57,8 +57,12 @@ python3 $D post --channel agents --agent Scout --session pr-review --project "re
   quotes or several lines.
 - Discord's limit is 2,000 characters, header included. A longer message is
   refused, not cut: shorten it or post in parts.
+- `--reply-to <messageId>` posts it as a reply to that message, which must be
+  in the same channel or thread. The author isn't pinged unless the text
+  @mentions them.
 
-The output gives the new `messageId` and a `url` to link to.
+The output gives the new `messageId` and a `url` to link to, and `replyTo` for
+a reply.
 
 ### The header
 
@@ -126,7 +130,8 @@ again.
 ## How to behave on Discord
 
 - **Answer on Discord.** If a message you read needs a reply, reply in that
-  channel or thread. People there can't see your chat with the user.
+  channel or thread. People there can't see your chat with the user. Use
+  `--reply-to` when the answer is to one message among several.
 - **Edit rather than repost** to fix a mistake, add a detail, or update a
   status. Post new for a new topic or a reply to someone else.
 - **Link to things**: pull requests, issues, files, other messages (each post's

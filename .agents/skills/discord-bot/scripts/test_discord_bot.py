@@ -64,7 +64,7 @@ def guild_routes(members=None, search=None):
 
 def args(**kw):
     base = dict(identity="default", channel=None, thread=None, agent=None, session=None, project=None,
-                message=None, limit=20, before=None, message_id=None, name=None)
+                message=None, limit=20, before=None, message_id=None, name=None, reply_to=None)
     base.update(kw)
     return types.SimpleNamespace(**base)
 
@@ -243,6 +243,79 @@ class Post(unittest.TestCase):
         with mock.patch.object(sys, "stdin", io.StringIO("from stdin\nline two")):
             d.cmd_post(FakeApi(self.routes(sent)), {}, args(channel="agents", message="-"))
         self.assertEqual(sent[0]["content"], "from stdin\nline two")
+
+
+class ReplyTo(unittest.TestCase):
+    MSG = "123456789012345678"
+
+    def routes(self, sent, target=None):
+        routes = guild_routes(members=[member("7", "adam")])
+        routes[("GET", f"/channels/2/messages/{self.MSG}")] = target if target is not None else {"id": self.MSG}
+        routes[("POST", "/channels/2/messages")] = lambda body, query: sent.append(body) or {"id": "55"}
+        return routes
+
+    def test_reply_references_the_message_in_this_channel(self):
+        sent = []
+        result = d.cmd_post(FakeApi(self.routes(sent)), {}, args(channel="agents", message="agreed", reply_to=self.MSG))
+        self.assertEqual(sent[0]["message_reference"],
+                         {"message_id": self.MSG, "channel_id": "2", "fail_if_not_exists": True})
+        self.assertEqual(result["replyTo"], self.MSG)
+
+    def test_reply_does_not_ping_the_author_unless_mentioned(self):
+        sent = []
+        d.cmd_post(FakeApi(self.routes(sent)), {}, args(channel="agents", message="agreed", reply_to=self.MSG))
+        self.assertEqual(sent[0]["allowed_mentions"], {"parse": [], "users": [], "replied_user": False})
+        d.cmd_post(FakeApi(self.routes(sent)), {}, args(channel="agents", message="@adam agreed", reply_to=self.MSG))
+        self.assertEqual(sent[1]["allowed_mentions"], {"parse": [], "users": ["7"], "replied_user": False})
+        self.assertEqual(sent[1]["content"], "<@7> agreed")
+
+    def test_a_message_elsewhere_or_deleted_fails_before_posting(self):
+        sent = []
+        missing = d.Failure("Unknown Message", status=404, code=10008)
+        with self.assertRaisesRegex(d.Failure, "not in this channel or thread, or was deleted") as e:
+            d.cmd_post(FakeApi(self.routes(sent, missing)), {}, args(channel="agents", message="hi", reply_to=self.MSG))
+        self.assertEqual(sent, [])
+        self.assertEqual(e.exception.status, 404)
+
+    def test_other_lookup_failures_are_raised_as_they_are(self):
+        outage = d.Failure("Internal", status=500)
+        with self.assertRaisesRegex(d.Failure, "^Internal$"):
+            d.cmd_post(FakeApi(self.routes([], outage)), {}, args(channel="agents", message="hi", reply_to=self.MSG))
+
+    def test_reply_to_must_be_a_message_id(self):
+        sent = []
+        with self.assertRaisesRegex(d.Failure, "message id"):
+            d.cmd_post(FakeApi(self.routes(sent)), {}, args(channel="agents", message="hi", reply_to="../55"))
+        self.assertEqual(sent, [])
+
+    def test_reply_to_in_non_ascii_digits_is_not_a_message_id(self):
+        for digits in ("\uff11" * 18, "\u0661" * 18):
+            with self.assertRaisesRegex(d.Failure, "message id"):
+                d.cmd_post(FakeApi(self.routes([])), {}, args(channel="agents", message="hi", reply_to=digits))
+
+    def test_a_reply_refused_at_posting_says_so(self):
+        routes = self.routes([])
+        routes[("POST", "/channels/2/messages")] = d.Failure("Invalid Form Body", status=400, code=50035)
+        with self.assertRaisesRegex(d.Failure, "refused the reply"):
+            d.cmd_post(FakeApi(routes), {}, args(channel="agents", message="hi", reply_to=self.MSG))
+
+    def test_a_reply_in_a_thread_references_the_thread(self):
+        sent = []
+        routes = {("GET", "/channels/77"): channel("77", "notes", ctype=11),
+                  ("GET", f"/channels/77/messages/{self.MSG}"): {"id": self.MSG},
+                  ("POST", "/channels/77/messages"): lambda body, query: sent.append(body) or {"id": "56"}}
+        d.cmd_post(FakeApi(routes), {}, args(thread="77", message="done", reply_to=self.MSG))
+        self.assertEqual(sent[0]["message_reference"]["channel_id"], "77")
+
+    def test_without_reply_to_nothing_changes(self):
+        sent = []
+        result = d.cmd_post(FakeApi(self.routes(sent)), {}, args(channel="agents", message="hi"))
+        self.assertNotIn("message_reference", sent[0])
+        self.assertEqual(sent[0]["allowed_mentions"], {"parse": [], "users": []})
+        self.assertNotIn("replyTo", result)
+
+    def test_the_command_line_takes_reply_to(self):
+        self.assertEqual(d.parser().parse_args(["post", "--message", "x", "--reply-to", self.MSG]).reply_to, self.MSG)
 
 
 class Edit(unittest.TestCase):

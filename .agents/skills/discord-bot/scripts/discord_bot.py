@@ -90,7 +90,8 @@ PLACEHOLDER_RE = re.compile(r"\x00(\d+)\x00")
 
 def is_id(value):
     """Whether a channel or server reference is a Discord id (a 17-20 digit snowflake), not a name."""
-    return value.isdigit() and 17 <= len(value) <= 20
+    # isascii: isdigit alone accepts fullwidth and other non-ASCII digits, which can't go in a URL.
+    return value.isascii() and value.isdigit() and 17 <= len(value) <= 20
 
 
 class Failure(Exception):
@@ -498,6 +499,21 @@ def fit(content):
     return content
 
 
+def reply_reference(api, where, message_id):
+    """The message_reference for a reply, once the message is known to be in this channel or thread."""
+    if not is_id(message_id):
+        raise Failure(f"--reply-to takes a message id, not {message_id!r}")
+    try:
+        api.request("GET", f"/channels/{where['id']}/messages/{message_id}")
+    except Failure as e:
+        if e.status in (400, 404):
+            raise Failure(f"message {message_id} is not in this channel or thread, or was deleted; "
+                          "--reply-to takes a message from where you are posting", status=404, code=e.code)
+        raise
+    # Discord's default, made explicit: a reply to a missing message fails, never posts unthreaded.
+    return {"message_id": message_id, "channel_id": where["id"], "fail_if_not_exists": True}
+
+
 def message_text(value):
     """The --message value, or standard input when it is '-'."""
     text = sys.stdin.read() if value == "-" else value
@@ -555,12 +571,22 @@ def cmd_post(api, config, args):
     body, user_ids, warnings = convert_mentions(api, guild_id, text, channel_ids(api, guild_id, text))
     top = header(args.agent, args.session, args.project)
     content = fit(f"{top}\n{body}" if top else body)
-    sent = api.request(
-        "POST",
-        f"/channels/{where['id']}/messages",
-        body={"content": content, "allowed_mentions": {"parse": [], "users": user_ids}},
-    )
+    payload = {"content": content, "allowed_mentions": {"parse": [], "users": user_ids}}
+    reply_to = getattr(args, "reply_to", None)
+    if reply_to is not None:
+        payload["message_reference"] = reply_reference(api, where, reply_to)
+        # The author is pinged only through an @name in the text, like anyone else.
+        payload["allowed_mentions"]["replied_user"] = False
+    try:
+        sent = api.request("POST", f"/channels/{where['id']}/messages", body=payload)
+    except Failure as e:
+        if reply_to is not None and e.code == 50035:
+            raise Failure(f"Discord refused the reply to message {reply_to}, which may have just been "
+                          f"deleted: {e}", status=e.status, code=e.code)
+        raise
     result = {"messageId": sent["id"], "channelId": where["id"], "url": message_url(guild_id, where["id"], sent["id"])}
+    if reply_to is not None:
+        result["replyTo"] = reply_to
     if args.thread:
         result["threadId"] = where["id"]
     if warnings:
@@ -733,6 +759,7 @@ def parser():
     c.add_argument("--agent", help="header: who is posting")
     c.add_argument("--session", help="header: which session the post comes from")
     c.add_argument("--project", help="header: what the work is about")
+    c.add_argument("--reply-to", help="post as a reply to this message id, in the same channel or thread")
 
     c = sub.add_parser("read", help="read recent messages, newest first")
     where(c)

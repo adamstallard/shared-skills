@@ -90,6 +90,55 @@ success, so the end of a long report vanished without anyone knowing.
 **Rejected: splitting into several posts.** Where to split is a judgment about
 the text, which the caller is better placed to make.
 
+**Considered again and skipped, Adam, 2026-10-05: splitting at paragraph
+breaks**, as Claude's Discord plugin does. It isn't worth the complexity. A
+split must not cut a code block, mention or link, which means parsing Discord's
+Markdown. A first version used regular expressions, and its first review found
+three bugs of that kind: a masked link `[text](url)` cut in half, a long word
+after a code fence taken as its language and repeated in every part (or a
+crash), and a stray backtick that turned paragraphs into one uncuttable span.
+The mention rules above took the same path, one patch per pass.
+
+## Replies stay in their channel and don't ping the author
+
+Decided by Adam, 2026-10-05.
+
+**Decision.** `post --reply-to <id>` first fetches that message from the
+channel or thread being posted to. If it isn't there, because it's in another
+channel or was deleted, nothing is posted and the error says so. The reply
+then sends `fail_if_not_exists: true`, Discord's default made explicit, so a
+message deleted in between fails the post rather than posting it unthreaded.
+`allowed_mentions.replied_user` is `false`: the author is pinged only when the
+text @mentions them, by the usual rules.
+
+**Why.** A reply that silently became an ordinary post would answer nothing in
+particular without saying so. Discord's own error for a missing reference is a
+bare "Invalid Form Body", so the script looks first and names the problem. Not
+pinging matches the rest of the skill, where nobody is notified unless the
+text names them.
+
+**Rejected: `fail_if_not_exists: false`**, which Claude's Discord plugin uses.
+It turns a reply to a deleted message into a plain post.
+
+**Where it stops applying.** The lookup needs Read Message History, which setup
+already grants. A reply to a message in another channel is a forward in
+Discord's terms, which this skill doesn't do.
+
+## No allowlist: Discord's permissions decide who takes part
+
+Decided by Adam, 2026-10-05.
+
+**Decision.** Who may send in a channel, and so whose messages the bot reads,
+is left to the server's moderators and admins through Discord's own roles and
+channel permissions. The skill keeps no allowlist of users or channels.
+
+**Why.** The server already manages those permissions, and its admins know how.
+A second list in the skill would duplicate them and drift from them.
+
+**Rejected: the allowlist and pairing model of Claude's Discord plugin**, where
+each sender is approved with a pairing code and each channel is enabled in the
+plugin's own config. It duplicates permissions the server already manages.
+
 ## Mentions never ping a crowd
 
 **Decision.** Every post sends `allowed_mentions` with `parse: []` and only the

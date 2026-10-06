@@ -142,6 +142,9 @@ Ask your agent in plain words:
 > "What did people say in #team since yesterday?"
 > "Start a thread on that message for the review notes."
 
+An answer to one message can go out as a Discord reply to it. That doesn't
+ping the message's author unless the text mentions them.
+
 Every command prints one JSON object. To call it from another program, run it
 as a subprocess and read `ok`, then the fields you need. The exit status is 0
 on success, 1 on an error reported in the JSON, and 2 for a malformed command
@@ -175,3 +178,10 @@ one.
 
 **"rate limited by Discord"**: the script already waited and retried. Wait a
 minute before the next burst of posts.
+
+**"message … is not in this channel or thread, or was deleted"**: `--reply-to`
+takes a message from the channel or thread you're posting to.
+
+**Limiting where the bot posts and whose messages it reads.** Use Discord's
+roles and channel permissions, which the server's moderators and admins
+manage. The skill keeps no list of allowed users or channels.
