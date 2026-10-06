@@ -67,13 +67,17 @@ run the first call:
 python3 $S/prose.py check -F msg.txt --goals "review the fix; check it is safe to merge"
 ```
 
+Its `--goals` are the commit message's reader's: the reviewer's. The docs and
+comments in the commit have readers of their own, and the output names each.
 It prints:
 
 - the goals, echoed back;
-- the prose in the change (Markdown, specs, the comments the diff touches, the
-  message);
+- the prose in the change, grouped by who reads it: the message (the reviewer);
+  each doc and spec (someone reading it to learn what it describes, not the
+  reviewer); and the comments the diff touches (someone about to change the
+  code);
 - history-language flags in those comments, as warnings;
-- the rules: the pass, rules 1 to 7 in full, the rest as a checklist, and how
+- the rules: the pass, rules 1 to 8 in full, the rest as a checklist, and how
   agents cheat on the pass;
 - the pass token, and the command to run next.
 
@@ -82,7 +86,8 @@ formatter rewrites the staged files before you read them and before they are
 signed. If the hook fails, the call stops with its reason; fix that, restage,
 and run the call again.
 
-Do the pass over each listed item and restage. Then run that command on the
+Do the pass over each listed item as its own reader, rereading each changed
+doc passage inside its section, and restage. Then run that command on the
 final text, with the token:
 
 ```sh

@@ -152,7 +152,7 @@ class RulesFile(unittest.TestCase):
 
     GOOD = ("# Title\n\nPrinciple.\n\n## Scope\n\nS.\n\n## The pass\n\nP.\n\n"
             "## The rules, most important first\n\n"
-            + "".join(f"### {n}. Rule {n}\nBody {n}.\n\n" for n in range(1, 8))
+            + "".join(f"### {n}. Rule {n}\nBody {n}.\n\n" for n in range(1, 9))
             + "## How agents cheat on this pass\n\n- One.\n")
 
     def read(self, text):
@@ -177,7 +177,7 @@ class RulesFile(unittest.TestCase):
     def test_a_good_file_splits_into_its_parts(self):
         preamble, heading, rules, cheats = self.read(self.GOOD)
         self.assertEqual(heading, "## The rules, most important first")
-        self.assertEqual([(n, t) for n, t, _ in rules], [(n, f"Rule {n}") for n in range(1, 8)])
+        self.assertEqual([(n, t) for n, t, _ in rules], [(n, f"Rule {n}") for n in range(1, 9)])
         self.assertEqual(rules[0][2], "### 1. Rule 1\nBody 1.")
 
     def test_a_missing_or_misordered_section_is_refused(self):
@@ -981,6 +981,40 @@ class Check(unittest.TestCase):
         self.assertIn("  [ ] 13. Commit subject says what changed; the body says why", out)
         self.assertNotIn(f"### {prose.RULES_IN_FULL + 1}.", out)
 
+    def listing(self, out):
+        """The part of a first call's output before the rules."""
+        return out.split("# The prose pass")[0]
+
+    def test_a_listed_doc_is_judged_as_its_own_reader_not_the_reviewer(self):
+        self.repo.write("docs/arch.md", "# Arch\n\nText.\n")
+        out = self.listing(self.check().stdout)
+        reader = ("someone reading this document to learn what it describes, "
+                  "who wasn't in the conversation that produced it")
+        self.assertIn(reader, out)
+        self.assertLess(out.index("commit message"), out.index(reader))
+        self.assertLess(out.index(reader), out.index("  docs/arch.md  (changed)"))
+        self.assertIn("not the reviewer", out)
+        self.assertTrue(out.startswith("Reader goals for the commit message"), out)
+
+    def test_a_touched_comment_is_judged_as_the_next_maintainer(self):
+        self.repo.write("a.py", "x = 1\n# Explains y.\ny = 2\n")
+        out = self.listing(self.check().stdout)
+        self.assertLess(out.index("someone about to change this code"), out.index("  a.py:2  (comment)"))
+
+    def test_the_rules_hold_a_doc_to_what_is(self):
+        out = self.check().stdout
+        self.assertIn("### 6. What is, not how it got here", out)
+        self.assertIn("A narrow role's unused", out)
+        self.assertIn("Labelling the past does not make it worth keeping", out)
+        self.assertIn("Keeping context a reviewer needed in a document whose reader never will", out)
+
+    def test_the_rules_ask_for_a_reason_instead_of_a_catchphrase(self):
+        out = self.check().stdout
+        self.assertIn("### 5. Plain words, and reasons instead of catchphrases", out)
+        self.assertIn("A claim is stated once, with its reason", out)
+        self.assertIn("grep the repository for it", out)
+        self.assertIn("Repeating a phrase that sounds like a reason in place of the reason.", out)
+
     def test_the_signing_call_prints_only_the_result_block_holding_the_one_trailer(self):
         self.repo.write("README.md", "# Hi\n")
         result = self.signed()
@@ -1062,7 +1096,7 @@ class Check(unittest.TestCase):
         out = self.check(goals="review the fix; check it is safe to merge").stdout
         self.assertTrue(out.startswith("Reader goals"), out)
         self.assertLess(out.index("1. review the fix"), out.index("2. check it is safe to merge"))
-        self.assertLess(out.index("2. check it is safe"), out.index("commit message"))
+        self.assertLess(out.index("2. check it is safe"), out.index("\n  commit message\n"))
         self.assertNotIn("review", block_trailer(self.signed().stdout))
 
     def test_a_file_too_deep_to_parse_is_listed_and_does_not_block(self):

@@ -409,7 +409,7 @@ def prose_in(root, base, read: Callable[[str], str]):
 # start of its `## ` heading. The rules section holds `### <n>. <title>`
 # subsections.
 RULE_SECTIONS = ("Scope", "The pass", "The rules", "How agents cheat")
-RULES_IN_FULL = 7
+RULES_IN_FULL = 8
 
 
 def _fenced_lines(lines):
@@ -1660,9 +1660,9 @@ def require_goals(goals, what):
         )
 
 
-def print_goals(goals, stream=None):
-    print("Reader goals, most probable first. Order and cut the text against them:\n",
-          file=stream)
+def print_goals(goals, stream=None, heading="Reader goals, most probable first. Order and cut "
+                                            "the text against them:"):
+    print(heading + "\n", file=stream)
     for number, goal in enumerate(goals, start=1):
         print(f"  {number}. {goal}", file=stream)
     print(file=stream)
@@ -1759,7 +1759,7 @@ def main(argv=None):
                 spend_pass(args.token, args.repo)
                 print_result(block)
                 return 0
-            print_goals(goals)
+            print_goals(goals, heading=MESSAGE_GOALS)
             print_check(items, flags)
             print()
             print_rules()
@@ -1847,10 +1847,37 @@ def print_result(block):
     sys.stdout.flush()
 
 
+MESSAGE_GOALS = ("Reader goals for the commit message, most probable first. Order and cut "
+                 "the message against them; the docs and comments below have their own readers:")
+
+# The groups print_check lists items in, as (note, heading naming the
+# group's reader). An item joins the group whose note matches its own; None
+# takes every note not named here, which are the code files'.
+READERS = (
+    ("", "The commit message. Its reader is the reviewer, with the goals above."),
+    ("changed",
+     "Docs and specs. Each one's reader is someone reading this document to learn what "
+     "it describes, who wasn't in the conversation that produced it: not the reviewer. "
+     "Cut what only a reviewer of this change needs. Reread each changed passage inside "
+     "its section, as that section's reader, before keeping it."),
+    (None,
+     "Code comments. Their reader is someone about to change this code, who wasn't in "
+     "the conversation that produced it: not the reviewer."),
+)
+
+
 def print_check(items, flags=()):
-    print(f"prose: {len(items)} piece(s) of prose in this commit. Do the pass over each:\n")
-    for what, note in items:
-        print(f"  {what}" + (f"  ({note})" if note else ""))
+    print(f"prose: {len(items)} piece(s) of prose in this commit. Do the pass over each as "
+          f"its own reader, named above its group:")
+    known = {note for note, _ in READERS if note is not None}
+    for note, heading in READERS:
+        group = [item for item in items
+                 if item[1] == note or (note is None and item[1] not in known)]
+        if not group:
+            continue
+        print("\n" + heading + "\n")
+        for what, kind in group:
+            print(f"  {what}" + (f"  ({kind})" if kind else ""))
     if flags:
         print("\nFlags (warnings, not blocking):\n")
         for flag in flags:

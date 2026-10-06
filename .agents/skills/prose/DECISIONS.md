@@ -63,6 +63,86 @@ where they save reading time* is still printed in full with its example.
 
 ---
 
+## Each listed item is judged as its own reader
+
+**Decision (Adam, 2026-10-06).** `prose check` keeps one `--goals`, for the
+commit message and its reader, the reviewer. It groups the items it lists by
+reader and prints, above each group, who that reader is: for a doc or spec,
+someone reading the document to learn what it describes, who wasn't in the
+conversation that produced it. The docs group and the pass both say to reread
+each changed passage inside its section, as that section's reader. *What is, not
+how it got here* became rule 6, printed in full and covering docs as well as
+comments, and `RULES_IN_FULL` became 8. Rule 7, *Say when, and whether*, now
+says that labelling the past does not make it worth keeping.
+
+**Why.** A commit to Igor's `docs/architecture.md` passed the pass with a valid
+trailer while adding, to a section on how seats work, "The argument once made
+for multi-role Igors … does not apply". Three things let it through:
+- **The wrong reader.** The one goals string was a reviewer's, and a reviewer
+  wants to know an old argument no longer applies. The architecture's reader
+  was never shown that argument, and has to reconstruct it to follow the
+  sentence.
+- **Rule 7, numbered 5 at the time, licensed it.** The passage labelled its
+  past ("once made"), which is all *Say when, and whether* asked. The rule
+  that forbids it was a one-line checklist item worded for code comments.
+- **Hunks, not sections.** Read beside the spec change in the diff, the passage
+  made sense; read in its section, it didn't.
+
+**Rejected.**
+- **A goals flag per file** (`--doc-goals PATH=…`). The failure was the wrong
+  reader, not a missing flag: an agent fills each flag from the conversation
+  it is in, which is the reviewer's. The token would also have to bind a map
+  of goals. A fixed description of the doc's reader is what the agent lacked.
+- **Overriding the doc reader per path.** Nothing has needed it yet; the
+  default fits architecture docs, READMEs and specs. *Add it if* a kind of doc
+  turns up whose reader is someone else.
+- **One `check` per document.** A commit has one trailer, and the message
+  hash binds one message.
+- **Merging *What is* into *Say when*.** They answer different questions:
+  whether the past belongs in the text, and how to mark it when it does. Kept
+  apart, each says the other does not license it.
+- **Listing each changed passage's section heading** (Adam, 2026-10-06).
+  It was built, and dropped after three bug-hunter iterations each found
+  another Markdown construct it misread: 6, then 2, then 1, the last a fence
+  opened on a list-marker line that hid every later heading. A wrong hint
+  misleads silently, and the instruction to reread in the section carries
+  the point. *Reconsider if* agents ignore that instruction; a real Markdown
+  parser would then be the starting point, not another hand-written one.
+
+**Where this stops applying.** If agents keep reviewer context in docs with the
+reader printed above them, the printout is not enough, and the next step is a
+separate first call for each doc.
+
+---
+
+## A claim is stated once, with its reason
+
+**Decision (Adam, 2026-10-06).** Rule 5 became *Plain words, and reasons
+instead of catchphrases*: a claim is stated once, with its reason, and
+elsewhere linked or restated in plain terms. The pass greps the repository for
+a phrase a changed passage repeats, and a phrase that recurs with no definition
+or reason at any use is fixed at its source: one statement with its reasons,
+the others cut or pointed at it. That fix reaches text the change did not
+otherwise touch, so *Scope* names it as its one exception.
+
+**Why.** In Igor's pull request #156, "an Igor that does two jobs is two
+Igors" appeared nine times across the README, the architecture doc, a docs
+page, and the change's proposal, design and spec. "Job" was never defined and
+the phrase gave no reason; it restated the rule, one role per Igor, in a form
+that sounded like a reason. So the reasons were never written down, and
+Adam's question, why a role can't extend two bases, had no recorded answer.
+
+**Folded into rule 5, not a new rule.** An undefined catchphrase is shorthand,
+which rule 5 already covers, and a ninth rule in full would push *Spend words
+where they save reading time* out of the printout or grow `RULES_IN_FULL`
+again.
+
+**Where this stops applying.** A phrase that is defined once and used as a
+name, such as a term the project's glossary gives, is vocabulary, not a
+catchphrase.
+
+---
+
 ## Scope: anything a human reviews
 
 READMEs and other docs, code comments, architecture docs, specs, commit
@@ -275,7 +355,7 @@ the pass. `SKILL.md` keeps no copy; it says that `prose check` prints the rules
 and `rules.md` is their only copy.
 
 `prose check` prints it by its headings, every time: everything before the
-rules section, rules 1 to 7 in full, the rest as one-line checklist items (their
+rules section, rules 1 to 8 in full, the rest as one-line checklist items (their
 `###` heading), and the cheat list. It refuses when a section is missing or out
 of order, or the rules are not numbered 1, 2, 3, even on a signing call.
 
