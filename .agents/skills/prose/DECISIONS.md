@@ -505,8 +505,8 @@ rules.
 NotebookEdit, Bash and the GitHub MCP tools. When the session has no mark, it
 blocks, with exit 2 and the command to run on stderr:
 - any Write, Edit, MultiEdit or NotebookEdit call, whatever the file;
-- a `gh` post (the posting hook's `POST_WORDS`), or a GitHub MCP call with a
-  body field.
+- a `gh` post, as the posting hook finds one (`gh_bodies`), or a GitHub MCP
+  call with a body field.
 
 It reads no file and tells no kind of file from another; see *The gate blocks
 a session's first file write*.
@@ -555,8 +555,6 @@ would otherwise block every write.
 
 - Files written through Bash (`echo … > README.md`, `sed -i`) skip the gate.
 - Cursor has no gate (Adam: fine).
-- Like the posting hook, the gate treats a Bash command that only mentions a
-  `gh` post as a post.
 
 ### Superseded 2026-09-30: the gate that looked for prose
 
@@ -749,13 +747,116 @@ found more. With a short allow-list nothing is left to diverge.
 **Rejected: a general parser**, however careful. Each fix added states that
 drifted from bash in new places.
 
-**Where this stops applying.** It errs toward blocking: a command that only
-mentions a post verb, such as a heredoc writing a README that says
-`gh pr create`, is blocked too. An agent then writes the file with its editor
-tool, or posts with a plain `gh` command; the README's *Posting through `gh`*
-lists the other ways round it. A deliberately disguised `gh`
-(`g''h`, `$GH`) is not recognised; the hook stops accidents, not an agent
-set on getting around it.
+**Where this stops applying.** A command that runs no `gh` post passes even if
+it mentions one: see *A command that runs no gh post is not a post*. A
+deliberately disguised `gh` (`g''h`, `$GH`) is not recognised; the hook stops
+accidents, not an agent set on getting around it.
+
+---
+
+## A command that runs no gh post is not a post
+
+**Decision (Adam asked for the fix, 2026-10-04).** A Bash command that
+mentions a `gh` post verb but is not the whole-command form passes when the
+hook can show the shell runs no `gh` post in it. That holds when every simple
+command in it either:
+
+- names no `gh` as a word: the post appears only as data, inside quotes or a
+  heredoc given to a command that does not run them, or in a comment; or
+- is a `gh` command that sends no text the hook checks: a label, assignee,
+  reviewer or milestone edit, `gh pr ready`, a close without `--comment`,
+  or a read such as `gh pr list` or `gh issue view`.
+
+A `gh` command with a body flag must still be the whole command, as before.
+
+**Why.** Blocking every mention forced workarounds for commands that posted
+nothing. Two were seen in one day: an inline Python script whose comment and
+Markdown string named `gh issue edit`, and `cd … && gh issue edit 12
+--add-label …`, which only changes a label. The bare label edit already passed;
+only the longer command was blocked.
+
+**How this keeps the allow-list's protection.** The allow-list was chosen
+because a parser that reads bodies drifted from bash and let unsigned posts
+through. This reader reads no bodies; it only shows that no `gh` post runs,
+and anything it cannot read exactly is blocked as before:
+
+- backticks, `<(…)`, `$'…'`, `$"…"`, `${…}` beyond a name, `$(…)` inside
+  double quotes, an unterminated quote. An unquoted `$(…)` is read as a
+  subshell, so the commands inside it are checked like any other;
+- a heredoc inside parentheses, where bash 3.2 differs, or whose body would
+  start while a `$(` on its line is still open, since both shells run that
+  `$(…)` first; an unquoted heredoc body holding `$(`, a backtick or a
+  backslash; a heredoc with no end line;
+- a number before `<` or `>` other than one ASCII digit: zsh reads `12>` as
+  the word 12, bash as a descriptor, and neither reads `١>` as one;
+- a comment holding quotes or operators, in case a shell does not read it as
+  one; a word with `[` left open (`a[1<<EOF]=5` is no heredoc to bash).
+
+How each simple command is read:
+
+- **Which word is the command.** The first word, after any unquoted `if`,
+  `then`, `elif`, `else`, `do`, `while`, `until`, `!`, `{` or `time`, since
+  these run nothing themselves: `if grep "gh pr create" …` is a `grep`, and
+  `then gh issue edit …` a `gh` command. `for`, `case`, `[[`, `coproc` and
+  zsh's `repeat` and `noglob` are not skipped. A command that is only `fi`,
+  `done` or `}` is no command; `done sh` is still `sh`. A backslash-newline
+  outside single quotes is removed first, as both shells do, so a `\` at a
+  line's end makes no word, and `<<\`, a newline, then `EOF` is an unquoted
+  heredoc whose body is checked.
+- **What names `gh`.** `gh` not followed by a letter, digit, `_` or `-`:
+  `make gh-pages` does not name it, and `sh -c '${GH:-gh} …'` does.
+- **Data commands.** Text naming `gh` counts as data only in a command from
+  `DATA_COMMANDS` (`echo`, `cat`, `grep`, `git`, `python3` and a few more).
+  Any other command that names `gh` blocks, since it may run the text it is
+  given: `sh -c`, `eval`, `trap`, `env -S`, `ssh`, `xargs`. `printf`, `test`
+  and `[` are not on the list (Adam, 2026-10-05): bash 4+ evaluates an array
+  subscript given to `printf -v` or `test -v`, command substitution included,
+  so `printf -v 'a[$(gh …)]' x` runs `gh`.
+- **`gh` commands.** A `gh` word anywhere but first (`env gh …`) or after an
+  assignment blocks. Whether a `gh` command is a post is read from its words
+  after quote removal, so `gh p''r comment` in a longer command is read like
+  `gh pr comment`. A subcommand that sends no text (`NO_TEXT_VERBS`: `list`,
+  `view`, `checks` and the like) is no post, so `gh pr list --search
+  'review-requested:@me'` passes; `merge` and any verb not on that list are
+  read as before.
+- **Pipes and input.** A pipe or an input redirection anywhere (`|`, `<`, a
+  heredoc, `<<<`) requires every command to be from `DATA_COMMANDS`, `gh`
+  included, so `bash <<'EOF'` and `echo … |` a shell are blocked. Which
+  command reads the stdin is not worked out: the second bug-hunter pass
+  found that tracking it per command missed pipes across line breaks and
+  into subshells.
+
+The rule that separates the two: an evasion *runs* `gh` with a body the hook
+cannot read; text that only contains `gh` runs nothing.
+
+**`--title` is not prose here.** Titles were never checked (`--title` is a
+plain value flag in `LONG_FLAGS`), and a footer cannot go on one line. So
+`gh pr edit 3 --title x` in a longer command passes, as it already did alone.
+
+**Rejected.**
+- *Python's `shlex`.* It knows no heredocs, no `$(…)` and no comments in
+  bash's sense, so it reads a heredoc body as code and `#` mid-word wrongly.
+  The reader here is small and refuses everything else.
+- *Reading bodies in longer commands.* An earlier `cd` or `printf > body.md`
+  changes which file `--body-file` names, and a pipe can feed `-F -`.
+- *Matching text with a looser pattern.* Text cannot tell a quoted mention
+  from a run.
+- *A list of commands that run text as code* (`bash`, `eval`, `ssh` …). The
+  first bug-hunter pass found `trap` and `env -S` missing from one; such a list
+  is never complete. A closed list of data commands fails toward blocking.
+
+**Where it stops applying.** A script handed to another interpreter
+(`python3 - <<'EOF'`, `node -e`) can run `gh` itself; the hook does not read
+it, just as it does not read a script file. Text the shell evaluates a second
+time is a disguise like `$GH`, out of scope: a variable holding `$(gh …)` read
+by `(( ))`, `let` or zsh's `${(e)…}`, a zsh glob qualifier, `{gh,}`, `GH` on
+a case-insensitive disk, git options that run a command (`-c alias.x='!gh …'`,
+`rebase -x`, `submodule foreach`, `bisect run`) and a zsh coprocess fed
+through `>&p`. So is a post wrapped in `sh -c` inside zsh's
+`{ … } always { … }`, which the hook reads as one command (the third
+bug-hunter pass, 2026-10-05). A command joins `DATA_COMMANDS` only if it
+runs neither its arguments nor its stdin, short of such a disguise. If `gh` gains a way to read a body from stdin without `-F -`,
+revisit this.
 
 ---
 

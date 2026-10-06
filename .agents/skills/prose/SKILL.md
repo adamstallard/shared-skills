@@ -168,9 +168,10 @@ gh pr create --title "..." --body-file signed.md
 
 Run `gh` as the whole command, with the body as `--body-file <file>` or
 `--body '<text>'`; a heredoc is not accepted. A hook blocks any other shape of
-`gh` post, and any post whose footer does not match. It also blocks a command
-that only mentions a `gh` post; [README.md](README.md#posting-through-gh) says
-how to run one. Any edit after signing breaks the footer; sign again after
+`gh` post, and any post whose footer does not match. A command that only
+mentions a `gh` post, or a `gh` command that sends no text (a label edit), may
+run inside a longer command; [README.md](README.md#posting-through-gh) says
+what the hook reads. Any edit after signing breaks the footer; sign again after
 editing.
 
 ## Never
