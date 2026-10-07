@@ -67,15 +67,54 @@ run the first call:
 python3 $S/prose.py check -F msg.txt --goals "review the fix; check it is safe to merge"
 ```
 
-Its `--goals` are the commit message's reader's: the reviewer's. The docs and
-comments in the commit have readers of their own, and the output names each.
+Its `--goals` are the commit message's reader's: the reviewer's. Each changed
+doc and spec has a reader of its own, who is not the reviewer and was not in
+the conversation behind the change. Name that reader's goals for each file
+with `--goals-for <path or pattern> '<goal; goal>'`, repeated as needed:
+
+```sh
+python3 $S/prose.py check -F msg.txt --goals "review the fix; check it is safe to merge" \
+  --goals-for 'docs/**' "learn how sync works; find what to run when it fails" \
+  --goals-for docs/api.md "call the API correctly; see what each error means"
+```
+
+Patterns are gitignore-style and relative to the repository root: `*` stays
+in one directory, `**` spans any number, a pattern without a `/` matches at any
+depth (`*.md`, `README.md`) and a leading `/` anchors it at the root
+(`/README.md`). A pattern that matches a directory, such as `docs`, covers
+every file under it, and `\` escapes a glob character in a file's name.
+**The most specific match wins:** an exact path beats any pattern, and between
+patterns the one with more literal characters (not counting `*`, `?` or
+`[...]`) wins. Above, `docs/api.md` gets its own goals and every other file
+under `docs/` gets the pattern's. Two equally specific matches with different
+goals are refused.
+
+For a change with many docs, put the goals in a file, one `pattern: goal; goal`
+line each, and pass `--goals-file goals.txt`. Blank lines and `#` lines are
+skipped; the pattern ends at the first colon followed by a space, so a colon
+in a file's name is written `\:`. The file needs no shell quoting, so
+apostrophes are safe. Keep it out of the commit.
+
+```text
+# Reader goals for this change
+docs/**: learn how sync works; find what to run when it fails
+docs/api.md: call the API correctly; see what each error means
+/README.md: what it's for; how to start
+```
+
+Every changed doc and spec must get goals, except a deleted one. Without them
+the call refuses, naming each file and its kind's default from the reader
+table in [rules.md](rules.md) for you to adjust. A code comment may go
+without, and then gets the table's code-comment row, labelled as a default.
+
 It prints:
 
-- the goals, echoed back;
-- the prose in the change, grouped by who reads it: the message (the reviewer);
-  each doc and spec (someone reading it to learn what it describes, not the
-  reviewer); and the comments the diff touches (someone about to change the
-  code);
+- the message's goals, echoed back;
+- the prose in the change: the message, each doc and spec, and the comments
+  the diff touches, each under the goals it gets and where they came from
+  (`--goals`, its exact path, the pattern that matched, or its kind's default);
+- a warning for any pattern that matches no listed file, which is usually a
+  typo;
 - history-language flags in those comments, as warnings;
 - the rules: the pass, rules 1 to 8 in full, the rest as a checklist, and how
   agents cheat on the pass;
@@ -86,9 +125,11 @@ formatter rewrites the staged files before you read them and before they are
 signed. If the hook fails, the call stops with its reason; fix that, restage,
 and run the call again.
 
-Do the pass over each listed item as its own reader, rereading each changed
-doc passage inside its section, and restage. Then run that command on the
-final text, with the token:
+Do the pass over each listed item against the goals above it, rereading each
+changed doc passage inside its section, and restage. Then run that command on
+the final text, with the token. The token holds the per-file goals, so the
+second call needs no `--goals-for`; it refuses other ones, and a doc staged
+since the first call that they don't cover.
 
 ```sh
 python3 $S/prose.py check -F msg.txt --pass <token>

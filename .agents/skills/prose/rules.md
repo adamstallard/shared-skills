@@ -11,7 +11,7 @@ Rewrite only text you wrote or changed in this change: comments, docs, specs, th
 
 ## The pass
 
-**1. Name the reader's goals** (`--goals`), most probable first. Start from this table and adjust it to the text:
+**1. Name the reader's goals**, most probable first: `--goals` for the commit message or the post, and `--goals-for` for each changed doc and spec. Start from this table and adjust it to the text. A row is also the default: `prose check` suggests it for a doc you gave no goals, and gives it to a code comment you gave none.
 
 | Text | Who reads it | Why, most likely first |
 |---|---|---|
@@ -23,7 +23,7 @@ Rewrite only text you wrote or changed in this change: comments, docs, specs, th
 | Other doc (architecture, guide) | someone learning what it describes | how it works now; why it is that way |
 | Issue or ticket comment | a teammate | what's decided, what's needed from them |
 
-**Each text has its own reader.** A commit holds several: `--goals` names the message's reader, the reviewer, but each doc, spec and comment in it is read by the reader its row names, who never sees the conversation behind the change. What a reviewer needs to approve the change goes in the message or the PR description, not the doc.
+**Each text has its own reader.** A commit holds several: `--goals` names the message's reader, the reviewer, but each doc, spec and comment is read by someone else, who never sees the conversation behind the change. Name that reader for each document: an architecture doc, an API reference and a runbook are read for different reasons. What a reviewer needs to approve the change goes in the message or the PR description, not the doc.
 
 **2. Order the text by those goals.** The most probable goal comes first. The rarer a goal, the less space it gets: a line, or a pointer elsewhere.
 

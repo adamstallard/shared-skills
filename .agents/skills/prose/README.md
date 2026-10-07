@@ -37,6 +37,33 @@ It runs without being asked. To run it on existing text:
 > Tighten this README
 > This PR description is too long — rewrite it for a reviewer
 
+## Each document is checked for its own reader
+
+A commit's reviewer is not the reader of the docs it changes. So before it
+signs a commit, the agent names the reader goals of each changed doc and spec,
+apart from the reviewer's, and does the pass on each file against its own.
+Prose will not sign while a changed doc or spec has none. A code comment
+without goals gets a default reader: someone about to change the code.
+
+The agent passes them as gitignore-style patterns, where the most specific
+match wins: an exact path beats any pattern, and a pattern with more literal
+characters beats one with fewer.
+
+```sh
+prose.py check -F msg.txt --goals "review the fix; check it is safe to merge" \
+  --goals-for 'docs/**' "learn how sync works; find what to run when it fails" \
+  --goals-for docs/api.md "call the API correctly"
+```
+
+For many files, the same goes in a file passed as `--goals-file goals.txt`:
+
+```text
+docs/**: learn how sync works; find what to run when it fails
+docs/api.md: call the API correctly
+```
+
+[SKILL.md](SKILL.md) has the details.
+
 ## What is enforced where
 
 | What | Check |
