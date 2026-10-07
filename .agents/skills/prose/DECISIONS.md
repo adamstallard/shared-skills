@@ -63,6 +63,135 @@ where they save reading time* is still printed in full with its example.
 
 ---
 
+## Each listed item is judged as its own reader
+
+**Decision (Adam, 2026-10-06).** `prose check`'s `--goals` are the commit
+message's, for its reader, the reviewer. Each doc, spec and comment it lists is
+judged against goals of its own, which the agent names per file (the next
+entry). The listing and the pass both say to reread each changed doc passage
+inside its section, as that section's reader. *What is, not how it got here*
+became rule 6, printed in full and covering docs as well as comments, and
+`RULES_IN_FULL` became 8. Rule 7, *Say when, and whether*, now says that
+labelling the past does not make it worth keeping.
+
+**Why.** A commit to Igor's `docs/architecture.md` passed the pass with a valid
+trailer while adding, to a section on how seats work, "The argument once made
+for multi-role Igors … does not apply". Three things let it through:
+- **The wrong reader.** The one goals string was a reviewer's, and a reviewer
+  wants to know an old argument no longer applies. The architecture's reader
+  was never shown that argument, and has to reconstruct it to follow the
+  sentence.
+- **Rule 7, numbered 5 at the time, licensed it.** The passage labelled its
+  past ("once made"), which is all *Say when, and whether* asked. The rule
+  that forbids it was a one-line checklist item worded for code comments.
+- **Hunks, not sections.** Read beside the spec change in the diff, the passage
+  made sense; read in its section, it didn't.
+
+**Rejected.**
+- **One `check` per document.** A commit has one trailer, and the message
+  hash binds one message.
+- **Merging *What is* into *Say when*.** They answer different questions:
+  whether the past belongs in the text, and how to mark it when it does. Kept
+  apart, each says the other does not license it.
+- **Listing each changed passage's section heading** (Adam, 2026-10-06).
+  It was built, and dropped after three bug-hunter iterations each found
+  another Markdown construct it misread: 6, then 2, then 1, the last a fence
+  opened on a list-marker line that hid every later heading. A wrong hint
+  misleads silently, and the instruction to reread in the section carries
+  the point. *Reconsider if* agents ignore that instruction; a real Markdown
+  parser would then be the starting point, not another hand-written one.
+
+**Where this stops applying.** If agents keep reviewer context in docs with
+each doc's goals printed above it, the printout is not enough, and the next
+step is a separate first call for each doc.
+
+---
+
+## Each file's reader goals are named by the agent
+
+**Decision (Adam, 2026-10-06).** `prose check` takes reader goals per file.
+`--goals` stays the commit message's. `--goals-for <pattern> '<goals>'`,
+repeatable, gives the goals of every listed file the pattern matches;
+`--goals-file <file>` gives the same as `pattern: goal; goal` lines. Every
+changed doc and spec must get goals, except a deleted one, which has no
+reader. Without them the first call refuses, naming each file with the
+default for its kind from rules.md's reader table.
+A code comment may go without, and gets its kind's default, labelled as one.
+The listing prints each item under the goals it gets and where they came from;
+a pattern that matches no listed file is a warning, since it is usually a typo.
+The pass token records the per-file goals, and the signing call refuses other
+ones, or a doc staged since the first call that they don't cover.
+
+**Which goals win.** The most specific match. An exact path beats any pattern;
+between patterns, the one with more literal characters wins, counting the
+pattern less a leading `/`, its `*` and `?`, and any `[...]`. So `docs/api/**`
+beats `docs/**`, which beats `*.md`, and `docs/*.md` beats `docs/**`. Two
+equally specific matches with different goals are refused, naming both:
+choosing by order would hide a contradiction the agent has to settle. The
+patterns follow gitignore because agents already know it: one that matches a
+directory covers the files under it, and `\` escapes a glob character.
+Negation (`!`) is refused, since a narrower pattern says the same thing.
+
+**Why.** The first version of the entry above printed one fixed reader for all
+docs ("someone reading this document to learn what it describes") and one for
+all comments. That told the agent a doc's reader is not the reviewer, but it
+could not say who a particular doc's reader is: an architecture doc, an API
+reference and a runbook are read for different reasons, and only the agent
+writing the change knows which this is. Requiring the goals, and showing the
+table's row when they are missing, puts that reader in front of the agent for
+each file during the pass.
+
+The entry above had rejected a flag per file because an agent fills it from
+the conversation it is in, which is the reviewer's. The refusal answers that:
+the agent is shown its kind's reader, not asked to recall one, and each file's
+goals are printed above it while it works.
+
+**Why a goals file.** A big change lists many docs, and goals with apostrophes
+break on a command line. A file needs no quoting, the lesson the commit
+script's `--message-file` already taught.
+
+**Rejected.**
+- **One fixed reader per kind**, printed above each group of listed items
+  (the first version of the entry above). It gave no way to state a
+  particular doc's reader.
+- **Goals per chunk** (per hunk or section). A file is read by one reader, so
+  a file listed for both doc text and comments gets one set of goals.
+- **Ties broken by order.** The later or earlier flag would win silently.
+
+**Where this stops applying.** If agents paste the reviewer's goals into
+`--goals-for`, naming the reader per file is not enough; the separate first
+call per doc above is the next step.
+
+---
+
+## A claim is stated once, with its reason
+
+**Decision (Adam, 2026-10-06).** Rule 5 became *Plain words, and reasons
+instead of catchphrases*: a claim is stated once, with its reason, and
+elsewhere linked or restated in plain terms. The pass greps the repository for
+a phrase a changed passage repeats, and a phrase that recurs with no definition
+or reason at any use is fixed at its source: one statement with its reasons,
+the others cut or pointed at it. That fix reaches text the change did not
+otherwise touch, so *Scope* names it as its one exception.
+
+**Why.** In Igor's pull request #156, "an Igor that does two jobs is two
+Igors" appeared nine times across the README, the architecture doc, a docs
+page, and the change's proposal, design and spec. "Job" was never defined and
+the phrase gave no reason; it restated the rule, one role per Igor, in a form
+that sounded like a reason. So the reasons were never written down, and
+Adam's question, why a role can't extend two bases, had no recorded answer.
+
+**Folded into rule 5, not a new rule.** An undefined catchphrase is shorthand,
+which rule 5 already covers, and a ninth rule in full would push *Spend words
+where they save reading time* out of the printout or grow `RULES_IN_FULL`
+again.
+
+**Where this stops applying.** A phrase that is defined once and used as a
+name, such as a term the project's glossary gives, is vocabulary, not a
+catchphrase.
+
+---
+
 ## Scope: anything a human reviews
 
 READMEs and other docs, code comments, architecture docs, specs, commit
@@ -275,7 +404,7 @@ the pass. `SKILL.md` keeps no copy; it says that `prose check` prints the rules
 and `rules.md` is their only copy.
 
 `prose check` prints it by its headings, every time: everything before the
-rules section, rules 1 to 7 in full, the rest as one-line checklist items (their
+rules section, rules 1 to 8 in full, the rest as one-line checklist items (their
 `###` heading), and the cheat list. It refuses when a section is missing or out
 of order, or the rules are not numbered 1, 2, 3, even on a signing call.
 

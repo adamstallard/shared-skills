@@ -8,7 +8,10 @@ Both calls of `check` run the repository's pre-commit hook first, if it has one.
     prose.py start --goals <goals>
         Before writing. Prints the rules and opens the gate; issues no token.
     prose.py check -F <message file, or - for stdin> --goals <goals> [--amend]
-        Before a commit, first call. Lists the prose, prints the rules and a token.
+            [--goals-for <pattern> <goals>]... [--goals-file <file>]
+        Before a commit, first call. Lists the prose, each file under its own
+        reader goals, and prints the rules and a token. --goals is the
+        message's reader's; every changed doc or spec needs goals of its own.
     prose.py check -F <message file, or - for stdin> --pass <token> [--amend]
         Second call. Prints the Prose: trailer. --amend: before `git commit --amend`.
     prose.py sign --goals <goals>
@@ -36,7 +39,7 @@ import shlex
 import subprocess
 import sys
 import time
-from typing import Callable
+from typing import Callable, NamedTuple, Optional
 
 HERE = pathlib.Path(__file__).resolve().parent
 # How text is decoded from bytes and encoded back for hashing.
@@ -327,7 +330,8 @@ def _touched(scan, diff):
 
 
 def _changed_docs(root, base):
-    """Each doc or spec path whose content the staged change alters.
+    """{path: deleted} for each doc or spec whose content the staged change
+    alters.
 
     Read from `--raw`, because the text diff gives no header to a file git
     diffs as binary (UTF-16, a NUL byte, `-diff`), and `--raw` still names
@@ -336,7 +340,7 @@ def _changed_docs(root, base):
     raw = git(["diff", "--cached", "--raw", "-z", "--no-abbrev", "-M", "--no-relative",
                "--no-color", base], root)
     fields = raw.split("\0")
-    found, index = [], 0
+    found, index = {}, 0
     while index < len(fields) and fields[index].startswith(":"):
         _, _, old_blob, new_blob, status = fields[index][1:].split(" ", 4)
         paths = fields[index + 1:index + (3 if status[:1] in "RC" else 2)]
@@ -345,12 +349,21 @@ def _changed_docs(root, base):
             continue
         path = paths[0] if status[:1] == "D" else paths[-1]
         if is_doc(path):
-            found.append(path)
+            found[path] = status[:1] == "D"
     return found
 
 
+class Item(NamedTuple):
+    """One listed piece of prose: what the listing shows, its note, and the
+    file it is in, which is None for the commit message."""
+    what: str
+    note: str
+    path: Optional[str]
+    deleted: bool = False
+
+
 def prose_in(root, base, read: Callable[[str], str]):
-    """([(what, note)], [flag lines]) for the prose the staged change touches.
+    """([Item], [flag lines]) for the prose the staged change touches.
 
     A listing for the pass, not what the trailer hashes: the message, each doc
     or spec file the diff touches, and each code comment it adds to or edits.
@@ -358,7 +371,7 @@ def prose_in(root, base, read: Callable[[str], str]):
     revision the diff is against, or None for the empty tree.
     """
     scan = scanner()
-    items, flags = [("commit message", "")], []
+    items, flags = [Item("commit message", "", None)], []
     # This module's git(), not the scanner's: its surrogateescape decoding
     # keeps a path that is not UTF-8 usable by `read`. -M finds renames
     # whatever the user's config, so a pure rename lists nothing.
@@ -368,7 +381,8 @@ def prose_in(root, base, read: Callable[[str], str]):
     diff = git(scan.DIFF + ["-M", "--submodule=short", "--ignore-submodules=none",
                             "--cached", base], root)
     touched = _touched(scan, diff)
-    for path in _changed_docs(root, base):
+    docs = _changed_docs(root, base)
+    for path in docs:
         touched.setdefault(path, set())
     for path, lines in sorted(touched.items()):
         parts = set(pathlib.PurePosixPath(path).parts)
@@ -378,14 +392,14 @@ def prose_in(root, base, read: Callable[[str], str]):
         if parts & (VENDORED if doc else scan.SKIP_DIRS):
             continue
         if doc:
-            items.append((path, "changed"))
+            items.append(Item(path, "changed", path, docs.get(path, False)))
             continue
         if not scan.scannable(path) or not lines:
             continue
         try:
             source = read(path)
         except (OSError, Refused, UnicodeDecodeError):
-            items.append((path, "could not be read"))
+            items.append(Item(path, "could not be read", path))
             continue
         # git does not treat a bare CR as a line end. Without this replacement,
         # comments_in would, and every later line number would drift from the
@@ -393,12 +407,12 @@ def prose_in(root, base, read: Callable[[str], str]):
         source = re.sub(r"\r(?!\n)", " ", source)
         comments = scan.comments_touching(path, source, lines)
         if comments is None:
-            items.append((path, "did not parse"))
+            items.append(Item(path, "did not parse", path))
             continue
         if not comments:
             continue
         spans = [f"{c.start}" if c.start == c.end else f"{c.start}-{c.end}" for c in comments]
-        items.append((f"{path}:{','.join(spans)}", "comment"))
+        items.append(Item(f"{path}:{','.join(spans)}", "comment", path))
         for comment in comments:
             for note in scan.history_notes(comment, scan.mask_examples(scan.strip_markers(comment))):
                 flags.append(f"{path}:{note.line}  {note.headline}")
@@ -409,7 +423,7 @@ def prose_in(root, base, read: Callable[[str], str]):
 # start of its `## ` heading. The rules section holds `### <n>. <title>`
 # subsections.
 RULE_SECTIONS = ("Scope", "The pass", "The rules", "How agents cheat")
-RULES_IN_FULL = 7
+RULES_IN_FULL = 8
 
 
 def _fenced_lines(lines):
@@ -1490,10 +1504,10 @@ def mark_session(session, now=None):
 KINDS = {"check": "a commit", "sign": "a post"}
 
 
-def issue_pass(goals, kind, session, root=None):
+def issue_pass(goals, kind, session, root=None, rules=()):
     """A new token for these goals and this command ("check" or "sign"),
-    recorded so one signing call of that command can spend it. With a
-    session id, also marks the session."""
+    recorded so one signing call of that command can spend it. rules are
+    check's per-file GoalRules. With a session id, also marks the session."""
     now = time.time()
     passes = _private_dir(pass_dir(root))
     _prune(passes, PASS_LIFETIME, now)
@@ -1503,7 +1517,8 @@ def issue_pass(goals, kind, session, root=None):
     # never matches it.
     draft = passes / f".{token}.{os.getpid()}"
     with open(draft, "x", encoding="utf-8") as handle:
-        json.dump({"goals": goals, "kind": kind, "issued": now}, handle)
+        json.dump({"goals": goals, "kind": kind, "issued": now,
+                   "files": _rule_record(rules)}, handle)
     os.replace(draft, passes / token)
     mark_session(session, now)
     return token
@@ -1512,10 +1527,16 @@ def issue_pass(goals, kind, session, root=None):
 AGAIN = "Run the command again with --goals in place of --pass; that prints the rules and a new token."
 
 
-def redeem_pass(token, goals, kind, root=None):
-    """The goals this token was issued for. Refused when the token is unknown,
-    spent, expired, or was issued for other goals or the other command. It
-    stays unspent."""
+def _rule_record(rules):
+    """GoalRules as a token records them: [pattern, [goal, ...]] each,
+    sorted, since which rule a file gets does not depend on their order."""
+    return sorted([rule.pattern, list(rule.goals)] for rule in rules)
+
+
+def redeem_pass(token, goals, kind, root=None, rules=()):
+    """(goals, GoalRules) this token was issued for. Refused when the token is
+    unknown, spent, expired, or was issued for other goals or rules or the
+    other command. It stays unspent."""
     path = pass_dir(root) / token if PASS_TOKEN.fullmatch(token) else None
     try:
         record = json.loads(path.read_text(encoding="utf-8")) if path else None
@@ -1523,8 +1544,13 @@ def redeem_pass(token, goals, kind, root=None):
         record = None
     except (OSError, ValueError) as error:
         raise Refused(f"could not read pass token {token}: {error}")
+    # A token issued before per-file goals has no "files"; it records none.
+    files = record.get("files", []) if isinstance(record, dict) else None
     if not isinstance(record, dict) or not isinstance(record.get("goals"), list) \
-            or not isinstance(record.get("issued"), (int, float)):
+            or not isinstance(record.get("issued"), (int, float)) \
+            or not isinstance(files, list) \
+            or not all(isinstance(entry, list) and len(entry) == 2 and isinstance(entry[0], str)
+                       and isinstance(entry[1], list) for entry in files):
         raise Refused(f"pass token {token} is unknown or already used; each token signs once. {AGAIN}")
     if record.get("kind") != kind:
         raise Refused(f"pass token {token} was issued for {KINDS.get(record.get('kind'), 'another text')}, "
@@ -1539,7 +1565,12 @@ def redeem_pass(token, goals, kind, root=None):
                       + "; ".join(record["goals"])
                       + ". Pass the same goals, or none. To change them, run the command "
                       "again with the new --goals in place of --pass.")
-    return record["goals"]
+    if rules and _rule_record(rules) != sorted(files):
+        raise Refused(f"these per-file reader goals differ from the ones pass token {token} was "
+                      "issued for. Pass the same --goals-for and --goals-file, or none. To change "
+                      "them, run the command again with them in place of --pass.")
+    return record["goals"], [GoalRule(pattern, tuple(goals), "the first call")
+                             for pattern, goals in files]
 
 
 def spend_pass(token, root=None):
@@ -1636,6 +1667,277 @@ def hook_gate(raw):
 
 
 # ---------------------------------------------------------------------------
+# Reader goals for each listed file
+# ---------------------------------------------------------------------------
+
+# The row of rules.md's reader table that gives each kind of listed file its
+# default goals, named by the start of the row's first cell.
+KIND_ROWS = {"comment": "Code comment", "readme": "README", "spec": "Spec", "doc": "Other doc"}
+
+
+def kind_of(path):
+    """The reader-table kind of a listed file: a spec, a README, another doc,
+    or code, whose listed prose is its comments."""
+    if not is_doc(path):
+        return "comment"
+    pure = pathlib.PurePosixPath(path.rstrip())
+    if SPEC_DIRS & set(pure.parts[:-1]):
+        return "spec"
+    return "readme" if pure.name.split(".")[0].upper() == "README" else "doc"
+
+
+def kind_default(kind):
+    """(row label, who reads it, goals) from rules.md's reader table for this
+    kind. Refused when the table has no such row: the default is printed from
+    the table, so the table is its only copy."""
+    want = KIND_ROWS[kind]
+    lines = read_rules()[0].split("\n")
+    for line, fenced in zip(lines, _fenced_lines(lines)):
+        if fenced or not line.lstrip().startswith("|"):
+            continue
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        if len(cells) == 3 and cells[0].startswith(want) and parse_goals(cells[2]):
+            return cells[0], cells[1], tuple(parse_goals(cells[2]))
+    raise Refused(f"{RULES}: the reader table in '## The pass' has no '| {want} | <who> | "
+                  f"<goal; goal> |' row, which gives the default reader goals for that kind of file")
+
+
+class GoalRule(NamedTuple):
+    """Reader goals for the listed files a pattern matches. where says who
+    gave them: --goals-for, or the goals file and line."""
+    pattern: str
+    goals: tuple
+    where: str
+
+
+def _glob_regex(pattern):
+    """(regex, directories only) for a gitignore-style pattern over
+    repository-relative paths.
+
+    `*` and `?` stay inside one path segment, `[...]` is a character class
+    (`[!...]` negated), a backslash makes the next character literal, and `**` as a
+    whole segment spans any number of segments. A leading `/` anchors the
+    pattern at the root, as does a `/` in its middle; without one it matches
+    at any depth (`*.md`). A trailing `/` means it matches directories only,
+    and trailing blanks are dropped unless escaped. POSIX classes such as
+    `[[:digit:]]` are not supported; `[0-9]` is."""
+    body = _unpadded(pattern[1:] if pattern.startswith("/") else pattern)
+    directory = body.endswith("/") and not body.endswith("\\/")
+    core = body[:-1] if directory else body
+    anchored = pattern.startswith("/") or "/" in core
+    out = [] if anchored else ["(?:[^/]*/)*"]
+    i = 0
+    while i < len(core):
+        char = core[i]
+        if char == "\\" and i + 1 < len(core):
+            out.append(re.escape(core[i + 1]))
+            i += 2
+            continue
+        if char == "*":
+            end = i
+            while end < len(core) and core[end] == "*":
+                end += 1
+            whole = end - i >= 2 and (i == 0 or core[i - 1] == "/") \
+                and (end == len(core) or core[end] == "/")
+            if whole and end == len(core):
+                out.append(".*")
+            elif whole:
+                out.append("(?:[^/]*/)*")
+                end += 1
+            else:
+                out.append("[^/]*")
+            i = end
+            continue
+        if char == "?":
+            out.append("[^/]")
+        elif char == "[":
+            start = i + 1
+            if core[start:start + 1] in ("!", "^"):
+                start += 1
+            close = core.find("]", start + 1 if core[start:start + 1] == "]" else start)
+            if close == -1:
+                out.append(re.escape(char))
+            else:
+                negated = start > i + 1
+                members = core[start:close].replace("\\", "\\\\").replace("[", "\\[")
+                out.append("(?!/)[" + ("^" if negated else "") + members + "]")
+                i = close + 1
+                continue
+        else:
+            out.append(re.escape(char))
+        i += 1
+    return re.compile("".join(out)), directory
+
+
+def _unpadded(body):
+    """The pattern without the trailing blanks gitignore ignores: those not
+    escaped with a backslash."""
+    return re.sub(r"(?<!\\)[ \t]+$", "", body)
+
+
+def _literals(pattern):
+    """How many characters of the pattern match only themselves: its length
+    less the leading `/`, the wildcards and the character classes, with an
+    escaped character counted once."""
+    body = _unpadded(pattern[1:] if pattern.startswith("/") else pattern)
+    body = re.sub(r"\\(.)", "x", body)
+    return len(re.sub(r"\[[!^]?\]?[^\]]*\]|[*?]", "", body))
+
+
+def _exact(rule, path):
+    """True when the rule names this path itself, written plainly or with
+    its glob characters escaped, with or without the trailing blanks that
+    gitignore drops."""
+    body = rule.pattern[1:] if rule.pattern.startswith("/") else rule.pattern
+    return any(path in (form, re.sub(r"\\(.)", r"\1", form)) for form in (body, _unpadded(body)))
+
+
+def _specificity(rule, path):
+    """How specific a rule is for a path it matches: an exact path first,
+    then the pattern with more literal characters."""
+    return (_exact(rule, path), _literals(rule.pattern))
+
+
+def matches(rule, path):
+    """True when the rule names the path, or, as in gitignore, matches it or
+    a directory above it. A directories-only pattern (`docs/`) matches only
+    the directories above it."""
+    if _exact(rule, path):
+        return True
+    regex, directories_only = _glob_regex(rule.pattern)
+    parts = path.split("/")
+    above = ["/".join(parts[:end]) for end in range(1, len(parts))]
+    return any(regex.fullmatch(name) for name in above + ([] if directories_only else [path]))
+
+
+def as_pattern(path):
+    """A pattern that names exactly this path, as a refusal suggests it for a
+    goals file: its glob characters, a colon before a blank, a leading `#`,
+    `!` or blank, and a trailing blank are escaped, so the line reads back
+    as this path."""
+    escaped = re.sub(r"([\\*?\[]|:(?=[ \t]))", r"\\\1", path)
+    escaped = re.sub(r"([ \t])$", r"\\\1", escaped)
+    return "\\" + escaped if escaped[:1] in ("#", "!", " ", "\t") else escaped
+
+
+def goal_rule(pattern, goals_text, where):
+    """A GoalRule from one --goals-for or goals-file line; refused when the
+    pattern or the goals are empty, or the pattern is a negation."""
+    goals = parse_goals(goals_text)
+    if not pattern.strip():
+        raise Refused(f"{where}: an empty pattern. Give a path or a pattern such as 'docs/**'")
+    if pattern.startswith("!"):
+        raise Refused(f"{where}: '{pattern}' is a negation, which reader goals do not take. "
+                      f"Give the files that need other goals a narrower pattern or their path")
+    if not goals:
+        raise Refused(f"{where}: no reader goals for '{pattern}'. List them, most probable "
+                      f"first, separated by ';'")
+    try:
+        _glob_regex(pattern)
+    except re.error as error:
+        raise Refused(f"{where}: '{pattern}' cannot be read as a pattern ({error}). Fix it, "
+                      f"or name the file by its path")
+    return GoalRule(pattern, tuple(goals), where)
+
+
+# The pattern runs to the first colon followed by a blank that no backslash
+# escapes.
+GOALS_LINE = re.compile(r"^((?:\\.|[^\\])+?):[ \t]+(\S.*)$")
+
+
+def read_goals_file(path):
+    """The GoalRules in a goals file: one `pattern: goal; goal` line each,
+    the pattern ending at the first colon followed by a blank, unless a
+    backslash escapes the colon. Blank lines and lines starting with `#` are
+    skipped."""
+    try:
+        # utf-8-sig: an editor's byte order mark is not part of the first line.
+        text = pathlib.Path(path).read_bytes().decode("utf-8-sig")
+    except OSError as error:
+        raise Refused(f"could not read the goals file {path}: {error.strerror or error}")
+    except UnicodeDecodeError as error:
+        raise Refused(f"the goals file {path} is not valid UTF-8: {error}")
+    rules = []
+    for number, line in enumerate(text.splitlines(), start=1):
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        where = f"{path}:{number}"
+        found = GOALS_LINE.match(line)
+        if not found:
+            raise Refused(f"{where}: expected 'pattern: goal; goal', got: {line}")
+        rules.append(goal_rule(found.group(1), found.group(2), where))
+    return rules
+
+
+def file_rules(goals_for, goals_file):
+    """The GoalRules from the command line: each --goals-for in order, then
+    the goals file's lines."""
+    rules = [goal_rule(pattern, goals, "--goals-for") for pattern, goals in goals_for or ()]
+    return rules + (read_goals_file(goals_file) if goals_file else [])
+
+
+def assign_goals(items, rules):
+    """([(item, rule or None)], [rules that match no listed file]).
+
+    Each listed file gets the most specific rule that matches it, or None.
+    Refused when two equally specific rules match one file with different
+    goals: which one was meant cannot be told, and the fix is a narrower
+    pattern or the file's exact path."""
+    chosen, used = {}, set()
+    for item in items:
+        if item.path is None or item.path in chosen:
+            continue
+        found = [(_specificity(rule, item.path), index, rule)
+                 for index, rule in enumerate(rules) if matches(rule, item.path)]
+        used.update(index for _, index, _ in found)
+        # A deleted doc has no reader, so no rule applies to it.
+        if not found or item.deleted:
+            chosen[item.path] = None
+            continue
+        best = max(rank for rank, _, _ in found)
+        top = [rule for rank, _, rule in found if rank == best]
+        if any(rule.goals != top[0].goals for rule in top):
+            raise Refused(
+                f"{item.path} matches equally specific reader goals that differ: "
+                + "; ".join(f"'{rule.pattern}' ({rule.where})" for rule in top)
+                + ". Give it its exact path, or one of them a narrower pattern")
+        chosen[item.path] = top[0]
+    assigned = [(item, chosen[item.path] if item.path is not None else None) for item in items]
+    return assigned, [rule for index, rule in enumerate(rules) if index not in used]
+
+
+def refuse_uncovered(assigned, unused=(), after_first_call=False):
+    """Refused when a listed doc or spec has no reader goals. A deleted one
+    has no reader, and code comments may go without: they get their kind's
+    default. The refusal names the given goals that matched no listed file,
+    since a typo there is the likeliest reason."""
+    missing = [item.path for item, rule in assigned
+               if item.path is not None and rule is None and not item.deleted
+               and kind_of(item.path) != "comment"]
+    if not missing:
+        return
+    if after_first_call:
+        raise Refused(
+            "these docs and specs had no reader goals when the first call ran: "
+            + ", ".join(missing) + ". " + AGAIN.replace("--goals", "--goals and --goals-for"))
+    suggestions = []
+    for path in missing:
+        label, who, goals = kind_default(kind_of(path))
+        suggestions.append(f"  {as_pattern(path)}: {'; '.join(goals)}\n"
+                           f"      (the default in the '{label}' row, read by {who})")
+    raise Refused(
+        "these docs and specs have no reader goals: " + ", ".join(missing) + ". A doc's "
+        "reader is not the commit's reviewer. Name each one's goals, most probable first, "
+        "with --goals-for <path or pattern> '<goal; goal>', or in a goals file passed as "
+        "--goals-file <file>, one 'pattern: goal; goal' line each. The defaults for their "
+        "kinds, from rules.md's reader table, as goals-file lines; adjust each to its "
+        "document:\n\n" + "\n".join(suggestions) + "\n"
+        + "".join(f"\n'{rule.pattern}' ({rule.where}) matches no listed file; is it a typo?"
+                  for rule in unused))
+
+
+# ---------------------------------------------------------------------------
 # Command line
 # ---------------------------------------------------------------------------
 
@@ -1660,9 +1962,9 @@ def require_goals(goals, what):
         )
 
 
-def print_goals(goals, stream=None):
-    print("Reader goals, most probable first. Order and cut the text against them:\n",
-          file=stream)
+def print_goals(goals, stream=None, heading="Reader goals, most probable first. Order and cut "
+                                            "the text against them:"):
+    print(heading + "\n", file=stream)
     for number, goal in enumerate(goals, start=1):
         print(f"  {number}. {goal}", file=stream)
     print(file=stream)
@@ -1705,6 +2007,12 @@ def main(argv=None):
     p_check.add_argument("--amend", action="store_true",
                          help="list against HEAD's parent, for git commit --amend")
     p_check.add_argument("--repo", default=".")
+    p_check.add_argument("--goals-for", nargs=2, action="append", default=[],
+                         metavar=("PATTERN", "GOALS"),
+                         help="the reader goals for each listed file PATTERN matches, as for "
+                              "--goals; repeatable, and the most specific match wins")
+    p_check.add_argument("--goals-file", default="",
+                         help="a file of 'pattern: goal; goal' lines, read like --goals-for")
     p_staged = sub.add_parser("verify-staged", help="exit 0 when a trailer line matches the index and stdin's message")
     p_staged.add_argument("line")
     p_staged.add_argument("--repo", default=".")
@@ -1732,7 +2040,8 @@ def main(argv=None):
             mark_session(_session(args))
             print("\nWrite by these rules. This signs nothing: before each commit or post,")
             print("run its own first call, with the goals of that text's reader:\n")
-            print(f"  A commit: {_prose_command()} check -F msg.txt --goals '<goals>'")
+            print(f"  A commit: {_prose_command()} check -F msg.txt --goals '<goals>' \\")
+            print("              --goals-for '<doc path or pattern>' '<that doc's reader's goals>'")
             print(f"  A post:   {_prose_command()} sign --goals '<goals>'\n")
             return 0
         if args.command == "check":
@@ -1742,8 +2051,9 @@ def main(argv=None):
                 # Bytes: read_text's universal newlines would hide a bare CR.
                 message = pathlib.Path(args.message_file).read_bytes().decode("utf-8", errors=TEXT_ERRORS)
             goals = parse_goals(args.goals)
+            rules = file_rules(args.goals_for, args.goals_file)
             if args.token:
-                goals = redeem_pass(args.token, goals, "check", args.repo)
+                goals, rules = redeem_pass(args.token, goals, "check", args.repo, rules)
             else:
                 require_goals(goals, "pass token")
             # Read first: a rules file that cannot be printed, or a missing
@@ -1751,6 +2061,8 @@ def main(argv=None):
             read_rules()
             result_block()
             items, flags, trailer = check(message, args.repo, args.amend, bool(args.token))
+            assigned, unused = assign_goals(items, rules)
+            refuse_uncovered(assigned, unused, after_first_call=bool(args.token))
             if args.token:
                 # The signing call prints only the result block. It is built
                 # before the token is spent, so a block that cannot be built
@@ -1759,11 +2071,11 @@ def main(argv=None):
                 spend_pass(args.token, args.repo)
                 print_result(block)
                 return 0
-            print_goals(goals)
-            print_check(items, flags)
+            print_goals(goals, heading=MESSAGE_GOALS)
+            print_check(assigned, flags, unused)
             print()
             print_rules()
-            token = issue_pass(goals, "check", _session(args), args.repo)
+            token = issue_pass(goals, "check", _session(args), args.repo, rules)
             print_pass(token, [next_check(token, args.message_file, args.amend, args.repo)])
             print_commit_how(args.amend, args.message_file)
             return PASS_ISSUED
@@ -1787,7 +2099,7 @@ def main(argv=None):
                 token = issue_pass(goals, "sign", _session(args))
                 print_pass(token, [next_sign(token)], sys.stderr)
                 return PASS_ISSUED
-            goals = redeem_pass(args.token, goals, "sign")
+            goals, _ = redeem_pass(args.token, goals, "sign")
             signed = sign(_read_stdin())
             spend_pass(args.token)
             print_goals(goals, sys.stderr)
@@ -1847,10 +2159,55 @@ def print_result(block):
     sys.stdout.flush()
 
 
-def print_check(items, flags=()):
-    print(f"prose: {len(items)} piece(s) of prose in this commit. Do the pass over each:\n")
-    for what, note in items:
-        print(f"  {what}" + (f"  ({note})" if note else ""))
+MESSAGE_GOALS = ("Reader goals for the commit message, most probable first. Order and cut "
+                 "the message against them; each file below has goals of its own:")
+
+
+def _goals_source(item, rule):
+    """(group key, heading, goals) for a listed item: which reader goals it
+    gets, and the line that names where they came from."""
+    if item.path is None:
+        return ("message",), "The commit message, read with the goals above (--goals):", ()
+    if item.deleted:
+        return ("deleted",), "Deleted, so no reader; nothing to rewrite:", ()
+    if rule is None:
+        kind = kind_of(item.path)
+        label, who, goals = kind_default(kind)
+        return (("default", kind),
+                f"Reader goals by default, from the '{label}' row of rules.md's reader "
+                f"table (read by {who}); --goals-for replaces them:", goals)
+    if _specificity(rule, item.path)[0]:
+        return ("exact", item.path), f"Reader goals for its exact path ({rule.where}):", rule.goals
+    return (("pattern", rule),
+            f"Reader goals from the pattern '{rule.pattern}' ({rule.where}):", rule.goals)
+
+
+def print_check(assigned, flags=(), unused=()):
+    """The listing: each item under the reader goals it gets and where they
+    came from, then the warnings."""
+    print(f"prose: {len(assigned)} piece(s) of prose in this commit. Do the pass over each "
+          f"against the reader goals above it.")
+    if any(item.path is not None and kind_of(item.path) != "comment" for item, _ in assigned):
+        print("In a doc or spec, reread each changed passage inside its section, as that "
+              "section's reader, before keeping it.")
+    # One group per source of goals, in order of first use; each item goes
+    # into the one group its own source names.
+    groups = {}
+    for item, rule in assigned:
+        key, heading, goals = _goals_source(item, rule)
+        groups.setdefault(key, (heading, goals, []))[2].append(item)
+    for heading, goals, members in groups.values():
+        print("\n" + heading + "\n")
+        for number, goal in enumerate(goals, start=1):
+            print(f"  {number}. {goal}")
+        if goals:
+            print()
+        for item in members:
+            print(f"  {item.what}" + (f"  ({item.note})" if item.note else ""))
+    if unused:
+        print("\nReader goals that match no listed file (a typo?):\n")
+        for rule in unused:
+            print(f"  '{rule.pattern}' ({rule.where})")
     if flags:
         print("\nFlags (warnings, not blocking):\n")
         for flag in flags:

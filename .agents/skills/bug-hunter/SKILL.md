@@ -588,7 +588,9 @@ a blank line, body) to `msg.txt`, unstaged, and:
 
 1. Run prose's first call. It lists the prose in the change and prints the
    rules and a pass token:
-   `python3 "$S/prose.py" check -F msg.txt --goals "review the fix; check it is safe to merge"`
+   `python3 "$S/prose.py" check -F msg.txt --goals "review the fix; check it is safe to merge"`.
+   Add `--goals-for <path or pattern> '<goals>'` for each changed doc or spec,
+   naming its own reader's goals; prose's SKILL.md says how.
 2. Rewrite the listed comments, docs and message by those rules; restage.
 3. Run the second call, which prints the `Prose:` trailer:
    `python3 "$S/prose.py" check -F msg.txt --pass <token>`

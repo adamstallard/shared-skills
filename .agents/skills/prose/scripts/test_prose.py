@@ -49,6 +49,10 @@ prose.__file__ = str(SCRIPT)
 exec(compile(SCRIPT.read_text(encoding="utf-8"), str(SCRIPT), "exec"), prose.__dict__)
 
 
+# Reader goals for every listed file, which Repo.prose adds to a check.
+ALL_FILES = ["--goals-for", "**", "read it"]
+
+
 def block_trailer(stdout):
     """The trailer line in the result block that ends stdout; fails unless
     stdout ends with exactly that block, holding one trailer and nothing open."""
@@ -95,17 +99,25 @@ class Repo:
         target.write_bytes(text.encode("utf-8"))
         self.git("add", name)
 
-    def prose(self, *args, stdin=None):
-        return run([sys.executable, str(SCRIPT)] + list(args), cwd=self.path, stdin=stdin)
+    def prose(self, *args, stdin=None, file_goals=True):
+        """prose.py in this repository. A check that names no per-file goals
+        gets ALL_FILES, so a test about something else is not refused for a
+        doc without goals; file_goals=False leaves them out."""
+        args = list(args)
+        if file_goals and args[:1] == ["check"] \
+                and not {"--goals-for", "--goals-file"} & set(args):
+            args += ALL_FILES
+        return run([sys.executable, str(SCRIPT)] + args, cwd=self.path, stdin=stdin)
 
-    def two_calls(self, *args, stdin=None):
+    def two_calls(self, *args, stdin=None, file_goals=True):
         """The pass as SKILL.md runs it: the first call, then, when it issued a
         pass token, the signing call with that token. The signing call's
         result, or the first call's when that one was refused."""
-        first = self.prose(*args, stdin=stdin)
+        first = self.prose(*args, stdin=stdin, file_goals=file_goals)
         if first.returncode != 4:
             return first
-        return self.prose(*args, "--pass", pass_token(first.stdout), stdin=stdin)
+        return self.prose(*args, "--pass", pass_token(first.stdout), stdin=stdin,
+                          file_goals=file_goals)
 
     def trailers(self, message, *extra):
         """The one trailer line in the result block the signing call prints
@@ -152,7 +164,7 @@ class RulesFile(unittest.TestCase):
 
     GOOD = ("# Title\n\nPrinciple.\n\n## Scope\n\nS.\n\n## The pass\n\nP.\n\n"
             "## The rules, most important first\n\n"
-            + "".join(f"### {n}. Rule {n}\nBody {n}.\n\n" for n in range(1, 8))
+            + "".join(f"### {n}. Rule {n}\nBody {n}.\n\n" for n in range(1, 9))
             + "## How agents cheat on this pass\n\n- One.\n")
 
     def read(self, text):
@@ -177,7 +189,7 @@ class RulesFile(unittest.TestCase):
     def test_a_good_file_splits_into_its_parts(self):
         preamble, heading, rules, cheats = self.read(self.GOOD)
         self.assertEqual(heading, "## The rules, most important first")
-        self.assertEqual([(n, t) for n, t, _ in rules], [(n, f"Rule {n}") for n in range(1, 8)])
+        self.assertEqual([(n, t) for n, t, _ in rules], [(n, f"Rule {n}") for n in range(1, 9)])
         self.assertEqual(rules[0][2], "### 1. Rule 1\nBody 1.")
 
     def test_a_missing_or_misordered_section_is_refused(self):
@@ -724,7 +736,7 @@ class SignatureThroughGit(unittest.TestCase):
         self.repo.git("config", "trailer.separators", ":")
         self.stage()
         env = dict(os.environ, GIT_CONFIG_GLOBAL=str(global_config))
-        result = run([sys.executable, str(SCRIPT), "check", "-F", "-", "--goals", "g"],
+        result = run([sys.executable, str(SCRIPT), "check", "-F", "-", "--goals", "g", *ALL_FILES],
                      cwd=self.repo.path, stdin="Title\n", env=env)
         self.assertEqual(result.returncode, 4, result.stderr)
 
@@ -981,6 +993,334 @@ class Check(unittest.TestCase):
         self.assertIn("  [ ] 13. Commit subject says what changed; the body says why", out)
         self.assertNotIn(f"### {prose.RULES_IN_FULL + 1}.", out)
 
+    def listing(self, out):
+        """The part of a first call's output before the rules."""
+        return out.split("# The prose pass")[0]
+
+    def check_for(self, *file_args, message="FEAT(x): a\n", goals="review the fix"):
+        """A first call with these per-file goal arguments and no others."""
+        return self.repo.prose("check", "-F", "-", "--goals", goals, *file_args,
+                               stdin=message, file_goals=False)
+
+    def goals_by_item(self, out):
+        """{listed item: (heading, [goals])} from a first call's listing."""
+        found, heading, goals = {}, None, []
+        for line in self.listing(out).split("\n"):
+            if line and not line.startswith(" "):
+                heading, goals = line, []
+            elif re.match(r"^  \d+\. ", line):
+                goals.append(line.split(". ", 1)[1])
+            elif line.startswith("  "):
+                found[line.strip().split("  (")[0]] = (heading, goals)
+        return found
+
+    def test_the_most_specific_goals_win(self):
+        for path in ("README.md", "docs/README.md", "docs/arch.md", "docs/api/ref.md",
+                     "docs/api/guide.md", "docs/a.md"):
+            self.repo.write(path, "# T\n")
+        self.repo.git("rm", "-q", "gone.md")
+        want = {"README.md": "readme", "docs/README.md": "readme", "docs/arch.md": "docs",
+                "docs/api/ref.md": "api", "docs/api/guide.md": "guide",
+                # An exact path beats a pattern with more literal characters.
+                "docs/a.md": "exact a"}
+        result = self.check_for("--goals-for", "**", "all", "--goals-for", "docs/**", "docs",
+                                "--goals-for", "docs/api/**", "api",
+                                "--goals-for", "docs/api/guide.md", "guide",
+                                "--goals-for", "README.md", "readme",
+                                "--goals-for", "docs/**/a.md", "deep a",
+                                "--goals-for", "docs/a.md", "exact a")
+        self.assertEqual(result.returncode, 4, result.stderr)
+        found = self.goals_by_item(result.stdout)
+        self.assertEqual({path: found[path][1] for path in want},
+                         {path: [goal] for path, goal in want.items()})
+        self.assertEqual(found["gone.md"], ("Deleted, so no reader; nothing to rewrite:", []))
+        self.assertEqual(found["docs/a.md"][0], "Reader goals for its exact path (--goals-for):")
+        self.assertEqual(found["docs/README.md"][0],
+                         "Reader goals from the pattern 'README.md' (--goals-for):")
+        self.assertEqual(found["commit message"],
+                         ("The commit message, read with the goals above (--goals):", []))
+        self.assertNotIn("match no listed file", result.stdout)
+
+    def test_equally_specific_goals_that_differ_are_refused(self):
+        self.repo.write("docs/a.md", "# T\n")
+        result = self.check_for("--goals-for", "docs/*", "one", "--goals-for", "*/a.md", "two")
+        self.assertEqual((result.returncode, result.stdout), (2, ""))
+        self.assertIn("docs/a.md matches equally specific reader goals that differ", result.stderr)
+        self.assertIn("'docs/*'", result.stderr)
+        self.assertIn("'*/a.md'", result.stderr)
+        same = self.check_for("--goals-for", "docs/*", "one", "--goals-for", "*/a.md", " one ")
+        self.assertEqual(same.returncode, 4, same.stderr)
+
+    def test_the_glob_patterns_match_like_gitignore(self):
+        cases = {
+            "*.md": (["a.md", "x/y/a.md", "a.md/b"], ["a.mdx"]),
+            "docs/*.md": (["docs/a.md"], ["docs/x/a.md", "x/docs/a.md"]),
+            "docs/**": (["docs/a.md", "docs/x/y.md"], ["docsx/a.md", "x/docs/a.md"]),
+            "/README.md": (["README.md"], ["x/README.md"]),
+            "README.md": (["README.md", "x/README.md"], ["xREADME.md"]),
+            "docs/": (["docs/a.md", "x/docs/a.md"], ["docs.md"]),
+            "**/api/*.md": (["api/a.md", "x/api/a.md"], ["api/x/a.md"]),
+            "a/**/b.md": (["a/b.md", "a/x/y/b.md"], ["ab.md"]),
+            "[ab].md": (["a.md", "x/b.md"], ["c.md"]),
+            "[!a].md": (["b.md"], ["a.md"]),
+            "a?.md": (["ab.md"], ["a.md", "a/.md"]),
+            "**": (["a", "x/y/z.md"], []),
+            "a[.md": (["a[.md"], ["a.md"]),
+        }
+        for pattern, (hits, misses) in cases.items():
+            rule = prose.GoalRule(pattern, ("g",), "test")
+            for path in hits:
+                with self.subTest(pattern=pattern, path=path):
+                    self.assertTrue(prose.matches(rule, path))
+            for path in misses:
+                with self.subTest(pattern=pattern, path=path):
+                    self.assertFalse(prose.matches(rule, path))
+        self.assertEqual([prose._literals(p) for p in ("**", "*.md", "docs/**", "/docs/*.md",
+                                                       "[ab].md", "docs/api/**")],
+                         [0, 3, 5, 8, 3, 9])
+
+    def test_a_goals_file_is_read_like_goals_for(self):
+        self.repo.write("docs/a.md", "# T\n")
+        self.repo.write("README.md", "# T\n")
+        goals = self.repo.path.parent / f"{self.repo.path.name}-goals.txt"
+        goals.write_text("# readers\n\ndocs/**: learn it; use it\n  README.md:\tstart here\n"
+                         "**: anything\n", encoding="utf-8")
+        result = self.check_for("--goals-file", str(goals))
+        self.assertEqual(result.returncode, 4, result.stderr)
+        found = self.goals_by_item(result.stdout)
+        self.assertEqual(found["docs/a.md"],
+                         (f"Reader goals from the pattern 'docs/**' ({goals}:3):", ["learn it", "use it"]))
+        self.assertEqual(found["README.md"],
+                         (f"Reader goals for its exact path ({goals}:4):", ["start here"]))
+
+    def test_a_bad_goals_file_or_goals_for_is_refused_naming_it(self):
+        self.repo.write("docs/a.md", "# T\n")
+        goals = self.repo.path.parent / f"{self.repo.path.name}-goals.txt"
+        for text, said in (("# ok\ndocs/** learn it\n", f"{goals}:2: expected 'pattern: goal; goal'"),
+                           ("docs/**: ; ;\n", f"{goals}:1: no reader goals for 'docs/**'"),
+                           ("!docs/**: x\n", f"{goals}:1: '!docs/**' is a negation"),
+                           (b"docs/**: \xff\n", "is not valid UTF-8")):
+            with self.subTest(text=text):
+                goals.write_bytes(text if isinstance(text, bytes) else text.encode("utf-8"))
+                result = self.check_for("--goals-file", str(goals))
+                self.assertEqual((result.returncode, result.stdout), (2, ""))
+                self.assertIn(said, result.stderr)
+        for args, said in ((["--goals-file", str(goals) + ".missing"], "could not read the goals file"),
+                           (["--goals-for", " ", "x"], "--goals-for: an empty pattern"),
+                           (["--goals-for", "docs/**", ";"], "--goals-for: no reader goals")):
+            with self.subTest(args=args):
+                result = self.check_for(*args)
+                self.assertEqual((result.returncode, result.stdout), (2, ""))
+                self.assertIn(said, result.stderr)
+
+    def test_a_doc_or_spec_without_goals_is_refused_with_its_kinds_default(self):
+        self.repo.write("docs/arch.md", "# T\n")
+        self.repo.write("README.md", "# T\n")
+        self.repo.write("openspec/x/spec.md", "# T\n")
+        self.repo.write("a.py", "x = 1\n# Explains y.\ny = 2\n")
+        result = self.check_for("--goals-for", "docs/**", "learn it")
+        self.assertEqual((result.returncode, result.stdout), (2, ""))
+        self.assertIn("no reader goals: README.md, openspec/x/spec.md.", result.stderr)
+        self.assertIn("  README.md: what it's for; how to start; what to do when it fails\n",
+                      result.stderr)
+        self.assertIn("  openspec/x/spec.md: what must be true; what's decided vs. open\n",
+                      result.stderr)
+        self.assertNotIn("docs/arch.md", result.stderr)
+        self.assertNotIn("a.py", result.stderr)
+        self.repo.write("docs/arch.md", "# T\n\nMore.\n")
+        bare = self.check_for()
+        self.assertIn("  docs/arch.md: how it works now; why it is that way\n", bare.stderr)
+
+    def test_a_touched_comment_without_goals_gets_its_kinds_default_labelled(self):
+        self.repo.write("a.py", "x = 1\n# Explains y.\ny = 2\n")
+        result = self.check_for()
+        self.assertEqual(result.returncode, 4, result.stderr)
+        heading, goals = self.goals_by_item(result.stdout)["a.py:2"]
+        self.assertEqual(heading, "Reader goals by default, from the 'Code comment' row of "
+                                  "rules.md's reader table (read by someone about to change "
+                                  "this code); --goals-for replaces them:")
+        self.assertEqual(goals, ["what it does that the code doesn't show",
+                                 "what breaks if they change it"])
+        named = self.check_for("--goals-for", "*.py", "fix the parser")
+        self.assertEqual(self.goals_by_item(named.stdout)["a.py:2"][1], ["fix the parser"])
+
+    def test_a_pattern_that_matches_no_listed_file_is_a_warning(self):
+        self.repo.write("docs/a.md", "# T\n")
+        goals = self.repo.path.parent / f"{self.repo.path.name}-goals.txt"
+        goals.write_text("dcos/**: x\n", encoding="utf-8")
+        result = self.check_for("--goals-for", "docs/**", "learn it", "--goals-for", "doc/**", "x",
+                                "--goals-file", str(goals))
+        self.assertEqual(result.returncode, 4, result.stderr)
+        listing = self.listing(result.stdout)
+        warned = listing.split("match no listed file (a typo?):\n\n")[1]
+        self.assertEqual(warned.split("\n")[:2], ["  'doc/**' (--goals-for)", f"  'dcos/**' ({goals}:1)"])
+        self.assertNotIn("'docs/**' (--goals-for)\n", warned)
+
+    def test_the_per_file_goals_are_bound_to_the_token(self):
+        self.repo.write("docs/a.md", "# T\n")
+        first = self.check_for("--goals-for", "docs/**", "learn it")
+        token = pass_token(first.stdout)
+        sign = lambda *extra: self.repo.prose("check", "-F", "-", "--pass", token, *extra,
+                                              stdin="FEAT(x): a\n", file_goals=False)
+        refused = sign("--goals-for", "docs/**", "something else")
+        self.assertEqual((refused.returncode, refused.stdout), (2, ""))
+        self.assertIn("per-file reader goals differ", refused.stderr)
+        self.repo.write("docs/b.md", "# T\n")
+        self.repo.write("README.md", "# T\n")
+        uncovered = sign()
+        self.assertEqual((uncovered.returncode, uncovered.stdout), (2, ""))
+        self.assertIn("had no reader goals when the first call ran: README.md.", uncovered.stderr)
+        self.repo.git("rm", "-q", "--cached", "README.md")
+        self.assertRegex(block_trailer(sign("--goals-for", "docs/**", " learn it").stdout), TRAILER)
+
+    def test_the_message_goals_are_the_messages_alone(self):
+        self.repo.write("docs/a.md", "# T\n")
+        result = self.check_for("--goals-for", "docs/**", "learn it", goals="review the fix; merge")
+        out = self.listing(result.stdout)
+        self.assertTrue(out.startswith("Reader goals for the commit message, most probable "
+                                       "first."), out)
+        self.assertEqual(out.count("review the fix"), 1)
+        self.assertEqual(self.goals_by_item(result.stdout)["docs/a.md"][1], ["learn it"])
+        self.assertLess(out.index("2. merge"), out.index("\n  commit message\n"))
+
+    def test_a_pattern_naming_a_directory_covers_the_files_under_it(self):
+        # gitignore matches a file when a pattern matches any directory above it.
+        self.repo.write("docs/y.md", "# T\n")
+        self.repo.write("docs/guide/x.md", "# T\n")
+        for args in (["--goals-for", "docs", "learn it"], ["--goals-for", "docs/*", "learn it"],
+                     ["--goals-for", "/docs", "learn it"], ["--goals-for", "doc[s]", "learn it"]):
+            with self.subTest(args=args):
+                result = self.check_for(*args)
+                self.assertEqual(result.returncode, 4, result.stderr)
+                found = self.goals_by_item(result.stdout)
+                self.assertEqual(found["docs/guide/x.md"][1], ["learn it"])
+        only_dirs = self.check_for("--goals-for", "y.md/", "x", "--goals-for", "docs/**", "learn it")
+        self.assertEqual(self.goals_by_item(only_dirs.stdout)["docs/y.md"][1], ["learn it"])
+
+    def test_a_file_named_with_glob_characters_gets_goals_by_its_path(self):
+        self.repo.write("a[1].md", "# T\n")
+        self.repo.write("a*.md", "# T\n")
+        self.repo.write("#todo.md", "# T\n")
+        refused = self.check_for()
+        self.assertIn("  \\#todo.md: how it works now", refused.stderr)
+        goals = self.repo.path.parent / f"{self.repo.path.name}-goals.txt"
+        goals.write_text("a[1].md: one\na\\*.md: star\n\\#todo.md: todo\n", encoding="utf-8")
+        result = self.check_for("--goals-file", str(goals))
+        self.assertEqual(result.returncode, 4, result.stderr)
+        found = self.goals_by_item(result.stdout)
+        self.assertEqual({path: found[path][1] for path in ("a[1].md", "a*.md", "#todo.md")},
+                         {"a[1].md": ["one"], "a*.md": ["star"], "#todo.md": ["todo"]})
+
+    def test_a_deleted_doc_needs_no_goals(self):
+        self.repo.git("rm", "-q", "gone.md")
+        result = self.check_for()
+        self.assertEqual(result.returncode, 4, result.stderr)
+        self.assertIn("gone.md  (changed)", result.stdout)
+
+    def test_the_signing_call_takes_the_same_goals_in_another_order(self):
+        self.repo.write("docs/a.md", "# T\n")
+        self.repo.write("README.md", "# T\n")
+        first = self.check_for("--goals-for", "docs/**", "one", "--goals-for", "README.md", "two")
+        signed = self.repo.prose("check", "-F", "-", "--goals", "review the fix",
+                                 "--goals-for", "README.md", "two", "--goals-for", "docs/**", "one",
+                                 "--pass", pass_token(first.stdout), stdin="FEAT(x): a\n",
+                                 file_goals=False)
+        self.assertRegex(block_trailer(signed.stdout), TRAILER)
+
+    def test_a_goals_file_may_start_with_a_byte_order_mark(self):
+        self.repo.write("docs/a.md", "# T\n")
+        goals = self.repo.path.parent / f"{self.repo.path.name}-goals.txt"
+        for text in ("# readers\ndocs/**: learn it\n", "docs/**: learn it\n"):
+            with self.subTest(text=text):
+                goals.write_bytes(b"\xef\xbb\xbf" + text.encode("utf-8"))
+                result = self.check_for("--goals-file", str(goals))
+                self.assertEqual(result.returncode, 4, result.stderr)
+                self.assertNotIn("match no listed file", result.stdout)
+
+    def suggested_goals_file(self, refused):
+        """A goals file holding the lines a refusal suggests, as written."""
+        lines = [line for line in refused.stderr.split("\n")
+                 if line.startswith("  ") and not line.startswith("      (")]
+        goals = self.repo.path.parent / f"{self.repo.path.name}-suggested.txt"
+        goals.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        return goals
+
+    def test_a_suggested_line_reads_back_for_a_path_with_colons_or_edge_spaces(self):
+        for path in ("notes: draft.md", "notes.md ", " lead.md"):
+            self.repo.write(path, "# T\n")
+        refused = self.check_for()
+        self.assertEqual(refused.returncode, 2)
+        result = self.check_for("--goals-file", str(self.suggested_goals_file(refused)))
+        self.assertEqual(result.returncode, 4, result.stderr)
+        found = {item.strip(): goals for item, goals in self.goals_by_item(result.stdout).items()}
+        for path in ("notes: draft.md", "notes.md ", " lead.md"):
+            self.assertEqual(found[path.strip()][1],
+                             ["how it works now", "why it is that way"], path)
+        by_flag = self.check_for("--goals-for", "notes: draft.md", "a", "--goals-for", "notes.md ", "b",
+                                 "--goals-for", "\\ lead.md", "c")
+        self.assertEqual(by_flag.returncode, 4, by_flag.stderr)
+        escaped = self.check_for("--goals-for", "notes: draft.md", "a", "--goals-for", "notes.md\\ ", "b",
+                                 "--goals-for", " lead.md", "c")
+        self.assertEqual(escaped.returncode, 4, escaped.stderr)
+
+    def test_a_deleted_doc_is_never_given_goals(self):
+        self.repo.write("docs/old.md", "Old.\n")
+        self.repo.commit("more\n")
+        self.repo.git("rm", "-q", "docs/old.md")
+        self.repo.write("docs/new.md", "# T\n")
+        listed = self.check_for("--goals-for", "docs/**", "learn it")
+        self.assertEqual(listed.returncode, 4, listed.stderr)
+        self.assertEqual(self.goals_by_item(listed.stdout)["docs/old.md"],
+                         ("Deleted, so no reader; nothing to rewrite:", []))
+        self.assertNotIn("match no listed file", listed.stdout)
+        tied = self.check_for("--goals-for", "docs/new.md", "a", "--goals-for", "docs/*", "a",
+                              "--goals-for", "docs/**", "b")
+        self.assertEqual(tied.returncode, 4, tied.stderr)
+
+    def test_an_exact_path_with_a_blank_before_its_colon_still_wins(self):
+        self.repo.write("README.md", "# T\n")
+        goals = self.repo.path.parent / f"{self.repo.path.name}-goals.txt"
+        goals.write_text("**/README.md: any readme\nREADME.md : this one\n", encoding="utf-8")
+        result = self.check_for("--goals-file", str(goals))
+        self.assertEqual(result.returncode, 4, result.stderr)
+        self.assertEqual(self.goals_by_item(result.stdout)["README.md"],
+                         (f"Reader goals for its exact path ({goals}:2):", ["this one"]))
+
+    def test_a_pattern_python_cannot_compile_is_refused_not_a_crash(self):
+        self.repo.write("docs/a.md", "# T\n")
+        result = self.check_for("--goals-for", "docs/[z-a]*", "x", "--goals-for", "**", "y")
+        self.assertEqual((result.returncode, result.stdout), (2, ""))
+        self.assertIn("prose: --goals-for: 'docs/[z-a]*'", result.stderr)
+        self.assertNotIn("Traceback", result.stderr)
+
+    def test_the_refusal_for_missing_goals_names_the_patterns_that_matched_nothing(self):
+        self.repo.write("docs/guide.md", "# T\n")
+        result = self.check_for("--goals-for", "./docs/guide.md", "x")
+        self.assertEqual((result.returncode, result.stdout), (2, ""))
+        self.assertIn("'./docs/guide.md' (--goals-for) matches no listed file", result.stderr)
+
+    def test_every_kind_has_a_default_in_the_reader_table(self):
+        for kind, path in (("comment", "a.py"), ("readme", "x/README.rst"),
+                           ("spec", "openspec/x/README.md"), ("doc", "docs/CHANGELOG.md")):
+            with self.subTest(kind=kind):
+                self.assertEqual(prose.kind_of(path), kind)
+                label, who, goals = prose.kind_default(kind)
+                self.assertTrue(label.startswith(prose.KIND_ROWS[kind]) and who and goals)
+
+    def test_the_rules_hold_a_doc_to_what_is(self):
+        out = self.check().stdout
+        self.assertIn("### 6. What is, not how it got here", out)
+        self.assertIn("A narrow role's unused", out)
+        self.assertIn("Labelling the past does not make it worth keeping", out)
+        self.assertIn("Keeping context a reviewer needed in a document whose reader never will", out)
+
+    def test_the_rules_ask_for_a_reason_instead_of_a_catchphrase(self):
+        out = self.check().stdout
+        self.assertIn("### 5. Plain words, and reasons instead of catchphrases", out)
+        self.assertIn("A claim is stated once, with its reason", out)
+        self.assertIn("grep the repository for it", out)
+        self.assertIn("Repeating a phrase that sounds like a reason in place of the reason.", out)
+
     def test_the_signing_call_prints_only_the_result_block_holding_the_one_trailer(self):
         self.repo.write("README.md", "# Hi\n")
         result = self.signed()
@@ -1062,7 +1402,7 @@ class Check(unittest.TestCase):
         out = self.check(goals="review the fix; check it is safe to merge").stdout
         self.assertTrue(out.startswith("Reader goals"), out)
         self.assertLess(out.index("1. review the fix"), out.index("2. check it is safe to merge"))
-        self.assertLess(out.index("2. check it is safe"), out.index("commit message"))
+        self.assertLess(out.index("2. check it is safe"), out.index("\n  commit message\n"))
         self.assertNotIn("review", block_trailer(self.signed().stdout))
 
     def test_a_file_too_deep_to_parse_is_listed_and_does_not_block(self):
