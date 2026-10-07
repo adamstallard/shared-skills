@@ -108,15 +108,18 @@ A command passes when the shell runs no `gh` post in it:
   in it, or in quotes or a quoted heredoc given to a command that treats them
   as data (`echo`, `cat`, `grep`, `git`, `python3` and a few others), such as
   `grep "gh pr create"` or a Python script that writes the phrase to a file;
-- a `gh` command that sends no text, anywhere in a longer command with no
-  pipe: a label, assignee or milestone edit, `gh pr ready`, a close without
-  `--comment`. A `--title` is not checked.
+- a `gh` command that sends no text, anywhere in a longer command: a label,
+  assignee or milestone edit, `gh pr ready`, a close without `--comment`. A
+  `--title` is not checked. An edit or close fed by a pipe or `<` is still
+  blocked, since those verbs can take a body.
 
 The hook still blocks a command it cannot read to the end, such as one with
 backticks or an unterminated quote. It also blocks a mention given to any other
-command, since that command might run it (`sh -c`, `eval`, `xargs`), and any
-command with a pipe or input redirection unless every part is one of those
-data commands. To run one that only mentions a post, put it in a script file,
+command, since that command might run it (`sh -c`, `eval`, `xargs`). A command
+that reads a pipe or an input redirection must be one of those data commands
+or a `gh` subcommand that takes no body, such as `gh pr view`; when the input reaches a group, loop or
+subshell, every command in it must be a data command. To run one that only
+mentions a post, put it in a script file,
 run it in your own terminal, or, as a last resort, turn the hooks off as in
 [What is enforced where](#what-is-enforced-where).
 

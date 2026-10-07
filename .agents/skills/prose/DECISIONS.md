@@ -948,12 +948,41 @@ How each simple command is read:
   `view`, `checks` and the like) is no post, so `gh pr list --search
   'review-requested:@me'` passes; `merge` and any verb not on that list are
   read as before.
-- **Pipes and input.** A pipe or an input redirection anywhere (`|`, `<`, a
-  heredoc, `<<<`) requires every command to be from `DATA_COMMANDS`, `gh`
-  included, so `bash <<'EOF'` and `echo … |` a shell are blocked. Which
-  command reads the stdin is not worked out: the second bug-hunter pass
-  found that tracking it per command missed pipes across line breaks and
-  into subshells.
+- **Pipes and input** (corrected 2026-10-07, #14). A pipe or an input
+  redirection (`|`, `|&`, `<`, `<>`, `<&`, a heredoc, `<<<`) matters only
+  for the command that reads it. That command must be from `DATA_COMMANDS`
+  or a `gh` subcommand that takes no body (`NO_TEXT_VERBS`: `gh pr view`,
+  `gh pr checks`, `gh pr ready`, `gh issue lock` and the like), so `bash <<'EOF'`,
+  `echo … | sh`, `… | xargs` and `cat body.md | gh pr comment 1 -F -` are
+  blocked. The other commands are read as if there were no pipe: in `gh pr
+  view 1; echo "review" | head -1`, only `head` reads the pipe. A block
+  names the command that reads the input.
+
+  *Why:* when any pipe anywhere required every command to be a data
+  command, commands that post nothing were blocked, such as `gh pr view 156
+  > a.md` followed by `python3 prose.py sign --goals "review PR #156" |
+  head -1` (#14).
+
+  A `gh` post verb (`GH_VERBS`: `comment`, `create`, `edit`, `close` and the
+  rest) that reads input blocks even when this call sends no text (Adam,
+  2026-10-07), so `cat body.md | gh issue edit 12 --add-label x` stays
+  blocked. Allowing it would rest on gh never taking a body from stdin
+  without `-F -`, which a later gh could change. A `NO_TEXT_VERBS`
+  subcommand has no body flag to take one with, so it may read input.
+
+  Which command reads it is worked out strictly, since the second bug-hunter
+  pass found that an earlier per-command attempt missed pipes across line
+  breaks and into subshells. A pipe feeds the next command that has a word,
+  across line breaks, comments and heredoc bodies; a leading `!` or `time`
+  passes it on to the word after. When the input can reach more than one
+  simple command, every command must be from `DATA_COMMANDS`, `gh`
+  included: a pipe into `(`, `$(`, `{`, `if`, `while` or another
+  opening reserved word; an input redirection on `)` or on a command holding
+  `}`, `done` or `fi`; or a `$(` inside a command that reads input. A pipe
+  into `for` or `case`, or a redirection on `esac`, blocks as the command
+  that reads it, since those words are not skipped and are no data command.
+  So does a data command after an assignment (`LC_ALL=C sort`): the
+  assignment is read as the command, as it is for `gh`.
 
 The rule that separates the two: an evasion *runs* `gh` with a body the hook
 cannot read; text that only contains `gh` runs nothing.

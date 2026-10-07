@@ -1169,24 +1169,34 @@ def _heredoc_end(command, i, delimiter, quoted, strip_tabs):
 
 
 def _commands(command):
-    """(simple commands, feeds stdin) for a shell command, or None when any
-    part of it is beyond what this reads exactly.
+    """(simple commands, grouped) for a shell command, or None when any part
+    of it is beyond what this reads exactly.
 
-    Each simple command is [(text, source)]: each word's text and source as
-    _word gives them. A word that is only line continuations is no word.
-    Redirections are left out. feeds stdin is True when the
-    command holds a pipe or an input redirection anywhere. Which command
-    reads it is not worked out: subshells, groups and line breaks make that
-    easy to get wrong. Heredoc bodies and comments are skipped, since the
-    shell runs neither. None for anything whose reading differs between
-    shells or could hide a command: what _word refuses, process
-    substitution, a heredoc inside parentheses (bash 3.2 reads those its own
-    way) or whose body would start inside an open `(`, an unquoted heredoc
-    body that could run or join lines, a heredoc with no end, a number
-    before a redirection other than one ASCII digit, a comment holding
-    quotes or operators, unbalanced parentheses.
+    Each simple command is ([(text, source)], fed): each word's text and
+    source as _word gives them, and whether the command reads a pipe or an
+    input redirection (`<`, `<>`, `<&`, a heredoc, `<<<`). A pipe feeds the
+    next command that has a word, across line breaks and comments, as both
+    shells do. A word that is only line continuations is no word. Other
+    redirections are left out. grouped is True when input may reach more
+    than one simple command: a pipe into a subshell, a `$(`, or a reserved
+    word that opens a compound command; an input redirection on a `(`…`)`,
+    or on a command holding `}`, `done` or `fi`; or a `(` in a fed command.
+    Heredoc bodies and comments are skipped, since the shell runs neither.
+    None for anything whose reading differs between shells or could hide a
+    command: what _word refuses, process substitution, a heredoc inside
+    parentheses (bash 3.2 reads those its own way) or whose body would start
+    inside an open `(`, an unquoted heredoc body that could run or join
+    lines, a heredoc with no end, a number before a redirection other than
+    one ASCII digit, a comment holding quotes or operators, unbalanced
+    parentheses.
     """
-    commands, feeds, pending, depth, i, n = [[]], False, [], 0, 0, len(command)
+    commands, fed, pending, depth, i, n = [[]], [False], [], 0, 0, len(command)
+    piped = grouped = False
+
+    def start():
+        commands.append([])
+        fed.append(False)
+
     while i < n:
         char = command[i]
         if char in " \t":
@@ -1202,7 +1212,7 @@ def _commands(command):
                 if i is None:
                     return None
             pending = []
-            commands.append([])
+            start()
         elif char == "#":
             end = command.find("\n", i)
             end = n if end == -1 else end
@@ -1224,20 +1234,23 @@ def _commands(command):
                 if depth or "$" in source:
                     return None
                 pending.append((word[0], any(q in source for q in "'\"\\"), op == "<<-"))
-            feeds = feeds or op.startswith("<")
+            if op.startswith("<"):
+                fed[-1] = True
             i = word[1]
         elif char in ";&|":
             end = i
             while end < n and command[end] in ";&|":
                 end += 1
-            feeds = feeds or ("|" in command[i:end] and command[i:end] != "||")
-            commands.append([])
+            piped = piped or ("|" in command[i:end] and command[i:end] != "||")
+            start()
             i = end
         elif char in "()":
+            if char == "(" and (piped or fed[-1]):
+                grouped = True
             depth += 1 if char == "(" else -1
             if depth < 0:
                 return None
-            commands.append([])
+            start()
             i += 1
         else:
             word = _word(command, i)
@@ -1251,13 +1264,50 @@ def _commands(command):
                 if not re.fullmatch("[0-9]", source):
                     return None
             elif text or source:
+                if piped:
+                    # `!` and `time` lead a pipeline's command; any other
+                    # reserved word opens a compound command, all of it fed.
+                    fed[-1] = True
+                    if source in RESERVED - {"!", "time"}:
+                        grouped = True
+                    piped = source in ("!", "time")
                 commands[-1].append((text, source))
             i = end
-    return None if pending or depth else ([words for words in commands if words], feeds)
+    if pending or depth:
+        return None
+    for words, reads in zip(commands, fed):
+        if reads and (not words or any(source in CLOSERS for _, source in words)):
+            grouped = True
+    return [(words, reads) for words, reads in zip(commands, fed) if words], grouped
 
 
-def _posts_nothing(command, cwd):
-    """True when the shell provably runs no gh post in this command.
+def _gh_args(words):
+    """words[1:] for a gh command given as plain words, without a leading
+    -R/--repo and its value."""
+    args = list(words[1:])
+    while args and (args[0][0] in ("-R", "--repo") or args[0][0].startswith(("--repo=", "-R"))):
+        args = args[2:] if args[0][0] in ("-R", "--repo") else args[1:]
+    return args
+
+
+def _fed_blocker(name):
+    """Why a command fed by a pipe or an input redirection blocks."""
+    return Unreadable(
+        f"`{name}` reads a pipe or an input redirection (<, <<, <<<), so what it "
+        "runs or posts cannot be checked. Only a data command (echo, cat, grep, "
+        "head, python3 …) or a gh subcommand that takes no body, such as gh pr "
+        "view, may read one. " + ACCEPTED)
+
+
+GROUPED = Unreadable(
+    "a pipe or an input redirection feeds a group, loop or subshell, so what it "
+    "runs or posts cannot be checked unless every command in it is a data "
+    "command (echo, cat, grep, head, python3 …). " + ACCEPTED)
+
+
+def _blocker(command, cwd):
+    """None when the shell provably runs no gh post in this command, else
+    the Unreadable that says why not.
 
     That holds when each simple command is one of:
     - a gh command given as plain words, gh first, that sends no text the
@@ -1269,31 +1319,46 @@ def _posts_nothing(command, cwd):
     Leading reserved words (RESERVED) are skipped first, and a command made
     only of closers (CLOSERS) is no command, both matched on the source, so
     a quoted 'if' is still the command.
-    With a pipe or an input redirection anywhere, every command must be from
-    DATA_COMMANDS, gh included, since any other may run what it reads.
-    Anything _commands cannot read makes this False.
+    A command fed by a pipe or an input redirection must also be from
+    DATA_COMMANDS, or a gh subcommand that takes no body (NO_TEXT_VERBS),
+    since any other may run or post what it reads. When that input may reach a group, every command
+    must be from DATA_COMMANDS, gh included (see _commands). Anything
+    _commands cannot read blocks.
     """
     read = _commands(command)
     if read is None:
-        return False
-    commands, feeds = read
-    for words in commands:
+        return NOT_ALLOWED
+    commands, grouped = read
+    for words, fed in commands:
         while words and words[0][1] in RESERVED:
             words = words[1:]
         if all(source in CLOSERS for _, source in words):
             continue
         names = [text.lstrip("=").rsplit("/", 1)[-1] for text, _ in words]
         source = " ".join(source for _, source in words)
-        if feeds or (GH_TEXT.search(source) and "gh" not in names):
+        if grouped and names[0] not in DATA_COMMANDS:
+            return GROUPED
+        if fed and names[0] not in DATA_COMMANDS:
+            plain = _words(source)
+            args = _gh_args(plain) if plain and plain[0] == ("gh", False) else []
+            if len(args) < 2 or args[1][0] not in NO_TEXT_VERBS.get(args[0][0], ()):
+                return _fed_blocker(names[0])
+        if GH_TEXT.search(source) and "gh" not in names:
             if names[0] not in DATA_COMMANDS:
-                return False
+                return NOT_ALLOWED
         elif "gh" in names:
             plain = _words(source)
             if not plain or plain[0] != ("gh", False):
-                return False
+                return NOT_ALLOWED
             if POST_WORDS.search(" ".join(text for text, _ in plain)) and _read_gh(plain, cwd):
-                return False
-    return True
+                return NOT_ALLOWED
+    return None
+
+
+def _posts_nothing(command, cwd):
+    """True when the shell provably runs no gh post in this command (see
+    _blocker)."""
+    return _blocker(command, cwd) is None
 
 
 def gh_bodies(command, cwd):
@@ -1308,16 +1373,15 @@ def gh_bodies(command, cwd):
     words = _words(command.strip())
     if words and words[0] == ("gh", False):
         return _read_gh(words, cwd)
-    return [] if _posts_nothing(command, cwd) else [("gh", NOT_ALLOWED)]
+    blocker = _blocker(command, cwd)
+    return [] if blocker is None else [("gh", blocker)]
 
 
 def _read_gh(words, cwd):
     """[(where, text or Unreadable)] for a gh command given as plain words,
     words[0] being gh: the bodies it posts, or NOT_ALLOWED when its shape is
     not one the hook reads."""
-    args = list(words[1:])
-    while args and (args[0][0] in ("-R", "--repo") or args[0][0].startswith(("--repo=", "-R"))):
-        args = args[2:] if args[0][0] in ("-R", "--repo") else args[1:]
+    args = _gh_args(words)
     if len(args) >= 2 and args[1][0] in NO_TEXT_VERBS.get(args[0][0], ()):
         return []
     if len(args) < 2 or args[1][0] not in GH_VERBS.get(args[0][0], {}):
