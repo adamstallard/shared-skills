@@ -2114,6 +2114,72 @@ class PostingHook(unittest.TestCase):
             with self.subTest(command):
                 self.assertEqual(self.hook(self.bash(command)).returncode, 2)
 
+    def test_a_pipe_matters_only_to_the_command_it_feeds(self):
+        # Issue #14: a gh read, a pipe and a quoted post verb used as data,
+        # in one command that posts nothing.
+        for command in (
+            'gh pr view 1\necho "review" | head -1',
+            'gh pr view 1\necho "comment" | head -1',
+            'gh pr view 1; echo "create" | head -1',
+            'gh pr view 1\necho "hello" | head -1',
+            'gh pr view 1\npython3 p.py --goals "review"',
+            'python3 p.py --goals "review" | head -1',
+            "gh pr view 156 --json body > body.md\n"
+            'python3 prose.py sign --goals "review PR #156; know where it stands" 2>&1'
+            " | grep -v '^$' | head -1",
+            "gh pr list --search 'review-requested:@me' | head -5",
+            "gh issue view 3 --comments |& grep -n 'gh pr create'",
+            "cat body.md | gh pr view 3",
+            "gh pr view 3 < /dev/null",
+            "gh issue edit 3 --add-label x; grep -c 'gh pr comment' < notes.md",
+            "gh pr view 3 > a.md\ncat <<'EOF' | tee b.md\ngh pr create\nEOF",
+            "gh pr checks 3 | grep fail |\n  head -3; gh issue edit 3 --add-label ci",
+        ):
+            with self.subTest(command):
+                result = self.hook(self.bash(command))
+                self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_a_command_fed_by_a_pipe_or_redirection_must_be_a_data_command(self):
+        (self.dir / "body.md").write_text(self.good)
+        for command in (
+            # gh fed text it could post.
+            "cat body.md | gh pr comment 1 --body-file -",
+            "cat body.md |& gh pr comment 1 -F -",
+            "gh pr view 1; cat body.md | gh pr comment 1 -F -",
+            "gh pr comment 1 -F - < body.md",
+            "gh pr comment 1 -F - <<< 'unsigned'",
+            "gh pr comment 1 -F - <<'EOF'\nunsigned\nEOF",
+            "cat <<'EOF' |\nunsigned\nEOF\ngh pr comment 1 -F -",
+            "echo x |\n\ngh pr comment 1 -F -",
+            "echo x | # c\ngh pr comment 1 -F -",
+            "echo x | time gh pr comment 1 -F -",
+            "echo x | ! gh pr comment 1 -F -",
+            "echo x | gh issue edit 1 --add-label y",
+            # A command that may run what it reads.
+            "gh pr view 1; echo 'gh pr comment 1 --body hi' | sh",
+            "gh pr view 1; echo 'gh pr comment 1 --body hi' | xargs -I{} sh -c {}",
+            "gh pr view 1; sh < comment.sh",
+            "gh pr view 1\nsh <<'EOF'\ngh pr comment 1 --body hi\nEOF",
+            "gh pr view 1; echo 'gh pr comment 1 --body hi' | cat $(sh)",
+            "gh pr view 1; echo 'gh pr comment 1 --body hi' | $(echo sh)",
+            # stdin that reaches a group, loop or subshell.
+            "gh pr view 1; echo 'gh pr comment 1 --body hi' | (sh)",
+            "gh pr view 1; echo 'gh pr comment 1 --body hi' | { sh; }",
+            "gh pr view 1; echo 'gh pr comment 1 --body hi' | while read l; do sh; done",
+            "gh pr view 1; { sh; cat; } < comment.txt",
+            "gh pr view 1; (sh; cat) < comment.txt",
+            "gh pr view 1; while read l; do sh; done < comment.txt",
+            "gh pr view 1; { sh; cat } < comment.txt",
+            "gh pr view 1; x=$(sh) <<< 'gh pr comment 1 --body hi'",
+        ):
+            with self.subTest(command):
+                self.assertEqual(self.hook(self.bash(command)).returncode, 2)
+
+    def test_the_block_names_the_command_a_pipe_feeds(self):
+        result = self.hook(self.bash("gh pr view 1; echo 'gh pr comment 1 --body hi' | sh"))
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("`sh` reads", result.stderr)
+
     def test_a_gh_read_command_naming_a_post_verb_passes_in_a_longer_command(self):
         for command in (
             "cd repo && gh pr list --search 'review-requested:@me'",
