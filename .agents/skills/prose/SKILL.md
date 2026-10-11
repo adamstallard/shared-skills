@@ -35,7 +35,38 @@ comments bloat too.
   commit message. Write the code first, then do the pass as one read of the
   finished text, then commit.
 - **Before posting** any pull request description or comment.
-- **On request**, over text you did not write.
+- **On request**, over text you did not write, as the next section says.
+
+## Revising existing text
+
+When someone asks you to improve, fix or tighten existing text with prose (a
+file's comments, a doc, a spec, a PR description), write every section of it
+again as its author. Don't choose which sections need work, by searching for
+patterns or by any test of your own: editing keeps the existing framing, and a
+sentence that sounds reasoned passes "is this wrong?" far more easily than
+"would a fresh draft be better?".
+
+For each section, such as a comment block, a doc section or a paragraph:
+
+1. **Draft it before you reread it,** from its reader's goals and from what it
+   describes. The goals are the reader table's row in rules.md unless you
+   have a reason to differ, which you state. For a comment, read the code it
+   sits on and write the draft for that code.
+2. **Compare the draft with the existing text,** and carry over every fact,
+   measurement, decision and warning the draft lacks. Comments often hold what
+   the code can't show: a measured value, a rejected alternative, a past
+   failure written as a warning.
+3. **Keep the existing text only where it serves its reader better than the
+   draft.** That judgement comes after the draft, never in place of it.
+
+Go through the text in order, each section with what it describes in view;
+never read comments without their code. Split a text too long for one pass
+into chunks, and give whoever takes a chunk, such as a subagent, this
+procedure and all the code the chunk's comments sit on.
+
+Then report how many sections you redrafted, kept and merged. `prose check`
+lists only the sections your change touches, so your count is the only record
+that you read the ones you kept.
 
 ## Two calls: the rules, then the signature
 
