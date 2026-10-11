@@ -249,11 +249,11 @@ words. Wording in the commit subject does not count.
 as `--trailer`, and git places them.** Each lands in the message's trailer block
 whatever the body looks like, and the `Co-Authored-By` given as the fourth
 argument lands in the same block, so the two cannot drift into separate
-paragraphs:
+paragraphs (`<base directory>` is this skill's, as
+[Minting the tree binding](#minting-the-tree-binding) says):
 
 ```bash
-BH=~/.agents/skills/bug-hunter/scripts/commit-with-trailer.sh
-[ -x "$BH" ] || BH=~/.claude/skills/bug-hunter/scripts/commit-with-trailer.sh
+BH="<base directory>/scripts/commit-with-trailer.sh"
 "$BH" -F msg.txt "1 iteration, 1 bug fixed" "Someone <someone@example.com>"
 ```
 
@@ -334,28 +334,29 @@ command:
 
 ```bash
 git add fix.py test_fix.py
-BH=~/.agents/skills/bug-hunter/scripts/commit-with-trailer.sh
-[ -x "$BH" ] || BH=~/.claude/skills/bug-hunter/scripts/commit-with-trailer.sh
+BH="<base directory>/scripts/commit-with-trailer.sh"
 "$BH" -F msg.txt "1 iteration, 1 bug fixed"
 ```
 
 Run by hand — to understand it, or to re-mint after a repository's own hooks
-have rewritten the index (see below), never as the commit path — the script is
-the same two-target lookup and its one line goes in as a second `--trailer`:
+have rewritten the index (see below), never as the commit path — the script
+sits beside it and its one line goes in as a second `--trailer`:
 
 ```bash
-MINT=~/.agents/skills/bug-hunter/scripts/mint-trailer.sh
-[ -x "$MINT" ] || MINT=~/.claude/skills/bug-hunter/scripts/mint-trailer.sh
+MINT="<base directory>/scripts/mint-trailer.sh"
 git commit -m "Handle empty input in the parser" -m "Body text here." \
   --trailer "Bug-hunter: 1 iteration, 1 bug fixed" --trailer "$("$MINT")"
 ```
 
-Either way the path is absolute because `scripts/` resolves relative to this
-skill's own directory, not to whatever project you are sitting in, and both
-install targets (`~/.agents/skills` and `~/.claude/skills`) are tried because a
-real install may populate only one. If neither exists, the skill was loaded from
-somewhere unusual — search for `bug-hunter/scripts/` under both directories
-before giving up.
+`<base directory>` is this skill's base directory: the directory that holds
+`SKILL.md`, which Claude Code names on the "Base directory for this skill:"
+line when it loads the skill. Write it out in full. The path is absolute
+because `scripts/` resolves relative to this skill's own directory, not to
+whatever project you are sitting in. It is the directory the skill was loaded
+from, not a home-directory install path, because the skill can be loaded from
+anywhere: a plugin directory, or a pinned copy on a server, where
+`~/.claude/skills` is missing or holds a different copy
+([DECISIONS.md](DECISIONS.md#scripts-are-found-from-the-skills-base-directory)).
 
 `git write-tree` runs with no `-C`, so it reads the *project's* index from
 wherever you already are — only the path to the script needs to be absolute,

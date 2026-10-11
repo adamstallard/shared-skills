@@ -9,6 +9,20 @@
 # Body left unindented on purpose: the strings below are multi-line report text,
 # and indenting them would indent what the user reads.
 commit_trailer_report() {
+# The commit script sits beside this file. $here is the directory
+# check-commit-trailer.sh resolved for itself before sourcing the library, so
+# the report names the copy that is running, wherever it was loaded from.
+# A path holding anything a shell would split or expand is single-quoted. The
+# Cursor channel turns every double quote and backslash into a space, so no
+# quoting of a single quote survives it: there such a path is printed as it
+# is, exact but not safe to paste.
+commit_script="${here:-.}/commit-with-trailer.sh"
+case "$commit_script" in
+  *\'*) [ "${HOST:-}" = cursor ] ||
+    commit_script="'$(printf '%s' "$commit_script" | sed "s/'/'\\\\''/g")'" ;;
+  *[!A-Za-z0-9_./+@%=:,-]*)
+    commit_script="'$commit_script'" ;;
+esac
 NOTE=""
 [ -n "$misplaced" ] && NOTE="
 There is a Bug-hunter: line in there, but git does not read it as a trailer. It
@@ -21,9 +35,8 @@ script takes the value as an argument and passes it as --trailer, so it lands
 in the trailer block whatever the body looks like. Write the message (subject,
 a blank line, body) to msg.txt, then:
 
-  ~/.agents/skills/bug-hunter/scripts/commit-with-trailer.sh -F msg.txt '1 iteration, 1 bug fixed'
+  $commit_script -F msg.txt '1 iteration, 1 bug fixed'
 
-(under ~/.claude/skills/bug-hunter/scripts/ if only that target is installed).
 The file keeps the message off the command line, so nothing in it needs
 quoting. A last argument is the Co-Authored-By value, placed the same way, so
 the two cannot drift into separate paragraphs; any value that is not a skip
@@ -69,8 +82,7 @@ $(printf '%s' "$unminted")
 
 A Bug-hunter: trailer that is not a skip note has to be paired with a
 Bug-hunter-Tree trailer bound to the tree that lands. This skill's commit
-script (scripts/commit-with-trailer.sh, under ~/.agents/skills/bug-hunter/scripts/
-or ~/.claude/skills/bug-hunter/scripts/) produces that as part of creating the
+script ($commit_script) produces that as part of creating the
 commit, by running scripts/mint-trailer.sh against what is staged at that
 moment. A trailer typed from memory can match the expected wording; it cannot
 produce this binding.
@@ -82,8 +94,8 @@ A trailer belongs in the last paragraph of the message, and a wrapped one must
 indent its continuation lines; passing --trailer lets git place it, which is
 that whole class of mistake gone. This skill's commit step is one command, not
 a hand-built git commit: commit-with-trailer.sh -F msg.txt <Bug-hunter value>
-[<Co-Authored-By value>], with the message in msg.txt, under
-~/.agents/skills/bug-hunter/scripts/ or ~/.claude/skills/bug-hunter/scripts/. Rewriting a commit that is already pushed
+[<Co-Authored-By value>], with the message in msg.txt, at
+$commit_script. Rewriting a commit that is already pushed
 rewrites published history — ask before doing that.
 
 To stop this check entirely:

@@ -551,8 +551,7 @@ first letter capital when inventing; reuse `git log` tokens as-is. Stage
 everything first, then, standing in the project:
 
 ```bash
-BH=~/.agents/skills/bug-hunter/scripts/commit-with-trailer.sh
-[ -x "$BH" ] || BH=~/.claude/skills/bug-hunter/scripts/commit-with-trailer.sh
+BH="<base directory>/scripts/commit-with-trailer.sh"
 "$BH" -F msg.txt "1 iteration, 1 bug fixed" "Claude Opus 5 (1M context) <noreply@anthropic.com>"
 ```
 
@@ -567,11 +566,16 @@ that instant and adds the `Bug-hunter-Tree` binding — the one line a hand-type
 commit cannot produce, and the one the hook checks. It runs the repository's
 pre-commit hook before minting, so a formatter there cannot change the tree
 after it is bound; if the hook fails, nothing is committed — review what it
-changed, stage what belongs, and run the script again. The path *to the script* is
-absolute because `scripts/` is relative to this directory, not to your project;
-the git it runs is not. Verify with `git log -1 --format='%(trailers:key=Bug-hunter)'`;
-while the commit is still local, `git commit --amend --no-edit --trailer "…"` is
-the repair. The mechanics the script wraps, and what the binding does and does
+changed, stage what belongs, and run the script again. Verify with
+`git log -1 --format='%(trailers:key=Bug-hunter)'`; while the commit is still
+local, `git commit --amend --no-edit --trailer "…"` is the repair.
+
+`<base directory>` is this skill's base directory: the directory that holds
+this SKILL.md, which Claude Code names on the "Base directory for this skill:"
+line above it. Write the path out in full, as that line gives it; don't swap in
+a home-directory install path, which may be missing or hold a different copy.
+The path *to the script* is absolute because `scripts/` is relative to this
+skill, not to your project; the git it runs is not. The mechanics the script wraps, and what the binding does and does
 not attest to: [reference.md](reference.md#committing),
 [DECISIONS.md](DECISIONS.md#the-commit-is-assembled-by-a-script-not-by-hand).
 
@@ -701,11 +705,12 @@ differently:
 3. **Run the result script last, after the final `git add`.** It mints the
    binding over what is staged and prints the whole block. Its arguments are
    the `Bug-hunter:` value — what the commit script's third argument would
-   have been — and the open decisions, one per line, without numbers:
+   have been — and the open decisions, one per line, without numbers. Its
+   path starts with this skill's base directory, written out in full as the
+   commit step says:
 
 ```bash
-BR=~/.agents/skills/bug-hunter/scripts/caller-result.sh
-[ -x "$BR" ] || BR=~/.claude/skills/bug-hunter/scripts/caller-result.sh
+BR="<base directory>/scripts/caller-result.sh"
 "$BR" "1 iteration, 1 bug fixed" --decisions - <<'EOF'
 refund state is rebuilt on every read — 1 fix it now · 2 write it down · 3 skip
 EOF
