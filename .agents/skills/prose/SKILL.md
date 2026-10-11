@@ -48,25 +48,34 @@ sentence that sounds reasoned passes "is this wrong?" far more easily than
 
 For each section, such as a comment block, a doc section or a paragraph:
 
-1. **Draft it before you reread it,** from its reader's goals and from what it
-   describes. The goals are the reader table's row in rules.md unless you
-   have a reason to differ, which you state. For a comment, read the code it
-   sits on and write the draft for that code.
+1. **Write a draft before you reread it,** from its reader's goals and from
+   what it describes. The goals are the reader table's row in rules.md unless
+   you have a reason to differ, which you state. For a comment, read the code
+   it sits on and write the draft for that code. Write the draft out, even for
+   a section you end up keeping: a draft held in your head can't be checked.
 2. **Compare the draft with the existing text,** and carry over every fact,
    measurement, decision and warning the draft lacks. Comments often hold what
    the code can't show: a measured value, a rejected alternative, a past
    failure written as a warning.
-3. **Keep the existing text only where it serves its reader better than the
-   draft.** That judgement comes after the draft, never in place of it.
+3. **Keep the existing text only where your draft converges on it:** the
+   draft, written without it, says the same things in essentially the same
+   way. Otherwise the draft goes in, or a merge of the two. When you can't
+   tell, the draft goes in.
+
+A section whose lines an open branch also changes is held: leave it as it is,
+and revise it after that branch merges. A held section is not kept; the reason
+for leaving it is the other branch, not its reader.
 
 Go through the text in order, each section with what it describes in view;
 never read comments without their code. Split a text too long for one pass
 into chunks, and give whoever takes a chunk, such as a subagent, this
 procedure and all the code the chunk's comments sit on.
 
-Then report how many sections you redrafted, kept and merged. `prose check`
-lists only the sections your change touches, so your count is the only record
-that you read the ones you kept.
+Then report how many sections you redrafted, merged, kept and held. Show each
+kept section's draft beside the original, so a reviewer can check that the two
+converge, and name the branch each held section waits for. `prose check` lists
+only the sections your change touches, so your report is the only record that
+you read the rest.
 
 ## Two calls: the rules, then the signature
 
