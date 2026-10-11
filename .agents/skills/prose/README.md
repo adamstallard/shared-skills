@@ -37,6 +37,9 @@ It runs without being asked. To run it on existing text:
 > Tighten this README
 > This PR description is too long — rewrite it for a reviewer
 
+The agent then drafts every section afresh, rather than choosing which to
+fix, and reports how many it redrafted, kept and merged.
+
 ## Each document is checked for its own reader
 
 A commit's reviewer is not the reader of the docs it changes. So before it

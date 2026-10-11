@@ -7,7 +7,9 @@
 
 ## Scope
 
-Rewrite only text you wrote or changed in this change: comments, docs, specs, the commit message, the PR description. Leave other text alone, even in files you touched. Rewriting it grows the diff the reviewer has to read. One exception: a phrase your change repeats that has no definition or reason anywhere is fixed at its source (step 4).
+Rewrite only text you wrote or changed in this change: comments, docs, specs, the commit message, the PR description. Leave other text alone, even in files you touched. Rewriting it grows the diff the reviewer has to read. Two exceptions:
+- **Text someone asked you to revise** is in scope, every section of it: draft each one fresh, as SKILL.md's *Revising existing text* says.
+- **A phrase your change repeats** that has no definition or reason anywhere is fixed at its source (step 4).
 
 ## The pass
 
@@ -173,3 +175,4 @@ Point to a source with a link or a clickable path (`file:line`), not a name the 
 - Hedging a claim a reviewer challenged, instead of cutting it.
 - Keeping context a reviewer needed in a document whose reader never will.
 - Repeating a phrase that sounds like a reason in place of the reason.
+- Asked to revise a text, picking which sections to redo instead of drafting each one fresh.

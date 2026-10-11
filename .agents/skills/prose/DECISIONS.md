@@ -192,6 +192,73 @@ catchphrase.
 
 ---
 
+## A revision request is drafted fresh, section by section
+
+**Decision (Adam, 2026-10-10).** When someone asks for existing text to be
+improved or fixed with prose, the agent drafts every section of it again
+before rereading it, then carries over what the old text held that the draft
+lacks, and keeps the old text only where it serves the reader better. SKILL.md's
+*Revising existing text* gives the procedure; rules.md's *Scope* names the
+requested text as in scope, and the cheat list names picking sections to redo.
+In Adam's words: "treat each section of prose as if you're writing it from
+scratch, rather than deciding which sections to fix and which to skip."
+
+**Why.** Asked to "use prose to improve the comments in src/execute.ts" in
+Igor (2163 lines, 743 of them comments), an agent grepped for history words,
+catchphrases and line-number references, skimmed comment blocks printed
+without their code, and judged each by its own test ("does it give a reason or
+record a measurement?") under its own reader goals instead of the table's. It
+changed 5 comments and reported the file in good shape. Among those it left was
+this one, which fails rule 3 (read once) and rule 5 (shorthand coined during
+the work):
+
+```
+// The three clauses of the requirement, and they are not one comparison: a deletion is
+// undone by the path being there at all, whatever it holds. Asking for the merge base's
+// own content there would catch only the deletion nobody meant to drop, and never the
+// delete/modify conflict a worker resolves by keeping the file — which is the shape the
+// conflict instructions hand it.
+```
+
+Drafted from the code, it reads:
+
+```
+// The base's change is undone in a different way for each kind of change:
+// - the base deleted the path: undone if anything publishes there, whatever it holds;
+// - the base added it: undone if nothing publishes there;
+// - the base rewrote it: undone if what publishes is exactly the merge base's content.
+// Don't compare a deletion against the merge base's content as well. A worker that resolves
+// a delete/modify conflict by keeping its own edited file, which the conflict prompt
+// invites, publishes content that matches nothing, and the deletion would be undone silently.
+```
+
+Three things let it through:
+- **Editing anchors on the existing framing.** A sentence that sounds reasoned
+  survives "is this wrong?", a higher bar than "would a fresh draft be
+  better?". Drafting first asks the second question of every section.
+- **A bulk retrofit invites triage by proxy.** Searching for patterns and
+  reading comments without their code is quick, and misses whatever the search
+  didn't name. The procedure says to read each comment with its code, and to
+  give a subagent taking a chunk all of that chunk's code.
+- **`prose check` lists only what the change touches.** A section the agent
+  chose not to edit is never in the listing, and the token proves the rules
+  were printed, not that untouched text was read. So the agent reports how many
+  sections it redrafted, kept and merged.
+
+**Carried over, not replaced.** A fresh draft from the code alone loses what
+the code can't show: measurements, rejected alternatives, past failures written
+as warnings. Step 2 compares against the old text for exactly those.
+
+**Deferred: listing a whole file in `prose check`.** A `--revise <path>` that
+lists every section of a file and marks those the change touches would make the
+untouched ones visible. Not built with this: printing every comment without its
+code is the reading that failed, and a listing proves printing, not reading.
+[Issue #16](https://github.com/adamstallard/shared-skills/issues/16) holds the
+design. *Build it if* agents follow the procedure and still report a file
+done with sections unread.
+
+---
+
 ## Scope: anything a human reviews
 
 READMEs and other docs, code comments, architecture docs, specs, commit
