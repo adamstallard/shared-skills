@@ -197,9 +197,10 @@ catchphrase.
 **Decision (Adam, 2026-10-10).** When someone asks for existing text to be
 improved or fixed with prose, the agent drafts every section of it again
 before rereading it, then carries over what the old text held that the draft
-lacks, and keeps the old text only where it serves the reader better. SKILL.md's
-*Revising existing text* gives the procedure; rules.md's *Scope* names the
-requested text as in scope, and the cheat list names picking sections to redo.
+lacks, and keeps the old text only where the draft converges on it (*Kept
+only where the draft converges*, below). SKILL.md's *Revising existing text*
+gives the procedure; rules.md's *Scope* names the requested text as in scope,
+and the cheat list names picking sections to redo.
 In Adam's words: "treat each section of prose as if you're writing it from
 scratch, rather than deciding which sections to fix and which to skip."
 
@@ -243,7 +244,7 @@ Three things let it through:
 - **`prose check` lists only what the change touches.** A section the agent
   chose not to edit is never in the listing, and the token proves the rules
   were printed, not that untouched text was read. So the agent reports how many
-  sections it redrafted, kept and merged.
+  sections it redrafted, merged, kept and held.
 
 **Carried over, not replaced.** A fresh draft from the code alone loses what
 the code can't show: measurements, rejected alternatives, past failures written
@@ -256,6 +257,75 @@ code is the reading that failed, and a listing proves printing, not reading.
 [Issue #16](https://github.com/adamstallard/shared-skills/issues/16) holds the
 design. *Build it if* agents follow the procedure and still report a file
 done with sections unread.
+
+### Kept only where the draft converges (Adam, 2026-10-10)
+
+**Decision.** The agent writes out a draft of every section, and keeps the
+original only where that draft, written without it, says the same things in
+essentially the same way. Otherwise the draft goes in, or a merge of the two;
+a tie goes to the draft. So "kept" records that the draft rediscovered the
+original, not a judgement that the original is better. The report shows each
+kept section's draft beside the original, so a reviewer can check that the two
+converge. A section whose lines an open branch also changes is *held*: left
+as it is, reported with the branch named, and revised after that branch
+merges. The report counts sections redrafted, merged, kept and held.
+
+**Why.** The first version of step 3 kept the old text "only where it serves
+its reader better than the draft". Used on Igor's `src/execute.ts` (217
+comment blocks, 90 kept) and `src/worktree.ts` (57 blocks, 40 kept), it let
+through a poor block that Adam found within minutes. Three things went wrong:
+- **Nothing forced the draft to exist.** For most kept blocks the agent formed
+  a draft in its head, found the original acceptable, and kept it: the "is
+  this wrong?" test with a step in front of it. A draft never written can't be
+  checked.
+- **The original won every tie.** "Better than the draft" put the burden on
+  the draft, and the two seemed equal more often than they were, because the
+  agent read the original with the code's context already in mind.
+- **The judge was the drafter, who also bears the cost of churn:** a bigger
+  diff, merge conflicts. Those are reasons about the diff, not the reader, and
+  "keep if better" let them pass as judgements about the reader. Holding a
+  section gives them a name of their own.
+
+The block Adam found, kept as "accurate and dense":
+
+```
+  /**
+   * What `broughtIn` changed since it and `head` last agreed, and what `head` holds for each of
+   * those paths — the three blobs a revert is read off.
+   *
+   * Two `--raw` diffs off the merge base rather than a lookup per path: `--raw` names both
+   * blobs of every changed path in one pass, and head's side of a path the base changed is
+   * either in head's own diff or unchanged since the merge base, which is `before`. That also
+   * keeps names as the bytes git wrote — a lookup would have to pass each one back through
+   * `argv`, where a name that is not text cannot go.
+   */
+```
+
+The draft that should have replaced it, which names the branch, the three
+blobs and what compares them, where the original leaves the reader to work
+them out:
+
+```
+  /**
+   * For each path the base branch (`broughtIn`) changed since the merge base, the three blobs
+   * `undone()` compares: the merge base's (`before`), the base's (`after`) and head's (`head`).
+   *
+   * Computed from two `git diff --raw` runs off the merge base, one to `broughtIn` and one to
+   * `head`, rather than one lookup per path. `--raw` gives both blob names of every changed path
+   * in one pass. Head's blob for a path is in head's own diff if head changed it, and otherwise
+   * is still the merge base's, `before`. The diffs also keep each name as the bytes git wrote; a
+   * lookup per path would pass each name back through `argv`, where a name that is not valid
+   * text cannot go.
+   */
+```
+
+**Rejected:**
+- **Always replacing the original.** Where the draft converges, replacing it
+  grows the diff for nothing, and a draft is sometimes worse.
+- **A blind comparison by a second agent** that is not told which text is the
+  original. It removes the bias, but doubles the cost of every revision.
+- **Keeping the original where the agent can name a rule the draft breaks.**
+  That is still a judgement, and the original wins it easily.
 
 ---
 

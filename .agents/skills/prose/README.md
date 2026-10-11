@@ -38,7 +38,9 @@ It runs without being asked. To run it on existing text:
 > This PR description is too long — rewrite it for a reviewer
 
 The agent then drafts every section afresh, rather than choosing which to
-fix, and reports how many it redrafted, kept and merged.
+fix, and keeps an original section only where its draft says the same thing.
+It reports how many sections it redrafted, merged, kept and held back for an
+open branch.
 
 ## Each document is checked for its own reader
 
