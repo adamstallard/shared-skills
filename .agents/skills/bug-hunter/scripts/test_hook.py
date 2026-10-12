@@ -16,6 +16,7 @@ import json
 import os
 import pathlib
 import re
+import shlex
 import shutil
 import subprocess
 import tempfile
@@ -1707,17 +1708,60 @@ class CommitTrailerTests(unittest.TestCase):
         self.assertIn("commit-with-trailer.sh", stderr)
         self.assertNotIn("git commit -m", stderr)
 
-    def test_every_report_names_the_commit_script_under_both_install_targets(self):
+    def test_every_report_names_the_commit_script_beside_the_hook(self):
         # A commit with no trailer at all is the other way to arrive here, and
-        # the closing guidance is the one paragraph every report carries. Both
-        # install targets are named because a real install may populate only
-        # one (../DECISIONS.md, the two-target fallback entry).
+        # the closing guidance is the one paragraph every report carries. It
+        # names the commit script in the running hook's own directory, not a
+        # home-directory install path, which may be missing or a different
+        # copy (../DECISIONS.md#scripts-are-found-from-the-skills-base-directory).
         self.settle()
         self.commit("FEAT: x", filename="g.txt")
         stderr = self.run_hook("--host", "claude").stderr
-        self.assertIn("commit-with-trailer.sh", stderr)
-        self.assertIn("~/.agents/skills/bug-hunter/scripts/", stderr)
-        self.assertIn("~/.claude/skills/bug-hunter/scripts/", stderr)
+        self.assertIn(f"at\n{WRAPPER}. ", stderr)
+        self.assertNotIn("skills/bug-hunter/scripts/", stderr.replace(str(HOOK.parent), ""))
+
+    def test_a_hook_loaded_from_a_path_with_a_space_names_its_script_quoted(self):
+        # The report's commit command has to survive being pasted into a
+        # shell, from either channel, wherever the skill was loaded from.
+        root = pathlib.Path(tempfile.mkdtemp(prefix="bug hunter "))
+        self.addCleanup(shutil.rmtree, root, True)
+        clone = HOOK.parents[4]
+        scripts = root / ".agents" / "skills" / "bug-hunter" / "scripts"
+        shutil.copytree(HOOK.parent, scripts)
+        shutil.copytree(clone / ".agents" / "lib", root / ".agents" / "lib")
+        payload = json.dumps({"cwd": str(self.repo), "tool_name": "Bash"})
+        self.settle()
+        for host in ("claude", "cursor"):
+            self.commit(f"FEAT: {host}", filename=f"{host}.txt")
+            result = subprocess.run(
+                ["sh", str(scripts / "check-commit-trailer.sh"), "--host", host],
+                input=payload, capture_output=True, text=True, cwd=self.repo)
+            text = result.stderr if host == "claude" else json.loads(result.stdout)["additional_context"]
+            self.assertIn(f"'{scripts.resolve()}/commit-with-trailer.sh'", text)
+
+    def test_a_hook_loaded_from_a_path_with_an_apostrophe_names_its_script_exactly(self):
+        # Cursor's channel turns every backslash into a space, so the usual
+        # '\'' escape arrives as ' '', which a shell cannot parse.
+        # On either channel the reader must get the script's exact path back.
+        root = pathlib.Path(tempfile.mkdtemp(prefix="o'brien "))
+        self.addCleanup(shutil.rmtree, root, True)
+        clone = HOOK.parents[4]
+        scripts = root / ".agents" / "skills" / "bug-hunter" / "scripts"
+        shutil.copytree(HOOK.parent, scripts)
+        shutil.copytree(clone / ".agents" / "lib", root / ".agents" / "lib")
+        path = f"{scripts.resolve()}/commit-with-trailer.sh"
+        payload = json.dumps({"cwd": str(self.repo), "tool_name": "Bash"})
+        self.settle()
+        for host in ("claude", "cursor"):
+            with self.subTest(host=host):
+                self.commit(f"FEAT: {host}", filename=f"{host}.txt")
+                result = subprocess.run(
+                    ["sh", str(scripts / "check-commit-trailer.sh"), "--host", host],
+                    input=payload, capture_output=True, text=True, cwd=self.repo)
+                text = result.stderr if host == "claude" else json.loads(result.stdout)["additional_context"]
+                segment = text.split("msg.txt, at", 1)[1].split(". Rewriting", 1)[0].strip()
+                if path not in segment:
+                    self.assertEqual(shlex.split(segment), [path])
 
 
 

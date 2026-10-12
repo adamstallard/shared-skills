@@ -18,8 +18,13 @@ identity's App ID and private key and mints installation tokens from them,
 which last an hour, whenever one is needed. Nobody renews anything.
 
 ```bash
-G=~/.agents/skills/github-app/scripts/github_app.py   # or ~/.claude/skills/...
+G="<base directory>/scripts/github_app.py"
 ```
+
+`<base directory>` is this skill's base directory: the directory that holds
+this SKILL.md, which Claude Code names on the "Base directory for this skill:"
+line above it. Write the path out in full; a home-directory install path may be
+missing or hold a different copy.
 
 ## Which identity
 

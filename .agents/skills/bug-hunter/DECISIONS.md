@@ -539,35 +539,49 @@ where getting one wrong produces a wrong artifact. Procedure — how to drive a
 test red, how to shape a report — stays in `reference.md`. Inlining that class
 too is how `SKILL.md` becomes the document nobody finishes.
 
-## The mint script is located with a two-target fallback, not one hardcoded path
+## Scripts are found from the skill's base directory
 
-**Decision.** Every instruction that names `mint-trailer.sh` tries
-`~/.agents/skills/bug-hunter/scripts/mint-trailer.sh` first and falls back to
-`~/.claude/skills/bug-hunter/scripts/mint-trailer.sh` — a two-line
-`MINT=...; [ -x "$MINT" ] || MINT=...` in both code examples, and both paths
-named in the prose mention.
+**Decision.** Every instruction that names one of this skill's scripts builds
+its path from the skill's base directory: the directory holding `SKILL.md`,
+which Claude Code prints on a "Base directory for this skill:" line ahead of
+the skill's text. The agent writes that path out in full.
 
-**Why.** Adam watched agents struggle to find the script at the commit step.
-The docs hardcoded the `~/.agents/skills` path alone, but `manage-skills`
-installs every skill into two independent targets (`~/.agents/skills` for
-cross-tool agents, `~/.claude/skills` for Claude Code) and its own docs warn
-that a real install can populate only one — its examples hedge every path with
-an explicit `# or` between the two for exactly this reason. An agent whose
-install only populated `~/.claude/skills/bug-hunter` was sent to a path that
-does not exist, with no fallback, and had to guess. Both targets symlink the
-whole skill directory, so the script sits at the same relative location under
-each — the fallback is safe by construction.
+**Why.** The skill is not always loaded from a home directory. Igor loads its
+workers' skills from a pinned directory with `claude -p --bare --plugin-dir`,
+where `~/.agents/skills` and `~/.claude/skills` are missing, or hold a
+different, unpinned copy that would run in place of the pinned one. A
+permission granted by path into the pinned directory also denies a command
+that names a home-directory path. The base-directory line names the directory
+the skill was actually loaded from, in every case measured (Claude Code
+2.1.296, 2026-10-11):
 
-**Rejected.** Searching the filesystem as the primary instruction — the two
-documented targets cover every install `manage-skills` produces, and a search
-is slower and vaguer than two known paths. A one-line "if neither exists,
-search under both" escape hatch stays in `reference.md` for installs made by
-some other mechanism.
+- installed in `~/.claude/skills` as a link into the clone: the line gave the
+  link, `~/.claude/skills/prose`, not the clone;
+- loaded with `--plugin-dir` from a plugin whose `skills/<name>` is a link: the
+  line gave `<plugin>/skills/<name>`, the link again. The skill's name gained
+  the plugin's prefix (`<plugin>:<name>`).
 
-**Where this stops applying.** This is only about *locating* the script. The
+The scripts resolve anything further, such as the shared library, from their
+own resolved location, so a path through a link works.
+
+**Rejected.**
+- Home-directory paths, tried in turn (`~/.agents/skills/...`, then
+  `~/.claude/skills/...` when the first is not executable). They cover the
+  installs `manage-skills` makes and nothing else, and on a server they can
+  silently pick the wrong copy.
+- `${CLAUDE_SKILL_DIR}` in `SKILL.md`. Claude Code replaces it with the same
+  path, but only in the text of the skill it loads: an agent that reads the
+  skills another way, and `reference.md` read with a file tool, would see the
+  placeholder itself.
+- Searching the filesystem for `bug-hunter/scripts/`. It is slower and vaguer
+  than a path the agent has already been given.
+
+**Where this stops applying.** This is only about *locating* the scripts. The
 minting mechanism — `git write-tree` over the staged index, run after the last
 `git add`, output passed as `--trailer` — is unchanged, and so is the rule that
-only the path to the script is absolute, never the git command it runs.
+only the path to the script is absolute, never the git command it runs. The
+hook is wired by `manage-skills` with the script's resolved path, and its
+report names the commit script by the hook's own location.
 
 ## The commit is assembled by a script, not by hand
 
@@ -596,18 +610,19 @@ A script removes the assembly. The trailer value is an argument, and the only
 way to supply it is the right way; the skip-or-mint decision is read off that
 value rather than remembered; the `Co-Authored-By` — the footer that actually
 pushes a hand-written trailer out of the block — is an argument too; and the
-two-target lookup happens once, for the wrapper, because it finds
+script's path is worked out once, for the wrapper, because it finds
 `mint-trailer.sh` next to itself. What is left to get wrong is the one thing
-that was never the problem: which path the skill is installed at.
+that was never the problem: where the skill is.
 
 The hook names the script for a different reason. Its report is the one text an
 agent provably reads at the moment of failure — every one of the repaired
 commits was repaired because the report said so — and its own example was a
 hand-built `git commit -m … --trailer …`. An agent acting on the report re-did
 the assembly step, by hand, that had just gone wrong. Naming the script there
-stays inside *The report states facts and stops*: a placeholder call with a path
-under `~` is context-free in exactly the way the old example was, and the text
-describes how this skill commits, not what to do with the named sha.
+stays inside *The report states facts and stops*: a placeholder call naming
+the script's own path is context-free in exactly the way the old example was,
+and the text describes how this skill commits, not what to do with the named
+sha.
 
 **Rejected.**
 - Stronger prose, or a third example. Two bold statements and two examples had
@@ -621,8 +636,8 @@ describes how this skill commits, not what to do with the named sha.
   it was removed — the hook cannot see the reader's HEAD — is unchanged.
 - Keeping the hand-typed `git commit … --trailer` form in `SKILL.md` beside
   the script "for when the script is not installed". A second documented way
-  is the one that gets used under pressure, and both install targets carry
-  the script whenever they carry the skill.
+  is the one that gets used under pressure, and wherever the skill is, its
+  `scripts/` directory carries the script.
 
 **Found by running this skill over the script before it landed.** Four
 reproduced, one refuted; each is a rule the script now enforces rather than a

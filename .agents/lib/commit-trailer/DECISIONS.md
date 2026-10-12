@@ -311,6 +311,19 @@ throws away the shas and subjects, which are the entire actionable content.
 
 ---
 
+## Known gap: Cursor's JSON loses double quotes and backslashes
+
+**Decision (Adam, 2026-10-11): no fix.** Text bound for Cursor is made safe
+for its JSON by replacing every `"` and `\` with a space, not by escaping
+them. This happens in the library's delivery and config-error paths, which
+also replace control characters, and in each wrapper's missing-library
+message. So a
+report holding either character reaches Cursor altered. bug-hunter's report
+names its commit script by path: on Cursor, a path holding an apostrophe is
+printed unquoted, because any quoting of it needs a `\` or a `"`.
+
+---
+
 ## The report states facts and stops
 
 **Decision.** It names which commits lack a trailer and which repository they are
@@ -1051,7 +1064,11 @@ without breaking the first one's binding (*One commit, several families*).
 **Installed** is what the `manage-skills` skill's `list` reports, not a
 judgement and not a path check a skill repeats: `manage-skills` owns where
 skills are installed, so a skill that asks it stays right when it adds a
-platform. (Adam, 2026-10-01.)
+platform. (Adam, 2026-10-01.) In an Igor worker, `list` reports the home
+directories, which are empty there, not the pinned plugin the skills were
+loaded from. That is left as it is, because Igor's commit steps use caller
+commits, where this check does not run (Adam, 2026-10-11); revisit it when a
+worker commits itself.
 
 **Rejected.**
 - The glue in the `commit` skill. Adam does not use it, and an agent reaches

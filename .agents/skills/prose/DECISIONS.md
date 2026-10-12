@@ -1362,6 +1362,39 @@ already made:
 
 ---
 
+## Scripts are found from the skill's base directory
+
+**Decision.** `SKILL.md` defines `S` as the `scripts/` directory in the
+skill's base directory: the directory holding `SKILL.md`, which Claude Code
+names on a "Base directory for this skill:" line ahead of the skill's text.
+bug-hunter's minter is found the same way, in the `bug-hunter` directory
+beside it. The commands `prose.py` prints for the next call name the path it
+was run by, with any link kept; it still finds `rules.md` and the shared
+library from its resolved location.
+
+**Why.** The skill is not always loaded from a home directory. Igor loads its
+workers' skills from a pinned directory with `claude -p --bare --plugin-dir`,
+where `~/.agents/skills` and `~/.claude/skills` are missing, or hold a
+different copy that would run in place of the pinned one. Igor also grants its
+workers `python3 <pinned>/prose/scripts/prose.py check` by path, so a command
+naming any other path is denied, including the clone that `<pinned>/prose`
+links to. Measured with Claude Code 2.1.296 on 2026-10-11, the base-directory
+line names the link, not what it resolves to: `~/.claude/skills/prose` for a
+home install, and `<plugin>/skills/prose` for a plugin whose `skills/prose` is
+a link.
+
+**Rejected.**
+- Home-directory paths (`~/.agents/skills/prose/scripts`, else
+  `~/.claude/skills/prose/scripts`). They cover the installs `manage-skills`
+  makes and nothing else.
+- `${CLAUDE_SKILL_DIR}`, which Claude Code replaces with the same path, but
+  only in the text of a skill it loads. Another agent reading `SKILL.md`, or
+  a file read with a file tool, shows the placeholder itself.
+- Printing the resolved path. It is the clone's, which a by-path grant on the
+  pinned directory denies.
+
+---
+
 ## Considered: git's own commands for message parsing
 
 **Decision (Adam, 2026-09-29): keep prose's own message parsing.** It is exact

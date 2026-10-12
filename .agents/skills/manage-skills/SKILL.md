@@ -29,15 +29,18 @@ each target separately for exactly this reason.
 ## Locate the script
 
 ```bash
-SK=~/.agents/skills/manage-skills/scripts/skills.py     # or
-SK=~/.claude/skills/manage-skills/scripts/skills.py
+SK="<base directory>/scripts/skills.py"
 ```
 
-Either copy works and both do the same thing — they're copies of the same
-script, and each one installs into every target. If neither path exists, this
-skill was loaded from a clone instead — use
-`<clone>/.agents/skills/manage-skills/scripts/skills.py` and suggest running
-`bootstrap` (see below).
+`<base directory>` is this skill's base directory: the directory that holds
+this SKILL.md, which Claude Code names on the "Base directory for this skill:"
+line above it. Write the path out in full; a home-directory install path may be
+missing or hold a different copy.
+
+Every copy of this skill does the same thing, and each one installs into every
+target. If the base directory is inside a clone
+(`<clone>/.agents/skills/manage-skills`), this skill isn't installed yet:
+suggest running `bootstrap` (see below).
 
 ## Commands
 

@@ -17,8 +17,13 @@ short-lived tokens from it whenever one is needed, so tokens never have to be
 renewed by hand.
 
 ```bash
-L=~/.agents/skills/linear-app/scripts/linear_app.py   # or ~/.claude/skills/...
+L="<base directory>/scripts/linear_app.py"
 ```
+
+`<base directory>` is this skill's base directory: the directory that holds
+this SKILL.md, which Claude Code names on the "Base directory for this skill:"
+line above it. Write the path out in full; a home-directory install path may be
+missing or hold a different copy.
 
 The issue work itself (searching, creating and updating issues, comments)
 goes through Linear's own MCP server. This skill only gives that server an

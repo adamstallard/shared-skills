@@ -85,8 +85,11 @@ then the second call takes the token and signs. A token signs one text, once,
 within 2 hours, and only of the kind that issued it: `check` for a commit,
 `sign` for a post.
 
-`S` below is this skill's `scripts/` directory: `~/.agents/skills/prose/scripts`,
-or `~/.claude/skills/prose/scripts` if only that one is installed.
+`S` below is the `scripts/` directory in this skill's base directory: the
+directory that holds this SKILL.md, which Claude Code names on the "Base
+directory for this skill:" line above it. Write the path out in full, as that
+line gives it; don't swap in a home-directory install path, which may be
+missing or hold a different copy.
 
 **Before a session's first file edit or post,** put the rules in front of you:
 
@@ -215,10 +218,12 @@ too ([the rule](../../lib/commit-trailer/DECISIONS.md#every-installed-skills-tra
 While bug-hunter is running, its commit step runs the two calls above and
 passes the `Prose:` value to its script: let it commit, once, with both
 trailers. When you commit yourself, pass both in one command; bug-hunter's
-uses `--minted-by` with its own minter:
+uses `--minted-by` with its own minter. `B` below is bug-hunter's directory,
+beside this skill's: the base directory with its last part, `prose`, replaced
+by `bug-hunter`.
 
 ```sh
-$C --minted-by ~/.agents/skills/bug-hunter/scripts/mint-trailer.sh Bug-hunter "1 iteration, 1 bug fixed" \
+$C --minted-by $B/scripts/mint-trailer.sh Bug-hunter "1 iteration, 1 bug fixed" \
    --verified-value $S/verify-staged.sh Prose "✓ 4d593e935186:9138830a72a2" \
    --co-authored-by "<co-author>" --message-file msg.txt --
 ```

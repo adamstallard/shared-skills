@@ -2740,6 +2740,25 @@ class PassToken(unittest.TestCase):
         self.assertEqual(sorted(p.name for p in (state / "prose" / "sessions").iterdir()),
                          ["from-env", "from-flag"])
 
+    def test_the_next_commands_name_the_path_prose_was_run_by(self):
+        # A skill loaded through a link, such as a pinned plugin directory,
+        # is run by the link's path; a caller granted that path by permission
+        # is denied the clone's. So the printed commands keep the link.
+        root = pathlib.Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, root, True)
+        link = root / "pinned" / "skills" / "prose"
+        link.parent.mkdir(parents=True)
+        link.symlink_to(HERE.parent)
+        env = dict(os.environ, XDG_STATE_HOME=str(root / "state"))
+        script = link / "scripts" / "prose.py"
+        started = run([sys.executable, str(script), "start", "--goals", "g"], cwd=self.repo.path, env=env)
+        self.assertIn(f"python3 {script} check", started.stdout + started.stderr)
+        self.repo.write("a.py", "x = 1\n")
+        first = run([sys.executable, str(script), "check", "-F", "-", "--goals", "g",
+                     "--goals-for", "README.md", "g"], cwd=self.repo.path, env=env, stdin="Title\n")
+        self.assertIn(f"python3 {script} check -F", first.stdout + first.stderr)
+        self.assertNotIn(str(SCRIPT), first.stdout + first.stderr)
+
 
 class Gate(unittest.TestCase):
     """The hook that blocks a session's first file write or post until a first call ran."""

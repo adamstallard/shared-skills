@@ -42,6 +42,11 @@ import time
 from typing import Callable, NamedTuple, Optional
 
 HERE = pathlib.Path(__file__).resolve().parent
+# The path this file was run by, with any link in it kept. The commands prose
+# prints for its caller to run next name this, not HERE: a caller granted
+# permission by path, or told where the skill is, needs the same path back,
+# not the clone a link resolves to.
+INVOKED = pathlib.Path(os.path.abspath(__file__)).parent / "prose.py"
 # How text is decoded from bytes and encoded back for hashing.
 TEXT_ERRORS = "surrogateescape"
 RULES = HERE.parent / "rules.md"
@@ -1478,8 +1483,8 @@ def hook_post(raw, host):
         + "".join(f"  - {p}\n" for p in problems)
         + "Run the first call, which prints the rules and a pass token; do the prose pass "
         "over the text; then sign exactly the final text and post what it prints, unedited:\n"
-        f"  python3 {HERE / 'prose.py'} sign --goals '<reader goals>'\n"
-        f"  python3 {HERE / 'prose.py'} sign --pass <token> < body.md > signed.md\n"
+        f"  {_prose_command()} sign --goals '<reader goals>'\n"
+        f"  {_prose_command()} sign --pass <token> < body.md > signed.md\n"
     )
     if host == "cursor":
         flat = message.replace("\n", " ").strip()
@@ -1656,7 +1661,7 @@ def print_pass(token, next_commands, stream=None):
 
 
 def _prose_command():
-    return f"python3 {shlex.quote(str(HERE / 'prose.py'))}"
+    return f"python3 {shlex.quote(str(INVOKED))}"
 
 
 def next_check(token, message_file, amend, repo):
