@@ -597,7 +597,9 @@ a blank line, body) to `msg.txt`, unstaged, and:
    naming its own reader's goals; prose's SKILL.md says how.
 2. Rewrite the listed comments, docs and message by those rules; restage.
 3. Run the second call, which prints the `Prose:` trailer:
-   `python3 "$S/prose.py" check -F msg.txt --pass <token>`
+   `python3 "$S/prose.py" check -F msg.txt --pass <token>`.
+   If it exits 5, it printed a cold-read brief instead: follow prose's
+   SKILL.md, *The cold read*, then run it again with `--cold-read <report>`.
 4. Commit once, passing the text after `Prose: ` as a family before `--`:
 
 ```bash

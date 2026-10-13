@@ -13,11 +13,15 @@ Both calls of `check` run the repository's pre-commit hook first, if it has one.
         reader goals, and prints the rules and a token. --goals is the
         message's reader's; every changed doc or spec needs goals of its own.
     prose.py check -F <message file, or - for stdin> --pass <token> [--amend]
+            [--cold-read <report>]
         Second call. Prints the Prose: trailer. --amend: before `git commit --amend`.
+        When a listed text has 3 or more lines and no --cold-read is given, it
+        prints a cold-read brief instead, signs nothing and exits 5.
     prose.py sign --goals <goals>
         Before posting, first call. Prints the rules and a token; reads no stdin.
-    prose.py sign --pass <token> < text > signed
-        Second call. Prints stdin's text with a signed footer.
+    prose.py sign --pass <token> [--cold-read <report>] < text > signed
+        Second call. Prints stdin's text with a signed footer, or, as check
+        does, a cold-read brief on stderr, exiting 5.
     prose.py verify-staged <trailer line>     stdin: the message (the commit script's verifier)
     prose.py verify-commit <sha>              after a commit (the commit hook)
     prose.py verify-post                      stdin: posted text
@@ -358,13 +362,76 @@ def _changed_docs(root, base):
     return found
 
 
+def _without_line_diff(root, base):
+    """The paths whose staged change git shows no line diff for: its
+    `--numstat` gives "-" for their counts, as for UTF-16 or a -diff file.
+    Either side being binary is enough, so a binary doc made a symlink is
+    here too; the caller measures the staged text before reading it whole."""
+    raw = git(["diff", "--cached", "--numstat", "-z", "-M", "--no-relative", "--no-color",
+               base], root)
+    fields, found, index = raw.split("\0"), set(), 0
+    while index < len(fields) and fields[index]:
+        added, _, rest = fields[index].split("\t", 2)
+        if rest:
+            path, index = rest, index + 1
+        else:
+            # A rename: the counts end in a tab, then the old and new paths.
+            path, index = fields[index + 2], index + 3
+        if added == "-":
+            found.add(path)
+    return found
+
+
+def _lines_with_text(path, read):
+    """How many lines of path's staged text hold text; 0 when it cannot be
+    read. UTF-16 is decoded by its byte order mark. NULs and byte order
+    marks are not text: they are what UTF-16 or UTF-32 read any other way
+    leaves on every line."""
+    try:
+        text = read(path)
+    except (OSError, Refused, UnicodeDecodeError):
+        return 0
+    data = text.encode("utf-8", TEXT_ERRORS)
+    if data[:2] in (b"\xff\xfe", b"\xfe\xff"):
+        text = data.decode("utf-16", errors="replace")
+    return len(_nonblank(text.replace("\x00", "").replace("\ufeff", "")))
+
+
 class Item(NamedTuple):
     """One listed piece of prose: what the listing shows, its note, and the
-    file it is in, which is None for the commit message."""
+    file it is in, which is None for the commit message. spans are its
+    (first, last) line pairs: each comment block, or each run of a doc's
+    added lines that hold text. words counts each comment block's lines that
+    hold text once its comment syntax is removed. whole marks a doc git
+    shows no line diff for, such as UTF-16 or one marked -diff."""
     what: str
     note: str
     path: Optional[str]
     deleted: bool = False
+    spans: tuple = ()
+    words: tuple = ()
+    whole: bool = False
+
+
+def _runs(numbers):
+    """Sorted line numbers as (first, last) pairs of consecutive runs."""
+    runs = []
+    for number in sorted(numbers):
+        if runs and number == runs[-1][1] + 1:
+            runs[-1] = (runs[-1][0], number)
+        else:
+            runs.append((number, number))
+    return tuple(runs)
+
+
+def _with_text(path, lines, read):
+    """The line numbers in lines that hold more than blanks in path's staged
+    text; all of them when it cannot be read."""
+    try:
+        text = read(path).replace("\r\n", "\n").split("\n")
+    except (OSError, Refused, UnicodeDecodeError):
+        return lines
+    return {number for number in lines if number <= len(text) and text[number - 1].strip()}
 
 
 def prose_in(root, base, read: Callable[[str], str]):
@@ -387,6 +454,7 @@ def prose_in(root, base, read: Callable[[str], str]):
                             "--cached", base], root)
     touched = _touched(scan, diff)
     docs = _changed_docs(root, base)
+    binary = _without_line_diff(root, base)
     for path in docs:
         touched.setdefault(path, set())
     for path, lines in sorted(touched.items()):
@@ -397,7 +465,10 @@ def prose_in(root, base, read: Callable[[str], str]):
         if parts & (VENDORED if doc else scan.SKIP_DIRS):
             continue
         if doc:
-            items.append(Item(path, "changed", path, docs.get(path, False)))
+            items.append(Item(path, "changed", path, docs.get(path, False),
+                              _runs(_with_text(path, lines, read)),
+                              whole=path in binary
+                              and _lines_with_text(path, read) >= COLD_READ_LINES))
             continue
         if not scan.scannable(path) or not lines:
             continue
@@ -417,7 +488,10 @@ def prose_in(root, base, read: Callable[[str], str]):
         if not comments:
             continue
         spans = [f"{c.start}" if c.start == c.end else f"{c.start}-{c.end}" for c in comments]
-        items.append(Item(f"{path}:{','.join(spans)}", "comment", path))
+        items.append(Item(f"{path}:{','.join(spans)}", "comment", path,
+                          spans=tuple((c.start, c.end) for c in comments),
+                          words=tuple(sum(1 for line in scan.strip_markers(c) if line.strip())
+                                      for c in comments)))
         for comment in comments:
             for note in scan.history_notes(comment, scan.mask_examples(scan.strip_markers(comment))):
                 flags.append(f"{path}:{note.line}  {note.headline}")
@@ -1654,7 +1728,10 @@ def spend_pass(token, root=None):
 def print_pass(token, next_commands, stream=None):
     print(f"\nPass token: {token}. It signs once, within {PASS_LIFETIME // 3600} hours.\n",
           file=stream)
-    print("Do the pass on the draft by the rules above. Then sign the final text:\n", file=stream)
+    print("Do the pass on the draft by the rules above. Then sign the final text; for a text of",
+          file=stream)
+    print(f"{COLD_READ_LINES} or more lines, this first prints a cold-read brief (step 5 of the pass):\n",
+          file=stream)
     for command in next_commands:
         print(f"  {command}", file=stream)
     print(file=stream)
@@ -1664,15 +1741,147 @@ def _prose_command():
     return f"python3 {shlex.quote(str(INVOKED))}"
 
 
-def next_check(token, message_file, amend, repo):
+def next_check(token, message_file, amend, repo, report=""):
     words = ["check", "-F", message_file] + (["--amend"] if amend else []) \
-        + (["--repo", repo] if repo != "." else []) + ["--pass", token]
+        + (["--repo", repo] if repo != "." else []) + ["--pass", token] \
+        + (["--cold-read", report] if report else [])
     command = f"{_prose_command()} {' '.join(shlex.quote(w) for w in words)}"
     return command + ("   (the final message on stdin)" if message_file == "-" else "")
 
 
-def next_sign(token):
-    return f"{_prose_command()} sign --pass {token} < body.md > signed.md   (body.md: the final text)"
+def next_sign(token, report=""):
+    cold = f" --cold-read {shlex.quote(report)}" if report else ""
+    return (f"{_prose_command()} sign --pass {token}{cold} < body.md > signed.md   "
+            "(body.md: the final text)")
+
+
+# ---------------------------------------------------------------------------
+# The cold read
+# ---------------------------------------------------------------------------
+
+# The brief a cold reader gets: its only copy (DECISIONS: A cold read before
+# signing).
+COLD_READ = HERE.parent / "cold-read.md"
+# A listed text with this many lines holding text, or more, is read cold
+# before it is signed: a comment block (its comment syntax removed), a doc's
+# added lines, the commit message, a post.
+COLD_READ_LINES = 3
+# The exit status of a signing call that printed a cold-read brief and signed
+# nothing. The token stays unspent.
+COLD_READ_NEEDED = 5
+# Where the printed command tells the agent to save the cold reader's report.
+REPORT_FILE = "cold-read.txt"
+
+
+class ColdItem(NamedTuple):
+    """One text in a cold-read brief: where the reader finds it, its reader's
+    goals, and the text itself when it is in no file."""
+    where: str
+    goals: tuple
+    text: str = ""
+
+
+def _nonblank(text):
+    return [line for line in text.replace("\r", "\n").split("\n") if line.strip()]
+
+
+def _span_list(spans):
+    return ", ".join(f"{first}" if first == last else f"{first}-{last}" for first, last in spans)
+
+
+def cold_items(assigned, message, message_goals):
+    """The listed texts long enough to be read cold, docs and comments first:
+    read last, the commit message cannot explain them to the reader."""
+    found = []
+    for item, rule in assigned:
+        if item.path is None or item.deleted or not (item.spans or item.whole):
+            continue
+        _, _, goals = _goals_source(item, rule)
+        if item.whole:
+            found.append(ColdItem(f"A doc: {item.path}, read whole; git shows no line diff "
+                                  "for it.", tuple(goals)))
+        elif kind_of(item.path) == "comment":
+            for (first, last), words in zip(item.spans, item.words):
+                if words >= COLD_READ_LINES:
+                    found.append(ColdItem(f"A code comment: {item.path}, lines {first}-{last}, "
+                                          "and the code it sits on.", tuple(goals)))
+        elif sum(last - first + 1 for first, last in item.spans) >= COLD_READ_LINES:
+            found.append(ColdItem(f"A doc passage: {item.path}, the changed lines "
+                                  f"{_span_list(item.spans)}, each read in its section.",
+                                  tuple(goals)))
+    if len(_nonblank(message)) >= COLD_READ_LINES:
+        found.append(ColdItem("The commit message below, read by the reviewer of the change.",
+                              tuple(message_goals), message))
+    return found
+
+
+def cold_post(text, goals):
+    """The post as a cold-read item, or nothing when it is too short to need one."""
+    body, _ = split_footer(text)
+    if len(_nonblank(body)) < COLD_READ_LINES:
+        return []
+    return [ColdItem("The post below.", tuple(goals), body)]
+
+
+def cold_read_header(token):
+    """The line a cold reader's report starts with, binding it to one pass."""
+    return f"cold-read {token}"
+
+
+def cold_read_brief(token, items, root=None):
+    """cold-read.md, then the line the report starts with, then the items.
+    root is the repository that the items' paths are relative to."""
+    try:
+        brief = COLD_READ.read_bytes().decode("utf-8").strip("\n")
+    except (OSError, UnicodeDecodeError) as error:
+        raise Refused(f"cannot read the cold-read brief {COLD_READ}: {error}")
+    lines = [brief, "", f"  {cold_read_header(token)}", ""]
+    if root is not None:
+        lines += [f"The files named below are in {pathlib.Path(root).resolve()}.", ""]
+    lines += ["Items:"]
+    for number, item in enumerate(items, start=1):
+        lines += ["", f"{number}. {item.where}", "   Its reader's goals, most probable first:"]
+        lines += [f"   - {goal}" for goal in item.goals]
+        if item.text:
+            lines += ["", "   ----"]
+            lines += [f"   {line}".rstrip() for line in item.text.strip("\n").split("\n")]
+            lines += ["   ----"]
+    return "\n".join(lines)
+
+
+def print_cold_read(token, items, next_command, stream=None, root=None):
+    """Why nothing was signed, what to do, and the brief, between marker lines
+    so the agent can pass it on unchanged."""
+    brief = cold_read_brief(token, items, root)
+    print(f"prose: {len(items)} text(s) here need a cold read before signing (step 5 of the "
+          "pass). Nothing is signed, and the token is kept.\n", file=stream)
+    print("Give a new agent, one that has not seen this conversation, everything between the "
+          "=== lines, unchanged and with nothing added. Save its report to a file outside the "
+          "commit, fix every place it names, restage, and run:\n", file=stream)
+    print(f"  {next_command}\n", file=stream)
+    print("=== cold-read brief ===", file=stream)
+    print(brief, file=stream)
+    print("=== end cold-read brief ===", file=stream)
+
+
+def read_cold_report(path, token):
+    """Refused unless the file at path is a cold reader's report for this
+    token: its first non-blank line is the brief's header line, and something
+    follows it. The token stays unspent."""
+    try:
+        # utf-8-sig: an editor's byte order mark is not part of the first line.
+        text = pathlib.Path(path).read_bytes().decode("utf-8-sig", errors=TEXT_ERRORS)
+    except OSError as error:
+        raise Refused(f"cannot read the cold-read report {path}: {error.strerror or error}")
+    lines = _nonblank(text)
+    header = cold_read_header(token)
+    if not lines or lines[0].strip() != header:
+        raise Refused(f"the cold-read report {path} does not start with '{header}', the line the "
+                      "brief asks the cold reader to write first. Nothing is signed, and the "
+                      "token is kept.")
+    if len(lines) < 2:
+        raise Refused(f"the cold-read report {path} holds only its first line, and no report. "
+                      "Nothing is signed, and the token is kept.")
 
 
 # ---------------------------------------------------------------------------
@@ -2066,6 +2275,9 @@ def main(argv=None):
     passing = argparse.ArgumentParser(add_help=False, parents=[goal_args])
     passing.add_argument("--pass", dest="token", default="",
                          help="the token a first call printed: sign with it")
+    passing.add_argument("--cold-read", dest="report", default="",
+                         help="with --pass: the file holding the cold reader's report, which "
+                              "a text of 3 or more lines needs")
     sub.add_parser("start", parents=[goal_args],
                    help="before writing: print the goals and the rules; signs nothing")
     p_check = sub.add_parser("check", parents=[passing],
@@ -2097,6 +2309,8 @@ def main(argv=None):
     args = parser.parse_args(argv)
 
     try:
+        if getattr(args, "report", "") and not args.token:
+            raise Refused("--cold-read goes with --pass, on the signing call")
         if args.command == "start":
             # A warm-up before writing: the goals and the rules, and the
             # session mark that opens the gate. No token: each text still
@@ -2133,6 +2347,14 @@ def main(argv=None):
             assigned, unused = assign_goals(items, rules)
             refuse_uncovered(assigned, unused, after_first_call=bool(args.token))
             if args.token:
+                cold = cold_items(assigned, message, goals)
+                if args.report:
+                    read_cold_report(args.report, args.token)
+                elif cold:
+                    print_cold_read(args.token, cold, next_check(
+                        args.token, args.message_file, args.amend, args.repo, REPORT_FILE),
+                        root=git(["rev-parse", "--show-toplevel"], args.repo).strip())
+                    return COLD_READ_NEEDED
                 # The signing call prints only the result block. It is built
                 # before the token is spent, so a block that cannot be built
                 # leaves the token for the same call to run again.
@@ -2169,7 +2391,14 @@ def main(argv=None):
                 print_pass(token, [next_sign(token)], sys.stderr)
                 return PASS_ISSUED
             goals, _ = redeem_pass(args.token, goals, "sign")
-            signed = sign(_read_stdin())
+            text = _read_stdin()
+            cold = cold_post(text, goals)
+            if args.report:
+                read_cold_report(args.report, args.token)
+            elif cold:
+                print_cold_read(args.token, cold, next_sign(args.token, REPORT_FILE), sys.stderr)
+                return COLD_READ_NEEDED
+            signed = sign(text)
             spend_pass(args.token)
             print_goals(goals, sys.stderr)
             sys.stdout.write(signed)

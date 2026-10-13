@@ -192,6 +192,61 @@ catchphrase.
 
 ---
 
+## Three causes of a reread, added to rules 3, 4 and 8
+
+**Decision (Adam, 2026-10-12).** Three failures become part of rules that
+already exist:
+- **Rule 3** names *a pointer whose one referent is far back* as a usual cause
+  of a reread: "it", "there" or "these commands" with a single possible
+  referent, a paragraph back. The rule had named only a pointer with two
+  possible referents.
+- **Rule 4** says *a "so" points at what the reader just read*: "so",
+  "because", "which", "therefore" and "thus" claim that a sentence follows
+  from the one before it.
+- **Rule 8** says *one claim per sentence*, and its sentence "a longer
+  sentence that reads once beats a shorter one read twice" now says what may
+  make it longer: words that serve its one claim, not a second claim.
+
+**Why.** Igor's `gitEnv` comment in `src/worktree.ts` (branch
+`one-claiming-surface`, from commit `2c4a19e`, which carries a valid `Prose:`
+trailer) is hard to read although the pass ran on it. Of its seven
+failures, four are ones the rules already named, missed because the author
+reviewed their own text (*A cold read before signing*, below, is the fix):
+- an idiom in place of the mechanism, "take a command off the token" (rule 5);
+- a missing actor, "authenticates with the token where it fetches" (rule 9);
+- an exception without the reason it is safe, "`.git/config` is still read
+  by the fetches `merge` makes" (rule 5);
+- an opening that says what the code avoids before what it does (rule 2).
+
+The other three no rule covered:
+- "So a proxy set only as `http.proxy` there does not reach these commands"
+  follows the sentence on `insteadOf`, but its cause is the decision two
+  sentences earlier, to read no global or system config.
+- Each sentence carries a rule, its mechanism and a consequence at once, and
+  rule 8's sentence about longer sentences reads as permission for that.
+- "there", "these commands" and "it" each have one referent, but a paragraph
+  back. Rule 3 named only the pointer with two.
+
+Each rule's new example is taken from that comment, shortened.
+
+**Folded into existing rules, not new ones.** `prose check` prints rules 1 to 8
+in full and the rest as one-line headings. A rule numbered 15, 16 or 17
+would reach the agent as a heading alone, without its reason or its example,
+which is what the motivating comment needed. Each failure is also a case of
+an existing rule's question: a far pointer sends the reader back (rule 3), a
+misplaced "so" breaks one sentence leading to the next (rule 4), and a
+sentence's claims are what its words are spent on (rule 8).
+
+**Rejected.**
+- **New rules numbered within 1 to 8**, with `RULES_IN_FULL` raised to 11.
+  Every rule after the insertion is renumbered, and this file, SKILL.md and
+  past reviews cite rules by number.
+- **A word or clause limit per sentence.** A number reads as a target (*No
+  length budgets*); the rule is about claims, which a count of words does not
+  see.
+
+---
+
 ## A revision request is drafted fresh, section by section
 
 **Decision (Adam, 2026-10-10).** When someone asks for existing text to be
@@ -867,6 +922,112 @@ look for comments, tell docs from code, or classify paths.
 
 **Accepted cost.** A session that writes no prose but edits a file must run
 `prose start` once.
+
+---
+
+## A cold read before signing
+
+**Decision (Adam, 2026-10-12).** Before a text with three or more lines that
+hold text is signed, an agent that has never seen the conversation behind it
+reads it, and reports every place it stopped, reread or guessed. The author
+fixes those places, then signs. rules.md's step 5 states it, SKILL.md's *The
+cold read* gives the procedure, and [cold-read.md](cold-read.md) holds the
+brief the cold reader gets, its only copy.
+
+**Why.** The pass ran on Igor's `gitEnv` comment (*Three causes of a reread*,
+above), and four of its failures were ones the rules already named. The author
+checked the text against the rules with the conversation in mind, so every
+gap was already filled for them. A reader without the conversation is the
+reader the text is for, and the only one who stops where that reader will.
+
+**Tried on that comment (2026-10-12).** A fresh subagent given only the
+brief the signing call printed for the comment reported four of the seven
+failures: the idiom, the misplaced "so", the exception without its reason, and
+"for the clone and the fetches" as a pointer it had to guess at. It missed the
+far "these commands", the missing actor (it doubted the LFS fetch's safety
+instead) and the opening. It also found three gaps no review had named: "the
+worker" and `merge` are never introduced, and the comment does not say why the
+empty helper entry alone is not enough.
+
+**The signing call enforces it.** The first call cannot: it lists a draft,
+and `sign`'s first call has no text yet. So the signing call, which has the
+final text:
+- finds the texts that need a cold read, counting only lines that hold text:
+  each touched comment block with three or more once its comment syntax is
+  removed, read whole even when one line changed; a doc or spec with three or
+  more added; a doc git shows no line diff for (UTF-16, `-diff`), read whole when
+  its staged text has three or more;
+  the commit message or a post with three or more;
+- without `--cold-read <file>`, signs nothing, keeps the token, exits 5, and
+  prints the brief: cold-read.md, the line `cold-read <token>` the report
+  starts with, the repository the paths are in, and each text with its
+  reader's goals. A comment or doc is named by file and lines; the message
+  and a post are quoted. Docs and comments come before the message, so the
+  message does not explain them to the reader;
+- with it, checks that the file's first non-blank line is that header and
+  that more follows, then signs. A refused report keeps the token.
+
+Exit 5 is distinct from 4 (first call) and 2 (refused), so a script running the
+calls can tell "do this step" from an error. The first call says that the
+signing call may ask for a cold read.
+
+**What it applies to, and what it skips.** New and changed text alike: a
+reader meets a block whole, whatever the diff touched. All kinds alike, since
+the commit message's reviewer and a post's reader were not in the
+conversation either. Under three non-blank lines nothing is required, so a
+one-line commit subject or a one-line comment costs no subagent. One cold read
+per token: the fixes are not read cold again, since that would repeat until a
+reader found nothing.
+
+**A host without subagents** gives the brief to any agent it can start with no
+history, such as a new command-line session. With none, the author reads it,
+opening only what the brief names, writes the report as the brief asks, starts
+its second line with `Self-read:`, and tells the person they work for. A
+self-read is weaker, and it is labelled so nobody mistakes it for the real
+thing.
+
+**What it proves:** a report file existed for that pass's token before the
+signature. **What it does not prove:** that a fresh agent wrote it, or that it
+was given only the brief. An author can write the report themselves; that is
+the forgery this skill does not defend against (*Posted text carries a signed
+footer*), and the cheat list names it.
+
+**Rejected.**
+- **Procedure only, in SKILL.md.** Advisory text is what agents skip (*Why the
+  skill exists*), and a cold read is skipped exactly when the author thinks the
+  text is clear, which is when the author is wrong.
+- **The script running the cold reader itself,** through a model API. It would
+  need a key, a network and a model choice in a standard-library script, and
+  it would tie the skill to one provider.
+- **A brief from the first call.** The text is a draft then, and `sign` has
+  none yet.
+- **A separate `brief` command.** One more command to remember, when the
+  signing call already holds the final text.
+- **Giving the cold reader the rules.** It would check the text against them
+  instead of reading it, and the pass already does that. Its stops are the
+  evidence; the rules are the author's to apply.
+- **Asking the cold reader for rewrites.** A rewrite carries the reader's
+  guesses into the text. A stop with what was guessed tells the author what to
+  fix.
+- **Binding the report to the text's hash.** The fixes change the text, so
+  every fix would need a new cold read.
+- **A cold read for every text.** A one-line subject would cost a subagent for
+  nothing.
+- **A threshold in sentences or words.** The script already counts lines; a
+  sentence count needs a parser for every comment syntax.
+
+**Known gaps.**
+- A doc passage is named by its changed lines, not its section; the reader is
+  told to read the section around them. Finding sections was tried and dropped
+  (*Each listed item is judged as its own reader*, "Listing each changed
+  passage's section heading").
+- Nothing checks that a report marked `Self-read:` came from a host without
+  subagents.
+
+**Where this stops applying.** If cold readers report nothing on text that
+human reviewers still find hard, the brief is the place to change. If authors
+dismiss what cold readers report, the next step is a second cold read of the
+fixed text.
 
 ---
 
