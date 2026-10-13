@@ -13,13 +13,14 @@ Both calls of `check` run the repository's pre-commit hook first, if it has one.
         reader goals, and prints the rules and a token. --goals is the
         message's reader's; every changed doc or spec needs goals of its own.
     prose.py check -F <message file, or - for stdin> --pass <token> [--amend]
-            [--cold-read <report>]
+            [--cold-read <report> [--dispositions <file>]]
         Second call. Prints the Prose: trailer. --amend: before `git commit --amend`.
         When it lists a changed comment or doc passage and no --cold-read is
         given, it prints a cold-read brief instead, signs nothing and exits 5.
+        A report with findings needs --dispositions, answering each one.
     prose.py sign --goals <goals>
         Before posting, first call. Prints the rules and a token; reads no stdin.
-    prose.py sign --pass <token> [--cold-read <report>] < text > signed
+    prose.py sign --pass <token> [--cold-read <report> [--dispositions <file>]] < text > signed
         Second call. Prints stdin's text with a signed footer, or, as check
         does, a cold-read brief on stderr, exiting 5.
     prose.py verify-staged <trailer line>     stdin: the message (the commit script's verifier)
@@ -64,8 +65,12 @@ RUN_PRE_COMMIT = LIBRARY / "run-pre-commit.sh"
 KEY = "Prose"
 MARK = "\u2713"
 # Each half of the trailer, `✓ <tree>:<message>`, is this many hex digits.
+# After a cold read, the value ends with its counts, such as `; cold read: 5
+# findings, 3 fixed, 2 kept` (DECISIONS: Every cold-read finding is answered
+# before signing); cold_counts is the only form accepted.
 HALF = 12
-TRAILER = re.compile(r"✓ ([0-9a-f]{%d}):([0-9a-f]{%d})" % (HALF, HALF))
+TRAILER = re.compile(r"✓ ([0-9a-f]{%d}):([0-9a-f]{%d})(?:; cold read: ([^;]*))?"
+                     % (HALF, HALF))
 FOOTER_LENGTH = 6
 FOOTER = re.compile(r"^prose ✓ ([0-9a-f]{%d})$" % FOOTER_LENGTH)
 
@@ -724,6 +729,23 @@ def check(message, root, amend=False, signing=False):
     return items, flags, snapshot(message, root)
 
 
+def cold_counts(fixed, kept):
+    """What a commit's trailer value says of its cold read, after `; cold read: `."""
+    total = fixed + kept
+    if not total:
+        return "no findings"
+    return f"{total} finding{'' if total == 1 else 's'}, {fixed} fixed, {kept} kept"
+
+
+def counts_valid(counts):
+    """Whether a trailer value's cold-read counts, None when it has none, are
+    in the one form cold_counts prints."""
+    if counts is None or counts == "no findings":
+        return True
+    found = re.fullmatch(r"[0-9]+ findings?, ([0-9]+) fixed, ([0-9]+) kept", counts)
+    return bool(found) and counts == cold_counts(int(found.group(1)), int(found.group(2)))
+
+
 def verify_staged(line, message, root):
     """(ok, reason) for a trailer line `prose check` printed, against the
     staged tree and this message now. The commit script runs this just before
@@ -733,6 +755,8 @@ def verify_staged(line, message, root):
     if not found:
         return False, f"unrecognised: {line.strip()}"
     tree_half, message_half = found.group(2), found.group(3)
+    if not counts_valid(found.group(4)):
+        return False, f"unrecognised: {line.strip()}"
     tree = git(["write-tree"], root).strip()
     if message_half != message_hash(message):
         return False, (
@@ -782,9 +806,9 @@ def verify_commit(sha, root):
         return False, (f"mismatch: the message is stored as {encoding}, and `prose check` "
                        f"signs only UTF-8 messages")
     found = TRAILER.fullmatch(value)
-    if not found:
+    if not found or not counts_valid(found.group(3)):
         return False, f"unrecognised: {KEY}: {value}"
-    tree_half, message_half = found.groups()
+    tree_half, message_half = found.group(1), found.group(2)
     message = git(["log", "-1", "--format=%B", sha], root)
     if not committed_message_matches(message, message_half):
         return False, (
@@ -1696,16 +1720,18 @@ def _prose_command():
     return f"python3 {shlex.quote(str(INVOKED))}"
 
 
-def next_check(token, message_file, amend, repo, report=""):
+def next_check(token, message_file, amend, repo, report="", dispositions=""):
     words = ["check", "-F", message_file] + (["--amend"] if amend else []) \
         + (["--repo", repo] if repo != "." else []) + ["--pass", token] \
-        + (["--cold-read", report] if report else [])
+        + (["--cold-read", report] if report else []) \
+        + (["--dispositions", dispositions] if dispositions else [])
     command = f"{_prose_command()} {' '.join(shlex.quote(w) for w in words)}"
     return command + ("   (the final message on stdin)" if message_file == "-" else "")
 
 
-def next_sign(token, report=""):
-    cold = f" --cold-read {shlex.quote(report)}" if report else ""
+def next_sign(token, report="", dispositions=""):
+    cold = (f" --cold-read {shlex.quote(report)}" if report else "") \
+        + (f" --dispositions {shlex.quote(dispositions)}" if dispositions else "")
     return (f"{_prose_command()} sign --pass {token}{cold} < body.md > signed.md   "
             "(body.md: the final text)")
 
@@ -1720,15 +1746,19 @@ COLD_READ = HERE.parent / "cold-read.md"
 # The exit status of a signing call that printed a cold-read brief and signed
 # nothing. The token stays unspent.
 COLD_READ_NEEDED = 5
-# Where the printed command tells the agent to save the cold reader's report.
+# Where the printed command tells the agent to save the cold reader's report,
+# and its answer to each finding.
 REPORT_FILE = "cold-read.txt"
+DISPOSITIONS_FILE = "dispositions.txt"
 
 
 class ColdItem(NamedTuple):
     """One text in a cold-read brief: where the reader finds it, its reader's
-    goals, and the text itself when it is in no file."""
+    goals, the file it is in ("" for a post), and the text itself when it is
+    in no file."""
     where: str
     goals: tuple
+    path: str = ""
     text: str = ""
 
 
@@ -1757,23 +1787,28 @@ def cold_items(assigned):
         if kind_of(item.path) == "comment":
             for span in item.spans:
                 found.append(ColdItem(f"A code comment: {item.path}, {_lines(span)}, and the "
-                                      "code it sits on.", tuple(goals)))
+                                      "code it sits on.", tuple(goals), item.path))
         else:
             found.append(ColdItem(f"A doc passage: {item.path}, the changed lines "
                                   f"{_span_list(item.spans)}, each read in its section.",
-                                  tuple(goals)))
+                                  tuple(goals), item.path))
     return found
 
 
 def cold_post(text, goals):
     """The post as a cold-read item."""
     body, _ = split_footer(text)
-    return [ColdItem("The post below.", tuple(goals), body)]
+    return [ColdItem("The post below.", tuple(goals), "", body)]
 
 
 def cold_read_header(token):
     """The line a cold reader's report starts with, binding it to one pass."""
     return f"cold-read {token}"
+
+
+def dispositions_header(token):
+    """The line a dispositions file starts with, binding it to the same pass."""
+    return f"dispositions {token}"
 
 
 def cold_read_brief(token, items, root=None):
@@ -1804,32 +1839,293 @@ def print_cold_read(token, items, next_command, stream=None, root=None):
     print(f"prose: {len(items)} text(s) here need a cold read before signing (step 5 of the "
           "pass). Nothing is signed, and the token is kept.\n", file=stream)
     print("Give a new agent, one that has not seen this conversation, everything between the "
-          "=== lines, unchanged and with nothing added. Save its report to a file outside the "
-          "commit, fix every place it names, restage, and run:\n", file=stream)
+          f"=== lines, unchanged and with nothing added. Save its report to {REPORT_FILE}, "
+          "outside the commit. Fix the places it names, and restage. Then answer every finding "
+          f"in {DISPOSITIONS_FILE}: its first line '{dispositions_header(token)}', then one "
+          "line per finding, '<n>. fixed' when its quoted words are gone from the text, or "
+          "'<n>. kept (asked): <why>' once a person chose to keep it. A report with no "
+          "findings needs no dispositions file. Then run:\n", file=stream)
     print(f"  {next_command}\n", file=stream)
     print("=== cold-read brief ===", file=stream)
     print(brief, file=stream)
     print("=== end cold-read brief ===", file=stream)
 
 
-def read_cold_report(path, token):
-    """Refused unless the file at path is a cold reader's report for this
-    token: its first non-blank line is the brief's header line, and something
-    follows it. The token stays unspent."""
+# What a report and a dispositions file must look like, for their refusals.
+REPORT_FORM = ("After its first line, a report holds only findings, each 'Finding <n>, item "
+               "<item>, <stopped, reread or guessed>: «<the exact words>» <what was guessed or "
+               "missing>', numbered from 1, with any more of it on indented lines below; and "
+               "'Item <item>: read straight through.' lines. Every item gets findings or that "
+               "line, never both. Ask the cold reader for its report in that form; don't "
+               "reword it yourself.")
+DISPOSITIONS_FORM = ("After its first line, a dispositions file holds one line per finding: "
+                     "'<n>. fixed', or '<n>. kept (asked): <the reason, on one line>' once a "
+                     "person chose to keep it.")
+FINDING = re.compile(r"Finding ([0-9]+), item ([0-9]+), (stopped|reread|guessed): "
+                     r"«([^«»]*)»(.*)")
+STRAIGHT = re.compile(r"Item ([0-9]+): read straight through\.?")
+# kept without "(asked)" is read, so that its refusal can name the finding.
+DISPOSITION = re.compile(r"([0-9]+)\. (?:(fixed)|kept( \(asked\))?:(.*))")
+# What may stand between two of a quote's words in the text: spaces on one
+# line, or line breaks, each line optionally opening with a run of marker
+# characters such as `#`, `//!`, ` * `, `>` or `-`, and the first optionally
+# preceded by a block comment's close. The text is never rewritten, so a word
+# of the quote that itself starts with one of these characters, such as
+# `#42`, still matches at a line's start (DECISIONS: Every cold-read finding
+# is answered before signing).
+#
+# Every repetition consumes exactly one line break, and a marker run starts
+# and ends on a marker, so a gap alone matches a run of lines one way. A quote
+# word made only of markers, such as `*`, can also be matched by the gap's
+# marker run, so a failed search with several such words over hundreds of
+# marker-only lines grows polynomially. Real quotes and files are far
+# smaller.
+_SPACE = r"[^\S\n]"
+_MARK = r"[#/*!>;%\-]"
+QUOTE_GAP = (rf"(?:{_SPACE}*(?:\*+/{_SPACE}*)?"
+             rf"(?:\n{_SPACE}*(?:{_MARK}(?:{_SPACE}*{_MARK})*{_SPACE}*)?)+"
+             rf"|{_SPACE}+)")
+
+
+class Finding(NamedTuple):
+    number: int
+    item: int
+    quote: str
+    missing: str
+
+
+def quote_in(quote, text):
+    """Whether quote, written on one line, is in text: its words in order,
+    with spaces or line breaks and line-start markers between them
+    (QUOTE_GAP). Case and every other character count."""
+    words = quote.split()
+    if not words:
+        return False
+    pattern = QUOTE_GAP.join(re.escape(word) for word in words)
+    return re.search(pattern, text.replace("\r\n", "\n").replace("\r", "\n")) is not None
+
+
+def _read_text(path, what):
     try:
         # utf-8-sig: an editor's byte order mark is not part of the first line.
-        text = pathlib.Path(path).read_bytes().decode("utf-8-sig", errors=TEXT_ERRORS)
+        return pathlib.Path(path).read_bytes().decode("utf-8-sig", errors=TEXT_ERRORS)
     except OSError as error:
-        raise Refused(f"cannot read the cold-read report {path}: {error.strerror or error}")
-    lines = _nonblank(text)
+        raise Refused(f"cannot read the {what} {path}: {error.strerror or error}")
+
+
+KEPT = "Nothing is signed, and the token is kept."
+
+
+def read_cold_report(path, token, count):
+    """[Finding] in the cold reader's report at path, for a brief of count
+    items. Refused unless its first non-blank line is the brief's header and
+    every other line is in the brief's form (REPORT_FORM)."""
+    lines = _nonblank(_read_text(path, "cold-read report"))
     header = cold_read_header(token)
     if not lines or lines[0].strip() != header:
         raise Refused(f"the cold-read report {path} does not start with '{header}', the line the "
-                      "brief asks the cold reader to write first. Nothing is signed, and the "
-                      "token is kept.")
+                      f"brief asks the cold reader to write first. {KEPT}")
     if len(lines) < 2:
         raise Refused(f"the cold-read report {path} holds only its first line, and no report. "
-                      "Nothing is signed, and the token is kept.")
+                      f"{KEPT}")
+    findings, straight, after_finding = [], [], False
+
+    def refuse(problem):
+        raise Refused(f"the cold-read report {path} {problem}. {REPORT_FORM} {KEPT}")
+
+    for line in lines[1:]:
+        found = FINDING.fullmatch(line.strip())
+        through = STRAIGHT.fullmatch(line.strip())
+        if found:
+            number, item, _, quote, missing = found.groups()
+            findings.append(Finding(int(number), int(item), quote, missing.strip()))
+        elif through:
+            straight.append(int(through.group(1)))
+        elif line[:1].isspace() and after_finding:
+            last = findings[-1]
+            findings[-1] = last._replace(missing=f"{last.missing} {line.strip()}".strip())
+        else:
+            refuse(f"has a line prose cannot read: {line.strip()!r}")
+        after_finding = bool(found) or (after_finding and not through)
+    for index, finding in enumerate(findings, start=1):
+        if finding.number != index:
+            refuse(f"numbers finding {index} as {finding.number}; findings are numbered "
+                   "from 1, in order")
+        if not 1 <= finding.item <= count:
+            refuse(f"puts finding {index} in item {finding.item}, but the brief has items 1 "
+                   f"to {count}")
+        if not re.sub(rf"{_MARK}|\s", "", finding.quote):
+            refuse(f"quotes no words in finding {index}")
+        if not finding.missing:
+            refuse(f"does not say, in finding {index}, what was guessed or missing")
+    for item in range(1, count + 1):
+        times = straight.count(item)
+        with_findings = any(finding.item == item for finding in findings)
+        if times > 1 or (times and with_findings):
+            refuse(f"says item {item} was read straight through "
+                   + ("twice" if times > 1 else "and also reports findings in it"))
+        if not times and not with_findings:
+            refuse(f"says nothing about item {item}")
+    for item in straight:
+        if not 1 <= item <= count:
+            refuse(f"names item {item}, but the brief has items 1 to {count}")
+    return findings
+
+
+class Kept(NamedTuple):
+    """A finding's answer when it was kept: the reason, and whether the
+    dispositions file says a person was asked."""
+    reason: str
+    asked: bool
+
+
+def read_dispositions(path, token, findings):
+    """{finding number: None for fixed, or Kept}, one for each finding. Refused unless the file at path starts with this token's
+    dispositions header and answers every finding exactly once."""
+    lines = _nonblank(_read_text(path, "dispositions file"))
+    header = dispositions_header(token)
+    if not lines or lines[0].strip() != header:
+        raise Refused(f"the dispositions file {path} does not start with '{header}', which "
+                      f"binds it to this pass's cold read. {KEPT}")
+    answers, numbers = {}, {finding.number for finding in findings}
+    for line in lines[1:]:
+        found = DISPOSITION.fullmatch(line.strip())
+        if not found:
+            raise Refused(f"the dispositions file {path} has a line prose cannot read: "
+                          f"{line.strip()!r}. {DISPOSITIONS_FORM} {KEPT}")
+        number, fixed, asked, reason = (int(found.group(1)), found.group(2), found.group(3),
+                                        found.group(4))
+        if number not in numbers:
+            raise Refused(f"the dispositions file {path} answers finding {number}, which the "
+                          f"report does not have. {KEPT}")
+        if number in answers:
+            raise Refused(f"the dispositions file {path} answers finding {number} twice. {KEPT}")
+        if not fixed and not reason.strip():
+            raise Refused(f"the dispositions file {path} keeps finding {number} without a "
+                          f"reason; write it after 'kept (asked):'. {KEPT}")
+        answers[number] = None if fixed else Kept(reason.strip(), bool(asked))
+    missing = sorted(numbers - set(answers))
+    if missing:
+        raise Refused(f"the dispositions file {path} does not answer finding"
+                      f"{'s' if len(missing) > 1 else ''} {', '.join(map(str, missing))}; every "
+                      f"finding is answered once, fixed or kept. {KEPT}")
+    return answers
+
+
+def check_cold_read(token, record, report, dispositions, current):
+    """Refused unless the report answers the brief recorded for this token,
+    every finding's quote was in the text the reader was given, and every
+    finding has a disposition, with each fixed one's quote gone from
+    current(path), the text as it is signed ("" for a post). A ColdResult."""
+    brief = record.get("cold")
+    if not brief:
+        raise Refused(f"no cold-read brief was printed for pass token {token}, so there is no "
+                      "report to check. Run the signing call without --cold-read to print one. "
+                      + KEPT)
+    paths, texts = brief["items"], brief["texts"]
+    findings = read_cold_report(report, token, len(paths))
+    for finding in findings:
+        if not quote_in(finding.quote, texts[paths[finding.item - 1]]):
+            raise Refused(f"finding {finding.number} quotes «{finding.quote}», which item "
+                          f"{finding.item} did not hold when the brief was printed. Have the cold "
+                          f"reader quote the words exactly. {KEPT}")
+    if not findings:
+        if dispositions:
+            read_dispositions(dispositions, token, findings)
+        return ColdResult(0, 0)
+    if not dispositions:
+        raise Refused(f"the cold-read report has {len(findings)} finding(s), and each needs an "
+                      f"answer: pass --dispositions <file>. {DISPOSITIONS_FORM} Its first line is "
+                      f"'{dispositions_header(token)}'. {KEPT}")
+    answers = read_dispositions(dispositions, token, findings)
+    now = {}
+    for finding in findings:
+        path = paths[finding.item - 1]
+        if answers[finding.number] is not None:
+            continue
+        if path not in now:
+            now[path] = current(path)
+        if quote_in(finding.quote, now[path]):
+            raise Refused(f"finding {finding.number} is marked fixed, but «{finding.quote}» is "
+                          f"still in {path or 'the post'}. Fix it, or keep it with a reason. {KEPT}")
+    kept = [finding for finding in findings if answers[finding.number] is not None]
+    unasked = [finding for finding in kept if not answers[finding.number].asked]
+    if unasked:
+        raise Refused(unasked_refusal(token, unasked, paths, answers, report, dispositions))
+    return ColdResult(len(findings) - len(kept), len(kept))
+
+
+class ColdResult(NamedTuple):
+    """A checked cold read: how many findings were fixed and how many kept."""
+    fixed: int
+    kept: int
+
+
+def unasked_refusal(token, unasked, paths, answers, report, dispositions):
+    """The refusal of findings kept without a person being asked: each one,
+    what to ask, and, for an agent that cannot ask, what to hand back
+    (DECISIONS: Every cold-read finding is answered before signing)."""
+    lines = [f"{len(unasked)} finding(s) are kept, and no person was asked about them. Nothing "
+             f"is signed, and the token is kept: {token}, unspent, lasts {PASS_LIFETIME // 3600} "
+             "hours from its first call.", ""]
+    for finding in unasked:
+        lines += [f"Finding {finding.number}, in {paths[finding.item - 1] or 'the post'}: "
+                  f"«{finding.quote}»",
+                  f"  The cold reader: {finding.missing}",
+                  f"  Kept, because: {answers[finding.number].reason}"]
+    lines += ["", "Ask a person about each, one question per finding, with two options: "
+              "\"Keep as is\" makes its line '<n>. kept (asked): <reason>'; \"Fix it\" means "
+              "rewrite the passage (and restage it, for a commit) and make its line "
+              "'<n>. fixed'. Then run the signing call again.",
+              "If you cannot ask (a subagent, a background job, no picker), don't sign and don't "
+              "commit: leave the change staged, and put this message in your result for "
+              "whoever holds it, with the report "
+              f"{pathlib.Path(report).resolve()}, the dispositions file "
+              f"{pathlib.Path(dispositions).resolve()} and the token."]
+    return "\n".join(lines)
+
+
+def record_brief(token, items, texts, root=None):
+    """Add the brief just printed to the token's record: each item's file ("" for
+    a post) and each file's text as the cold reader was given it, which a
+    report's quotes are checked against. A brief printed again replaces it."""
+    path = pass_dir(root) / token
+    record = json.loads(path.read_text(encoding="utf-8"))
+    record["cold"] = {"items": [item.path for item in items], "texts": texts}
+    draft = path.parent / f".{token}.{os.getpid()}"
+    with open(draft, "w", encoding="utf-8") as handle:
+        json.dump(record, handle)
+    os.replace(draft, path)
+
+
+def staged_text(path, root):
+    """The staged text of the file at path, or "" when none is staged."""
+    try:
+        return git(["show", f":0:{path}"], root)
+    except Refused:
+        return ""
+
+
+def refuse_unbriefed(cold, record):
+    """Refused when a file with a changed comment or doc passage now was in
+    none of the recorded brief's items: it was staged after the brief, and no
+    cold reader saw it. Fixes inside the files the brief named are allowed,
+    since each token takes one cold read. A record with no brief is left to
+    check_cold_read's refusal."""
+    brief = record.get("cold")
+    if not brief:
+        return
+    unread = sorted({item.path for item in cold} - set(brief["items"]))
+    if unread:
+        raise Refused(f"{', '.join(unread)} {'has' if len(unread) == 1 else 'have'} a changed "
+                      "comment or doc passage that the cold-read brief did not name, so no cold "
+                      "reader saw it. Run the signing call without --cold-read to print a new "
+                      "brief that covers it, and pass that brief's report. " + KEPT)
+
+
+def pass_record(token, root=None):
+    """The record of a token redeem_pass has already accepted."""
+    return json.loads((pass_dir(root) / token).read_text(encoding="utf-8"))
 
 
 # ---------------------------------------------------------------------------
@@ -2225,7 +2521,10 @@ def main(argv=None):
                          help="the token a first call printed: sign with it")
     passing.add_argument("--cold-read", dest="report", default="",
                          help="with --pass: the file holding the cold reader's report, which "
-                              "a text of 3 or more lines needs")
+                              "a changed comment, doc passage or post needs")
+    passing.add_argument("--dispositions", default="",
+                         help="with --cold-read: the file answering each of the report's "
+                              "findings, fixed or kept with a reason")
     sub.add_parser("start", parents=[goal_args],
                    help="before writing: print the goals and the rules; signs nothing")
     p_check = sub.add_parser("check", parents=[passing],
@@ -2259,6 +2558,8 @@ def main(argv=None):
     try:
         if getattr(args, "report", "") and not args.token:
             raise Refused("--cold-read goes with --pass, on the signing call")
+        if getattr(args, "dispositions", "") and not getattr(args, "report", ""):
+            raise Refused("--dispositions goes with --cold-read, the report its lines answer")
         if args.command == "start":
             # A warm-up before writing: the goals and the rules, and the
             # session mark that opens the gate. No token: each text still
@@ -2295,12 +2596,21 @@ def main(argv=None):
             assigned, unused = assign_goals(items, rules)
             refuse_uncovered(assigned, unused, after_first_call=bool(args.token))
             if args.token:
-                cold = cold_items(assigned)
+                cold, result = cold_items(assigned), None
                 if args.report:
-                    read_cold_report(args.report, args.token)
+                    record = pass_record(args.token, args.repo)
+                    refuse_unbriefed(cold, record)
+                    result = check_cold_read(args.token, record,
+                                             args.report, args.dispositions,
+                                             lambda path: staged_text(path, args.repo))
+                    trailer += f"; cold read: {cold_counts(result.fixed, result.kept)}"
                 elif cold:
+                    record_brief(args.token, cold,
+                                 {item.path: staged_text(item.path, args.repo) for item in cold},
+                                 args.repo)
                     print_cold_read(args.token, cold, next_check(
-                        args.token, args.message_file, args.amend, args.repo, REPORT_FILE),
+                        args.token, args.message_file, args.amend, args.repo, REPORT_FILE,
+                        DISPOSITIONS_FILE),
                         root=git(["rev-parse", "--show-toplevel"], args.repo).strip())
                     return COLD_READ_NEEDED
                 # The signing call prints only the result block. It is built
@@ -2343,10 +2653,13 @@ def main(argv=None):
             # Signed first, so an empty text is refused before any brief.
             signed = sign(text)
             if args.report:
-                read_cold_report(args.report, args.token)
+                check_cold_read(args.token, pass_record(args.token), args.report,
+                                args.dispositions, lambda _: split_footer(text)[0])
             else:
-                print_cold_read(args.token, cold_post(text, goals),
-                                next_sign(args.token, REPORT_FILE), sys.stderr)
+                cold = cold_post(text, goals)
+                record_brief(args.token, cold, {"": cold[0].text})
+                print_cold_read(args.token, cold,
+                                next_sign(args.token, REPORT_FILE, DISPOSITIONS_FILE), sys.stderr)
                 return COLD_READ_NEEDED
             spend_pass(args.token)
             print_goals(goals, sys.stderr)

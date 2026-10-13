@@ -211,13 +211,80 @@ doc by its file and lines, a post quoted in full.
    nothing: not the conversation, not what the text is meant to say, not a
    summary of the change.
 2. Save its report, as it wrote it, to a file outside the commit, such as
-   `cold-read.txt` beside `msg.txt`.
-3. Fix every place the report names, by the rules, and restage.
-4. Run the signing call again, adding `--cold-read cold-read.txt`. It checks
-   that the report starts with the brief's `cold-read <token>` line and holds
-   more than that line, then signs.
+   `cold-read.txt` beside `msg.txt`. The brief asks for one line per
+   finding, quoting the words that stopped the reader, and one line for each
+   item read straight through:
 
-Each token takes one cold read; the fixes are not read cold again.
+   ```text
+   cold-read <token>
+   Finding 1, item 1, guessed: «It runs there» What runs, and where?
+   Item 2: read straight through.
+   ```
+
+3. Fix the places the report names, by the rules, and restage.
+4. Answer every finding in a dispositions file beside the report, such as
+   `dispositions.txt`. Its first line binds it to the same token; then one
+   line per finding:
+
+   ```text
+   dispositions <token>
+   1. fixed
+   2. kept (asked): the reader of this file has just read the function it names
+   ```
+
+   `fixed` means the finding's quoted words are gone. A report with no
+   findings needs no dispositions file.
+5. **A person decides every kept finding.** For each finding you would keep,
+   ask a person one question, through your host's interactive picker: show
+   the quoted words, the cold reader's note and your reason, with two
+   options, "Keep as is" and "Fix it". "Fix it": rewrite the passage,
+   restage it, and make its line `fixed`. "Keep as is": make its line
+   `kept (asked): <reason>`. The token stays unspent until the signing call,
+   so this needs no new cold read. `(asked)` is your statement that a person
+   answered; the script cannot check it.
+6. Run the signing call again, adding `--cold-read cold-read.txt
+   --dispositions dispositions.txt`.
+
+**When you cannot ask** (you are a subagent or a background job, or your host
+has no picker), don't sign and don't commit. Write each finding you would keep
+as `kept: <reason>` and run the signing call anyway. It refuses, keeps the
+token and prints a message naming each of those findings with its quote, the
+cold reader's note and your reason, and the paths of the report and the
+dispositions file. Leave the change staged and put that message, whole, in
+your result for whoever holds it. That agent asks the person, edits the
+dispositions file and runs the signing call before the token's 2 hours are
+up.
+
+A commit's `Prose:` value then ends with the cold read's counts, such as
+`; cold read: 5 findings, 3 fixed, 2 kept`, or `; cold read: no findings`.
+The script mints them; pass the value as the result block prints it. A commit
+with no cold read keeps the plain value. A post's footer carries no counts.
+
+The signing call refuses (exit 2), signs nothing and keeps the token when:
+- the report or the dispositions file does not start with this token's line;
+- the report has a line not in the brief's form, or says nothing about an
+  item;
+- a quote is not in the text the cold reader was given: ask the reader to
+  quote it exactly;
+- a finding is unanswered, answered twice, or not in the report, or is kept
+  without a reason;
+- a finding marked `fixed` still has its quoted words in the text;
+- a finding is kept without `(asked)`;
+- a file the brief did not name now has a changed comment or doc passage:
+  run the signing call without `--cold-read` for a new brief, and have that
+  read cold.
+
+**How a quote is matched.** Against the whole file the item is in, or the
+whole post, as it is. The quote's words must appear in order and in full.
+Between two of them the text may have spaces, or line breaks where each new
+line may start with a run of marker characters, `#`, `/`, `*`, `!`, `>`,
+`;`, `%` or `-`. So a quote that runs across comment lines, `//!` doc lines
+or a blockquote still matches. Case and every other character count. So
+`fixed` means those words appear nowhere in that file; a phrase the file uses
+elsewhere too can only be fixed by changing every use, or kept.
+
+Each token takes one cold read; the fixes are not read cold again. The script
+checks `fixed` instead, by the quote.
 
 **Without subagents,** do the cold read yourself: read the brief as if it were
 all you knew, open only what it names, and write the report as it asks.
@@ -226,7 +293,8 @@ all you knew, open only what it names, and write the report as it asks.
 
 Every commit carries `Prose: ✓ <tree>:<message>`, because every commit has a
 message a reviewer reads. The two hashes bind it to the staged files and the
-final message as they were when the signing `prose check` ran.
+final message as they were when the signing `prose check` ran. After a cold
+read, the value ends with its counts (see [The cold read](#the-cold-read)).
 
 Commit through the shared commit script, with nothing staged or edited
 between the signing call and the commit. Pass the block's `Prose:` value (the text

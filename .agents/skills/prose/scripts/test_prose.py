@@ -22,6 +22,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import types
 import unittest
 
@@ -34,7 +35,8 @@ VERIFY_STAGED = HERE / "verify-staged.sh"
 LIBRARY = HERE.parent.parent.parent / "lib" / "commit-trailer"
 COMMIT_SCRIPT = LIBRARY / "commit-with-trailers.sh"
 BUG_HUNTER_MINT = HERE.parent.parent / "bug-hunter" / "scripts" / "mint-trailer.sh"
-TRAILER = r"^Prose: ✓ [0-9a-f]{12}:[0-9a-f]{12}$"
+TRAILER = r"^Prose: ✓ [0-9a-f]{12}:[0-9a-f]{12}(; cold read: [^;]+)?$"
+BUG_HUNTER_HOOK = HERE.parent.parent / "bug-hunter" / "scripts" / "check-commit-trailer.sh"
 GATE = HERE / "require-first-call.sh"
 
 # Pass tokens and session marks go to a throwaway state directory, never the
@@ -75,13 +77,33 @@ def pass_token(output):
 REPORTS = pathlib.Path(tempfile.mkdtemp())
 
 
-def cold_report(token, body="Read straight through.\n"):
+def cold_report(token, body="Item 1: read straight through.\n", name=""):
     """A cold reader's report for this token, as a file outside any test
     repository; its path."""
     # Named by the token's hash: a test may pass a token shaped like a path.
-    path = REPORTS / (hashlib.sha256(token.encode("utf-8")).hexdigest() + ".txt")
+    path = REPORTS / ((name or hashlib.sha256(token.encode("utf-8")).hexdigest()) + ".txt")
     path.write_text(f"cold-read {token}\n\n{body}", encoding="utf-8")
     return str(path)
+
+
+def straight_report(output):
+    """A report for the brief in output that reads every item straight
+    through; its path."""
+    token = re.search(r"^  cold-read ([0-9a-f]{16})$", output, re.M).group(1)
+    count = len(re.findall(r"^\d+\. (?:A code comment|A doc passage|The post below)", output,
+                           re.M))
+    return cold_report(token, "".join(f"Item {n}: read straight through.\n"
+                                      for n in range(1, count + 1)))
+
+
+def cold_read(call):
+    """call(*cold) runs a signing call, with cold where the report's flags go.
+    Runs it without them; when that prints a brief, answers it with every item
+    read straight through and runs it again. The last call's result."""
+    first = call()
+    if first.returncode != prose.COLD_READ_NEEDED:
+        return first
+    return call("--cold-read", straight_report(first.stdout + first.stderr))
 
 
 def run(args, cwd=None, stdin=None, env=None):
@@ -131,8 +153,8 @@ class Repo:
         if first.returncode != 4:
             return first
         token = pass_token(first.stdout)
-        return self.prose(*args, "--pass", token, "--cold-read", cold_report(token),
-                          stdin=stdin, file_goals=file_goals)
+        return cold_read(lambda *cold: self.prose(*args, "--pass", token, *cold, stdin=stdin,
+                                                  file_goals=file_goals))
 
     def trailers(self, message, *extra):
         """The one trailer line in the result block the signing call prints
@@ -477,7 +499,9 @@ class SignatureThroughGit(unittest.TestCase):
         message = "FEAT(x): add a thing\n\nBody.\n"
         trailer = self.repo.trailers(message)
         tree = self.repo.git("write-tree").strip()
-        self.assertEqual(trailer, f"Prose: \u2713 {tree[:12]}:{prose.message_hash(message)}")
+        # The staged doc was read cold, with nothing found.
+        self.assertEqual(trailer, f"Prose: \u2713 {tree[:12]}:{prose.message_hash(message)}"
+                                  "; cold read: no findings")
         self.repo.commit(message, trailer)
         result = self.repo.verify()
         self.assertEqual((result.returncode, result.stdout), (0, "checked\n"))
@@ -1175,9 +1199,9 @@ class Check(unittest.TestCase):
         self.repo.write("docs/a.md", "# T\n")
         first = self.check_for("--goals-for", "docs/**", "learn it")
         token = pass_token(first.stdout)
-        sign = lambda *extra: self.repo.prose("check", "-F", "-", "--pass", token,
-                                              "--cold-read", cold_report(token), *extra,
-                                              stdin="FEAT(x): a\n", file_goals=False)
+        sign = lambda *extra: cold_read(lambda *cold: self.repo.prose(
+            "check", "-F", "-", "--pass", token, *cold, *extra, stdin="FEAT(x): a\n",
+            file_goals=False))
         refused = sign("--goals-for", "docs/**", "something else")
         self.assertEqual((refused.returncode, refused.stdout), (2, ""))
         self.assertIn("per-file reader goals differ", refused.stderr)
@@ -1237,11 +1261,10 @@ class Check(unittest.TestCase):
         self.repo.write("docs/a.md", "# T\n")
         self.repo.write("README.md", "# T\n")
         first = self.check_for("--goals-for", "docs/**", "one", "--goals-for", "README.md", "two")
-        signed = self.repo.prose("check", "-F", "-", "--goals", "review the fix",
-                                 "--goals-for", "README.md", "two", "--goals-for", "docs/**", "one",
-                                 "--pass", pass_token(first.stdout), "--cold-read",
-                                 cold_report(pass_token(first.stdout)), stdin="FEAT(x): a\n",
-                                 file_goals=False)
+        signed = cold_read(lambda *cold: self.repo.prose(
+            "check", "-F", "-", "--goals", "review the fix", "--goals-for", "README.md", "two",
+            "--goals-for", "docs/**", "one", "--pass", pass_token(first.stdout), *cold,
+            stdin="FEAT(x): a\n", file_goals=False))
         self.assertRegex(block_trailer(signed.stdout), TRAILER)
 
     def test_a_goals_file_may_start_with_a_byte_order_mark(self):
@@ -1387,8 +1410,8 @@ class Check(unittest.TestCase):
         lines = result.stdout.rstrip("\n").split("\n")
         self.assertLess(lines.index("  a.py:2  (comment)"), lines.index("Flags (warnings, not blocking):"))
         token = pass_token(result.stdout)
-        signed = self.repo.prose("check", "-F", "-", "--pass", token, "--cold-read",
-                                 cold_report(token), stdin="FEAT(x): a\n")
+        signed = cold_read(lambda *cold: self.repo.prose("check", "-F", "-", "--pass", token,
+                                                         *cold, stdin="FEAT(x): a\n"))
         trailer = block_trailer(signed.stdout)
         self.assertRegex(trailer, TRAILER)
         self.repo.commit("FEAT(x): a\n", trailer)
@@ -1452,8 +1475,8 @@ def sign_twice(text, goals):
     if first.returncode != 4:
         raise AssertionError(first.stderr)
     token = pass_token(first.stderr)
-    return run([sys.executable, str(SCRIPT), "sign", "--pass", token, "--cold-read",
-                cold_report(token)], cwd=STATE, stdin=text)
+    return cold_read(lambda *cold: run([sys.executable, str(SCRIPT), "sign", "--pass", token,
+                                        *cold], cwd=STATE, stdin=text))
 
 
 class PostFooter(unittest.TestCase):
@@ -2492,8 +2515,8 @@ class PreCommitHook(unittest.TestCase):
 
     def signing_call(self, first, *extra):
         token = pass_token(first.stdout)
-        return self.repo.prose("check", "-F", ".msg", "--pass", token, "--cold-read",
-                               cold_report(token), *extra)
+        return cold_read(lambda *cold: self.repo.prose("check", "-F", ".msg", "--pass", token,
+                                                       *cold, *extra))
 
     def commit(self, trailer):
         return self.repo.commit_script(
@@ -2526,9 +2549,15 @@ class PreCommitHook(unittest.TestCase):
         first = self.first_call()
         self.assertEqual(first.returncode, 4, first.stderr)
         self.repo.write("README.md", "# Hello there\n")
-        signed = self.signing_call(first)
+        # The signing call's first run asks for a cold read; the hook runs on
+        # that run, and the run with the report finds the tree it passed.
+        token = pass_token(first.stdout)
+        needed = self.repo.prose("check", "-F", ".msg", "--pass", token)
+        self.assertEqual(needed.returncode, prose.COLD_READ_NEEDED, needed.stderr)
+        self.assertIn("the trailer signs the files as it left them", needed.stderr)
+        signed = self.repo.prose("check", "-F", ".msg", "--pass", token, "--cold-read",
+                                 straight_report(needed.stdout))
         self.assertEqual(signed.returncode, 0, signed.stderr)
-        self.assertIn("the trailer signs the files as it left them", signed.stderr)
         made = self.commit(block_trailer(signed.stdout))
         self.assertEqual(made.returncode, 0, made.stderr)
         self.assertEqual(self.repo.git("show", "HEAD:README.md"), "#Hellothere\n")
@@ -2602,8 +2631,8 @@ class PassToken(unittest.TestCase):
         return self.repo.prose("check", "-F", "-", "--goals", goals, stdin=message)
 
     def signing(self, token, message="DOCS(x): add a readme\n", *extra):
-        return self.repo.prose("check", "-F", "-", "--pass", token, "--cold-read",
-                               cold_report(token), *extra, stdin=message)
+        return cold_read(lambda *cold: self.repo.prose("check", "-F", "-", "--pass", token,
+                                                       *cold, *extra, stdin=message))
 
     def test_the_first_call_prints_goals_listing_rules_and_a_token_but_no_trailer(self):
         result = self.first()
@@ -2677,8 +2706,8 @@ class PassToken(unittest.TestCase):
         self.assertIn("## The pass", first.stderr)
         token = pass_token(first.stderr)
         self.assertIn(f"sign --pass {token} < body.md > signed.md", first.stderr)
-        signed = run([sys.executable, str(SCRIPT), "sign", "--pass", token, "--cold-read",
-                      cold_report(token)], cwd=self.repo.path, stdin="Text.\n")
+        signed = cold_read(lambda *cold: run([sys.executable, str(SCRIPT), "sign", "--pass", token,
+                                              *cold], cwd=self.repo.path, stdin="Text.\n"))
         self.assertEqual(signed.returncode, 0, signed.stderr)
         self.assertNotIn("## The pass", signed.stderr)
         self.assertEqual(prose.verify_post(signed.stdout), (True, "signed"))
@@ -2734,8 +2763,8 @@ class PassToken(unittest.TestCase):
         first = run([sys.executable, str(SCRIPT), "sign", "--goals", "g"], cwd=outside, stdin="", env=env)
         token = pass_token(first.stderr)
         self.assertTrue((state / "prose" / "passes" / token).is_file())
-        signed = run([sys.executable, str(SCRIPT), "sign", "--pass", token, "--cold-read",
-                      cold_report(token)], cwd=outside, stdin="Text.\n", env=env)
+        signed = cold_read(lambda *cold: run([sys.executable, str(SCRIPT), "sign", "--pass", token,
+                                              *cold], cwd=outside, stdin="Text.\n", env=env))
         self.assertEqual(signed.returncode, 0, signed.stderr)
 
     def test_concurrent_first_calls_each_get_a_token_that_signs(self):
@@ -2749,8 +2778,8 @@ class PassToken(unittest.TestCase):
         self.assertEqual(len(set(tokens)), 8)
         for token in tokens:
             self.assertTrue((self.repo.path / ".git" / "prose" / "passes" / token).is_file())
-            signed = self.repo.prose("sign", "--pass", token, "--cold-read", cold_report(token),
-                                     stdin="Text.\n")
+            signed = cold_read(lambda *cold: self.repo.prose("sign", "--pass", token, *cold,
+                                                             stdin="Text.\n"))
             self.assertEqual(signed.returncode, 0, signed.stderr)
 
     def test_the_first_call_marks_its_session(self):
@@ -2844,6 +2873,8 @@ class ColdRead(unittest.TestCase):
         token = self.first(message)
         result = self.signing(token, message)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        # No cold read: the value is the one prose minted before it had one.
+        self.assertRegex(block_trailer(result.stdout), r"^Prose: ✓ [0-9a-f]{12}:[0-9a-f]{12}$")
 
     def test_one_changed_line_in_a_comment_brings_the_whole_block(self):
         self.repo.write("a.py", "# One.\n# Two.\n# Three.\nx = 1\n")
@@ -2923,9 +2954,10 @@ class ColdRead(unittest.TestCase):
         message = "FEAT(x): a\n"
         token = self.first(message)
         other = self.first(message)
+        self.assertEqual(self.signing(token, message).returncode, prose.COLD_READ_NEEDED)
         bad = REPORTS / "bad.txt"
-        for text in ("Read straight through.\n", f"cold-read {token}\n\n",
-                     f"cold-read {other}\nFine.\n"):
+        for text in ("Item 1: read straight through.\n", f"cold-read {token}\n\n",
+                     f"cold-read {other}\nItem 1: read straight through.\n"):
             bad.write_text(text, encoding="utf-8")
             refused = self.signing(token, message, "--cold-read", str(bad))
             self.assertEqual(refused.returncode, 2, text)
@@ -2940,7 +2972,9 @@ class ColdRead(unittest.TestCase):
         self.repo.write("a.py", "x = 1\n# One.\n")
         token = self.first("FEAT(x): a\n")
         report = REPORTS / "bom.txt"
-        report.write_bytes(f"\ufeffcold-read {token}\nFine.\n".encode("utf-8"))
+        self.assertEqual(self.signing(token, "FEAT(x): a\n").returncode, prose.COLD_READ_NEEDED)
+        report.write_bytes(f"\ufeffcold-read {token}\nItem 1: read straight through.\n"
+                           .encode("utf-8"))
         signed = self.signing(token, "FEAT(x): a\n", "--cold-read", str(report))
         self.assertEqual(signed.returncode, 0, signed.stderr)
 
@@ -2965,7 +2999,8 @@ class ColdRead(unittest.TestCase):
         self.assertIn("1. The post below.", brief)
         self.assertIn("   - approve it", brief)
         self.assertIn("   One line.\n   ----", brief)
-        self.assertIn(f"sign --pass {token} --cold-read cold-read.txt < body.md", needed.stderr)
+        self.assertIn(f"sign --pass {token} --cold-read cold-read.txt --dispositions "
+                      "dispositions.txt < body.md", needed.stderr)
         signed = self.sign("--pass", token, "--cold-read", cold_report(token), stdin=post)
         self.assertEqual(signed.returncode, 0, signed.stderr)
         self.assertEqual(prose.verify_post(signed.stdout), (True, "signed"))
@@ -2975,6 +3010,397 @@ class ColdRead(unittest.TestCase):
         refused = self.sign("--pass", token, stdin="\n")
         self.assertEqual(refused.returncode, 2)
         self.assertNotIn("cold-read brief", refused.stderr)
+
+
+class ColdReadFindings(unittest.TestCase):
+    """Every finding in a cold reader's report is answered before signing:
+    fixed, checked by its quote being gone, or kept with a reason. The answers
+    are bound to the report's token."""
+
+    COMMENT = "x = 1\n# The worker takes a command\n# off the token. It runs there.\ny = 2\n"
+    MESSAGE = "FEAT(x): a\n"
+
+    def setUp(self):
+        self.repo = Repo()
+        self.addCleanup(self.repo.cleanup)
+        self.repo.write("a.py", "x = 1\n")
+        self.repo.commit("base\n")
+        self.repo.write("a.py", self.COMMENT)
+        first = self.repo.prose("check", "-F", "-", "--goals", "review it", stdin=self.MESSAGE)
+        self.token = pass_token(first.stdout)
+        needed = self.signing()
+        self.assertEqual(needed.returncode, prose.COLD_READ_NEEDED, needed.stderr)
+        self.assertIn(f"--cold-read cold-read.txt --dispositions dispositions.txt",
+                      needed.stdout)
+        self.assertIn(f"'dispositions {self.token}'", needed.stdout)
+
+    def signing(self, *extra):
+        return self.repo.prose("check", "-F", "-", "--pass", self.token, *extra,
+                               stdin=self.MESSAGE, file_goals=False)
+
+    def report(self, *findings):
+        """A report holding these findings, each (item, quote)."""
+        return cold_report(self.token, "".join(
+            f"Finding {n}, item {item}, guessed: «{quote}» It was not clear.\n"
+            for n, (item, quote) in enumerate(findings, start=1)), name="findings")
+
+    def answers(self, *lines, token=None):
+        path = REPORTS / "dispositions.txt"
+        header = [] if token == "" else [f"dispositions {token or self.token}"]
+        path.write_text("\n".join(header + list(lines)) + "\n", encoding="utf-8")
+        return str(path)
+
+    def refused(self, result, *words):
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn("token is kept", result.stderr)
+        for word in words:
+            self.assertIn(word, result.stderr)
+
+    def fix(self, text):
+        self.repo.write("a.py", text)
+
+    def test_findings_without_dispositions_are_refused(self):
+        self.refused(self.signing("--cold-read", self.report((1, "takes a command"))),
+                     "pass --dispositions", f"'dispositions {self.token}'")
+
+    def test_dispositions_must_carry_the_report_token(self):
+        report = self.report((1, "takes a command"))
+        self.fix("x = 1\n# The worker runs the command.\ny = 2\n")
+        self.refused(self.signing("--cold-read", report, "--dispositions",
+                                  self.answers("1. fixed", token="")),
+                     f"does not start with 'dispositions {self.token}'")
+        self.refused(self.signing("--cold-read", report, "--dispositions",
+                                  self.answers("1. fixed", token="0" * 16)),
+                     f"does not start with 'dispositions {self.token}'")
+        signed = self.signing("--cold-read", report, "--dispositions", self.answers("1. fixed"))
+        self.assertEqual(signed.returncode, 0, signed.stderr)
+
+    def test_every_finding_is_answered_once(self):
+        report = self.report((1, "takes a command"), (1, "It runs there."))
+        self.fix("x = 1\n# The worker runs the command.\ny = 2\n")
+        self.refused(self.signing("--cold-read", report, "--dispositions",
+                                  self.answers("1. fixed")), "does not answer finding 2")
+        self.refused(self.signing("--cold-read", report, "--dispositions",
+                                  self.answers("1. fixed", "2. fixed", "1. fixed")),
+                     "answers finding 1 twice")
+        self.refused(self.signing("--cold-read", report, "--dispositions",
+                                  self.answers("1. fixed", "2. fixed", "3. fixed")),
+                     "answers finding 3, which the report does not have")
+        self.refused(self.signing("--cold-read", report, "--dispositions",
+                                  self.answers("1. fixed", "2: fixed")),
+                     "a line prose cannot read: '2: fixed'")
+        signed = self.signing("--cold-read", report, "--dispositions",
+                              self.answers("2. fixed", "1. fixed"))
+        self.assertEqual(signed.returncode, 0, signed.stderr)
+
+    def test_fixed_is_refused_while_the_quote_is_still_there(self):
+        report = self.report((1, "It runs there."))
+        answers = self.answers("1. fixed")
+        self.fix(self.COMMENT.replace("worker", "builder"))
+        self.refused(self.signing("--cold-read", report, "--dispositions", answers),
+                     "finding 1 is marked fixed, but «It runs there.» is still in a.py")
+        self.fix(self.COMMENT.replace("It runs there.", "It runs in the clone."))
+        signed = self.signing("--cold-read", report, "--dispositions", answers)
+        self.assertEqual(signed.returncode, 0, signed.stderr)
+        self.repo.commit(self.MESSAGE, block_trailer(signed.stdout))
+
+    def test_a_quote_across_comment_lines_matches(self):
+        report = self.report((1, "takes a command off the token"))
+        answers = self.answers("1. fixed")
+        # Rewrapped only: the quoted words are still there.
+        self.fix("x = 1\n# The worker takes a\n#   command off the\n# token. It runs there.\n"
+                 "y = 2\n")
+        self.refused(self.signing("--cold-read", report, "--dispositions", answers),
+                     "is still in a.py")
+        self.fix("x = 1\n# The worker takes a command\n# from the token. It runs there.\ny = 2\n")
+        self.assertEqual(self.signing("--cold-read", report, "--dispositions",
+                                      answers).returncode, 0)
+
+    def test_kept_needs_a_reason(self):
+        report = self.report((1, "It runs there."))
+        for line in ("1. kept (asked):", "1. kept (asked):   ", "1. kept:"):
+            self.refused(self.signing("--cold-read", report, "--dispositions",
+                                      self.answers(line)), "keeps finding 1 without a reason")
+        signed = self.signing("--cold-read", report, "--dispositions",
+                              self.answers("1. kept (asked): the line above names the clone"))
+        self.assertEqual(signed.returncode, 0, signed.stderr)
+
+    def test_a_kept_finding_no_person_was_asked_about_is_refused_and_handed_back(self):
+        report = self.report((1, "takes a command"), (1, "It runs there."))
+        self.fix("x = 1\n# The worker runs the command.\n# It runs there.\ny = 2\n")
+        answers = self.answers("1. fixed", "2. kept: the line above says where")
+        refused = self.signing("--cold-read", report, "--dispositions", answers)
+        self.refused(refused, "1 finding(s) are kept, and no person was asked about them",
+                     f"the token is kept: {self.token}, unspent, lasts 2 hours",
+                     "Finding 2, in a.py: «It runs there.»\n"
+                     "  The cold reader: It was not clear.\n"
+                     "  Kept, because: the line above says where\n",
+                     '"Keep as is" makes its line \'<n>. kept (asked): <reason>\'',
+                     '"Fix it" means rewrite the passage (and restage it, for a commit)',
+                     "If you cannot ask (a subagent, a background job, no picker), don't sign",
+                     f"the report {pathlib.Path(report).resolve()}",
+                     f"the dispositions file {pathlib.Path(answers).resolve()}")
+        self.assertNotIn("Finding 1, in", refused.stderr)
+        self.assertEqual(refused.stdout, "")
+        for line in ("2. kept (asked) : x", "2. kept(asked): x", "2. kept (Asked): x"):
+            self.refused(self.signing("--cold-read", report, "--dispositions",
+                                      self.answers("1. fixed", line)), "a line prose cannot read")
+        signed = self.signing("--cold-read", report, "--dispositions",
+                              self.answers("1. fixed", "2. kept (asked): the line above says where"))
+        self.assertEqual(signed.returncode, 0, signed.stderr)
+        self.assertNotIn("Finding 2", signed.stderr)
+
+    def test_a_misquote_is_refused_even_when_marked_kept(self):
+        for quote in ("It runs here.", "it runs there."):
+            self.refused(self.signing("--cold-read", self.report((1, quote)), "--dispositions",
+                                      self.answers("1. kept (asked): fine")),
+                         f"finding 1 quotes «{quote}», which item 1 did not hold")
+
+    def test_a_report_prose_cannot_read_is_refused_with_its_form(self):
+        for body, problem in (
+                ("It was fine.\n", "a line prose cannot read: 'It was fine.'"),
+                ("", "holds only its first line"),
+                ("Finding 1, item 1, stopped: \"It runs there.\" No place.\n",
+                 "a line prose cannot read"),
+                ("Finding 2, item 1, stopped: «It runs there.» No place.\n",
+                 "numbers finding 1 as 2"),
+                ("Finding 1, item 2, stopped: «It runs there.» No place.\n",
+                 "puts finding 1 in item 2, but the brief has items 1 to 1"),
+                ("Finding 1, item 1, stopped: «It runs there.»\n",
+                 "does not say, in finding 1, what was guessed or missing"),
+                ("Finding 1, item 1, stopped: « # » No words.\n", "quotes no words in finding 1"),
+                ("Item 1: read straight through.\nItem 1: read straight through.\n",
+                 "item 1 was read straight through twice"),
+                ("Item 1: read straight through.\nFinding 1, item 1, reread: «It runs there.» "
+                 "Where?\n", "and also reports findings in it"),
+                ("Item 2: read straight through.\n", "says nothing about item 1"),
+                ("Item 1: read straight through.\nItem 2: read straight through.\n",
+                 "names item 2, but the brief has items 1 to 1"),
+        ):
+            result = self.signing("--cold-read", cold_report(self.token, body, name="bad"))
+            self.refused(result, problem)
+            if problem != "holds only its first line":
+                self.assertIn("'Item <item>: read straight through.'", result.stderr)
+
+    def test_a_finding_may_go_on_over_indented_lines(self):
+        report = cold_report(self.token, "Finding 1, item 1, guessed: «It runs there.»\n"
+                                         "   What runs, and where?\n", name="wrapped")
+        signed = self.signing("--cold-read", report, "--dispositions",
+                              self.answers("1. kept (asked): a test"))
+        self.assertEqual(signed.returncode, 0, signed.stderr)
+
+    def test_a_report_with_no_findings_signs_without_dispositions(self):
+        report = cold_report(self.token, "Item 1: read straight through.\n", name="clean")
+        signed = self.signing("--cold-read", report)
+        self.assertEqual(signed.returncode, 0, signed.stderr)
+        self.assertTrue(block_trailer(signed.stdout).endswith(":"
+                        + prose.message_hash(self.MESSAGE) + "; cold read: no findings"))
+
+    def hook(self, script):
+        payload = json.dumps({"cwd": str(self.repo.path)})
+        return run(["sh", str(script), "--host", "claude"], stdin=payload,
+                   env=dict(os.environ, TMPDIR=tempfile.gettempdir()))
+
+    def test_the_trailer_counts_the_findings(self):
+        for script in (COMMIT_HOOK, BUG_HUNTER_HOOK):
+            self.hook(script)  # sets each hook's cursor before the commit
+        report = self.report((1, "takes a command"), (1, "It runs there."))
+        self.fix("x = 1\n# The worker runs the command.\n# It runs there.\ny = 2\n")
+        signed = self.signing("--cold-read", report, "--dispositions",
+                              self.answers("1. fixed",
+                                           "2. kept (asked): the line above says where"))
+        self.assertEqual(signed.returncode, 0, signed.stderr)
+        trailer = block_trailer(signed.stdout)
+        self.assertRegex(trailer, TRAILER)
+        self.assertTrue(trailer.endswith("; cold read: 2 findings, 1 fixed, 1 kept"), trailer)
+        self.assertEqual(signed.stdout.count("\n"), 4, signed.stdout)
+        made = self.repo.commit_script(
+            "FEAT(x): a", "", "--minted-by", str(BUG_HUNTER_MINT), "Bug-hunter", "0 bugs found",
+            "--verified-value", str(VERIFY_STAGED), "Prose", trailer[len("Prose: "):])
+        self.assertEqual(made.returncode, 0, made.stderr)
+        self.assertEqual(self.repo.git("log", "-1", "--format=%(trailers:key=Prose,valueonly)")
+                         .strip(), trailer[len("Prose: "):])
+        self.assertEqual(self.repo.verify().stdout, "checked\n")
+        for script in (COMMIT_HOOK, BUG_HUNTER_HOOK):
+            result = self.hook(script)
+            self.assertEqual(result.returncode, 0, f"{script}: {result.stderr}")
+
+    def test_all_fixed_counts_none_kept(self):
+        report = self.report((1, "It runs there."))
+        self.fix("x = 1\n# The worker runs the command in the clone.\ny = 2\n")
+        signed = self.signing("--cold-read", report, "--dispositions", self.answers("1. fixed"))
+        self.assertTrue(block_trailer(signed.stdout).endswith(
+            "; cold read: 1 finding, 1 fixed, 0 kept"))
+
+    def test_counts_in_any_other_form_are_unrecognised(self):
+        good = f"Prose: ✓ {'0' * 12}:{prose.message_hash(self.MESSAGE)}"
+        for counts in ("2 findings, 1 fixed, 2 kept", "1 findings, 1 fixed, 0 kept",
+                       "0 findings, 0 fixed, 0 kept", "2 findings, 01 fixed, 1 kept",
+                       "3 findings", "No findings", "", "1 finding, 1 fixed, 0 kept; x"):
+            ok, reason = prose.verify_staged(f"{good}; cold read: {counts}", self.MESSAGE,
+                                             self.repo.path)
+            self.assertEqual((ok, reason.split(":")[0]), (False, "unrecognised"), counts)
+        for counts in ("no findings", "1 finding, 0 fixed, 1 kept", "12 findings, 7 fixed, 5 kept"):
+            ok, reason = prose.verify_staged(f"{good}; cold read: {counts}", self.MESSAGE,
+                                             self.repo.path)
+            self.assertTrue(reason.startswith("tree:"), (counts, reason))
+
+    def test_a_committed_value_with_counts_in_another_form_is_unrecognised(self):
+        report = cold_report(self.token, "Item 1: read straight through.\n", name="clean")
+        trailer = block_trailer(self.signing("--cold-read", report).stdout)
+        self.repo.commit(self.MESSAGE, trailer.replace("no findings", "0 findings, 0 fixed, 0 kept"))
+        result = self.repo.verify()
+        self.assertEqual(result.returncode, 1)
+        self.assertTrue(result.stdout.startswith("unrecognised:"), result.stdout)
+
+    def test_dispositions_without_a_report_are_refused(self):
+        result = self.signing("--dispositions", self.answers("1. fixed"))
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("--dispositions goes with --cold-read", result.stderr)
+
+    def test_a_file_staged_after_the_brief_needs_a_new_brief(self):
+        self.repo.write("b.py", "# It does the thing with the stuff.\nz = 3\n")
+        report = cold_report(self.token, "Item 1: read straight through.\n", name="clean")
+        result = self.signing("--cold-read", report)
+        self.refused(result, "b.py")
+        self.assertNotIn("=== prose result ===", result.stdout)
+
+    def test_a_report_with_no_brief_printed_is_refused(self):
+        first = self.repo.prose("check", "-F", "-", "--goals", "review it", stdin=self.MESSAGE)
+        token = pass_token(first.stdout)
+        result = self.repo.prose("check", "-F", "-", "--pass", token, "--cold-read",
+                                 cold_report(token), stdin=self.MESSAGE, file_goals=False)
+        self.refused(result, f"no cold-read brief was printed for pass token {token}")
+
+    def test_a_post_fixed_means_the_quote_is_gone_from_the_post(self):
+        sign = lambda *args, stdin: run([sys.executable, str(SCRIPT), "sign"] + list(args),
+                                        cwd=self.repo.path, stdin=stdin)
+        token = pass_token(sign("--goals", "approve it", stdin="").stderr)
+        post = "The fix lands there.\nIt is safe.\n"
+        self.assertEqual(sign("--pass", token, stdin=post).returncode, prose.COLD_READ_NEEDED)
+        report = cold_report(token, "Finding 1, item 1, guessed: «lands there» Where?\n",
+                             name="post")
+        answers = self.answers("1. fixed", token=token)
+        misquoted = cold_report(token, "Finding 1, item 1, guessed: «lands here» Where?\n",
+                                name="post-misquote")
+        self.refused(sign("--pass", token, "--cold-read", misquoted, "--dispositions", answers,
+                          stdin=post), "did not hold when the brief was printed")
+        self.refused(sign("--pass", token, "--cold-read", report, "--dispositions", answers,
+                          stdin=post), "«lands there» is still in the post")
+        fixed = "The fix lands in main.\nIt is safe.\n"
+        signed = sign("--pass", token, "--cold-read", report, "--dispositions", answers,
+                      stdin=fixed)
+        self.assertEqual(signed.returncode, 0, signed.stderr)
+        self.assertEqual(prose.verify_post(signed.stdout), (True, "signed"))
+
+    def test_a_post_keeps_a_finding_only_once_a_person_was_asked(self):
+        sign = lambda *args, stdin: run([sys.executable, str(SCRIPT), "sign"] + list(args),
+                                        cwd=self.repo.path, stdin=stdin)
+        token = pass_token(sign("--goals", "approve it", stdin="").stderr)
+        post = "The fix lands there.\n"
+        sign("--pass", token, stdin=post)
+        report = cold_report(token, "Finding 1, item 1, guessed: «lands there» Where?\n",
+                             name="post-kept")
+        refused = sign("--pass", token, "--cold-read", report, "--dispositions",
+                       self.answers("1. kept: the title names the branch", token=token),
+                       stdin=post)
+        self.refused(refused, "Finding 1, in the post: «lands there»\n  The cold reader: Where?\n"
+                              "  Kept, because: the title names the branch\n")
+        self.assertEqual(refused.stdout, "")
+        signed = sign("--pass", token, "--cold-read", report, "--dispositions",
+                      self.answers("1. kept (asked): the title names the branch", token=token),
+                      stdin=post)
+        self.assertEqual(signed.returncode, 0, signed.stderr)
+        self.assertEqual(signed.stdout, prose.sign(post))
+
+
+class QuotesAcrossLines(unittest.TestCase):
+    """A quote the reader wrote on one line, as the brief asks, matches text
+    that runs across lines behind any line-start marker: `//!`, `>`, and a
+    post line that starts with `#42`."""
+
+    def setUp(self):
+        self.repo = Repo()
+        self.addCleanup(self.repo.cleanup)
+        self.repo.write("a.py", "x = 1\n")
+        self.repo.commit("base\n")
+
+    def signed_after_fix(self, path, before, after, quote):
+        self.repo.write(path, before)
+        first = self.repo.prose("check", "-F", "-", "--goals", "review it", stdin="FEAT(x): a\n")
+        token = pass_token(first.stdout)
+        sign = lambda *extra: self.repo.prose("check", "-F", "-", "--pass", token, *extra,
+                                              stdin="FEAT(x): a\n", file_goals=False)
+        self.assertEqual(sign().returncode, prose.COLD_READ_NEEDED)
+        report = cold_report(token, f"Finding 1, item 1, guessed: «{quote}» Which call?\n",
+                             name="across")
+        answers = REPORTS / "across-dispositions.txt"
+        answers.write_text(f"dispositions {token}\n1. fixed\n", encoding="utf-8")
+        self.repo.write(path, after)
+        return sign("--cold-read", report, "--dispositions", str(answers))
+
+    def test_a_rust_inner_doc_comment(self):
+        signed = self.signed_after_fix(
+            "lib.rs", "//! The token is kept so the\n//! second call can read it.\nfn main() {}\n",
+            "//! The token stays unspent for the signing call.\nfn main() {}\n",
+            "kept so the second call")
+        self.assertEqual(signed.returncode, 0, signed.stderr)
+
+    def test_a_markdown_blockquote(self):
+        signed = self.signed_after_fix(
+            "README.md", "# T\n\n> The token is kept so the\n> second call can read it.\n",
+            "# T\n\n> The token stays unspent for the signing call.\n",
+            "The token is kept so the second call")
+        self.assertEqual(signed.returncode, 0, signed.stderr)
+
+    def test_a_post_line_starting_with_an_issue_number(self):
+        sign = lambda *args, stdin: run([sys.executable, str(SCRIPT), "sign"] + list(args),
+                                        cwd=self.repo.path, stdin=stdin)
+        token = pass_token(sign("--goals", "approve it", stdin="").stderr)
+        post = "We settled this in issue\n#42, which the review asked for.\n"
+        self.assertEqual(sign("--pass", token, stdin=post).returncode, prose.COLD_READ_NEEDED)
+        report = cold_report(token, "Finding 1, item 1, guessed: «settled this in issue #42, "
+                                    "which» Which review?\n", name="issue")
+        answers = REPORTS / "issue-dispositions.txt"
+        answers.write_text(f"dispositions {token}\n1. fixed\n", encoding="utf-8")
+        refused = sign("--pass", token, "--cold-read", report, "--dispositions", str(answers),
+                       stdin=post)
+        self.assertIn("is still in the post", refused.stderr)
+        signed = sign("--pass", token, "--cold-read", report, "--dispositions", str(answers),
+                      stdin="Issue #42 settled this, at the review's request.\n")
+        self.assertEqual(signed.returncode, 0, signed.stderr)
+
+
+class QuoteIn(unittest.TestCase):
+    """How a finding's quote is matched in the text it came from."""
+
+    def test_spaces_and_line_breaks_between_words_match(self):
+        self.assertTrue(prose.quote_in("a b c", "x a\n   b\tc y"))
+        self.assertTrue(prose.quote_in("a b", "a\r\nb"))
+        self.assertTrue(prose.quote_in("a b", "a\n\n# \n# b"))
+
+    def test_line_start_markers_between_words_are_skipped(self):
+        for text in ("# a b\n# c d", "// a b\n// c d", "/* a b\n * c d */",
+                     "/** a b\n *  c d\n */", "## a b\n#c d", "/// a b\n/// c d",
+                     "//! a b\n//! c d", "> a b\n> c d", "-- a b\n-- c d", "; a b\n;; c d",
+                     "/* a b */\n/* c d */"):
+            self.assertTrue(prose.quote_in("a b c d", text), text)
+
+    def test_a_word_starting_with_a_marker_matches_at_a_line_start(self):
+        self.assertTrue(prose.quote_in("issue #42,", "issue\n#42,"))
+
+    def test_case_and_every_other_character_count(self):
+        self.assertFalse(prose.quote_in("It runs", "# it runs"))
+        self.assertFalse(prose.quote_in("a b", "a, b"))
+        self.assertFalse(prose.quote_in("a b", "a # b"))
+        self.assertTrue(prose.quote_in("a * b", "x = a * b"))
+        self.assertTrue(prose.quote_in("**bold** text", "**bold** text"))
+
+    def test_a_failed_search_over_long_marker_runs_is_fast(self):
+        started = time.time()
+        self.assertFalse(prose.quote_in("a b", ("a\n" + "#" * 2000 + " ") * 200))
+        self.assertFalse(prose.quote_in("a b", "a" + "\n " * 20000 + "c"))
+        self.assertLess(time.time() - started, 2)
 
 
 class Gate(unittest.TestCase):

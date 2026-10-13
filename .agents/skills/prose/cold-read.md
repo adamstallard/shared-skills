@@ -15,9 +15,25 @@ Report every place where you:
 - could not see what a "so", "because", "which" or "therefore" follows from;
 - could not tell why a claim is true, or why it matters to this reader.
 
-For each place, quote the words, say what you did (stopped, reread or
-guessed), and say what you guessed or what was missing. Don't suggest a
-rewrite, and don't report wording you read straight through. For an item you
-read straight through, say so in one line.
+Write each place as one finding, numbered from 1 in the order you write
+them, in this form:
+
+  Finding 1, item 2, guessed: «the exact words» What you guessed, or what was missing.
+
+- "item 2" is the number of the item the words are in.
+- After the item number comes what you did: stopped, reread or guessed.
+- Between « and », copy the words that stopped you exactly as the item has
+  them. Leave out comment markers such as # or // at the start of a line,
+  and write words that run across lines on one line. A quote holds neither
+  « nor ».
+- After », say what you guessed or what was missing. It may go on over
+  indented lines below.
+
+For an item you read straight through, write one line instead:
+
+  Item 3: read straight through.
+
+Every item gets findings or that line, never both. Don't suggest a rewrite,
+and don't report wording you read straight through.
 
 Begin your report with this line, exactly as written:
