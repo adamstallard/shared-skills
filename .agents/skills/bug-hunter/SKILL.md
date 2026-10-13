@@ -597,7 +597,16 @@ a blank line, body) to `msg.txt`, unstaged, and:
    naming its own reader's goals; prose's SKILL.md says how.
 2. Rewrite the listed comments, docs and message by those rules; restage.
 3. Run the second call, which prints the `Prose:` trailer:
-   `python3 "$S/prose.py" check -F msg.txt --pass <token>`
+   `python3 "$S/prose.py" check -F msg.txt --pass <token>`.
+   If it exits 5, it printed a cold-read brief instead: follow prose's
+   SKILL.md, *The cold read*, then run it again with `--cold-read <report>`
+   and, when the report has findings, `--dispositions <file>`. A finding you
+   would keep needs a person's answer first, through your picker (prose's
+   SKILL.md, *The cold read*). If you cannot ask, because you run for another
+   agent or under *caller commits*, don't commit: leave the change staged,
+   and put prose's refusal, which names each kept finding, in your report
+   with one open decision per finding ("keep as is · fix it"). Once signed,
+   the trailer ends with the cold read's counts; pass it as printed.
 4. Commit once, passing the text after `Prose: ` as a family before `--`:
 
 ```bash
@@ -717,7 +726,12 @@ EOF
 ```
 
    With nothing open, drop `--decisions` and the heredoc. A skip passes its
-   `skipped at triage (<reason>)` value and mints nothing.
+   `skipped at triage (<reason>)` value and mints nothing. When prose is
+   installed and a cold-read finding would be kept, prose cannot sign until
+   a person answers it: add one decision line per kept finding, such as
+   `prose: keep «<quote>» in <file>? — 1 keep as is · 2 fix it`, and put
+   prose's refusal, with its report and dispositions paths and token, in the
+   report.
 4. **End the reply with the script's output, whole and unedited.** The caller
    parses it and passes the trailer lines through unchanged:
 

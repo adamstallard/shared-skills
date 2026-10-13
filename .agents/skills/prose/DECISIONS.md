@@ -192,6 +192,61 @@ catchphrase.
 
 ---
 
+## Three causes of a reread, added to rules 3, 4 and 8
+
+**Decision (Adam, 2026-10-12).** Three failures become part of rules that
+already exist:
+- **Rule 3** names *a pointer whose one referent is far back* as a usual cause
+  of a reread: "it", "there" or "these commands" with a single possible
+  referent, a paragraph back. The rule had named only a pointer with two
+  possible referents.
+- **Rule 4** says *a "so" points at what the reader just read*: "so",
+  "because", "which", "therefore" and "thus" claim that a sentence follows
+  from the one before it.
+- **Rule 8** says *one claim per sentence*, and its sentence "a longer
+  sentence that reads once beats a shorter one read twice" now says what may
+  make it longer: words that serve its one claim, not a second claim.
+
+**Why.** Igor's `gitEnv` comment in `src/worktree.ts` (branch
+`one-claiming-surface`, from commit `2c4a19e`, which carries a valid `Prose:`
+trailer) is hard to read although the pass ran on it. Of its seven
+failures, four are ones the rules already named, missed because the author
+reviewed their own text (*A cold read before signing*, below, is the fix):
+- an idiom in place of the mechanism, "take a command off the token" (rule 5);
+- a missing actor, "authenticates with the token where it fetches" (rule 9);
+- an exception without the reason it is safe, "`.git/config` is still read
+  by the fetches `merge` makes" (rule 5);
+- an opening that says what the code avoids before what it does (rule 2).
+
+The other three no rule covered:
+- "So a proxy set only as `http.proxy` there does not reach these commands"
+  follows the sentence on `insteadOf`, but its cause is the decision two
+  sentences earlier, to read no global or system config.
+- Each sentence carries a rule, its mechanism and a consequence at once, and
+  rule 8's sentence about longer sentences reads as permission for that.
+- "there", "these commands" and "it" each have one referent, but a paragraph
+  back. Rule 3 named only the pointer with two.
+
+Each rule's new example is taken from that comment, shortened.
+
+**Folded into existing rules, not new ones.** `prose check` prints rules 1 to 8
+in full and the rest as one-line headings. A rule numbered 15, 16 or 17
+would reach the agent as a heading alone, without its reason or its example,
+which is what the motivating comment needed. Each failure is also a case of
+an existing rule's question: a far pointer sends the reader back (rule 3), a
+misplaced "so" breaks one sentence leading to the next (rule 4), and a
+sentence's claims are what its words are spent on (rule 8).
+
+**Rejected.**
+- **New rules numbered within 1 to 8**, with `RULES_IN_FULL` raised to 11.
+  Every rule after the insertion is renumbered, and this file, SKILL.md and
+  past reviews cite rules by number.
+- **A word or clause limit per sentence.** A number reads as a target (*No
+  length budgets*); the rule is about claims, which a count of words does not
+  see.
+
+---
+
 ## A revision request is drafted fresh, section by section
 
 **Decision (Adam, 2026-10-10).** When someone asks for existing text to be
@@ -867,6 +922,266 @@ look for comments, tell docs from code, or classify paths.
 
 **Accepted cost.** A session that writes no prose but edits a file must run
 `prose start` once.
+
+---
+
+## A cold read before signing
+
+**Decision (Adam, 2026-10-12; scope settled 2026-10-13).** Before a changed
+comment, doc passage or post is signed, an agent that has never seen the
+conversation behind it reads it, and reports every place it stopped, reread or
+guessed. The author fixes those places, then signs. rules.md's step 5 states
+it, SKILL.md's *The cold read* gives the procedure, and
+[cold-read.md](cold-read.md) holds the brief the cold reader gets, its only
+copy.
+
+**Why.** The pass ran on Igor's `gitEnv` comment (*Three causes of a reread*,
+above), and four of its failures were ones the rules already named. The author
+checked the text against the rules with the conversation in mind, so every
+gap was already filled for them. A reader without the conversation is the
+reader the text is for, and the only one who stops where that reader will.
+
+**Tried on that comment (2026-10-12).** A fresh subagent given only the
+brief the signing call printed for the comment reported four of the seven
+failures: the idiom, the misplaced "so", the exception without its reason, and
+"for the clone and the fetches" as a pointer it had to guess at. It missed the
+far "these commands", the missing actor (it doubted the LFS fetch's safety
+instead) and the opening. It also found three gaps no review had named: "the
+worker" and `merge` are never introduced, and the comment does not say why the
+empty helper entry alone is not enough.
+
+**The signing call enforces it.** The first call cannot: it lists a draft,
+and `sign`'s first call has no text yet. So the signing call, which has the
+final text:
+- takes every changed comment block and doc passage `check` lists, as they
+  are, and every post;
+- without `--cold-read <file>`, signs nothing, keeps the token, exits 5, and
+  prints the brief: cold-read.md, the line `cold-read <token>` the report
+  starts with, the repository the paths are in, and each text with its
+  reader's goals. A comment or doc is named by file and lines; a post is
+  quoted;
+- with it, checks the report and an answer to each of its findings, then
+  signs (*Every cold-read finding is answered before signing*, below). A
+  refused report keeps the token.
+
+Exit 5 is distinct from 4 (first call) and 2 (refused), so a script running the
+calls can tell "do this step" from an error.
+
+**No length threshold (Adam, 2026-10-13).** The first version read only texts
+of three or more lines that hold text. Every bug bug-hunter found in it was in
+that counting: comment syntax lines counted as text, docs git diffs as binary
+skipped or read whole at any size, a symlink replacing a doc, and NULs and
+byte order marks counted as lines in UTF-16 and UTF-32. A character count has
+the same hard cases. Without a threshold, the cost is a subagent where a
+commit's only prose is a short comment, and nothing to count can go wrong.
+
+**What it applies to, and what it skips.**
+- **New and changed text alike:** a reader meets a comment block whole, so the
+  whole block goes in the brief, whatever line the diff touched.
+- **Not the commit message** (Adam, 2026-10-13: "I don't care about commit
+  message bodies"). A commit that changes no comment or doc signs without a
+  report.
+- **Not a doc git diffs as binary** (UTF-16, `-diff`): prose cannot read it,
+  so it has no passage to name. Nor a deleted doc, an edit that only
+  removes lines, or a symlink or submodule at a doc path, whose one line is a
+  target path or a commit: none leaves new prose to read.
+- **One cold read per token:** the fixes are not read cold again, since that
+  would repeat until a reader found nothing. Each finding marked fixed is
+  checked instead by its item having changed (*Every cold-read finding is
+  answered before signing*, below).
+- **A code file listed as "did not parse" or "could not be read"** (Adam,
+  2026-10-13) signs without a cold read: prose found no comment in it, so the
+  brief has nothing to name.
+- **A comment on a changed line is read cold even when its own text did not
+  change** (Adam, 2026-10-13), such as `# note` on `x = 1` made `x = 2`.
+  `check` lists that comment, and the cold read takes what `check` lists.
+
+**A host without subagents (Adam, 2026-10-13):** the author does the cold
+read, reading the brief as all they know, and writes the report. The report
+carries no marker saying so: it is not committed or posted, so no reader would
+see one.
+
+**What it proves:** a report for that pass's token existed before the
+signature, and each of its findings was answered: its item changed, or kept
+with a reason. **What it does not prove:** that a fresh agent wrote it, or that it
+was given only the brief. An author can write the report themselves; that is
+the forgery this skill does not defend against (*Posted text carries a signed
+footer*), and the cheat list names it.
+
+**Rejected.**
+- **Procedure only, in SKILL.md.** Advisory text is what agents skip (*Why the
+  skill exists*), and a cold read is skipped exactly when the author thinks the
+  text is clear, which is when the author is wrong.
+- **The script running the cold reader itself,** through a model API. It would
+  need a key, a network and a model choice in a standard-library script, and
+  it would tie the skill to one provider.
+- **A brief from the first call.** The text is a draft then, and `sign` has
+  none yet.
+- **A separate `brief` command.** One more command to remember, when the
+  signing call already holds the final text.
+- **Giving the cold reader the rules.** It would check the text against them
+  instead of reading it, and the pass already does that. Its stops are the
+  evidence; the rules are the author's to apply.
+- **Asking the cold reader for rewrites.** A rewrite carries the reader's
+  guesses into the text. A stop with what was guessed tells the author what to
+  fix.
+- **Binding the report to the text's hash.** The fixes change the text, so
+  every fix would need a new cold read.
+- **A threshold in lines, characters, sentences or words.** See *No length
+  threshold*, above.
+
+**Known gap.** A doc passage is named by its changed lines, not its section;
+the reader is told to read the section around them. Finding sections was tried
+and dropped (*Each listed item is judged as its own reader*, "Listing each
+changed passage's section heading").
+
+**Where this stops applying.** If cold readers report nothing on text that
+human reviewers still find hard, the brief is the place to change. If authors
+dismiss what cold readers report, the next step is a second cold read of the
+fixed text.
+
+---
+
+## Every cold-read finding is answered before signing
+
+**Decision (Adam, 2026-10-13).** The signing call takes, beside
+`--cold-read <report>`, `--dispositions <file>`, which answers each of the
+report's findings once:
+- `<n>. fixed`: the script checks that the item the finding is in has
+  changed since the brief was printed. If it has not, it refuses, naming the
+  finding.
+- `<n>. kept (asked): <reason>`: a person chose to keep it (*A person
+  decides every kept finding*, below). The reason is required, on that line.
+
+A missing, duplicated or unknown finding number is refused, naming it. The
+file's first line is `dispositions <token>`, the token the report starts with,
+so answers written for one cold read cannot be passed with another. A report
+with no findings, every item read straight through, needs no dispositions
+file.
+
+**Why.** The signing call proved only that a report existed. An author could
+pass it and change nothing: the findings were ignored without a trace, and the
+signature looked the same as one whose author fixed every place. Each finding
+now ends one of two ways the author has to state: the item the reader
+stopped in has changed, or the author says why it stays.
+
+**The report has a fixed form,** which cold-read.md asks for and the script
+parses:
+
+```text
+cold-read <token>
+Finding 1, item 2, guessed: «the exact words» What was guessed or missing.
+Item 3: read straight through.
+```
+
+Findings are numbered from 1 in order; what was missing may go on over
+indented lines. Every item gets findings or the straight-through line, never
+both, so a report that skips an item is refused. A line in no other form is
+refused, with the form in the message: the author asks the reader again
+rather than prose guessing what a free-form report meant.
+
+**`fixed` is checked by its item changing (Adam, 2026-10-13).** The brief's
+call records, with the token, each item's file and line spans, and each named
+file's text as staged, or the post. At signing, the script diffs that text
+against the text now (`item_changed`). A finding marked `fixed` is accepted
+when its item changed: a line of it changed or removed, or a line added
+inside it or directly above or below it. It is refused when none did. An
+edit elsewhere in the file, including one above the item that moves its
+lines, is not a change to it, since the diff maps the old lines to the new.
+A deleted file, or a removed passage, counts as changed. A post is compared
+whole. Because of the record, `--cold-read` is refused for a token whose
+brief was never printed. A brief printed again replaces the record, and the
+report must answer the latest brief.
+
+The quote stays in the report's form, `«<words>»`, and the script parses it
+but does not check it against the text. The quote is for the person who
+answers the finding; the check uses the item number.
+
+**Why not the quote.** The first version refused `fixed` while the quoted
+words were still in the item's file, and refused a quote the file never held
+as a misquote. That proved only that those exact words were edited. It took
+the most intricate code in the change, a generated pattern matching a quote
+across comment-marker lines, which held one of the two bugs bug-hunter found
+in it. It also refused honest misquotes: a paraphrase, curly quotes, "…".
+Comparing the item's recorded text with its current text catches the case the
+check exists for, a finding marked `fixed` with nothing touched, with far
+less code.
+
+**Accepted cost.** An edit to a different part of the same item counts, and
+so does a line added directly above or below it, even when that line is
+code. The cheat list names marking a finding fixed by editing another part
+of its item.
+
+**A file the brief did not name is refused.** When a file not among the
+brief's items now has a changed comment or doc passage, the signing call
+refuses with `--cold-read`, naming it: no cold reader saw it, and the trailer
+would say it was read. Running the signing call without `--cold-read` prints
+a new brief that covers it. Fixes inside the files the brief named are
+allowed, as *One cold read per token* says.
+
+**Rejected.**
+- **Withholding the token until a cold read comes back clean.** Cold readers
+  rarely report nothing, so it would loop to the cap. And the author relays
+  the report, so "clean" cannot be verified.
+- **Re-reading fixed passages cold.** *One cold read per token* stands; the
+  item check replaces it, at no cost of a second subagent.
+- **Checking `fixed` by the quote being gone,** replaced on 2026-10-13 (see
+  *Why not the quote*, above).
+- **Free-form reports, with the quotes found by looking for quotation
+  marks.** The text being read contains quotation marks too, and a guess at
+  what a report meant is a check that passes by mistake.
+- **Signing with `kept` and fixing afterwards in a follow-up commit.** An
+  unattended run would ship wording no person had looked at.
+- **Signing with `kept` when no person can be asked,** and showing the kept
+  findings afterwards. The same: the wording lands before anyone sees it.
+
+**A person decides every kept finding (Adam, 2026-10-13).** A kept finding
+leaves the change unsigned until a person has been asked.
+- The signing call refuses a finding kept without `(asked)`. The refusal
+  names each such finding with its quote, the cold reader's note and the
+  reason, and gives the paths of the report and the dispositions file. The
+  token stays unspent.
+- An agent with a person and an interactive picker asks one question per
+  finding before signing: "Keep as is" writes `kept (asked): <reason>`; "Fix
+  it" rewrites the passage, restages it, and writes `fixed`. Then it signs
+  once.
+- An agent that cannot ask (a subagent, a background job, no picker) does
+  not sign or commit. It leaves the change staged and passes the refusal, the
+  report, the dispositions file and the token to whoever holds its result.
+  That agent asks the person and signs within the token's two hours.
+- **What `(asked)` proves: nothing.** The script cannot see whether a person
+  was asked; `(asked)` is the agent's explicit claim that one was. Writing it
+  falsely is on the cheat list, and it is a statement made on purpose rather
+  than a step skipped by default.
+- The signing call prints no separate list of kept findings. Each one reaches
+  a person through the question, which takes its text from the report and the
+  dispositions file.
+
+**The counts (Adam, 2026-10-13).**
+- A commit's `Prose:` value ends with the counts the script mints, `; cold
+  read: 5 findings, 3 fixed, 2 kept` (or `1 finding`, or `no findings`). A
+  commit with no cold read keeps the plain `✓ <tree>:<message>` value, so
+  every commit signed before this verifies as it did.
+- `verify-staged` and `verify-commit` accept the counts only in the exact
+  form `cold_counts` prints, with the total equal to fixed plus kept; any
+  other form is `unrecognised`. The counts are not hashed: like the rest of
+  the value, they show the script ran, and a hand-typed value is the forgery
+  this skill does not defend against.
+- Posts keep their footer unchanged.
+
+**Counts in the `Prose:` value, not a new trailer.** The commit script, the
+library's commit hook and bug-hunter's commit script already carry the
+`Prose:` value as one opaque line, verified only by prose's own
+`verify-staged`. Extending the value changes only prose's parser. A new
+trailer key would have to be taught to the library's families, its hook and
+bug-hunter's caller result.
+
+**Known gap.** `fixed` proves the item changed, not that the edit touched the
+place the reader stopped, nor that the reader would now read it straight
+through. Editing another part of the item is on the cheat list. Where a file
+repeats identical lines, the diff may place an added one at a different
+repeat, which can land it beside an item. A `kept` reason is not checked
+beyond being there; the cheat list names a reason that restates the wording.
 
 ---
 

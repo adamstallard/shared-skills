@@ -170,7 +170,8 @@ and run the call again.
 
 Do the pass over each listed item against the goals above it, rereading each
 changed doc passage inside its section, and restage. Then run that command on
-the final text, with the token. The token holds the per-file goals, so the
+the final text, with the token. When the change holds a comment or doc
+passage, it first asks for a cold read; see [The cold read](#the-cold-read). The token holds the per-file goals, so the
 second call needs no `--goals-for`; it refuses other ones, and a doc staged
 since the first call that they don't cover.
 
@@ -187,11 +188,102 @@ Prose: ✓ 4d593e935186:9138830a72a2
 === end prose ===
 ```
 
+## The cold read
+
+You read your own text knowing what you meant, so you fill its gaps without
+seeing them. Before a text is signed, an agent that has never seen the
+conversation reads it and reports every place it stopped, reread or guessed.
+
+**What gets one:** every comment block the change adds to or edits, read
+whole even when one line changed; every doc or spec passage it adds to; and
+every post, whatever its length. The commit message gets none, so a commit
+that changes no comment or doc signs without one. A doc that git diffs as
+binary is skipped, since prose cannot read it.
+
+**How.** Run the signing call as usual. When it has something to read cold and
+you pass no report, it signs nothing, keeps the token and exits 5. It prints a
+brief between `=== cold-read brief ===` lines, on stdout for `check` and on
+stderr for `sign`. The brief is [cold-read.md](cold-read.md), then the line the
+report must start with, then each text with its reader's goals: a comment or
+doc by its file and lines, a post quoted in full.
+
+1. Start a new subagent, and give it the brief exactly as printed. Add
+   nothing: not the conversation, not what the text is meant to say, not a
+   summary of the change.
+2. Save its report, as it wrote it, to a file outside the commit, such as
+   `cold-read.txt` beside `msg.txt`. The brief asks for one line per
+   finding, quoting the words that stopped the reader, and one line for each
+   item read straight through:
+
+   ```text
+   cold-read <token>
+   Finding 1, item 1, guessed: «It runs there» What runs, and where?
+   Item 2: read straight through.
+   ```
+
+3. Fix the places the report names, by the rules, and restage.
+4. Answer every finding in a dispositions file beside the report, such as
+   `dispositions.txt`. Its first line binds it to the same token; then one
+   line per finding:
+
+   ```text
+   dispositions <token>
+   1. fixed
+   2. kept (asked): the reader of this file has just read the function it names
+   ```
+
+   `fixed` means you changed the item the finding is in. A report with no
+   findings needs no dispositions file.
+5. **A person decides every kept finding.** For each finding you would keep,
+   ask a person one question, through your host's interactive picker: show
+   the quoted words, the cold reader's note and your reason, with two
+   options, "Keep as is" and "Fix it". "Fix it": rewrite the passage,
+   restage it, and make its line `fixed`. "Keep as is": make its line
+   `kept (asked): <reason>`. The token stays unspent until the signing call,
+   so this needs no new cold read. `(asked)` is your statement that a person
+   answered; the script cannot check it.
+6. Run the signing call again, adding `--cold-read cold-read.txt
+   --dispositions dispositions.txt`.
+
+**When you cannot ask** (you are a subagent or a background job, or your host
+has no picker), don't sign and don't commit. Write each finding you would keep
+as `kept: <reason>` and run the signing call anyway. It refuses, keeps the
+token and prints a message naming each of those findings with its quote, the
+cold reader's note and your reason, and the paths of the report and the
+dispositions file. Leave the change staged and put that message, whole, in
+your result for whoever holds it. That agent asks the person, edits the
+dispositions file and runs the signing call before the token's 2 hours are
+up.
+
+A commit's `Prose:` value then ends with the cold read's counts, such as
+`; cold read: 5 findings, 3 fixed, 2 kept`, or `; cold read: no findings`.
+The script mints them; pass the value as the result block prints it. A commit
+with no cold read keeps the plain value. A post's footer carries no counts.
+
+The signing call refuses (exit 2), signs nothing and keeps the token when:
+- the report or the dispositions file does not start with this token's line;
+- the report has a line not in the brief's form, or says nothing about an
+  item;
+- a finding is unanswered, answered twice, or not in the report, or is kept
+  without a reason;
+- a finding is marked `fixed`, but its item has not changed since the brief;
+- a finding is kept without `(asked)`;
+- a file the brief did not name now has a changed comment or doc passage:
+  run the signing call without `--cold-read` for a new brief, and have that
+  read cold.
+
+Each token takes one cold read; the fixes are not read cold again. The script
+checks `fixed` instead, by the item having changed.
+
+**Without subagents,** do the cold read yourself: read the brief as if it were
+all you knew, open only what it names, and write the report as it asks.
+
 ## Committing
 
 Every commit carries `Prose: ✓ <tree>:<message>`, because every commit has a
 message a reviewer reads. The two hashes bind it to the staged files and the
-final message as they were when the signing `prose check` ran.
+final message as they were when the signing `prose check` ran. After a cold
+read, the value ends with its counts (see [The cold read](#the-cold-read)).
 
 Commit through the shared commit script, with nothing staged or edited
 between the signing call and the commit. Pass the block's `Prose:` value (the text
@@ -272,3 +364,5 @@ editing.
   it.
 - Run the signing call before the pass is done. The rules are printed for the
   rewrite between the two calls.
+- Change the cold-read brief, or add to it, before giving it to the cold
+  reader.

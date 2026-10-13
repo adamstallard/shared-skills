@@ -33,6 +33,8 @@ Rewrite only text you wrote or changed in this change: comments, docs, specs, th
 
 **4. Read it once as the reader,** someone who doesn't know what you meant, and fix every place you'd stop or re-read (rules 3, 4 and 7). In a doc, reread each changed passage inside its section, as that section's reader, before keeping it: a passage that makes sense beside the diff can make none in the section it lands in. When a changed passage repeats a phrase, grep the repository for it. A phrase that recurs across documents with no definition or reason at any use gets fixed at the source: one statement with its reasons, and the others cut or pointed at it (rule 5).
 
+**5. Have it read cold.** Before the signing call, an agent that has never seen the conversation behind the change reads each changed comment block and doc passage, and each post. The commit message is not read cold. You read your own text with what you meant already in mind, so you fill its gaps without noticing them. The signing call prints the cold reader's brief and signs nothing until you pass the report with `--cold-read <file>`, and an answer to each of its findings with `--dispositions <file>`: `fixed`, which the script checks by the finding's item having changed, or `kept (asked)`, once a person chose to keep it. Fix the places the report names: where the cold reader stopped, reread or guessed, the real reader will too. SKILL.md's *The cold read* says how to run it.
+
 **Never cut:** the why of a decision the code doesn't make obvious; a warning that stops someone repeating a mistake; a stated limit ("not tested on Windows"). These are what a reviewer can't recover from the diff.
 
 **This is not a fact-check.** Ask whether a sentence needs to exist, not whether it can be defended. When a reviewer shows a claim is overstated, delete or narrow it; never add a hedge.
@@ -67,6 +69,7 @@ After:  **Flaky `test_upload` fixed** — 50/50 passes.
 Ask of each sentence: would a reader have to go back? If so, rewrite it so they don't. Grammatically correct isn't the bar.
 *Why:* the pass exists to cut reading time, and a reread costs more than any word it saved. Usual causes:
 - **A word with two readings** that leads to a dead end: noun stacks ("hook config write fails"), a dropped "that" ("ensures the trailer landed matches"), a clause with its "that is/was" removed ("the commit reported twice was amended"), "it" or "this" with two possible referents.
+- **A pointer whose one referent is far back.** "It", "there" or "these commands" can have only one possible referent and still send the reader back a paragraph to find it; that trip is a reread too. Name the thing again unless the sentence before named it.
 - **A result before its condition**, in the same sentence or a later one. "X happens when Y" reads as always true until "when" arrives, and so does a paragraph whose last sentence says "only when Y". Start with what the sentence is about and the case it covers, then what happens.
 - **One thing said to be another.** "Each input it leaves out is a hook that can be skipped" makes the reader work out how an input and a hook are connected. Say the connection: "when an input it leaves out changes, the hook can be skipped".
 ```
@@ -76,11 +79,18 @@ After:  The hook reports commits that landed without a trailer, including skippe
 Before: Nothing is recorded, and the hook runs every time, when a pre-commit
         hook is defined in config.
 After:  A pre-commit hook defined in config always runs, and is never recorded.
+
+Before: For the clone and the fetches, no global or system config file is read.
+        [Two sentences on what such a file can do.] A proxy set only as
+        `http.proxy` there does not reach these commands.
+After:  [The same two sentences.] A proxy set only as `http.proxy` in a global
+        or system config file does not reach the clone or the fetches.
 ```
 
 ### 4. Each sentence follows from the last
 Stay on the reader's topic. A sentence that jumps to a subject they weren't expecting, or may not know or care about, makes them stop, reread, or ask what it has to do with anything. Leave it out. If they do need the new subject, give it its own paragraph that says what it is and why it matters here, as briefly as rules 1 and 8 ask.
-*Why:* every abrupt switch costs the reader a pause to work out the connection, and often there is none for them to find.
+**A "so" points at what the reader just read.** "So", "because", "which", "therefore" and "thus" each claim that this sentence follows from the one before. When it follows from something earlier, the reader searches the last sentence for a link that isn't there. Put the sentence next to its cause, or name the cause in it.
+*Why:* every abrupt switch costs the reader a pause to work out the connection, and often there is none for them to find. A connective pointing at the wrong sentence costs the same pause, and the reader blames their own reading first.
 ```
 Before: Run deploy.sh to push the build to staging. WSL1 has a clock-skew bug.
         Then open the staging URL to check the build.
@@ -89,6 +99,16 @@ After:  Run deploy.sh to push the build to staging, then open the staging URL to
 
         On Windows under WSL1, deploy.sh fails with a clock-skew error; run
         `sudo hwclock -s` first.
+
+Before: For the clone and the fetches, no global or system config file is read.
+        A file there could make a command authenticate without the token:
+        `url.<base>.insteadOf` can turn `https://github.com/` into SSH. So a
+        proxy set only as `http.proxy` there does not reach them.
+After:  For the clone and the fetches, no global or system config file is read.
+        A file there could make a command authenticate without the token:
+        `url.<base>.insteadOf` can turn `https://github.com/` into SSH. Because
+        those files are skipped, a proxy set only as `http.proxy` in one does not
+        reach the clone or the fetches.
 ```
 
 ### 5. Plain words, and reasons instead of catchphrases
@@ -144,10 +164,20 @@ After:  # Pins git's trailer settings for this one command, so every trailer pas
 ```
 
 ### 8. Spend words where they save reading time
-Cut words that cost the reader time and give nothing back: filler, throat-clearing, a point made twice. Add words that save time: the "that" or article that prevents a misreading, a subject named instead of "it", a condition stated before its result. A longer sentence that reads once beats a shorter one read twice. Never shorthand (rule 5).
+Cut words that cost the reader time and give nothing back: filler, throat-clearing, a point made twice. Add words that save time: the "that" or article that prevents a misreading, a subject named instead of "it", a condition stated before its result. Never shorthand (rule 5).
+**One claim per sentence.** A sentence holding a rule, how it works and what follows from it is three sentences. Add words that make one claim read once, but give a second claim a sentence of its own: a sentence lengthened to read once beats a shorter one read twice, and two sentences beat one that carries two claims.
+*Why:* the reader holds the first claim in mind while parsing the next, and goes back for whichever one slipped.
 ```
 Before: Retries on 5xx; backoff doubles, cap 30s.
 After:  It retries when the server returns a 5xx error, doubling the wait each time, up to 30 seconds.
+
+Before: With `configFiles`, the tree is made under the configuration every later
+        git command in it reads, so a smudge filter such as Git LFS's runs, and
+        authenticates with the token where it fetches.
+After:  With `configFiles`, the checkout reads the same config files as every
+        later git command in the tree. So a smudge filter set in them, such as
+        Git LFS's, runs during the checkout. When LFS downloads a file, it
+        authenticates with the token.
 ```
 
 ### 9. Say who acts
@@ -177,3 +207,10 @@ Point to a source with a link or a clickable path (`file:line`), not a name the 
 - Repeating a phrase that sounds like a reason in place of the reason.
 - Asked to revise a text, picking which sections to redo instead of drafting each one fresh.
 - Keeping an existing section because your draft wasn't clearly better, or to keep the diff small.
+- Giving the cold reader anything but the brief the signing call printed: the conversation, what the text is meant to say, or a summary of the change; or less than all of it, such as only the items you were unsure of.
+- Arguing with a place the cold reader stopped, because you know what the text meant, instead of fixing it.
+- Writing the cold reader's report yourself when you could start a subagent.
+- Marking a finding fixed by editing another part of its item, or by rewording just enough to change it, so the reader would still stop at the same place.
+- Keeping a finding with a reason that restates the wording, or says only that it is clear.
+- Writing `kept (asked)` when no person was asked, or asking in a way that leans on the answer.
+- Editing the cold reader's report before passing it: dropping a finding, or fixing a quote yourself instead of asking the reader.

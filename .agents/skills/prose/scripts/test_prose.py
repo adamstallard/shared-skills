@@ -11,6 +11,7 @@ stored, and only git can say what it stores.
 """
 
 import contextlib
+import hashlib
 import io
 import json
 import os
@@ -33,7 +34,8 @@ VERIFY_STAGED = HERE / "verify-staged.sh"
 LIBRARY = HERE.parent.parent.parent / "lib" / "commit-trailer"
 COMMIT_SCRIPT = LIBRARY / "commit-with-trailers.sh"
 BUG_HUNTER_MINT = HERE.parent.parent / "bug-hunter" / "scripts" / "mint-trailer.sh"
-TRAILER = r"^Prose: ✓ [0-9a-f]{12}:[0-9a-f]{12}$"
+TRAILER = r"^Prose: ✓ [0-9a-f]{12}:[0-9a-f]{12}(; cold read: [^;]+)?$"
+BUG_HUNTER_HOOK = HERE.parent.parent / "bug-hunter" / "scripts" / "check-commit-trailer.sh"
 GATE = HERE / "require-first-call.sh"
 
 # Pass tokens and session marks go to a throwaway state directory, never the
@@ -69,6 +71,38 @@ def pass_token(output):
     if not found:
         raise AssertionError(f"no pass token in:\n{output[-600:]}")
     return found.group(1)
+
+
+REPORTS = pathlib.Path(tempfile.mkdtemp())
+
+
+def cold_report(token, body="Item 1: read straight through.\n", name=""):
+    """A cold reader's report for this token, as a file outside any test
+    repository; its path."""
+    # Named by the token's hash: a test may pass a token shaped like a path.
+    path = REPORTS / ((name or hashlib.sha256(token.encode("utf-8")).hexdigest()) + ".txt")
+    path.write_text(f"cold-read {token}\n\n{body}", encoding="utf-8")
+    return str(path)
+
+
+def straight_report(output):
+    """A report for the brief in output that reads every item straight
+    through; its path."""
+    token = re.search(r"^  cold-read ([0-9a-f]{16})$", output, re.M).group(1)
+    count = len(re.findall(r"^\d+\. (?:A code comment|A doc passage|The post below)", output,
+                           re.M))
+    return cold_report(token, "".join(f"Item {n}: read straight through.\n"
+                                      for n in range(1, count + 1)))
+
+
+def cold_read(call):
+    """call(*cold) runs a signing call, with cold where the report's flags go.
+    Runs it without them; when that prints a brief, answers it with every item
+    read straight through and runs it again. The last call's result."""
+    first = call()
+    if first.returncode != prose.COLD_READ_NEEDED:
+        return first
+    return call("--cold-read", straight_report(first.stdout + first.stderr))
 
 
 def run(args, cwd=None, stdin=None, env=None):
@@ -111,13 +145,15 @@ class Repo:
 
     def two_calls(self, *args, stdin=None, file_goals=True):
         """The pass as SKILL.md runs it: the first call, then, when it issued a
-        pass token, the signing call with that token. The signing call's
-        result, or the first call's when that one was refused."""
+        pass token, the signing call with that token and a cold reader's
+        report. The signing call's result, or the first call's when that one
+        was refused."""
         first = self.prose(*args, stdin=stdin, file_goals=file_goals)
         if first.returncode != 4:
             return first
-        return self.prose(*args, "--pass", pass_token(first.stdout), stdin=stdin,
-                          file_goals=file_goals)
+        token = pass_token(first.stdout)
+        return cold_read(lambda *cold: self.prose(*args, "--pass", token, *cold, stdin=stdin,
+                                                  file_goals=file_goals))
 
     def trailers(self, message, *extra):
         """The one trailer line in the result block the signing call prints
@@ -462,7 +498,9 @@ class SignatureThroughGit(unittest.TestCase):
         message = "FEAT(x): add a thing\n\nBody.\n"
         trailer = self.repo.trailers(message)
         tree = self.repo.git("write-tree").strip()
-        self.assertEqual(trailer, f"Prose: \u2713 {tree[:12]}:{prose.message_hash(message)}")
+        # The staged doc was read cold, with nothing found.
+        self.assertEqual(trailer, f"Prose: \u2713 {tree[:12]}:{prose.message_hash(message)}"
+                                  "; cold read: no findings")
         self.repo.commit(message, trailer)
         result = self.repo.verify()
         self.assertEqual((result.returncode, result.stdout), (0, "checked\n"))
@@ -988,7 +1026,7 @@ class Check(unittest.TestCase):
         for number in range(1, prose.RULES_IN_FULL + 1):
             self.assertIn(f"\n### {number}. ", out)
         self.assertIn("Before: The hook reports commits landed without trailers skipped.", out)
-        self.assertIn("A longer sentence that reads once beats a shorter one read twice.", out)
+        self.assertIn("a sentence lengthened to read once beats a shorter one read twice", out)
         self.assertIn("  [ ] 9. Say who acts", out)
         self.assertIn("  [ ] 13. Commit subject says what changed; the body says why", out)
         self.assertNotIn(f"### {prose.RULES_IN_FULL + 1}.", out)
@@ -1160,8 +1198,9 @@ class Check(unittest.TestCase):
         self.repo.write("docs/a.md", "# T\n")
         first = self.check_for("--goals-for", "docs/**", "learn it")
         token = pass_token(first.stdout)
-        sign = lambda *extra: self.repo.prose("check", "-F", "-", "--pass", token, *extra,
-                                              stdin="FEAT(x): a\n", file_goals=False)
+        sign = lambda *extra: cold_read(lambda *cold: self.repo.prose(
+            "check", "-F", "-", "--pass", token, *cold, *extra, stdin="FEAT(x): a\n",
+            file_goals=False))
         refused = sign("--goals-for", "docs/**", "something else")
         self.assertEqual((refused.returncode, refused.stdout), (2, ""))
         self.assertIn("per-file reader goals differ", refused.stderr)
@@ -1221,10 +1260,10 @@ class Check(unittest.TestCase):
         self.repo.write("docs/a.md", "# T\n")
         self.repo.write("README.md", "# T\n")
         first = self.check_for("--goals-for", "docs/**", "one", "--goals-for", "README.md", "two")
-        signed = self.repo.prose("check", "-F", "-", "--goals", "review the fix",
-                                 "--goals-for", "README.md", "two", "--goals-for", "docs/**", "one",
-                                 "--pass", pass_token(first.stdout), stdin="FEAT(x): a\n",
-                                 file_goals=False)
+        signed = cold_read(lambda *cold: self.repo.prose(
+            "check", "-F", "-", "--goals", "review the fix", "--goals-for", "README.md", "two",
+            "--goals-for", "docs/**", "one", "--pass", pass_token(first.stdout), *cold,
+            stdin="FEAT(x): a\n", file_goals=False))
         self.assertRegex(block_trailer(signed.stdout), TRAILER)
 
     def test_a_goals_file_may_start_with_a_byte_order_mark(self):
@@ -1369,8 +1408,9 @@ class Check(unittest.TestCase):
         self.assertIn('a.py:2  "It used to" narrates what the code did before.', result.stdout)
         lines = result.stdout.rstrip("\n").split("\n")
         self.assertLess(lines.index("  a.py:2  (comment)"), lines.index("Flags (warnings, not blocking):"))
-        signed = self.repo.prose("check", "-F", "-", "--pass", pass_token(result.stdout),
-                                 stdin="FEAT(x): a\n")
+        token = pass_token(result.stdout)
+        signed = cold_read(lambda *cold: self.repo.prose("check", "-F", "-", "--pass", token,
+                                                         *cold, stdin="FEAT(x): a\n"))
         trailer = block_trailer(signed.stdout)
         self.assertRegex(trailer, TRAILER)
         self.repo.commit("FEAT(x): a\n", trailer)
@@ -1433,8 +1473,9 @@ def sign_twice(text, goals):
     first = run([sys.executable, str(SCRIPT), "sign", "--goals", goals], cwd=STATE, stdin=text)
     if first.returncode != 4:
         raise AssertionError(first.stderr)
-    return run([sys.executable, str(SCRIPT), "sign", "--pass", pass_token(first.stderr)],
-               cwd=STATE, stdin=text)
+    token = pass_token(first.stderr)
+    return cold_read(lambda *cold: run([sys.executable, str(SCRIPT), "sign", "--pass", token,
+                                        *cold], cwd=STATE, stdin=text))
 
 
 class PostFooter(unittest.TestCase):
@@ -2472,7 +2513,9 @@ class PreCommitHook(unittest.TestCase):
         return self.repo.prose("check", "-F", ".msg", "--goals", "review it", *extra)
 
     def signing_call(self, first, *extra):
-        return self.repo.prose("check", "-F", ".msg", "--pass", pass_token(first.stdout), *extra)
+        token = pass_token(first.stdout)
+        return cold_read(lambda *cold: self.repo.prose("check", "-F", ".msg", "--pass", token,
+                                                       *cold, *extra))
 
     def commit(self, trailer):
         return self.repo.commit_script(
@@ -2505,9 +2548,15 @@ class PreCommitHook(unittest.TestCase):
         first = self.first_call()
         self.assertEqual(first.returncode, 4, first.stderr)
         self.repo.write("README.md", "# Hello there\n")
-        signed = self.signing_call(first)
+        # The signing call's first run asks for a cold read; the hook runs on
+        # that run, and the run with the report finds the tree it passed.
+        token = pass_token(first.stdout)
+        needed = self.repo.prose("check", "-F", ".msg", "--pass", token)
+        self.assertEqual(needed.returncode, prose.COLD_READ_NEEDED, needed.stderr)
+        self.assertIn("the trailer signs the files as it left them", needed.stderr)
+        signed = self.repo.prose("check", "-F", ".msg", "--pass", token, "--cold-read",
+                                 straight_report(needed.stdout))
         self.assertEqual(signed.returncode, 0, signed.stderr)
-        self.assertIn("the trailer signs the files as it left them", signed.stderr)
         made = self.commit(block_trailer(signed.stdout))
         self.assertEqual(made.returncode, 0, made.stderr)
         self.assertEqual(self.repo.git("show", "HEAD:README.md"), "#Hellothere\n")
@@ -2581,7 +2630,8 @@ class PassToken(unittest.TestCase):
         return self.repo.prose("check", "-F", "-", "--goals", goals, stdin=message)
 
     def signing(self, token, message="DOCS(x): add a readme\n", *extra):
-        return self.repo.prose("check", "-F", "-", "--pass", token, *extra, stdin=message)
+        return cold_read(lambda *cold: self.repo.prose("check", "-F", "-", "--pass", token,
+                                                       *cold, *extra, stdin=message))
 
     def test_the_first_call_prints_goals_listing_rules_and_a_token_but_no_trailer(self):
         result = self.first()
@@ -2655,8 +2705,8 @@ class PassToken(unittest.TestCase):
         self.assertIn("## The pass", first.stderr)
         token = pass_token(first.stderr)
         self.assertIn(f"sign --pass {token} < body.md > signed.md", first.stderr)
-        signed = run([sys.executable, str(SCRIPT), "sign", "--pass", token],
-                     cwd=self.repo.path, stdin="Text.\n")
+        signed = cold_read(lambda *cold: run([sys.executable, str(SCRIPT), "sign", "--pass", token,
+                                              *cold], cwd=self.repo.path, stdin="Text.\n"))
         self.assertEqual(signed.returncode, 0, signed.stderr)
         self.assertNotIn("## The pass", signed.stderr)
         self.assertEqual(prose.verify_post(signed.stdout), (True, "signed"))
@@ -2712,8 +2762,8 @@ class PassToken(unittest.TestCase):
         first = run([sys.executable, str(SCRIPT), "sign", "--goals", "g"], cwd=outside, stdin="", env=env)
         token = pass_token(first.stderr)
         self.assertTrue((state / "prose" / "passes" / token).is_file())
-        signed = run([sys.executable, str(SCRIPT), "sign", "--pass", token], cwd=outside,
-                     stdin="Text.\n", env=env)
+        signed = cold_read(lambda *cold: run([sys.executable, str(SCRIPT), "sign", "--pass", token,
+                                              *cold], cwd=outside, stdin="Text.\n", env=env))
         self.assertEqual(signed.returncode, 0, signed.stderr)
 
     def test_concurrent_first_calls_each_get_a_token_that_signs(self):
@@ -2727,7 +2777,8 @@ class PassToken(unittest.TestCase):
         self.assertEqual(len(set(tokens)), 8)
         for token in tokens:
             self.assertTrue((self.repo.path / ".git" / "prose" / "passes" / token).is_file())
-            signed = self.repo.prose("sign", "--pass", token, stdin="Text.\n")
+            signed = cold_read(lambda *cold: self.repo.prose("sign", "--pass", token, *cold,
+                                                             stdin="Text.\n"))
             self.assertEqual(signed.returncode, 0, signed.stderr)
 
     def test_the_first_call_marks_its_session(self):
@@ -2758,6 +2809,636 @@ class PassToken(unittest.TestCase):
                      "--goals-for", "README.md", "g"], cwd=self.repo.path, env=env, stdin="Title\n")
         self.assertIn(f"python3 {script} check -F", first.stdout + first.stderr)
         self.assertNotIn(str(SCRIPT), first.stdout + first.stderr)
+
+
+class ColdRead(unittest.TestCase):
+    """A commit that changes a comment or a doc passage, and every post, is
+    signed only with a cold reader's report for its token; without one, the
+    signing call prints the brief, signs nothing and keeps the token. The
+    commit message is never read cold."""
+
+    def setUp(self):
+        self.repo = Repo()
+        self.addCleanup(self.repo.cleanup)
+        self.repo.write("a.py", "x = 1\n")
+        self.repo.commit("base\n")
+
+    def first(self, message, file_goals=True):
+        result = self.repo.prose("check", "-F", "-", "--goals", "review it", stdin=message,
+                                 file_goals=file_goals)
+        self.assertEqual(result.returncode, 4, result.stderr)
+        return pass_token(result.stdout)
+
+    def signing(self, token, message, *extra):
+        return self.repo.prose("check", "-F", "-", "--pass", token, *extra, stdin=message,
+                               file_goals=False)
+
+    def brief(self, output):
+        start = output.index("=== cold-read brief ===\n") + len("=== cold-read brief ===\n")
+        return output[start:output.index("=== end cold-read brief ===")]
+
+    def test_a_changed_comment_needs_a_report_and_the_token_is_kept(self):
+        self.repo.write("a.py", "x = 1\n# One.\n# Two.\ny = 2\n")
+        token = self.first("FEAT(x): a\n", file_goals=False)
+        needed = self.signing(token, "FEAT(x): a\n")
+        self.assertEqual(needed.returncode, prose.COLD_READ_NEEDED, needed.stderr)
+        self.assertNotIn("=== prose result ===", needed.stdout)
+        brief = self.brief(needed.stdout)
+        self.assertIn(f"  cold-read {token}\n", brief)
+        self.assertIn(f"The files named below are in {self.repo.path.resolve()}.", brief)
+        self.assertIn("1. A code comment: a.py, lines 2-3, and the code it sits on.", brief)
+        self.assertIn("   - what it does that the code doesn't show", brief)
+        self.assertIn(f"--pass {token} --cold-read cold-read.txt", needed.stdout)
+        signed = self.signing(token, "FEAT(x): a\n", "--cold-read", cold_report(token))
+        self.assertEqual(signed.returncode, 0, signed.stderr)
+        self.repo.commit("FEAT(x): a\n", block_trailer(signed.stdout))
+        self.assertEqual(self.repo.verify().stdout, "checked\n")
+
+    def test_a_one_line_comment_is_read_cold_too(self):
+        self.repo.write("a.py", "x = 1  # One.\n")
+        token = self.first("FEAT(x): a\n")
+        brief = self.brief(self.signing(token, "FEAT(x): a\n").stdout)
+        self.assertIn("1. A code comment: a.py, line 1, and the code it sits on.", brief)
+
+    def test_the_brief_is_cold_read_md_unchanged(self):
+        self.repo.write("a.py", "x = 1\n# One.\n")
+        token = self.first("FEAT(x): a\n")
+        brief = self.brief(self.signing(token, "FEAT(x): a\n").stdout)
+        self.assertTrue(brief.startswith(prose.COLD_READ.read_text(encoding="utf-8").strip("\n")))
+
+    def test_a_commit_with_no_changed_comment_or_doc_signs_without_a_report(self):
+        self.repo.write("a.py", "x = 2\n")
+        message = "FEAT(x): a\n\nA body of\nseveral lines\nthat is never read cold.\n"
+        token = self.first(message)
+        result = self.signing(token, message)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        # No cold read: the value is the one prose minted before it had one.
+        self.assertRegex(block_trailer(result.stdout), r"^Prose: ✓ [0-9a-f]{12}:[0-9a-f]{12}$")
+
+    def test_one_changed_line_in_a_comment_brings_the_whole_block(self):
+        self.repo.write("a.py", "# One.\n# Two.\n# Three.\nx = 1\n")
+        self.repo.commit("base 2\n")
+        self.repo.write("a.py", "# One.\n# Two, changed.\n# Three.\nx = 1\n")
+        token = self.first("FEAT(x): a\n")
+        brief = self.brief(self.signing(token, "FEAT(x): a\n").stdout)
+        self.assertIn("A code comment: a.py, lines 1-3,", brief)
+
+    def test_the_brief_lists_comments_and_doc_passages_but_never_the_message(self):
+        self.repo.write("a.py", "x = 1\n# One.\n")
+        self.repo.write("docs/guide.md", "# Guide\n\nOne.\n")
+        message = "FEAT(x): a\n\nWhy one.\nWhy two.\n"
+        token = self.first(message)
+        brief = self.brief(self.signing(token, message).stdout)
+        self.assertIn("A code comment: a.py, line 2,", brief)
+        self.assertIn("A doc passage: docs/guide.md, the changed lines 1-3, each read in its "
+                      "section.", brief)
+        self.assertIn("   - read it", brief)
+        self.assertNotIn("Why one.", brief)
+        self.assertNotIn("commit message", brief)
+
+    def test_a_doc_git_diffs_as_binary_is_skipped(self):
+        self.repo.write(".gitattributes", "*.md -diff\n")
+        self.repo.write("guide.md", "# Guide\n\nOne.\nTwo.\nThree.\n")
+        token = self.first("DOCS(x): guide\n")
+        result = self.signing(token, "DOCS(x): guide\n")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_a_symlink_at_a_doc_path_needs_no_cold_read(self):
+        self.repo.write("AGENTS.md", "# Agents\n\nLong text.\n")
+        self.repo.commit("base 2\n")
+        os.symlink("AGENTS.md", self.repo.path / "CLAUDE.md")
+        self.repo.git("add", "CLAUDE.md")
+        token = self.first("FEAT(x): link\n")
+        result = self.signing(token, "FEAT(x): link\n")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_a_submodule_at_a_doc_path_needs_no_cold_read(self):
+        self.repo.git("update-index", "--add", "--cacheinfo",
+                      "160000,1111111111111111111111111111111111111111,openspec/specs/lib")
+        token = self.first("FEAT(x): add lib\n")
+        result = self.signing(token, "FEAT(x): add lib\n")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_a_submodule_bump_needs_no_cold_read_when_config_ignores_submodules(self):
+        self.repo.git("update-index", "--add", "--cacheinfo",
+                      "160000,1111111111111111111111111111111111111111,openspec/sub")
+        self.repo.commit("base 2\n")
+        self.repo.git("config", "diff.ignoreSubmodules", "all")
+        self.repo.git("update-index", "--cacheinfo",
+                      "160000,2222222222222222222222222222222222222222,openspec/sub")
+        token = self.first("FEAT(x): bump\n")
+        result = self.signing(token, "FEAT(x): bump\n")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_a_doc_made_a_symlink_to_its_own_text_needs_no_cold_read(self):
+        (self.repo.path / "README.md").write_bytes(b"../shared/README.md")
+        self.repo.git("add", "README.md")
+        self.repo.commit("base 2\n")
+        (self.repo.path / "README.md").unlink()
+        os.symlink("../shared/README.md", self.repo.path / "README.md")
+        self.repo.git("add", "README.md")
+        token = self.first("DOCS(x): link\n")
+        result = self.signing(token, "DOCS(x): link\n")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_a_deleted_doc_needs_no_cold_read(self):
+        self.repo.write("old.md", "One.\nTwo.\nThree.\n")
+        self.repo.commit("base 2\n")
+        self.repo.git("rm", "-q", "old.md")
+        token = self.first("DOCS(x): drop old\n")
+        self.assertEqual(self.signing(token, "DOCS(x): drop old\n").returncode, 0)
+
+    def test_a_bad_report_is_refused_and_keeps_the_token(self):
+        self.repo.write("a.py", "x = 1\n# One.\n")
+        message = "FEAT(x): a\n"
+        token = self.first(message)
+        other = self.first(message)
+        self.assertEqual(self.signing(token, message).returncode, prose.COLD_READ_NEEDED)
+        bad = REPORTS / "bad.txt"
+        for text in ("Item 1: read straight through.\n", f"cold-read {token}\n\n",
+                     f"cold-read {other}\nItem 1: read straight through.\n"):
+            bad.write_text(text, encoding="utf-8")
+            refused = self.signing(token, message, "--cold-read", str(bad))
+            self.assertEqual(refused.returncode, 2, text)
+            self.assertIn("token is kept", refused.stderr)
+        missing = self.signing(token, message, "--cold-read", str(REPORTS / "none.txt"))
+        self.assertEqual(missing.returncode, 2)
+        self.assertIn("cannot read the cold-read report", missing.stderr)
+        signed = self.signing(token, message, "--cold-read", cold_report(token))
+        self.assertEqual(signed.returncode, 0, signed.stderr)
+
+    def test_a_report_starting_with_a_byte_order_mark_is_accepted(self):
+        self.repo.write("a.py", "x = 1\n# One.\n")
+        token = self.first("FEAT(x): a\n")
+        report = REPORTS / "bom.txt"
+        self.assertEqual(self.signing(token, "FEAT(x): a\n").returncode, prose.COLD_READ_NEEDED)
+        report.write_bytes(f"\ufeffcold-read {token}\nItem 1: read straight through.\n"
+                           .encode("utf-8"))
+        signed = self.signing(token, "FEAT(x): a\n", "--cold-read", str(report))
+        self.assertEqual(signed.returncode, 0, signed.stderr)
+
+    def test_a_cold_read_without_a_pass_is_refused(self):
+        result = self.repo.prose("check", "-F", "-", "--goals", "review it",
+                                 "--cold-read", cold_report("0" * 16), stdin="FEAT(x): a\n")
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("--cold-read goes with --pass", result.stderr)
+
+    def sign(self, *args, stdin):
+        return run([sys.executable, str(SCRIPT), "sign"] + list(args), cwd=self.repo.path,
+                   stdin=stdin)
+
+    def test_a_post_of_any_length_needs_a_report_and_prints_only_to_stderr(self):
+        first = self.sign("--goals", "approve it", stdin="")
+        token = pass_token(first.stderr)
+        self.assertIn("cold-read brief", first.stderr)
+        post = "One line.\n\nprose \u2713 000000\n"
+        needed = self.sign("--pass", token, stdin=post)
+        self.assertEqual((needed.returncode, needed.stdout), (prose.COLD_READ_NEEDED, ""))
+        brief = self.brief(needed.stderr)
+        self.assertIn("1. The post below.", brief)
+        self.assertIn("   - approve it", brief)
+        self.assertIn("   One line.\n   ----", brief)
+        self.assertIn(f"sign --pass {token} --cold-read cold-read.txt --dispositions "
+                      "dispositions.txt < body.md", needed.stderr)
+        signed = self.sign("--pass", token, "--cold-read", cold_report(token), stdin=post)
+        self.assertEqual(signed.returncode, 0, signed.stderr)
+        self.assertEqual(prose.verify_post(signed.stdout), (True, "signed"))
+
+    def test_an_empty_post_is_refused_before_any_brief(self):
+        token = pass_token(self.sign("--goals", "approve it", stdin="").stderr)
+        refused = self.sign("--pass", token, stdin="\n")
+        self.assertEqual(refused.returncode, 2)
+        self.assertNotIn("cold-read brief", refused.stderr)
+
+
+class ColdReadFindings(unittest.TestCase):
+    """Every finding in a cold reader's report is answered before signing:
+    fixed, checked by its item having changed, or kept with a reason. The
+    answers are bound to the report's token."""
+
+    COMMENT = "x = 1\n# The worker takes a command\n# off the token. It runs there.\ny = 2\n"
+    MESSAGE = "FEAT(x): a\n"
+
+    def setUp(self):
+        self.repo = Repo()
+        self.addCleanup(self.repo.cleanup)
+        self.repo.write("a.py", "x = 1\n")
+        self.repo.commit("base\n")
+        self.repo.write("a.py", self.COMMENT)
+        first = self.repo.prose("check", "-F", "-", "--goals", "review it", stdin=self.MESSAGE)
+        self.token = pass_token(first.stdout)
+        needed = self.signing()
+        self.assertEqual(needed.returncode, prose.COLD_READ_NEEDED, needed.stderr)
+        self.assertIn(f"--cold-read cold-read.txt --dispositions dispositions.txt",
+                      needed.stdout)
+        self.assertIn(f"'dispositions {self.token}'", needed.stdout)
+
+    def signing(self, *extra):
+        return self.repo.prose("check", "-F", "-", "--pass", self.token, *extra,
+                               stdin=self.MESSAGE, file_goals=False)
+
+    def report(self, *findings):
+        """A report holding these findings, each (item, quote)."""
+        return cold_report(self.token, "".join(
+            f"Finding {n}, item {item}, guessed: «{quote}» It was not clear.\n"
+            for n, (item, quote) in enumerate(findings, start=1)), name="findings")
+
+    def answers(self, *lines, token=None):
+        path = REPORTS / "dispositions.txt"
+        header = [] if token == "" else [f"dispositions {token or self.token}"]
+        path.write_text("\n".join(header + list(lines)) + "\n", encoding="utf-8")
+        return str(path)
+
+    def refused(self, result, *words):
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn("token is kept", result.stderr)
+        for word in words:
+            self.assertIn(word, result.stderr)
+
+    def fix(self, text):
+        self.repo.write("a.py", text)
+
+    def test_findings_without_dispositions_are_refused(self):
+        self.refused(self.signing("--cold-read", self.report((1, "takes a command"))),
+                     "pass --dispositions", f"'dispositions {self.token}'")
+
+    def test_dispositions_must_carry_the_report_token(self):
+        report = self.report((1, "takes a command"))
+        self.fix("x = 1\n# The worker runs the command.\ny = 2\n")
+        self.refused(self.signing("--cold-read", report, "--dispositions",
+                                  self.answers("1. fixed", token="")),
+                     f"does not start with 'dispositions {self.token}'")
+        self.refused(self.signing("--cold-read", report, "--dispositions",
+                                  self.answers("1. fixed", token="0" * 16)),
+                     f"does not start with 'dispositions {self.token}'")
+        signed = self.signing("--cold-read", report, "--dispositions", self.answers("1. fixed"))
+        self.assertEqual(signed.returncode, 0, signed.stderr)
+
+    def test_every_finding_is_answered_once(self):
+        report = self.report((1, "takes a command"), (1, "It runs there."))
+        self.fix("x = 1\n# The worker runs the command.\ny = 2\n")
+        self.refused(self.signing("--cold-read", report, "--dispositions",
+                                  self.answers("1. fixed")), "does not answer finding 2")
+        self.refused(self.signing("--cold-read", report, "--dispositions",
+                                  self.answers("1. fixed", "2. fixed", "1. fixed")),
+                     "answers finding 1 twice")
+        self.refused(self.signing("--cold-read", report, "--dispositions",
+                                  self.answers("1. fixed", "2. fixed", "3. fixed")),
+                     "answers finding 3, which the report does not have")
+        self.refused(self.signing("--cold-read", report, "--dispositions",
+                                  self.answers("1. fixed", "2: fixed")),
+                     "a line prose cannot read: '2: fixed'")
+        signed = self.signing("--cold-read", report, "--dispositions",
+                              self.answers("2. fixed", "1. fixed"))
+        self.assertEqual(signed.returncode, 0, signed.stderr)
+
+    def test_fixed_is_refused_while_its_item_is_unchanged(self):
+        report = self.report((1, "It runs there."))
+        answers = self.answers("1. fixed")
+        unchanged = ("finding 1 is marked fixed, but item 1, in a.py, has not changed since the "
+                     "brief was printed")
+        self.refused(self.signing("--cold-read", report, "--dispositions", answers), unchanged)
+        # Code added below the item, one line clear of it, is not a change to it.
+        self.fix(self.COMMENT + "z = 3\n")
+        self.refused(self.signing("--cold-read", report, "--dispositions", answers), unchanged)
+        self.fix(self.COMMENT.replace("It runs there.", "It runs in the clone."))
+        signed = self.signing("--cold-read", report, "--dispositions", answers)
+        self.assertEqual(signed.returncode, 0, signed.stderr)
+        self.repo.commit(self.MESSAGE, block_trailer(signed.stdout))
+
+    def test_an_edit_to_another_part_of_the_item_counts(self):
+        # The accepted cost of comparing items, not quotes (DECISIONS: Every
+        # cold-read finding is answered before signing).
+        report = self.report((1, "It runs there."))
+        self.fix(self.COMMENT.replace("worker", "builder"))
+        signed = self.signing("--cold-read", report, "--dispositions", self.answers("1. fixed"))
+        self.assertEqual(signed.returncode, 0, signed.stderr)
+
+    def test_a_deleted_file_counts_as_changed(self):
+        report = self.report((1, "It runs there."))
+        self.repo.git("rm", "-q", "-f", "a.py")
+        signed = self.signing("--cold-read", report, "--dispositions", self.answers("1. fixed"))
+        self.assertEqual(signed.returncode, 0, signed.stderr)
+
+    def test_kept_needs_a_reason(self):
+        report = self.report((1, "It runs there."))
+        for line in ("1. kept (asked):", "1. kept (asked):   ", "1. kept:"):
+            self.refused(self.signing("--cold-read", report, "--dispositions",
+                                      self.answers(line)), "keeps finding 1 without a reason")
+        signed = self.signing("--cold-read", report, "--dispositions",
+                              self.answers("1. kept (asked): the line above names the clone"))
+        self.assertEqual(signed.returncode, 0, signed.stderr)
+
+    def test_a_kept_finding_no_person_was_asked_about_is_refused_and_handed_back(self):
+        report = self.report((1, "takes a command"), (1, "It runs there."))
+        self.fix("x = 1\n# The worker runs the command.\n# It runs there.\ny = 2\n")
+        answers = self.answers("1. fixed", "2. kept: the line above says where")
+        refused = self.signing("--cold-read", report, "--dispositions", answers)
+        self.refused(refused, "1 finding(s) are kept, and no person was asked about them",
+                     f"the token is kept: {self.token}, unspent, lasts 2 hours",
+                     "Finding 2, in a.py: «It runs there.»\n"
+                     "  The cold reader: It was not clear.\n"
+                     "  Kept, because: the line above says where\n",
+                     '"Keep as is" makes its line \'<n>. kept (asked): <reason>\'',
+                     '"Fix it" means rewrite the passage (and restage it, for a commit)',
+                     "If you cannot ask (a subagent, a background job, no picker), don't sign",
+                     f"the report {pathlib.Path(report).resolve()}",
+                     f"the dispositions file {pathlib.Path(answers).resolve()}")
+        self.assertNotIn("Finding 1, in", refused.stderr)
+        self.assertEqual(refused.stdout, "")
+        for line in ("2. kept (asked) : x", "2. kept(asked): x", "2. kept (Asked): x"):
+            self.refused(self.signing("--cold-read", report, "--dispositions",
+                                      self.answers("1. fixed", line)), "a line prose cannot read")
+        signed = self.signing("--cold-read", report, "--dispositions",
+                              self.answers("1. fixed", "2. kept (asked): the line above says where"))
+        self.assertEqual(signed.returncode, 0, signed.stderr)
+        self.assertNotIn("Finding 2", signed.stderr)
+
+    def test_a_quote_is_not_checked_against_the_text(self):
+        # A paraphrase, a change of case, curly quotes and an ellipsis.
+        report = self.report((1, "It runs here."), (1, "it runs there."),
+                             (1, "\u201cIt runs\u201d \u2026"))
+        signed = self.signing("--cold-read", report, "--dispositions",
+                              self.answers("1. kept (asked): fine", "2. kept (asked): fine",
+                                           "3. kept (asked): fine"))
+        self.assertEqual(signed.returncode, 0, signed.stderr)
+
+    def test_a_report_prose_cannot_read_is_refused_with_its_form(self):
+        for body, problem in (
+                ("It was fine.\n", "a line prose cannot read: 'It was fine.'"),
+                ("", "holds only its first line"),
+                ("Finding 1, item 1, stopped: \"It runs there.\" No place.\n",
+                 "a line prose cannot read"),
+                ("Finding 2, item 1, stopped: «It runs there.» No place.\n",
+                 "numbers finding 1 as 2"),
+                ("Finding 1, item 2, stopped: «It runs there.» No place.\n",
+                 "puts finding 1 in item 2, but the brief has items 1 to 1"),
+                ("Finding 1, item 1, stopped: «It runs there.»\n",
+                 "does not say, in finding 1, what was guessed or missing"),
+                ("Finding 1, item 1, stopped: «  » No words.\n", "quotes no words in finding 1"),
+                ("Item 1: read straight through.\nItem 1: read straight through.\n",
+                 "item 1 was read straight through twice"),
+                ("Item 1: read straight through.\nFinding 1, item 1, reread: «It runs there.» "
+                 "Where?\n", "and also reports findings in it"),
+                ("Item 2: read straight through.\n", "says nothing about item 1"),
+                ("Item 1: read straight through.\nItem 2: read straight through.\n",
+                 "names item 2, but the brief has items 1 to 1"),
+        ):
+            result = self.signing("--cold-read", cold_report(self.token, body, name="bad"))
+            self.refused(result, problem)
+            if problem != "holds only its first line":
+                self.assertIn("'Item <item>: read straight through.'", result.stderr)
+
+    def test_a_finding_may_go_on_over_indented_lines(self):
+        report = cold_report(self.token, "Finding 1, item 1, guessed: «It runs there.»\n"
+                                         "   What runs, and where?\n", name="wrapped")
+        signed = self.signing("--cold-read", report, "--dispositions",
+                              self.answers("1. kept (asked): a test"))
+        self.assertEqual(signed.returncode, 0, signed.stderr)
+
+    def test_a_report_with_no_findings_signs_without_dispositions(self):
+        report = cold_report(self.token, "Item 1: read straight through.\n", name="clean")
+        signed = self.signing("--cold-read", report)
+        self.assertEqual(signed.returncode, 0, signed.stderr)
+        self.assertTrue(block_trailer(signed.stdout).endswith(":"
+                        + prose.message_hash(self.MESSAGE) + "; cold read: no findings"))
+
+    def hook(self, script):
+        payload = json.dumps({"cwd": str(self.repo.path)})
+        return run(["sh", str(script), "--host", "claude"], stdin=payload,
+                   env=dict(os.environ, TMPDIR=tempfile.gettempdir()))
+
+    def test_the_trailer_counts_the_findings(self):
+        for script in (COMMIT_HOOK, BUG_HUNTER_HOOK):
+            self.hook(script)  # sets each hook's cursor before the commit
+        report = self.report((1, "takes a command"), (1, "It runs there."))
+        self.fix("x = 1\n# The worker runs the command.\n# It runs there.\ny = 2\n")
+        signed = self.signing("--cold-read", report, "--dispositions",
+                              self.answers("1. fixed",
+                                           "2. kept (asked): the line above says where"))
+        self.assertEqual(signed.returncode, 0, signed.stderr)
+        trailer = block_trailer(signed.stdout)
+        self.assertRegex(trailer, TRAILER)
+        self.assertTrue(trailer.endswith("; cold read: 2 findings, 1 fixed, 1 kept"), trailer)
+        self.assertEqual(signed.stdout.count("\n"), 4, signed.stdout)
+        made = self.repo.commit_script(
+            "FEAT(x): a", "", "--minted-by", str(BUG_HUNTER_MINT), "Bug-hunter", "0 bugs found",
+            "--verified-value", str(VERIFY_STAGED), "Prose", trailer[len("Prose: "):])
+        self.assertEqual(made.returncode, 0, made.stderr)
+        self.assertEqual(self.repo.git("log", "-1", "--format=%(trailers:key=Prose,valueonly)")
+                         .strip(), trailer[len("Prose: "):])
+        self.assertEqual(self.repo.verify().stdout, "checked\n")
+        for script in (COMMIT_HOOK, BUG_HUNTER_HOOK):
+            result = self.hook(script)
+            self.assertEqual(result.returncode, 0, f"{script}: {result.stderr}")
+
+    def test_all_fixed_counts_none_kept(self):
+        report = self.report((1, "It runs there."))
+        self.fix("x = 1\n# The worker runs the command in the clone.\ny = 2\n")
+        signed = self.signing("--cold-read", report, "--dispositions", self.answers("1. fixed"))
+        self.assertTrue(block_trailer(signed.stdout).endswith(
+            "; cold read: 1 finding, 1 fixed, 0 kept"))
+
+    def test_counts_in_any_other_form_are_unrecognised(self):
+        good = f"Prose: ✓ {'0' * 12}:{prose.message_hash(self.MESSAGE)}"
+        for counts in ("2 findings, 1 fixed, 2 kept", "1 findings, 1 fixed, 0 kept",
+                       "0 findings, 0 fixed, 0 kept", "2 findings, 01 fixed, 1 kept",
+                       "3 findings", "No findings", "", "1 finding, 1 fixed, 0 kept; x"):
+            ok, reason = prose.verify_staged(f"{good}; cold read: {counts}", self.MESSAGE,
+                                             self.repo.path)
+            self.assertEqual((ok, reason.split(":")[0]), (False, "unrecognised"), counts)
+        for counts in ("no findings", "1 finding, 0 fixed, 1 kept", "12 findings, 7 fixed, 5 kept"):
+            ok, reason = prose.verify_staged(f"{good}; cold read: {counts}", self.MESSAGE,
+                                             self.repo.path)
+            self.assertTrue(reason.startswith("tree:"), (counts, reason))
+
+    def test_a_committed_value_with_counts_in_another_form_is_unrecognised(self):
+        report = cold_report(self.token, "Item 1: read straight through.\n", name="clean")
+        trailer = block_trailer(self.signing("--cold-read", report).stdout)
+        self.repo.commit(self.MESSAGE, trailer.replace("no findings", "0 findings, 0 fixed, 0 kept"))
+        result = self.repo.verify()
+        self.assertEqual(result.returncode, 1)
+        self.assertTrue(result.stdout.startswith("unrecognised:"), result.stdout)
+
+    def test_dispositions_without_a_report_are_refused(self):
+        result = self.signing("--dispositions", self.answers("1. fixed"))
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("--dispositions goes with --cold-read", result.stderr)
+
+    def test_a_file_staged_after_the_brief_needs_a_new_brief(self):
+        self.repo.write("b.py", "# It does the thing with the stuff.\nz = 3\n")
+        report = cold_report(self.token, "Item 1: read straight through.\n", name="clean")
+        result = self.signing("--cold-read", report)
+        self.refused(result, "b.py")
+        self.assertNotIn("=== prose result ===", result.stdout)
+
+    def test_a_report_with_no_brief_printed_is_refused(self):
+        first = self.repo.prose("check", "-F", "-", "--goals", "review it", stdin=self.MESSAGE)
+        token = pass_token(first.stdout)
+        result = self.repo.prose("check", "-F", "-", "--pass", token, "--cold-read",
+                                 cold_report(token), stdin=self.MESSAGE, file_goals=False)
+        self.refused(result, f"no cold-read brief was printed for pass token {token}")
+
+    def test_a_post_fixed_means_the_post_changed(self):
+        sign = lambda *args, stdin: run([sys.executable, str(SCRIPT), "sign"] + list(args),
+                                        cwd=self.repo.path, stdin=stdin)
+        token = pass_token(sign("--goals", "approve it", stdin="").stderr)
+        post = "The fix lands there.\nIt is safe.\n"
+        self.assertEqual(sign("--pass", token, stdin=post).returncode, prose.COLD_READ_NEEDED)
+        report = cold_report(token, "Finding 1, item 1, guessed: «lands there» Where?\n",
+                             name="post")
+        answers = self.answers("1. fixed", token=token)
+        # A footer added or removed is not a change to the post.
+        for same in (post, post + "\nprose \u2713 000000\n"):
+            self.refused(sign("--pass", token, "--cold-read", report, "--dispositions", answers,
+                              stdin=same), "item 1, in the post, has not changed")
+        # Any change to the post counts, even one far from the quote.
+        fixed = "The fix lands there.\nIt is safe to merge.\n"
+        signed = sign("--pass", token, "--cold-read", report, "--dispositions", answers,
+                      stdin=fixed)
+        self.assertEqual(signed.returncode, 0, signed.stderr)
+        self.assertEqual(prose.verify_post(signed.stdout), (True, "signed"))
+
+    def test_a_post_keeps_a_finding_only_once_a_person_was_asked(self):
+        sign = lambda *args, stdin: run([sys.executable, str(SCRIPT), "sign"] + list(args),
+                                        cwd=self.repo.path, stdin=stdin)
+        token = pass_token(sign("--goals", "approve it", stdin="").stderr)
+        post = "The fix lands there.\n"
+        sign("--pass", token, stdin=post)
+        report = cold_report(token, "Finding 1, item 1, guessed: «lands there» Where?\n",
+                             name="post-kept")
+        refused = sign("--pass", token, "--cold-read", report, "--dispositions",
+                       self.answers("1. kept: the title names the branch", token=token),
+                       stdin=post)
+        self.refused(refused, "Finding 1, in the post: «lands there»\n  The cold reader: Where?\n"
+                              "  Kept, because: the title names the branch\n")
+        self.assertEqual(refused.stdout, "")
+        signed = sign("--pass", token, "--cold-read", report, "--dispositions",
+                      self.answers("1. kept (asked): the title names the branch", token=token),
+                      stdin=post)
+        self.assertEqual(signed.returncode, 0, signed.stderr)
+        self.assertEqual(signed.stdout, prose.sign(post))
+
+
+class FixedItemChanged(unittest.TestCase):
+    """A finding marked fixed counts only when the item it is in changed
+    since the brief: not another item in the same file, and not the item's
+    lines moved by an edit above it."""
+
+    TWO = "# First block,\n# two lines.\nx = 1\n\ny = 2\n# Second block.\nz = 3\n"
+
+    def setUp(self):
+        self.repo = Repo()
+        self.addCleanup(self.repo.cleanup)
+        self.repo.write("a.py", "x = 1\n")
+        self.repo.commit("base\n")
+
+    def signed_after_fix(self, files, fixes, item=1, items=1, deleted=()):
+        """The signing call after a brief over files, {path: text}, a report
+        with one finding in item, marked fixed, and fixes staged."""
+        for path, text in files.items():
+            self.repo.write(path, text)
+        first = self.repo.prose("check", "-F", "-", "--goals", "review it", stdin="FEAT(x): a\n")
+        token = pass_token(first.stdout)
+        sign = lambda *extra: self.repo.prose("check", "-F", "-", "--pass", token, *extra,
+                                              stdin="FEAT(x): a\n")
+        needed = sign()
+        self.assertEqual(needed.returncode, prose.COLD_READ_NEEDED, needed.stderr)
+        lines = [f"Finding 1, item {item}, guessed: «x» Which call?"] + [
+            f"Item {n}: read straight through." for n in range(1, items + 1) if n != item]
+        report = cold_report(token, "\n".join(lines) + "\n", name="item-changed")
+        answers = REPORTS / "item-changed-dispositions.txt"
+        answers.write_text(f"dispositions {token}\n1. fixed\n", encoding="utf-8")
+        for path, text in fixes.items():
+            self.repo.write(path, text)
+        for path in deleted:
+            self.repo.git("rm", "-q", "-f", path)
+        return sign("--cold-read", report, "--dispositions", str(answers))
+
+    def assert_refused(self, result, item):
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn(f"item {item}, in ", result.stderr)
+        self.assertIn("has not changed since the brief was printed", result.stderr)
+
+    def test_an_edit_to_another_item_does_not_count(self):
+        fixed = self.TWO.replace("Second block.", "Second block, reworded.")
+        self.assert_refused(self.signed_after_fix({"a.py": self.TWO}, {"a.py": fixed}, items=2), 1)
+        self.assertEqual(self.signed_after_fix({"a.py": self.TWO}, {"a.py": fixed}, item=2,
+                                               items=2).returncode, 0)
+
+    def test_lines_moved_by_an_edit_above_are_not_a_change(self):
+        moved = "import os\nimport re\n\n" + self.TWO
+        self.assert_refused(self.signed_after_fix({"a.py": self.TWO}, {"a.py": moved}, item=2,
+                                                  items=2), 2)
+        reworded = moved.replace("Second block.", "Second block, reworded.")
+        self.assertEqual(self.signed_after_fix({"a.py": self.TWO}, {"a.py": reworded}, item=2,
+                                               items=2).returncode, 0)
+
+    def test_an_edit_in_another_file_does_not_count(self):
+        files = {"a.py": "# One.\nx = 1\n", "b.py": "# Two.\ny = 2\n"}
+        result = self.signed_after_fix(files, {"b.py": "# Two, reworded.\ny = 2\n"}, items=2)
+        self.assert_refused(result, 1)
+
+    def test_a_line_added_inside_or_at_the_edge_of_a_doc_passage_counts(self):
+        doc = "# Guide\n\nOld text.\n"
+        self.repo.write("guide.md", doc)
+        self.repo.commit("base 2\n")
+        before = doc + "\nNew passage.\n"
+        for after in (before + "Its reason.\n", before.replace("\nNew", "\nFirst.\nNew")):
+            result = self.signed_after_fix({"guide.md": before}, {"guide.md": after})
+            self.assertEqual(result.returncode, 0, result.stderr)
+        self.assert_refused(self.signed_after_fix(
+            {"guide.md": before}, {"guide.md": before.replace("Old text.", "Old.")}), 1)
+
+    def test_a_removed_passage_or_a_deleted_file_counts(self):
+        doc = "# Guide\n\nOld text.\n"
+        self.repo.write("guide.md", doc)
+        self.repo.commit("base 2\n")
+        added = doc + "\nNew passage.\n"
+        result = self.signed_after_fix({"guide.md": added}, {"guide.md": doc, "a.py": "x = 2\n"})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        result = self.signed_after_fix({"guide.md": added}, {}, deleted=["guide.md"])
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+
+class ItemChanged(unittest.TestCase):
+    """item_changed, on line spans of the text the brief recorded."""
+
+    OLD = "a\nb\nc\nd\ne\n"
+
+    def changed(self, new, spans=((3, 3),)):
+        return prose.item_changed(self.OLD, new, spans)
+
+    def test_a_line_of_the_item_changed_or_removed(self):
+        self.assertTrue(self.changed("a\nb\nC\nd\ne\n"))
+        self.assertTrue(self.changed("a\nb\nd\ne\n"))
+
+    def test_a_line_added_inside_or_directly_beside_the_item(self):
+        self.assertTrue(self.changed("a\nb\nX\nc\nd\ne\n"))
+        self.assertTrue(self.changed("a\nb\nc\nX\nd\ne\n"))
+        self.assertTrue(prose.item_changed(self.OLD, "a\nb\nX\nc\nd\ne\n", ((2, 3),)))
+
+    def test_changes_beside_or_away_from_the_item_do_not_count(self):
+        self.assertFalse(self.changed(self.OLD))
+        self.assertFalse(self.changed("X\nY\na\nb\nc\nd\ne\n"))
+        self.assertFalse(self.changed("a\nB\nc\nD\ne\n"))
+        self.assertFalse(self.changed("a\nc\nd\n"))
+        self.assertFalse(self.changed("a\nb\nc\nd\ne\nf\n"))
+
+    def test_any_of_several_spans(self):
+        self.assertTrue(prose.item_changed(self.OLD, "a\nb\nc\nd\nE\n", ((1, 1), (5, 5))))
+        self.assertFalse(prose.item_changed(self.OLD, "a\nb\nC\nd\ne\n", ((1, 1), (5, 5))))
+
+    def test_blank_lines_in_a_long_doc_are_not_reported_changed(self):
+        old = "".join(f"Line {n}.\n\n" for n in range(300))
+        new = old.replace("Line 10.", "Line ten.")
+        self.assertFalse(prose.item_changed(old, new, ((400, 420),)))
+        self.assertTrue(prose.item_changed(old, new, ((19, 21),)))
+
+    def test_with_no_spans_the_whole_text_is_the_item(self):
+        self.assertFalse(prose.item_changed("a b\n", "a b\n", ()))
+        self.assertTrue(prose.item_changed("a b\n", "a  b\n", ()))
+        self.assertTrue(prose.item_changed("a\n", "", ((1, 1),)))
 
 
 class Gate(unittest.TestCase):
