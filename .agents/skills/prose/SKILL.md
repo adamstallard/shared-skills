@@ -272,14 +272,6 @@ The signing call refuses (exit 2), signs nothing and keeps the token when:
   run the signing call without `--cold-read` for a new brief, and have that
   read cold.
 
-**How `fixed` is checked.** The call that prints the brief records each
-item's file as staged, or the post. At signing, the script compares the item
-with the text now: a line of it changed or removed, or a line added inside it
-or directly above or below it, counts as a change. An edit elsewhere in the
-file, even one that moves the item's lines, does not. A deleted file counts as changed, and
-so does any change to a post. The quote is not checked against the text; it
-is there for the person who answers the finding.
-
 Each token takes one cold read; the fixes are not read cold again. The script
 checks `fixed` instead, by the item having changed.
 
