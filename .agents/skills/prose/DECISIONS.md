@@ -986,6 +986,12 @@ commit's only prose is a short comment, and nothing to count can go wrong.
   target path or a commit: none leaves new prose to read.
 - **One cold read per token:** the fixes are not read cold again, since that
   would repeat until a reader found nothing.
+- **A code file listed as "did not parse" or "could not be read"** (Adam,
+  2026-10-13) signs without a cold read: prose found no comment in it, so the
+  brief has nothing to name.
+- **A comment on a changed line is read cold even when its own text did not
+  change** (Adam, 2026-10-13), such as `# note` on `x = 1` made `x = 2`.
+  `check` lists that comment, and the cold read takes what `check` lists.
 
 **A host without subagents (Adam, 2026-10-13):** the author does the cold
 read, reading the brief as all they know, and writes the report. The report
