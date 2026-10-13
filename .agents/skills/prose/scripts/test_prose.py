@@ -2900,6 +2900,17 @@ class ColdRead(unittest.TestCase):
         result = self.signing(token, "FEAT(x): bump\n")
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    def test_a_doc_made_a_symlink_to_its_own_text_needs_no_cold_read(self):
+        (self.repo.path / "README.md").write_bytes(b"../shared/README.md")
+        self.repo.git("add", "README.md")
+        self.repo.commit("base 2\n")
+        (self.repo.path / "README.md").unlink()
+        os.symlink("../shared/README.md", self.repo.path / "README.md")
+        self.repo.git("add", "README.md")
+        token = self.first("DOCS(x): link\n")
+        result = self.signing(token, "DOCS(x): link\n")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_a_deleted_doc_needs_no_cold_read(self):
         self.repo.write("old.md", "One.\nTwo.\nThree.\n")
         self.repo.commit("base 2\n")

@@ -345,8 +345,9 @@ def _changed_docs(root, base):
 
     Read from `--raw`, because the text diff gives no header to a file git
     diffs as binary (UTF-16, a NUL byte, `-diff`), and `--raw` still names
-    it. A pure rename or a mode change keeps the blob and is left out; a
-    deleted doc is named by its old path."""
+    it. A pure rename or a permission change keeps the blob and is left out;
+    a type change, such as a file made a symlink, is kept even when the blob
+    is the same. A deleted doc is named by its old path."""
     # --ignore-submodules=none as in prose_in's diff: under a config that
     # ignores submodules, a bumped submodule would be missing here and read
     # as a doc.
@@ -355,10 +356,12 @@ def _changed_docs(root, base):
     fields = raw.split("\0")
     found, index = {}, 0
     while index < len(fields) and fields[index].startswith(":"):
-        _, new_mode, old_blob, new_blob, status = fields[index][1:].split(" ", 4)
+        old_mode, new_mode, old_blob, new_blob, status = fields[index][1:].split(" ", 4)
         paths = fields[index + 1:index + (3 if status[:1] in "RC" else 2)]
         index += 1 + len(paths)
-        if old_blob == new_blob:
+        # A mode's first two digits are its kind: 10 a file, 12 a symlink,
+        # 16 a submodule.
+        if old_blob == new_blob and old_mode[:2] == new_mode[:2]:
             continue
         path = paths[0] if status[:1] == "D" else paths[-1]
         if is_doc(path):
