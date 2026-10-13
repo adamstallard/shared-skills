@@ -341,6 +341,23 @@ candidates reports almost no false positives, and one that only reasons reports
 plenty. If a candidate genuinely cannot be observed without building something,
 say so and let Step 4 decide.
 
+**Where an invariant is stated, search for a counterexample with a property.**
+When a spec's MUST or SHALL, a comment, or a name promises something the code
+maintains — a cursor that never moves past an item it has not processed, an
+ordering, a state machine's legal transitions, a parse/print round trip — the
+finder may generate
+random inputs or operation sequences, assert the invariant, and shrink a failure
+to a minimal input: the library does that, and with a hand-written loop the
+finder does it by hand. A shrunk failure is observed by
+construction: a candidate with its concrete input and the wrong outcome it
+produced. It still needs its reachability. A generator builds states no real
+caller reaches, so trace the shrunk input back to a real entry point, or drop
+it. Use the project's property library if it has one, otherwise a short seeded
+loop in a scratch file that is never staged; **never install a dependency**.
+Bound each property to a fixed number of runs or a few seconds, inside this
+pass. No invariant stated, no property — this is not for fishing. The procedure
+is in [reference.md](reference.md#step-3--searching-with-a-property).
+
 **Not candidates.** Style, naming, formatting, preferences, "consider
 extracting this", missing comments, defensive checks for conditions that
 cannot occur, or hypotheticals with no caller. Report none of these. The value
@@ -390,6 +407,13 @@ contract: without an observed red, a finding is a guess. **Do not delegate this*
 one test in the project's existing framework is translation, not investigation;
 write and run it in the loop you are already in, and a **small, cheap model** is
 sufficient. The red is the check, and it is empirical.
+
+**A property's counterexample is committed as an example, not as the
+property.** The regression test is the shrunk input written as an ordinary
+deterministic test in the project's framework. A property checks many inputs,
+so even with a fixed seed its red can come from a different counterexample than
+the predicted one; and committing one usually means a new dependency. Keeping the property
+as a guard is a recommendation for Step 9.
 
 **Step 5 — Refute.** A *separate* agent that has not seen the finder's reasoning
 tries to kill each proven bug — unreachable, guarded upstream, intentional, or
@@ -762,7 +786,8 @@ detail and a worked example: [reference.md](reference.md#the-caller-commits-resu
 ### Then ask, one recommendation at a time
 
 Whenever the report carries a recommendation — a root cause, a finding too large
-for the change under review, or anything an abort left unresolved — **stop and
+for the change under review, anything an abort left unresolved, or a Step 3
+property worth keeping as a permanent guard — **stop and
 ask the user what to do with it. Each one separately.** Do not apply them
 silently, and do not decide on their behalf that they are out of scope. A
 recommendation is where a small change prevents a class of bugs rather than one

@@ -937,3 +937,59 @@ wherever they happen, which is why this change needed no harder cases.
   It would save about 15%, but in the benchmark the refuter killed real false
   positives (a rounding display, an extra-key crash outside the documented
   record shape). Not without a test set that can show the loss.
+
+---
+
+## A property finds the candidate; an example proves it
+
+**Decision.** Step 3's finder may search for a counterexample with a property
+where the code under review maintains an invariant that a spec, a comment or a
+name states. The regression Step 4 commits is the shrunk counterexample,
+written as an ordinary deterministic test, never the property. The search uses
+the project's own property library or a seeded loop in an unstaged scratch
+file, installs nothing, stops after a few hundred runs or a few seconds per
+property, and runs only where an invariant is stated. Keeping the property as a permanent test is a Step 9
+recommendation. Decided by Adam, 2026-10-13.
+
+**Why.**
+- **The committed test is the example.** Step 4's contract is a red observed
+  for the predicted reason. A property checks many inputs, so even with a fixed
+  seed its red can come from a different counterexample than the one predicted,
+  and the inputs a seed produces change when the library or the generator
+  changes. The shrunk input is the predicted bug and nothing else, and fails
+  the same way every time.
+- **No dependency is installed.** Adding one changes the user's project
+  (its lockfile, its supply chain, its build) as a side effect of a check, and
+  committing a property usually needs one. Whether to take that on is a design
+  decision, which is why keeping the property goes to the user in Step 9 with
+  its cost named, never in quietly.
+- **Only stated invariants, and only within a bound.** This skill runs before
+  every commit. An unbounded search, or one over invariants the finder made up,
+  would add its cost to every commit and report the finder's guesses about
+  intent as bugs. A stated invariant is a promise the code already makes. Step
+  3's finder runs in the background while the run goes on, and the bound keeps
+  the search from outlasting it.
+- **Reachability is still traced.** A generator reaches states no caller can
+  build, and a shrinker minimises toward them: the smallest failing input is
+  often one the constructor or a mutex rules out. A shrunk failure is observed,
+  which satisfies Step 3's rule to run a candidate before reporting it; it is
+  not reachable until a real entry point is named.
+
+**Rejected.**
+- **Committing the property as the regression.** Not deterministic, so not a
+  red in Step 4's sense, and it usually brings a dependency with it.
+- **Installing a property library for the search and removing it afterwards.**
+  The project is changed while the run is in flight, and the lockfile churn has
+  to be undone exactly; a seeded loop in a scratch file finds the same bugs on
+  the invariants this is for.
+- **Property search on every change.** A cost on every commit, for changes
+  that state no invariant to check.
+
+**Where this stops applying.**
+- **The bound** is set by bug-hunter running before every commit. A run the
+  user asks for outside a commit, to hunt one module deeply, may search longer.
+- **The no-install rule** stops applying once the user has chosen a property
+  library for the project, through Step 9 or otherwise.
+- **The example-only commit** does not stop applying: it is Step 4's contract.
+  A property the user chooses to keep is a guard added beside the regression,
+  never in place of it.

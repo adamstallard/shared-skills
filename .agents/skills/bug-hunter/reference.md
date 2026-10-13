@@ -441,6 +441,23 @@ picker when it has one; this is the fallback shape.
 When there is no fix worth trying, option 1 is omitted entirely and the prompt
 says so — two choices, not three padded to look like a plan.
 
+**A Step 3 property worth keeping is a recommendation of its own**, asked the
+same way, never added to the tests quietly. Recommend it only when the
+invariant is one the code will keep having to hold as it changes, and say what
+it costs: the library, if the project lacks one, is a new dependency, and the
+property's run time lands on every suite run.
+
+```
+③ keep the watermark property as a permanent test
+   found 1 bug this run (the refused claim); the invariant is a spec MUST
+   recommend: add it under tests/, 200 runs, fixed seed  ·  odds high
+   cost: none — the project already uses Hypothesis; about 1s per suite run
+
+   1  add it now        — add the property, then run the full loop over it
+   2  write it down     — record it as an open question, change nothing
+   3  skip              — no property, no note
+```
+
 An agent running this for another agent has no picker that reaches the user. It
 prints this shape, in full, with [the hand-off footer](#the-hand-off-footer)
 under it, and the agent that spawned it does the asking — through its own
@@ -538,6 +555,82 @@ trailer. An abort is report-only, so this run may not commit at all (see
 [Committing](#committing)); whenever it does, its trailer says
 `3 iterations, aborted — see report` and the new run mints its own.
 
+## Step 3 — Searching with a property
+
+A way for the finder to produce candidates, used only where the code under
+review maintains an invariant that something states. Why each limit:
+[DECISIONS.md](DECISIONS.md#a-property-finds-the-candidate-an-example-proves-it).
+
+**1. Choose the invariant and quote where it is stated.** A MUST or SHALL in a
+spec, a comment, or a name that promises it: a cursor never moves past an item
+it has not processed; `sorted_insert` keeps the list ordered; a state machine takes only
+its legal transitions; `parse(print(x)) == x`. Quote the line, with its file.
+If nothing states it, there is no property to write: an invariant inferred
+from the code is the finder's guess about intent, and testing a guess finds
+guesses.
+
+**2. Generate only what a real caller could produce, where that is cheap.** Drive
+the code through its public entry points with operation sequences (`claim`,
+`take`, `refuse`, `advance` in random order) rather than building internal
+state directly; a sequence of real calls reaches only reachable states. Where
+restricting the generator is expensive, generate more widely and pay for it
+when tracing the input (item 6 below).
+
+**3. Use what the project has.** Its property library if it already depends on
+one (fast-check, Hypothesis, proptest, jqwik, QuickCheck or another), run
+through its existing test runner. Otherwise a short seeded random loop in a
+scratch file outside the project's tests, never staged, deleted afterwards:
+
+```python
+# scratch: never staged
+import random, sys
+seed = int(sys.argv[1]) if len(sys.argv) > 1 else random.randrange(2**32)
+rng = random.Random(seed)
+for run in range(500):
+    ops = [rng.choice(OPS)(rng) for _ in range(rng.randint(1, 20))]
+    state = replay(ops)              # through the public entry points
+    if not invariant_holds(state):
+        print(seed, run, ops, state)
+        break
+```
+
+**Never install a dependency** into the user's project, not even as a dev
+dependency removed afterwards. A hand loop has no shrinker, so shrink by hand:
+drop one operation at a time, keep each drop that still fails, until none can
+go.
+
+**4. Seed it, and record the seed.** Fix the seed, or print the one the library
+chose, so the failure replays exactly. A counterexample that cannot be
+reproduced has not been observed.
+
+**5. Bound it.** A fixed number of runs (a few hundred) or a few seconds per
+property, whichever comes first, inside Step 3's background pass. A property
+that finds nothing within its bound is done; do not raise the bound to keep
+looking.
+
+**6. Trace the shrunk input to a real entry point, or drop it.** The shrinker
+minimises the input, not its realism: the smallest failure is often a state no
+caller can build, such as an empty queue the constructor never allows or two
+claims a mutex prevents. Name the caller and the path that produces this input,
+as for any candidate. If there is none, it is not a candidate.
+
+**7. Report it like any candidate, plus the property, the seed, the shrunk
+input and the observed result:**
+
+```
+scenario      the watermark advances past an item claimed but not taken
+reachability  Discovery.cycle() → claim() → tracker refuses → advance()
+property      after any sequence of claim/take/refuse/advance, every item
+              below the watermark was taken   (spec.md: "MUST NOT pass …")
+seed          1739204811  (Hypothesis, 500 runs, failed at run 212)
+shrunk input  [claim(1), refuse(1), advance()]
+observed      watermark = 2 with item 1 untaken; expected watermark ≤ 1
+```
+
+Step 4 turns the shrunk input into the regression test
+([below](#a-counterexample-from-a-property)). Keeping the property itself is a
+Step 9 recommendation ([Asking about a recommendation](#asking-about-a-recommendation)).
+
 ## Steps 4–7 in detail
 
 ### Step 4 — Prove
@@ -573,6 +666,28 @@ Never leave a failing or discarded test in the tree.
 If a candidate is real but no test can express it — concurrency, deployment
 configuration, security posture, performance — do not force a fake test. Move
 it to the reported-not-fixed list in Step 9.
+
+#### A counterexample from a property
+
+The test is the shrunk input, written out: the operations in order, the call
+that exposes the result, and an assertion of the invariant on that one case,
+in the project's framework with no generator and no seed. Name it for the
+scenario, not for the property. It runs the same way every time, so its red is
+for the predicted reason or it is not, and the table above applies unchanged.
+
+```python
+def test_watermark_stays_below_a_refused_claim():
+    d = Discovery()
+    d.claim(1)
+    d.refuse(1)
+    d.advance()
+    assert d.watermark <= 1
+```
+
+Do not commit the property as the regression, even when the project has the
+library: even seeded, its red can come from another counterexample, and its
+inputs change with the library. Keeping it as a guard beside this test is the
+user's decision, in Step 9.
 
 ### Step 5 — Refute
 
