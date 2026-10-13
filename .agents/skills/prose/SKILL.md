@@ -232,7 +232,7 @@ doc by its file and lines, a post quoted in full.
    2. kept (asked): the reader of this file has just read the function it names
    ```
 
-   `fixed` means the finding's quoted words are gone. A report with no
+   `fixed` means you changed the item the finding is in. A report with no
    findings needs no dispositions file.
 5. **A person decides every kept finding.** For each finding you would keep,
    ask a person one question, through your host's interactive picker: show
@@ -264,27 +264,24 @@ The signing call refuses (exit 2), signs nothing and keeps the token when:
 - the report or the dispositions file does not start with this token's line;
 - the report has a line not in the brief's form, or says nothing about an
   item;
-- a quote is not in the text the cold reader was given: ask the reader to
-  quote it exactly;
 - a finding is unanswered, answered twice, or not in the report, or is kept
   without a reason;
-- a finding marked `fixed` still has its quoted words in the text;
+- a finding is marked `fixed`, but its item has not changed since the brief;
 - a finding is kept without `(asked)`;
 - a file the brief did not name now has a changed comment or doc passage:
   run the signing call without `--cold-read` for a new brief, and have that
   read cold.
 
-**How a quote is matched.** Against the whole file the item is in, or the
-whole post, as it is. The quote's words must appear in order and in full.
-Between two of them the text may have spaces, or line breaks where each new
-line may start with a run of marker characters, `#`, `/`, `*`, `!`, `>`,
-`;`, `%` or `-`. So a quote that runs across comment lines, `//!` doc lines
-or a blockquote still matches. Case and every other character count. So
-`fixed` means those words appear nowhere in that file; a phrase the file uses
-elsewhere too can only be fixed by changing every use, or kept.
+**How `fixed` is checked.** The call that prints the brief records each
+item's file as staged, or the post. At signing, the script compares the item
+with the text now: a line of it changed or removed, or a line added inside it
+or directly above or below it, counts as a change. An edit elsewhere in the
+file, even one that moves the item's lines, does not. A deleted file counts as changed, and
+so does any change to a post. The quote is not checked against the text; it
+is there for the person who answers the finding.
 
 Each token takes one cold read; the fixes are not read cold again. The script
-checks `fixed` instead, by the quote.
+checks `fixed` instead, by the item having changed.
 
 **Without subagents,** do the cold read yourself: read the brief as if it were
 all you knew, open only what it names, and write the report as it asks.

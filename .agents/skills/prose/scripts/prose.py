@@ -34,6 +34,7 @@ a change here invalidates every signature already minted.
 """
 
 import argparse
+import difflib
 import hashlib
 import json
 import os
@@ -1754,12 +1755,13 @@ DISPOSITIONS_FILE = "dispositions.txt"
 
 class ColdItem(NamedTuple):
     """One text in a cold-read brief: where the reader finds it, its reader's
-    goals, the file it is in ("" for a post), and the text itself when it is
-    in no file."""
+    goals, the file it is in ("" for a post), the text itself when it is in
+    no file, and its (first, last) line pairs in the file (none for a post)."""
     where: str
     goals: tuple
     path: str = ""
     text: str = ""
+    spans: tuple = ()
 
 
 def _nonblank(text):
@@ -1787,11 +1789,11 @@ def cold_items(assigned):
         if kind_of(item.path) == "comment":
             for span in item.spans:
                 found.append(ColdItem(f"A code comment: {item.path}, {_lines(span)}, and the "
-                                      "code it sits on.", tuple(goals), item.path))
+                                      "code it sits on.", tuple(goals), item.path, spans=(span,)))
         else:
             found.append(ColdItem(f"A doc passage: {item.path}, the changed lines "
                                   f"{_span_list(item.spans)}, each read in its section.",
-                                  tuple(goals), item.path))
+                                  tuple(goals), item.path, spans=item.spans))
     return found
 
 
@@ -1842,7 +1844,7 @@ def print_cold_read(token, items, next_command, stream=None, root=None):
           f"=== lines, unchanged and with nothing added. Save its report to {REPORT_FILE}, "
           "outside the commit. Fix the places it names, and restage. Then answer every finding "
           f"in {DISPOSITIONS_FILE}: its first line '{dispositions_header(token)}', then one "
-          "line per finding, '<n>. fixed' when its quoted words are gone from the text, or "
+          "line per finding, '<n>. fixed' once you changed the item it is in, or "
           "'<n>. kept (asked): <why>' once a person chose to keep it. A report with no "
           "findings needs no dispositions file. Then run:\n", file=stream)
     print(f"  {next_command}\n", file=stream)
@@ -1866,25 +1868,6 @@ FINDING = re.compile(r"Finding ([0-9]+), item ([0-9]+), (stopped|reread|guessed)
 STRAIGHT = re.compile(r"Item ([0-9]+): read straight through\.?")
 # kept without "(asked)" is read, so that its refusal can name the finding.
 DISPOSITION = re.compile(r"([0-9]+)\. (?:(fixed)|kept( \(asked\))?:(.*))")
-# What may stand between two of a quote's words in the text: spaces on one
-# line, or line breaks, each line optionally opening with a run of marker
-# characters such as `#`, `//!`, ` * `, `>` or `-`, and the first optionally
-# preceded by a block comment's close. The text is never rewritten, so a word
-# of the quote that itself starts with one of these characters, such as
-# `#42`, still matches at a line's start (DECISIONS: Every cold-read finding
-# is answered before signing).
-#
-# Every repetition consumes exactly one line break, and a marker run starts
-# and ends on a marker, so a gap alone matches a run of lines one way. A quote
-# word made only of markers, such as `*`, can also be matched by the gap's
-# marker run, so a failed search with several such words over hundreds of
-# marker-only lines grows polynomially. Real quotes and files are far
-# smaller.
-_SPACE = r"[^\S\n]"
-_MARK = r"[#/*!>;%\-]"
-QUOTE_GAP = (rf"(?:{_SPACE}*(?:\*+/{_SPACE}*)?"
-             rf"(?:\n{_SPACE}*(?:{_MARK}(?:{_SPACE}*{_MARK})*{_SPACE}*)?)+"
-             rf"|{_SPACE}+)")
 
 
 class Finding(NamedTuple):
@@ -1894,15 +1877,25 @@ class Finding(NamedTuple):
     missing: str
 
 
-def quote_in(quote, text):
-    """Whether quote, written on one line, is in text: its words in order,
-    with spaces or line breaks and line-start markers between them
-    (QUOTE_GAP). Case and every other character count."""
-    words = quote.split()
-    if not words:
-        return False
-    pattern = QUOTE_GAP.join(re.escape(word) for word in words)
-    return re.search(pattern, text.replace("\r\n", "\n").replace("\r", "\n")) is not None
+def item_changed(old, new, spans):
+    """Whether an item differs in new from old, the text when its brief was
+    printed: a line of it changed or removed, or a line added inside it or
+    directly above or below it. spans are its (first, last) line pairs in
+    old; with none, the whole text is the item, as for a post (DECISIONS:
+    Every cold-read finding is answered before signing)."""
+    if not spans:
+        return old != new
+    # Lines as git counts them, so the spans' numbers hold. No autojunk: it
+    # would treat a doc's many blank lines as junk and report them changed.
+    matcher = difflib.SequenceMatcher(None, old.split("\n"), new.split("\n"), autojunk=False)
+    for tag, start, end, _, _ in matcher.get_opcodes():
+        for first, last in spans:
+            # start and end index old's lines from 0; an insert has start == end.
+            if tag == "insert" and first - 1 <= start <= last:
+                return True
+            if tag in ("replace", "delete") and start < last and end >= first:
+                return True
+    return False
 
 
 def _read_text(path, what):
@@ -1954,7 +1947,7 @@ def read_cold_report(path, token, count):
         if not 1 <= finding.item <= count:
             refuse(f"puts finding {index} in item {finding.item}, but the brief has items 1 "
                    f"to {count}")
-        if not re.sub(rf"{_MARK}|\s", "", finding.quote):
+        if not finding.quote.strip():
             refuse(f"quotes no words in finding {index}")
         if not finding.missing:
             refuse(f"does not say, in finding {index}, what was guessed or missing")
@@ -2013,22 +2006,16 @@ def read_dispositions(path, token, findings):
 
 
 def check_cold_read(token, record, report, dispositions, current):
-    """Refused unless the report answers the brief recorded for this token,
-    every finding's quote was in the text the reader was given, and every
-    finding has a disposition, with each fixed one's quote gone from
-    current(path), the text as it is signed ("" for a post). A ColdResult."""
+    """Refused unless the report answers the brief recorded for this token
+    and every finding has a disposition, with each fixed one's item changed
+    in current(path), the text as it is signed ("" for a post). A ColdResult."""
     brief = record.get("cold")
     if not brief:
         raise Refused(f"no cold-read brief was printed for pass token {token}, so there is no "
                       "report to check. Run the signing call without --cold-read to print one. "
                       + KEPT)
-    paths, texts = brief["items"], brief["texts"]
+    paths, texts, spans = brief["items"], brief["texts"], brief["spans"]
     findings = read_cold_report(report, token, len(paths))
-    for finding in findings:
-        if not quote_in(finding.quote, texts[paths[finding.item - 1]]):
-            raise Refused(f"finding {finding.number} quotes «{finding.quote}», which item "
-                          f"{finding.item} did not hold when the brief was printed. Have the cold "
-                          f"reader quote the words exactly. {KEPT}")
     if not findings:
         if dispositions:
             read_dispositions(dispositions, token, findings)
@@ -2045,9 +2032,10 @@ def check_cold_read(token, record, report, dispositions, current):
             continue
         if path not in now:
             now[path] = current(path)
-        if quote_in(finding.quote, now[path]):
-            raise Refused(f"finding {finding.number} is marked fixed, but «{finding.quote}» is "
-                          f"still in {path or 'the post'}. Fix it, or keep it with a reason. {KEPT}")
+        if not item_changed(texts[path], now[path], spans[finding.item - 1]):
+            raise Refused(f"finding {finding.number} is marked fixed, but item {finding.item}, in "
+                          f"{path or 'the post'}, has not changed since the brief was printed. "
+                          f"Fix it, or keep it with a reason. {KEPT}")
     kept = [finding for finding in findings if answers[finding.number] is not None]
     unasked = [finding for finding in kept if not answers[finding.number].asked]
     if unasked:
@@ -2087,11 +2075,13 @@ def unasked_refusal(token, unasked, paths, answers, report, dispositions):
 
 def record_brief(token, items, texts, root=None):
     """Add the brief just printed to the token's record: each item's file ("" for
-    a post) and each file's text as the cold reader was given it, which a
-    report's quotes are checked against. A brief printed again replaces it."""
+    a post) and line spans, and each file's text as the cold reader was given
+    it, which a fixed finding's item is compared with. A brief printed again
+    replaces it."""
     path = pass_dir(root) / token
     record = json.loads(path.read_text(encoding="utf-8"))
-    record["cold"] = {"items": [item.path for item in items], "texts": texts}
+    record["cold"] = {"items": [item.path for item in items], "texts": texts,
+                      "spans": [[list(span) for span in item.spans] for item in items]}
     draft = path.parent / f".{token}.{os.getpid()}"
     with open(draft, "w", encoding="utf-8") as handle:
         json.dump(record, handle)

@@ -22,7 +22,6 @@ import shutil
 import subprocess
 import sys
 import tempfile
-import time
 import types
 import unittest
 
@@ -3014,8 +3013,8 @@ class ColdRead(unittest.TestCase):
 
 class ColdReadFindings(unittest.TestCase):
     """Every finding in a cold reader's report is answered before signing:
-    fixed, checked by its quote being gone, or kept with a reason. The answers
-    are bound to the report's token."""
+    fixed, checked by its item having changed, or kept with a reason. The
+    answers are bound to the report's token."""
 
     COMMENT = "x = 1\n# The worker takes a command\n# off the token. It runs there.\ny = 2\n"
     MESSAGE = "FEAT(x): a\n"
@@ -3093,28 +3092,33 @@ class ColdReadFindings(unittest.TestCase):
                               self.answers("2. fixed", "1. fixed"))
         self.assertEqual(signed.returncode, 0, signed.stderr)
 
-    def test_fixed_is_refused_while_the_quote_is_still_there(self):
+    def test_fixed_is_refused_while_its_item_is_unchanged(self):
         report = self.report((1, "It runs there."))
         answers = self.answers("1. fixed")
-        self.fix(self.COMMENT.replace("worker", "builder"))
-        self.refused(self.signing("--cold-read", report, "--dispositions", answers),
-                     "finding 1 is marked fixed, but «It runs there.» is still in a.py")
+        unchanged = ("finding 1 is marked fixed, but item 1, in a.py, has not changed since the "
+                     "brief was printed")
+        self.refused(self.signing("--cold-read", report, "--dispositions", answers), unchanged)
+        # Code added below the item, one line clear of it, is not a change to it.
+        self.fix(self.COMMENT + "z = 3\n")
+        self.refused(self.signing("--cold-read", report, "--dispositions", answers), unchanged)
         self.fix(self.COMMENT.replace("It runs there.", "It runs in the clone."))
         signed = self.signing("--cold-read", report, "--dispositions", answers)
         self.assertEqual(signed.returncode, 0, signed.stderr)
         self.repo.commit(self.MESSAGE, block_trailer(signed.stdout))
 
-    def test_a_quote_across_comment_lines_matches(self):
-        report = self.report((1, "takes a command off the token"))
-        answers = self.answers("1. fixed")
-        # Rewrapped only: the quoted words are still there.
-        self.fix("x = 1\n# The worker takes a\n#   command off the\n# token. It runs there.\n"
-                 "y = 2\n")
-        self.refused(self.signing("--cold-read", report, "--dispositions", answers),
-                     "is still in a.py")
-        self.fix("x = 1\n# The worker takes a command\n# from the token. It runs there.\ny = 2\n")
-        self.assertEqual(self.signing("--cold-read", report, "--dispositions",
-                                      answers).returncode, 0)
+    def test_an_edit_to_another_part_of_the_item_counts(self):
+        # The accepted cost of comparing items, not quotes (DECISIONS: Every
+        # cold-read finding is answered before signing).
+        report = self.report((1, "It runs there."))
+        self.fix(self.COMMENT.replace("worker", "builder"))
+        signed = self.signing("--cold-read", report, "--dispositions", self.answers("1. fixed"))
+        self.assertEqual(signed.returncode, 0, signed.stderr)
+
+    def test_a_deleted_file_counts_as_changed(self):
+        report = self.report((1, "It runs there."))
+        self.repo.git("rm", "-q", "-f", "a.py")
+        signed = self.signing("--cold-read", report, "--dispositions", self.answers("1. fixed"))
+        self.assertEqual(signed.returncode, 0, signed.stderr)
 
     def test_kept_needs_a_reason(self):
         report = self.report((1, "It runs there."))
@@ -3150,11 +3154,14 @@ class ColdReadFindings(unittest.TestCase):
         self.assertEqual(signed.returncode, 0, signed.stderr)
         self.assertNotIn("Finding 2", signed.stderr)
 
-    def test_a_misquote_is_refused_even_when_marked_kept(self):
-        for quote in ("It runs here.", "it runs there."):
-            self.refused(self.signing("--cold-read", self.report((1, quote)), "--dispositions",
-                                      self.answers("1. kept (asked): fine")),
-                         f"finding 1 quotes «{quote}», which item 1 did not hold")
+    def test_a_quote_is_not_checked_against_the_text(self):
+        # A paraphrase, a change of case, curly quotes and an ellipsis.
+        report = self.report((1, "It runs here."), (1, "it runs there."),
+                             (1, "\u201cIt runs\u201d \u2026"))
+        signed = self.signing("--cold-read", report, "--dispositions",
+                              self.answers("1. kept (asked): fine", "2. kept (asked): fine",
+                                           "3. kept (asked): fine"))
+        self.assertEqual(signed.returncode, 0, signed.stderr)
 
     def test_a_report_prose_cannot_read_is_refused_with_its_form(self):
         for body, problem in (
@@ -3168,7 +3175,7 @@ class ColdReadFindings(unittest.TestCase):
                  "puts finding 1 in item 2, but the brief has items 1 to 1"),
                 ("Finding 1, item 1, stopped: «It runs there.»\n",
                  "does not say, in finding 1, what was guessed or missing"),
-                ("Finding 1, item 1, stopped: « # » No words.\n", "quotes no words in finding 1"),
+                ("Finding 1, item 1, stopped: «  » No words.\n", "quotes no words in finding 1"),
                 ("Item 1: read straight through.\nItem 1: read straight through.\n",
                  "item 1 was read straight through twice"),
                 ("Item 1: read straight through.\nFinding 1, item 1, reread: «It runs there.» "
@@ -3272,7 +3279,7 @@ class ColdReadFindings(unittest.TestCase):
                                  cold_report(token), stdin=self.MESSAGE, file_goals=False)
         self.refused(result, f"no cold-read brief was printed for pass token {token}")
 
-    def test_a_post_fixed_means_the_quote_is_gone_from_the_post(self):
+    def test_a_post_fixed_means_the_post_changed(self):
         sign = lambda *args, stdin: run([sys.executable, str(SCRIPT), "sign"] + list(args),
                                         cwd=self.repo.path, stdin=stdin)
         token = pass_token(sign("--goals", "approve it", stdin="").stderr)
@@ -3281,13 +3288,12 @@ class ColdReadFindings(unittest.TestCase):
         report = cold_report(token, "Finding 1, item 1, guessed: «lands there» Where?\n",
                              name="post")
         answers = self.answers("1. fixed", token=token)
-        misquoted = cold_report(token, "Finding 1, item 1, guessed: «lands here» Where?\n",
-                                name="post-misquote")
-        self.refused(sign("--pass", token, "--cold-read", misquoted, "--dispositions", answers,
-                          stdin=post), "did not hold when the brief was printed")
-        self.refused(sign("--pass", token, "--cold-read", report, "--dispositions", answers,
-                          stdin=post), "«lands there» is still in the post")
-        fixed = "The fix lands in main.\nIt is safe.\n"
+        # A footer added or removed is not a change to the post.
+        for same in (post, post + "\nprose \u2713 000000\n"):
+            self.refused(sign("--pass", token, "--cold-read", report, "--dispositions", answers,
+                              stdin=same), "item 1, in the post, has not changed")
+        # Any change to the post counts, even one far from the quote.
+        fixed = "The fix lands there.\nIt is safe to merge.\n"
         signed = sign("--pass", token, "--cold-read", report, "--dispositions", answers,
                       stdin=fixed)
         self.assertEqual(signed.returncode, 0, signed.stderr)
@@ -3314,10 +3320,12 @@ class ColdReadFindings(unittest.TestCase):
         self.assertEqual(signed.stdout, prose.sign(post))
 
 
-class QuotesAcrossLines(unittest.TestCase):
-    """A quote the reader wrote on one line, as the brief asks, matches text
-    that runs across lines behind any line-start marker: `//!`, `>`, and a
-    post line that starts with `#42`."""
+class FixedItemChanged(unittest.TestCase):
+    """A finding marked fixed counts only when the item it is in changed
+    since the brief: not another item in the same file, and not the item's
+    lines moved by an edit above it."""
+
+    TWO = "# First block,\n# two lines.\nx = 1\n\ny = 2\n# Second block.\nz = 3\n"
 
     def setUp(self):
         self.repo = Repo()
@@ -3325,82 +3333,112 @@ class QuotesAcrossLines(unittest.TestCase):
         self.repo.write("a.py", "x = 1\n")
         self.repo.commit("base\n")
 
-    def signed_after_fix(self, path, before, after, quote):
-        self.repo.write(path, before)
+    def signed_after_fix(self, files, fixes, item=1, items=1, deleted=()):
+        """The signing call after a brief over files, {path: text}, a report
+        with one finding in item, marked fixed, and fixes staged."""
+        for path, text in files.items():
+            self.repo.write(path, text)
         first = self.repo.prose("check", "-F", "-", "--goals", "review it", stdin="FEAT(x): a\n")
         token = pass_token(first.stdout)
         sign = lambda *extra: self.repo.prose("check", "-F", "-", "--pass", token, *extra,
-                                              stdin="FEAT(x): a\n", file_goals=False)
-        self.assertEqual(sign().returncode, prose.COLD_READ_NEEDED)
-        report = cold_report(token, f"Finding 1, item 1, guessed: «{quote}» Which call?\n",
-                             name="across")
-        answers = REPORTS / "across-dispositions.txt"
+                                              stdin="FEAT(x): a\n")
+        needed = sign()
+        self.assertEqual(needed.returncode, prose.COLD_READ_NEEDED, needed.stderr)
+        lines = [f"Finding 1, item {item}, guessed: «x» Which call?"] + [
+            f"Item {n}: read straight through." for n in range(1, items + 1) if n != item]
+        report = cold_report(token, "\n".join(lines) + "\n", name="item-changed")
+        answers = REPORTS / "item-changed-dispositions.txt"
         answers.write_text(f"dispositions {token}\n1. fixed\n", encoding="utf-8")
-        self.repo.write(path, after)
+        for path, text in fixes.items():
+            self.repo.write(path, text)
+        for path in deleted:
+            self.repo.git("rm", "-q", "-f", path)
         return sign("--cold-read", report, "--dispositions", str(answers))
 
-    def test_a_rust_inner_doc_comment(self):
-        signed = self.signed_after_fix(
-            "lib.rs", "//! The token is kept so the\n//! second call can read it.\nfn main() {}\n",
-            "//! The token stays unspent for the signing call.\nfn main() {}\n",
-            "kept so the second call")
-        self.assertEqual(signed.returncode, 0, signed.stderr)
+    def assert_refused(self, result, item):
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn(f"item {item}, in ", result.stderr)
+        self.assertIn("has not changed since the brief was printed", result.stderr)
 
-    def test_a_markdown_blockquote(self):
-        signed = self.signed_after_fix(
-            "README.md", "# T\n\n> The token is kept so the\n> second call can read it.\n",
-            "# T\n\n> The token stays unspent for the signing call.\n",
-            "The token is kept so the second call")
-        self.assertEqual(signed.returncode, 0, signed.stderr)
+    def test_an_edit_to_another_item_does_not_count(self):
+        fixed = self.TWO.replace("Second block.", "Second block, reworded.")
+        self.assert_refused(self.signed_after_fix({"a.py": self.TWO}, {"a.py": fixed}, items=2), 1)
+        self.assertEqual(self.signed_after_fix({"a.py": self.TWO}, {"a.py": fixed}, item=2,
+                                               items=2).returncode, 0)
 
-    def test_a_post_line_starting_with_an_issue_number(self):
-        sign = lambda *args, stdin: run([sys.executable, str(SCRIPT), "sign"] + list(args),
-                                        cwd=self.repo.path, stdin=stdin)
-        token = pass_token(sign("--goals", "approve it", stdin="").stderr)
-        post = "We settled this in issue\n#42, which the review asked for.\n"
-        self.assertEqual(sign("--pass", token, stdin=post).returncode, prose.COLD_READ_NEEDED)
-        report = cold_report(token, "Finding 1, item 1, guessed: «settled this in issue #42, "
-                                    "which» Which review?\n", name="issue")
-        answers = REPORTS / "issue-dispositions.txt"
-        answers.write_text(f"dispositions {token}\n1. fixed\n", encoding="utf-8")
-        refused = sign("--pass", token, "--cold-read", report, "--dispositions", str(answers),
-                       stdin=post)
-        self.assertIn("is still in the post", refused.stderr)
-        signed = sign("--pass", token, "--cold-read", report, "--dispositions", str(answers),
-                      stdin="Issue #42 settled this, at the review's request.\n")
-        self.assertEqual(signed.returncode, 0, signed.stderr)
+    def test_lines_moved_by_an_edit_above_are_not_a_change(self):
+        moved = "import os\nimport re\n\n" + self.TWO
+        self.assert_refused(self.signed_after_fix({"a.py": self.TWO}, {"a.py": moved}, item=2,
+                                                  items=2), 2)
+        reworded = moved.replace("Second block.", "Second block, reworded.")
+        self.assertEqual(self.signed_after_fix({"a.py": self.TWO}, {"a.py": reworded}, item=2,
+                                               items=2).returncode, 0)
+
+    def test_an_edit_in_another_file_does_not_count(self):
+        files = {"a.py": "# One.\nx = 1\n", "b.py": "# Two.\ny = 2\n"}
+        result = self.signed_after_fix(files, {"b.py": "# Two, reworded.\ny = 2\n"}, items=2)
+        self.assert_refused(result, 1)
+
+    def test_a_line_added_inside_or_at_the_edge_of_a_doc_passage_counts(self):
+        doc = "# Guide\n\nOld text.\n"
+        self.repo.write("guide.md", doc)
+        self.repo.commit("base 2\n")
+        before = doc + "\nNew passage.\n"
+        for after in (before + "Its reason.\n", before.replace("\nNew", "\nFirst.\nNew")):
+            result = self.signed_after_fix({"guide.md": before}, {"guide.md": after})
+            self.assertEqual(result.returncode, 0, result.stderr)
+        self.assert_refused(self.signed_after_fix(
+            {"guide.md": before}, {"guide.md": before.replace("Old text.", "Old.")}), 1)
+
+    def test_a_removed_passage_or_a_deleted_file_counts(self):
+        doc = "# Guide\n\nOld text.\n"
+        self.repo.write("guide.md", doc)
+        self.repo.commit("base 2\n")
+        added = doc + "\nNew passage.\n"
+        result = self.signed_after_fix({"guide.md": added}, {"guide.md": doc, "a.py": "x = 2\n"})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        result = self.signed_after_fix({"guide.md": added}, {}, deleted=["guide.md"])
+        self.assertEqual(result.returncode, 0, result.stderr)
 
 
-class QuoteIn(unittest.TestCase):
-    """How a finding's quote is matched in the text it came from."""
+class ItemChanged(unittest.TestCase):
+    """item_changed, on line spans of the text the brief recorded."""
 
-    def test_spaces_and_line_breaks_between_words_match(self):
-        self.assertTrue(prose.quote_in("a b c", "x a\n   b\tc y"))
-        self.assertTrue(prose.quote_in("a b", "a\r\nb"))
-        self.assertTrue(prose.quote_in("a b", "a\n\n# \n# b"))
+    OLD = "a\nb\nc\nd\ne\n"
 
-    def test_line_start_markers_between_words_are_skipped(self):
-        for text in ("# a b\n# c d", "// a b\n// c d", "/* a b\n * c d */",
-                     "/** a b\n *  c d\n */", "## a b\n#c d", "/// a b\n/// c d",
-                     "//! a b\n//! c d", "> a b\n> c d", "-- a b\n-- c d", "; a b\n;; c d",
-                     "/* a b */\n/* c d */"):
-            self.assertTrue(prose.quote_in("a b c d", text), text)
+    def changed(self, new, spans=((3, 3),)):
+        return prose.item_changed(self.OLD, new, spans)
 
-    def test_a_word_starting_with_a_marker_matches_at_a_line_start(self):
-        self.assertTrue(prose.quote_in("issue #42,", "issue\n#42,"))
+    def test_a_line_of_the_item_changed_or_removed(self):
+        self.assertTrue(self.changed("a\nb\nC\nd\ne\n"))
+        self.assertTrue(self.changed("a\nb\nd\ne\n"))
 
-    def test_case_and_every_other_character_count(self):
-        self.assertFalse(prose.quote_in("It runs", "# it runs"))
-        self.assertFalse(prose.quote_in("a b", "a, b"))
-        self.assertFalse(prose.quote_in("a b", "a # b"))
-        self.assertTrue(prose.quote_in("a * b", "x = a * b"))
-        self.assertTrue(prose.quote_in("**bold** text", "**bold** text"))
+    def test_a_line_added_inside_or_directly_beside_the_item(self):
+        self.assertTrue(self.changed("a\nb\nX\nc\nd\ne\n"))
+        self.assertTrue(self.changed("a\nb\nc\nX\nd\ne\n"))
+        self.assertTrue(prose.item_changed(self.OLD, "a\nb\nX\nc\nd\ne\n", ((2, 3),)))
 
-    def test_a_failed_search_over_long_marker_runs_is_fast(self):
-        started = time.time()
-        self.assertFalse(prose.quote_in("a b", ("a\n" + "#" * 2000 + " ") * 200))
-        self.assertFalse(prose.quote_in("a b", "a" + "\n " * 20000 + "c"))
-        self.assertLess(time.time() - started, 2)
+    def test_changes_beside_or_away_from_the_item_do_not_count(self):
+        self.assertFalse(self.changed(self.OLD))
+        self.assertFalse(self.changed("X\nY\na\nb\nc\nd\ne\n"))
+        self.assertFalse(self.changed("a\nB\nc\nD\ne\n"))
+        self.assertFalse(self.changed("a\nc\nd\n"))
+        self.assertFalse(self.changed("a\nb\nc\nd\ne\nf\n"))
+
+    def test_any_of_several_spans(self):
+        self.assertTrue(prose.item_changed(self.OLD, "a\nb\nc\nd\nE\n", ((1, 1), (5, 5))))
+        self.assertFalse(prose.item_changed(self.OLD, "a\nb\nC\nd\ne\n", ((1, 1), (5, 5))))
+
+    def test_blank_lines_in_a_long_doc_are_not_reported_changed(self):
+        old = "".join(f"Line {n}.\n\n" for n in range(300))
+        new = old.replace("Line 10.", "Line ten.")
+        self.assertFalse(prose.item_changed(old, new, ((400, 420),)))
+        self.assertTrue(prose.item_changed(old, new, ((19, 21),)))
+
+    def test_with_no_spans_the_whole_text_is_the_item(self):
+        self.assertFalse(prose.item_changed("a b\n", "a b\n", ()))
+        self.assertTrue(prose.item_changed("a b\n", "a  b\n", ()))
+        self.assertTrue(prose.item_changed("a\n", "", ((1, 1),)))
 
 
 class Gate(unittest.TestCase):

@@ -33,7 +33,7 @@ Rewrite only text you wrote or changed in this change: comments, docs, specs, th
 
 **4. Read it once as the reader,** someone who doesn't know what you meant, and fix every place you'd stop or re-read (rules 3, 4 and 7). In a doc, reread each changed passage inside its section, as that section's reader, before keeping it: a passage that makes sense beside the diff can make none in the section it lands in. When a changed passage repeats a phrase, grep the repository for it. A phrase that recurs across documents with no definition or reason at any use gets fixed at the source: one statement with its reasons, and the others cut or pointed at it (rule 5).
 
-**5. Have it read cold.** Before the signing call, an agent that has never seen the conversation behind the change reads each changed comment block and doc passage, and each post. The commit message is not read cold. You read your own text with what you meant already in mind, so you fill its gaps without noticing them. The signing call prints the cold reader's brief and signs nothing until you pass the report with `--cold-read <file>`, and an answer to each of its findings with `--dispositions <file>`: `fixed`, which the script checks by the quoted words being gone, or `kept (asked)`, once a person chose to keep it. Fix the places the report names: where the cold reader stopped, reread or guessed, the real reader will too. SKILL.md's *The cold read* says how to run it.
+**5. Have it read cold.** Before the signing call, an agent that has never seen the conversation behind the change reads each changed comment block and doc passage, and each post. The commit message is not read cold. You read your own text with what you meant already in mind, so you fill its gaps without noticing them. The signing call prints the cold reader's brief and signs nothing until you pass the report with `--cold-read <file>`, and an answer to each of its findings with `--dispositions <file>`: `fixed`, which the script checks by the finding's item having changed, or `kept (asked)`, once a person chose to keep it. Fix the places the report names: where the cold reader stopped, reread or guessed, the real reader will too. SKILL.md's *The cold read* says how to run it.
 
 **Never cut:** the why of a decision the code doesn't make obvious; a warning that stops someone repeating a mistake; a stated limit ("not tested on Windows"). These are what a reviewer can't recover from the diff.
 
@@ -210,7 +210,7 @@ Point to a source with a link or a clickable path (`file:line`), not a name the 
 - Giving the cold reader anything but the brief the signing call printed: the conversation, what the text is meant to say, or a summary of the change; or less than all of it, such as only the items you were unsure of.
 - Arguing with a place the cold reader stopped, because you know what the text meant, instead of fixing it.
 - Writing the cold reader's report yourself when you could start a subagent.
-- Marking a finding fixed after rewording just enough to dodge its quote, so the reader would still stop at the same place.
+- Marking a finding fixed by editing another part of its item, or by rewording just enough to change it, so the reader would still stop at the same place.
 - Keeping a finding with a reason that restates the wording, or says only that it is clear.
 - Writing `kept (asked)` when no person was asked, or asking in a way that leans on the answer.
 - Editing the cold reader's report before passing it: dropping a finding, or fixing a quote yourself instead of asking the reader.

@@ -987,8 +987,8 @@ commit's only prose is a short comment, and nothing to count can go wrong.
   target path or a commit: none leaves new prose to read.
 - **One cold read per token:** the fixes are not read cold again, since that
   would repeat until a reader found nothing. Each finding marked fixed is
-  checked by its quote instead (*Every cold-read finding is answered before
-  signing*, below).
+  checked instead by its item having changed (*Every cold-read finding is
+  answered before signing*, below).
 - **A code file listed as "did not parse" or "could not be read"** (Adam,
   2026-10-13) signs without a cold read: prose found no comment in it, so the
   brief has nothing to name.
@@ -1002,8 +1002,8 @@ carries no marker saying so: it is not committed or posted, so no reader would
 see one.
 
 **What it proves:** a report for that pass's token existed before the
-signature, and each of its findings was answered: its quoted words gone, or
-kept with a reason. **What it does not prove:** that a fresh agent wrote it, or that it
+signature, and each of its findings was answered: its item changed, or kept
+with a reason. **What it does not prove:** that a fresh agent wrote it, or that it
 was given only the brief. An author can write the report themselves; that is
 the forgery this skill does not defend against (*Posted text carries a signed
 footer*), and the cheat list names it.
@@ -1047,9 +1047,9 @@ fixed text.
 **Decision (Adam, 2026-10-13).** The signing call takes, beside
 `--cold-read <report>`, `--dispositions <file>`, which answers each of the
 report's findings once:
-- `<n>. fixed`: the script checks that the finding's quoted words no longer
-  appear in the text they came from, the staged file the item names or the
-  post's final text. If they do, it refuses, naming the finding.
+- `<n>. fixed`: the script checks that the item the finding is in has
+  changed since the brief was printed. If it has not, it refuses, naming the
+  finding.
 - `<n>. kept (asked): <reason>`: a person chose to keep it (*A person
   decides every kept finding*, below). The reason is required, on that line.
 
@@ -1062,8 +1062,8 @@ file.
 **Why.** The signing call proved only that a report existed. An author could
 pass it and change nothing: the findings were ignored without a trace, and the
 signature looked the same as one whose author fixed every place. Each finding
-now ends one of two ways the author has to state: the words that stopped the
-reader are gone, or the author says why they stay.
+now ends one of two ways the author has to state: the item the reader
+stopped in has changed, or the author says why it stays.
 
 **The report has a fixed form,** which cold-read.md asks for and the script
 parses:
@@ -1080,32 +1080,37 @@ both, so a report that skips an item is refused. A line in no other form is
 refused, with the form in the message: the author asks the reader again
 rather than prose guessing what a free-form report meant.
 
-**A quote is checked when the report is passed.** The brief's call records,
-with the token, the text each item had when the brief was printed: each named
-file as staged, or the post. A quote that text never held is a misquote, and
-is refused before any disposition is read. Otherwise a misquote would pass as
-`fixed` without anything changing. Because of that record, `--cold-read` is
-refused for a token whose brief was never printed. A brief printed again
-replaces the record, and the report must answer the latest brief.
+**`fixed` is checked by its item changing (Adam, 2026-10-13).** The brief's
+call records, with the token, each item's file and line spans, and each named
+file's text as staged, or the post. At signing, the script diffs that text
+against the text now (`item_changed`). A finding marked `fixed` is accepted
+when its item changed: a line of it changed or removed, or a line added
+inside it or directly above or below it. It is refused when none did. An
+edit elsewhere in the file, including one above the item that moves its
+lines, is not a change to it, since the diff maps the old lines to the new.
+A deleted file, or a removed passage, counts as changed. A post is compared
+whole. Because of the record, `--cold-read` is refused for a token whose
+brief was never printed. A brief printed again replaces the record, and the
+report must answer the latest brief.
 
-**How a quote is compared.** With the whole text of its item's file, or the
-whole post, which is never rewritten. The quote's words must appear in order
-and whole. Between two of them the text may have spaces, or line breaks where
-each new line may open with a run of marker characters (`#`, `/`, `*`, `!`,
-`>`, `;`, `%`, `-`). A quote the reader wrote on one line, as the brief asks,
-then matches text across comment lines, `//!` doc lines and blockquotes. Case
-and every other character count, since the reader is asked to quote exactly.
-Matching the whole file rather than the item's lines is deliberate: the fixes
-move lines, so the item's old line numbers no longer locate it. The cost is
-that a phrase the file also uses elsewhere is fixed only when every use
-changes, or it is kept.
+The quote stays in the report's form, `«<words>»`, and the script parses it
+but does not check it against the text. The quote is for the person who
+answers the finding; the check uses the item number.
 
-Tried first and replaced: taking a fixed set of comment markers (`#`, `//`,
-`/*`, `*/`, `* `) off each line of both the quote and the text. Bug-hunter
-showed exact quotes refused as misquotes across `//!` and `>` lines, and
-across a post line starting `#42`, whose `#` came off the text but not the
-quote. Matching the quote's words against the unchanged text has no list of
-languages to keep complete.
+**Why not the quote.** The first version refused `fixed` while the quoted
+words were still in the item's file, and refused a quote the file never held
+as a misquote. That proved only that those exact words were edited. It took
+the most intricate code in the change, a generated pattern matching a quote
+across comment-marker lines, which held one of the two bugs bug-hunter found
+in it. It also refused honest misquotes: a paraphrase, curly quotes, "…".
+Comparing the item's recorded text with its current text catches the case the
+check exists for, a finding marked `fixed` with nothing touched, with far
+less code.
+
+**Accepted cost.** An edit to a different part of the same item counts, and
+so does a line added directly above or below it, even when that line is
+code. The cheat list names marking a finding fixed by editing another part
+of its item.
 
 **A file the brief did not name is refused.** When a file not among the
 brief's items now has a changed comment or doc passage, the signing call
@@ -1119,7 +1124,9 @@ allowed, as *One cold read per token* says.
   rarely report nothing, so it would loop to the cap. And the author relays
   the report, so "clean" cannot be verified.
 - **Re-reading fixed passages cold.** *One cold read per token* stands; the
-  quote check replaces it, at no cost of a second subagent.
+  item check replaces it, at no cost of a second subagent.
+- **Checking `fixed` by the quote being gone,** replaced on 2026-10-13 (see
+  *Why not the quote*, above).
 - **Free-form reports, with the quotes found by looking for quotation
   marks.** The text being read contains quotation marks too, and a guess at
   what a report meant is a check that passes by mistake.
@@ -1169,10 +1176,12 @@ library's commit hook and bug-hunter's commit script already carry the
 trailer key would have to be taught to the library's families, its hook and
 bug-hunter's caller result.
 
-**Known gap.** `fixed` proves the words are gone, not that the reader would
-now read the place straight through. Rewording just enough to dodge the quote
-is on the cheat list. A `kept` reason is not checked beyond being there; the
-cheat list names a reason that restates the wording.
+**Known gap.** `fixed` proves the item changed, not that the edit touched the
+place the reader stopped, nor that the reader would now read it straight
+through. Editing another part of the item is on the cheat list. Where a file
+repeats identical lines, the diff may place an added one at a different
+repeat, which can land it beside an item. A `kept` reason is not checked
+beyond being there; the cheat list names a reason that restates the wording.
 
 ---
 

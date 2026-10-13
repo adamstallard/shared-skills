@@ -31,12 +31,12 @@ followed them.
 **A cold read.** Before it signs a changed comment, doc passage or post, the
 agent has a fresh agent, one that never saw the conversation, read it and
 report where it stopped, reread or guessed, quoting the words. The agent then
-answers every finding: fixed, which the script checks by the quoted words
-being gone from the text, or kept, which a person decides. The signing call
-refuses without a report and those answers, both bound to that pass's token,
-and refuses a kept finding unless the agent says a person was asked. An agent
-that cannot ask hands the findings back to its caller unsigned. Nothing
-proves a fresh agent wrote the report, or that the person was asked.
+answers every finding: fixed, which the script checks by the finding's item
+having changed since the brief, or kept, which a person decides. The signing
+call refuses without a report and those answers, both bound to that pass's
+token, and refuses a kept finding unless the agent says a person was asked.
+An agent that cannot ask hands the findings back to its caller unsigned.
+Nothing proves a fresh agent wrote the report, or that the person was asked.
 
 To install it, ask your agent to install the `prose` skill; the
 `manage-skills` skill does the rest, hooks included.
