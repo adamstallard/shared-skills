@@ -170,8 +170,8 @@ and run the call again.
 
 Do the pass over each listed item against the goals above it, rereading each
 changed doc passage inside its section, and restage. Then run that command on
-the final text, with the token. For a text of three or more lines, it first
-asks for a cold read; see [The cold read](#the-cold-read). The token holds the per-file goals, so the
+the final text, with the token. When the change holds a comment or doc
+passage, it first asks for a cold read; see [The cold read](#the-cold-read). The token holds the per-file goals, so the
 second call needs no `--goals-for`; it refuses other ones, and a doc staged
 since the first call that they don't cover.
 
@@ -194,19 +194,18 @@ You read your own text knowing what you meant, so you fill its gaps without
 seeing them. Before a text is signed, an agent that has never seen the
 conversation reads it and reports every place it stopped, reread or guessed.
 
-**What gets one:** each listed text with three or more lines that hold text.
-That is a comment block the change adds to or edits, counted without its
-comment syntax and read whole even when one line changed; a doc or spec's
-added lines, or a whole doc that git shows no line diff for; the commit
-message; a post. A shorter text, such as a one-line commit message or a
-one-sentence `/** ... */` block, gets none.
+**What gets one:** every comment block the change adds to or edits, read
+whole even when one line changed; every doc or spec passage it adds to; and
+every post, whatever its length. The commit message gets none, so a commit
+that changes no comment or doc signs without one. A doc that git diffs as
+binary is skipped, since prose cannot read it.
 
-**How.** Run the signing call as usual. When a text needs a cold read and you
-pass no report, it signs nothing, keeps the token and exits 5. It prints a
+**How.** Run the signing call as usual. When it has something to read cold and
+you pass no report, it signs nothing, keeps the token and exits 5. It prints a
 brief between `=== cold-read brief ===` lines, on stdout for `check` and on
 stderr for `sign`. The brief is [cold-read.md](cold-read.md), then the line the
 report must start with, then each text with its reader's goals: a comment or
-doc by its file and lines, the message or a post quoted in full.
+doc by its file and lines, a post quoted in full.
 
 1. Start a new subagent, and give it the brief exactly as printed. Add
    nothing: not the conversation, not what the text is meant to say, not a
@@ -220,11 +219,8 @@ doc by its file and lines, the message or a post quoted in full.
 
 Each token takes one cold read; the fixes are not read cold again.
 
-**Without subagents,** give the brief to any agent you can start with no
-history, such as a new command-line session. When you have none, read it
-yourself, opening only what the brief names, and write the report as the
-brief asks, starting its second line with `Self-read:`. Then tell the person
-you work for that no fresh reader saw the text.
+**Without subagents,** do the cold read yourself: read the brief as if it were
+all you knew, open only what it names, and write the report as it asks.
 
 ## Committing
 

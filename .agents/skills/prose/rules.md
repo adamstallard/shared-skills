@@ -33,7 +33,7 @@ Rewrite only text you wrote or changed in this change: comments, docs, specs, th
 
 **4. Read it once as the reader,** someone who doesn't know what you meant, and fix every place you'd stop or re-read (rules 3, 4 and 7). In a doc, reread each changed passage inside its section, as that section's reader, before keeping it: a passage that makes sense beside the diff can make none in the section it lands in. When a changed passage repeats a phrase, grep the repository for it. A phrase that recurs across documents with no definition or reason at any use gets fixed at the source: one statement with its reasons, and the others cut or pointed at it (rule 5).
 
-**5. Have it read cold.** Before the signing call, an agent that has never seen the conversation behind the change reads each text of three or more lines: a comment block, a doc's changed lines, the commit message, a post. You read your own text with what you meant already in mind, so you fill its gaps without noticing them. The signing call prints the cold reader's brief and signs nothing until you pass the report with `--cold-read <file>`. Fix every place the report names: where the cold reader stopped, reread or guessed, the real reader will too. SKILL.md's *The cold read* says how to run it.
+**5. Have it read cold.** Before the signing call, an agent that has never seen the conversation behind the change reads each changed comment block and doc passage, and each post. The commit message is not read cold. You read your own text with what you meant already in mind, so you fill its gaps without noticing them. The signing call prints the cold reader's brief and signs nothing until you pass the report with `--cold-read <file>`. Fix every place the report names: where the cold reader stopped, reread or guessed, the real reader will too. SKILL.md's *The cold read* says how to run it.
 
 **Never cut:** the why of a decision the code doesn't make obvious; a warning that stops someone repeating a mistake; a stated limit ("not tested on Windows"). These are what a reviewer can't recover from the diff.
 
@@ -209,4 +209,4 @@ Point to a source with a link or a clickable path (`file:line`), not a name the 
 - Keeping an existing section because your draft wasn't clearly better, or to keep the diff small.
 - Giving the cold reader anything but the brief the signing call printed: the conversation, what the text is meant to say, or a summary of the change; or less than all of it, such as only the items you were unsure of.
 - Arguing with a place the cold reader stopped, because you know what the text meant, instead of fixing it.
-- Writing the cold reader's report yourself when a fresh agent was available.
+- Writing the cold reader's report yourself when you could start a subagent.

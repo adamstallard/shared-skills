@@ -927,12 +927,13 @@ look for comments, tell docs from code, or classify paths.
 
 ## A cold read before signing
 
-**Decision (Adam, 2026-10-12).** Before a text with three or more lines that
-hold text is signed, an agent that has never seen the conversation behind it
-reads it, and reports every place it stopped, reread or guessed. The author
-fixes those places, then signs. rules.md's step 5 states it, SKILL.md's *The
-cold read* gives the procedure, and [cold-read.md](cold-read.md) holds the
-brief the cold reader gets, its only copy.
+**Decision (Adam, 2026-10-12; scope settled 2026-10-13).** Before a changed
+comment, doc passage or post is signed, an agent that has never seen the
+conversation behind it reads it, and reports every place it stopped, reread or
+guessed. The author fixes those places, then signs. rules.md's step 5 states
+it, SKILL.md's *The cold read* gives the procedure, and
+[cold-read.md](cold-read.md) holds the brief the cold reader gets, its only
+copy.
 
 **Why.** The pass ran on Igor's `gitEnv` comment (*Three causes of a reread*,
 above), and four of its failures were ones the rules already named. The author
@@ -952,39 +953,44 @@ empty helper entry alone is not enough.
 **The signing call enforces it.** The first call cannot: it lists a draft,
 and `sign`'s first call has no text yet. So the signing call, which has the
 final text:
-- finds the texts that need a cold read, counting only lines that hold text:
-  each touched comment block with three or more once its comment syntax is
-  removed, read whole even when one line changed; a doc or spec with three or
-  more added; a doc git shows no line diff for (UTF-16, `-diff`), read whole when
-  its staged text has three or more;
-  the commit message or a post with three or more;
+- takes every changed comment block and doc passage `check` lists, as they
+  are, and every post;
 - without `--cold-read <file>`, signs nothing, keeps the token, exits 5, and
   prints the brief: cold-read.md, the line `cold-read <token>` the report
   starts with, the repository the paths are in, and each text with its
-  reader's goals. A comment or doc is named by file and lines; the message
-  and a post are quoted. Docs and comments come before the message, so the
-  message does not explain them to the reader;
+  reader's goals. A comment or doc is named by file and lines; a post is
+  quoted;
 - with it, checks that the file's first non-blank line is that header and
   that more follows, then signs. A refused report keeps the token.
 
 Exit 5 is distinct from 4 (first call) and 2 (refused), so a script running the
-calls can tell "do this step" from an error. The first call says that the
-signing call may ask for a cold read.
+calls can tell "do this step" from an error.
 
-**What it applies to, and what it skips.** New and changed text alike: a
-reader meets a block whole, whatever the diff touched. All kinds alike, since
-the commit message's reviewer and a post's reader were not in the
-conversation either. Under three non-blank lines nothing is required, so a
-one-line commit subject or a one-line comment costs no subagent. One cold read
-per token: the fixes are not read cold again, since that would repeat until a
-reader found nothing.
+**No length threshold (Adam, 2026-10-13).** The first version read only texts
+of three or more lines that hold text. Every bug bug-hunter found in it was in
+that counting: comment syntax lines counted as text, docs git diffs as binary
+skipped or read whole at any size, a symlink replacing a doc, and NULs and
+byte order marks counted as lines in UTF-16 and UTF-32. A character count has
+the same hard cases. Without a threshold, the cost is a subagent where a
+commit's only prose is a short comment, and nothing to count can go wrong.
 
-**A host without subagents** gives the brief to any agent it can start with no
-history, such as a new command-line session. With none, the author reads it,
-opening only what the brief names, writes the report as the brief asks, starts
-its second line with `Self-read:`, and tells the person they work for. A
-self-read is weaker, and it is labelled so nobody mistakes it for the real
-thing.
+**What it applies to, and what it skips.**
+- **New and changed text alike:** a reader meets a comment block whole, so the
+  whole block goes in the brief, whatever line the diff touched.
+- **Not the commit message** (Adam, 2026-10-13: "I don't care about commit
+  message bodies"). A commit that changes no comment or doc signs without a
+  report.
+- **Not a doc git diffs as binary** (UTF-16, `-diff`): prose cannot read it,
+  so it has no passage to name. Nor a deleted doc, an edit that only
+  removes lines, or a symlink or submodule at a doc path, whose one line is a
+  target path or a commit: none leaves new prose to read.
+- **One cold read per token:** the fixes are not read cold again, since that
+  would repeat until a reader found nothing.
+
+**A host without subagents (Adam, 2026-10-13):** the author does the cold
+read, reading the brief as all they know, and writes the report. The report
+carries no marker saying so: it is not committed or posted, so no reader would
+see one.
 
 **What it proves:** a report file existed for that pass's token before the
 signature. **What it does not prove:** that a fresh agent wrote it, or that it
@@ -1011,18 +1017,13 @@ footer*), and the cheat list names it.
   fix.
 - **Binding the report to the text's hash.** The fixes change the text, so
   every fix would need a new cold read.
-- **A cold read for every text.** A one-line subject would cost a subagent for
-  nothing.
-- **A threshold in sentences or words.** The script already counts lines; a
-  sentence count needs a parser for every comment syntax.
+- **A threshold in lines, characters, sentences or words.** See *No length
+  threshold*, above.
 
-**Known gaps.**
-- A doc passage is named by its changed lines, not its section; the reader is
-  told to read the section around them. Finding sections was tried and dropped
-  (*Each listed item is judged as its own reader*, "Listing each changed
-  passage's section heading").
-- Nothing checks that a report marked `Self-read:` came from a host without
-  subagents.
+**Known gap.** A doc passage is named by its changed lines, not its section;
+the reader is told to read the section around them. Finding sections was tried
+and dropped (*Each listed item is judged as its own reader*, "Listing each
+changed passage's section heading").
 
 **Where this stops applying.** If cold readers report nothing on text that
 human reviewers still find hard, the brief is the place to change. If authors

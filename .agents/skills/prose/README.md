@@ -27,11 +27,11 @@ the rules and a one-use pass token, the second takes the token and signs. So
 the rules were on the agent's screen before it signed. Nothing proves the agent
 followed them.
 
-**A cold read.** Before it signs a text of three or more lines, the agent has
-a fresh agent, one that never saw the conversation, read it and report where
-it stopped, reread or guessed, then fixes those places. The signing call
-refuses without a report file that starts with that pass's token. Nothing
-proves a fresh agent wrote it.
+**A cold read.** Before it signs a changed comment, doc passage or post, the
+agent has a fresh agent, one that never saw the conversation, read it and
+report where it stopped, reread or guessed, then fixes those places. The
+signing call refuses without a report file that starts with that pass's
+token. Nothing proves a fresh agent wrote it.
 
 To install it, ask your agent to install the `prose` skill; the
 `manage-skills` skill does the rest, hooks included.
@@ -83,7 +83,7 @@ docs/api.md: call the API correctly
 | GitHub posts, through MCP | A hook blocks the post unless its body ends with a valid footer |
 | GitHub posts, through `gh` | The same hook, for a few exact command forms (see [Posting through `gh`](#posting-through-gh)) |
 | A Claude Code session's first file write or GitHub post | A hook blocks it until prose's first call has printed the rules in that session |
-| A text of three or more lines | The signing call signs it only with a cold reader's report for that pass |
+| A changed comment or doc passage, or a post | The signing call signs it only with a cold reader's report for that pass |
 
 To turn the hooks off, run
 `python3 ~/.agents/skills/manage-skills/scripts/skills.py disable-hook prose`;

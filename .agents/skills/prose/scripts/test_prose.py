@@ -11,6 +11,7 @@ stored, and only git can say what it stores.
 """
 
 import contextlib
+import hashlib
 import io
 import json
 import os
@@ -77,7 +78,8 @@ REPORTS = pathlib.Path(tempfile.mkdtemp())
 def cold_report(token, body="Read straight through.\n"):
     """A cold reader's report for this token, as a file outside any test
     repository; its path."""
-    path = REPORTS / f"{token}.txt"
+    # Named by the token's hash: a test may pass a token shaped like a path.
+    path = REPORTS / (hashlib.sha256(token.encode("utf-8")).hexdigest() + ".txt")
     path.write_text(f"cold-read {token}\n\n{body}", encoding="utf-8")
     return str(path)
 
@@ -1173,7 +1175,8 @@ class Check(unittest.TestCase):
         self.repo.write("docs/a.md", "# T\n")
         first = self.check_for("--goals-for", "docs/**", "learn it")
         token = pass_token(first.stdout)
-        sign = lambda *extra: self.repo.prose("check", "-F", "-", "--pass", token, *extra,
+        sign = lambda *extra: self.repo.prose("check", "-F", "-", "--pass", token,
+                                              "--cold-read", cold_report(token), *extra,
                                               stdin="FEAT(x): a\n", file_goals=False)
         refused = sign("--goals-for", "docs/**", "something else")
         self.assertEqual((refused.returncode, refused.stdout), (2, ""))
@@ -1236,7 +1239,8 @@ class Check(unittest.TestCase):
         first = self.check_for("--goals-for", "docs/**", "one", "--goals-for", "README.md", "two")
         signed = self.repo.prose("check", "-F", "-", "--goals", "review the fix",
                                  "--goals-for", "README.md", "two", "--goals-for", "docs/**", "one",
-                                 "--pass", pass_token(first.stdout), stdin="FEAT(x): a\n",
+                                 "--pass", pass_token(first.stdout), "--cold-read",
+                                 cold_report(pass_token(first.stdout)), stdin="FEAT(x): a\n",
                                  file_goals=False)
         self.assertRegex(block_trailer(signed.stdout), TRAILER)
 
@@ -1382,8 +1386,9 @@ class Check(unittest.TestCase):
         self.assertIn('a.py:2  "It used to" narrates what the code did before.', result.stdout)
         lines = result.stdout.rstrip("\n").split("\n")
         self.assertLess(lines.index("  a.py:2  (comment)"), lines.index("Flags (warnings, not blocking):"))
-        signed = self.repo.prose("check", "-F", "-", "--pass", pass_token(result.stdout),
-                                 stdin="FEAT(x): a\n")
+        token = pass_token(result.stdout)
+        signed = self.repo.prose("check", "-F", "-", "--pass", token, "--cold-read",
+                                 cold_report(token), stdin="FEAT(x): a\n")
         trailer = block_trailer(signed.stdout)
         self.assertRegex(trailer, TRAILER)
         self.repo.commit("FEAT(x): a\n", trailer)
@@ -1446,8 +1451,9 @@ def sign_twice(text, goals):
     first = run([sys.executable, str(SCRIPT), "sign", "--goals", goals], cwd=STATE, stdin=text)
     if first.returncode != 4:
         raise AssertionError(first.stderr)
-    return run([sys.executable, str(SCRIPT), "sign", "--pass", pass_token(first.stderr)],
-               cwd=STATE, stdin=text)
+    token = pass_token(first.stderr)
+    return run([sys.executable, str(SCRIPT), "sign", "--pass", token, "--cold-read",
+                cold_report(token)], cwd=STATE, stdin=text)
 
 
 class PostFooter(unittest.TestCase):
@@ -2485,7 +2491,9 @@ class PreCommitHook(unittest.TestCase):
         return self.repo.prose("check", "-F", ".msg", "--goals", "review it", *extra)
 
     def signing_call(self, first, *extra):
-        return self.repo.prose("check", "-F", ".msg", "--pass", pass_token(first.stdout), *extra)
+        token = pass_token(first.stdout)
+        return self.repo.prose("check", "-F", ".msg", "--pass", token, "--cold-read",
+                               cold_report(token), *extra)
 
     def commit(self, trailer):
         return self.repo.commit_script(
@@ -2594,7 +2602,8 @@ class PassToken(unittest.TestCase):
         return self.repo.prose("check", "-F", "-", "--goals", goals, stdin=message)
 
     def signing(self, token, message="DOCS(x): add a readme\n", *extra):
-        return self.repo.prose("check", "-F", "-", "--pass", token, *extra, stdin=message)
+        return self.repo.prose("check", "-F", "-", "--pass", token, "--cold-read",
+                               cold_report(token), *extra, stdin=message)
 
     def test_the_first_call_prints_goals_listing_rules_and_a_token_but_no_trailer(self):
         result = self.first()
@@ -2668,8 +2677,8 @@ class PassToken(unittest.TestCase):
         self.assertIn("## The pass", first.stderr)
         token = pass_token(first.stderr)
         self.assertIn(f"sign --pass {token} < body.md > signed.md", first.stderr)
-        signed = run([sys.executable, str(SCRIPT), "sign", "--pass", token],
-                     cwd=self.repo.path, stdin="Text.\n")
+        signed = run([sys.executable, str(SCRIPT), "sign", "--pass", token, "--cold-read",
+                      cold_report(token)], cwd=self.repo.path, stdin="Text.\n")
         self.assertEqual(signed.returncode, 0, signed.stderr)
         self.assertNotIn("## The pass", signed.stderr)
         self.assertEqual(prose.verify_post(signed.stdout), (True, "signed"))
@@ -2725,8 +2734,8 @@ class PassToken(unittest.TestCase):
         first = run([sys.executable, str(SCRIPT), "sign", "--goals", "g"], cwd=outside, stdin="", env=env)
         token = pass_token(first.stderr)
         self.assertTrue((state / "prose" / "passes" / token).is_file())
-        signed = run([sys.executable, str(SCRIPT), "sign", "--pass", token], cwd=outside,
-                     stdin="Text.\n", env=env)
+        signed = run([sys.executable, str(SCRIPT), "sign", "--pass", token, "--cold-read",
+                      cold_report(token)], cwd=outside, stdin="Text.\n", env=env)
         self.assertEqual(signed.returncode, 0, signed.stderr)
 
     def test_concurrent_first_calls_each_get_a_token_that_signs(self):
@@ -2740,7 +2749,8 @@ class PassToken(unittest.TestCase):
         self.assertEqual(len(set(tokens)), 8)
         for token in tokens:
             self.assertTrue((self.repo.path / ".git" / "prose" / "passes" / token).is_file())
-            signed = self.repo.prose("sign", "--pass", token, stdin="Text.\n")
+            signed = self.repo.prose("sign", "--pass", token, "--cold-read", cold_report(token),
+                                     stdin="Text.\n")
             self.assertEqual(signed.returncode, 0, signed.stderr)
 
     def test_the_first_call_marks_its_session(self):
@@ -2774,9 +2784,10 @@ class PassToken(unittest.TestCase):
 
 
 class ColdRead(unittest.TestCase):
-    """A text of COLD_READ_LINES non-blank lines or more is signed only with a
-    cold reader's report for its token; without one, the signing call prints
-    the brief, signs nothing and keeps the token."""
+    """A commit that changes a comment or a doc passage, and every post, is
+    signed only with a cold reader's report for its token; without one, the
+    signing call prints the brief, signs nothing and keeps the token. The
+    commit message is never read cold."""
 
     def setUp(self):
         self.repo = Repo()
@@ -2798,8 +2809,8 @@ class ColdRead(unittest.TestCase):
         start = output.index("=== cold-read brief ===\n") + len("=== cold-read brief ===\n")
         return output[start:output.index("=== end cold-read brief ===")]
 
-    def test_a_long_comment_needs_a_report_and_the_token_is_kept(self):
-        self.repo.write("a.py", "x = 1\n# One.\n# Two.\n# Three.\ny = 2\n")
+    def test_a_changed_comment_needs_a_report_and_the_token_is_kept(self):
+        self.repo.write("a.py", "x = 1\n# One.\n# Two.\ny = 2\n")
         token = self.first("FEAT(x): a\n", file_goals=False)
         needed = self.signing(token, "FEAT(x): a\n")
         self.assertEqual(needed.returncode, prose.COLD_READ_NEEDED, needed.stderr)
@@ -2807,29 +2818,34 @@ class ColdRead(unittest.TestCase):
         brief = self.brief(needed.stdout)
         self.assertIn(f"  cold-read {token}\n", brief)
         self.assertIn(f"The files named below are in {self.repo.path.resolve()}.", brief)
-        self.assertIn("1. A code comment: a.py, lines 2-4, and the code it sits on.", brief)
+        self.assertIn("1. A code comment: a.py, lines 2-3, and the code it sits on.", brief)
         self.assertIn("   - what it does that the code doesn't show", brief)
-        self.assertNotIn("commit message", brief)
         self.assertIn(f"--pass {token} --cold-read cold-read.txt", needed.stdout)
         signed = self.signing(token, "FEAT(x): a\n", "--cold-read", cold_report(token))
         self.assertEqual(signed.returncode, 0, signed.stderr)
         self.repo.commit("FEAT(x): a\n", block_trailer(signed.stdout))
         self.assertEqual(self.repo.verify().stdout, "checked\n")
 
+    def test_a_one_line_comment_is_read_cold_too(self):
+        self.repo.write("a.py", "x = 1  # One.\n")
+        token = self.first("FEAT(x): a\n")
+        brief = self.brief(self.signing(token, "FEAT(x): a\n").stdout)
+        self.assertIn("1. A code comment: a.py, line 1, and the code it sits on.", brief)
+
     def test_the_brief_is_cold_read_md_unchanged(self):
-        self.repo.write("a.py", "x = 1\n# One.\n# Two.\n# Three.\n")
+        self.repo.write("a.py", "x = 1\n# One.\n")
         token = self.first("FEAT(x): a\n")
         brief = self.brief(self.signing(token, "FEAT(x): a\n").stdout)
         self.assertTrue(brief.startswith(prose.COLD_READ.read_text(encoding="utf-8").strip("\n")))
 
-    def test_short_texts_sign_without_a_report(self):
-        self.repo.write("a.py", "x = 1\n# One.\n# Two.\ny = 2\n")
-        self.repo.write("README.md", "# Hi\n\nOne line.\n")
-        token = self.first("FEAT(x): a\n\nOne line of body.\n")
-        result = self.signing(token, "FEAT(x): a\n\nOne line of body.\n")
+    def test_a_commit_with_no_changed_comment_or_doc_signs_without_a_report(self):
+        self.repo.write("a.py", "x = 2\n")
+        message = "FEAT(x): a\n\nA body of\nseveral lines\nthat is never read cold.\n"
+        token = self.first(message)
+        result = self.signing(token, message)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
-    def test_one_changed_line_in_a_long_comment_brings_the_whole_block(self):
+    def test_one_changed_line_in_a_comment_brings_the_whole_block(self):
         self.repo.write("a.py", "# One.\n# Two.\n# Three.\nx = 1\n")
         self.repo.commit("base 2\n")
         self.repo.write("a.py", "# One.\n# Two, changed.\n# Three.\nx = 1\n")
@@ -2837,64 +2853,52 @@ class ColdRead(unittest.TestCase):
         brief = self.brief(self.signing(token, "FEAT(x): a\n").stdout)
         self.assertIn("A code comment: a.py, lines 1-3,", brief)
 
-    def test_docs_and_comments_come_before_the_message_which_is_quoted(self):
-        self.repo.write("a.py", "x = 1\n# One.\n# Two.\n# Three.\n")
-        self.repo.write("docs/guide.md", "# Guide\n\nOne.\nTwo.\n")
+    def test_the_brief_lists_comments_and_doc_passages_but_never_the_message(self):
+        self.repo.write("a.py", "x = 1\n# One.\n")
+        self.repo.write("docs/guide.md", "# Guide\n\nOne.\n")
         message = "FEAT(x): a\n\nWhy one.\nWhy two.\n"
         token = self.first(message)
         brief = self.brief(self.signing(token, message).stdout)
-        order = [brief.index(text) for text in (
-            "A code comment: a.py, lines 2-4", "A doc passage: docs/guide.md, the changed lines 1, 3-4,",
-            "The commit message below", "   FEAT(x): a\n\n   Why one.\n   Why two.\n   ----")]
-        self.assertEqual(order, sorted(order))
+        self.assertIn("A code comment: a.py, line 2,", brief)
+        self.assertIn("A doc passage: docs/guide.md, the changed lines 1-3, each read in its "
+                      "section.", brief)
         self.assertIn("   - read it", brief)
+        self.assertNotIn("Why one.", brief)
+        self.assertNotIn("commit message", brief)
 
-    def test_a_comment_is_measured_by_its_lines_of_words_not_its_delimiters(self):
-        self.repo.write("b.js", "/**\n * One line.\n */\nfunction f() {}\n")
-        self.repo.write("c.py", 'def f():\n    """One.\n\n    """\n')
-        token = self.first("FEAT(x): a\n")
-        result = self.signing(token, "FEAT(x): a\n")
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-
-    def test_a_doc_git_diffs_as_binary_is_read_whole(self):
+    def test_a_doc_git_diffs_as_binary_is_skipped(self):
         self.repo.write(".gitattributes", "*.md -diff\n")
         self.repo.write("guide.md", "# Guide\n\nOne.\nTwo.\nThree.\n")
         token = self.first("DOCS(x): guide\n")
         result = self.signing(token, "DOCS(x): guide\n")
-        self.assertEqual(result.returncode, prose.COLD_READ_NEEDED, result.stdout + result.stderr)
-        self.assertIn("A doc: guide.md, read whole", self.brief(result.stdout))
-
-    def test_a_short_doc_git_diffs_as_binary_needs_no_cold_read(self):
-        self.repo.write(".gitattributes", "*.md -diff\n")
-        self.repo.write("guide.md", "Hi.\n")
-        token = self.first("DOCS(x): guide\n")
-        result = self.signing(token, "DOCS(x): guide\n")
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
-    def test_a_binary_doc_replaced_by_a_symlink_is_not_read_whole(self):
-        (self.repo.path / "a.md").write_bytes("One.\nTwo.\nThree.\n".encode("utf-16"))
-        self.repo.git("add", "a.md")
+    def test_a_symlink_at_a_doc_path_needs_no_cold_read(self):
+        self.repo.write("AGENTS.md", "# Agents\n\nLong text.\n")
         self.repo.commit("base 2\n")
-        (self.repo.path / "a.md").unlink()
-        os.symlink("zz.md", self.repo.path / "a.md")
-        self.repo.git("add", "a.md")
-        token = self.first("DOCS(x): link\n")
-        result = self.signing(token, "DOCS(x): link\n")
+        os.symlink("AGENTS.md", self.repo.path / "CLAUDE.md")
+        self.repo.git("add", "CLAUDE.md")
+        token = self.first("FEAT(x): link\n")
+        result = self.signing(token, "FEAT(x): link\n")
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
-    def test_nul_bytes_and_byte_order_marks_are_not_lines_of_text(self):
-        # Each holds at most two lines of text, which git diffs as binary.
-        for data, attributes in (("Hi.\n\n".encode("utf-16-le"), None),
-                                 ("One.\nTwo.\n".encode("utf-32"), None),
-                                 ("\ufeff\nOne.\nTwo.\n".encode("utf-8"), "*.md -diff\n")):
-            with self.subTest(data=data):
-                if attributes:
-                    self.repo.write(".gitattributes", attributes)
-                (self.repo.path / "guide.md").write_bytes(data)
-                self.repo.git("add", "guide.md")
-                token = self.first("DOCS(x): guide\n")
-                result = self.signing(token, "DOCS(x): guide\n")
-                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+    def test_a_submodule_at_a_doc_path_needs_no_cold_read(self):
+        self.repo.git("update-index", "--add", "--cacheinfo",
+                      "160000,1111111111111111111111111111111111111111,openspec/specs/lib")
+        token = self.first("FEAT(x): add lib\n")
+        result = self.signing(token, "FEAT(x): add lib\n")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_a_submodule_bump_needs_no_cold_read_when_config_ignores_submodules(self):
+        self.repo.git("update-index", "--add", "--cacheinfo",
+                      "160000,1111111111111111111111111111111111111111,openspec/sub")
+        self.repo.commit("base 2\n")
+        self.repo.git("config", "diff.ignoreSubmodules", "all")
+        self.repo.git("update-index", "--cacheinfo",
+                      "160000,2222222222222222222222222222222222222222,openspec/sub")
+        token = self.first("FEAT(x): bump\n")
+        result = self.signing(token, "FEAT(x): bump\n")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_a_deleted_doc_needs_no_cold_read(self):
         self.repo.write("old.md", "One.\nTwo.\nThree.\n")
@@ -2904,7 +2908,8 @@ class ColdRead(unittest.TestCase):
         self.assertEqual(self.signing(token, "DOCS(x): drop old\n").returncode, 0)
 
     def test_a_bad_report_is_refused_and_keeps_the_token(self):
-        message = "FEAT(x): a\n\nOne.\nTwo.\n"
+        self.repo.write("a.py", "x = 1\n# One.\n")
+        message = "FEAT(x): a\n"
         token = self.first(message)
         other = self.first(message)
         bad = REPORTS / "bad.txt"
@@ -2921,11 +2926,11 @@ class ColdRead(unittest.TestCase):
         self.assertEqual(signed.returncode, 0, signed.stderr)
 
     def test_a_report_starting_with_a_byte_order_mark_is_accepted(self):
-        message = "FEAT(x): a\n\nOne.\nTwo.\n"
-        token = self.first(message)
+        self.repo.write("a.py", "x = 1\n# One.\n")
+        token = self.first("FEAT(x): a\n")
         report = REPORTS / "bom.txt"
         report.write_bytes(f"\ufeffcold-read {token}\nFine.\n".encode("utf-8"))
-        signed = self.signing(token, message, "--cold-read", str(report))
+        signed = self.signing(token, "FEAT(x): a\n", "--cold-read", str(report))
         self.assertEqual(signed.returncode, 0, signed.stderr)
 
     def test_a_cold_read_without_a_pass_is_refused(self):
@@ -2938,26 +2943,27 @@ class ColdRead(unittest.TestCase):
         return run([sys.executable, str(SCRIPT), "sign"] + list(args), cwd=self.repo.path,
                    stdin=stdin)
 
-    def test_a_long_post_needs_a_report_and_prints_only_to_stderr(self):
+    def test_a_post_of_any_length_needs_a_report_and_prints_only_to_stderr(self):
         first = self.sign("--goals", "approve it", stdin="")
         token = pass_token(first.stderr)
         self.assertIn("cold-read brief", first.stderr)
-        post = "Line one.\nLine two.\nLine three.\n"
+        post = "One line.\n\nprose \u2713 000000\n"
         needed = self.sign("--pass", token, stdin=post)
         self.assertEqual((needed.returncode, needed.stdout), (prose.COLD_READ_NEEDED, ""))
         brief = self.brief(needed.stderr)
         self.assertIn("1. The post below.", brief)
         self.assertIn("   - approve it", brief)
-        self.assertIn("   Line three.\n   ----", brief)
+        self.assertIn("   One line.\n   ----", brief)
         self.assertIn(f"sign --pass {token} --cold-read cold-read.txt < body.md", needed.stderr)
         signed = self.sign("--pass", token, "--cold-read", cold_report(token), stdin=post)
         self.assertEqual(signed.returncode, 0, signed.stderr)
         self.assertEqual(prose.verify_post(signed.stdout), (True, "signed"))
 
-    def test_a_short_post_signs_without_a_report(self):
+    def test_an_empty_post_is_refused_before_any_brief(self):
         token = pass_token(self.sign("--goals", "approve it", stdin="").stderr)
-        signed = self.sign("--pass", token, stdin="Line one.\n\nLine two.\n\nprose ✓ 000000\n")
-        self.assertEqual(signed.returncode, 0, signed.stderr)
+        refused = self.sign("--pass", token, stdin="\n")
+        self.assertEqual(refused.returncode, 2)
+        self.assertNotIn("cold-read brief", refused.stderr)
 
 
 class Gate(unittest.TestCase):

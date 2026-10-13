@@ -15,8 +15,8 @@ Both calls of `check` run the repository's pre-commit hook first, if it has one.
     prose.py check -F <message file, or - for stdin> --pass <token> [--amend]
             [--cold-read <report>]
         Second call. Prints the Prose: trailer. --amend: before `git commit --amend`.
-        When a listed text has 3 or more lines and no --cold-read is given, it
-        prints a cold-read brief instead, signs nothing and exits 5.
+        When it lists a changed comment or doc passage and no --cold-read is
+        given, it prints a cold-read brief instead, signs nothing and exits 5.
     prose.py sign --goals <goals>
         Before posting, first call. Prints the rules and a token; reads no stdin.
     prose.py sign --pass <token> [--cold-read <report>] < text > signed
@@ -339,78 +339,43 @@ def _touched(scan, diff):
 
 
 def _changed_docs(root, base):
-    """{path: deleted} for each doc or spec whose content the staged change
-    alters.
+    """{path: (deleted, link)} for each doc or spec whose content the staged
+    change alters. link: what is staged there is a symlink or a submodule,
+    whose one line is a target path or a commit, not prose.
 
     Read from `--raw`, because the text diff gives no header to a file git
     diffs as binary (UTF-16, a NUL byte, `-diff`), and `--raw` still names
     it. A pure rename or a mode change keeps the blob and is left out; a
     deleted doc is named by its old path."""
+    # --ignore-submodules=none as in prose_in's diff: under a config that
+    # ignores submodules, a bumped submodule would be missing here and read
+    # as a doc.
     raw = git(["diff", "--cached", "--raw", "-z", "--no-abbrev", "-M", "--no-relative",
-               "--no-color", base], root)
+               "--no-color", "--ignore-submodules=none", base], root)
     fields = raw.split("\0")
     found, index = {}, 0
     while index < len(fields) and fields[index].startswith(":"):
-        _, _, old_blob, new_blob, status = fields[index][1:].split(" ", 4)
+        _, new_mode, old_blob, new_blob, status = fields[index][1:].split(" ", 4)
         paths = fields[index + 1:index + (3 if status[:1] in "RC" else 2)]
         index += 1 + len(paths)
         if old_blob == new_blob:
             continue
         path = paths[0] if status[:1] == "D" else paths[-1]
         if is_doc(path):
-            found[path] = status[:1] == "D"
+            found[path] = (status[:1] == "D", new_mode in ("120000", "160000"))
     return found
-
-
-def _without_line_diff(root, base):
-    """The paths whose staged change git shows no line diff for: its
-    `--numstat` gives "-" for their counts, as for UTF-16 or a -diff file.
-    Either side being binary is enough, so a binary doc made a symlink is
-    here too; the caller measures the staged text before reading it whole."""
-    raw = git(["diff", "--cached", "--numstat", "-z", "-M", "--no-relative", "--no-color",
-               base], root)
-    fields, found, index = raw.split("\0"), set(), 0
-    while index < len(fields) and fields[index]:
-        added, _, rest = fields[index].split("\t", 2)
-        if rest:
-            path, index = rest, index + 1
-        else:
-            # A rename: the counts end in a tab, then the old and new paths.
-            path, index = fields[index + 2], index + 3
-        if added == "-":
-            found.add(path)
-    return found
-
-
-def _lines_with_text(path, read):
-    """How many lines of path's staged text hold text; 0 when it cannot be
-    read. UTF-16 is decoded by its byte order mark. NULs and byte order
-    marks are not text: they are what UTF-16 or UTF-32 read any other way
-    leaves on every line."""
-    try:
-        text = read(path)
-    except (OSError, Refused, UnicodeDecodeError):
-        return 0
-    data = text.encode("utf-8", TEXT_ERRORS)
-    if data[:2] in (b"\xff\xfe", b"\xfe\xff"):
-        text = data.decode("utf-16", errors="replace")
-    return len(_nonblank(text.replace("\x00", "").replace("\ufeff", "")))
 
 
 class Item(NamedTuple):
     """One listed piece of prose: what the listing shows, its note, and the
     file it is in, which is None for the commit message. spans are its
     (first, last) line pairs: each comment block, or each run of a doc's
-    added lines that hold text. words counts each comment block's lines that
-    hold text once its comment syntax is removed. whole marks a doc git
-    shows no line diff for, such as UTF-16 or one marked -diff."""
+    added lines, which a doc git diffs as binary has none of."""
     what: str
     note: str
     path: Optional[str]
     deleted: bool = False
     spans: tuple = ()
-    words: tuple = ()
-    whole: bool = False
 
 
 def _runs(numbers):
@@ -422,16 +387,6 @@ def _runs(numbers):
         else:
             runs.append((number, number))
     return tuple(runs)
-
-
-def _with_text(path, lines, read):
-    """The line numbers in lines that hold more than blanks in path's staged
-    text; all of them when it cannot be read."""
-    try:
-        text = read(path).replace("\r\n", "\n").split("\n")
-    except (OSError, Refused, UnicodeDecodeError):
-        return lines
-    return {number for number in lines if number <= len(text) and text[number - 1].strip()}
 
 
 def prose_in(root, base, read: Callable[[str], str]):
@@ -454,7 +409,6 @@ def prose_in(root, base, read: Callable[[str], str]):
                             "--cached", base], root)
     touched = _touched(scan, diff)
     docs = _changed_docs(root, base)
-    binary = _without_line_diff(root, base)
     for path in docs:
         touched.setdefault(path, set())
     for path, lines in sorted(touched.items()):
@@ -465,10 +419,9 @@ def prose_in(root, base, read: Callable[[str], str]):
         if parts & (VENDORED if doc else scan.SKIP_DIRS):
             continue
         if doc:
-            items.append(Item(path, "changed", path, docs.get(path, False),
-                              _runs(_with_text(path, lines, read)),
-                              whole=path in binary
-                              and _lines_with_text(path, read) >= COLD_READ_LINES))
+            deleted, link = docs.get(path, (False, False))
+            # A symlink or submodule has no passage to read cold.
+            items.append(Item(path, "changed", path, deleted, () if link else _runs(lines)))
             continue
         if not scan.scannable(path) or not lines:
             continue
@@ -489,9 +442,7 @@ def prose_in(root, base, read: Callable[[str], str]):
             continue
         spans = [f"{c.start}" if c.start == c.end else f"{c.start}-{c.end}" for c in comments]
         items.append(Item(f"{path}:{','.join(spans)}", "comment", path,
-                          spans=tuple((c.start, c.end) for c in comments),
-                          words=tuple(sum(1 for line in scan.strip_markers(c) if line.strip())
-                                      for c in comments)))
+                          spans=tuple((c.start, c.end) for c in comments)))
         for comment in comments:
             for note in scan.history_notes(comment, scan.mask_examples(scan.strip_markers(comment))):
                 flags.append(f"{path}:{note.line}  {note.headline}")
@@ -1728,10 +1679,11 @@ def spend_pass(token, root=None):
 def print_pass(token, next_commands, stream=None):
     print(f"\nPass token: {token}. It signs once, within {PASS_LIFETIME // 3600} hours.\n",
           file=stream)
-    print("Do the pass on the draft by the rules above. Then sign the final text; for a text of",
+    print("Do the pass on the draft by the rules above. Then sign the final text; when it holds",
           file=stream)
-    print(f"{COLD_READ_LINES} or more lines, this first prints a cold-read brief (step 5 of the pass):\n",
+    print("a changed comment, doc passage or post, this first prints a cold-read brief (step 5 of",
           file=stream)
+    print("the pass):\n", file=stream)
     for command in next_commands:
         print(f"  {command}", file=stream)
     print(file=stream)
@@ -1762,10 +1714,6 @@ def next_sign(token, report=""):
 # The brief a cold reader gets: its only copy (DECISIONS: A cold read before
 # signing).
 COLD_READ = HERE.parent / "cold-read.md"
-# A listed text with this many lines holding text, or more, is read cold
-# before it is signed: a comment block (its comment syntax removed), a doc's
-# added lines, the commit message, a post.
-COLD_READ_LINES = 3
 # The exit status of a signing call that printed a cold-read brief and signed
 # nothing. The token stays unspent.
 COLD_READ_NEEDED = 5
@@ -1785,41 +1733,38 @@ def _nonblank(text):
     return [line for line in text.replace("\r", "\n").split("\n") if line.strip()]
 
 
+def _lines(span):
+    first, last = span
+    return f"line {first}" if first == last else f"lines {first}-{last}"
+
+
 def _span_list(spans):
     return ", ".join(f"{first}" if first == last else f"{first}-{last}" for first, last in spans)
 
 
-def cold_items(assigned, message, message_goals):
-    """The listed texts long enough to be read cold, docs and comments first:
-    read last, the commit message cannot explain them to the reader."""
+def cold_items(assigned):
+    """Each changed comment block and doc passage the listing holds, as the
+    cold reader takes them. The commit message is not read cold (Adam,
+    2026-10-13), and a doc git diffs as binary has no passage to name."""
     found = []
     for item, rule in assigned:
-        if item.path is None or item.deleted or not (item.spans or item.whole):
+        if item.path is None or item.deleted or not item.spans:
             continue
         _, _, goals = _goals_source(item, rule)
-        if item.whole:
-            found.append(ColdItem(f"A doc: {item.path}, read whole; git shows no line diff "
-                                  "for it.", tuple(goals)))
-        elif kind_of(item.path) == "comment":
-            for (first, last), words in zip(item.spans, item.words):
-                if words >= COLD_READ_LINES:
-                    found.append(ColdItem(f"A code comment: {item.path}, lines {first}-{last}, "
-                                          "and the code it sits on.", tuple(goals)))
-        elif sum(last - first + 1 for first, last in item.spans) >= COLD_READ_LINES:
+        if kind_of(item.path) == "comment":
+            for span in item.spans:
+                found.append(ColdItem(f"A code comment: {item.path}, {_lines(span)}, and the "
+                                      "code it sits on.", tuple(goals)))
+        else:
             found.append(ColdItem(f"A doc passage: {item.path}, the changed lines "
                                   f"{_span_list(item.spans)}, each read in its section.",
                                   tuple(goals)))
-    if len(_nonblank(message)) >= COLD_READ_LINES:
-        found.append(ColdItem("The commit message below, read by the reviewer of the change.",
-                              tuple(message_goals), message))
     return found
 
 
 def cold_post(text, goals):
-    """The post as a cold-read item, or nothing when it is too short to need one."""
+    """The post as a cold-read item."""
     body, _ = split_footer(text)
-    if len(_nonblank(body)) < COLD_READ_LINES:
-        return []
     return [ColdItem("The post below.", tuple(goals), body)]
 
 
@@ -2347,7 +2292,7 @@ def main(argv=None):
             assigned, unused = assign_goals(items, rules)
             refuse_uncovered(assigned, unused, after_first_call=bool(args.token))
             if args.token:
-                cold = cold_items(assigned, message, goals)
+                cold = cold_items(assigned)
                 if args.report:
                     read_cold_report(args.report, args.token)
                 elif cold:
@@ -2392,13 +2337,14 @@ def main(argv=None):
                 return PASS_ISSUED
             goals, _ = redeem_pass(args.token, goals, "sign")
             text = _read_stdin()
-            cold = cold_post(text, goals)
+            # Signed first, so an empty text is refused before any brief.
+            signed = sign(text)
             if args.report:
                 read_cold_report(args.report, args.token)
-            elif cold:
-                print_cold_read(args.token, cold, next_sign(args.token, REPORT_FILE), sys.stderr)
+            else:
+                print_cold_read(args.token, cold_post(text, goals),
+                                next_sign(args.token, REPORT_FILE), sys.stderr)
                 return COLD_READ_NEEDED
-            signed = sign(text)
             spend_pass(args.token)
             print_goals(goals, sys.stderr)
             sys.stdout.write(signed)
