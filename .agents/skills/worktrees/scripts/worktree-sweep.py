@@ -10,8 +10,8 @@ When it looks, and at what:
     the worktree the push came from. That is a linked worktree that holds the
     payload's cwd or a workspace root, and whose HEAD was pushed during the
     command. The push is read from git, as an "update by push" entry in a
-    refs/remotes/origin/* reflog no older than the command's start, from the
-    duration the host reports. Without a duration, an entry from the last
+    refs/remotes/origin/* reflog no older than the command's start: now, less
+    the duration the host reports. Without a duration, an entry from the last
     PUSH_FALLBACK_SECONDS counts, and only for a command whose text contains
     "push". Every worktree of a repo shares those reflogs, so requiring the
     session's own directory is what keeps another agent's just-pushed
@@ -50,6 +50,11 @@ Usage: worktree-sweep.py --host <claude|cursor> [--event push|stop], with the
 host's payload on stdin. The event comes from hook_event_name; --event
 overrides it.
 
+       worktree-sweep.py mode [block|remind]
+With no value, prints the mode the hook would use and where it comes from.
+With one, writes it to the config file, keeping the file's other keys, and
+then prints the mode the hook would use.
+
 Mode: WORKTREES_MODE, else "mode" in ~/.config/shared-skills/worktrees.json
 (WORKTREES_CONFIG names another file). Anything but "block" means remind.
   remind  never blocks. After a push the agent gets the list as context. At
@@ -74,8 +79,10 @@ import json
 import os
 import re
 import shlex
+import stat
 import subprocess
 import sys
+import tempfile
 import time
 import unicodedata
 
@@ -119,16 +126,127 @@ def git(*args, cwd=None):
     return r.returncode, r.stdout.strip()
 
 
-def mode():
-    value = os.environ.get("WORKTREES_MODE", "").strip()
-    if not value:
-        path = os.path.expanduser(os.environ.get("WORKTREES_CONFIG") or CONFIG)
-        try:
-            with open(path) as f:
-                value = str(json.load(f).get("mode", ""))
-        except (OSError, ValueError, AttributeError):
-            value = ""
+def config_path():
+    return os.path.expanduser(os.environ.get("WORKTREES_CONFIG") or CONFIG)
+
+
+def as_mode(value):
     return "block" if value.strip().lower() == "block" else "remind"
+
+
+def mode():
+    return mode_and_source()[0]
+
+
+def mode_and_source():
+    """(mode, where it comes from, in words). The hook's mode() is the first
+    value, so the `mode` command reports exactly what the hook uses."""
+    value = os.environ.get("WORKTREES_MODE", "").strip()
+    if value:
+        return as_mode(value), "from the WORKTREES_MODE environment variable" + unknown(value)
+    path = config_path()
+    data, problem = read_config(path)
+    if problem == "missing":
+        return "remind", f"the default: {path} does not exist"
+    if problem:
+        return "remind", (f"because {path} {problem}, and the hook uses remind when it can't "
+                          f"use the file. Fix or delete it")
+    value = str(data.get("mode", ""))
+    if not value.strip():
+        return "remind", f"the default: {path} sets no mode"
+    return as_mode(value), f"from {path}" + unknown(value)
+
+
+def read_config(path):
+    """(the file's JSON object, None), or (None, the problem). The problem is
+    "missing", or a phrase that follows the path in a message, such as "is not
+    valid JSON". The hook and the `mode` command both read the file through
+    this, so they can't judge it differently."""
+    try:
+        with open(path) as f:
+            data = json.load(f)
+    except FileNotFoundError:
+        return None, "missing"
+    except OSError as e:
+        return None, f"can't be read ({e.strerror})"
+    except ValueError:  # UnicodeDecodeError included
+        return None, "is not valid JSON"
+    if not isinstance(data, dict):
+        return None, "holds JSON that is not an object"
+    return data, None
+
+
+def unknown(value):
+    if value.strip().lower() in ("block", "remind"):
+        return ""
+    return f", whose value {json.dumps(value)} isn't block or remind, so the hook uses remind"
+
+
+def mode_command(args):
+    """`worktree-sweep.py mode [block|remind]`: prints the mode, or sets it."""
+    if not args:
+        print_mode()
+        return 0
+    want = args[0].strip().lower()
+    if len(args) > 1 or want not in ("block", "remind"):
+        sys.stderr.write("Usage: worktree-sweep.py mode [block|remind]\n")
+        return 2
+    path = config_path()
+    # When the config path is a symlink, write the file it points to:
+    # os.replace on the link itself would turn it into a regular file.
+    target = os.path.realpath(path)
+    data, problem = read_config(target)
+    if problem == "missing":
+        data, perms = {}, None
+    elif problem:
+        return refuse(path, problem)
+    else:
+        try:
+            perms = stat.S_IMODE(os.stat(target).st_mode)
+        except OSError as e:
+            return refuse(path, f"can't be read ({e.strerror})")
+    data["mode"] = want
+    if perms is None:
+        umask = os.umask(0)
+        os.umask(umask)
+        perms = 0o666 & ~umask
+    tmp = None
+    try:
+        os.makedirs(os.path.dirname(target), exist_ok=True)
+        fd, tmp = tempfile.mkstemp(dir=os.path.dirname(target),
+                                   prefix=f".{os.path.basename(target)}.")
+        with os.fdopen(fd, "w") as f:
+            json.dump(data, f, indent=2)
+            f.write("\n")
+            f.flush()
+            os.fsync(f.fileno())
+        os.chmod(tmp, perms)
+        os.replace(tmp, target)
+    except OSError as e:
+        if tmp and os.path.exists(tmp):
+            os.unlink(tmp)
+        sys.stderr.write(f"Could not write {path}: {e.strerror or e}\n")
+        return 1
+    print(f"Wrote mode {want} to {path}.")
+    active = print_mode()
+    env = os.environ.get("WORKTREES_MODE", "").strip()
+    if env:
+        print(f"WORKTREES_MODE is set to {json.dumps(env)} and overrides the file, so the hook "
+              f"uses {active}. For the file to count, unset WORKTREES_MODE in the environment "
+              f"the agent is started from, then restart the agent.")
+    return 0
+
+
+def print_mode():
+    active, source = mode_and_source()
+    print(f"Worktrees mode: {active}, {source}.")
+    return active
+
+
+def refuse(path, why):
+    sys.stderr.write(f"{path} {why}, so it was left as it is. Fix or delete it, then run "
+                     f"this again.\n")
+    return 1
 
 
 def common_dir(path):
@@ -653,6 +771,10 @@ def main():
 
 
 if __name__ == "__main__":
+    # manage-skills wires the hook as `<script> --host <host>`, so a hook run
+    # never takes this branch.
+    if sys.argv[1:2] == ["mode"]:
+        sys.exit(mode_command(sys.argv[2:]))
     try:
         sys.exit(main())
     except Exception:

@@ -64,16 +64,23 @@ Cursor gets less than Claude Code because its stop hook can't show you a
 message, and its hook after a command can't block. The Cursor wiring follows
 Cursor's hook documentation and has not been tried in a real Cursor.
 
-**To turn block mode on**, for both hosts:
+**To see which mode is on**, ask your agent "which worktrees mode is on?". It
+tells you the mode and where it comes from: the environment, the config file,
+or the default.
+
+**To switch**, ask your agent to "switch worktrees to block mode", or to
+remind mode. The change applies to both hosts, from the hook's next run, with
+no restart. Without an agent, run the same command it does:
 
 ```bash
-mkdir -p ~/.config/shared-skills
-echo '{"mode": "block"}' > ~/.config/shared-skills/worktrees.json
+python3 ~/.agents/skills/worktrees/scripts/worktree-sweep.py mode          # which mode is on
+python3 ~/.agents/skills/worktrees/scripts/worktree-sweep.py mode block    # or: mode remind
 ```
 
-Delete that file, or set `"mode"` to `"remind"`, to go back. A
-`WORKTREES_MODE` environment variable set to `block` or `remind`, in the
-environment the agent was started from, overrides the file.
+It writes `~/.config/shared-skills/worktrees.json`, or the file named by
+`WORKTREES_CONFIG`, and keeps any other keys in it. A `WORKTREES_MODE`
+environment variable set to `block` or `remind`, in the environment the agent
+was started from, overrides the file; the command says so when it is set.
 
 **To turn the hook off**, ask your agent to "turn off the worktrees hook", or:
 

@@ -714,6 +714,198 @@ class SweepTests(unittest.TestCase):
             r = self.run_hook(self.push("git push"), mode=mode)
             self.assertNotIn("Adam", self.listed(r))
 
+    def test_the_hook_uses_the_mode_the_mode_command_wrote(self):
+        self.landed()
+        run_mode(self.env, "block")
+        self.assertEqual(self.run_hook(self.stop()).returncode, 2)
+        run_mode(self.env, "remind")
+        r = self.run_hook(self.stop())
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("systemMessage", json.loads(r.stdout))
+
+    def test_a_hook_run_never_takes_the_mode_command(self):
+        self.landed()
+        for argv in (["--host", "claude"], ["--host", "claude", "mode"],
+                     ["--host", "claude", "--event", "stop", "mode", "block"]):
+            for d in self.git_dirs():
+                self.age(d, 2)
+            r = subprocess.run([sys.executable, str(HOOK), *argv], input=json.dumps(self.stop()),
+                               cwd=self.elsewhere, env=self.env, capture_output=True, text=True,
+                               timeout=60)
+            self.assertEqual(r.returncode, 0, argv)
+            self.assertIn("systemMessage", json.loads(r.stdout), argv)
+            self.assertFalse((self.tmp / "worktrees.json").exists(), argv)
+
+
+def run_mode(env, *args, extra=None):
+    return subprocess.run([sys.executable, str(HOOK), "mode", *args],
+                          env={**env, **(extra or {})}, capture_output=True, text=True,
+                          stdin=subprocess.DEVNULL, timeout=30)
+
+
+class ModeCommandTests(unittest.TestCase):
+    """`worktree-sweep.py mode [block|remind]`, with the config file in a temp
+    directory."""
+
+    def setUp(self):
+        self.tmp = pathlib.Path(tempfile.mkdtemp(prefix="worktrees-mode-")).resolve()
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        (self.tmp / "home").mkdir()
+        self.config = self.tmp / "conf" / "worktrees.json"
+        self.env = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"),
+                    "HOME": str(self.tmp / "home"), "WORKTREES_CONFIG": str(self.config)}
+
+    def mode(self, *args, **extra):
+        return run_mode(self.env, *args, extra=extra)
+
+    def write(self, text):
+        self.config.parent.mkdir(parents=True, exist_ok=True)
+        self.config.write_text(text)
+
+    def test_reports_the_default_when_there_is_no_file(self):
+        r = self.mode()
+        self.assertEqual(r.returncode, 0)
+        self.assertEqual(r.stdout, f"Worktrees mode: remind, the default: {self.config} "
+                                   "does not exist.\n")
+
+    def test_reports_the_mode_in_the_file(self):
+        self.write('{"mode": "block"}')
+        self.assertEqual(self.mode().stdout, f"Worktrees mode: block, from {self.config}.\n")
+
+    def test_reports_the_environment_over_the_file(self):
+        self.write('{"mode": "block"}')
+        r = self.mode(WORKTREES_MODE="remind")
+        self.assertEqual(r.stdout, "Worktrees mode: remind, from the WORKTREES_MODE "
+                                   "environment variable.\n")
+
+    def test_reports_a_file_it_cannot_use_and_that_the_hook_then_reminds(self):
+        for text, why in (("[not json", "is not valid JSON"),
+                          ('["block"]', "holds JSON that is not an object"),
+                          ('"block"', "holds JSON that is not an object")):
+            self.write(text)
+            r = self.mode()
+            self.assertEqual(r.returncode, 0, text)
+            self.assertIn(f"Worktrees mode: remind, because {self.config} {why}", r.stdout, text)
+            self.assertIn("the hook uses remind", r.stdout, text)
+
+    def test_reports_an_unknown_value_as_remind(self):
+        self.write('{"mode": "blocking"}')
+        self.assertIn('remind, from', self.mode().stdout)
+        self.assertIn('"blocking" isn\'t block or remind', self.mode().stdout)
+        self.assertIn('"Block!" isn\'t block or remind', self.mode(WORKTREES_MODE="Block!").stdout)
+
+    def test_reports_what_the_hook_would_use(self):
+        """For many file contents and WORKTREES_MODE values, the command names
+        the mode the hook's own mode() returns."""
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("sweep", HOOK)
+        sweep = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(sweep)
+        cases = [None, '{"mode": "block"}', '{"mode": " BLOCK "}', '{"mode": "remind"}',
+                 '{"mode": null}', '{"mode": true}', "{}", "[1]", "nope", ""]
+        for text in cases:
+            for env_mode in (None, "block", "remind", "  ", "x"):
+                if text is None:
+                    self.config.unlink(missing_ok=True)
+                else:
+                    self.write(text)
+                extra = {"WORKTREES_MODE": env_mode} if env_mode is not None else {}
+                saved = dict(os.environ)
+                try:
+                    os.environ.clear()
+                    os.environ.update({**self.env, **extra})
+                    want = sweep.mode()
+                finally:
+                    os.environ.clear()
+                    os.environ.update(saved)
+                got = self.mode(**extra).stdout
+                self.assertTrue(got.startswith(f"Worktrees mode: {want},"), (text, env_mode, got))
+
+    def test_sets_block_and_remind(self):
+        for want in ("block", "remind", "BLOCK"):
+            r = self.mode(want)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertEqual(json.loads(self.config.read_text()), {"mode": want.lower()})
+            self.assertEqual(r.stdout, f"Wrote mode {want.lower()} to {self.config}.\n"
+                                       f"Worktrees mode: {want.lower()}, from {self.config}.\n")
+
+    def test_creates_the_directory(self):
+        self.config = self.tmp / "a" / "b" / "worktrees.json"
+        self.env["WORKTREES_CONFIG"] = str(self.config)
+        self.assertEqual(self.mode("block").returncode, 0)
+        self.assertEqual(json.loads(self.config.read_text()), {"mode": "block"})
+
+    def test_keeps_other_keys(self):
+        self.write('{"other": [1, {"x": "\\u00e9"}], "mode": "remind", "z": null}')
+        self.assertEqual(self.mode("block").returncode, 0)
+        self.assertEqual(json.loads(self.config.read_text()),
+                         {"other": [1, {"x": "\u00e9"}], "mode": "block", "z": None})
+
+    def test_refuses_another_value(self):
+        self.write('{"mode": "remind"}')
+        for args in (["blocking"], [""], ["block", "remind"], ["--help"]):
+            r = self.mode(*args)
+            self.assertEqual(r.returncode, 2, args)
+            self.assertIn("Usage: worktree-sweep.py mode [block|remind]", r.stderr, args)
+            self.assertEqual(self.config.read_text(), '{"mode": "remind"}', args)
+
+    def test_refuses_a_file_that_is_not_a_json_object_and_leaves_it(self):
+        for text, why in (("[not json", "is not valid JSON"), ("", "is not valid JSON"),
+                          ('["mode"]', "holds JSON that is not an object"),
+                          ("42", "holds JSON that is not an object")):
+            self.write(text)
+            r = self.mode("block")
+            self.assertEqual(r.returncode, 1, text)
+            self.assertIn(f"{self.config} {why}, so it was left as it is", r.stderr, text)
+            self.assertEqual(r.stdout, "", text)
+            self.assertEqual(self.config.read_text(), text, text)
+            self.assertEqual(os.listdir(self.config.parent), ["worktrees.json"], text)
+
+    def test_refuses_a_file_that_is_not_utf8_and_leaves_it(self):
+        self.config.parent.mkdir(parents=True)
+        self.config.write_bytes(b'{"note": "caf\xe9", "mode": "block"}')
+        self.assertIn("is not valid JSON", self.mode().stdout)
+        r = self.mode("remind")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn(f"{self.config} is not valid JSON, so it was left as it is", r.stderr)
+        self.assertNotIn("Traceback", r.stderr)
+        self.assertEqual(self.config.read_bytes(), b'{"note": "caf\xe9", "mode": "block"}')
+
+    def test_warns_when_the_environment_overrides_the_new_value(self):
+        r = self.mode("block", WORKTREES_MODE="remind")
+        self.assertEqual(r.returncode, 0)
+        self.assertEqual(json.loads(self.config.read_text()), {"mode": "block"})
+        self.assertIn("Worktrees mode: remind, from the WORKTREES_MODE environment variable.",
+                      r.stdout)
+        self.assertIn('WORKTREES_MODE is set to "remind" and overrides the file', r.stdout)
+        self.assertIn("unset WORKTREES_MODE in the environment the agent is started from",
+                      r.stdout)
+        self.assertNotIn("overrides", self.mode("block").stdout)
+
+    def test_uses_the_default_path_without_worktrees_config(self):
+        del self.env["WORKTREES_CONFIG"]
+        default = self.tmp / "home" / ".config" / "shared-skills" / "worktrees.json"
+        r = self.mode("block")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(json.loads(default.read_text()), {"mode": "block"})
+        self.assertEqual(self.mode().stdout, f"Worktrees mode: block, from {default}.\n")
+
+    def test_writes_through_a_link_and_keeps_it(self):
+        real = self.tmp / "dotfiles" / "worktrees.json"
+        real.parent.mkdir()
+        real.write_text('{"mode": "remind"}')
+        self.config.parent.mkdir()
+        self.config.symlink_to(real)
+        self.assertEqual(self.mode("block").returncode, 0)
+        self.assertTrue(self.config.is_symlink())
+        self.assertEqual(json.loads(real.read_text()), {"mode": "block"})
+
+    def test_keeps_the_files_permissions(self):
+        self.write('{"mode": "remind"}')
+        self.config.chmod(0o600)
+        self.assertEqual(self.mode("block").returncode, 0)
+        self.assertEqual(self.config.stat().st_mode & 0o777, 0o600)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -131,3 +131,31 @@ with its lock reason, as possibly abandoned.
 In Cursor, the hook adds the list to the agent's context after a push and,
 at a stop, only when the user has turned on block mode. A Cursor stop hook can't
 show the user anything, so Cursor users never see the abandoned-lock notice.
+
+## Remind and block modes
+
+When the user asks which worktrees mode is on, or asks to switch to block or
+remind mode, run:
+
+```bash
+python3 "<base directory>/scripts/worktree-sweep.py" mode           # which mode is on
+python3 "<base directory>/scripts/worktree-sweep.py" mode block      # or: mode remind
+```
+
+`<base directory>` is this skill's base directory: the directory that holds
+this SKILL.md, which Claude Code names on the "Base directory for this skill:"
+line above it. Write the path out in full.
+
+Tell the user the result in a sentence: the mode the hook uses and where it
+comes from. Don't edit the config file yourself: the command keeps the
+file's other keys and won't overwrite a file it can't parse. If it refuses,
+show the user its message. If it says `WORKTREES_MODE` overrides the file,
+tell the user the variable decides, and that the file counts only once the
+variable is unset in the environment the agent is started from and the agent
+restarted. A switch through the file takes effect at the hook's next run,
+with no restart, since the hook reads the file every time it runs.
+
+In remind mode, the default, the hook never stops you: you get the list as
+context after a push, and the user sees it when you stop. In block mode you
+are told to remove the listed worktrees right after a push, and when you stop
+you are sent back to remove them, once.

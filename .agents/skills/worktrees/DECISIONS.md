@@ -129,6 +129,25 @@ started from the Dock, since it then doesn't read the user's shell profile. A
 config file reaches both hosts, so the file is the documented switch and the
 variable only overrides it.
 
+## The agent switches modes with a command, not by editing the file
+
+**Decision.** `worktree-sweep.py mode` prints the mode and where it comes
+from, and `mode block` or `mode remind` writes it. SKILL.md has the agent run
+it and not edit the config file itself.
+
+**Why.** The command reports through the hook's own `mode()`, so what it
+prints is what the hook uses, including when `WORKTREES_MODE` overrides the
+file, or when a malformed file makes the hook fall back to remind. An agent
+editing the file by hand could report a mode the hook doesn't use. The command
+also keeps the file's other keys, writes atomically, and refuses a file it
+can't parse instead of overwriting it.
+
+**Known gap.** The command sees the environment of the agent's shell, and the
+hook sees the host's. The two differ when the agent's shell loads the user's
+shell profile and the host, started from the Dock, did not. A
+`WORKTREES_MODE` set only in that profile then reaches the command but not
+the hook: the command reports the variable while the hook uses the file.
+
 ## The hook never deletes
 
 **Decision.** The hook lists worktrees and the command to remove each one. It
