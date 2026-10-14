@@ -61,6 +61,7 @@ and refreshes `manage-skills`, the one skill installed as a copy.
 | `prose`         | Makes agents rewrite the text you review — docs, comments, commit messages, PR descriptions — so it reads in one pass, and proves the pass ran | [README](.agents/skills/prose/README.md) | [SKILL.md](.agents/skills/prose/SKILL.md) |
 | `linear-app`    | Gives an agent its own Linear identity, an app user that can be delegated issues, with tokens minted on demand so nothing is renewed by hand | [README](.agents/skills/linear-app/README.md) | [SKILL.md](.agents/skills/linear-app/SKILL.md) |
 | `github-app`    | Gives an agent its own GitHub identity, a GitHub App whose work shows as a bot, with tokens minted on demand and its identity only in the environment of the processes that act as it | [README](.agents/skills/github-app/README.md) | [SKILL.md](.agents/skills/github-app/SKILL.md) |
+| `spec-trace`    | Links each test to the OpenSpec scenario it checks with an `@scenario` tag, and fails CI on a scenario no test tags | [README](.agents/skills/spec-trace/README.md) | [SKILL.md](.agents/skills/spec-trace/SKILL.md) |
 | `usage-hint`    | Claude Code mod: shows your subscription usage (5-hour and weekly, with reset times) at the end of the hint line under the prompt, using no requests | [README](.agents/skills/usage-hint/README.md) | none: a mod, not a skill |
 
 The **Setup & usage** column is written for people. The **Agent instructions**
