@@ -193,7 +193,8 @@ abort, whether a commit goes ahead when something reported-not-fixed changes
 what it means (report-only mode), and the Step 0 stop — which of a file's
 diverging staged and unstaged edits to keep.
 
-**When you do ask, use the host's interactive picker**: any question with
+**When you do ask, use the host's interactive picker** (in Claude Code, the
+`AskUserQuestion` tool): any question with
 discrete options goes through it, one question per decision, in severity order,
 never buried in prose at the end of a long report. Plain text is the fallback
 for hosts without a picker, not the default. The picker is also the one thing

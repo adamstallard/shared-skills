@@ -235,13 +235,14 @@ doc by its file and lines, a post quoted in full.
    `fixed` means you changed the item the finding is in. A report with no
    findings needs no dispositions file.
 5. **A person decides every kept finding.** For each finding you would keep,
-   ask a person one question, through your host's interactive picker: show
-   the quoted words, the cold reader's note and your reason, with two
-   options, "Keep as is" and "Fix it". "Fix it": rewrite the passage,
-   restage it, and make its line `fixed`. "Keep as is": make its line
-   `kept (asked): <reason>`. The token stays unspent until the signing call,
-   so this needs no new cold read. `(asked)` is your statement that a person
-   answered; the script cannot check it.
+   ask a person one question, through your host's interactive picker (in Claude
+   Code, the `AskUserQuestion` tool): show the quoted words, the cold reader's
+   note and your reason, with two options, "Keep as is" and "Fix it". "Fix it":
+   rewrite the passage, restage it, and make its line `fixed`. "Keep as is":
+   make its line `kept (asked): <reason>`. Neither answer needs a new cold
+   read: asking spends no token, and a fixed finding is checked by its item
+   having changed, not read cold again. `(asked)` is your statement that a
+   person answered; the script cannot check it.
 6. Run the signing call again, adding `--cold-read cold-read.txt
    --dispositions dispositions.txt`.
 
