@@ -207,6 +207,18 @@ class CheckTests(unittest.TestCase):
         self.assertEqual(kinds(r), ["undefined-term"])
         self.assertIn('check [undefined-term] "tier"', r.stdout)
 
+    def test_code_like_literals_are_not_terms(self):
+        literals = "`ghp_`, `xoxb-`, `sk-ant-`, `PASSWORD`, `AKIA`, `GITHUB_TOKEN`, " \
+                   "`NotebookEdit`, `prBody`, `max_retries`, `v2api`"
+        self.repo.change("x", delta=GOOD_DELTA.replace(
+            "its last read.", f"its last read, and SHALL redact {literals}."))
+        self.assertEqual(kinds(self.repo.check("x")), [])
+
+    def test_a_plain_word_in_backticks_is_still_a_term(self):
+        self.repo.change("x", delta=GOOD_DELTA.replace(
+            "its last read.", "its last read, by the record's `tier` and `no-output` state."))
+        self.assertEqual(kinds(self.repo.check("x")), ["undefined-term", "undefined-term"])
+
     def test_a_term_the_proposal_names_is_defined(self):
         self.repo.change("x", proposal=GOOD_PROPOSAL + "\nA `tier` is how long a record lives.\n",
                          delta=GOOD_DELTA.replace("its last read.", "its last read, by its `tier`."))
@@ -503,6 +515,248 @@ class FoundByBugHunterIteration3Tests(unittest.TestCase):
         r = self.repo.run("sign", "--read", "self", "--base", "main")
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertIn("no open change or spec staged", r.stdout)
+
+
+class FoundByScopedRunTests(unittest.TestCase):
+    """Fences inside the decisions section, the "still open" label's styles,
+    quoted stack traces and image names, and citations of files the change
+    adds. bug-hunter found each of these."""
+
+    def setUp(self):
+        self.repo = Repo(self)
+
+    def proposal(self, decisions):
+        return GOOD_PROPOSAL.replace(
+            "1. **Records expire.** *Rejected:* keeping them forever.\n\n**Still open:** nothing.\n",
+            decisions)
+
+    def test_a_fence_in_the_decisions_does_not_end_them(self):
+        self.repo.change("x", proposal=self.proposal(
+            "1. **Purge nightly.** *Rejected:* purging on read. The job:\n\n"
+            "```sh\n# nightly purge\npurge --older-than 90d\n```\n\n"
+            "2. **Purged records are deleted.**\n"))
+        self.assertEqual(kinds(self.repo.check("x")), ["decision-alternative"])
+
+    def test_a_list_item_in_a_fence_is_not_a_decision(self):
+        self.repo.change("x", proposal=self.proposal(
+            "1. **Validate config at load.** *Rejected:* validating lazily. Example:\n\n"
+            "```yaml\n- name: primary\n  pool: 10\n```\n"))
+        self.assertEqual(kinds(self.repo.check("x")), [])
+
+    def test_still_open_labels_in_other_styles_end_the_decisions(self):
+        for label in ("*Still open:*", "_Still open:_", "### *Still open*",
+                      "**Open questions?**", "Still open."):
+            with self.subTest(label=label):
+                self.repo.change("x", proposal=self.proposal(
+                    "1. **Records expire.** *Rejected:* keeping them forever.\n\n"
+                    f"{label}\n\n- Whether archived records expire too.\n"))
+                self.assertEqual(kinds(self.repo.check("x")), [])
+
+    def test_a_quoted_stack_trace_is_not_a_citation(self):
+        self.repo.change("x", proposal=GOOD_PROPOSAL.replace("## What Changes", (
+            "```\n    at Layer.handle (node_modules/express/lib/router/layer.js:95:5)\n```\n\n"
+            "It runs ghcr.io/acme/web.api:2.\n\n## What Changes")))
+        self.assertEqual(kinds(self.repo.check("x")), [])
+
+    def test_a_citation_of_a_file_the_change_adds_is_not_an_error(self):
+        self.repo.write("src/expire.py", "a\nb\nc\nd\n")
+        self.repo.change("x", proposal=GOOD_PROPOSAL.replace("src/app.py:5", "src/expire.py:3"))
+        self.repo.git("add", "-A")
+        r = self.repo.run("sign", "--read", "self", "--base", "main", "--no-validate")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("check [citation]", r.stdout)
+
+
+class FoundByScopedRunIteration2Tests(unittest.TestCase):
+    """Citations of files or lines the change adds, nested and tilde fences,
+    underscore-wrapped labels, and dot directories read as hosts.
+    bug-hunter found each of these."""
+
+    def setUp(self):
+        self.repo = Repo(self)
+
+    def sign(self):
+        self.repo.git("add", "-A")
+        return self.repo.run("sign", "--read", "self", "--base", "main", "--no-validate")
+
+    def test_a_bare_name_of_an_added_file_is_not_an_error(self):
+        self.repo.write("src/expire.py", "a\nb\nc\nd\n")
+        self.repo.change("x", proposal=GOOD_PROPOSAL.replace("src/app.py:5", "expire.py:3"))
+        r = self.sign()
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
+    def test_a_line_the_change_adds_to_an_existing_file_is_not_an_error(self):
+        self.repo.write("src/app.py", "".join(f"line{i}\n" for i in range(1, 15)))
+        self.repo.change("x", proposal=GOOD_PROPOSAL.replace("src/app.py:5", "src/app.py:13"))
+        r = self.sign()
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("check [citation]", r.stdout)
+
+    def test_a_fence_inside_a_longer_fence_does_not_end_the_decisions(self):
+        for outer in ("~~~", "````"):
+            with self.subTest(outer=outer):
+                self.repo.change("x", proposal=GOOD_PROPOSAL.replace(
+                    "1. **Records expire.** *Rejected:* keeping them forever.\n",
+                    "1. **Ship the snippet.** *Rejected:* linking out.\n\n"
+                    f"{outer}markdown\nRun it:\n```\n# build everything\nmake\n```\n{outer}\n\n"
+                    "2. **Snippets are tested.**\n"))
+                self.assertEqual(kinds(self.repo.check("x")), ["decision-alternative"])
+
+    def test_an_underscore_wrapped_label_ends_the_decisions(self):
+        for label in ("__Still open__", "_Open questions_", "### _Still open_"):
+            with self.subTest(label=label):
+                self.repo.change("x", proposal=GOOD_PROPOSAL.replace(
+                    "**Still open:** nothing.", f"{label}\n\n- Whether archived records expire too."))
+                self.assertEqual(kinds(self.repo.check("x")), [])
+
+    def test_a_dot_directory_is_not_a_host(self):
+        self.repo.write(".ai/rules.md", "one\ntwo\n")
+        self.repo.git("add", "-A")
+        self.repo.git("commit", "-q", "-m", "rules")
+        self.repo.change("x", proposal=GOOD_PROPOSAL.replace("src/app.py:5", ".ai/rules.md:40"))
+        self.assertEqual(kinds(self.repo.check("x")), ["citation"])
+
+
+class CitationRuleTests(unittest.TestCase):
+    """A citation is an error only when it has a `/` and its line is in neither
+    the base nor the change; every other citation finding is a check."""
+
+    def setUp(self):
+        self.repo = Repo(self)
+
+    def sign(self):
+        self.repo.git("add", "-A")
+        return self.repo.run("sign", "--read", "self", "--base", "main", "--no-validate")
+
+    def test_a_fence_in_a_nested_list_item_is_a_fence(self):
+        self.repo.change("x", proposal=GOOD_PROPOSAL.replace(
+            "1. **Records expire.** *Rejected:* keeping them forever.\n",
+            "1. **Records expire.** *Rejected:* keeping them forever. Today:\n\n"
+            "    - The trace we see:\n\n"
+            "        ```\n"
+            "        at Layer.handle (node_modules/express/lib/router/layer.js:95:5)\n"
+            "        ```\n"))
+        r = self.sign()
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertNotIn("layer.js", r.stdout)
+
+    def test_a_bare_name_shared_with_a_base_file_does_not_block_sign(self):
+        self.repo.write("pkg/config.py", "a\nb\n")
+        self.repo.git("add", "-A")
+        self.repo.git("commit", "-q", "-m", "pkg")
+        self.repo.write("src/config.py", "".join(f"x{i}\n" for i in range(60)))
+        self.repo.change("x", proposal=GOOD_PROPOSAL.replace("src/app.py:5", "config.py:50"))
+        r = self.sign()
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("check [citation]", r.stdout)
+
+    def test_a_missing_bare_name_is_never_an_error(self):
+        self.repo.change("x", proposal=GOOD_PROPOSAL.replace("src/app.py:5", "gone.py:5"))
+        r = self.repo.check("x")
+        self.assertEqual((r.returncode, kinds(r)), (0, ["citation"]), r.stdout)
+
+    def test_a_path_missing_from_both_trees_is_an_error(self):
+        self.repo.change("x", proposal=GOOD_PROPOSAL.replace("src/app.py:5", "src/gone.py:5"))
+        r = self.sign()
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("error [citation] src/gone.py:5", r.stdout)
+
+
+class FencesAndLinksTests(unittest.TestCase):
+    """Regressions found by the bug-hunter run over the citation rule."""
+
+    def setUp(self):
+        self.repo = Repo(self)
+
+    def why(self, text):
+        return GOOD_PROPOSAL.replace("## What Changes", text + "\n\n## What Changes")
+
+    def test_a_fence_straight_after_a_list_item_is_a_fence(self):
+        self.repo.change("x", proposal=self.why(
+            "To reproduce:\n- run `npm test`; it prints:\n```text\nTypeError\n"
+            "    at src/app/handler.ts:812:5\n```\nafter"))
+        self.assertEqual(kinds(self.repo.check("x")), [])
+
+    def test_fences_straight_after_decisions_hide_nothing(self):
+        self.repo.change("x", proposal=GOOD_PROPOSAL.replace(
+            "1. **Records expire.** *Rejected:* keeping them forever.\n",
+            "1. Store the policy as YAML. *Rejected:* JSON. The file reads:\n"
+            "```yaml\n- name: web\n  retries: 1\n```\n"
+            "2. Install the hook with a script. *Rejected:* manual steps.\n"
+            "```bash\n# install the hook\n./setup.sh\n```\n"
+            "3. Use Postgres for the retry log.\n"))
+        r = self.repo.check("x")
+        self.assertEqual(kinds(r), ["decision-alternative"])
+        self.assertIn("Use Postgres", self.repo.path.joinpath(
+            "openspec/changes/x/proposal.md").read_text().splitlines()[
+                int(r.stdout.split("proposal.md:")[1].split(":")[0]) - 1])
+
+    def test_a_fence_opened_on_the_list_marker_line_is_a_fence(self):
+        self.repo.change("x", proposal=self.why(
+            "- ```text\n  TypeError\n      at src/app/handler.ts:812:5\n  ```\n"
+            "- ```text\n  RangeError\n      at src/app/queue.ts:40:1\n  ```"))
+        self.assertEqual(kinds(self.repo.check("x")), [])
+
+    def test_a_fence_in_a_blockquote_is_a_fence(self):
+        self.repo.change("x", proposal=self.why(
+            "> ```text\n> TypeError\n>     at app/missing.ts:812:5\n> ```"))
+        self.assertEqual(kinds(self.repo.check("x")), [])
+
+    def test_a_citation_through_a_symlink_holds_in_sign(self):
+        self.repo.write("real/handler.ts", "".join(f"l{i}\n" for i in range(30)))
+        os.symlink("real", self.repo.path / "src2")
+        os.symlink("handler.ts", self.repo.path / "real/link.ts")
+        self.repo.git("add", "-A")
+        self.repo.git("commit", "-q", "-m", "links")
+        self.repo.change("x", proposal=GOOD_PROPOSAL.replace(
+            "src/app.py:5", "src2/handler.ts:20 and real/link.ts:20"))
+        self.repo.git("add", "-A")
+        r = self.repo.run("sign", "--read", "self", "--base", "main", "--no-validate")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertNotIn("[citation]", r.stdout)
+
+    def test_a_path_with_a_non_ascii_name_holds_in_sign(self):
+        self.repo.write("docs/café.md", "a\nb\nc\n")
+        self.repo.git("add", "-A")
+        self.repo.git("commit", "-q", "-m", "cafe")
+        self.repo.change("x", proposal=GOOD_PROPOSAL.replace("src/app.py:5", "docs/café.md:2"))
+        self.repo.git("add", "-A")
+        r = self.repo.run("sign", "--read", "self", "--base", "main", "--no-validate")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
+
+class QuotesAndSubmodulesTests(unittest.TestCase):
+    """Regressions found by the second pass of the run over the citation rule."""
+
+    def setUp(self):
+        self.repo = Repo(self)
+
+    def test_a_prompt_line_inside_a_list_item_fence_stays_in_the_fence(self):
+        self.repo.change("x", proposal=GOOD_PROPOSAL.replace(
+            "1. **Records expire.** *Rejected:* keeping them forever.\n",
+            "1. Parse dates with `parseDate`. *Rejected:* a regular expression. In the REPL:\n"
+            "   ```\n   > parseDate(\"2024-02-29\")\n   Uncaught RangeError\n"
+            "       at parseDate (app/dates.js:212:5)\n   ```\n"
+            "2. Log every retry.\n"))
+        r = self.repo.check("x")
+        self.assertEqual(kinds(r), ["decision-alternative"])
+        self.assertNotIn("dates.js", r.stdout)
+
+    def test_a_citation_into_a_submodule_does_not_block_sign(self):
+        sub = self.repo.path.parent / f"{self.repo.path.name}-sub"
+        sub.mkdir()
+        self.addCleanup(shutil.rmtree, sub, ignore_errors=True)
+        subprocess.run(["git", "init", "-q", "-b", "main"], cwd=sub, check=True, env=ENV)
+        (sub / "x.c").write_text("".join(f"l{i}\n" for i in range(50)))
+        subprocess.run(["git", "add", "-A"], cwd=sub, check=True, env=ENV)
+        subprocess.run(["git", "commit", "-q", "-m", "x"], cwd=sub, check=True, env=ENV)
+        self.repo.git("-c", "protocol.file.allow=always", "submodule", "add", "-q", str(sub), "vendor/lib")
+        self.repo.git("commit", "-q", "-m", "sub")
+        self.repo.change("x", proposal=GOOD_PROPOSAL.replace("src/app.py:5", "vendor/lib/x.c:30"))
+        self.repo.git("add", "-A")
+        r = self.repo.run("sign", "--read", "self", "--base", "main", "--no-validate")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertNotIn("this change adds it", r.stdout)
 
 
 IGOR_STYLE = """schema: spec-driven

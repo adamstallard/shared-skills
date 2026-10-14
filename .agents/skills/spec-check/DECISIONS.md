@@ -56,26 +56,51 @@ specs that needed the most work.
 
 ---
 
-## A heuristic fails only where it cannot be wrong
+## A citation fails only where it cannot be wrong
 
-**Decision.** A finding the script cannot be sure of is a `check`, never an
-error. A missing file cited by a path with a `/`, or by a bare name with a
-common code or doc extension, is an error. Any other bare name is a check,
-because `redis.cache:6379` reads the same as `schema.prisma:40`. In the
-proposal's decisions section, the script reads each list item as a decision
-until it reaches the "still open" label. That label counts only as a whole
-label: a heading, a bold label, or a line ending in a colon. An indented line
-continues the decision above it, whatever it says.
+**Decision (Adam, 2026-10-13).** A citation is an error only when it has a `/`
+and the cited line is in neither the base branch nor the change's own copy of
+the file: the file is missing from both, or both are shorter than the line.
+Every other citation finding is a check, which never fails the run: a bare
+name such as `config.py:50`, whether it matches no file or several, and a
+line that only the change adds. Text in a code fence, including a fence inside a
+list item or a blockquote, is never read as a citation. Fences follow
+CommonMark, with a fence's indent counted from the content column of the list
+item it sits in. A cited path is read the way the file system would read it:
+through symlinks. A path into a submodule cannot be read from the parent
+repository, so a citation there is at most a check.
 
-**Why.** `sign` refuses while any error remains, so a false error stops a correct spec from
-being committed. bug-hunter's first three passes over this script found 18
-bugs, and most of them were narrow patterns that misread ordinary spec text:
-an IP address as a file, a decision starting "Open" as the open part, a
-service address as a citation. Each narrower pattern fixed one input and
-broke another.
+**Why.** `sign` refuses while any error remains, so a false error stops a
+correct spec from being committed. Six passes of bug-hunter, the skill that
+hunts for bugs before a commit, each found the next case where guessing at
+citations misread ordinary spec text. The cases were of four kinds:
+- an IP address, a service address (`redis.cache:6379`) or an image name
+  read as a file;
+- a quoted stack trace read as a citation;
+- a citation of code the change's implementation adds, wrongly called
+  broken (the implementation is committed on the spec's branch once the
+  spec is approved, so the base never has it);
+- a bare name that matched a different file than the one meant.
 
-**Rejected:** a longer allowlist of extensions or host suffixes. Each list
-had a gap the next pass found.
+Each narrower guess fixed one input and broke another. A path with a `/` that
+neither tree has, at that line, is the one citation the script can be sure is
+broken.
+
+**The decisions section is read with the same caution: only an
+unmistakable label ends it.** Each list item is a decision until the "still
+open" label, and a label guessed wrongly would leave decisions unchecked or
+call open questions decisions. The label counts only
+as a whole label: a heading, a bold or italic label, a line ending in a
+colon, or a line saying nothing else. An indented line continues the
+decision above it, whatever it says.
+
+**Rejected:**
+- An allowlist of file extensions deciding which bare names are files. Each
+  version of the list had a gap the next pass found. A list of host
+  suffixes survives only to skip addresses such as `example.com:443`, which
+  are never files.
+- Treating every citation as a check. That would drop the error for a
+  citation copied from another branch, whose line no longer exists here.
 
 ---
 

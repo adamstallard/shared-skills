@@ -49,7 +49,7 @@ errors to fix. Exit 2: it could not run, and says why.
 | `no-scenario` | error | A requirement states a SHALL or MUST and has no scenario |
 | `scenario-incomplete` | error | A scenario has no WHEN or no THEN |
 | `duplicate` | error | A sentence of the rule also appears under another requirement, here or in another spec or change |
-| `citation` | error | A `path:line` names a file missing on the base branch, or a line past its end. A name without a `/` is an error only with a common file extension; another missing bare name, such as `redis.cache:6379`, is a check. `0.0.0.0:8080` and `example.com:443` are skipped |
+| `citation` | error, or check | A `path:line` with a `/` whose line is in neither the base branch nor the change is an error. Any other citation finding is a check: a bare name such as `config.py:50`, or a line only the change adds. Text in a code fence, and addresses such as `0.0.0.0:8080`, are skipped |
 | `decisions-first` | error | The proposal does not open with a decisions section, or the section lists no decisions |
 | `decision-alternative` | error | A decision names no alternative it rejects |
 | `openspec-validate` | error, or check when validation passed | An issue `openspec validate --strict` reported |

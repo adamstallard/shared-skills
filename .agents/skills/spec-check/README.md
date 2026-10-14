@@ -17,7 +17,8 @@ Before an agent commits, or opens a pull request for, anything under
    - a requirement with a SHALL or MUST and no scenario;
    - a scenario with no WHEN or THEN;
    - the same rule stated under two requirements;
-   - a `path:line` citation that is wrong on the base branch;
+   - a `path:line` citation whose line is on neither the base branch nor
+     the change;
    - a proposal that does not open with its decisions, each naming the
      alternative it rejects;
    - terms nothing defines (a hint only, never a failure).
@@ -91,8 +92,12 @@ python3 ~/.agents/skills/manage-skills/scripts/skills.py disable-hook spec-check
 
 - **`openspec validate --strict: not run`.** The `openspec` CLI is not on
   `PATH`. The other checks still ran; validation did not.
-- **A citation is reported missing, but the file exists.** It exists on your
-  branch, not on the base. Cite the base branch's line, or pass `--base`.
+- **A citation is reported missing, but the file exists.** The check reads
+  the base branch (`origin/HEAD`, then `origin/main`, then `main`) and the
+  change's own copy of the file (the working tree, the branch named with
+  `--ref`, or the staged files when signing), and the file is in neither at
+  that line. If the change
+  targets another branch, pass `--base`.
 - **The check says the proposal does not open with its decisions, but it
   does** (`decisions-first`). The section is under a heading that does not
   start with "Decisions". Pass `--decisions-heading "<your heading>"`.

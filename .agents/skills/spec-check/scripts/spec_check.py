@@ -26,6 +26,7 @@ import argparse
 import io
 import json
 import os
+import posixpath
 import re
 import shutil
 import subprocess
@@ -57,15 +58,8 @@ CITATION = re.compile(
     r"(?<![\w/.@:-])((?:\./)?(?:[\w.-]+/)*[\w-][\w.-]*\.[A-Za-z0-9]{1,8})"
     r":(\d+)(?:[-–](\d+))?(?![\w])"
 )
-# A bare name (no slash) missing from the base is an error only when its
-# extension is one of these. Any other bare name might be an address, such as
-# redis.cache:6379, so a missing one is a check for a person to judge. Names
-# ending in a digit or a host suffix (0.0.0.0:8080, example.com:443) are
-# skipped.
-FILE_EXTS = set("""py pyi ts tsx js jsx mjs cjs go rs java kt kts rb php c h cc cpp hpp cs
-swift m mm sh bash zsh fish md mdx rst txt yaml yml json jsonc toml ini cfg conf sql
-html css scss less vue svelte tla cfg proto graphql gql tf hcl ex exs erl hs ml scala
-lua pl r dart gradle xml csv lock env""".split())
+# Names that end like a host are addresses, not files: example.com:443, and the
+# first segment of an image such as ghcr.io/acme/web.api:2.
 HOST_SUFFIXES = set("""com org net io dev ai app co uk us de eu fr jp cn ru in au ca local
 localhost internal lan home arpa edu gov mil int info biz me tv cloud xyz site online
 tech""".split())
@@ -73,6 +67,17 @@ tech""".split())
 BACKTICK = re.compile(r"`([^`\n]+)`")
 BOLD = re.compile(r"\*\*([^*\n]+)\*\*")
 IDENT = re.compile(r"^[A-Za-z][A-Za-z0-9_-]{2,}$")
+
+
+def looks_like_code(term):
+    """Whether a backticked word is a literal from code rather than a term a
+    spec defines: a prefix (`ghp_`, `xoxb-`), an all-caps name (`PASSWORD`,
+    `GITHUB_TOKEN`), a snake_case or camelCase identifier, or one with a
+    digit. A plain lowercase word, hyphens included (`tier`, `no-output`),
+    is still a term."""
+    return (term.endswith(("_", "-")) or term.isupper() or "_" in term
+            or any(c.isdigit() for c in term)
+            or re.search(r"[a-z][A-Z]", term) is not None)
 BOLD_WORDS = re.compile(r"^[A-Za-z][A-Za-z' -]{1,48}[A-Za-z]$")
 NOT_TERMS = {"when", "then", "and", "given", "or", "but", "not", "note",
              "breaking", "rejected", "still open", "shall", "must", "shall not",
@@ -117,6 +122,111 @@ def materialize(repo, treeish, dest, allow_empty=False):
             tar.extractall(dest)
 
 
+FENCE = re.compile(r"(`{3,}|~{3,})")
+LIST_MARKER = re.compile(r"([-+*]|\d{1,9}[.)])( +)(?=\S)")
+QUOTE_MARKER = re.compile(r" {0,3}> ?")
+
+
+def strip_quotes(line, limit=None):
+    """line without its leading blockquote markers, at most limit of them,
+    and how many were removed."""
+    depth = 0
+    while limit is None or depth < limit:
+        m = QUOTE_MARKER.match(line)
+        if not m:
+            break
+        line, depth = line[m.end():], depth + 1
+    return line, depth
+
+
+def opens_fence(body):
+    """The (character, length) of the fence that the line `body` opens, or
+    None. A backtick
+    fence's info string may hold no backtick, as in CommonMark."""
+    m = FENCE.match(body)
+    if not m or (m.group(1)[0] == "`" and "`" in body[m.end():]):
+        return None
+    return m.group(1)[0], len(m.group(1))
+
+
+def markdown_lines(text):
+    """Each line of a markdown text as (line number, line, in a code fence).
+    Fence lines themselves count as inside. Every scan of a proposal or spec
+    reads through this, so text quoted in a fence is never taken for a
+    heading, a decision, a label or a citation.
+
+    It follows CommonMark as far as fences need:
+    - A fence may be indented up to three spaces past the content column of
+      the list item it sits in, and may open on the item's own marker line.
+    - It closes only with a bare fence of its own character, at least as long.
+    - A line indented less than the content column of the fence's list item
+      ends that item, and the fence with it.
+    - A lazy continuation line keeps its list item open, but a fence line is
+      never lazy: it interrupts the paragraph, as in CommonMark.
+    - Blockquote markers (`>`) are set aside before any of this. A fence
+      remembers how many it opened inside, and inside it only that many are
+      stripped, so a `>` prompt in a code example stays code."""
+    items = []      # content columns of the open list items, outermost first
+    # The open fence: (character, length, content column of its list item or
+    # 0, blockquote depth).
+    fence = None
+    prose = False   # whether the line before was paragraph text
+    for n, raw in enumerate(text.splitlines(), 1):
+        line = raw.expandtabs(4)
+        if fence is not None:
+            line, depth = strip_quotes(line, fence[3])
+            body = line.lstrip(" ")
+            indent = len(line) - len(body)
+            if (body and indent < fence[2]) or depth < fence[3]:
+                fence = None  # its list item or blockquote ended, and the fence with it
+                line, depth = strip_quotes(raw.expandtabs(4))
+                body = line.lstrip(" ")
+                indent = len(line) - len(body)
+            else:
+                m = FENCE.match(body)
+                if m and m.group(1)[0] == fence[0] and len(m.group(1)) >= fence[1] \
+                        and not body[m.end():].strip() and indent - fence[2] <= 3:
+                    fence = None
+                yield n, raw, True
+                continue
+        else:
+            line, depth = strip_quotes(line)
+            body = line.lstrip(" ")
+            indent = len(line) - len(body)
+        if not body:
+            prose = False
+            yield n, raw, False
+            continue
+        marker = LIST_MARKER.match(body)
+        opener = opens_fence(body)
+        # A lazy paragraph line stays in its list item. Any other line closes
+        # the items it is indented less than.
+        if not (prose and not marker and not opener):
+            while items and indent < items[-1]:
+                items.pop()
+        column = items[-1] if items else 0
+        if marker and indent - column <= 3:
+            spaces = len(marker.group(2))
+            content = indent + len(marker.group(1)) + (spaces if spaces <= 4 else 1)
+            items.append(content)
+            inner = opens_fence(body[marker.end():])
+            if inner:  # a fence opened on the item's marker line
+                fence = (inner[0], inner[1], content, depth)
+                prose = False
+                yield n, raw, True
+                continue
+            prose = True
+            yield n, raw, False
+            continue
+        if opener and 0 <= indent - column <= 3:
+            fence = (opener[0], opener[1], column, depth)
+            prose = False
+            yield n, raw, True
+            continue
+        prose = True
+        yield n, raw, False
+
+
 class Req:
     def __init__(self, path, line, name, section):
         self.path, self.line, self.name, self.section = path, line, name, section
@@ -135,10 +245,8 @@ class Scenario:
 
 def parse_spec(rel, text):
     """Requirements in one spec.md, main or delta."""
-    reqs, section, req, scen, fenced = [], None, None, None, False
-    for n, raw in enumerate(text.splitlines(), 1):
-        if raw.lstrip().startswith(("```", "~~~")):
-            fenced = not fenced
+    reqs, section, req, scen = [], None, None, None
+    for n, raw, fenced in markdown_lines(text):
         m = None if fenced else HEADING.match(raw)
         if m:
             level, title = len(m.group(1)), m.group(2)
@@ -176,7 +284,9 @@ RENAMED_FROM = re.compile(r"FROM:\s*`?\s*#*\s*Requirement:\s*(.+?)\s*`?\s*$")
 def retired_names(text):
     """Names of the requirements one delta spec removes or renames away from."""
     names, section = set(), None
-    for raw in text.splitlines():
+    for _, raw, fenced in markdown_lines(text):
+        if fenced:
+            continue
         m = HEADING.match(raw)
         if m and len(m.group(1)) == 2:
             d = DELTA.match(m.group(2))
@@ -365,7 +475,7 @@ def check_terms(targets, corpus, change, out):
         if r.section in ("REMOVED", "RENAMED"):
             continue
         for n, t in r.text:
-            candidates = [m for m in BACKTICK.findall(t) if IDENT.match(m)]
+            candidates = [m for m in BACKTICK.findall(t) if IDENT.match(m) and not looks_like_code(m)]
             # A bold label followed by a colon defines what follows it.
             candidates += [m.group(1).strip() for m in BOLD.finditer(t)
                            if not m.group(1).strip().endswith(":")
@@ -384,11 +494,48 @@ def check_terms(targets, corpus, change, out):
                                    "define it before it is used, or say what it refers to"))
 
 
+SUBMODULE = "submodule"  # a path inside a submodule: unreadable, not missing
+
+
+def count_lines(data):
+    return data.count(b"\n") + (1 if data and not data.endswith(b"\n") else 0)
+
+
+def tree_line_count(repo, treeish, path, hops=0):
+    """Lines in path in a git tree, following symlinks as the file system
+    would. None when there is no such file, and SUBMODULE when the path runs
+    into a submodule, whose files the parent repository does not hold. `git show <tree>:<path>` alone
+    reads a symlink as its target's name and cannot pass through a linked
+    directory."""
+    parts = path.split("/")
+    for i in range(1, len(parts) + 1):
+        prefix = "/".join(parts[:i])
+        # -z: names unquoted, so one with spaces or non-ASCII still matches
+        out = git(repo, "ls-tree", "-z", treeish, "--", prefix, check=False)
+        entry = out.stdout.split("\0", 1)[0]
+        if out.returncode != 0 or not entry.endswith("\t" + prefix):
+            return None
+        mode = entry.split(" ", 1)[0]
+        if mode == "160000" and i < len(parts):
+            return SUBMODULE  # git keeps no copy of a submodule's files
+        if mode == "120000":  # a symlink
+            target = git(repo, "show", f"{treeish}:{prefix}", check=False).stdout
+            joined = posixpath.normpath(posixpath.join(
+                posixpath.dirname(prefix), target, *parts[i:]))
+            if hops >= 8 or target.startswith("/") or joined.startswith(".."):
+                return None
+            return tree_line_count(repo, treeish, joined, hops + 1)
+    out = git(repo, "show", f"{treeish}:{path}", check=False, binary=True)
+    return count_lines(out.stdout) if out.returncode == 0 else None
+
+
 class Base:
     """Files on the change's base branch, read through git."""
 
-    def __init__(self, repo, ref):
-        self.repo, self.ref = repo, ref
+    def __init__(self, repo, ref, change=None):
+        # change: the tree the change is read from, as a git tree-ish, or
+        # None for the working tree.
+        self.repo, self.ref, self.change = repo, ref, change
         self._names = None
         self._lines = {}
         self.ok = git(repo, "rev-parse", "-q", "--verify", f"{ref}^{{commit}}",
@@ -400,53 +547,97 @@ class Base:
             self._names = out.stdout.splitlines()
         return self._names
 
+    def change_line_count(self, path):
+        """Lines in the change's own copy of path, or None if it has none."""
+        if self.change is None:
+            full = os.path.join(self.repo, path)
+            if not os.path.isfile(full):
+                return None
+            with open(full, "rb") as fh:
+                data = fh.read()
+        else:
+            return tree_line_count(self.repo, self.change, path)
+        return count_lines(data)
+
+    def change_names(self):
+        if self.change is None:
+            out = git(self.repo, "ls-files", "--cached", "--others", "--exclude-standard")
+        else:
+            out = git(self.repo, "ls-tree", "-r", "--name-only", self.change)
+        return out.stdout.splitlines()
+
     def line_count(self, path):
         if path not in self._lines:
-            out = git(self.repo, "show", f"{self.ref}:{path}", check=False, binary=True)
-            if out.returncode != 0:
-                self._lines[path] = None
-            else:
-                data = out.stdout
-                self._lines[path] = data.count(b"\n") + (1 if data and not data.endswith(b"\n") else 0)
+            self._lines[path] = tree_line_count(self.repo, self.ref, path)
         return self._lines[path]
 
 
 def check_citations(paths, corpus, base, out):
+    """Each `path:line` in the files, checked against the base and the change.
+
+    The one rule: a citation is an error only when it has a `/` and its line is
+    in neither the base nor the change's own copy. That is the only case the
+    script can be sure of. Every other finding, such as a bare name that
+    matches no file or several, is a check (DECISIONS.md, "A citation fails only
+    where it cannot be wrong").
+    """
     for path in paths:
-        for n, raw in enumerate(corpus.texts[path].splitlines(), 1):
+        for n, raw, fenced in markdown_lines(corpus.texts[path]):
+            if fenced:  # quoted output, such as a stack trace, cites nothing
+                continue
             for m in CITATION.finditer(raw):
-                cited, first, last = m.group(1), int(m.group(2)), m.group(3)
-                cited = cited[2:] if cited.startswith("./") else cited
-                ext = cited.rsplit(".", 1)[-1].lower()
-                if not ext[:1].isalpha():
-                    continue
-                bare = "/" not in cited
-                if bare and ext in HOST_SUFFIXES:
-                    continue
-                severity = "error" if not bare or ext in FILE_EXTS else "check"
-                line = int(last) if last else first
-                if not base.ok:
-                    # No base to read, as in a repository with no commits yet.
-                    out.append(Finding(path, n, "check", "citation",
-                                       f"{m.group(0)}: not checked; {base.ref} does not resolve"))
-                    continue
-                resolved = cited
-                if base.line_count(cited) is None and "/" not in cited:
-                    matches = [p for p in base.names() if p.rsplit("/", 1)[-1] == cited]
-                    if len(matches) == 1:
-                        resolved = matches[0]
-                    elif len(matches) > 1:
-                        out.append(Finding(path, n, "check", "citation",
-                                           f"{m.group(0)}: {len(matches)} files on {base.ref} are named "
-                                           f"{cited}; cite it by its path"))
-                        continue
-                count = base.line_count(resolved)
-                if count is None:
-                    out.append(Finding(path, n, severity, "citation",
-                                       f"{m.group(0)}: {cited} does not exist on {base.ref}"))
-                elif line > count or first < 1:
-                    out.append(Finding(path, n, "error", "citation",
-                                       f"{m.group(0)}: {resolved} has {count} lines on {base.ref}"))
+                finding = judge_citation(m, base)
+                if finding:
+                    out.append(Finding(path, n, finding[0], "citation", f"{m.group(0)}: {finding[1]}"))
+
+
+def judge_citation(m, base):
+    """(severity, message) for one citation, or None when it holds."""
+    cited, first, last = m.group(1), int(m.group(2)), m.group(3)
+    cited = cited[2:] if cited.startswith("./") else cited
+    line = int(last) if last else first
+    ext = cited.rsplit(".", 1)[-1].lower()
+    head = cited.split("/", 1)[0]
+    if not ext[:1].isalpha() or ext in HOST_SUFFIXES and "/" not in cited:
+        return None  # an address or a version, such as 0.0.0.0:8080
+    if "/" in cited and re.match(r"^[a-z0-9-]+(\.[a-z0-9-]+)+$", head) and \
+            head.rsplit(".", 1)[-1] in HOST_SUFFIXES:
+        return None  # an image, such as ghcr.io/acme/web.api:2
+    if not base.ok:
+        # No base to read, as in a repository with no commits yet.
+        return "check", f"not checked; {base.ref} does not resolve"
+
+    def holds(count):
+        return isinstance(count, int) and 1 <= first and line <= count
+
+    if "/" in cited:
+        on_base, own = base.line_count(cited), base.change_line_count(cited)
+        if holds(on_base) or (on_base == SUBMODULE and holds(own)):
+            return None
+        if SUBMODULE in (on_base, own):
+            return "check", f"{cited} is inside a submodule, which this check cannot read"
+        if holds(own):
+            what = "adds" if on_base is None else "extends"
+            return "check", f"{cited} is not like this on {base.ref}; this change {what} it"
+        if on_base is None and own is None:
+            return "error", f"{cited} does not exist on {base.ref} or in this change"
+        if on_base is None:
+            return "error", f"{cited} does not exist on {base.ref}, and has {own} lines in this change"
+        extra = f", and {own} in this change" if own is not None and own != on_base else ""
+        return "error", f"{cited} has {on_base} lines on {base.ref}{extra}"
+
+    # A bare name: every file whose name, without its directory, is the cited
+    # name, on the base or in the change.
+    named = sorted({p for p in base.names() + base.change_names()
+                    if p.rsplit("/", 1)[-1] == cited})
+    if not named:
+        return "check", f"no file named {cited} on {base.ref} or in this change"
+    if len(named) > 1:
+        return "check", f"{len(named)} files are named {cited}; cite it by its path"
+    found = named[0]
+    if holds(base.line_count(found)) or holds(base.change_line_count(found)):
+        return None
+    return "check", f"{found}, the one file named {cited}, has no line {line}"
 
 
 def decisions_heading_ok(title, headings):
@@ -459,10 +650,7 @@ def check_decisions(change, corpus, headings, out):
     if path not in corpus.texts:
         out.append(Finding(path, 0, "error", "decisions-first", "the change has no proposal.md"))
         return
-    fenced = False
-    for n, raw in enumerate(corpus.texts[path].splitlines(), 1):
-        if raw.lstrip().startswith(("```", "~~~")):
-            fenced = not fenced
+    for n, raw, fenced in markdown_lines(corpus.texts[path]):
         m = None if fenced else HEADING.match(raw)
         if not m or len(m.group(1)) < 2:
             continue
@@ -484,17 +672,20 @@ DECISION_ITEM = re.compile(r"^(\d+[.)]|[-*])\s+")
 # colon, or is all the line says, so "Open issues close after ninety days" is a
 # decision, not the label.
 OPEN_LABEL = re.compile(
-    r"^(\*\*|__)?\s*(still\s+open|open\s+(?:questions?|items?|issues?)|open)\b\s*(:)?\s*(\*\*|__)?(:)?",
+    r"^([*_]{0,2})\s*(still\s+open|open\s+(?:questions?|items?|issues?)|open)(?![A-Za-z0-9])"
+    r"\s*([:?.]?)\s*([*_]{0,2})\s*([:?.]?)\s*(.*)$",
     re.I)
 
 
 def is_open_label(text):
+    """Whether the text is the "still open" label: wrapped in emphasis (bold
+    or italic), followed by a colon, or all the text says ("Still open.")."""
     m = OPEN_LABEL.match(text.strip())
     if not m:
         return False
-    whole_bold = bool(m.group(1) and m.group(4))
-    colon = bool(m.group(3) or m.group(5))
-    return whole_bold or colon or not text.strip()[m.end():].strip()
+    wrapped = bool(m.group(1) and m.group(4))
+    colon = ":" in (m.group(3) + m.group(5))
+    return wrapped or colon or not m.group(6)
 
 
 def check_alternatives(path, lines, start, level, out):
@@ -505,8 +696,13 @@ def check_alternatives(path, lines, start, level, out):
     says "reject" in any form, as `*Rejected:* ...` does.
     """
     items = []  # [line number, text]
-    for n in range(start + 1, len(lines) + 1):
-        raw = lines[n - 1]
+    for n, raw, fenced in markdown_lines("\n".join(lines)):
+        if n <= start:
+            continue
+        if fenced:  # quoted text belongs to the decision it sits in
+            if items:
+                items[-1][1] += "\n" + raw
+            continue
         h = HEADING.match(raw)
         if h and (len(h.group(1)) <= level or is_open_label(h.group(2))):
             break
@@ -596,10 +792,10 @@ def resolve_targets(corpus, targets):
     return changes, specs
 
 
-def run_checks(root, repo, base_ref, targets, headings, validate, base_required=False):
+def run_checks(root, repo, base_ref, targets, headings, validate, base_required=False, change=None):
     corpus = Corpus(root)
     changes, specs = resolve_targets(corpus, targets)
-    base = Base(repo, base_ref)
+    base = Base(repo, base_ref, change)
     if not base.ok and base_required:
         raise Fatal(f"the base {base_ref!r} does not resolve to a commit")
     findings, statuses = [], []
@@ -660,7 +856,7 @@ def cmd_check(args):
         with tempfile.TemporaryDirectory(prefix="spec-check-") as tmp:
             materialize(repo, args.ref, tmp)
             res = run_checks(tmp, repo, base_ref, args.targets, headings, not args.no_validate,
-                             bool(args.base))
+                             bool(args.base), args.ref)
     else:
         res = run_checks(repo, repo, base_ref, args.targets, headings, not args.no_validate,
                          bool(args.base))
@@ -815,7 +1011,7 @@ def cmd_sign(args):
             print(f"{KEY}: \u2713 {tree[:12]} no open change or spec staged")
             return 0
         res = run_checks(tmp, repo, base_ref, targets, headings, not args.no_validate,
-                         bool(args.base))
+                         bool(args.base), tree)
     errors = print_report(*res, base_ref, "the staged tree", False)
     if errors:
         print("\nspec-check sign: not signed. Fix the errors and sign again, or commit "
