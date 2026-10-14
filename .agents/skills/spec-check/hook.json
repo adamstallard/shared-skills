@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "summary": "Reports any commit that changes openspec/ and lands without a valid Spec-check: trailer.",
+  "command": "scripts/check-commit-trailer.sh",
+  "default": "enabled",
+  "events": {
+    "claude": { "event": "PostToolUse", "matcher": "Bash" },
+    "cursor": { "event": "postToolUse", "matcher": "Shell" }
+  }
+}
