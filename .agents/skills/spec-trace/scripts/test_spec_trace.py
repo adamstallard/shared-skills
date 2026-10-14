@@ -12,6 +12,7 @@ import sys
 import tempfile
 import textwrap
 import unittest
+from unittest import mock
 from contextlib import redirect_stderr, redirect_stdout
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -60,9 +61,10 @@ class Repo(unittest.TestCase):
             return f.read()
 
     def run_cmd(self, *args):
-        out = io.StringIO()
-        with redirect_stdout(out), redirect_stderr(io.StringIO()):
+        out, err = io.StringIO(), io.StringIO()
+        with redirect_stdout(out), redirect_stderr(err):
             code = st.main(["--root", self.root, *args])
+        self.err = err.getvalue()
         return code, out.getvalue()
 
     def tag_both(self):
@@ -404,6 +406,67 @@ class FoundByTheThirdHunt(Repo):
         self.assertIn("""tag '@scenario work-claiming: Prints "done" twice' names no scenario""", out)
 
 
+class FoundByTheScopedHunt(Repo):
+    """Regression tests: tags for open changes' scenarios, ambiguity there, fences, displayed tags."""
+
+    def test_a_tag_for_a_longer_pending_name_is_not_counted_for_a_shorter_main_one(self):
+        self.tag_both()
+        self.write("openspec/changes/sharpen/specs/work-claiming/spec.md",
+                   "## MODIFIED Requirements\n### Requirement: An Igor claims before it starts\n"
+                   "#### Scenario: Claim precedes work\n#### Scenario: Claim precedes work, always\n"
+                   "#### Scenario: Unclaimed work refused\n")
+        self.write("test/b.test.ts", f"// {AT} work-claiming: Claim precedes work, always\n")
+        out = self.run_cmd("report")[1]
+        self.assertIn("| Claim precedes work | test/claim.test.ts:1 |", out)
+
+    def test_a_bare_name_repeated_in_an_open_change_is_ambiguous(self):
+        self.tag_both()
+        self.write("openspec/changes/add-two/specs/roles/spec.md",
+                   "## ADDED Requirements\n### Requirement: Role names\n#### Scenario: Malformed input rejected\n"
+                   "### Requirement: Role permissions\n#### Scenario: Malformed input rejected\n")
+        self.write("test/r.test.ts", f"// {AT} roles: Malformed input rejected\n")
+        code, out = self.run_cmd("check")
+        self.assertEqual(code, 1, out)
+        self.assertIn("is ambiguous", out)
+
+    def test_a_fence_closes_only_with_its_own_character(self):
+        self.tag_both()
+        tick, tilde = "`" * 3, "~" * 3
+        self.write("openspec/changes/doc/specs/work-claiming/spec.md",
+                   "## ADDED Requirements\n### Requirement: Examples\n"
+                   f"{tilde}markdown\n{tick}python\n## REMOVED Requirements\n"
+                   f"### Requirement: An Igor claims before it starts\n{tilde}\n"
+                   "#### Scenario: Example shown\n")
+        out = self.run_cmd("report", "--include-changes")[1]
+        self.assertIn("| Claim precedes work | test/claim.test.ts:1 |", out)
+        self.assertIn("| Example shown (change: doc) | none |", out)
+
+    def test_an_unescaped_double_quote_in_a_comment_tag_is_shown(self):
+        self.tag_both()
+        self.write("test/q.test.ts", f'// {AT} work-claiming: The "quiet" flag hides progress\n')
+        out = self.run_cmd("check")[1]
+        self.assertIn("""tag '@scenario work-claiming: The "quiet" flag hides progress' names no scenario""", out)
+
+    def test_a_tag_may_use_a_requirement_name_an_open_change_renames_to(self):
+        self.tag_both()
+        self.write("openspec/changes/ren/specs/work-claiming/spec.md",
+                   "## RENAMED Requirements\n- FROM: `### Requirement: An Igor claims before it starts`\n"
+                   "- TO: `### Requirement: An Igor claims first`\n")
+        self.write("test/n.test.ts", f"// {AT} work-claiming: An Igor claims first / Claim precedes work\n")
+        code, out = self.run_cmd("check")
+        self.assertEqual(code, 0, out)
+
+
+class FoundInTheScopedRunsSecondPass(Repo):
+    def test_an_orphan_in_a_quoted_name_followed_by_code_is_shown_alone(self):
+        self.tag_both()
+        self.write("tests/a.rb", f'it "{AT} work-claiming: Clam precedes work" do\n')
+        self.write("tests/b.kt", f"fun `{AT} work-claiming: Clam precedes work`() {{\n")
+        out = self.run_cmd("check")[1]
+        self.assertIn("tests/a.rb:1: tag '@scenario work-claiming: Clam precedes work' names", out)
+        self.assertIn("tests/b.kt:1: tag '@scenario work-claiming: Clam precedes work' names", out)
+
+
 class RepeatedNames(Repo):
     """A scenario name that repeats within a capability is named with its requirement."""
 
@@ -516,6 +579,313 @@ class Report(Repo):
         self.assertIn("- test/x.test.ts:1: tag", out)
 
 
+class Detection(Repo):
+    """Test globs come from the repository's test runner configuration when --tests is not given."""
+
+    def files(self):
+        found = st.detect_tests(self.root)
+        self.troubles = found.troubles
+        return found.sources, st.detected_files(self.root, found)
+
+    def test_vitest_include(self):
+        self.write("vitest.config.ts", """\
+            export default defineConfig({
+              test: {
+                include: ['checks/**/*.check.ts'],  // where the tests live
+                coverage: { include: ['src/**'] },
+              },
+            })
+            """)
+        self.write("checks/a.check.ts", "")
+        self.write("test/b.test.ts", "")
+        sources, files = self.files()
+        self.assertEqual(sources, ["vitest.config.ts (test.include)"])
+        self.assertEqual(files, ["checks/a.check.ts"])
+
+    def test_vitest_default_include_and_its_exclude(self):
+        self.write("vitest.config.ts", "export default defineConfig({ test: { exclude: ['old/**'] } })\n")
+        for f in ("test/a.test.ts", "src/b.spec.mjs", "old/c.test.ts", "test/helpers.ts"):
+            self.write(f, "")
+        sources, files = self.files()
+        self.assertEqual(sources, ["vitest.config.ts (Vitest's default include)"])
+        self.assertEqual(files, ["src/b.spec.mjs", "test/a.test.ts"])
+
+    def test_a_computed_vitest_include_falls_back_to_the_defaults(self):
+        self.write("vitest.config.ts", "export default defineConfig({ test: { include: dirs.map(d => d + '/**') } })\n")
+        sources, _ = self.files()
+        self.assertEqual(sources, ["the defaults"])
+        self.assertIn("vitest.config.ts: could not read test.include", self.troubles[0])
+
+    def test_a_vite_config_without_test_settings_says_nothing(self):
+        self.write("vite.config.js", "export default { build: { outDir: 'dist' } }\n")
+        self.assertEqual(self.files()[0], ["the defaults, since no test runner configuration was found"])
+        self.assertEqual(self.troubles, [])
+
+    def test_jest_test_match_in_a_config_file(self):
+        self.write("jest.config.js", "module.exports = { testMatch: ['<rootDir>/spec/**/*.js'] }\n")
+        self.write("spec/a.js", "")
+        self.write("test/b.test.js", "")
+        sources, files = self.files()
+        self.assertEqual(sources, ["jest.config.js (testMatch)"])
+        self.assertEqual(files, ["spec/a.js"])
+
+    def test_jest_default_test_match_from_package_json(self):
+        self.write("package.json", '{"name": "x", "jest": {"verbose": true}}\n')
+        for f in ("src/__tests__/a.js", "src/b.test.tsx", "src/c.js"):
+            self.write(f, "")
+        sources, files = self.files()
+        self.assertEqual(sources, ["package.json (Jest's default testMatch)"])
+        self.assertEqual(files, ["src/__tests__/a.js", "src/b.test.tsx"])
+
+    def test_jest_test_regex(self):
+        self.write("package.json", '{"jest": {"testRegex": "/specs/.*\\\\.js$"}}\n')
+        self.write("specs/a.js", "")
+        self.write("test/b.test.js", "")
+        self.assertEqual(self.files()[1], ["specs/a.js"])
+
+    def test_jest_test_regex_string_in_a_config_file(self):
+        self.write("jest.config.js", "module.exports = {\n  'testRegex': '/specs/.*\\\\.js$',\n}\n")
+        self.write("specs/a.js", "")
+        self.write("test/b.test.js", "")
+        self.assertEqual(self.files(), (["jest.config.js (testRegex)"], ["specs/a.js"]))
+
+    def test_pytest_ini(self):
+        self.write("pytest.ini", "[pytest]\ntestpaths = checks\npython_files = check_*.py\n")
+        self.write("checks/check_a.py", "")
+        self.write("tests/test_b.py", "")
+        sources, files = self.files()
+        self.assertEqual(sources, ["pytest.ini (pytest testpaths and python_files)"])
+        self.assertEqual(files, ["checks/check_a.py"])
+
+    def test_pytest_in_pyproject_and_setup_cfg(self):
+        self.write("pyproject.toml", '[tool.pytest.ini_options]\ntestpaths = ["suite"]\n')
+        self.write("suite/test_a.py", "")
+        self.write("suite/deep/b_test.py", "")
+        self.write("other/test_c.py", "")
+        self.assertEqual(self.files()[1], ["suite/deep/b_test.py", "suite/test_a.py"])
+        os.remove(os.path.join(self.root, "pyproject.toml"))
+        self.write("setup.cfg", "[tool:pytest]\npython_files = check_*.py\n")
+        self.write("x/check_d.py", "")
+        self.assertEqual(self.files()[1], ["x/check_d.py"])
+
+    def test_go(self):
+        self.write("go.mod", "module x\n")
+        self.write("pkg/a_test.go", "")
+        self.write("pkg/a.go", "")
+        self.assertEqual(self.files(), (["go.mod (Go's *_test.go)"], ["pkg/a_test.go"]))
+
+    def test_rust(self):
+        self.write("Cargo.toml", "[package]\n")
+        self.write("src/lib.rs", "")
+        self.write("tests/it.rs", "")
+        self.write("build.rs", "")
+        self.assertEqual(self.files()[1], ["src/lib.rs", "tests/it.rs"])
+
+    def test_no_runner_configuration_falls_back_to_the_defaults(self):
+        self.tag_both()
+        code, out = self.run_cmd("check")
+        self.assertEqual(code, 0, out)
+        self.assertIn("test files from the defaults, since no test runner configuration was found", self.err)
+
+    def test_the_source_is_printed_and_tests_overrides_detection(self):
+        self.write("go.mod", "module x\n")
+        self.write("checks/claim.ts", f"// {AT} work-claiming: Claim precedes work\n// {AT} work-claiming: Unclaimed work refused\n")
+        self.assertEqual(self.run_cmd("check")[0], 1)
+        self.assertIn("test files from go.mod (Go's *_test.go)", self.err)
+        code, out = self.run_cmd("--tests", "checks/**", "check")
+        self.assertEqual(code, 0, out)
+        self.assertIn("test files from --tests", self.err)
+
+
+class Trouble(Repo):
+    """A config spec-trace cannot read with confidence is reported, and never guessed at silently."""
+
+    def trouble(self, *args):
+        code, out = self.run_cmd(*args)
+        return code, out, self.err
+
+    def test_a_regex_literal_makes_the_vitest_config_unreadable_and_pytest_still_counts(self):
+        self.write("vite.config.ts", "export default { server: { proxy: { '/api': { rewrite: (p) => "
+                   "p.replace(/^\\/api\\//, '/') } } }, test: { include: ['src/**/*.unit.ts'] } }\n")
+        self.write("pytest.ini", "[pytest]\ntestpaths = checks\n")
+        self.write("checks/test_claim.py", f"# {AT} work-claiming: Claim precedes work\n"
+                   f"# {AT} work-claiming: Unclaimed work refused\n")
+        code, out, err = self.trouble("check")
+        self.assertEqual(code, 0, out + err)
+        self.assertIn("vite.config.ts: could not read", err)
+        self.assertIn("checks/**/test_*.py", err)
+        self.assertIn("openspec/spec-trace-tests.txt", err)
+
+    def test_a_comment_with_an_apostrophe_inside_the_include_list_is_read(self):
+        self.write("vitest.config.ts", "export default {\n  test: {\n    include: [\n"
+                   "      'src/**/*.unit.ts', // don't add e2e here\n    ],\n  },\n}\n")
+        self.write("src/a.unit.ts", "")
+        self.assertEqual(Detection.files(self), (["vitest.config.ts (test.include)"], ["src/a.unit.ts"]))
+        self.assertEqual(self.troubles, [])
+
+    def test_a_shorthand_include_is_trouble(self):
+        self.write("vitest.config.ts", "const include = ['src/**']\nexport default { test: { include } }\n")
+        Detection.files(self)
+        self.assertIn("vitest.config.ts: could not read test.include", self.troubles[0])
+
+    def test_vitest_projects_are_trouble(self):
+        self.write("vitest.config.ts", "export default { test: { projects: [{ test: { include: ['a/**'] } }] } }\n")
+        Detection.files(self)
+        self.assertIn("vitest.config.ts: could not read test.projects", self.troubles[0])
+
+    def test_a_negated_jest_test_match_entry_is_trouble(self):
+        self.write("jest.config.js", "module.exports = { testMatch: ['**/src/**/*.check.js', '!**/fixtures/**'] }\n")
+        Detection.files(self)
+        self.assertIn("jest.config.js: could not read testMatch", self.troubles[0])
+
+    def test_pyproject_without_tomllib_is_trouble(self):
+        self.write("pyproject.toml", '[tool.pytest.ini_options]\npython_files = "check_*.py test_*.py"\n')
+        with mock.patch.dict(sys.modules, {"tomllib": None}):
+            Detection.files(self)
+        self.assertIn("pyproject.toml: could not read", self.troubles[0])
+
+    def test_pytest_reads_its_config_files_in_pytests_order(self):
+        self.write(".pytest.ini", "[pytest]\npython_files = dot_*.py\n")
+        self.write("pyproject.toml", '[tool.pytest.ini_options]\npython_files = ["py_*.py"]\n')
+        self.write("tox.ini", "[pytest]\npython_files = tox_*.py\n")
+        self.assertEqual(Detection.files(self)[0], [".pytest.ini (pytest testpaths and python_files)"])
+        os.remove(os.path.join(self.root, ".pytest.ini"))
+        self.assertEqual(Detection.files(self)[0], ["pyproject.toml (pytest testpaths and python_files)"])
+
+    def test_baseline_refuses_to_write_while_detection_reports_trouble(self):
+        self.write("vitest.config.ts", "export default { test: { include: dirs } }\n")
+        code, out, err = self.trouble("baseline")
+        self.assertEqual(code, 2, out + err)
+        self.assertIn("vitest.config.ts: could not read test.include", out)
+        self.assertFalse(os.path.exists(os.path.join(self.root, st.DEFAULT_BASELINE)))
+        self.tag_both()
+        self.write(st.TESTS_FILE, "test/**\n")
+        self.assertEqual(self.trouble("baseline")[0], 0)
+
+    def test_a_bad_detected_glob_does_not_crash(self):
+        self.tag_both()
+        self.write("vitest.config.ts", "export default { test: { include: ['src/**/!(*.e2e).test.ts'] } }\n")
+        code, out, err = self.trouble("check")
+        self.assertEqual(code, 0, out + err)
+        self.assertIn("vitest.config.ts: could not read test.include", err)
+
+    def test_a_name_ending_in_a_parenthesis_is_shown_whole(self):
+        self.tag_both()
+        self.write("test/r.test.ts", f"it('{AT} work-claiming: Run (fast)', () => {{}})\n")
+        self.assertIn("tag '@scenario work-claiming: Run (fast)' names no scenario", self.run_cmd("check")[1])
+
+
+class FoundByTheDetectionHunt(Repo):
+    """Regression tests: detection must never silently miss a tagged test, nor crash."""
+
+    def setUp(self):
+        super().setUp()
+        self.write("openspec/specs/work-claiming/spec.md", "### Requirement: R\n#### Scenario: Claim precedes work\n")
+
+    def baseline_must_not_exempt(self, tagged):
+        self.write(tagged, f"// {AT} work-claiming: Claim precedes work\n")
+        code, out = self.run_cmd("baseline")
+        written = os.path.exists(os.path.join(self.root, st.DEFAULT_BASELINE)) and \
+            "work-claiming: Claim precedes work" in self.read(st.DEFAULT_BASELINE)
+        self.assertFalse(written, out + self.err)
+
+    def test_a_runner_config_below_the_root_is_reported(self):
+        self.write("pyproject.toml", '[tool.pytest.ini_options]\ntestpaths = ["tests"]\n')
+        self.write("web/vitest.config.ts", "export default { test: { include: ['src/**/*.test.ts'] } }\n")
+        self.baseline_must_not_exempt("web/src/a.test.ts")
+
+    def test_a_go_module_below_the_root_is_read(self):
+        self.write("svc/go.mod", "module x\n")
+        self.write("svc/a_test.go", f"// {AT} work-claiming: Claim precedes work\n")
+        self.assertEqual(self.run_cmd("check")[0], 0, self.err)
+
+    def test_one_runners_exclude_does_not_hide_another_runners_tests(self):
+        self.write("vitest.config.ts", "export default { test: { exclude: ['backend/**'] } }\n")
+        self.write("pytest.ini", "[pytest]\ntestpaths = backend/tests\n")
+        self.baseline_must_not_exempt("backend/tests/test_a.py")
+
+    def test_a_test_setting_that_is_not_an_object_literal_is_reported(self):
+        self.write("vitest.config.ts", "const test = { include: ['src/**/*.check.ts'] }\n"
+                   "export default defineConfig({ plugins: [react()], test })\n")
+        self.baseline_must_not_exempt("src/a.check.ts")
+        os.remove(os.path.join(self.root, "vitest.config.ts"))
+        self.write("vitest.config.ts", "export default { test: ci ? { include: ['a/**'] } : { include: ['src/**/*.check.ts'] } }\n")
+        self.baseline_must_not_exempt("src/a.check.ts")
+
+    def test_vitest_in_source_tests_are_reported(self):
+        self.write("vitest.config.ts", "export default { test: { includeSource: ['src/**/*.ts'] } }\n")
+        self.baseline_must_not_exempt("src/add.ts")
+
+    def test_jest_projects_are_reported(self):
+        self.write("jest.config.js", "module.exports = { projects: [{ testMatch: ['<rootDir>/src/**/*.unit.js'] }] }\n")
+        self.baseline_must_not_exempt("src/a.unit.js")
+
+    def test_a_base_directory_is_reported(self):
+        self.write("vitest.config.ts", "export default { root: 'app', test: { include: ['tests/**/*.ts'] } }\n")
+        self.baseline_must_not_exempt("app/tests/a.ts")
+
+    def test_pytest_testpaths_with_a_leading_dot(self):
+        self.write("pytest.ini", "[pytest]\ntestpaths = ./tests\n")
+        self.write("tests/test_a.py", f"# {AT} work-claiming: Claim precedes work\n")
+        self.assertEqual(self.run_cmd("check")[0], 0, self.err)
+
+    def test_pytest_toml_and_the_native_pytest_table_are_reported(self):
+        self.write("pytest.toml", '[pytest]\ntestpaths = ["checks"]\n')
+        self.write("pyproject.toml", '[tool.pytest.ini_options]\ntestpaths = ["tests"]\n')
+        self.baseline_must_not_exempt("checks/check_a.py")
+        os.remove(os.path.join(self.root, "pytest.toml"))
+        self.write("pyproject.toml", '[tool.pytest]\npython_files = ["check_*.py"]\n')
+        self.write("go.mod", "module x\n")
+        self.baseline_must_not_exempt("src/pkg/check_a.py")
+
+    def test_jest_30_default_test_match_takes_mjs(self):
+        self.write("package.json", '{"jest": {"testEnvironment": "node"}}\n')
+        self.write("src/a.test.mjs", f"// {AT} work-claiming: Claim precedes work\n")
+        self.assertEqual(self.run_cmd("check")[0], 0, self.err)
+
+    def test_broken_configs_never_crash(self):
+        cases = [
+            ("vitest.config.ts", "export default { test: { include: ['src/**/*.[t-j]s'] } }\n".encode()),
+            ("pytest.ini", b"[pytest]\npython_files = test_[z-a]*.py\n"),
+            ("setup.cfg", "[metadata]\nauthor = J\u00fcrgen\n".encode("latin-1")),
+            ("pyproject.toml", "[project]\nname = 'J\u00fcrgen'\n".encode("latin-1")),
+            ("jest.config.json", b"[]\n"),
+            (st.TESTS_FILE, "# caf\u00e9\ntest/**\n".encode("latin-1")),
+        ]
+        self.write("test/a.test.ts", f"// {AT} work-claiming: Claim precedes work\n")
+        for name, data in cases:
+            path = os.path.join(self.root, name)
+            with open(path, "wb") as f:
+                f.write(data)
+            for command in ("check", "report", "baseline"):
+                code, out = self.run_cmd(command)
+                self.assertIn(code, (0, 1, 2), f"{name} {command}: {out}{self.err}")
+            os.remove(path)
+
+
+class TestsFile(Repo):
+    """openspec/spec-trace-tests.txt sets the test globs by hand, in place of detection."""
+
+    def test_it_replaces_detection_and_tests_wins_over_it(self):
+        self.write("go.mod", "module x\n")
+        self.write("checks/claim.ts", f"// {AT} work-claiming: Claim precedes work\n// {AT} work-claiming: Unclaimed work refused\n")
+        self.write("checks/fixtures/old.ts", f"// {AT} work-claiming: Gone\n")
+        self.write(st.TESTS_FILE, "# where the tests live\nchecks/**\n!checks/fixtures/**\n")
+        code, out = self.run_cmd("check")
+        self.assertEqual(code, 0, out)
+        self.assertIn(f"test files from {st.TESTS_FILE}", self.err)
+        code, out = self.run_cmd("--tests", "test/**", "check")
+        self.assertEqual(code, 2)
+        self.assertIn("test files from --tests", self.err)
+
+    def test_a_glob_in_it_that_matches_nothing_stops_the_command(self):
+        self.tag_both()
+        self.write(st.TESTS_FILE, "test/**\nee2/**\n")
+        code, out = self.run_cmd("baseline")
+        self.assertEqual(code, 2)
+        self.assertIn("ee2/**", out)
+
+
 class Globs(unittest.TestCase):
     def test_defaults_match_common_layouts(self):
         patterns = [st.glob_to_regex(g) for g in st.DEFAULT_TESTS]
@@ -525,6 +895,15 @@ class Globs(unittest.TestCase):
             self.assertTrue(hit(path), path)
         for path in ["src/a.ts", "openspec/specs/x/spec.md", "contest/a.ts", "latest.py"]:
             self.assertFalse(hit(path), path)
+
+    def test_extglobs(self):
+        r = st.glob_to_regex("**/?(*.)+(spec|test).[jt]s?(x)")
+        for path in ["a.test.js", "src/a.spec.tsx", "src/test.ts"]:
+            self.assertTrue(r.match(path), path)
+        for path in ["src/a.js", "src/a.test.jsxx"]:
+            self.assertFalse(r.match(path), path)
+        with self.assertRaises(ValueError):
+            st.glob_to_regex("!(a)")
 
 
 if __name__ == "__main__":

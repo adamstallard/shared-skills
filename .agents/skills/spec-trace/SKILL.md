@@ -70,12 +70,41 @@ python3 $T report --include-changes   # the specs as open changes will leave the
 python3 $T baseline          # write every untagged scenario to the baseline file
 ```
 
-`--tests GLOB` (repeatable) replaces the default test file patterns, which
-cover `test/`, `tests/`, `__tests__/`, `*_test.*`, `*.test.*`, `*.spec.*` and
-`test_*.py`. A glob may use `**`, `*`, `?`, `{a,b}` and `[...]`. When a
-`--tests` glob is malformed or matches no file, every command exits 2 and
-writes nothing. `--baseline PATH` moves the baseline from
-`openspec/spec-trace-baseline.txt`.
+**Which files are tests.** Without `--tests`, the globs come from the
+repository's test runner configuration:
+
+| Runner | Read from |
+| --- | --- |
+| Vitest | `test.include` and `test.exclude` in `vitest.config.*` or `vite.config.*`, else Vitest's default include |
+| Jest | `testMatch` or `testRegex` in `jest.config.*` or the `jest` key of `package.json`, else Jest's default `testMatch` |
+| pytest | `testpaths` and `python_files` in `pytest.ini`, `.pytest.ini`, `pyproject.toml`, `tox.ini` or `setup.cfg`, else pytest's default `test_*.py` and `*_test.py` |
+| Go | `*_test.go`, when a `go.mod` exists anywhere in the repository |
+| Rust | every `.rs` file under `tests/` and `src/`, when a `Cargo.toml` exists anywhere |
+
+With no such configuration the defaults apply: `test/`, `tests/`,
+`__tests__/`, `*_test.*`, `*.test.*`, `*.spec.*` and `test_*.py`. Every
+command prints the source it used on stderr, as `spec-trace: test files from
+...`.
+
+A configuration spec-trace cannot read with confidence prints a warning
+naming the file, what it could not read, and the globs used instead: the
+other runners' globs, or the defaults. Examples are a computed or shorthand
+`include`, Vitest projects or `includeSource`, a `root` or `rootDir` setting,
+Jest `projects`, a regex literal anywhere in the file, a negated Jest
+`testMatch` entry, `pytest.toml`, `pyproject.toml` on Python before 3.11,
+and any runner configuration below the repository root. While there is such
+a warning, `baseline` refuses to write (exit 2).
+
+**Setting the globs by hand.** When detection warns or picks the wrong
+files, list the globs in `openspec/spec-trace-tests.txt`, one per line, with
+`!` before a glob to exclude and `#` for comments. When that file exists it
+replaces detection, in CI as well. `--tests GLOB` (repeatable) wins over
+both. A glob may use `**`, `*`,
+`?`, `{a,b}`, `[...]` and the extglobs `?(...)`, `*(...)`, `+(...)` and
+`@(...)`. When a glob from `--tests` or `openspec/spec-trace-tests.txt` is
+malformed or matches no file, every command exits 2 and writes nothing.
+
+`--baseline PATH` moves the baseline from `openspec/spec-trace-baseline.txt`.
 
 ## What `check` fails on, and the fix
 

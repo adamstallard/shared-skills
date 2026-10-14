@@ -99,15 +99,33 @@ python3 ~/.agents/skills/spec-trace/scripts/spec_trace.py report   # table of sc
 `report` prints a markdown table per capability, ready to paste into a pull
 request. `report --include-changes` shows the specs as the open changes in
 `openspec/changes/` will leave them once archived: added, modified, removed
-and renamed requirements applied. `check` never reads open changes.
+and renamed requirements applied. `check` requires tags only for scenarios in
+`openspec/specs/`.
 
-Test files are found by default under `test/`, `tests/` and `__tests__/`, and
-by the names `*_test.*`, `*.test.*`, `*.spec.*` and `test_*.py`. Pass
-`--tests GLOB` (repeatable) to use your own patterns instead; `**`, `*`, `?`,
-`{a,b}` and `[...]` work. If a pattern is malformed or matches no file, the
-command stops with exit code 2 instead of treating the scenarios its files
-would tag as untagged. Files git ignores, `node_modules/` and nested
-repositories are skipped.
+Test files are the ones your test runner's configuration names: Vitest's
+`test.include`, Jest's `testMatch` or `testRegex`, pytest's `testpaths` and
+`python_files`, Go's `*_test.go`, or Rust's `tests/` and `src/`. Each command
+prints which source it used, for example `spec-trace: test files from
+vitest.config.ts (Vitest's default include)`. With no runner configuration
+the defaults apply: `test/`, `tests/`, `__tests__/`, `*_test.*`, `*.test.*`,
+`*.spec.*` and `test_*.py`.
+
+If spec-trace cannot read a configuration with confidence, for example
+because its globs are computed in code, it warns on stderr, names the file
+and what it could not read, and says which globs it used instead. While such
+a warning stands, `baseline` refuses to write: the globs used instead may
+miss real tests, and the scenarios those tests tag would look untagged and
+be written into the baseline, exempt from then on.
+
+To set the globs yourself, list them in `openspec/spec-trace-tests.txt`, one
+per line (`!` before a glob excludes, `#` starts a comment). That file
+replaces detection everywhere, CI included. `--tests GLOB` (repeatable) wins
+over both, for one run. `**`, `*`, `?`, `{a,b}`, `[...]` and extglobs such as
+`?(x)` work. If a glob you set, in that file or with `--tests`, is malformed
+or matches no file, the command stops with exit code 2. If it carried on, the
+tests that glob was meant to find would go unread, and the scenarios they tag
+would look untagged. Files git ignores,
+`node_modules/` and nested repositories are skipped.
 
 ## When `check` fails
 

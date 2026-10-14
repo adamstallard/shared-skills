@@ -28,10 +28,12 @@ moved.
 ## Only the main specs are checked
 
 **Decision.** `check` requires tags only for scenarios in
-`openspec/specs/*/spec.md`. A tag naming a scenario that an open change in
-`openspec/changes/` adds, under an ADDED or MODIFIED requirement, is
-accepted, neither counted nor reported. `report --include-changes` applies
-each open change's delta to the main specs, for a local view: an ADDED or MODIFIED
+`openspec/specs/*/spec.md`. A tag may also name a scenario that exists only in
+an open change in `openspec/changes/`: one the change adds under an ADDED or
+MODIFIED requirement, or one under a requirement the change renames, written
+with the requirement's new name. Such a tag is accepted, neither counted nor
+reported. A bare name that repeats within the change is ambiguous, as in the
+main specs. `report --include-changes` applies each open change's delta to the main specs, for a local view: an ADDED or MODIFIED
 requirement replaces the one of that name, REMOVED drops it, and RENAMED
 renames it. Merging a change's scenarios in without applying its delta would
 list a modified scenario twice, once from the main spec and once from the
@@ -108,7 +110,11 @@ scenario names. The longest one that the text starts with wins, provided the
 line ends there or one of these follows: a quote, `)`, `,`, `;`, `{`, `*/`,
 `-->`, or a period followed by a space, the end of the line, a quote, `)`,
 `*/` or `-->`. Every decision about a tag, which scenario it names and whether it
-is ambiguous, goes through that one match. When a repeated scenario name is
+is ambiguous, goes through that one match, over the main specs and the open
+changes together; on a tie, the main specs win. Matching the main specs first
+would go wrong when an open change adds "Claim precedes work, always" and
+the main specs have "Claim precedes work": a tag naming the change's
+scenario would be counted as covering the main one. When a repeated scenario name is
 a longer match than any unique one, the tag is ambiguous. Without that rule,
 in a spec where "Item assigned, on Linear" appears under two requirements and
 "Item assigned" under one, a bare tag for "Item assigned, on Linear" would
@@ -125,10 +131,11 @@ line or a closer, so a tag can end a sentence, as in a Python docstring
 ending `work."""`, while `Foo.bar` never matches `Foo`.
 
 **Rejected: deciding ambiguity from the displayed text.** The display text
-is cut at a double quote, a backtick and a comment closer, but not at every
-single quote, since names contain apostrophes. In a single-quoted test name
-the display text therefore kept `', async () =>` after the name, and a
-repeated name there was reported as a renamed scenario instead of as
+is cut by rules of its own: at a comment closer, and at a quote that a `,`,
+a `)` or the line's end follows. Those rules guess where a test name ends.
+When ambiguity was decided from that text, a guess that left
+`', async () =>` after a repeated name meant the text matched no repeated
+name exactly, so the tag failed as naming no scenario instead of as
 ambiguous.
 
 **Where it stops applying.** A tag whose scenario was removed or renamed
@@ -177,3 +184,100 @@ a `.git` entry.
 such as `.claude/worktrees/`, each with a full copy of the tests. Scanning
 them would count their tags, including tags for scenarios that the branch
 being checked doesn't have.
+
+## A code fence closes only with its own kind of line
+
+**Decision.** Headings inside a code fence are not read, in a spec or in a
+change's delta. A fence opened with backticks or tildes closes only on a
+line of the same character, at least as long, with nothing else on it.
+
+**Why.** A spec that shows a Markdown example puts it in a `~~~` fence when
+the example itself holds a ```` ``` ```` fence. Closing on any fence line
+would end the example at that inner line, read the example's headings as
+real ones, and then skip the rest of the file as fenced.
+
+## Test globs come from the test runner's configuration file
+
+**Decision.** Without `--tests`, the test file globs are read from the
+repository's test runner configuration: Vitest's `test.include` and
+`test.exclude`, Jest's `testMatch` or `testRegex`, pytest's `testpaths` and
+`python_files`, and for Go and Rust their fixed layouts. A runner whose
+configuration names no globs gets that runner's own default. The file is
+read as text: a JavaScript config yields its globs only when they are
+string literals, found by walking the object keys (`test` then `include`, so
+`coverage.include` is not mistaken for them). Anything computed, such as
+`include: dirs.map(...)`, is reported, not guessed: see the next entry.
+`openspec/spec-trace-tests.txt` replaces detection, and `--tests` wins over
+both.
+
+**Why.** The runner's configuration is what decides which files are tests,
+so reading it keeps spec-trace from reading a helper file as a test or
+missing a test the runner runs. The source is printed every time, because a
+wrong guess is otherwise invisible: it shows up only as scenarios that look
+untagged.
+
+**Rejected: parsing the test script in package.json.** It is usually just
+`vitest run` or `jest`, which names no files; the configuration file does.
+**Rejected: running the runner to list its tests** (`vitest list`, `pytest
+--collect-only`). It needs the repository's dependencies installed, which
+spec-trace's CI step does not have.
+
+**Where it stops applying.** Rust's unit tests live in `#[cfg(test)]`
+modules inside ordinary source files, which no glob can tell apart, so every
+`.rs` file under `src/` is read. Jest's `<rootDir>` is taken to be the
+repository root. `testRegex` is searched in the file's path with a `/` put
+in front, since Jest matches it against an absolute path: a pattern such as
+`/__tests__/` then matches a top-level `__tests__` directory too.
+
+## A configuration that cannot be read is reported, and blocks the baseline
+
+**Decision.** A detector that cannot read its runner's configuration with
+confidence contributes no globs and prints a warning: the file, what it
+could not read, the globs used instead, and how to set them by hand. The
+other runners' globs still count; with none, the defaults apply. `baseline`
+exits 2 while any such warning stands, unless the globs are set by hand.
+
+**Why.** A wrong guess at the test files shows up only as scenarios that
+look untagged, and `baseline` would write them into the baseline, where they
+stay exempt even though a test tags them. Reporting costs a warning;
+guessing hides a tag for as long as the guess stands, since `check` runs
+with the same wrong globs and never sees the test that would flag the line. These cases are treated as unreadable
+rather than parsed:
+- in a JavaScript config: a regex literal (a `/` outside strings and
+  comments), a template string with `${...}`, a computed, shorthand or spread
+  value, or a `test` setting that is not an object literal;
+- settings that change which files are tests or where globs start: Vitest's
+  projects, workspaces, `includeSource`, `root` and `test.dir`, and Jest's
+  `projects`, `rootDir` and `roots`;
+- a negated Jest `testMatch` entry;
+- `pytest.toml`, pytest's native `[tool.pytest]` table, and `pyproject.toml`
+  on Python before 3.11, which has no `tomllib`;
+- a Vitest, Jest or pytest configuration below the repository root, which
+  applies to its own directory.
+
+Any other error while reading a configuration becomes the same kind of
+warning, never a crash. Each runner's excludes apply to its own globs only,
+so Vitest excluding `backend/**` does not hide pytest's tests there.
+
+**Rejected: a full JavaScript parser.** Reading these configs exactly means
+evaluating them: a parser still cannot know what `dirs.map(...)` or an
+imported setting yields. Refusing every construct outside a small, known set
+gives the same warnings with far less code, and nothing it doesn't know can
+slip through as a guess.
+
+## The test globs can be set by hand, in a file next to the baseline
+
+**Decision.** `openspec/spec-trace-tests.txt`, when present, lists the test
+globs, one per line, `!` to exclude and `#` for comments. It replaces
+detection. `--tests` still wins over it.
+
+**Why.** A repository whose configuration spec-trace cannot read needs a
+setting that CI and every agent pick up without a flag. Next to the
+baseline, it is in the one directory spec-trace already owns, and a plain
+list of globs needs no parser.
+
+## Known issues
+
+- An orphan tag's text (a tag that names no scenario) is shown cut short when a single quote followed by a
+  comma sits inside the name, as in `Says "hi" to 'Bob', twice`. Only the
+  error message is affected; the tag is still reported.

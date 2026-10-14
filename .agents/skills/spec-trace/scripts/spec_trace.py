@@ -11,13 +11,17 @@ Why it is built this way, and what was tried and rejected: ../DECISIONS.md.
 """
 
 import argparse
+import configparser
 import difflib
+import json
 import os
 import re
 import subprocess
 import sys
 
 DEFAULT_BASELINE = "openspec/spec-trace-baseline.txt"
+# Test globs set by hand, one per line, `!` before a glob to exclude: used in place of detection.
+TESTS_FILE = "openspec/spec-trace-tests.txt"
 DEFAULT_TESTS = [
     "**/test/**",
     "**/tests/**",
@@ -31,7 +35,7 @@ SKIP_DIRS = {".git", "node_modules"}
 
 REQUIREMENT = re.compile(r"^###\s+Requirement:\s*(.+?)\s*$")
 SCENARIO = re.compile(r"^####\s+Scenario:\s*(.+?)\s*$")
-FENCE = re.compile(r"^\s*(```|~~~)")
+FENCE = re.compile(r"^\s*(`{3,}|~{3,})(.*)$")
 TAG = re.compile(r"@scenario\s+([A-Za-z0-9][A-Za-z0-9_.-]*)\s*:")
 # A tag ends at the end of its line, or where one of these follows the name:
 # a closing quote, a comment closer, punctuation that ends an argument, or the
@@ -44,6 +48,23 @@ NOT_AN_END = "\uE000"
 # The separator between a requirement and a scenario, for a scenario whose
 # name repeats within its capability.
 QUALIFIER = " / "
+
+
+def fence_after(line, fence):
+    """The open fence after this line, and whether this line opens or closes one.
+
+    A fence closes only on a line of its own character, at least as long, and nothing else,
+    so a ``` line inside a ~~~ example is part of the example: neither opens nor closes.
+    """
+    m = FENCE.match(line)
+    if not m:
+        return fence, False
+    mark = m.group(1)
+    if fence is None:
+        return mark, True
+    if mark[0] == fence[0] and len(mark) >= len(fence) and not m.group(2).strip():
+        return None, True
+    return fence, False
 
 
 def norm(text):
@@ -69,15 +90,13 @@ def parse_spec(path, rel, capability, change=None):
     """Scenarios in one spec file. A change's delta skips its REMOVED section."""
     scenarios = []
     requirement = ""
-    in_fence = False
+    fence = None
     removed = False
     with open(path, encoding="utf-8", errors="replace") as f:
         for number, raw in enumerate(f, 1):
-            line = raw.rstrip("\n")
-            if FENCE.match(line):
-                in_fence = not in_fence
-                continue
-            if in_fence:
+            line = raw.rstrip("\r\n")
+            fence, fence_line = fence_after(line, fence)
+            if fence_line or fence:
                 continue
             if re.match(r"^##(\s|$)", line):
                 removed = change is not None and line[2:].strip().upper().startswith("REMOVED")
@@ -102,14 +121,12 @@ def parse_delta(path):
     removed, renamed, restated = set(), {}, set()
     section = ""
     old = None
-    in_fence = False
+    fence = None
     with open(path, encoding="utf-8", errors="replace") as f:
         for raw in f:
             line = raw.rstrip("\r\n")
-            if FENCE.match(line):
-                in_fence = not in_fence
-                continue
-            if in_fence:
+            fence, fence_line = fence_after(line, fence)
+            if fence_line or fence:
                 continue
             if re.match(r"^##(\s|$)", line):
                 section = line[2:].strip().upper()
@@ -129,14 +146,16 @@ def parse_delta(path):
     return removed, renamed, restated
 
 
-def apply_delta(scenarios, changed, removed, renamed, restated, capability):
+def apply_delta(scenarios, changed, removed, renamed, restated, capability, change):
     """The scenarios as they will be once the change is archived."""
     kept = []
     for s in scenarios:
         if s.capability == capability:
             if s.requirement in removed:
                 continue
-            s.requirement = renamed.get(s.requirement, s.requirement)
+            if s.requirement in renamed:
+                # Under its new name the scenario exists only in the change, until the archive.
+                s.requirement, s.change = renamed[s.requirement], change
             if s.requirement in restated:
                 continue
         kept.append(s)
@@ -189,52 +208,84 @@ def load_scenarios(root, include_changes=False):
                 if os.path.isfile(path):
                     rel = f"openspec/changes/{change}/specs/{capability}/spec.md"
                     scenarios = apply_delta(scenarios, parse_spec(path, rel, capability, change),
-                                            *parse_delta(path), capability)
+                                            *parse_delta(path), capability, change)
     problems = assign_idents(scenarios)
     return scenarios, problems
 
 
-def glob_to_regex(pattern):
-    out = []
-    i = 0
-    braces = 0
+def closing(pattern, i, open_, close):
+    """The index of the bracket closing the one at i, or ValueError."""
+    depth = 0
+    for j in range(i, len(pattern)):
+        if pattern[j] == open_:
+            depth += 1
+        elif pattern[j] == close:
+            depth -= 1
+            if not depth:
+                return j
+    raise ValueError(f"unclosed {open_} in {pattern}")
+
+
+def split_top(body, sep):
+    """body split at each sep outside brackets."""
+    parts, depth, start = [], 0, 0
+    for j, c in enumerate(body):
+        if c in "({[":
+            depth += 1
+        elif c in ")}]":
+            depth -= 1
+        elif c == sep and not depth:
+            parts.append(body[start:j])
+            start = j + 1
+    return parts + [body[start:]]
+
+
+EXTGLOB = {"?": "?", "*": "*", "+": "+", "@": ""}
+
+
+def glob_regex(pattern):
+    """A glob as regex source: **, *, ?, [...], {a,b} and the extglobs ?(), *(), +(), @()."""
+    out, i = [], 0
     while i < len(pattern):
-        close = pattern.find("]", i + 2) if pattern[i] == "[" else -1
-        if close != -1:
-            body = pattern[i + 1:close]
-            negate = body.startswith("!")
+        c = pattern[i]
+        if c in "?*+@!" and pattern.startswith("(", i + 1):
+            if c == "!":
+                raise ValueError(f"!(...) is not supported in {pattern}")
+            end = closing(pattern, i + 1, "(", ")")
+            alternatives = "|".join(glob_regex(a) for a in split_top(pattern[i + 2:end], "|"))
+            out.append(f"(?:{alternatives}){EXTGLOB[c]}")
+            i = end + 1
+        elif c == "{":
+            end = closing(pattern, i, "{", "}")
+            out.append("(?:" + "|".join(glob_regex(a) for a in split_top(pattern[i + 1:end], ",")) + ")")
+            i = end + 1
+        elif c == "[" and pattern.find("]", i + 2) != -1:
+            end = pattern.find("]", i + 2)
+            body = pattern[i + 1:end]
+            negate = body[:1] in ("!", "^")
             body = body[1:] if negate else body
             out.append("[" + ("^/" if negate else "") + body.replace("\\", "\\\\") + "]")
-            i = close + 1
-        elif pattern[i] == "{":
-            out.append("(?:")
-            braces += 1
-            i += 1
-        elif pattern[i] == "}" and braces:
-            out.append(")")
-            braces -= 1
-            i += 1
-        elif pattern[i] == "," and braces:
-            out.append("|")
-            i += 1
+            i = end + 1
         elif pattern.startswith("**/", i):
             out.append("(?:.*/)?")
             i += 3
         elif pattern.startswith("**", i):
             out.append(".*")
             i += 2
-        elif pattern[i] == "*":
+        elif c == "*":
             out.append("[^/]*")
             i += 1
-        elif pattern[i] == "?":
+        elif c == "?":
             out.append("[^/]")
             i += 1
         else:
-            out.append(re.escape(pattern[i]))
+            out.append(re.escape(c))
             i += 1
-    if braces:
-        raise ValueError(f"unclosed {{ in {pattern}")
-    return re.compile("^" + "".join(out) + "$")
+    return "".join(out)
+
+
+def glob_to_regex(pattern):
+    return re.compile("^" + glob_regex(pattern) + "$")
 
 
 def list_files(root):
@@ -264,13 +315,399 @@ def walk_files(root):
     return files
 
 
-def test_files(root, globs):
-    patterns = [glob_to_regex(g) for g in globs]
-    return sorted(f for f in list_files(root) if any(p.match(f) for p in patterns))
+def read_tests_file(path):
+    """The globs in a tests file: one per line, blank lines and # comments skipped."""
+    with open(path, encoding="utf-8", errors="replace") as f:
+        return [line.strip() for line in f if line.strip() and not line.strip().startswith("#")]
+
+
+def matcher(pattern):
+    """A match function for a glob, or for a compiled regex searched in "/" + the path.
+
+    The leading / is there because Jest matches its testRegex against an absolute path.
+    """
+    if isinstance(pattern, str):
+        return glob_to_regex(pattern).match
+    return lambda f: pattern.search("/" + f)
+
+
+def test_files(root, includes, excludes=()):
+    include, exclude = [matcher(p) for p in includes], [matcher(p) for p in excludes]
+    return sorted(f for f in list_files(root)
+                  if any(m(f) for m in include) and not any(m(f) for m in exclude))
+
+
+# The test files each runner uses when its configuration names none, as each runner
+# documents them; Vitest and Jest write these with extglobs.
+VITEST_DEFAULT = ["**/*.{test,spec}.?(c|m)[jt]s?(x)"]
+VITEST_DEFAULT_EXCLUDE = ["**/node_modules/**", "**/dist/**"]
+JEST_DEFAULT = ["**/__tests__/**/*.?([mc])[jt]s?(x)", "**/?(*.)+(spec|test).?([mc])[jt]s?(x)"]
+PYTEST_DEFAULT_FILES = ["test_*.py", "*_test.py"]
+# The extensions a Vitest, Vite or Jest config file may have.
+CONFIG_EXTS = ("ts", "mts", "cts", "js", "mjs", "cjs")
+
+
+class Unreadable(Exception):
+    """A runner's configuration spec-trace cannot read with confidence.
+
+    args[0] says what could not be read and why; args[1], when given, names the file.
+    """
+
+
+JS_TOKEN = re.compile(r"""
+    (?P<string>'(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*"|`(?:[^`\\$]|\\.|\$(?!\{))*`)
+  | (?P<template>`)
+  | (?P<comment>//[^\n]*|/\*.*?\*/)
+  | (?P<space>\s+)
+  | (?P<word>[A-Za-z_$][\w$]*)
+  | (?P<spread>\.\.\.)
+  | (?P<slash>/)
+  | (?P<other>.)
+""", re.S | re.X)
+
+
+def js_tokens(text):
+    """A JavaScript config's tokens as (kind, text), without comments or spaces.
+
+    A / outside a string or comment is a regex literal or a division, and a template with
+    ${...} computes its text; neither is read, so either makes the whole file Unreadable.
+    """
+    tokens = []
+    for m in JS_TOKEN.finditer(text):
+        kind = m.lastgroup
+        if kind in ("comment", "space"):
+            continue
+        line = text.count("\n", 0, m.start()) + 1
+        if kind == "slash":
+            raise Unreadable(f"the file, which has a regex literal or a division on line {line}")
+        if kind == "template":
+            raise Unreadable(f"the file, which has a template string with ${{...}} on line {line}")
+        tokens.append((kind, m.group()))
+    return tokens
+
+
+def js_unescape(literal):
+    """A string literal's value: each backslash escape is the character it escapes."""
+    return re.sub(r"\\(.)", r"\1", literal[1:-1])
+
+
+def js_settings(text, paths, refused=()):
+    """The string values at each key path (e.g. ("test", "include")) of a JS config.
+
+    Walks the tokens tracking object nesting by key. The path is made of the keys of the
+    enclosing objects; an object or array with no key of its own, such as a call's
+    argument, adds nothing to it. So `defineConfig({ test: { include: [...] } })` gives
+    ("test", "include"), while `coverage: { include: [...] }` inside it does not. Raises Unreadable wherever a wanted
+    value could hide: a value that is not a string literal or an array of them, a key on the
+    way to one (`test`) whose value is not an object literal, a shorthand or spread at a
+    level where a wanted key could be, a key set twice, and any key in `refused`.
+    """
+    tokens = js_tokens(text)
+    prefixes = {p[:k] for p in paths for k in range(1, len(p))}
+    found = {}
+    stack = []  # the key that opened each enclosing { or [, or None
+    i = 0
+    while i < len(tokens):
+        kind, tok = tokens[i]
+        named = tuple(k for k in stack if k is not None)
+        level = [p for p in paths | prefixes | set(refused) if p[:-1] == named]
+        if kind in ("word", "string") and i + 1 < len(tokens) and tokens[i + 1][1] == ":":
+            key = js_unescape(tok) if kind == "string" else tok
+            path = named + (key,)
+            if path in refused:
+                raise Unreadable(f"{'.'.join(path)}, which spec-trace does not read")
+            if path in paths:
+                if path in found:
+                    raise Unreadable(f"{'.'.join(path)}, which is set twice")
+                found[path], i = js_value(tokens, i + 2, path)
+                continue
+            opens = i + 2 < len(tokens) and tokens[i + 2] in (("other", "{"), ("other", "["))
+            if path in prefixes and not (opens and tokens[i + 2][1] == "{"):
+                raise Unreadable(f"{'.'.join(path)}, which is not an object literal")
+            if opens:
+                stack.append(key)
+                i += 3
+                continue
+            i += 2
+            continue
+        if level and kind == "spread":
+            raise Unreadable(f"{'.'.join(named) or 'the config'}, which has a spread (...)")
+        if level and kind == "word" and any(tok == p[-1] for p in level) \
+                and i + 1 < len(tokens) and tokens[i + 1][1] in ",}":
+            raise Unreadable(f"{'.'.join(named + (tok,))}, which is a shorthand property")
+        if kind == "other" and tok in "{[":
+            stack.append(None)
+        elif kind == "other" and tok in "}]" and stack:
+            stack.pop()
+        i += 1
+    return found
+
+
+def js_value(tokens, i, path):
+    """The strings of the value at tokens[i], and the index after it."""
+    name = ".".join(path)
+    if i < len(tokens) and tokens[i][0] == "string" and (i + 1 == len(tokens) or tokens[i + 1][1] in ",}"):
+        return [js_unescape(tokens[i][1])], i + 1
+    if i >= len(tokens) or tokens[i][1] != "[":
+        raise Unreadable(f"{name}, which is computed rather than a list of string literals")
+    values, i = [], i + 1
+    while i < len(tokens) and tokens[i][1] != "]":
+        kind, tok = tokens[i]
+        if kind == "string":
+            values.append(js_unescape(tok))
+        elif tok != ",":
+            raise Unreadable(f"{name}, which is computed rather than a list of string literals")
+        i += 1
+    return values, i + 1
+
+
+def read_text(root, name):
+    with open(os.path.join(root, name), encoding="utf-8", errors="replace") as f:
+        return f.read()
+
+
+def first_existing(root, names):
+    for name in names:
+        if os.path.isfile(os.path.join(root, name)):
+            return name
+    return None
+
+
+def checked_globs(globs, key):
+    """globs, after checking spec-trace can match each one."""
+    for glob in globs:
+        try:
+            glob_to_regex(glob)
+        except (ValueError, re.error) as e:
+            raise Unreadable(f"{key}, which has a glob spec-trace cannot match ({e})")
+    return globs
+
+
+def detect_vitest(root):
+    name = first_existing(root, [f"{base}.config.{ext}" for base in ("vitest", "vite") for ext in CONFIG_EXTS])
+    if name is None:
+        return None
+    try:
+        workspace = first_existing(root, [f"vitest.workspace.{ext}" for ext in CONFIG_EXTS + ("json",)])
+        if workspace:
+            raise Unreadable(f"its projects, which {workspace} defines")
+        text = read_text(root, name)
+        if name.startswith("vite.") and not re.search(r"\btest\s*:", text):
+            return None  # a Vite config with no test settings says nothing about Vitest
+        settings = js_settings(text, {("test", "include"), ("test", "exclude")},
+                               refused={("test", "projects"), ("test", "workspace"), ("test", "includeSource"),
+                                        ("test", "dir"), ("test", "root"), ("root",)})
+        include = settings.get(("test", "include"))
+        exclude = checked_globs(settings.get(("test", "exclude"), VITEST_DEFAULT_EXCLUDE), "test.exclude")
+        if include is not None:
+            return name, f"{name} (test.include)", checked_globs(include, "test.include"), exclude
+        return name, f"{name} (Vitest's default include)", VITEST_DEFAULT, exclude
+    except Unreadable as e:
+        raise Unreadable(e.args[0], name)
+
+
+# Jest settings that change which files are tests or what a glob is relative to.
+JEST_REFUSED = ("projects", "rootDir", "roots")
+
+
+def detect_jest(root):
+    name = first_existing(root, [f"jest.config.{ext}" for ext in CONFIG_EXTS + ("json",)])
+    try:
+        if name is not None and name.endswith(".json"):
+            try:
+                config = json.loads(read_text(root, name))
+            except ValueError:
+                raise Unreadable("its JSON")
+        elif name is not None:
+            settings = js_settings(read_text(root, name), {("testMatch",), ("testRegex",)},
+                                   refused={(key,) for key in JEST_REFUSED})
+            config = {key[0]: value for key, value in settings.items()}
+        else:
+            if not os.path.isfile(os.path.join(root, "package.json")):
+                return None
+            try:
+                config = json.loads(read_text(root, "package.json")).get("jest")
+            except (ValueError, AttributeError):
+                return None
+            if not isinstance(config, dict):
+                return None
+            name = "package.json"
+        if not isinstance(config, dict):
+            raise Unreadable("its settings, which are not an object")
+        for key in JEST_REFUSED:
+            if key in config:
+                raise Unreadable(f"{key}, which spec-trace does not read")
+        regex = config.get("testRegex")
+        if regex:
+            try:
+                regexes = [re.compile(r) for r in ([regex] if isinstance(regex, str) else regex)]
+            except (re.error, TypeError):
+                raise Unreadable("testRegex, which is not a Python regular expression")
+            return name, f"{name} (testRegex)", regexes, []
+        match = config.get("testMatch")
+        if match:
+            if not isinstance(match, list) or not all(isinstance(g, str) for g in match):
+                raise Unreadable("testMatch, which is not a list of globs")
+            if any(g.startswith("!") for g in match):
+                raise Unreadable("testMatch, which has a negated (!) entry")
+            globs = checked_globs([g.replace("<rootDir>/", "") for g in match], "testMatch")
+            return name, f"{name} (testMatch)", globs, []
+        return name, f"{name} (Jest's default testMatch)", JEST_DEFAULT, []
+    except Unreadable as e:
+        raise Unreadable(e.args[0], name)
+
+
+def detect_pytest(root):
+    for name in ("pytest.toml", ".pytest.toml"):
+        if os.path.isfile(os.path.join(root, name)):
+            raise Unreadable("its settings, since spec-trace does not read this file", name)
+    # pytest's own order. pytest.ini and .pytest.ini are read even with no [pytest] section;
+    # the others only when they hold pytest settings.
+    for name, section in (("pytest.ini", None), (".pytest.ini", None), ("pyproject.toml", None),
+                          ("tox.ini", "pytest"), ("setup.cfg", "tool:pytest")):
+        path = os.path.join(root, name)
+        if not os.path.isfile(path):
+            continue
+        if name == "pyproject.toml":
+            options = pyproject_pytest(path)
+            if options is None:
+                continue
+        else:
+            parser = configparser.ConfigParser(interpolation=None)
+            try:
+                parser.read(path, encoding="utf-8")
+            except (configparser.Error, UnicodeDecodeError) as e:
+                raise Unreadable(f"its settings ({e})", name)
+            if section is None:
+                section = "pytest"
+                if not parser.has_section(section):
+                    return name, f"{name} (pytest's defaults)", pytest_globs([], []), []
+            if not parser.has_section(section):
+                continue
+            options = dict(parser.items(section))
+        globs = pytest_globs(words(options.get("testpaths", [])), words(options.get("python_files", [])))
+        try:
+            return name, f"{name} (pytest testpaths and python_files)", \
+                checked_globs(globs, "testpaths and python_files"), []
+        except Unreadable as e:
+            raise Unreadable(e.args[0], name)
+    return None
+
+
+def words(value):
+    """A pytest list setting: a list, or a string of whitespace-separated words."""
+    if isinstance(value, list):
+        return [w for v in value for w in str(v).split()]
+    return str(value).split()
+
+
+def pyproject_pytest(path):
+    """[tool.pytest.ini_options] of a pyproject.toml, or None."""
+    try:
+        import tomllib
+    except ImportError:
+        tomllib = None
+    if tomllib is None:
+        with open(path, encoding="utf-8") as f:
+            if "[tool.pytest" not in f.read():
+                return None
+        raise Unreadable(f"[tool.pytest.ini_options], since Python {sys.version.split()[0]} "
+                         "has no tomllib (Python 3.11 or later does)", "pyproject.toml")
+    with open(path, "rb") as f:
+        try:
+            data = tomllib.load(f)
+        except (tomllib.TOMLDecodeError, UnicodeDecodeError) as e:
+            raise Unreadable(f"its settings ({e})", "pyproject.toml")
+    pytest = data.get("tool", {}).get("pytest", {})
+    if not isinstance(pytest, dict) or set(pytest) - {"ini_options"}:
+        raise Unreadable("[tool.pytest], which spec-trace does not read", "pyproject.toml")
+    options = pytest.get("ini_options")
+    return options if isinstance(options, dict) else None
+
+
+def pytest_globs(testpaths, files):
+    files = files or PYTEST_DEFAULT_FILES
+    dirs = [os.path.normpath(p).replace(os.sep, "/").strip("/") for p in testpaths] or ["."]
+    dirs = ["" if d == "." else d for d in dirs]
+    return [f"{d}/**/{f}" if d else f"**/{f}" for d in dirs for f in files]
+
+
+def anywhere(root, name):
+    """Whether a file of this name is in the repository, at any depth."""
+    return any(f == name or f.endswith("/" + name) for f in list_files(root))
+
+
+def detect_go(root):
+    if anywhere(root, "go.mod"):
+        return "go.mod", "go.mod (Go's *_test.go)", ["**/*_test.go"], []
+    return None
+
+
+def detect_rust(root):
+    if anywhere(root, "Cargo.toml"):
+        # Unit tests live in #[cfg(test)] modules inside src/, so every source file may hold one.
+        return "Cargo.toml", "Cargo.toml (Rust's tests/ and src/)", ["**/tests/**/*.rs", "**/src/**/*.rs"], []
+    return None
+
+
+DETECTORS = (detect_vitest, detect_jest, detect_pytest, detect_go, detect_rust)
+# A runner configuration below the root applies to its own directory. spec-trace does not read
+# such a configuration, so the root's globs may miss the tests it names.
+NESTED_CONFIG = re.compile(r"(?:^|/)(?:(?:vitest|vite|jest)\.config\.[a-z]+|vitest\.workspace\.[a-z]+"
+                           r"|pytest\.ini|\.pytest\.ini|pytest\.toml|\.pytest\.toml)$")
+
+
+class Detected:
+    def __init__(self, sources, groups, troubles):
+        # groups: one (includes, excludes) per runner; a runner's excludes apply to its own files only
+        self.sources, self.groups, self.troubles = sources, groups, troubles
+
+
+def detect_tests(root):
+    """The test file globs the repository's runners name, where they came from, and any trouble.
+
+    A runner whose configuration cannot be read with confidence contributes nothing and adds
+    a trouble line; the others still count. With no runner read, the defaults apply.
+    """
+    sources, groups, failed = [], [], []
+    for detect in DETECTORS:
+        runner = detect.__name__.replace("detect_", "")
+        try:
+            found = detect(root)
+        except Unreadable as e:
+            failed.append((e.args[1] if len(e.args) > 1 else f"the {runner} configuration", e.args[0]))
+            continue
+        except Exception as e:  # noqa: BLE001 - a config spec-trace trips on is trouble, never a crash
+            failed.append((f"the {runner} configuration", f"its settings ({type(e).__name__}: {e})"))
+            continue
+        if found:
+            _, source, inc, exc = found
+            sources.append(source)
+            groups.append((inc, exc))
+    for name in list_files(root):
+        if "/" in name and NESTED_CONFIG.search(name):
+            failed.append((name, "it, since spec-trace reads runner configurations only at the root"))
+    if not sources:
+        why = "" if failed else ", since no test runner configuration was found"
+        sources, groups = [f"the defaults{why}"], [(DEFAULT_TESTS, [])]
+    used = " ".join(g if isinstance(g, str) else g.pattern for inc, _ in groups for g in inc)
+    troubles = [f"{name}: could not read {what}. Using instead: {used}. To set the test globs by hand, "
+                f"list them in {TESTS_FILE}, one per line, or pass --tests."
+                for name, what in failed]
+    return Detected(sources, groups, troubles)
+
+
+def detected_files(root, found):
+    """Files that any runner's globs include and that runner does not exclude."""
+    files = set()
+    for includes, excludes in found.groups:
+        files.update(test_files(root, includes, excludes))
+    return sorted(files)
 
 
 class Tag:
-    def __init__(self, path, line, capability, text, scenario=None, problem=None):
+    def __init__(self, path, line, capability, text, scenario=None, problem=None, choices=()):
+        self.choices = choices  # for an ambiguous tag, the qualified tags it may mean
         self.path = path
         self.line = line
         self.capability = capability
@@ -301,14 +738,24 @@ def shown(rest):
     held = {"\\'": "\uE001", '\\"': "\uE002"}
     for escaped, mark in held.items():
         rest = rest.replace(escaped, mark)
-    for stop in ('"', "`", "*/", "-->"):
+    for stop in ("*/", "-->"):
         if stop in rest:
             rest = rest[:rest.index(stop)]
-    closing = re.search(r"'\s*[,)]", rest)
+    # For " and for a backtick: when the rest of the line holds an odd number of that quote,
+    # the tag sits inside a quoted test name, and the first one closes the name. Quotes in
+    # pairs are a comment's own text.
+    for quote in ('"', "`"):
+        if rest.count(quote) % 2:
+            rest = rest[:rest.index(quote)]
+    # An apostrophe is common in a comment, so a single quote closes a name only when a `,`,
+    # a `)` or the line's end follows it.
+    closing = re.search(r"'\s*(?:[,)]|$)", rest)
     if closing:
         rest = rest[:closing.start()]
-    rest = rest.replace("\uE001", "'").replace("\uE002", '"')
-    return norm(rest).rstrip("'),;{. ")
+    rest = norm(rest.replace("\uE001", "'").replace("\uE002", '"')).rstrip("',;{. ")
+    while rest.endswith(")") and rest.count(")") > rest.count("("):
+        rest = rest[:-1].rstrip("',;{. ")
+    return rest
 
 
 def longest(rest, names):
@@ -346,10 +793,18 @@ def pending_scenarios(root):
     return [s for s in load_scenarios(root, include_changes=True)[0] if s.change]
 
 
+def repeats(scenarios):
+    """Each scenario name that repeats within its capability, with its scenarios."""
+    out = {}
+    for s in scenarios:
+        if s.ident != s.name:
+            out.setdefault((s.capability, s.name), []).append(s)
+    return out
+
+
 def scan_tags(root, files, scenarios, pending=()):
-    index = name_index(scenarios)
-    waiting = name_index(pending)
-    repeated = {(s.capability, s.name) for s in scenarios if s.ident != s.name}
+    index, waiting = name_index(scenarios), name_index(pending)
+    repeated, repeated_waiting = repeats(scenarios), repeats(pending)
     tags = []
     for rel in files:
         try:
@@ -362,18 +817,32 @@ def scan_tags(root, files, scenarios, pending=()):
             for i, m in enumerate(starts):
                 end = starts[i + 1].start() if i + 1 < len(starts) else len(line)
                 capability, rest = m.group(1), line[m.end():end]
+                # Every reading of the tag, ranked for ties:
+                #   3, a main scenario: the tag counts for it;
+                #   2, a name repeated in the main specs: ambiguous;
+                #   1, a scenario an open change adds: accepted, neither counted nor an error;
+                #   0, a name repeated in an open change: ambiguous.
+                # The longest match wins, so a tag is never counted for a shorter name its text
+                # also starts with; on a tie the higher rank wins, so the main specs come first.
+                readings = []
                 found = resolve(capability, rest, index)
-                bare = longest(rest, [name for cap, name in repeated if cap == capability])
-                # The longer match wins, so a tag for a repeated name is never counted
-                # for a shorter, unique name its text also starts with.
-                if bare is not None and (found is None or len(bare) > len(found[0])):
-                    tags.append(Tag(rel, number, capability, bare, problem="ambiguous"))
-                    continue
                 if found:
-                    tags.append(Tag(rel, number, capability, found[0], scenario=found[1]))
+                    readings.append((len(found[0]), 3, found))
+                for rank, table in ((2, repeated), (0, repeated_waiting)):
+                    bare = longest(rest, [name for cap, name in table if cap == capability])
+                    if bare is not None:
+                        readings.append((len(bare), rank, (bare, table[(capability, bare)])))
+                waits = resolve(capability, rest, waiting)
+                if waits:
+                    readings.append((len(waits[0]), 1, waits))
+                if readings:
+                    _, rank, (text, what) = max(readings, key=lambda r: r[:2])
+                    if rank == 3:
+                        tags.append(Tag(rel, number, capability, text, scenario=what))
+                    elif rank != 1:  # a scenario an open change adds is neither covered nor an error
+                        tags.append(Tag(rel, number, capability, text, problem="ambiguous",
+                                        choices=[s.key for s in what]))
                     continue
-                if resolve(capability, rest, waiting):
-                    continue  # names a scenario an open change adds: neither covered nor an error
                 text = shown(rest)
                 if capability not in index:
                     tags.append(Tag(rel, number, capability, text, problem="capability"))
@@ -407,8 +876,7 @@ def coverage(scenarios, tags):
 
 def tag_problem(t, scenarios):
     if t.problem == "ambiguous":
-        options = [s for s in scenarios if s.capability == t.capability and s.name == t.text]
-        lines = "\n".join(f"      @scenario {s.key}" for s in options)
+        lines = "\n".join(f"      @scenario {key}" for key in t.choices)
         return (f"{t.where}: tag '@scenario {t.capability}: {t.text}' is ambiguous: that scenario name "
                 f"appears under more than one requirement. Name the requirement too, as one of:\n{lines}")
     if t.problem == "capability":
@@ -459,7 +927,14 @@ def check(root, files, baseline_path):
     return 0
 
 
-def write_baseline(root, files, baseline_path):
+def write_baseline(root, files, baseline_path, troubles=()):
+    if troubles:
+        # Written from globs that missed tests, the baseline would exempt scenarios those tests tag.
+        for t in troubles:
+            print(t)
+        print(f"spec-trace: not writing the baseline while the test files are uncertain. Set the "
+              f"test globs in {TESTS_FILE} or pass --tests, then run baseline again.")
+        return 2
     scenarios, problems = load_scenarios(root)
     if problems:
         for p in problems:
@@ -470,8 +945,9 @@ def write_baseline(root, files, baseline_path):
     untagged = sorted(s.key for s in scenarios if s.key not in covered)
     os.makedirs(os.path.dirname(baseline_path) or ".", exist_ok=True)
     with open(baseline_path, "w", encoding="utf-8") as f:
-        f.write("# Scenarios in openspec/specs that no test tags yet. spec-trace check fails when a\n"
-                "# line here is tagged or names no scenario, so this list only shrinks.\n")
+        f.write("# Scenarios in openspec/specs that no test tagged when spec-trace was adopted.\n"
+                "# spec-trace check fails on a line whose scenario a test now tags, or that names no\n"
+                "# scenario: delete such a line. Never add one; a new scenario gets a tagged test instead.\n")
         for key in untagged:
             f.write(key + "\n")
     print(f"spec-trace: wrote {len(untagged)} untagged scenario(s) of {len(scenarios)} to "
@@ -510,8 +986,9 @@ def main(argv=None):
     parser = argparse.ArgumentParser(prog="spec_trace.py", description=__doc__.splitlines()[0])
     parser.add_argument("--root", default=".", help="repository root (default: the current directory)")
     parser.add_argument("--tests", action="append", metavar="GLOB",
-                        help="test file glob, relative to the root; repeat for several. "
-                             "Replaces the defaults: " + " ".join(DEFAULT_TESTS))
+                        help="test file glob, relative to the root; repeat for several. Without it, "
+                             "the globs come from the test runner's configuration (Vitest, Jest, "
+                             "pytest, Go, Rust), else these defaults: " + " ".join(DEFAULT_TESTS))
     parser.add_argument("--baseline", default=DEFAULT_BASELINE,
                         help=f"baseline file, relative to the root (default: {DEFAULT_BASELINE})")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -523,26 +1000,45 @@ def main(argv=None):
     args = parser.parse_args(argv)
 
     root = os.path.abspath(args.root)
-    globs = args.tests or DEFAULT_TESTS
     baseline = os.path.join(root, args.baseline)
-    try:
-        files = test_files(root, globs)
-        # A glob that matches nothing finds none of the tags it was meant to, so
-        # `baseline` would exempt those scenarios.
-        unmatched = [g for g in args.tests or [] if not test_files(root, [g])]
-    except (ValueError, re.error) as e:
-        print(f"spec-trace: bad --tests glob: {e}")
-        return 2
-    if unmatched:
-        print(f"spec-trace: no test files match {' '.join(unmatched)} under {root}.")
-        return 2
-    if not files:
-        print("spec-trace: warning: no test files match the default patterns; pass --tests GLOB "
-              "if this repository keeps its tests elsewhere.", file=sys.stderr)
+    troubles = []
+    if args.tests:
+        source, manual = "--tests", args.tests
+    elif os.path.isfile(os.path.join(root, TESTS_FILE)):
+        source, manual = TESTS_FILE, read_tests_file(os.path.join(root, TESTS_FILE))
+    else:
+        source, manual = None, None
+    if manual is not None:
+        print(f"spec-trace: test files from {source}", file=sys.stderr)
+        includes = [g for g in manual if not g.startswith("!")]
+        excludes = [g[1:] for g in manual if g.startswith("!")]
+        try:
+            files = test_files(root, includes, excludes)
+            # A glob that matches nothing finds none of the tags it was meant to, so
+            # `baseline` would exempt those scenarios.
+            unmatched = [g for g in includes if not test_files(root, [g])]
+        except (ValueError, re.error) as e:
+            print(f"spec-trace: bad glob in {source}: {e}")
+            return 2
+        if not includes or unmatched:
+            print(f"spec-trace: no test files match {' '.join(unmatched) or '(no globs)'} "
+                  f"from {source} under {root}.")
+            return 2
+    else:
+        found = detect_tests(root)
+        troubles = found.troubles
+        files = detected_files(root, found)
+        # On stderr, so `report` stays pasteable.
+        print(f"spec-trace: test files from {'; '.join(found.sources)}", file=sys.stderr)
+        for t in troubles:
+            print(f"spec-trace: warning: {t}", file=sys.stderr)
+        if not files:
+            print(f"spec-trace: warning: no test files found; list the test globs in {TESTS_FILE} "
+                  "or pass --tests.", file=sys.stderr)
     if args.command == "check":
         return check(root, files, baseline)
     if args.command == "baseline":
-        return write_baseline(root, files, baseline)
+        return write_baseline(root, files, baseline, troubles)
     return report(root, files, args.include_changes)
 
 
