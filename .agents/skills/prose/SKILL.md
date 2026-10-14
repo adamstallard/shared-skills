@@ -287,9 +287,11 @@ dispositions and run the signing call before the token's 2 hours are up.
 
 As workflow stages, that is three agents:
 1. **The author** writes and stages the change, runs the signing call, and
-   returns the brief, the token and the paths, without committing.
-2. **The cold reader** gets the brief as its whole prompt, copied
-   unchanged.
+   returns the brief, the token and the paths as fields of its structured
+   output, without committing.
+2. **The cold reader** gets the brief as its whole prompt. The workflow
+   script passes the author's brief field on exactly as returned, never
+   summarised or reworded.
 3. **The finisher** works in the same repository with the report and the
    token. It first runs `prose.py start`, which prints the rules and lets
    the hook allow its first file edit; then it fixes, answers each finding
