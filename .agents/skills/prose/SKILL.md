@@ -275,8 +275,30 @@ The signing call refuses (exit 2), signs nothing and keeps the token when:
 Each token takes one cold read; the fixes are not read cold again. The script
 checks `fixed` instead, by the item having changed.
 
-**Without subagents,** do the cold read yourself: read the brief as if it were
-all you knew, open only what it names, and write the report as it asks.
+**Without subagents, hand the cold read back.** If you were started by
+something that reads your result, such as a caller or a workflow stage, do
+not read the brief yourself, sign or commit. Leave the change staged and put
+in your result the brief, whole and as printed, its token, and the paths of
+the message file and the worktree. The token is stored in the repository's
+git directory, not in your session, so any agent working in the same
+repository can spend it. Whoever holds your result gives the brief to a fresh
+agent. Then they, or an agent they start, fix the findings, write the
+dispositions and run the signing call before the token's 2 hours are up.
+
+As workflow stages, that is three agents:
+1. **The author** writes and stages the change, runs the signing call, and
+   returns the brief, the token and the paths, without committing.
+2. **The cold reader** gets the brief as its whole prompt, copied
+   unchanged.
+3. **The finisher** works in the same repository with the report and the
+   token. It first runs `prose.py start`, which prints the rules and lets
+   the hook allow its first file edit; then it fixes, answers each finding
+   and signs. A finding it would keep goes to a person, as in *When you cannot
+   ask*.
+
+Read the brief yourself only when nothing will read your result: read it as
+if it were all you knew, open only what it names, and write the report as it
+asks.
 
 ## Committing
 

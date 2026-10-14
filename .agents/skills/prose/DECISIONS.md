@@ -1764,6 +1764,28 @@ is the starting point: `git stripspace` for `_clean`, and one
 
 ---
 
+## Without subagents, the cold read goes back to the caller
+
+**Decision.** An agent that cannot start a subagent hands back to whatever
+started it the brief, its token, and the paths of the message file and the
+worktree, and does not sign or commit.
+It reads the brief itself only when nothing will read its result. Decided by
+Adam, 2026-10-13.
+
+**Why.** A cold read exists because an author fills the gaps in their own text
+without seeing them. An author reading its own brief is that same author. In a
+workflow run on 2026-10-13, every author agent had no subagent tool, so every
+cold read was the author's own. Workflow scripts can start agents even when
+their agents cannot, so the script can supply the fresh reader. Another agent
+can then finish: the one that fixes the findings and runs the signing call
+need not be the author, because the token, which signs once, is stored in the
+repository's git directory and not in the author's session.
+
+**Rejected.** Reading the brief yourself whenever no subagent is available.
+It produces a report that looks like a cold read and is not one.
+
+---
+
 ## Open
 
 - More rules.
