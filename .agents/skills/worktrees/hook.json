@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "default": "enabled",
+  "hooks": [
+    {
+      "summary": "After a git push, lists worktrees whose work has landed so the agent removes them.",
+      "command": "scripts/worktree-sweep.py",
+      "events": {
+        "claude": { "event": "PostToolUse", "matcher": "Bash" },
+        "cursor": { "event": "postToolUse", "matcher": "Shell" }
+      }
+    },
+    {
+      "summary": "When the agent stops, lists worktrees whose work has landed (blocks the stop in block mode).",
+      "command": "scripts/worktree-sweep.py",
+      "events": {
+        "claude": { "event": "Stop", "matcher": "" },
+        "cursor": { "event": "stop" }
+      }
+    }
+  ]
+}
