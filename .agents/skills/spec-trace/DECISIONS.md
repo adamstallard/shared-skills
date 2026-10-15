@@ -276,6 +276,59 @@ setting that CI and every agent pick up without a flag. Next to the
 baseline, it is in the one directory spec-trace already owns, and a plain
 list of globs needs no parser.
 
+## The agent asks whether to adopt it, when scenarios are written
+
+**Decision.** A hook runs after the agent writes or edits a `spec.md` under
+`openspec/specs/` or `openspec/changes/<name>/specs/`. In a repository that
+has neither adopted nor declined spec-trace, it tells the agent to ask the
+user which. The answer is recorded in the repository: adopted is the
+baseline file, the hand-set globs file, or a GitHub workflow that runs
+`spec_trace.py`; declined is the line `# spec-trace: declined` in
+`openspec/config.yaml`, which `decline` appends. The hook is enabled by
+default.
+
+**Why.**
+- **Adoption that waits for someone to remember never happens.** A
+  repository can write OpenSpec scenarios for months with no tags, and
+  nothing shows the gap growing.
+- **Scenarios start needing tests when they are written**, so that is when
+  the question is asked.
+- **The answer lives in the repository**, so it reaches every agent and
+  person on the team, and a committed answer stops the question for all of
+  them.
+- **The baseline alone does not mark adoption.** `check` passes without a
+  baseline file, so a repository whose every scenario is tagged may delete
+  it, and the `--baseline` option puts it at another path. So the hand-set
+  globs file and a CI step that runs `spec_trace.py` mark adoption too.
+- **spec-trace treats the git top level as the repository.** The hook asks
+  only about a spec in the top's own `openspec/`. A test fixture or a
+  monorepo project with its own `openspec/` below the top is never asked
+  about, so a repository that has answered is not asked again because of a
+  fixture. A workflow counts only when it names `spec_trace.py` itself, so
+  one that runs `test_spec_trace.py` does not.
+- **Adoption wins over a decline marker** left behind, so changing one's
+  mind needs no command; the adopt steps delete the line for tidiness.
+- **`decline` refuses when `config.yaml` is missing.** A file holding only a
+  comment makes every `openspec` command warn that it is not a valid YAML
+  object, and `openspec init` writes the real one.
+- **On by default**, like bug-hunter's and prose's hooks: installing the skill is the
+  opt-in, the hook is silent outside OpenSpec repositories and in any
+  repository that has answered, and it never blocks.
+- **Cursor gets it through `postToolUse` with matcher `Write`, not
+  `afterFileEdit`.** Cursor's hook docs give `afterFileEdit` no output, so a
+  note from it would never reach the agent; `postToolUse` documents
+  `additional_context`. Where `Write`'s `tool_input` holds the path is not
+  documented, so the hook reads `file_path` or `path` from it. It also
+  accepts a top-level `file_path`, the shape `afterFileEdit` sends, so a hook
+  wired to that event by hand still finds the path. It is untried in Cursor.
+
+**Rejected: asking at install time.** Installing is per machine; adoption is
+per repository.
+**Rejected: a session-start hook.** It would fire in every session, not when
+the question matters.
+**Rejected: relying on the skill's description alone.** A model loads a skill
+by judgement, so nothing makes sure the question is ever asked.
+
 ## Known issues
 
 - An orphan tag's text (a tag that names no scenario) is shown cut short when a single quote followed by a

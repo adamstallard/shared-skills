@@ -5,6 +5,7 @@ Run from the root of the shared-skills clone:  python3 .agents/skills/spec-trace
 """
 
 import io
+import json
 import os
 import shutil
 import subprocess
@@ -904,6 +905,303 @@ class Globs(unittest.TestCase):
             self.assertFalse(r.match(path), path)
         with self.assertRaises(ValueError):
             st.glob_to_regex("!(a)")
+
+
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+HOOK = os.path.join(HERE, "scenario_hook.py")
+CLONE = os.path.normpath(os.path.join(HERE, "..", "..", "..", ".."))
+CONFIG_TEXT = "schema: spec-driven\n\n# Project context (optional)\n#   context: |\n"
+
+
+class GitRepo(Repo):
+    """A Repo that is a git repository and has an openspec/config.yaml."""
+
+    def setUp(self):
+        super().setUp()
+        subprocess.run(["git", "init", "-q", self.root], check=True)
+        self.write("openspec/config.yaml", CONFIG_TEXT)
+
+
+class AdoptionState(GitRepo):
+    def state(self):
+        return st.adoption_state(self.root)
+
+    def test_no_openspec_directory_is_none(self):
+        shutil.rmtree(os.path.join(self.root, "openspec"))
+        self.assertIsNone(self.state())
+        self.assertEqual(self.run_cmd("state"), (0, "n/a\n"))
+
+    def test_neither_baseline_nor_marker_is_undecided(self):
+        self.assertEqual(self.state(), st.UNDECIDED)
+        self.assertEqual(self.run_cmd("state"), (0, "undecided\n"))
+
+    def test_no_config_is_undecided(self):
+        os.remove(os.path.join(self.root, "openspec/config.yaml"))
+        self.assertEqual(self.state(), st.UNDECIDED)
+
+    def test_the_baseline_file_is_adopted(self):
+        self.write("openspec/spec-trace-baseline.txt", "# none\n")
+        self.assertEqual(self.state(), st.ADOPTED)
+
+    def test_a_moved_baseline_is_adopted(self):
+        self.write("ci/baseline.txt", "")
+        self.assertEqual(self.run_cmd("--baseline", "ci/baseline.txt", "state"), (0, "adopted\n"))
+
+    def test_a_workflow_that_runs_the_checker_is_adopted_without_a_baseline(self):
+        self.write(".github/workflows/trace.yml", "run: python3 spec_trace.py check\n")
+        self.assertEqual(self.state(), st.ADOPTED)
+
+    def test_a_workflow_that_does_not_run_it_is_not(self):
+        self.write(".github/workflows/ci.yml", "run: npm test\n")
+        self.write(".github/workflows/notes.txt", "spec_trace.py\n")
+        self.assertEqual(self.state(), st.UNDECIDED)
+
+    def test_the_hand_set_globs_file_is_adopted(self):
+        self.write(st.TESTS_FILE, "test/**\n")
+        self.assertEqual(self.state(), st.ADOPTED)
+
+    def test_the_marker_is_declined(self):
+        self.write("openspec/config.yaml", CONFIG_TEXT + "  # spec-trace: declined  \n")
+        self.assertEqual(self.state(), st.DECLINED)
+
+    def test_the_marker_inside_a_line_is_not_declined(self):
+        self.write("openspec/config.yaml", CONFIG_TEXT + "# not # spec-trace: declined\n"
+                   "# spec-trace: declined, maybe\n# spec-check: decisions first declined\n")
+        self.assertEqual(self.state(), st.UNDECIDED)
+
+    def test_adoption_wins_over_a_marker_left_behind(self):
+        self.write("openspec/config.yaml", CONFIG_TEXT + st.DECLINE_MARKER + "\n")
+        self.write("openspec/spec-trace-baseline.txt", "")
+        self.assertEqual(self.state(), st.ADOPTED)
+
+
+class Decline(GitRepo):
+    def test_appends_the_marker_and_keeps_every_other_line(self):
+        code, out = self.run_cmd("decline")
+        self.assertEqual(code, 0)
+        self.assertIn("Commit it", out)
+        self.assertEqual(self.read("openspec/config.yaml"), CONFIG_TEXT + "# spec-trace: declined\n")
+        self.assertEqual(st.adoption_state(self.root), st.DECLINED)
+
+    def test_is_idempotent(self):
+        self.run_cmd("decline")
+        code, out = self.run_cmd("decline")
+        self.assertEqual(code, 0)
+        self.assertIn("already declines", out)
+        self.assertEqual(self.read("openspec/config.yaml").count(st.DECLINE_MARKER), 1)
+
+    def test_dry_run_prints_the_new_config_and_changes_nothing(self):
+        code, out = self.run_cmd("decline", "--dry-run")
+        self.assertEqual(code, 0)
+        self.assertEqual(out, CONFIG_TEXT + "# spec-trace: declined\n")
+        self.assertEqual(self.read("openspec/config.yaml"), CONFIG_TEXT)
+
+    def binary(self, data):
+        path = os.path.join(self.root, "openspec/config.yaml")
+        with open(path, "wb") as f:
+            f.write(data)
+        self.run_cmd("decline")
+        with open(path, "rb") as f:
+            return f.read()
+
+    def test_keeps_crlf_line_endings_and_uses_them(self):
+        self.assertEqual(self.binary(b"schema: spec-driven\r\n# note\r\n"),
+                         b"schema: spec-driven\r\n# note\r\n# spec-trace: declined\r\n")
+
+    def test_ends_an_unterminated_last_line_first(self):
+        self.assertEqual(self.binary(b"schema: spec-driven\n# last"),
+                         b"schema: spec-driven\n# last\n# spec-trace: declined\n")
+
+    def test_missing_config_is_refused_and_not_created(self):
+        os.remove(os.path.join(self.root, "openspec/config.yaml"))
+        code, out = self.run_cmd("decline")
+        self.assertEqual(code, 2)
+        self.assertIn("openspec init", out)
+        self.assertFalse(os.path.exists(os.path.join(self.root, "openspec/config.yaml")))
+
+    def test_an_adopted_repository_is_refused(self):
+        self.write("openspec/spec-trace-baseline.txt", "")
+        code, out = self.run_cmd("decline")
+        self.assertEqual(code, 1)
+        self.assertIn("nothing was declined", out)
+        self.assertEqual(self.read("openspec/config.yaml"), CONFIG_TEXT)
+
+    def test_no_openspec_directory_is_refused(self):
+        shutil.rmtree(os.path.join(self.root, "openspec"))
+        self.assertEqual(self.run_cmd("decline")[0], 2)
+
+    def test_a_config_that_is_not_utf8_keeps_its_bytes(self):
+        self.assertEqual(self.binary(b"schema: spec-driven\n# caf\xe9 notes\n"),
+                         b"schema: spec-driven\n# caf\xe9 notes\n# spec-trace: declined\n")
+
+    def test_runs_without_reading_test_configuration(self):
+        self.write("vitest.config.ts", "export default { test: { include: [x] } }\n")
+        code, _ = self.run_cmd("decline")
+        self.assertEqual(code, 0)
+        self.assertEqual(self.err, "")
+
+
+class NestedOpenSpec(GitRepo):
+    """openspec/ only below the top of the repository, as in a monorepo. The
+    repository is its git top level, which has no openspec/, so the hook says nothing."""
+
+    def setUp(self):
+        super().setUp()
+        os.rename(os.path.join(self.root, "openspec"), os.path.join(self.root, "pkg-openspec"))
+        os.makedirs(os.path.join(self.root, "pkg"))
+        os.rename(os.path.join(self.root, "pkg-openspec"), os.path.join(self.root, "pkg/openspec"))
+
+    def test_a_spec_below_the_top_of_the_repository_is_silent(self):
+        spec = os.path.join(self.root, "pkg/openspec/specs/work-claiming/spec.md")
+        out = subprocess.run([sys.executable, HOOK, "--host", "claude"], capture_output=True,
+                             text=True, timeout=30,
+                             input=json.dumps({"tool_input": {"file_path": spec}})).stdout
+        self.assertEqual(out, "")
+
+
+class WhichOpenSpecCounts(GitRepo):
+    """The repository is its git top level. An openspec/ folder below the top is
+    not asked about, and a workflow counts only for its own root and only when
+    it runs spec_trace.py itself."""
+
+    def hook(self, rel):
+        payload = {"cwd": self.root, "tool_input": {"file_path": rel}}
+        return subprocess.run([sys.executable, HOOK, "--host", "claude"], capture_output=True,
+                              text=True, timeout=30, input=json.dumps(payload)).stdout
+
+    def test_a_declined_repository_is_not_asked_about_a_fixture_spec(self):
+        self.run_cmd("decline")
+        self.write("test/fixtures/openspec/specs/y/spec.md", CLAIMING)
+        self.assertEqual(self.hook("test/fixtures/openspec/specs/y/spec.md"), "")
+
+    def test_a_workflow_for_one_project_does_not_adopt_another(self):
+        self.write(".github/workflows/ci.yml", "run: python3 tools/spec_trace.py --root a check\n")
+        self.write("b/openspec/config.yaml", CONFIG_TEXT)
+        self.assertEqual(self.run_cmd("--root", os.path.join(self.root, "b"), "state")[1], "undecided\n")
+
+    def test_running_the_checker_s_own_tests_is_not_adoption(self):
+        self.write(".github/workflows/skills.yml",
+                   "run: python3 .agents/skills/spec-trace/scripts/test_spec_trace.py\n")
+        self.assertEqual(st.adoption_state(self.root), st.UNDECIDED)
+
+
+class HookPaths(unittest.TestCase):
+    """The spec's path names the top's own openspec/, however the path is spelled."""
+
+    def setUp(self):
+        self.base = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.base)
+
+    def repo(self, name, openspec="openspec"):
+        root = os.path.join(self.base, name)
+        os.makedirs(os.path.join(root, openspec, "specs/cap"))
+        with open(os.path.join(root, openspec, "config.yaml"), "w", encoding="utf-8") as f:
+            f.write(CONFIG_TEXT)
+        subprocess.run(["git", "init", "-q", root], check=True)
+        return root
+
+    def asks(self, path):
+        out = subprocess.run([sys.executable, HOOK, "--host", "claude"], capture_output=True,
+                             text=True, timeout=30,
+                             input=json.dumps({"tool_input": {"file_path": path}})).stdout
+        return "hasn't decided on spec-trace" in out
+
+    def test_an_openspec_folder_that_is_a_link_is_the_top_s_own(self):
+        root = self.repo("sym", openspec="docs/openspec")
+        os.symlink("docs/openspec", os.path.join(root, "openspec"))
+        self.assertTrue(self.asks(os.path.join(root, "openspec/specs/cap/spec.md")))
+
+    def test_a_top_whose_name_ends_in_a_space(self):
+        root = self.repo("sp ")
+        self.assertTrue(self.asks(os.path.join(root, "openspec/specs/cap/spec.md")))
+
+
+class Hook(GitRepo):
+    def hook(self, payload, host="claude"):
+        raw = payload if isinstance(payload, str) else json.dumps(payload)
+        result = subprocess.run([sys.executable, HOOK, "--host", host], input=raw,
+                                capture_output=True, text=True, timeout=30)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stderr, "")
+        return result.stdout
+
+    def spec(self, rel="openspec/specs/work-claiming/spec.md"):
+        return os.path.join(self.root, rel)
+
+    def test_claude_gets_context_for_a_main_spec_in_an_undecided_repository(self):
+        out = self.hook({"tool_name": "Write", "tool_input": {"file_path": self.spec()}})
+        context = json.loads(out)["hookSpecificOutput"]
+        self.assertEqual(context["hookEventName"], "PostToolUse")
+        self.assertIn("hasn't decided on spec-trace", context["additionalContext"])
+        self.assertIn(f"spec_trace.py --root {self.root} decline", context["additionalContext"])
+
+    def test_cursor_gets_context_for_a_spec_in_an_open_change(self):
+        path = self.spec("openspec/changes/add-x/specs/work-claiming/spec.md")
+        for payload in ({"tool_name": "Write", "tool_input": {"file_path": path}},
+                        {"tool_name": "Write", "tool_input": {"path": path}},
+                        {"file_path": path, "edits": []},
+                        {"tool_input": {"path": "openspec/changes/add-x/specs/a/b/spec.md"},
+                         "cwd": self.root}):
+            out = self.hook(payload, host="cursor")
+            self.assertIn("hasn't decided on spec-trace", json.loads(out)["additional_context"], payload)
+
+    def test_adopted_and_declined_repositories_are_silent(self):
+        payload = {"tool_input": {"file_path": self.spec()}}
+        self.write("openspec/spec-trace-baseline.txt", "")
+        self.assertEqual(self.hook(payload), "")
+        os.remove(os.path.join(self.root, "openspec/spec-trace-baseline.txt"))
+        self.run_cmd("decline")
+        self.assertEqual(self.hook(payload), "")
+        self.assertEqual(self.hook(payload, host="cursor"), "")
+
+    def test_other_files_are_silent(self):
+        for rel in ("openspec/changes/add-x/proposal.md", "openspec/specs/spec.md",
+                    "openspec/changes/archive/2025-01-01-x/specs/work-claiming/spec.md",
+                    "docs/specs/a/spec.md", "openspec/specs/a/spec.md.bak"):
+            self.assertEqual(self.hook({"tool_input": {"file_path": self.spec(rel)}}), "", rel)
+
+    def test_a_directory_that_is_not_a_git_repository_is_silent(self):
+        shutil.rmtree(os.path.join(self.root, ".git"))
+        self.assertEqual(self.hook({"tool_input": {"file_path": self.spec()}}), "")
+
+    def test_bad_payloads_are_silent(self):
+        for raw in ("", "not json spec.md", "[\"spec.md\"]", "{\"tool_input\": \"spec.md\"}",
+                    json.dumps({"tool_input": {"file_path": 7}, "x": "spec.md"}),
+                    json.dumps({"tool_input": {"file_path": "openspec/specs/a/spec.md"}})):
+            self.assertEqual(self.hook(raw), "", raw)
+
+    def test_an_unknown_host_gets_the_message_on_stderr(self):
+        result = subprocess.run([sys.executable, HOOK], capture_output=True, text=True, timeout=30,
+                                input=json.dumps({"tool_input": {"file_path": self.spec()}}))
+        self.assertEqual((result.returncode, result.stdout), (0, ""))
+        self.assertIn("hasn't decided on spec-trace", result.stderr)
+
+
+class HookWiring(unittest.TestCase):
+    """manage-skills wires hook.json, in a sandbox that never touches real configs."""
+
+    def test_install_wires_the_hook_for_both_hosts(self):
+        sandbox = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, sandbox)
+        home = os.path.join(sandbox, "home")
+        env = dict(os.environ, SHARED_SKILLS_REPO=CLONE,
+                   SHARED_SKILLS_TARGET=os.path.join(sandbox, "skills"),
+                   SHARED_SKILLS_CONFIG=os.path.join(sandbox, "config.json"),
+                   SHARED_SKILLS_HOOK_HOME=home)
+        manager = os.path.join(CLONE, ".agents/skills/manage-skills/scripts/skills.py")
+        result = subprocess.run([sys.executable, manager, "install", "spec-trace"], env=env,
+                                capture_output=True, text=True, timeout=60)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        with open(os.path.join(home, ".claude/settings.json"), encoding="utf-8") as f:
+            claude = json.loads(f.read())["hooks"]["PostToolUse"]
+        with open(os.path.join(home, ".cursor/hooks.json"), encoding="utf-8") as f:
+            cursor = json.loads(f.read())["hooks"]["postToolUse"]
+        script = os.path.realpath(HOOK)
+        self.assertEqual([(e["matcher"], h["command"]) for e in claude for h in e["hooks"]],
+                         [("^(Write|Edit|MultiEdit)$", f"{script} --host claude")])
+        self.assertEqual([(e.get("matcher"), e["command"]) for e in cursor],
+                         [("Write", f"{script} --host cursor")])
 
 
 if __name__ == "__main__":

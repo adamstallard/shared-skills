@@ -37,8 +37,8 @@ Try a new skill in the session you're in; if the agent doesn't see it, start a
 new session. [manage-skills' README](.agents/skills/manage-skills/README.md)
 has the commands to run yourself.
 
-Installing bug-hunter or prose also turns on its hook, which is written to
-`~/.claude/settings.json` and `~/.cursor/hooks.json`. To turn a hook off, see
+Installing bug-hunter, prose or spec-trace also turns on its hook, which is
+written to `~/.claude/settings.json` and `~/.cursor/hooks.json`. To turn a hook off, see
 [Skills that come with a hook](.agents/skills/manage-skills/README.md#skills-that-come-with-a-hook).
 
 ## Updating

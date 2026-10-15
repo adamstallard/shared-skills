@@ -7,7 +7,8 @@ description: >-
   writing or changing a test in a repository that has openspec/specs/, when
   archiving an OpenSpec change, when a spec-trace CI step fails, or when the
   user asks to "trace tests to specs", "tag the scenario", "which tests cover
-  this spec" or to adopt spec-trace in a repository.
+  this spec" or to adopt or decline spec-trace in a repository, or when its
+  hook says the repository has not decided.
 ---
 
 # spec-trace
@@ -68,6 +69,8 @@ python3 $T check             # exit 1 on any problem, each named with file:line 
 python3 $T report            # markdown table per capability: scenario, tests that tag it
 python3 $T report --include-changes   # the specs as open changes will leave them, for a local view
 python3 $T baseline          # write every untagged scenario to the baseline file
+python3 $T state             # adopted, declined or undecided; n/a without openspec/
+python3 $T decline           # record in openspec/config.yaml that the repository declines it
 ```
 
 **Which files are tests.** Without `--tests`, the globs come from the
@@ -138,16 +141,40 @@ renames needs one too when its name repeats in the capability: its tag
 carries the requirement's name, so the old tag no longer matches. Run
 `check` to confirm.
 
-## Adopting it in a repository
+## Adopting or declining it in a repository
+
+spec-trace's hook runs after you write or edit a `spec.md` under
+`openspec/specs/` or `openspec/changes/<name>/specs/` at the top of a git
+repository. When the repository
+has neither adopted nor declined spec-trace, it adds a note telling you to
+ask the user. When you get that note, or the user asks, ask the user whether
+to adopt it or decline it, and do what they choose. Don't decide for them.
+`python3 $T state` prints `adopted`, `declined` or `undecided`.
+
+**To adopt:**
 
 1. From the repository root, run `python3 $T baseline`. It writes
    `openspec/spec-trace-baseline.txt` listing every scenario no test tags
-   yet. Commit it.
+   yet.
 2. Add the CI step from this skill's [README](README.md#ci). It fetches
    `spec_trace.py` pinned to a full commit SHA of shared-skills.
 3. Add one line to the repository's AGENTS.md or CLAUDE.md, in its own voice,
    saying that a test tags the OpenSpec scenario it checks with
    `@scenario <capability>: <Scenario name>`, and pointing at this skill.
+4. If `openspec/config.yaml` has the line `# spec-trace: declined`, delete
+   it. Adoption wins over it, but the file should not say the opposite.
+
+Show the user the new and changed files before committing them.
+
+**To decline:** run `python3 $T decline`. It appends `# spec-trace: declined`
+to `openspec/config.yaml` and changes nothing else; `--dry-run` prints the
+file as it would be. Commit the change. If there is no `config.yaml`, it
+refuses: `openspec init` writes one.
+
+Either way, the commit is what stops every agent on the team from asking
+again. The commit touches `openspec/`. If the repository has a commit hook
+that requires a trailer on such commits (spec-check's `Spec-check:`, for
+example), add the trailer that hook asks for.
 
 Tagging existing tests is optional at adoption. Tag one where it plainly
 checks a scenario's WHEN and THEN, then run `baseline` again so the file lists
