@@ -76,10 +76,20 @@ class SweepTests(unittest.TestCase):
         return list(self.tmp.glob("*/.git/worktrees/*"))
 
     def age(self, git_dir, hours):
+        """Makes everything in a git directory look last changed `hours` ago,
+        including the entries of its HEAD reflogs (its own and its
+        submodules'), whose timestamps the hook reads."""
         then = time.time() - hours * 3600
-        for p in (git_dir, git_dir / "index", git_dir / "HEAD", git_dir / "logs" / "HEAD"):
-            if p.exists():
-                os.utime(p, (then, then))
+        for log in git_dir.rglob("logs/HEAD"):
+            lines = []
+            for line in log.read_text().splitlines():
+                head, tab, message = line.partition("\t")
+                fields = head.split(" ")
+                fields[-2] = str(int(then))
+                lines.append(" ".join(fields) + tab + message)
+            log.write_text("".join(f"{line}\n" for line in lines))
+        for p in (git_dir, *git_dir.rglob("*")):
+            os.utime(p, (then, then), follow_symlinks=False)
 
     def age_pushes(self, repo=None, seconds=7200):
         """Makes every push recorded in a repo's remote-tracking reflogs look
@@ -303,21 +313,521 @@ class SweepTests(unittest.TestCase):
             r = self.run_hook(self.stop(), mode=mode)
             self.assertEqual((r.returncode, r.stdout, r.stderr), (0, "", ""), mode)
 
-    def test_shows_the_user_a_stale_locked_worktree_and_tells_the_agent_nothing(self):
+    # -- idle worktrees, shown to the user --------------------------------
+
+    def idle(self, name="idle", hours=25, lock=None, start="origin/main"):
+        """A worktree last used `hours` ago, locked with `lock` if given."""
+        path = self.worktree(name, start)
+        if lock:
+            self.lock(path, lock)
+        self.age(self.git_dir(name), hours)
+        return path
+
+    def git_dir(self, name):
+        return next(d for d in self.git_dirs() if d.name == name)
+
+    def settle(self, tree, hours=30):
+        """Makes every directory in a worktree look last changed `hours` ago,
+        as in a tree no one has touched."""
+        for d in (tree, *(p for p in tree.rglob("*") if p.is_dir())):
+            self.touch(d, hours)
+
+    def touch(self, path, hours):
+        then = time.time() - hours * 3600
+        os.utime(path, (then, then))
+
+    def message(self, r):
+        self.assertEqual((r.returncode, r.stderr), (0, ""))
+        return json.loads(r.stdout)["systemMessage"]
+
+    def test_shows_an_idle_worktree_to_the_user_and_tells_the_agent_nothing(self):
+        path = self.idle()
+        for mode in ("remind", "block"):
+            for extra in ({}, {"stop_hook_active": True}):
+                message = self.message(self.run_hook(self.stop(**extra), mode=mode, aged=False))
+                self.assertIn(f"  {path}  (branch idle)\n"
+                              f"    clean; no commit removal would lose\n"
+                              f"    git -C {self.repo} worktree remove {path}", message)
+                self.assertNotIn("unlock", message)
+
+    def test_shows_an_idle_locked_worktree_with_its_reason_and_unlock_command(self):
         path = self.landed()
         self.lock(path, "agent B working: the parser")
-        self.age(next(d for d in self.git_dirs() if d.name == "feature"), 25)
+        self.age(self.git_dir("feature"), 25)
+        message = self.message(self.run_hook(self.stop(), mode="block", aged=False))
+        self.assertIn(f"  {path}  (branch feature)\n"
+                      f"    locked: agent B working: the parser\n"
+                      f"    clean; no commit removal would lose\n"
+                      f"    git -C {self.repo} worktree unlock {path} && "
+                      f"git -C {self.repo} worktree remove {path}", message)
+
+    def test_shows_an_idle_detached_worktree(self):
+        path = self.repo / ".claude" / "worktrees" / "det"
+        self.git(self.repo, "worktree", "add", "-q", "--detach", str(path), "origin/main")
+        self.age(self.git_dir("det"), 25)
+        message = self.message(self.run_hook(self.stop(), aged=False))
+        self.assertIn(f"  {path}  (detached HEAD)\n    clean; no commit removal would lose\n"
+                      f"    git -C {self.repo} worktree remove {path}", message)
+
+    def test_skips_a_worktree_with_git_activity_in_the_last_day(self):
+        self.idle(hours=23)
+        self.idle("held", hours=23, lock="agent C working")
+        r = self.run_hook(self.stop(), aged=False)
+        self.assertEqual((r.returncode, r.stdout, r.stderr), (0, "", ""))
+
+    def test_skips_a_worktree_whose_changed_file_was_edited_in_the_last_day(self):
+        path = self.idle()
+        (path / "first.txt").write_text("edited by a tool, with no git command")
+        (path / "new" / "deep").mkdir(parents=True)
+        (path / "new" / "deep" / "draft.txt").write_text("draft")
+        self.settle(path)
+        self.touch(path / "first.txt", 30)
+        r = self.run_hook(self.stop(), aged=False)
+        self.assertEqual((r.returncode, r.stdout, r.stderr), (0, "", ""))
+        self.touch(path / "new" / "deep" / "draft.txt", 30)
+        message = self.message(self.run_hook(self.stop(), aged=False))
+        self.assertIn(f"  {path}  (branch idle)\n"
+                      "    uncommitted changes; no commit removal would lose", message)
+        self.assertNotIn(f"remove {path}", message)
+
+    def test_reads_the_first_changed_file_of_an_unstaged_edit(self):
+        path = self.idle()
+        (path / "a").write_text("a")
+        self.git(path, "add", "a")
+        self.git(path, "commit", "-q", "-m", "a")
+        self.git(path, "push", "-q", "origin", "HEAD:idle")
+        (path / "a").write_text("edited, with no git command")
+        self.settle(path)
+        self.age(self.git_dir("idle"), 25)
+        r = self.run_hook(self.stop(), aged=False)
+        self.assertEqual((r.returncode, r.stdout, r.stderr), (0, "", ""))
+        self.touch(path / "a", 30)
+        message = self.message(self.run_hook(self.stop(), aged=False))
+        self.assertIn(f"  {path}  (branch idle)\n"
+                      "    uncommitted changes; no commit removal would lose", message)
+        self.assertNotIn(f"remove {path}", message)
+
+    def test_offers_no_command_for_edits_status_hides(self):
+        path = self.idle()
+        self.git(path, "update-index", "--skip-worktree", "first.txt")
+        (path / "first.txt").write_text("local only")
+        self.settle(path)
+        self.touch(path / "first.txt", 30)
+        self.age(self.git_dir("idle"), 25)
+        message = self.message(self.run_hook(self.stop(), aged=False))
+        self.assertIn(f"  {path}  (branch idle)", message)
+        self.assertNotIn(f"remove {path}", message)
+
+    def test_reads_the_files_inside_an_untracked_repository(self):
+        path = self.idle()
+        nested = path / "sub"
+        self.git(self.tmp, "init", "-q", str(nested))
+        (nested / "f").write_text("edited just now")
+        self.touch(nested, 30)
+        r = self.run_hook(self.stop(), aged=False)
+        self.assertEqual((r.returncode, r.stdout, r.stderr), (0, "", ""))
+
+    def test_offers_a_command_when_a_skip_worktree_file_is_unchanged(self):
+        path = self.idle()
+        self.git(path, "update-index", "--skip-worktree", "first.txt")
+        self.age(self.git_dir("idle"), 25)
+        message = self.message(self.run_hook(self.stop(), aged=False))
+        self.assertIn(f"git -C {self.repo} worktree remove {path}", message)
+
+    def test_reads_a_hidden_edit_in_a_file_whose_name_starts_with_a_quote(self):
+        path = self.landed()
+        (path / '"a"').write_text("original")
+        (path / "a").write_text("original")
+        self.git(path, "add", ".")
+        self.git(path, "commit", "-q", "-m", "quoted")
+        self.git(path, "push", "-q", "origin", "HEAD:feature")
+        self.git(path, "update-index", "--skip-worktree", '"a"')
+        (path / '"a"').write_text("edited, the only copy")
+        r = self.run_hook(self.stop(), mode="block")
+        self.assertEqual((r.returncode, r.stdout, r.stderr), (0, "", ""))
+
+    def test_judges_a_flagged_symlink_by_its_link_text(self):
+        path = self.landed()
+        (path / "link").symlink_to("feature.txt")
+        (path / "gone").symlink_to("nowhere")
+        self.git(path, "add", ".")
+        self.git(path, "commit", "-q", "-m", "links")
+        self.git(path, "push", "-q", "origin", "HEAD:feature")
+        self.git(path, "update-index", "--skip-worktree", "link")
+        self.git(path, "update-index", "--assume-unchanged", "gone")
+        r = self.run_hook(self.stop(), mode="block")
+        self.assertEqual(r.returncode, 2)
+        self.assertIn(f"git -C {self.repo} worktree remove {path}", r.stderr)
+
+    def test_shows_an_idle_tree_with_work_beside_a_dangling_flagged_symlink(self):
+        path = self.idle()
+        (path / "gone").symlink_to("nowhere")
+        self.git(path, "add", "gone")
+        self.git(path, "commit", "-q", "-m", "gone")
+        self.git(path, "update-index", "--assume-unchanged", "gone")
+        (path / "precious.txt").write_text("only copy")
+        self.settle(path)
+        self.touch(path / "precious.txt", 30)
+        self.age(self.git_dir("idle"), 25)
+        message = self.message(self.run_hook(self.stop(), aged=False))
+        self.assertIn(f"  {path}  (branch idle)\n    uncommitted changes; no commit removal would lose",
+                      message)
+
+    @unittest.skipUnless(sys.platform.startswith("linux"), "needs a file system that allows non-UTF-8 names")
+    def test_reads_a_hidden_edit_in_a_file_whose_name_is_not_utf8(self):
+        path = self.landed()
+        name = os.fsencode(path) + b"/n\xff.txt"
+        with open(name, "wb") as f:
+            f.write(b"original")
+        self.git(path, "add", ".")
+        self.git(path, "commit", "-q", "-m", "odd name")
+        self.git(path, "push", "-q", "origin", "HEAD:feature")
+        subprocess.run([b"git", b"update-index", b"--skip-worktree", b"n\xff.txt"], cwd=path,
+                       env=self.env, check=True)
+        with open(name, "wb") as f:
+            f.write(b"edited, the only copy")
+        r = self.run_hook(self.stop(), mode="block")
+        self.assertEqual((r.returncode, r.stdout, r.stderr), (0, "", ""))
+
+    def test_offers_a_command_for_an_idle_worktree_on_an_unborn_branch(self):
+        path = self.repo / ".claude" / "worktrees" / "o"
+        self.git(self.repo, "worktree", "add", "-q", "--orphan", "-b", "o", str(path))
+        self.age(self.git_dir("o"), 25)
+        self.settle(path)
+        message = self.message(self.run_hook(self.stop(), aged=False))
+        self.assertIn(f"  {path}  (branch o)\n    clean; no commit removal would lose\n"
+                      f"    git -C {self.repo} worktree remove {path}", message)
+
+    def test_offers_no_command_for_an_unborn_branch_whose_reflog_holds_a_commit(self):
+        path = self.repo / ".claude" / "worktrees" / "o3"
+        self.git(self.repo, "worktree", "add", "-q", "--detach", str(path), "origin/main")
+        self.commit(path, "only in the reflog")
+        self.git(path, "checkout", "-q", "--orphan", "o3")
+        self.git(path, "rm", "-q", "-r", "-f", ".")
+        self.age(self.git_dir("o3"), 25)
+        self.settle(path)
+        message = self.message(self.run_hook(self.stop(), aged=False))
+        self.assertIn(f"  {path}  (branch o3)\n    clean; commits removal would lose: unknown",
+                      message)
+        self.assertNotIn(f"remove {path}", message)
+
+    @unittest.skipUnless(sys.platform.startswith("linux"), "needs a file system that allows non-UTF-8 names")
+    def test_reads_the_time_of_a_changed_file_whose_name_is_not_utf8(self):
+        path = self.idle()
+        self.settle(path)
+        with open(os.fsencode(path) + b"/caf\xe9.txt", "wb") as f:
+            f.write(b"written just now")
+        self.touch(path, 30)
+        self.age(self.git_dir("idle"), 25)
+        r = self.run_hook(self.stop(), aged=False)
+        self.assertEqual((r.returncode, r.stdout, r.stderr), (0, "", ""))
+
+    def test_never_shows_a_worktree_that_holds_another_as_idle(self):
+        (self.repo / ".gitignore").write_text(".claude/\n")
+        self.git(self.repo, "add", ".gitignore")
+        self.git(self.repo, "commit", "-q", "-m", "ignore")
+        self.git(self.repo, "push", "-q", "origin", "HEAD:main")
+        self.git(self.repo, "fetch", "-q", "origin")
+        outer = self.worktree("outer")
+        inner = outer / ".claude" / "worktrees" / "inner"
+        self.git(outer, "worktree", "add", "-q", "-b", "inner", str(inner), "origin/main")
+        self.commit(inner, "just now")
+        self.age(self.git_dir("outer"), 25)
+        self.settle(outer)
+        r = self.run_hook(self.stop(), aged=False)
+        self.assertNotIn(f"{outer}  (", self.listed(r))
+
+    # -- the check command ---------------------------------------------------
+
+    def check(self, path):
+        return subprocess.run([sys.executable, str(HOOK), "check", str(path)], env=self.env,
+                              cwd=self.elsewhere, capture_output=True, text=True, timeout=60)
+
+    def test_check_says_safe_or_names_the_commit_removal_would_lose(self):
+        safe = self.landed()
+        r = self.check(safe)
+        self.assertEqual((r.returncode, r.stderr), (0, ""))
+        self.assertIn("Safe to remove", r.stdout)
+        risky = self.worktree("feat")
+        self.git(risky, "checkout", "-q", "--detach")
+        self.commit(risky, "left behind")
+        self.git(risky, "checkout", "-q", "feat")
+        r = self.check(risky)
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("1 commit(s) removal would lose", r.stdout)
+
+    def test_check_refuses_a_worktree_that_holds_another(self):
+        outer = self.worktree("outer")
+        self.git(outer, "worktree", "add", "-q", "-b", "inner",
+                 str(outer / ".claude" / "worktrees" / "inner"), "origin/main")
+        (outer / ".gitignore").write_text(".claude/\n")
+        self.git(outer, "add", ".gitignore")
+        self.git(outer, "commit", "-q", "-m", "ignore")
+        self.git(outer, "push", "-q", "origin", "HEAD:outer")
+        r = self.check(outer)
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("worktree inside it", r.stdout)
+
+    def test_check_cannot_tell_for_a_worktree_without_its_git_file(self):
+        (self.repo / ".gitignore").write_text(".claude/\n")
+        self.git(self.repo, "add", ".gitignore")
+        self.git(self.repo, "commit", "-q", "-m", "ignore")
+        path = self.worktree("x")
+        (path / ".git").unlink()
+        r = self.check(path)
+        self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+        self.assertNotIn("Traceback", r.stderr)
+
+    # -- the landed listing uses the same judgement as the idle list and check
+
+    def test_does_not_list_a_landed_worktree_whose_reflog_alone_holds_a_commit(self):
+        path = self.landed()
+        self.git(path, "checkout", "-q", "--detach")
+        self.commit(path, "left behind")
+        self.git(path, "checkout", "-q", "feature")
         for mode in ("remind", "block"):
-            r = self.run_hook(self.stop(), mode=mode, aged=False)
-            self.assertEqual((r.returncode, r.stderr), (0, ""), mode)
-            message = json.loads(r.stdout)["systemMessage"]
-            self.assertIn(str(path), message)
-            self.assertIn("agent B working: the parser", message)
-            self.assertIn("unlock", message)
-        r = self.run_hook({"hook_event_name": "stop", "status": "completed", "loop_count": 0,
-                           "workspace_roots": [str(self.repo)]}, host="cursor", mode="block",
-                          aged=False)
-        self.assertEqual(json.loads(r.stdout), {})
+            r = self.run_hook(self.stop(), mode=mode)
+            self.assertEqual((r.returncode, r.stdout, r.stderr), (0, "", ""), mode)
+
+    def test_lists_a_landed_worktree_whose_commit_was_amended_before_the_push(self):
+        path = self.worktree("feature")
+        self.commit(path, "first try")
+        self.git(path, "commit", "-q", "--amend", "-m", "amended")
+        self.git(path, "push", "-q", "origin", "HEAD:feature")
+        r = self.run_hook(self.stop(), mode="block")
+        self.assertEqual(r.returncode, 2)
+        self.assertIn(f"git -C {self.repo} worktree remove {path}", r.stderr)
+
+    def test_lists_a_landed_worktree_rebased_and_force_pushed(self):
+        path = self.landed()
+        self.commit(self.repo, "main moves")
+        self.git(self.repo, "push", "-q", "origin", "HEAD:main")
+        self.git(path, "fetch", "-q", "origin")
+        self.git(path, "rebase", "-q", "origin/main")
+        self.git(path, "push", "-q", "-f", "origin", "HEAD:feature")
+        r = self.run_hook(self.stop(), mode="block")
+        self.assertEqual(r.returncode, 2)
+        self.assertIn(f"git -C {self.repo} worktree remove {path}", r.stderr)
+
+    def test_lists_a_landed_worktree_whose_reset_away_commit_its_branch_log_keeps(self):
+        path = self.landed()
+        self.commit(path, "abandoned")
+        self.git(path, "reset", "-q", "--hard", "origin/feature")
+        r = self.run_hook(self.stop(), mode="block")
+        self.assertEqual(r.returncode, 2)
+        self.assertIn(str(path), r.stderr)
+
+    def test_does_not_list_a_landed_worktree_with_a_hidden_edit(self):
+        path = self.landed()
+        self.git(path, "update-index", "--skip-worktree", "feature.txt")
+        (path / "feature.txt").write_text("local only")
+        r = self.run_hook(self.stop(), mode="block")
+        self.assertEqual((r.returncode, r.stdout, r.stderr), (0, "", ""))
+
+    def test_does_not_list_a_landed_worktree_with_a_submodule(self):
+        self.submodule_in_main()
+        path = self.worktree("feature")
+        self.git(path, "-c", "protocol.file.allow=always", "submodule", "update", "-q", "--init")
+        self.commit(path, "feature")
+        self.git(path, "push", "-q", "origin", "HEAD:feature")
+        r = self.run_hook(self.stop(), mode="block")
+        self.assertEqual((r.returncode, r.stdout, r.stderr), (0, "", ""))
+
+    def test_does_not_list_a_landed_worktree_with_files_in_an_uninitialised_submodule(self):
+        self.submodule_in_main()
+        path = self.worktree("feature")
+        (path / "sub" / "notes.txt").write_text("only copy")
+        self.commit(path, "feature")
+        self.git(path, "push", "-q", "origin", "HEAD:feature")
+        r = self.run_hook(self.stop(), mode="block")
+        self.assertEqual((r.returncode, r.stdout, r.stderr), (0, "", ""))
+        r = self.check(path)
+        self.assertEqual(r.returncode, 1, r.stdout)
+
+    @unittest.skipIf(os.geteuid() == 0, "root reads any directory")
+    def test_an_unreadable_submodule_directory_does_not_hide_the_others(self):
+        self.submodule_in_main()
+        odd = self.worktree("odd")
+        (odd / "sub" / "notes.txt").write_text("only copy")
+        done = self.landed("done")
+        self.age(self.git_dir("odd"), 25)
+        self.age(self.git_dir("done"), 2)
+        self.settle(odd)
+        (odd / "sub").chmod(0)
+        self.addCleanup((odd / "sub").chmod, 0o755)
+        r = self.run_hook(self.stop(stop_hook_active=True), mode="block", aged=False)
+        self.assertEqual(r.returncode, 0)
+        message = json.loads(r.stdout)["systemMessage"]
+        self.assertIn(str(done), message)
+        self.assertIn(f"  {odd}  (branch odd)\n    uncommitted changes", message)
+        r = self.check(odd)
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertNotIn("Traceback", r.stderr)
+
+    def submodule_in_main(self):
+        """Adds a submodule `sub` to main and pushes it."""
+        lib = self.tmp / "lib.git"
+        self.git(self.tmp, "init", "-q", "--bare", "-b", "main", str(lib))
+        seed = self.tmp / "seed"
+        self.git(self.tmp, "clone", "-q", str(lib), str(seed))
+        self.commit(seed, "lib")
+        self.git(seed, "push", "-q", "origin", "HEAD:main")
+        self.git(self.repo, "-c", "protocol.file.allow=always", "submodule", "add", "-q",
+                 str(lib), "sub")
+        self.git(self.repo, "commit", "-q", "-m", "sub")
+        self.git(self.repo, "push", "-q", "origin", "HEAD:main")
+        self.git(self.repo, "fetch", "-q", "origin")
+
+    def test_reads_a_submodule_and_offers_no_command_for_it(self):
+        self.submodule_in_main()
+        path = self.worktree("withsub")
+        self.git(path, "-c", "protocol.file.allow=always", "submodule", "update", "-q", "--init")
+        self.age(self.git_dir("withsub"), 25)
+        message = self.message(self.run_hook(self.stop(), aged=False))
+        self.assertIn(f"  {path}  (branch withsub)\n    clean; no commit removal would lose\n"
+                      "    has submodules, which git worktree remove refuses", message)
+        self.assertNotIn(f"remove {path}", message)
+        (path / "sub" / "lib.txt").write_text("edited just now")
+        self.git(path / "sub", "commit", "-q", "-am", "wip")
+        self.age(self.git_dir("withsub"), 25)
+        r = self.run_hook(self.stop(), aged=False)
+        self.assertNotIn(str(path), self.listed(r))
+
+    def test_skips_a_worktree_whose_files_were_just_moved_or_deleted(self):
+        path = self.idle()
+        self.touch(path / "first.txt", 30)
+        (path / "lib").mkdir()
+        (path / "first.txt").rename(path / "lib" / "moved.txt")
+        r = self.run_hook(self.stop(), aged=False)
+        self.assertEqual((r.returncode, r.stdout, r.stderr), (0, "", ""))
+
+    def test_shows_a_worktree_with_a_deleted_file(self):
+        path = self.idle()
+        (path / "first.txt").unlink()
+        self.touch(path, 30)
+        message = self.message(self.run_hook(self.stop(), aged=False))
+        self.assertIn("    uncommitted changes; no commit removal would lose", message)
+        self.assertNotIn(f"remove {path}", message)
+
+    def test_skips_the_sessions_own_worktree_and_a_busy_one(self):
+        own = self.idle("own")
+        busy = self.idle("busy")
+        proc = subprocess.Popen(["sleep", "30"], cwd=busy)
+        self.addCleanup(proc.wait)
+        self.addCleanup(proc.kill)
+        time.sleep(0.2)
+        r = self.run_hook({"hook_event_name": "Stop", "cwd": str(own)}, aged=False, cwd=own)
+        self.assertEqual((r.returncode, r.stdout, r.stderr), (0, "", ""))
+
+    def test_offers_a_command_when_its_branch_keeps_an_unpushed_commit(self):
+        path = self.worktree("ahead")
+        self.commit(path, "ahead")
+        self.age(self.git_dir("ahead"), 25)
+        self.settle(path)
+        message = self.message(self.run_hook(self.stop(), aged=False))
+        self.assertIn(f"  {path}  (branch ahead)\n    clean; no commit removal would lose\n"
+                      f"    git -C {self.repo} worktree remove {path}", message)
+
+    def test_idle_activity_survives_git_gc(self):
+        path = self.idle()
+        self.settle(path)
+        self.git(self.repo, "gc", "-q")
+        self.git(self.repo, "reflog", "expire", "--all")
+        message = self.message(self.run_hook(self.stop(), aged=False))
+        self.assertIn(f"  {path}  (branch idle)", message)
+
+    def test_reads_activity_in_a_submodule(self):
+        self.submodule_in_main()
+        path = self.worktree("withsub2")
+        self.git(path, "-c", "protocol.file.allow=always", "submodule", "update", "-q", "--init")
+        self.age(self.git_dir("withsub2"), 25)
+        self.settle(path)
+        self.assertIn(str(path), self.listed(self.run_hook(self.stop(), aged=False)))
+        self.git(path / "sub", "commit", "-q", "--allow-empty", "-m", "now")
+        self.touch(path / "sub", 30)
+        r = self.run_hook(self.stop(), aged=False)
+        self.assertNotIn(str(path), self.listed(r))
+
+    def test_counts_a_commit_only_the_reflog_holds(self):
+        path = self.worktree("feat")
+        self.git(path, "checkout", "-q", "--detach")
+        self.commit(path, "left behind")
+        self.git(path, "checkout", "-q", "feat")
+        self.age(self.git_dir("feat"), 25)
+        message = self.message(self.run_hook(self.stop(), aged=False))
+        self.assertIn(f"  {path}  (branch feat)\n    clean; 1 commit removal would lose", message)
+        self.assertNotIn(f"remove {path}", message)
+
+    def test_offers_a_command_for_an_empty_reflog_with_head_on_a_remote(self):
+        path = self.idle("bare")
+        (self.git_dir("bare") / "logs" / "HEAD").unlink()
+        self.age(self.git_dir("bare"), 25)
+        message = self.message(self.run_hook(self.stop(), aged=False))
+        self.assertIn(f"  {path}  (branch bare)\n    clean; no commit removal would lose\n"
+                      f"    git -C {self.repo} worktree remove {path}", message)
+
+    def test_idle_worktrees_never_block_beside_landed_ones(self):
+        idle = self.idle()
+        landed = self.landed()
+        self.age(self.git_dir("feature"), 25)
+        r = self.run_hook(self.stop(), mode="block", aged=False)
+        self.assertEqual((r.returncode, r.stdout), (2, ""))
+        self.assertIn(str(landed), r.stderr)
+        self.assertNotIn(str(idle), r.stderr)
+        message = self.message(self.run_hook(self.stop(stop_hook_active=True), mode="block",
+                                             aged=False))
+        self.assertIn(f"  {idle}  (branch idle)", message)
+        self.assertEqual(message.count(str(landed) + "  "), 1)
+
+    def test_a_worktree_with_a_huge_reflog_does_not_hide_the_others(self):
+        done = self.landed("done")
+        big = self.worktree("big")
+        # 30000 distinct commits in big's HEAD reflog: more than fit in one
+        # command line.
+        n = 30000
+        stream = "".join(f"commit refs/heads/scratch\nmark :{i}\n"
+                         f"committer T <t@e> {1700000000 + i} +0000\ndata 1\n{i % 10}\n\n"
+                         for i in range(1, n + 1))
+        marks = self.tmp / "marks"
+        subprocess.run(["git", "fast-import", "--quiet", f"--export-marks={marks}"],
+                       cwd=self.repo, env=self.env, input=stream, text=True, check=True)
+        shas = [line.split()[1] for line in marks.read_text().splitlines()]
+        log = self.git_dir("big") / "logs" / "HEAD"
+        with open(log, "a") as f:
+            for old, new in zip(shas, shas[1:]):
+                f.write(f"{old} {new} T <t@e> 1700000000 +0000\treset: moving to {new}\n")
+        for d in self.git_dirs():
+            self.age(d, 25)
+        r = self.run_hook(self.stop(), mode="block", aged=False)
+        self.assertEqual(r.returncode, 2)
+        self.assertIn(str(done), r.stderr)
+        message = self.message(self.run_hook(self.stop(stop_hook_active=True), mode="block",
+                                             aged=False))
+        self.assertIn(f"  {big}  (branch big)\n    clean; no commit removal would lose\n"
+                      f"    git -C {self.repo} worktree remove {big}", message)
+
+    def test_never_shows_the_main_checkout_as_idle(self):
+        clone = self.tmp / "clone"
+        self.git(self.tmp, "clone", "-q", str(self.origin), str(clone))
+        self.age(clone / ".git", 25)
+        r = self.run_hook({"hook_event_name": "Stop", "cwd": str(clone)}, aged=False)
+        self.assertEqual((r.returncode, r.stdout, r.stderr), (0, "", ""))
+
+    def test_cursor_shows_nothing_for_an_idle_worktree(self):
+        self.idle()
+        for mode in ("remind", "block"):
+            r = self.run_hook({"hook_event_name": "stop", "status": "completed", "loop_count": 0,
+                               "workspace_roots": [str(self.repo)]}, host="cursor", mode=mode,
+                              aged=False)
+            self.assertEqual((r.returncode, json.loads(r.stdout), r.stderr), (0, {}, ""), mode)
+
+    def test_push_never_mentions_an_idle_worktree(self):
+        idle = self.idle()
+        own = self.landed()
+        self.age(self.git_dir("idle"), 25)
+        r = self.run_hook(self.push("git push", cwd=own), mode="block", aged=False)
+        self.assertEqual(r.returncode, 2)
+        self.assertNotIn(str(idle), self.listed(r))
 
     def test_skips_a_sibling_used_in_the_last_hour(self):
         path = self.landed()
@@ -516,12 +1026,14 @@ class SweepTests(unittest.TestCase):
         self.assertIn("locked: Zoë's agent", message)
 
     def old_git(self):
-        """Puts a git on PATH that refuses -z, as git before 2.36 does."""
+        """Puts a git on PATH whose `worktree list` refuses -z, as git before
+        2.36 does. Other commands, such as `status -z`, take it."""
         bin_dir = self.tmp / "old-git"
         bin_dir.mkdir(exist_ok=True)
         wrapper = bin_dir / "git"
         wrapper.write_text("#!/bin/sh\n"
-                           'for a in "$@"; do [ "$a" = -z ] && exit 129; done\n'
+                           'case " $* " in *" worktree list "*) for a in "$@"; do '
+                           '[ "$a" = -z ] && exit 129; done;; esac\n'
                            f'exec {shutil.which("git")} "$@"\n')
         wrapper.chmod(0o755)
         self.env["PATH"] = f"{bin_dir}:{self.env['PATH']}"

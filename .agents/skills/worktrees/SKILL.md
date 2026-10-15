@@ -5,7 +5,8 @@ description: >-
   before starting work on a branch, before working in parallel with other
   agents or a human, before checking out a branch to review it, and when
   finishing work done in a worktree: after pushing, opening a pull request or
-  landing a commit on the default branch. Also use when `git worktree list`
+  landing a commit on the default branch, or when stopping with nothing
+  committed in it. Also use when `git worktree list`
   shows entries, when a hook lists worktrees whose work has landed, and when
   writing a brief that tells another agent to create a worktree.
 ---
@@ -65,8 +66,7 @@ commits are pushed to the default branch. Remove the worktree then, in the
 same turn, before you report done:
 
 1. Nothing is running in it, and your own shell is not inside it.
-2. `git -C <worktree> status --porcelain` prints nothing, untracked files
-   included.
+2. It is safe to remove: every check in *Safe to remove* below passes.
 3. HEAD is pushed: `git -C <worktree> branch -r --contains HEAD` lists
    `origin/<branch>`, or the default branch if you pushed straight to it.
 4. If you locked it: `git -C <main checkout> worktree unlock <worktree>`
@@ -82,12 +82,67 @@ one:
 - "Another agent can reuse it." While it holds the branch, nobody can check
   that branch out to review it.
 
+### Safe to remove
+
+Removing a worktree deletes its files, its own HEAD reflog and its own
+refs. Check it with the skill's command, which applies the same judgement as
+the hook (`<base directory>` is explained under *Remind and block modes*):
+
+```bash
+python3 "<base directory>/scripts/worktree-sweep.py" check <worktree>
+```
+
+It prints "Safe to remove" and exits 0, or names what is wrong and exits 1
+(2 when it can't tell). It is safe only when all of these hold:
+
+- **Clean:** `git -C <worktree> status --porcelain --untracked-files=all`
+  prints nothing. The flag counts untracked files even where a config
+  hides them.
+- **No hidden edits:** `git -C <worktree> ls-files -v` shows no `S` or
+  lowercase tag. If some files carry one, the `check` command finds whether
+  each of them still matches git's copy. Skip-worktree and assume-unchanged
+  files can hold edits `git status` doesn't show.
+- **No commit lost:** every commit in its HEAD, its HEAD reflog and the refs
+  only this worktree has (under `refs/worktree`, `refs/bisect` and
+  `refs/rewritten`) is reachable from something removal keeps: a branch, tag or remote
+  ref, any branch's reflog, or another worktree's or the main checkout's
+  HEAD and reflog. A commit amended or rebased on a branch is kept by that
+  branch's reflog; one left behind on a detached HEAD is not.
+- **No submodules:** `"$(git -C <worktree> rev-parse --absolute-git-dir)/modules"`
+  does not exist, and no path that `git -C <worktree> ls-files -s` lists with
+  mode `160000` holds a `.git`. `git worktree remove` refuses a tree with
+  submodules, after an unlock has already dropped the lock.
+- **No worktree inside it:** no other entry of `git worktree list` lies
+  inside it. Removing it would delete that one too.
+
+## Remove it when you stop without work
+
+When your task ends with nothing committed in the worktree, because you gave
+up, found no change was needed, or handed the work off, remove it in the
+same turn, before you report:
+
+1. Nothing is running in it, and your own shell is not inside it.
+2. It is safe to remove: every check in *Safe to remove* passes.
+3. If you locked it: `git -C <main checkout> worktree unlock <worktree>`
+4. `git -C <main checkout> worktree remove <worktree>`
+5. If you created its branch with `-b`, delete it once every commit its
+   tip and its reflog hold is on a remote. Deleting the branch deletes its
+   reflog, which can be the only thing holding a commit you reset away.
+   Check with
+   `git -C <main checkout> log -g --format=%H <branch> | git -C <main checkout> rev-list -1 --stdin <branch> --not --remotes`:
+   it must print nothing and exit 0, and `git log` must report no error.
+   Then run `git -C <main checkout> branch -D <branch>`.
+
+If step 2, or the check in step 5, fails, ask the user; never discard
+work. The hook never lists such a worktree for you: it looks the same as
+one an agent is about to use, so only you know it is finished.
+
 ## Sweep whenever you list them
 
 Whenever `git worktree list` runs, check every entry, not only the one you
-came for. Remove any whose branch has landed and whose tree is clean,
-including ones you did not create, by the same steps, with three exceptions.
-Step 4 never applies to a worktree you did not lock:
+came for. Remove any whose work has landed and whose tree is clean,
+including ones you did not create, by the steps for landed work, with these
+four exceptions:
 
 - **Never remove a locked worktree you did not lock**, whoever created it,
   however finished it looks. `git worktree list` shows `locked` beside it. If
@@ -95,8 +150,17 @@ Step 4 never applies to a worktree you did not lock:
   (`git worktree list --porcelain`).
 - Never unlock a worktree to remove it unless you locked it.
 - Leave an unlocked worktree that someone else used in the last hour: its
-  owner may simply not have locked it. Its `index` or `HEAD` in
-  `<main checkout>/.git/worktrees/<name>/` then changed in that hour.
+  owner may simply not have locked it. You can tell it was used: its
+  `index` or `HEAD` in `<main checkout>/.git/worktrees/<name>/` changed in
+  that hour, or its newest `git -C <worktree> reflog` entry is from that
+  hour.
+- Leave a worktree someone else made that has no commits of its own: one
+  whose `git -C <worktree> reflog` shows no commit, merge, rebase,
+  cherry-pick or revert since its branch was checked out there,
+  fast-forwards aside. Its HEAD being on origin, for example on
+  `origin/main` because it was just created from there, doesn't mean work
+  has landed: it may be a review checkout, or a tree an agent is about to
+  work in. If one looks abandoned, tell the user.
 
 Run `git worktree prune` for an entry whose directory no longer exists.
 
@@ -119,18 +183,22 @@ to remove:
 - **When you stop:** every worktree in the repository, except locked ones and
   other worktrees used in the last hour.
 
-A listed worktree has a branch checked out, a clean tree, commits made in it,
-a HEAD that is on origin, no worktree inside it, and nothing running in it.
+A listed worktree has a branch checked out, commits made in it, a HEAD that
+is on origin, no worktree inside it, and nothing running in it, and passes
+every check in *Safe to remove*.
 Remove each one with the command it prints, or ask the user if one must stay.
 The hook never removes anything itself.
 
-Any other locked worktree is never listed for you. When one has landed and
-has seen no git activity for a day, the hook shows it to the user instead,
-with its lock reason, as possibly abandoned.
+A locked worktree you didn't just push from is never listed for you. A
+worktree that has been idle for a day, locked or not, is shown to the user
+instead and never to you: no git activity there, and no file that
+`git status` lists as changed was modified in that time. The user sees its
+lock reason, whether it is clean, how many commits removing it would lose,
+and a remove command when removing it loses nothing.
 
 In Cursor, the hook adds the list to the agent's context after a push and,
 at a stop, only when the user has turned on block mode. A Cursor stop hook can't
-show the user anything, so Cursor users never see the abandoned-lock notice.
+show the user anything, so Cursor users never see the idle worktrees.
 
 ## Remind and block modes
 

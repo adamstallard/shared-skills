@@ -12,9 +12,8 @@ reason naming the agent and the task, and unlock it only as the last step
 before removing it. The hook lists a locked worktree for the agent in one
 case only: after a push from that worktree by this session, with the command
 to unlock and then remove it. At Stop, and for any other worktree, a locked
-worktree is never listed for the agent. When a locked worktree has landed
-and its git directory has not changed for 24 hours, the hook shows it to the
-user at Stop, with its lock reason, and tells the agent nothing.
+worktree is never listed for the agent. Once idle, it is shown to the user
+instead (see *Idle worktrees are shown to the user*).
 
 **Why.** In a run with several agents working in parallel, agents sweeping
 "landed" worktrees removed other agents' worktrees while those agents were
@@ -36,11 +35,6 @@ worktree while the agent pushed the worktree's HEAD: both conditions then
 hold, the session's directory and a commit pushed during its command. The listing therefore shows the
 lock reason and tells the agent to unlock only a worktree it locked, and
 otherwise to ask the user.
-
-**24 hours** is far longer than an agent holds a finished worktree before
-removing it, and short enough that a crashed agent's tree is noticed the next
-day. Only the user decides a lock is abandoned: an agent cannot tell a dead
-owner from a slow one.
 
 ## The push check lists only the worktree the push came from
 
@@ -105,9 +99,149 @@ SKILL.md's sweep covers every landed tree, including those another session
 made.
 
 **Known gaps.** Work committed elsewhere and only checked out or pulled
-here shows no local work, so that worktree is never listed. A review tree
+here shows no local work, so that worktree is never listed for the agent.
+Once idle it is shown to the user. A review tree
 brought up to date with `git rebase` instead of a fast-forward logs a
 `rebase` entry and counts as local work. The README names the first case.
+
+## An agent removes a worktree it stops without using
+
+**Decision.** SKILL.md has an agent whose task ends with nothing committed
+in its worktree remove it in the same turn, after the same checks as *One
+judgement decides every remove command*, run through `worktree-sweep.py
+check`. It unlocks it if it locked it and removes it. It then deletes the
+branch it created, once every commit the branch's tip and reflog hold is on
+a remote: deleting the branch deletes its reflog, which can be the only
+thing holding a commit the agent reset away. If `check` says the tree isn't
+safe, or the branch holds a commit that is on no remote, the agent asks the
+user.
+
+**Why.** Only the agent knows it has given up or found nothing to change.
+The hook can't tell its tree from one an agent is about to use, so it never
+lists one for the agent. The agent's own rule for removing landed work
+doesn't apply either, since nothing landed. Without this rule every
+abandoned attempt left a tree holding a branch until someone noticed.
+
+## One judgement decides every remove command
+
+**Decision.** One judgement decides whether the hook offers `git worktree remove` (with `unlock &&` first when locked), in the
+agent's landed list, in the user's idle list and in `worktree-sweep.py
+check` alike. `judge` gathers the facts, and `safe` turns them into yes or
+no. Safe means:
+
+- **No files lost.** `git status` is clean, untracked files included.
+  Files in an uninitialised submodule's directory count as changed, since
+  `git status` never looks there.
+- **No hidden edits.** No skip-worktree or assume-unchanged file differs on
+  disk from its blob in the index. The hook hashes those files itself, a
+  symlink by its link text. It doesn't use `git hash-object --stdin-paths`,
+  which unquotes a name starting with `"` and so hashes another file. It
+  reads the names as bytes, since decoding them loses bytes that aren't
+  UTF-8. A file git would convert, such as by its line endings, counts as
+  changed.
+- **No commit lost.** Removal deletes the worktree's HEAD reflog and its own
+  refs (`refs/worktree`, `refs/bisect`, `refs/rewritten`). Every commit
+  they hold must be reachable from something removal keeps: any branch, tag
+  or remote ref, any branch's reflog, the main checkout's HEAD and reflog,
+  or another worktree's HEAD and reflog. So a commit amended or rebased on a
+  branch is kept by that branch's reflog, and amend-then-push gets the
+  offer. A commit left behind on a detached HEAD is lost, and blocks the
+  offer. The commit HEAD is on counts too, so an empty or expired reflog
+  can't hide it. git counts the lost commits with `rev-list --count --stdin
+  --not --single-worktree --all --reflog`, run against the common git
+  directory. Its stdin holds the worktree's HEAD, HEAD reflog and own refs
+  as plain lines. Run that way, `--single-worktree` sees the main checkout's
+  refs and reflogs but no linked worktree's HEAD reflog, so the commits in
+  the other worktrees' HEAD reflogs are added to stdin as `^<sha>` lines.
+- **Not in use.** Nothing runs in it, and it isn't the session's own tree.
+  The two lists check this before they judge a tree. `check` doesn't: the
+  agent that runs it makes sure nothing runs in the tree, as the first of
+  SKILL.md's removal steps.
+- **Nothing else deleted.** No other worktree sits inside it, which
+  `git worktree remove` would delete with it.
+- **The command won't fail halfway.** The tree has no submodules, by the
+  test `git worktree remove` itself makes: a `modules` directory in the
+  worktree's own git directory, even an empty one, or a gitlink whose
+  submodule is checked out. Otherwise git refuses, after `unlock &&` has
+  already dropped the lock.
+
+A landed tree that isn't safe is left out of the agent's list, as a dirty
+one always was: the agent can't act on it. Once idle, the user's list shows
+it with the reason, unless a process runs in it or another worktree sits
+inside it, which keep a tree off both lists.
+
+**Why.** Deciding whether a tree is safe to remove is the skill's job, and
+two lists that judged it differently disagreed: the landed list offered to
+remove a tree whose only copy of a reset-away commit was in its reflog.
+
+**Accepted cost.** A paused rebase or bisect's bookkeeping in the
+worktree's git directory isn't counted as work. Any commit it made is in
+HEAD's reflog, which the commit check covers.
+
+**Rejected: an allowlist of what a worktree's git directory may hold.**
+Offering the command only when that directory held nothing beyond a known
+set meant cataloguing git's per-worktree state: submodules' repositories,
+`AUTO_MERGE` after a cherry-pick, `REBASE_HEAD` after a rebase, sparse
+checkout patterns, reftable stores, refs of the worktree's own. Each review
+pass found another entry.
+
+## Idle worktrees are shown to the user
+
+**Decision.** At Stop, Claude Code shows the user every linked worktree
+that is idle, locked or not, landed or not. Idle means git has done nothing
+there for 24 hours, and no file `git status` lists as changed, untracked
+included, was modified in that time. That counts skip-worktree and
+assume-unchanged files that differ on disk. A changed directory, such as a
+nested repository or a submodule, counts as modified when anything inside
+it is. A moved or deleted file counts by its directory's time. It leaves
+out the session's own
+worktree, one with a process running in it, and one the listing's safety
+checks reject: no git directory of its own, names that can't be printed
+safely, or another worktree inside it.
+
+Each comes with its path, its branch or "detached HEAD", its lock reason,
+whether it is clean, how many commits removing it would lose, and whether
+it has submodules. The command to remove it appears only when *One
+judgement decides every remove command* says it is safe. A tree git can't
+read is still listed, as "state unknown", with no command. The agent is told
+nothing about these, in remind mode or block mode, and block mode never
+blocks on them. Cursor can't
+show the user anything at Stop, so Cursor users don't see them.
+
+**Why.** An agent that dies, gives up without SKILL.md's removal step, or
+forgets a lock leaves its tree behind. To an agent it looks the same as a
+live one, so only a person can decide. The hook doesn't judge whether work
+was done in the tree; it shows the facts. An earlier design decided from a
+tree's reflog messages whether any work had been done in it, and six review
+passes each found another case it got wrong. A person decides anyway, and
+the facts and the command rule are enough for that. Files'
+times count as activity because Edit and Write tools change no git state:
+an agent can edit for a day without running git.
+
+**Git activity is read from what `git gc` leaves alone.** That is the
+times of the worktree's HEAD and index files and the timestamp written in its
+newest HEAD reflog entry, and the same for each submodule's repository under
+`modules`. `git gc` expires every reflog, rewriting each reflog file and its
+directory even when nothing expires, so file and directory times hid every
+idle tree for a day after any gc, automatic ones included. Activity that
+touches none of these, such as a paused rebase's bookkeeping, isn't seen.
+
+**Rejected: classifying trees as unused from their reflog.** `git am`,
+merging pulls, commit subjects ending in "fast-forward", `git switch -c`,
+plumbing commits and expired reflogs each made a tree with work in it look
+unused, and each fix exposed another case.
+
+**Rejected: showing only locked trees whose work has landed.** That missed
+every tree an agent gave up in, and every unlocked one.
+
+**Known gap.** The session's own worktree is found by the session's working
+directory and workspace roots. A session whose working directory is
+elsewhere, that works in its worktree only through absolute paths or
+`git -C` and runs no git there for a day, has its own tree shown. Counting the trees its transcript names
+as its own would hide trees the transcript merely mentions.
+
+**Known gap.** A tree edited only in ignored files looks idle, since
+`git status` doesn't list them.
 
 ## Remind is the default
 

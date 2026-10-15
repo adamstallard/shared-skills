@@ -11,7 +11,7 @@
       }
     },
     {
-      "summary": "When the agent stops, lists worktrees whose work has landed (blocks the stop in block mode).",
+      "summary": "When the agent stops, lists worktrees whose work has landed (blocks the stop in block mode), and shows you worktrees idle for over a day.",
       "command": "scripts/worktree-sweep.py",
       "events": {
         "claude": { "event": "Stop", "matcher": "" },

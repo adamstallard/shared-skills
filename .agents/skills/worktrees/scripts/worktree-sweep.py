@@ -17,22 +17,25 @@ When it looks, and at what:
     session's own directory is what keeps another agent's just-pushed
     worktree off the list. This one worktree is listed even when locked, with
     its lock reason and an unlock command.
-  - At Stop: every worktree of every repo it finds, except locked ones and,
-    unless it is the session's own, any whose git directory
-    (.git/worktrees/<name>: the directory, index, HEAD, logs/HEAD) changed in
-    the last RECENT_SECONDS. Those times are read before git runs in the
+  - At Stop: every worktree of every repo it finds, except two kinds. Locked
+    ones are skipped. A worktree that isn't the session's own is also skipped
+    when git did something in it during the last RECENT_SECONDS, by
+    last_used. Those times are read before git runs in the
     worktree, and git runs with GIT_OPTIONAL_LOCKS=0, so `git status` does not
     rewrite the index.
 
 A worktree is listed only when all of these hold:
   - it is a linked worktree with a `.git` file of its own and a branch
     checked out
-  - `git status --porcelain` is empty, untracked files included
+  - it is safe to remove (judge and safe): `git status` is clean, untracked
+    files included; no skip-worktree or assume-unchanged file differs on
+    disk; removing it loses no commit (lost_commits); it has no submodule,
+    which `git worktree remove` refuses; and no other worktree sits inside
+    it, since removing it would delete that one
   - its own HEAD reflog shows a commit, merge, rebase, cherry-pick or revert
     since its branch was checked out there, fast-forwards aside, so a
     checkout made for review or for an agent about to start is never listed
   - HEAD is reachable from a refs/remotes/origin/* ref
-  - no other worktree sits inside it, since removing it would delete that one
   - no process has its working directory inside it, apart from this hook and
     the processes that started it; when processes can't be read, nothing is
     listed
@@ -42,13 +45,28 @@ A worktree is listed only when all of these hold:
 
 "Inside" compares device and inode, so another spelling of a path still counts.
 
-At Stop, a locked worktree that meets every other condition and whose git
-directory has not changed for STALE_SECONDS is shown to the user, with its
-lock reason, as possibly abandoned. The agent is not told.
+At Stop, every idle linked worktree not in the agent's list is shown to the
+user, locked or not, whatever its state. Idle means git has done nothing
+there for IDLE_SECONDS, by last_used, and no file that `git status` lists as
+changed was modified in that time. That counts every file inside an
+untracked nested repository or a changed submodule, a moved or deleted file
+by its directory's time, and the skip-worktree and assume-unchanged files
+that differ on disk. The session's own worktree, a busy one (a process has
+its working directory inside it), and one whose names can't be printed
+safely or that holds another worktree are not shown. Each comes with its
+branch, lock reason, whether it is clean, how many commits removing it would
+lose, and whether it has submodules. A remove command is shown only when it
+is safe to remove, by the same judgement as the list above. The agent is not
+told.
 
 Usage: worktree-sweep.py --host <claude|cursor> [--event push|stop], with the
 host's payload on stdin. The event comes from hook_event_name; --event
 overrides it.
+
+       worktree-sweep.py check <worktree>
+Says whether removing a linked worktree is safe, by the same judgement as
+"it is safe to remove" in the list above, and if not, why. Exits 0 when
+safe, 1 when not, 2 when it can't tell.
 
        worktree-sweep.py mode [block|remind]
 With no value, prints the mode the hook would use and where it comes from.
@@ -63,8 +81,8 @@ Mode: WORKTREES_MODE, else "mode" in ~/.config/shared-skills/worktrees.json
           blocked until it has. A Stop that already continues an earlier block
           (stop_hook_active, or Cursor's loop_count above 0) is not blocked
           again: Claude Code shows the user the list, and Cursor shows nothing.
-At every Stop the hook does not block, Claude Code also shows the user the
-possibly abandoned locked worktrees.
+At every Stop at which the hook does not block, Claude Code also shows the
+user the idle worktrees. They never make block mode block.
 
 Repos are found from the payload's cwd and workspace_roots and, at Stop, from
 any `.../.claude/worktrees/...` path in the transcript, so a session started
@@ -75,6 +93,8 @@ Any crash exits 0, so a broken hook never blocks a session.
 To see why a worktree is or is not listed, run it by hand:
   echo '{"cwd": "<repo>"}' | worktree-sweep.py --host claude --event stop
 """
+import collections
+import hashlib
 import json
 import os
 import re
@@ -90,8 +110,9 @@ import unicodedata
 # an agent can go many minutes between git commands while it waits on a
 # reviewer or writes a pull request.
 RECENT_SECONDS = 60 * 60
-# A locked worktree untouched this long may have lost the agent that locked it.
-STALE_SECONDS = 24 * 60 * 60
+# A worktree with no git activity and no changed file modified this long is
+# idle, and is shown to the user.
+IDLE_SECONDS = 24 * 60 * 60
 # A push counts as the command's own when its reflog entry is no older than
 # the command's start, by the duration the host reports, less this margin for
 # clock rounding. Reflogs are shared by every worktree of a repo, so a wider
@@ -115,14 +136,19 @@ SWITCH = re.compile(r"^checkout: moving from (.*) to (.*)$")
 CONFIG = os.path.join("~", ".config", "shared-skills", "worktrees.json")
 
 
-def git(*args, cwd=None):
+def git(*args, cwd=None, input=None, raw=False):
     # GIT_OPTIONAL_LOCKS=0 keeps `git status` from rewriting a worktree's
     # index, which would make it look recently used.
     env = {**os.environ, "GIT_OPTIONAL_LOCKS": "0"}
+    if raw:
+        # Bytes, as git printed them: a path decoded or stripped could name
+        # a different file, or none.
+        r = subprocess.run(["git", *args], cwd=cwd, env=env, capture_output=True, timeout=20)
+        return r.returncode, r.stdout
     # errors="replace": a path or ref name in git's output can hold bytes that
     # aren't UTF-8, and one of them must not stop the whole hook.
     r = subprocess.run(["git", *args], cwd=cwd, env=env, capture_output=True, text=True,
-                       errors="replace", timeout=20)
+                       errors="replace", timeout=20, input=input)
     return r.returncode, r.stdout.strip()
 
 
@@ -237,6 +263,52 @@ def mode_command(args):
     return 0
 
 
+def check_command(args):
+    """`worktree-sweep.py check <worktree>`: says whether removing a linked
+    worktree is safe, by the same judgement the hook uses, and if not, why.
+    Exits 0 when safe, 1 when not, 2 when it can't tell. It doesn't look for
+    running processes."""
+    if len(args) != 1:
+        sys.stderr.write("Usage: worktree-sweep.py check <worktree>\n")
+        return 2
+    path = os.path.abspath(args[0])
+    common = common_dir(path)
+    main, linked = worktrees(common) if common else (None, [])
+    me = identity(path)
+    wt = next((w for w in linked if me and identity(w.get("path") or "") == me), None)
+    if wt is None:
+        sys.stderr.write(f"{path} is not a linked worktree.\n")
+        return 2
+    if wt.get("prunable") or not has_own_git(wt["path"]):
+        print("Can't tell: the worktree has no git directory of its own.")
+        return 2
+    others = [w["path"] for w in linked if w.get("path")]
+    j = judge(wt["path"], peers_of(wt["path"], main or common, others))
+    if j is None:
+        print("Can't tell: git couldn't read the worktree.")
+        return 2
+    reasons = []
+    if j.changed:
+        reasons.append(f"{len(j.changed)} changed or untracked file(s)")
+    if j.hidden:
+        reasons.append(f"{len(j.hidden)} skip-worktree or assume-unchanged file(s) that "
+                       f"differ: {', '.join(j.hidden)}")
+    if j.lost is None:
+        reasons.append("can't tell which commits removal would lose")
+    elif j.lost:
+        reasons.append(f"{j.lost} commit(s) removal would lose")
+    if j.submodules:
+        reasons.append("submodules, which git worktree remove refuses")
+    if j.nested:
+        reasons.append("another worktree inside it, which removal would delete")
+    if reasons:
+        print("Not safe to remove: " + "; ".join(reasons) + ".")
+        return 1
+    print("Safe to remove: clean, no hidden edits, no commit only it holds, no submodules, "
+          "no worktree inside it.")
+    return 0
+
+
 def print_mode():
     active, source = mode_and_source()
     print(f"Worktrees mode: {active}, {source}.")
@@ -348,17 +420,49 @@ def has_own_git(path):
 
 
 def last_used(worktree):
-    """When the worktree's git directory last changed, or None if unknown."""
+    """When git last did something in the worktree, or None if unknown: the
+    newest of its HEAD's and index's times and of the newest entry in its
+    HEAD reflog, and the same for each of its submodules' repositories.
+    `git gc` rewrites every reflog file and its directory, but leaves those
+    times and each entry's own timestamp as they were."""
     gitdir = git_dir_of(worktree)
     if not gitdir:
         return None
     times = []
-    for name in ("", "index", "HEAD", os.path.join("logs", "HEAD")):
-        try:
-            times.append(os.stat(os.path.join(gitdir, name)).st_mtime)
-        except OSError:
-            pass
+    for root, dirs, files in os.walk(gitdir):
+        if "HEAD" not in files:
+            # Not a repository but a directory on the way to one, such as
+            # modules/a above modules/a/b, the repository of a submodule at
+            # a/b. Its subdirectories are walked to reach that repository.
+            continue
+        # Into submodules' repositories only, not objects or refs.
+        dirs[:] = [d for d in dirs if d == "modules"]
+        for name in ("HEAD", "index"):
+            try:
+                times.append(os.stat(os.path.join(root, name)).st_mtime)
+            except OSError:
+                pass
+        newest = newest_reflog_entry(os.path.join(root, "logs", "HEAD"))
+        if newest is not None:
+            times.append(newest)
     return max(times) if times else None
+
+
+def newest_reflog_entry(log):
+    """The timestamp written in the last entry of a reflog file, or None."""
+    try:
+        with open(log, "rb") as f:
+            f.seek(max(0, os.stat(log).st_size - 8192))
+            lines = f.read().split(b"\n")
+    except OSError:
+        return None
+    for line in reversed(lines):
+        fields = line.partition(b"\t")[0].split()
+        try:
+            return int(fields[-2])
+        except (IndexError, ValueError):
+            continue
+    return None
 
 
 def identity(path):
@@ -468,24 +572,30 @@ def busy_identities():
     return inside, trees
 
 
-def describe_if_landed(wt, main, others, busy):
-    """The listing line for a worktree whose work has landed, or None. Locks
-    are the caller's to judge."""
-    path, branch = wt.get("path"), wt.get("branch")
-    if not branch or wt.get("prunable") or not has_own_git(path):
-        return None
+def safe_to_show(wt, main, others, busy):
+    """May this worktree be shown at all? It needs a git directory of its
+    own, names that print safely, no process inside it and no other worktree
+    inside it. The inner worktree's activity is in its own git directory, so
+    the outer one would look idle while the inner one is in use."""
+    path, branch = wt.get("path"), wt.get("branch") or ""
+    if wt.get("prunable") or not has_own_git(path):
+        return False
     # A name that can't be printed safely can't be listed, and is skipped.
     if not (printable(path) and printable(branch) and printable(main)):
-        return None
+        return False
     me = identity(path)
     inside, trees = busy
     if me is None or me in inside or identities_up_from(path) & trees:
-        return None
-    if any(me in identities_up_from(o) for o in others if o != path and os.path.exists(o)):
-        return None
-    # Spelled out, so a config that hides untracked files can't hide them here.
-    code, status = git("status", "--porcelain", "--untracked-files=normal", cwd=path)
-    if code != 0 or status:
+        return False
+    return not any(me in identities_up_from(o) for o in others
+                   if o != path and os.path.exists(o))
+
+
+def describe_if_landed(wt, main, others, busy):
+    """The listing line for a worktree whose work has landed and that is safe
+    to remove, or None. Locks are the caller's to judge."""
+    path, branch = wt.get("path"), wt.get("branch")
+    if not branch or not safe_to_show(wt, main, others, busy):
         return None
     code, log = git("reflog", "show", "--format=%gs", "HEAD", cwd=path)
     if code != 0 or not local_work(log.split("\n")):
@@ -493,13 +603,256 @@ def describe_if_landed(wt, main, others, busy):
     code, out = git("for-each-ref", "--contains", "HEAD", "--format=%(refname:short)",
                     "refs/remotes/origin", cwd=path)
     refs = [r for r in out.split("\n") if r not in ("", "origin", "origin/HEAD")]
-    if code != 0 or not refs:
+    if code != 0 or not refs or not safe(judge(path, peers_of(path, main, others))):
         return None
     on = f"origin/{branch}" if f"origin/{branch}" in refs else clean(refs[0])
+    return f"  {path}  (branch {branch}, on {on})\n    {remove_command(wt, main)}"
+
+
+def describe_if_idle(wt, main, others, busy, since):
+    """The listing for a worktree with no changed file modified after `since`,
+    or None. It gives the facts a person needs to decide whether to remove
+    it, and the command to remove it only when it is safe to."""
+    path, branch = wt.get("path"), wt.get("branch")
+    if not safe_to_show(wt, main, others, busy):
+        return None
+    j = judge(path, peers_of(path, main, others))
+    for name in (j.changed + j.hidden) if j else []:
+        full = os.path.join(path, name)
+        # A directory here is a nested repository or a changed submodule.
+        if is_real_dir(full) and modified_under(full, since):
+            return None
+        # A move or a delete leaves the file's own time unchanged or gone, but
+        # changes its directory's.
+        for p in (full, nearest_dir(full, path)):
+            try:
+                if os.lstat(p).st_mtime > since:
+                    return None
+            except OSError:
+                pass  # deleted: no time to read
+    lines = [f"  {path}  ({f'branch {branch}' if branch else 'detached HEAD'})"]
+    if wt.get("locked"):
+        lines.append(f"    locked: {wt['locked']}")
+    if j is None:
+        lines.append("    state unknown: git couldn't read it")
+        return "\n".join(lines)
+    if j.lost is None:
+        commits = "commits removal would lose: unknown"
+    elif j.lost:
+        commits = f"{j.lost} commit{'s' if j.lost > 1 else ''} removal would lose"
+    else:
+        commits = "no commit removal would lose"
+    if j.hidden:
+        files = f"{len(j.hidden)} file{'s' if len(j.hidden) > 1 else ''}"
+        state = (f"uncommitted changes, and {files} git status doesn't check differ"
+                 if j.changed else f"clean by git status, but {files} it doesn't check differ")
+    else:
+        state = "uncommitted changes" if j.changed else "clean"
+    lines.append(f"    {state}; {commits}")
+    if j.submodules:
+        lines.append("    has submodules, which git worktree remove refuses")
+    if safe(j):
+        lines.append(f"    {remove_command(wt, main)}")
+    return "\n".join(lines)
+
+
+def remove_command(wt, main):
+    """The command that removes the worktree, unlocking it first if locked."""
+    path = wt.get("path")
     git_c = f"git -C {shlex.quote(main)} worktree"
     unlock = f"{git_c} unlock {shlex.quote(path)} && " if wt.get("locked") else ""
-    return (f"  {path}  (branch {branch}, on {on})\n"
-            f"    {unlock}{git_c} remove {shlex.quote(path)}")
+    return f"{unlock}{git_c} remove {shlex.quote(path)}"
+
+
+Judgement = collections.namedtuple("Judgement", "changed hidden lost submodules nested")
+
+
+def peers_of(path, main, others):
+    """The repository's worktrees other than path, the main checkout first."""
+    return [main] + [o for o in others if o != path]
+
+
+def judge(path, peers):
+    """What decides whether removing the worktree is safe, or None when git
+    can't say: the files `git status` lists as changed, untracked included;
+    the skip-worktree and assume-unchanged files that differ on disk, which
+    `git status` doesn't show; how many commits removing it would lose; and
+    whether it has submodules, which `git worktree remove` refuses. Peers
+    are the repository's other worktrees, the main checkout among them; one
+    inside this worktree would be deleted with it."""
+    if not has_own_git(path):
+        return None  # git would answer for the repository above it
+    # -uall lists each untracked file rather than its directory, except in a
+    # nested repository, which it lists as one directory ending in "/".
+    code, out = git("status", "--porcelain", "-z", "--untracked-files=all", cwd=path,
+                    raw=True)
+    if code != 0:
+        return None
+    # Read as bytes, so a name that isn't UTF-8 still names its file.
+    code, index = git("ls-files", "-v", "-s", "-z", cwd=path, raw=True)
+    if code != 0:
+        return None
+    hidden, gitlinks = [], []
+    for field in index.split(b"\0"):
+        meta, _, name = field.partition(b"\t")
+        parts = meta.decode("ascii", "replace").split(" ")
+        if len(parts) != 4 or not name:
+            continue
+        tag, mode, sha = parts[0], parts[1], parts[2]
+        full = os.path.join(os.fsencode(path), name)
+        if mode == "160000":
+            gitlinks.append((full, name))
+        elif ((tag == "S" or tag.islower()) and os.path.lexists(full)
+              and blob_id(full, len(sha)) != sha):
+            hidden.append(os.fsdecode(name))
+    # The test `git worktree remove` makes: a `modules` directory in the
+    # worktree's own git directory, or a gitlink whose submodule is checked out.
+    submodules = (os.path.isdir(os.path.join(git_dir_of(path), "modules"))
+                  or any(os.path.lexists(os.path.join(g, b".git")) for g, _ in gitlinks))
+    # git status never looks inside a gitlink's directory, so files put in an
+    # uninitialised submodule's directory are changes it doesn't show.
+    changed = changed_files(out) + [os.fsdecode(n) for g, n in gitlinks
+                                    if not os.path.lexists(os.path.join(g, b".git"))
+                                    and os.path.isdir(g) and holds_anything(g)]
+    me = identity(path)
+    nested = any(me in identities_up_from(p) for p in peers if p != path and os.path.exists(p))
+    return Judgement(changed, hidden, lost_commits(path, peers), submodules, nested)
+
+
+def holds_anything(directory):
+    """Does this directory hold anything? One that can't be read counts as
+    holding something, since what is in it is unknown."""
+    try:
+        return bool(os.listdir(directory))
+    except OSError:
+        return True
+
+
+def blob_id(full, length):
+    """The id git would give this file's content as a blob, hashed here
+    rather than by `git hash-object --stdin-paths`, which unquotes a name
+    starting with `"` as if git had quoted it, and so hashes another file.
+    A symlink's content is its link text. A file git would convert,
+    such as by its line endings, hashes differently and so counts as changed.
+    None when the file can't be read."""
+    try:
+        if os.path.islink(full):
+            data = os.readlink(full)
+        else:
+            with open(full, "rb") as f:
+                data = f.read()
+    except OSError:
+        return None
+    h = hashlib.sha256() if length == 64 else hashlib.sha1()
+    h.update(b"blob %d\0" % len(data) + data)
+    return h.hexdigest()
+
+
+def safe(j):
+    """Is removing the worktree safe: nothing lost, no other worktree deleted
+    with it, and nothing that makes git refuse?"""
+    return (j is not None and not j.changed and not j.hidden and j.lost == 0
+            and not j.submodules and not j.nested)
+
+
+def changed_files(status):
+    """The paths `git status --porcelain -z`, read as bytes, lists as changed,
+    untracked included, decoded so they name the same files. A rename or
+    copy, staged or not, is followed by its old path, which is skipped."""
+    names, fields, i = [], status.split(b"\0"), 0
+    while i < len(fields):
+        field = fields[i]
+        i += 1
+        if len(field) < 4:
+            continue
+        names.append(os.fsdecode(field[3:]))
+        if b"R" in field[:2] or b"C" in field[:2]:
+            i += 1
+    return names
+
+
+def nearest_dir(path, root):
+    """The closest existing directory holding path, no higher than root."""
+    parent = os.path.dirname(path)
+    while len(parent) > len(root) and not os.path.isdir(parent):
+        parent = os.path.dirname(parent)
+    return parent if len(parent) >= len(root) else root
+
+
+def is_real_dir(path):
+    """Is path a directory, and not a symlink to one?"""
+    try:
+        return stat.S_ISDIR(os.lstat(path).st_mode)
+    except OSError:
+        return False
+
+
+def modified_under(directory, since):
+    """Was anything under this directory modified after `since`?"""
+    for root, dirs, files in os.walk(directory):
+        for name in dirs + files:
+            try:
+                if os.lstat(os.path.join(root, name)).st_mtime > since:
+                    return True
+            except OSError:
+                pass
+    return False
+
+
+def lost_commits(path, peers):
+    """How many commits removing the worktree would lose, or None when git
+    can't say. Removal deletes only the worktree's HEAD reflog and its own
+    refs (refs/worktree, refs/bisect, refs/rewritten). A commit there is
+    lost unless something that stays reaches it: any branch, tag or remote
+    ref, any branch's reflog, the main checkout's HEAD and its reflog, or
+    another worktree's HEAD and its reflog. So an amended or rebased commit
+    is kept by its branch's reflog, and a commit left behind on a detached
+    HEAD is lost."""
+    code, common = git("rev-parse", "--path-format=absolute", "--git-common-dir", cwd=path)
+    if code != 0:
+        return None
+    code, head = git("rev-parse", "-q", "--verify", "HEAD", cwd=path)
+    if code == 0:
+        code, out = git("reflog", "show", "--format=%H", "HEAD", cwd=path)
+        if code != 0:
+            return None
+        lines = [head, *out.split("\n")]
+    elif git("reflog", "exists", "HEAD", cwd=path)[0] == 0:
+        # HEAD is on an unborn branch, as after `git switch --orphan`, but
+        # its reflog can hold commits made before; git won't list a reflog
+        # whose HEAD doesn't resolve, so what removal would lose is unknown.
+        return None
+    else:
+        lines = []  # a branch no one has committed on
+    code, own = git("for-each-ref", "--format=%(objectname)", "refs/worktree/",
+                    "refs/bisect/", "refs/rewritten/", cwd=path)
+    if code != 0:
+        return None
+    lines += own.split("\n")
+    lines += [f"^{sha}" for peer in peers for sha in peer_commits(peer)]
+    # Run as the main checkout, whose --single-worktree view holds every ref
+    # and every shared reflog but no linked worktree's HEAD reflog; the
+    # other worktrees' are given as ^ lines. On stdin, since reflogs can hold
+    # more commits than fit in argv.
+    code, count = git("--git-dir", common, "rev-list", "--count", "--stdin", "--not",
+                      "--single-worktree", "--all", "--reflog",
+                      input="\n".join(x for x in lines if x) + "\n")
+    return int(count) if code == 0 and count.isdigit() else None
+
+
+PEER_COMMITS = {}
+
+
+def peer_commits(peer):
+    """The commits another worktree's HEAD and HEAD reflog hold, read once
+    per run. None of them is lost when a different worktree is removed."""
+    if peer not in PEER_COMMITS and not os.path.isdir(peer):
+        PEER_COMMITS[peer] = []  # its directory is gone; count as keeping nothing
+    if peer not in PEER_COMMITS:
+        code, out = git("reflog", "show", "--format=%H", "HEAD", cwd=peer)
+        _, head = git("rev-parse", "-q", "--verify", "HEAD", cwd=peer)
+        PEER_COMMITS[peer] = [s for s in (out.split("\n") if code == 0 else []) + [head] if s]
+    return PEER_COMMITS[peer]
 
 
 def local_work(reflog):
@@ -661,7 +1014,7 @@ def find_pushed(payload):
 
 
 def find_landed(payload):
-    """At Stop: (worktrees for the agent to remove, locked ones to show the
+    """At Stop: (worktrees for the agent to remove, idle ones to show the
     user)."""
     commons = repos(payload, "stop")
     if not commons:
@@ -673,7 +1026,7 @@ def find_landed(payload):
     for d in session_dirs(payload):
         own |= identities_up_from(d)
     now = time.time()
-    found, stale = [], []
+    found, idle_ones = [], []
     for c in commons:
         main, linked = worktrees(c)
         others = [wt["path"] for wt in linked if wt.get("path")]
@@ -682,16 +1035,19 @@ def find_landed(payload):
             # Read before any git command runs in the worktree.
             used = last_used(path)
             idle = now - used if used is not None else None
-            if wt.get("locked"):
-                if (idle is not None and idle > STALE_SECONDS
-                        and (hit := describe_if_landed(wt, main or c, others, busy))):
-                    stale.append(f"{hit}\n    locked: {wt['locked']}")
-                continue
-            if identity(path) not in own and (idle is None or idle < RECENT_SECONDS):
-                continue
-            if hit := describe_if_landed(wt, main or c, others, busy):
+            mine = identity(path) in own
+            if (not wt.get("locked") and (mine or (idle is not None and idle >= RECENT_SECONDS))
+                    and (hit := describe_if_landed(wt, main or c, others, busy))):
                 found.append(hit)
-    return found, stale
+                continue
+            # An idle tree is shown to the user only, never to the agent, which
+            # can't tell an abandoned tree from one someone is about to use.
+            # The session's own tree is in use, so it is never shown.
+            if (not mine and idle is not None and idle > IDLE_SECONDS
+                    and (hit := describe_if_idle(wt, main or c, others, busy,
+                                                 now - IDLE_SECONDS))):
+                idle_ones.append(hit)
+    return found, idle_ones
 
 
 def agent_message(listing, mode_, host):
@@ -710,19 +1066,19 @@ def agent_message(listing, mode_, host):
             f"{tail}If one should stay, ask the user.\n")
 
 
-def user_message(found, stale):
+def user_message(found, idle):
     parts = []
     if found:
         parts.append("Worktrees whose work has landed are still present:\n" + "\n".join(found))
-    if stale:
+    if idle:
         parts.append(
-            "Locked worktrees whose work has landed, with no git activity for over a day. "
-            "The agent that locked one may be gone; if so, unlock it "
-            "(git worktree unlock <path>) and remove it:\n" + "\n".join(stale))
+            "Worktrees idle for over a day: no git activity, and no changed file edited. "
+            "Whoever was using one may be gone. A remove command is shown only where "
+            "removing it loses nothing:\n" + "\n".join(idle))
     return "\n\n".join(parts)
 
 
-def report(found, stale, event, mode_, host, payload):
+def report(found, idle, event, mode_, host, payload):
     """(stdout, stderr, exit code) for this host, event and mode."""
     listing = "\n".join(found)
     if host == "cursor":
@@ -747,8 +1103,8 @@ def report(found, stale, event, mode_, host, payload):
             "additionalContext": agent_message(listing, mode_, host)}}), "", 0
     if found and mode_ == "block" and not payload.get("stop_hook_active"):
         return "", agent_message(listing, mode_, host), 2
-    if found or stale:
-        return json.dumps({"systemMessage": user_message(found, stale)}), "", 0
+    if found or idle:
+        return json.dumps({"systemMessage": user_message(found, idle)}), "", 0
     return "", "", 0
 
 
@@ -759,10 +1115,10 @@ def main():
         return 0
     event = event_of(payload) or "stop"
     if event == "push":
-        found, stale = find_pushed(payload), []
+        found, idle = find_pushed(payload), []
     else:
-        found, stale = find_landed(payload)
-    out, err, code = report(found, stale, event, mode(), host, payload)
+        found, idle = find_landed(payload)
+    out, err, code = report(found, idle, event, mode(), host, payload)
     if out:
         print(out)
     if err:
@@ -775,6 +1131,8 @@ if __name__ == "__main__":
     # never takes this branch.
     if sys.argv[1:2] == ["mode"]:
         sys.exit(mode_command(sys.argv[2:]))
+    if sys.argv[1:2] == ["check"]:
+        sys.exit(check_command(sys.argv[2:]))
     try:
         sys.exit(main())
     except Exception:
