@@ -145,25 +145,40 @@ nobody is doing.
 ## Proposals open with their decisions
 
 **Decision.** A proposal opens with the decisions the reviewer is asked to
-make, each with the alternative it rejects; then what is still open; then
-everything else. The script fails a proposal whose first section is not a
-decisions section, and a decision whose text never says what it rejects.
-`setup` puts the rule in `openspec/config.yaml`, which OpenSpec prints to
-the agent drafting the proposal (verified with OpenSpec 1.6.0: config rules
-appear inside `<rules>` in `openspec instructions proposal`).
+make; then what is still open; then everything else. The script fails a
+proposal whose first section is not a decisions section, or whose decisions
+section lists no decisions. `setup` puts the rule in `openspec/config.yaml`,
+which OpenSpec prints to the agent drafting the proposal (verified with
+OpenSpec 1.6.0: config rules appear inside `<rules>` in
+`openspec instructions proposal`).
 
-**Why.** At the spec stage, the reviewer's job is the decisions. A decision without
-its rejected alternative cannot be judged: the reviewer cannot tell a choice
-from a default.
+**Why.** At the spec stage, the reviewer's job is the decisions.
 
 **Rejected:** a decisions section anywhere in the proposal. OpenSpec's own
 template opens with "Why", and a reviewer reads in order.
+
+**A decision names a rejected alternative only when it has one** (Adam,
+2026-10-14). Where a real alternative was considered and turned down, the
+decision says what it was and why. Nothing checks for one. Not every
+decision has a real alternative. Requiring one invites weak ones written to
+fill the slot, which add to the reader's work.
+
+**Rejected:** requiring every decision to name a rejected alternative, which
+the script once checked by searching each decision for the word "reject". A
+search like that cannot judge a decision anyway: it finds the word, not a
+real alternative.
 
 **`setup` edits text, not YAML.** The standard library has no YAML parser,
 and a parse-and-dump would drop every comment. The edit appends a marker
 comment and one list item, and refuses flow style rather than guess at it.
 The marker is what makes a second run a no-op even after someone rewords the
 rule.
+
+An earlier `setup` wrote a rule that asked each decision for the alternative
+it rejects. A config holding that wording keeps it until someone edits it,
+because a re-run sees the marker and changes nothing. `setup` does not
+replace the text under the marker, because that would overwrite a team's
+own rewording.
 
 ---
 

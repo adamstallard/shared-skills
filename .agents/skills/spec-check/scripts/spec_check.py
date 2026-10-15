@@ -37,8 +37,9 @@ import tempfile
 DECISIONS_HEADINGS = ["Decisions"]
 
 RULE_TEXT = (
-    "Open with the decisions the reviewer is asked to make, each with the "
-    "alternative it rejects; then what is still open; then everything else."
+    "Open with the decisions the reviewer is asked to make; then what is still "
+    "open; then everything else. Where a decision turned down a real "
+    "alternative, say what it was and why; do not invent one to fill a slot."
 )
 RULE_MARKER = "# spec-check: decisions first"
 
@@ -659,9 +660,10 @@ def check_decisions(change, corpus, headings, out):
             out.append(Finding(path, n, "error", "decisions-first",
                                f'the proposal opens with "{m.group(2)}"; it must open with a '
                                f"section headed {names}: the decisions the reviewer is asked to make, "
-                               "each with the alternative it rejects, then what is still open"))
-        else:
-            check_alternatives(path, corpus.texts[path].splitlines(), n, len(m.group(1)), out)
+                               "then what is still open"))
+        elif not has_decisions(corpus.texts[path], n, len(m.group(1))):
+            out.append(Finding(path, n, "error", "decisions-first",
+                               "the decisions section lists no decisions; list each as an item"))
         return
     out.append(Finding(path, 0, "error", "decisions-first", "the proposal has no sections"))
 
@@ -688,44 +690,25 @@ def is_open_label(text):
     return wrapped or colon or not m.group(6)
 
 
-def check_alternatives(path, lines, start, level, out):
-    """Each decision in the section names the alternative it rejects.
-
-    A decision is a list item at the left margin, up to the section's end or a
-    line that starts what is still open. It names an alternative when its text
-    says "reject" in any form, as `*Rejected:* ...` does.
-    """
-    items = []  # [line number, text]
-    for n, raw, fenced in markdown_lines("\n".join(lines)):
-        if n <= start:
-            continue
-        if fenced:  # quoted text belongs to the decision it sits in
-            if items:
-                items[-1][1] += "\n" + raw
+def has_decisions(text, start, level):
+    """Whether the decisions section lists at least one decision. start is the
+    line number of the section's heading, and level is its depth. A decision
+    is a list item at the left margin that comes before the section ends and
+    before the "still open" label."""
+    for n, raw, fenced in markdown_lines(text):
+        if n <= start or fenced:  # a list item in a fence is quoted text
             continue
         h = HEADING.match(raw)
         if h and (len(h.group(1)) <= level or is_open_label(h.group(2))):
-            break
+            return False
         item = DECISION_ITEM.match(raw)
-        if item and is_open_label(raw[item.end():]):
-            break
         if item:
-            items.append([n, raw])
-        # Only an unindented line can be the label. An indented line continues
-        # the decision above it, whatever it says.
-        elif not raw[:1].isspace() and is_open_label(raw):
-            break
-        elif items:
-            items[-1][1] += "\n" + raw
-    if not items:
-        out.append(Finding(path, start, "error", "decisions-first",
-                           "the decisions section lists no decisions; list each as an item "
-                           "that names the alternative it rejects"))
-    for n, text in items:
-        if not re.search(r"\breject", text, re.I):
-            out.append(Finding(path, n, "error", "decision-alternative",
-                               "this decision names no alternative it rejects; add "
-                               "\"*Rejected:* <the alternative>, <why>\""))
+            return not is_open_label(raw[item.end():])
+        # Only an unindented line can be the label; an indented line is part
+        # of the text above it.
+        if not raw[:1].isspace() and is_open_label(raw):
+            return False
+    return False
 
 
 def run_validate(root, change):

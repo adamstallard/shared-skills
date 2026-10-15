@@ -257,17 +257,15 @@ class CheckTests(unittest.TestCase):
         self.assertEqual(kinds(r), ["decisions-first"])
         self.assertIn('opens with "Why"', r.stdout)
 
-    def test_a_decision_without_a_rejected_alternative_fails(self):
+    def test_a_decision_with_no_rejected_alternative_passes(self):
         self.repo.change("x", proposal=GOOD_PROPOSAL.replace(
             "1. **Records expire.** *Rejected:* keeping them forever.",
-            "1. **Records expire.** *Rejected:* keeping them forever.\n"
-            "2. **Expiry runs nightly.**\n   Once a day is enough."))
+            "1. **Expiry runs nightly.**\n   Once a day is enough."))
         r = self.repo.check("x")
-        self.assertEqual(r.returncode, 1)
-        self.assertEqual(kinds(r), ["decision-alternative"])
-        self.assertIn("proposal.md:4: error [decision-alternative]", r.stdout)
+        self.assertEqual(r.returncode, 0, r.stdout)
+        self.assertEqual(kinds(r), [])
 
-    def test_what_is_still_open_needs_no_alternative(self):
+    def test_a_still_open_list_passes(self):
         self.repo.change("x", proposal=GOOD_PROPOSAL.replace(
             "**Still open:** nothing.", "**Still open:**\n\n- Whether ninety days is right."))
         self.assertEqual(kinds(self.repo.check("x")), [])
@@ -368,10 +366,8 @@ class FoundByBugHunterTests(unittest.TestCase):
     def test_a_decision_starting_with_open_is_a_decision(self):
         self.repo.change("x", proposal=GOOD_PROPOSAL.replace(
             "1. **Records expire.** *Rejected:* keeping them forever.",
-            "- **Open registration to everyone.** *Rejected:* invite-only.\n"
-            "- **Records expire.** Nothing else."))
-        r = self.repo.check("x")
-        self.assertEqual(kinds(r), ["decision-alternative"])
+            "- **Open registration to everyone.** *Rejected:* invite-only."))
+        self.assertEqual(kinds(self.repo.check("x")), [])
 
     def test_a_repository_with_no_commits_can_be_checked_and_signed(self):
         fresh = pathlib.Path(tempfile.mkdtemp(prefix="spec-check-test-")).resolve()
@@ -437,13 +433,13 @@ class FoundByBugHunterIteration2Tests(unittest.TestCase):
 
     def test_a_still_open_list_item_ends_the_decisions(self):
         self.repo.change("x", proposal=GOOD_PROPOSAL.replace(
-            "**Still open:** nothing.", "- **Still open:** whether archived records expire too."))
-        self.assertEqual(kinds(self.repo.check("x")), [])
+            "1. **Records expire.** *Rejected:* keeping them forever.\n\n**Still open:** nothing.\n", "- **Still open:** whether archived records expire too.\n"))
+        self.assertEqual(kinds(self.repo.check("x")), ["decisions-first"])
 
     def test_open_items_end_the_decisions(self):
         self.repo.change("x", proposal=GOOD_PROPOSAL.replace(
-            "**Still open:** nothing.", "**Open items:**\n\n- Whether archived records expire too."))
-        self.assertEqual(kinds(self.repo.check("x")), [])
+            "1. **Records expire.** *Rejected:* keeping them forever.\n\n**Still open:** nothing.\n", "**Open items:**\n\n- Whether archived records expire too.\n"))
+        self.assertEqual(kinds(self.repo.check("x")), ["decisions-first"])
 
     def test_check_on_a_ref_without_openspec_cannot_run(self):
         self.repo.git("checkout", "-q", "-b", "nospec")
@@ -494,15 +490,6 @@ class FoundByBugHunterIteration3Tests(unittest.TestCase):
         r = self.repo.check("x")
         self.assertEqual(r.returncode, 0, r.stdout)
 
-    def test_a_wrapped_decision_line_starting_open_issues_is_not_the_open_part(self):
-        self.repo.change("x", proposal=GOOD_PROPOSAL.replace(
-            "1. **Records expire.** *Rejected:* keeping them forever.",
-            "1. **Stale issues close after ninety days.** The bot closes\n"
-            "   open issues that have had no activity for ninety days.\n"
-            "   *Rejected:* never closing them.\n"
-            "2. **The bot comments first.** *Rejected:* closing silently."))
-        self.assertEqual(kinds(self.repo.check("x")), [])
-
     def test_a_decision_about_open_issues_is_a_decision(self):
         self.repo.change("x", proposal=GOOD_PROPOSAL.replace(
             "1. **Records expire.** *Rejected:* keeping them forever.",
@@ -534,23 +521,22 @@ class FoundByScopedRunTests(unittest.TestCase):
         self.repo.change("x", proposal=self.proposal(
             "1. **Purge nightly.** *Rejected:* purging on read. The job:\n\n"
             "```sh\n# nightly purge\npurge --older-than 90d\n```\n\n"
-            "2. **Purged records are deleted.**\n"))
-        self.assertEqual(kinds(self.repo.check("x")), ["decision-alternative"])
+            "2. **Purged records are deleted** (`src/purge.py:3`).\n"))
+        self.assertEqual(kinds(self.repo.check("x")), ["citation"])
 
     def test_a_list_item_in_a_fence_is_not_a_decision(self):
         self.repo.change("x", proposal=self.proposal(
-            "1. **Validate config at load.** *Rejected:* validating lazily. Example:\n\n"
+            "The config, for reference:\n\n"
             "```yaml\n- name: primary\n  pool: 10\n```\n"))
-        self.assertEqual(kinds(self.repo.check("x")), [])
+        self.assertEqual(kinds(self.repo.check("x")), ["decisions-first"])
 
     def test_still_open_labels_in_other_styles_end_the_decisions(self):
         for label in ("*Still open:*", "_Still open:_", "### *Still open*",
                       "**Open questions?**", "Still open."):
             with self.subTest(label=label):
                 self.repo.change("x", proposal=self.proposal(
-                    "1. **Records expire.** *Rejected:* keeping them forever.\n\n"
                     f"{label}\n\n- Whether archived records expire too.\n"))
-                self.assertEqual(kinds(self.repo.check("x")), [])
+                self.assertEqual(kinds(self.repo.check("x")), ["decisions-first"])
 
     def test_a_quoted_stack_trace_is_not_a_citation(self):
         self.repo.change("x", proposal=GOOD_PROPOSAL.replace("## What Changes", (
@@ -599,15 +585,15 @@ class FoundByScopedRunIteration2Tests(unittest.TestCase):
                     "1. **Records expire.** *Rejected:* keeping them forever.\n",
                     "1. **Ship the snippet.** *Rejected:* linking out.\n\n"
                     f"{outer}markdown\nRun it:\n```\n# build everything\nmake\n```\n{outer}\n\n"
-                    "2. **Snippets are tested.**\n"))
-                self.assertEqual(kinds(self.repo.check("x")), ["decision-alternative"])
+                    "2. **Snippets are tested** (`src/snippets.py:3`).\n"))
+                self.assertEqual(kinds(self.repo.check("x")), ["citation"])
 
     def test_an_underscore_wrapped_label_ends_the_decisions(self):
         for label in ("__Still open__", "_Open questions_", "### _Still open_"):
             with self.subTest(label=label):
                 self.repo.change("x", proposal=GOOD_PROPOSAL.replace(
-                    "**Still open:** nothing.", f"{label}\n\n- Whether archived records expire too."))
-                self.assertEqual(kinds(self.repo.check("x")), [])
+                    "1. **Records expire.** *Rejected:* keeping them forever.\n\n**Still open:** nothing.\n", f"{label}\n\n- Whether archived records expire too.\n"))
+                self.assertEqual(kinds(self.repo.check("x")), ["decisions-first"])
 
     def test_a_dot_directory_is_not_a_host(self):
         self.repo.write(".ai/rules.md", "one\ntwo\n")
@@ -684,9 +670,9 @@ class FencesAndLinksTests(unittest.TestCase):
             "```yaml\n- name: web\n  retries: 1\n```\n"
             "2. Install the hook with a script. *Rejected:* manual steps.\n"
             "```bash\n# install the hook\n./setup.sh\n```\n"
-            "3. Use Postgres for the retry log.\n"))
+            "3. Use Postgres for the retry log (`src/retry.py:3`).\n"))
         r = self.repo.check("x")
-        self.assertEqual(kinds(r), ["decision-alternative"])
+        self.assertEqual(kinds(r), ["citation"])
         self.assertIn("Use Postgres", self.repo.path.joinpath(
             "openspec/changes/x/proposal.md").read_text().splitlines()[
                 int(r.stdout.split("proposal.md:")[1].split(":")[0]) - 1])
@@ -737,9 +723,9 @@ class QuotesAndSubmodulesTests(unittest.TestCase):
             "1. Parse dates with `parseDate`. *Rejected:* a regular expression. In the REPL:\n"
             "   ```\n   > parseDate(\"2024-02-29\")\n   Uncaught RangeError\n"
             "       at parseDate (app/dates.js:212:5)\n   ```\n"
-            "2. Log every retry.\n"))
+            "2. Log every retry (`src/retry.py:3`).\n"))
         r = self.repo.check("x")
-        self.assertEqual(kinds(r), ["decision-alternative"])
+        self.assertEqual(kinds(r), ["citation"])
         self.assertNotIn("dates.js", r.stdout)
 
     def test_a_citation_into_a_submodule_does_not_block_sign(self):

@@ -19,8 +19,7 @@ Before an agent commits, or opens a pull request for, anything under
    - the same rule stated under two requirements;
    - a `path:line` citation whose line is on neither the base branch nor
      the change;
-   - a proposal that does not open with its decisions, each naming the
-     alternative it rejects;
+   - a proposal that does not open with its decisions;
    - terms nothing defines (a hint only, never a failure).
 
    It also runs `openspec validate --strict` and includes the result.

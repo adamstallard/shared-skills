@@ -51,7 +51,6 @@ errors to fix. Exit 2: it could not run, and says why.
 | `duplicate` | error | A sentence of the rule also appears under another requirement, here or in another spec or change |
 | `citation` | error, or check | A `path:line` with a `/` whose line is in neither the base branch nor the change is an error. Any other citation finding is a check: a bare name such as `config.py:50`, or a line only the change adds. Text in a code fence, and addresses such as `0.0.0.0:8080`, are skipped |
 | `decisions-first` | error | The proposal does not open with a decisions section, or the section lists no decisions |
-| `decision-alternative` | error | A decision names no alternative it rejects |
 | `openspec-validate` | error, or check when validation passed | An issue `openspec validate --strict` reported |
 | `undefined-term` | check | A backticked or bold term in a requirement appears nowhere in the specs or the change's proposal or design |
 
@@ -99,14 +98,18 @@ Run the mechanical checks again after amending.
 
 ## Decisions first
 
-A proposal opens with the decisions the reviewer is asked to make, each with
-the alternative it rejects; then what is still open; then everything else.
+A proposal opens with the decisions the reviewer is asked to make; then what
+is still open; then everything else. Where a decision turned down a real
+alternative, say what it was and why. Do not invent one where there was
+none. Not every decision has one, and a weak one only adds to the reader's
+work.
 
 ```markdown
 ## Decisions
 
 1. **Records expire ninety days after their last read.** *Rejected:*
    keeping them forever, which grows the store without bound.
+2. **The purge runs nightly.**
 
 **Still open:**
 

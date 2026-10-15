@@ -62,8 +62,8 @@ change and says what is missing.
 11. Evidence shown as checked when its source does not exist yet. A value
     from something unbuilt must read "not checked", never pass by default.
 12. Decisions the proposal does not open with: a choice the reviewer is asked
-    to accept that is not in its decisions section with the alternative it
-    rejects, or a question still open that is not listed as open.
+    to accept that is not in its decisions section, or a question still open
+    that is not listed as open.
 
 Write each finding as:
 
