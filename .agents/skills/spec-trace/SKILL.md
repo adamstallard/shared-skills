@@ -69,8 +69,8 @@ python3 $T check             # exit 1 on any problem, each named with file:line 
 python3 $T report            # markdown table per capability: scenario, tests that tag it
 python3 $T report --include-changes   # the specs as open changes will leave them, for a local view
 python3 $T baseline          # write every untagged scenario to the baseline file
-python3 $T state             # adopted, declined or undecided; n/a without openspec/
-python3 $T decline           # record in openspec/config.yaml that the repository declines it
+python3 $T state             # adopted, declined, undecided or unknown; n/a without openspec/
+python3 $T decline           # write openspec/spec-trace.yaml, declining it for the repository
 ```
 
 **Which files are tests.** Without `--tests`, the globs come from the
@@ -145,11 +145,18 @@ carries the requirement's name, so the old tag no longer matches. Run
 
 spec-trace's hook runs after you write or edit a `spec.md` under
 `openspec/specs/` or `openspec/changes/<name>/specs/` at the top of a git
-repository. When the repository
-has neither adopted nor declined spec-trace, it adds a note telling you to
-ask the user. When you get that note, or the user asks, ask the user whether
-to adopt it or decline it, and do what they choose. Don't decide for them.
-`python3 $T state` prints `adopted`, `declined` or `undecided`.
+repository. When the repository has neither adopted nor declined
+spec-trace, it adds a note telling you to ask the user. When you get that
+note, or the user asks, ask the user whether to adopt it or decline it, and
+do what they choose. Don't decide for them.
+
+To see where a repository stands, run `python3 $T state`. It prints
+`adopted`, `declined`, `undecided` or `unknown`; ask the user only when it
+says `undecided`. On `unknown` it says why, on stderr:
+- `openspec/spec-trace.yaml` holds something other than `adoption: declined`:
+  show the user the file and ask what it should say.
+- It cannot be read, for example because it is a folder or a broken link:
+  tell the user what is at that path and ask whether to delete it.
 
 **To adopt:**
 
@@ -161,15 +168,14 @@ to adopt it or decline it, and do what they choose. Don't decide for them.
 3. Add one line to the repository's AGENTS.md or CLAUDE.md, in its own voice,
    saying that a test tags the OpenSpec scenario it checks with
    `@scenario <capability>: <Scenario name>`, and pointing at this skill.
-4. If `openspec/config.yaml` has the line `# spec-trace: declined`, delete
-   it. Adoption wins over it, but the file should not say the opposite.
+4. If `openspec/spec-trace.yaml` exists, delete it. Adoption wins over it,
+   but the repository should not say both.
 
 Show the user the new and changed files before committing them.
 
-**To decline:** run `python3 $T decline`. It appends `# spec-trace: declined`
-to `openspec/config.yaml` and changes nothing else; `--dry-run` prints the
-file as it would be. Commit the change. If there is no `config.yaml`, it
-refuses: `openspec init` writes one.
+**To decline:** run `python3 $T decline`. It writes `openspec/spec-trace.yaml`
+holding `adoption: declined`, and changes nothing else; `--dry-run` shows
+what it would write. Commit the file.
 
 Either way, the commit is what stops every agent on the team from asking
 again. The commit touches `openspec/`. If the repository has a commit hook

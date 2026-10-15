@@ -43,8 +43,9 @@ Your agent asks the first time it writes scenarios in a repository that uses
 OpenSpec. When the agent writes or edits a `spec.md` in the `openspec/`
 folder at the top of a git repository, under `openspec/specs/` or
 `openspec/changes/`, spec-trace's hook checks whether the repository has
-adopted spec-trace or declined it. If it has done neither, the hook tells the agent to ask you. You can also ask it yourself: *"adopt spec-trace in this repo"* or
-*"decline spec-trace in this repo"*.
+adopted spec-trace or declined it. If it has done neither, the hook tells
+the agent to ask you. You can also ask it yourself: *"adopt spec-trace in
+this repo"* or *"decline spec-trace in this repo"*.
 
 The answer lives in the repository, so once it is committed, every agent on
 the team stops asking:
@@ -52,19 +53,24 @@ the team stops asking:
 - **Adopted:** the repository has the baseline file
   (`openspec/spec-trace-baseline.txt`), a GitHub workflow that
   runs `spec_trace.py`, or `openspec/spec-trace-tests.txt`.
-- **Declined:** `openspec/config.yaml` has the line `# spec-trace: declined`.
-  `spec_trace.py decline` adds it, keeping the rest of the file as it was
-  (`--dry-run` prints the result instead). Without a `config.yaml` it refuses;
-  `openspec init` writes one. To adopt after declining, follow the adopt
-  steps and delete the line too, so the config doesn't say the opposite. A
-  line left behind does no harm: adoption wins.
+- **Declined:** `openspec/spec-trace.yaml` holds the line
+  `adoption: declined`. `spec_trace.py decline` writes it (`--dry-run` shows
+  what it would write). OpenSpec's own `config.yaml` is not touched. To adopt
+  after declining, follow the adopt steps and delete `spec-trace.yaml`, so
+  the repository doesn't say both. A `spec-trace.yaml` left behind after
+  adopting does no harm: adoption wins.
 
-`spec_trace.py state` prints `adopted`, `declined` or `undecided`.
+`spec_trace.py state` prints `adopted`, `declined` or `undecided`. It prints
+`unknown` when `spec-trace.yaml` holds anything else or cannot be read; the
+hook then stays silent, and `decline` refuses until the file is fixed or
+deleted.
 
 The hook is on when spec-trace is installed. It is silent outside OpenSpec
 repositories and in any repository that has answered, and it never blocks.
 In Cursor the hook is wired to `postToolUse`, but nobody has yet checked
-that its note reaches the agent there. To turn it off: `skills.py disable-hook spec-trace` (see manage-skills).
+that its note reaches the agent there. To turn it off, run
+`python3 ~/.agents/skills/manage-skills/scripts/skills.py disable-hook spec-trace`;
+manage-skills' README has the details.
 
 To adopt by hand, from the repository root:
 

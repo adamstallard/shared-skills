@@ -35,11 +35,16 @@ DEFAULT_TESTS = [
 SKIP_DIRS = {".git", "node_modules"}
 
 # What a repository has decided about spec-trace (adoption_state).
-ADOPTED, DECLINED, UNDECIDED = "adopted", "declined", "undecided"
-CONFIG = "openspec/config.yaml"
-# Written by `decline`, as a whole line. spec-check writes its own markers into
-# the same config.yaml, all starting "# spec-check:", so the two never match.
-DECLINE_MARKER = "# spec-trace: declined"
+# UNKNOWN: the decision file holds something other than DECLINED_TEXT, or
+# cannot be read (unknown_reason says which; adoption_state lists every case).
+ADOPTED, DECLINED, UNDECIDED, UNKNOWN = "adopted", "declined", "undecided", "unknown"
+# spec-trace's own decision file, which `decline` writes. OpenSpec's config.yaml
+# is left alone, so declining works whether or not that file exists.
+DECISION_FILE = "openspec/spec-trace.yaml"
+DECLINED_TEXT = "adoption: declined"
+# Characters adoption_state reads from DECISION_FILE at most; a longer file
+# is UNKNOWN.
+DECISION_FILE_LIMIT = 4096
 WORKFLOWS = ".github/workflows"
 
 REQUIREMENT = re.compile(r"^###\s+Requirement:\s*(.+?)\s*$")
@@ -1006,6 +1011,26 @@ def git_top(root):
 RUNS_CHECKER = re.compile(r"(?<![\w.-])spec_trace\.py")
 
 
+# Characters runs_checker_in_ci reads from one workflow file at most. A mention
+# of spec_trace.py past it is not seen; real workflows are a few kilobytes.
+WORKFLOW_LIMIT = 1_000_000
+
+
+def read_regular_file(path, limit, encoding="utf-8"):
+    """Up to limit + 1 characters of path, or None when it is not a regular file
+    (a link to one counts) or cannot be read. Only a regular file is opened,
+    because a repository can commit a link to a FIFO, whose open blocks, or to
+    a device such as /dev/zero, which never ends. limit bounds what a large
+    regular file costs."""
+    if not os.path.isfile(path):
+        return None
+    try:
+        with open(path, encoding=encoding, errors="replace") as f:
+            return f.read(limit + 1)
+    except OSError:
+        return None
+
+
 def runs_checker_in_ci(root):
     """Does a GitHub Actions workflow in root/.github/workflows name spec_trace.py?
     Only root's own workflows count: a workflow at the top of a monorepo that
@@ -1017,29 +1042,34 @@ def runs_checker_in_ci(root):
         return False
     for name in names:
         if name.endswith((".yml", ".yaml")):
-            try:
-                with open(os.path.join(folder, name), encoding="utf-8", errors="replace") as f:
-                    if RUNS_CHECKER.search(f.read()):
-                        return True
-            except OSError:
-                continue
+            text = read_regular_file(os.path.join(folder, name), WORKFLOW_LIMIT)
+            if text and RUNS_CHECKER.search(text):
+                return True
     return False
 
 
-def config_declines(text):
-    return any(line.strip() == DECLINE_MARKER for line in text.splitlines())
+def says_declined(text):
+    """Is DECLINED_TEXT the file's only line, ignoring blank lines, # comments
+    and spacing around the colon?"""
+    lines = [l.strip() for l in text.splitlines() if l.strip() and not l.strip().startswith("#")]
+    if len(lines) != 1:
+        return False
+    key, sep, value = lines[0].partition(":")
+    return bool(sep) and key.strip() == "adoption" and value.strip() == "declined"
 
 
 def adoption_state(root, baseline=DEFAULT_BASELINE):
-    """ADOPTED, DECLINED or UNDECIDED for the repository at root, or None when
-    root has no openspec/ directory: spec-trace does not apply there.
+    """ADOPTED, DECLINED, UNDECIDED or UNKNOWN for the repository at root, or
+    None when root has no openspec/ directory: spec-trace does not apply there.
 
-    ADOPTED: the baseline file, the hand-set globs file, or a GitHub workflow
-    in root/.github/workflows that runs spec_trace.py. The baseline alone is
-    not enough: `check` passes without one, so a repository whose every
-    scenario is tagged may delete it, and --baseline moves it.
-    Adoption wins over a decline marker left behind.
-    DECLINED: DECLINE_MARKER as a whole line of openspec/config.yaml.
+    ADOPTED: the baseline file, the hand-set globs file (TESTS_FILE), or a
+    GitHub workflow in root/.github/workflows that runs spec_trace.py. The
+    baseline alone is not enough: `check` passes without one, so a repository
+    whose every scenario is tagged may delete it, and --baseline moves it.
+    Adoption wins over a decision file left behind.
+    DECLINED: DECISION_FILE says DECLINED_TEXT. UNKNOWN: DECISION_FILE exists
+    but says anything else, is longer than DECISION_FILE_LIMIT, is not a
+    regular file, or cannot be read; neither the hook nor `decline` acts on it.
     """
     if not os.path.isdir(os.path.join(root, "openspec")):
         return None
@@ -1047,17 +1077,33 @@ def adoption_state(root, baseline=DEFAULT_BASELINE):
             or os.path.isfile(os.path.join(root, TESTS_FILE))
             or runs_checker_in_ci(root)):
         return ADOPTED
+    path = os.path.join(root, DECISION_FILE)
+    if not os.path.lexists(path):
+        return UNDECIDED
+    # utf-8-sig: a file written by hand on Windows may start with a byte order mark.
+    text = read_regular_file(path, DECISION_FILE_LIMIT, encoding="utf-8-sig")
+    # The file holds one line. Past the limit, a cut-off read could drop a line
+    # that makes it unknown, so a longer file is unknown.
+    if text is None or len(text) > DECISION_FILE_LIMIT:
+        return UNKNOWN
+    return DECLINED if says_declined(text) else UNKNOWN
+
+
+def unknown_reason(root):
+    """Why adoption_state said UNKNOWN for root, as a sentence without its full stop."""
+    path = os.path.join(root, DECISION_FILE)
     try:
-        with open(os.path.join(root, CONFIG), encoding="utf-8", errors="replace") as f:
-            if config_declines(f.read()):
-                return DECLINED
+        if not os.path.isfile(path):
+            raise OSError
+        with open(path, "rb"):
+            pass
     except OSError:
-        pass
-    return UNDECIDED
+        return f"spec-trace: {DECISION_FILE} cannot be read"
+    return f"spec-trace: {DECISION_FILE} holds something other than `{DECLINED_TEXT}`"
 
 
 def decline(root, baseline, dry_run):
-    """Append DECLINE_MARKER to openspec/config.yaml, editing it as text."""
+    """Write DECISION_FILE, holding DECLINED_TEXT."""
     state = adoption_state(root, baseline)
     if state is None:
         print(f"spec-trace: {root} has no openspec/ directory, so there is nothing to decline.")
@@ -1067,38 +1113,20 @@ def decline(root, baseline, dry_run):
               f"{TESTS_FILE}, or a workflow that runs spec_trace.py), so nothing was declined. "
               "To stop using it, remove those first, then run decline again.")
         return 1
-    path = os.path.join(root, CONFIG)
-    if not os.path.isfile(path):
-        # A config.yaml holding only a comment makes every openspec command warn
-        # that it is not a valid YAML object, so decline doesn't create one.
-        print(f"spec-trace: there is no {CONFIG}, so nothing was declined. `openspec init` "
-              "writes one; or create it with the line `schema: spec-driven`. Then run decline again.")
-        return 2
+    if state == UNKNOWN:
+        print(f"{unknown_reason(root)}, so nothing was declined. "
+              "Fix or delete it, then run decline again.")
+        return 1
     if state == DECLINED:
-        print(f"spec-trace: {CONFIG} already declines spec-trace; nothing changed.")
+        print(f"spec-trace: {DECISION_FILE} already declines spec-trace; nothing changed.")
         return 0
-    # surrogateescape keeps every byte of a config that is not UTF-8.
-    with open(path, encoding="utf-8", errors="surrogateescape", newline="") as f:
-        text = f.read()
-    # The added line takes the ending most lines have; existing lines keep theirs.
-    nl = "\r\n" if text.count("\r\n") * 2 > text.count("\n") else "\n"
-    if text and not text.endswith("\n"):
-        text += nl
-    text += DECLINE_MARKER + nl
     if dry_run:
-        # As bytes, so a config that is not UTF-8 prints as it would be written.
-        out = getattr(sys.stdout, "buffer", None)
-        if out is None:
-            sys.stdout.write(text)
-        else:
-            sys.stdout.flush()
-            out.write(text.encode("utf-8", "surrogateescape"))
-            out.flush()
+        print(f"spec-trace: would write {DECISION_FILE}:\n{DECLINED_TEXT}")
         return 0
-    with open(path, "w", encoding="utf-8", errors="surrogateescape", newline="") as f:
-        f.write(text)
-    print(f"spec-trace: recorded in {CONFIG} that this repository declines spec-trace "
-          f"(`{DECLINE_MARKER}`). Commit it, so no agent asks again.")
+    with open(os.path.join(root, DECISION_FILE), "w", encoding="utf-8") as f:
+        f.write(DECLINED_TEXT + "\n")
+    print(f"spec-trace: wrote {DECISION_FILE}, which declines spec-trace for this repository. "
+          "Commit it, so no agent asks again.")
     return 0
 
 
@@ -1154,12 +1182,13 @@ def hook_message(payload):
                   and SPEC_PATH.fullmatch(written[i + 1:])]
     if not candidates:
         return None
-    # git runs from the spec's own folder, through any link. So when openspec/
+    # git runs from the spec's folder, or the nearest one that exists, without
+    # resolving links first, so it follows an openspec/ link. When openspec/
     # links outside the repository, git finds no top, or another repository's,
-    # and the hook says nothing. That is deliberate: config.yaml is then not
-    # committed here, so a decline written there would not stop this
-    # repository's agents asking. Running git from a folder above openspec/
-    # instead would make the hook ask in that case.
+    # and the hook says nothing. That is deliberate: a spec-trace.yaml written
+    # through that link would land outside this repository and not be committed
+    # in it, so it would not stop this repository's agents asking. Running git
+    # from a folder above openspec/ instead would make the hook ask there.
     folder = os.path.dirname(path)
     while not os.path.isdir(folder) and os.path.dirname(folder) != folder:
         folder = os.path.dirname(folder)
@@ -1193,17 +1222,21 @@ def main(argv=None):
     rep = sub.add_parser("report", help="print a markdown table of scenarios and the tests that tag them")
     rep.add_argument("--include-changes", action="store_true",
                      help="also list scenarios from open changes in openspec/changes/*/specs")
-    sub.add_parser("state", help="print adopted, declined or undecided: what this repository has "
-                                 "decided about spec-trace (n/a without openspec/)")
-    dec = sub.add_parser("decline", help=f"record in {CONFIG} that this repository declines spec-trace")
+    sub.add_parser("state", help="print adopted, declined, undecided or unknown: what this "
+                                 "repository has decided about spec-trace (n/a without openspec/)")
+    dec = sub.add_parser("decline", help=f"write {DECISION_FILE}, declining spec-trace for this repository")
     dec.add_argument("--dry-run", action="store_true",
-                     help="print the config as it would be, and change nothing")
+                     help="print what would be written, and change nothing")
     args = parser.parse_args(argv)
 
     root = os.path.abspath(args.root)
     baseline = os.path.join(root, args.baseline)
     if args.command == "state":
-        print(adoption_state(root, args.baseline) or "n/a")
+        state = adoption_state(root, args.baseline)
+        print(state or "n/a")
+        if state == UNKNOWN:
+            print(f"{unknown_reason(root)}.",
+                  file=sys.stderr)
         return 0
     if args.command == "decline":
         return decline(root, args.baseline, args.dry_run)

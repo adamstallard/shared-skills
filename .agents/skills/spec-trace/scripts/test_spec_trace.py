@@ -932,7 +932,7 @@ class AdoptionState(GitRepo):
         self.assertIsNone(self.state())
         self.assertEqual(self.run_cmd("state"), (0, "n/a\n"))
 
-    def test_neither_baseline_nor_marker_is_undecided(self):
+    def test_neither_baseline_nor_decision_file_is_undecided(self):
         self.assertEqual(self.state(), st.UNDECIDED)
         self.assertEqual(self.run_cmd("state"), (0, "undecided\n"))
 
@@ -961,79 +961,112 @@ class AdoptionState(GitRepo):
         self.write(st.TESTS_FILE, "test/**\n")
         self.assertEqual(self.state(), st.ADOPTED)
 
-    def test_the_marker_is_declined(self):
-        self.write("openspec/config.yaml", CONFIG_TEXT + "  # spec-trace: declined  \n")
+    def test_the_decision_file_is_declined(self):
+        self.write(st.DECISION_FILE, "# why we declined\n\nadoption :  declined \n")
+        self.assertEqual(self.state(), st.DECLINED)
+        self.assertEqual(self.run_cmd("state"), (0, "declined\n"))
+
+    def test_a_decision_file_with_a_byte_order_mark_is_declined(self):
+        with open(os.path.join(self.root, st.DECISION_FILE), "wb") as f:
+            f.write(b"\xef\xbb\xbfadoption: declined\n")
         self.assertEqual(self.state(), st.DECLINED)
 
-    def test_the_marker_inside_a_line_is_not_declined(self):
-        self.write("openspec/config.yaml", CONFIG_TEXT + "# not # spec-trace: declined\n"
-                   "# spec-trace: declined, maybe\n# spec-check: decisions first declined\n")
+    def test_an_unreadable_decision_file_is_reported_as_unreadable(self):
+        os.makedirs(os.path.join(self.root, st.DECISION_FILE))
+        self.assertEqual(self.state(), st.UNKNOWN)
+        code, out = self.run_cmd("decline")
+        self.assertEqual(code, 1)
+        self.assertIn("cannot be read", out)
+        self.assertNotIn("holds something other", out)
+
+    @unittest.skipUnless(hasattr(os, "mkfifo"), "needs a FIFO")
+    def test_a_decision_file_that_is_a_fifo_is_unreadable_and_never_hangs(self):
+        os.mkfifo(os.path.join(self.root, st.DECISION_FILE))
+        script = os.path.join(HERE, "spec_trace.py")
+        try:
+            result = subprocess.run([sys.executable, script, "--root", self.root, "state"],
+                                    capture_output=True, text=True, timeout=10)
+        except subprocess.TimeoutExpired:
+            self.fail("state hung reading a FIFO")
+        self.assertEqual(result.stdout, "unknown\n")
+        self.assertIn("cannot be read", result.stderr)
+
+    @unittest.skipUnless(hasattr(os, "mkfifo"), "needs a FIFO")
+    def test_a_workflow_that_is_a_fifo_is_skipped_and_never_hangs(self):
+        os.makedirs(os.path.join(self.root, ".github/workflows"))
+        os.mkfifo(os.path.join(self.root, ".github/workflows/ci.yml"))
+        script = os.path.join(HERE, "spec_trace.py")
+        try:
+            result = subprocess.run([sys.executable, script, "--root", self.root, "state"],
+                                    capture_output=True, text=True, timeout=10)
+        except subprocess.TimeoutExpired:
+            self.fail("state hung reading a FIFO workflow")
+        self.assertEqual(result.stdout, "undecided\n")
+
+    def test_a_decision_file_saying_anything_else_is_unknown(self):
+        for text in ("adoption: adopted\n", "", "adoption: declined\nother: 1\n",
+                     "adoption declined\n"):
+            self.write(st.DECISION_FILE, text)
+            self.assertEqual(self.state(), st.UNKNOWN, text)
+        code, out = self.run_cmd("state")
+        self.assertEqual((code, out), (0, "unknown\n"))
+        self.assertIn(st.DECISION_FILE, self.err)
+
+    def test_the_old_marker_in_config_yaml_is_not_a_decision(self):
+        self.write("openspec/config.yaml", CONFIG_TEXT + "# spec-trace: declined\n")
         self.assertEqual(self.state(), st.UNDECIDED)
 
-    def test_adoption_wins_over_a_marker_left_behind(self):
-        self.write("openspec/config.yaml", CONFIG_TEXT + st.DECLINE_MARKER + "\n")
+    def test_adoption_wins_over_a_decision_file_left_behind(self):
+        self.write(st.DECISION_FILE, "adoption: declined\n")
         self.write("openspec/spec-trace-baseline.txt", "")
         self.assertEqual(self.state(), st.ADOPTED)
 
 
 class Decline(GitRepo):
-    def test_appends_the_marker_and_keeps_every_other_line(self):
+    def test_writes_the_decision_file_and_leaves_config_yaml_alone(self):
         code, out = self.run_cmd("decline")
         self.assertEqual(code, 0)
         self.assertIn("Commit it", out)
-        self.assertEqual(self.read("openspec/config.yaml"), CONFIG_TEXT + "# spec-trace: declined\n")
+        self.assertEqual(self.read(st.DECISION_FILE), "adoption: declined\n")
+        self.assertEqual(self.read("openspec/config.yaml"), CONFIG_TEXT)
         self.assertEqual(st.adoption_state(self.root), st.DECLINED)
 
+    def test_works_without_config_yaml(self):
+        os.remove(os.path.join(self.root, "openspec/config.yaml"))
+        self.assertEqual(self.run_cmd("decline")[0], 0)
+        self.assertEqual(st.adoption_state(self.root), st.DECLINED)
+        self.assertFalse(os.path.exists(os.path.join(self.root, "openspec/config.yaml")))
+
     def test_is_idempotent(self):
-        self.run_cmd("decline")
+        self.write(st.DECISION_FILE, "# reason\nadoption: declined\n")
         code, out = self.run_cmd("decline")
         self.assertEqual(code, 0)
         self.assertIn("already declines", out)
-        self.assertEqual(self.read("openspec/config.yaml").count(st.DECLINE_MARKER), 1)
+        self.assertEqual(self.read(st.DECISION_FILE), "# reason\nadoption: declined\n")
 
-    def test_dry_run_prints_the_new_config_and_changes_nothing(self):
+    def test_dry_run_changes_nothing(self):
         code, out = self.run_cmd("decline", "--dry-run")
         self.assertEqual(code, 0)
-        self.assertEqual(out, CONFIG_TEXT + "# spec-trace: declined\n")
-        self.assertEqual(self.read("openspec/config.yaml"), CONFIG_TEXT)
+        self.assertIn("adoption: declined", out)
+        self.assertFalse(os.path.exists(os.path.join(self.root, st.DECISION_FILE)))
 
-    def binary(self, data):
-        path = os.path.join(self.root, "openspec/config.yaml")
-        with open(path, "wb") as f:
-            f.write(data)
-        self.run_cmd("decline")
-        with open(path, "rb") as f:
-            return f.read()
-
-    def test_keeps_crlf_line_endings_and_uses_them(self):
-        self.assertEqual(self.binary(b"schema: spec-driven\r\n# note\r\n"),
-                         b"schema: spec-driven\r\n# note\r\n# spec-trace: declined\r\n")
-
-    def test_ends_an_unterminated_last_line_first(self):
-        self.assertEqual(self.binary(b"schema: spec-driven\n# last"),
-                         b"schema: spec-driven\n# last\n# spec-trace: declined\n")
-
-    def test_missing_config_is_refused_and_not_created(self):
-        os.remove(os.path.join(self.root, "openspec/config.yaml"))
+    def test_a_decision_file_saying_anything_else_is_refused(self):
+        self.write(st.DECISION_FILE, "adoption: maybe\n")
         code, out = self.run_cmd("decline")
-        self.assertEqual(code, 2)
-        self.assertIn("openspec init", out)
-        self.assertFalse(os.path.exists(os.path.join(self.root, "openspec/config.yaml")))
+        self.assertEqual(code, 1)
+        self.assertIn("nothing was declined", out)
+        self.assertEqual(self.read(st.DECISION_FILE), "adoption: maybe\n")
 
     def test_an_adopted_repository_is_refused(self):
         self.write("openspec/spec-trace-baseline.txt", "")
         code, out = self.run_cmd("decline")
         self.assertEqual(code, 1)
         self.assertIn("nothing was declined", out)
-        self.assertEqual(self.read("openspec/config.yaml"), CONFIG_TEXT)
+        self.assertFalse(os.path.exists(os.path.join(self.root, st.DECISION_FILE)))
 
     def test_no_openspec_directory_is_refused(self):
         shutil.rmtree(os.path.join(self.root, "openspec"))
         self.assertEqual(self.run_cmd("decline")[0], 2)
-
-    def test_a_config_that_is_not_utf8_keeps_its_bytes(self):
-        self.assertEqual(self.binary(b"schema: spec-driven\n# caf\xe9 notes\n"),
-                         b"schema: spec-driven\n# caf\xe9 notes\n# spec-trace: declined\n")
 
     def test_runs_without_reading_test_configuration(self):
         self.write("vitest.config.ts", "export default { test: { include: [x] } }\n")
@@ -1146,7 +1179,7 @@ class Hook(GitRepo):
             out = self.hook(payload, host="cursor")
             self.assertIn("hasn't decided on spec-trace", json.loads(out)["additional_context"], payload)
 
-    def test_adopted_and_declined_repositories_are_silent(self):
+    def test_adopted_declined_and_unknown_repositories_are_silent(self):
         payload = {"tool_input": {"file_path": self.spec()}}
         self.write("openspec/spec-trace-baseline.txt", "")
         self.assertEqual(self.hook(payload), "")
@@ -1154,6 +1187,8 @@ class Hook(GitRepo):
         self.run_cmd("decline")
         self.assertEqual(self.hook(payload), "")
         self.assertEqual(self.hook(payload, host="cursor"), "")
+        self.write(st.DECISION_FILE, "adoption: maybe\n")
+        self.assertEqual(self.hook(payload), "")
 
     def test_other_files_are_silent(self):
         for rel in ("openspec/changes/add-x/proposal.md", "openspec/specs/spec.md",
