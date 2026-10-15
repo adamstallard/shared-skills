@@ -3,11 +3,13 @@
 
     spec_check.py check [<target>...] [--repo DIR] [--ref REF] [--base REF]
                         [--decisions-heading TEXT]... [--no-validate] [--json]
-    spec_check.py setup [--repo DIR] [--dry-run]
+    spec_check.py setup [--repo DIR] [--decline] [--dry-run]
+    spec_check.py state [--repo DIR]
     spec_check.py sign --read subagent|self [--amended N] [--open N]
                        [--base REF] [--decisions-heading TEXT]... [--no-validate]
     spec_check.py verify-staged "Spec-check: <value>"   (message on stdin)
     spec_check.py verify-commit <sha> <value>
+    spec_check.py proposal-hook --host claude|cursor   (hook payload on stdin)
 
 A target is a change name, a change directory (openspec/changes/<name>), or
 `specs` for every spec under openspec/specs. With no target, every open change
@@ -28,6 +30,7 @@ import json
 import os
 import posixpath
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -36,12 +39,15 @@ import tempfile
 
 DECISIONS_HEADINGS = ["Decisions"]
 
-RULE_TEXT = (
-    "Open with the decisions the reviewer is asked to make; then what is still "
-    "open; then everything else. Where a decision turned down a real "
-    "alternative, say what it was and why; do not invent one to fill a slot."
-)
-RULE_MARKER = "# spec-check: decisions first"
+# The repository's answer to whether proposals must open with their
+# decisions. Only setup writes it, as one line: `decisions-first: enforce` or
+# `decisions-first: off`. It is spec-check's own file: the script never reads
+# or edits OpenSpec's config (DECISIONS.md, "Each repository's
+# decisions-first answer lives in spec-check's own file").
+DECISION_FILE = "openspec/spec-check.yaml"
+DECISION_LINE = re.compile(r"^decisions-first:[ \t]*(enforce|off)[ \t]*$")
+# The states, as `state` prints them and `check --json` reports them.
+ENFORCE, OFF, UNDECIDED, INVALID = "enforce", "off", "undecided", "invalid"
 
 KEY = "Spec-check"
 
@@ -111,8 +117,12 @@ def materialize(repo, treeish, dest, allow_empty=False):
     if allow_empty and has.returncode == 0 and not has.stdout.strip():
         os.makedirs(os.path.join(dest, "openspec"))
         return
-    out = git(repo, "archive", "--format=tar", treeish, "--", "openspec",
-              check=False, binary=True)
+    # The decision file is left out: tree_decision reads it from the tree,
+    # and a link there must become a finding, not a link to extract.
+    # The peeled tree, not a commit: a commit's archive starts with a pax
+    # header, so one with no file in it is a tar that tarfile cannot open.
+    out = git(repo, "archive", "--format=tar", f"{treeish}^{{tree}}", "--", "openspec",
+              f":(exclude){DECISION_FILE}", check=False, binary=True)
     if out.returncode != 0:
         raise Fatal(f"cannot read openspec/ from {treeish}: "
                     f"{out.stderr.decode('utf-8', 'replace').strip()}")
@@ -121,6 +131,8 @@ def materialize(repo, treeish, dest, allow_empty=False):
             tar.extractall(dest, filter="data")
         except TypeError:  # Python before 3.12 has no filter argument
             tar.extractall(dest)
+    # An openspec/ holding only the decision file archives as nothing.
+    os.makedirs(os.path.join(dest, "openspec"), exist_ok=True)
 
 
 FENCE = re.compile(r"(`{3,}|~{3,})")
@@ -782,9 +794,16 @@ def run_checks(root, repo, base_ref, targets, headings, validate, base_required=
     if not base.ok and base_required:
         raise Fatal(f"the base {base_ref!r} does not resolve to a commit")
     findings, statuses = [], []
+    state, problem = read_decision(root) if change is None else tree_decision(repo, change)
+    if changes and state == UNDECIDED:
+        findings.append(Finding(DECISION_FILE, 0, "check", "decisions-first", UNDECIDED_NOTE))
+    elif changes and state == INVALID:
+        findings.append(Finding(DECISION_FILE, 0, "check", "decisions-first",
+                                f"{problem}; decisions-first was not checked"))
     for change in changes:
         reqs = [r for rs in corpus.changes[change].values() for r in rs]
-        check_decisions(change, corpus, headings, findings)
+        if state == ENFORCE:
+            check_decisions(change, corpus, headings, findings)
         check_scenarios(reqs, findings)
         check_duplicates(reqs, corpus, findings)
         check_terms(reqs, corpus, change, findings)
@@ -803,16 +822,16 @@ def run_checks(root, repo, base_ref, targets, headings, validate, base_required=
             v, status = run_validate(root, None)
             findings += v
             statuses.append(("openspec/specs", status))
-    return changes, specs, findings, statuses
+    return changes, specs, findings, statuses, state
 
 
-def print_report(changes, specs, findings, statuses, base_ref, source, as_json):
+def print_report(changes, specs, findings, statuses, state, base_ref, source, as_json):
     errors = sum(1 for f in findings if f.severity == "error")
     checks = len(findings) - errors
     if as_json:
         print(json.dumps({
             "source": source, "base": base_ref, "changes": changes, "specs": specs,
-            "errors": errors, "checks": checks,
+            "errors": errors, "checks": checks, "decisions_first": state,
             "findings": [f.as_dict() for f in findings],
             "openspec_validate": {k: v for k, v in statuses},
         }, indent=2))
@@ -857,98 +876,187 @@ def repo_root(path):
 
 # -- setup -----------------------------------------------------------------
 
-def add_rule(text, nl="\n"):
-    """The config with the decisions-first rule under rules: proposal:.
+UNDECIDED_NOTE = (
+    "this repository has not decided on the decisions-first rule, so no proposal "
+    "was checked for it. Ask the user whether to enforce it (spec_check.py setup) "
+    f"or turn it off (spec_check.py setup --decline); the answer goes in {DECISION_FILE}, "
+    "so it is asked once per repository")
 
-    Returns (new text, what happened). Edits text, never re-serialises it, so
-    comments and layout survive. Refuses flow style rather than guess at it.
-    """
-    if RULE_MARKER in text or RULE_TEXT in text:
-        return text, "present"
-    lines = text.splitlines(keepends=True)
-    if lines and not lines[-1].endswith("\n"):
-        lines[-1] += nl
-    top = re.compile(r"^rules:[ \t]*(#.*)?$")
-    rules_at = next((i for i, l in enumerate(lines) if top.match(l.rstrip("\r\n"))), None)
-    item = f'{RULE_MARKER}{nl}- "{RULE_TEXT}"{nl}'
 
-    def indented(block, pad):
-        return "".join(pad + l if l.strip() else l for l in block.splitlines(keepends=True))
+def write_plain(path, text):
+    """Writes text to path as a new plain file. It is written under a fresh
+    random name beside path, then moved into place. A link at path is
+    replaced rather than written through, and since the temporary name is
+    new each time, no link can be waiting there either, as one could at a
+    fixed name committed to the repository."""
+    folder = os.path.dirname(path)
+    try:
+        fd, tmp = tempfile.mkstemp(dir=folder, prefix=".spec-check.", suffix=".tmp")
+    except OSError as e:
+        raise Fatal(f"cannot write in {folder}: {e.strerror}") from e
+    try:
+        umask = os.umask(0)
+        os.umask(umask)
+        os.fchmod(fd, 0o666 & ~umask)
+        with os.fdopen(fd, "w", encoding="utf-8", newline="") as fh:
+            fh.write(text)
+        os.replace(tmp, path)
+    except BaseException as e:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        if isinstance(e, OSError):
+            raise Fatal(f"cannot write {path}: {e.strerror}") from e
+        raise
 
-    if rules_at is None:
-        if any(re.match(r"^rules:", l) for l in lines):
-            raise Fatal("openspec/config.yaml has `rules:` with an inline value; "
-                        "add the rule under rules: proposal: by hand")
-        sep = "" if not lines or lines[-1].strip() == "" else nl
-        return "".join(lines) + sep + f"rules:{nl}  proposal:{nl}" + indented(item, "    "), "added"
 
-    # The rules block: every following line that is blank, a comment, or indented.
-    end = rules_at + 1
-    while end < len(lines):
-        l = lines[end]
-        if l.strip() == "" or l.startswith((" ", "\t")) or l.lstrip().startswith("#"):
-            end += 1
-            continue
-        break
-    while end > rules_at + 1 and (lines[end - 1].strip() == "" or
-                                 not lines[end - 1].startswith((" ", "\t"))):
-        end -= 1  # trailing blanks and column-0 comments belong after the block
-    children = [i for i in range(rules_at + 1, end)
-                if re.match(r"^[ \t]+[A-Za-z_][\w-]*:", lines[i])
-                and not lines[i].lstrip().startswith("#")]
-    child_pad = re.match(r"^[ \t]*", lines[children[0]]).group(0) if children else "  "
-    children = [i for i in children
-                if re.match(r"^[ \t]*", lines[i]).group(0) == child_pad]
-    prop = next((i for i in children if re.match(r"^[ \t]+proposal:", lines[i])), None)
-    if prop is None:
-        new = child_pad + "proposal:" + nl + indented(item, child_pad * 2)
-        lines.insert(rules_at + 1, new)
-        return "".join(lines), "added"
-    if not re.match(r"^[ \t]+proposal:[ \t]*(#[^\r\n]*)?\r?\n$", lines[prop]):
-        raise Fatal("openspec/config.yaml has `proposal:` with an inline value; "
-                    "add the rule to it by hand")
-    # The proposal list: the lines after `proposal:` that are indented deeper
-    # than it, or that start with `-` at the same indent as `proposal:`.
-    last, item_pad = prop, None
-    i = prop + 1
-    while i < end:
-        l = lines[i]
-        pad = re.match(r"^[ \t]*", l).group(0)
-        if l.strip() == "" or l.lstrip().startswith("#"):
-            i += 1
-            continue
-        if len(pad) > len(child_pad) or (pad == child_pad and l.lstrip().startswith("- ")):
-            if l.lstrip().startswith("- ") and item_pad is None:
-                item_pad = pad
-            last = i
-            i += 1
-            continue
-        break
-    lines.insert(last + 1, indented(item, item_pad if item_pad is not None else child_pad * 2))
-    return "".join(lines), "added"
+def read_decision(home):
+    """(state, problem) from home's openspec/spec-check.yaml on disk. A link
+    is refused rather than followed, as in a git tree."""
+    path = os.path.join(home, DECISION_FILE)
+    if not os.path.lexists(path):
+        return UNDECIDED, None
+    if os.path.islink(path):
+        return INVALID, f"{DECISION_FILE} is a symlink, not a plain file"
+    if not os.path.isfile(path):
+        return INVALID, f"{DECISION_FILE} is not a plain file"
+    try:
+        with open(path, "rb") as fh:
+            return parse_decision(fh.read())
+    except OSError as e:
+        return INVALID, f"{DECISION_FILE} cannot be read ({e.strerror})"
+
+
+def tree_decision(repo, treeish):
+    """(state, problem) from openspec/spec-check.yaml in a git tree, read
+    with git and never through a link: a link, a submodule or a directory is
+    a problem to report, not something to resolve."""
+    out = git(repo, "ls-tree", "-z", treeish, "--", DECISION_FILE, check=False)
+    entry = out.stdout.split("\0", 1)[0]
+    if out.returncode != 0 or not entry.endswith("\t" + DECISION_FILE):
+        return UNDECIDED, None
+    mode, kind, sha = entry.split("\t", 1)[0].split(" ")
+    if mode == "120000":
+        return INVALID, f"{DECISION_FILE} is a symlink, not a plain file"
+    if kind != "blob":
+        what = "a submodule" if kind == "commit" else "a directory"
+        return INVALID, f"{DECISION_FILE} is {what}, not a plain file"
+    return parse_decision(git(repo, "cat-file", "blob", sha, binary=True).stdout)
+
+
+def parse_decision(data):
+    """(state, problem) from the decision file's bytes."""
+    try:
+        lines = [l.strip() for l in data.decode("utf-8").splitlines() if l.strip()]
+    except UnicodeDecodeError:
+        lines = []
+    m = DECISION_LINE.match(lines[0]) if len(lines) == 1 else None
+    if m:
+        return m.group(1), None
+    return INVALID, (f"{DECISION_FILE} must hold one line, `decisions-first: enforce` "
+                     "or `decisions-first: off`")
 
 
 def cmd_setup(args):
-    repo = repo_root(args.repo)
-    path = os.path.join(repo, "openspec", "config.yaml")
-    if not os.path.isfile(path):
-        raise Fatal(f"no {path}; run `openspec init` first")
-    with open(path, encoding="utf-8", newline="") as fh:
-        text = fh.read()
-    # The lines added take the ending most lines have; existing lines keep theirs.
-    nl = "\r\n" if text.count("\r\n") * 2 > text.count("\n") else "\n"
-    new, what = add_rule(text, nl)
-    if what == "present":
-        print("spec-check setup: the decisions-first rule is already in openspec/config.yaml")
+    # The repository's top, as check, sign and the commit hook read it.
+    home = repo_root(args.repo)
+    if not os.path.isdir(os.path.join(home, "openspec")):
+        raise Fatal(f"no openspec/ in {home}; run `openspec init` first")
+    value = OFF if args.decline else ENFORCE
+    path = os.path.join(home, DECISION_FILE)
+    if os.path.isdir(path) and not os.path.islink(path):
+        raise Fatal(f"{path} is a directory; remove it, then run setup again")
+    line = f"decisions-first: {value}\n"
+    if read_decision(home)[0] == value:
+        print(f"spec-check setup: {DECISION_FILE} already says `{line.strip()}`")
         return 0
     if args.dry_run:
-        sys.stdout.write(new)
+        sys.stdout.write(f"--- {DECISION_FILE}\n{line}")
+        print(f"spec-check setup: would record `{line.strip()}` in {DECISION_FILE}")
         return 0
-    with open(path, "w", encoding="utf-8", newline="") as fh:
-        fh.write(new)
-    print("spec-check setup: added the decisions-first rule to openspec/config.yaml "
-          "under rules: proposal:. `openspec instructions proposal` shows it to the agent "
-          "that drafts a proposal, inside <rules>.")
+    write_plain(path, line)
+    print(f"spec-check setup: recorded `{line.strip()}` in {DECISION_FILE}. "
+          "Commit it, so nobody's agent asks again.")
+    if value == ENFORCE:
+        print("spec-check setup: to show the rule to agents drafting a proposal, add it to "
+              "OpenSpec's config under rules: proposal: (optional; `check` enforces it "
+              "either way). spec-check's SKILL.md, \"Setting up a repository\", has the lines.")
+    return 0
+
+
+def cmd_state(args):
+    state, problem = read_decision(repo_root(args.repo))
+    print(state)
+    if problem:
+        print(problem, file=sys.stderr)
+    return 0
+
+
+# -- the proposal hook ---------------------------------------------------------
+
+# A proposal, under an openspec/ directory at any depth; archived changes
+# (openspec/changes/archive/<name>/) have one more level, so they never match.
+# Wherever the proposal is, the decision read is the repository top's.
+PROPOSAL_PATH = re.compile(r"(?:^|/)openspec/changes/[^/]+/proposal\.md$")
+
+
+def proposal_hook_message(payload):
+    """What the proposal hook tells the agent, or None to stay silent.
+
+    payload is a PostToolUse hook's input, from Claude Code or Cursor. The
+    path is tool_input's file_path (Claude Code), or path or target_file:
+    Cursor does not document its Write tool's input, so all three are read."""
+    if not isinstance(payload, dict):
+        return None
+    tool_input = payload.get("tool_input")
+    found = []
+    if isinstance(tool_input, dict):
+        found += [tool_input.get(k) for k in ("file_path", "path", "target_file")]
+    path = next((p for p in found if isinstance(p, str) and p), None)
+    if path is None:
+        return None
+    if not os.path.isabs(path):
+        cwd = payload.get("cwd")
+        if not isinstance(cwd, str) or not os.path.isabs(cwd):
+            return None
+        path = os.path.join(cwd, path)
+    path = os.path.normpath(path).replace(os.sep, "/")
+    m = PROPOSAL_PATH.search(path)
+    if not m or not m.group(0).startswith("/"):
+        return None
+    out = subprocess.run(["git", "-C", path[:m.start()] or "/", "rev-parse", "--show-toplevel"],
+                         capture_output=True, text=True, timeout=5)
+    top = out.stdout.strip()
+    # check, sign and the commit hook read only the top's openspec/, so a
+    # proposal under a nested one is judged by the top's decision. When the
+    # top has no openspec/, the hook says nothing.
+    if (out.returncode != 0 or not top or not os.path.isdir(os.path.join(top, "openspec"))
+            or read_decision(top)[0] != UNDECIDED):
+        return None
+    script = os.path.abspath(__file__)
+    run = f"python3 {shlex.quote(script)} setup --repo {shlex.quote(top)}"
+    return ("This repository has not decided on spec-check's decisions-first rule. "
+            f"Before finishing this proposal, ask the user whether to enforce it (`{run}`) "
+            f"or turn it off (`{run} --decline`), then follow spec-check's SKILL.md, "
+            "\"Setting up a repository\".")
+
+
+def cmd_proposal_hook(args):
+    """Never blocks and fails open: any error means silence."""
+    try:
+        message = proposal_hook_message(json.loads(sys.stdin.read()))
+    except Exception:  # noqa: BLE001 - a hook that crashes must stay quiet
+        return 0
+    if not message:
+        return 0
+    if args.host == "claude":
+        print(json.dumps({"hookSpecificOutput": {"hookEventName": "PostToolUse",
+                                                 "additionalContext": message}}))
+    elif args.host == "cursor":
+        print(json.dumps({"additional_context": message}))
+    else:
+        print(message, file=sys.stderr)
     return 0
 
 
@@ -1075,10 +1183,22 @@ def main(argv=None):
     c.add_argument("--json", action="store_true")
     c.set_defaults(fn=cmd_check)
 
-    s = sub.add_parser("setup", help="add the decisions-first rule to openspec/config.yaml")
-    s.add_argument("--repo")
+    s = sub.add_parser("setup", help=f"record in {DECISION_FILE} that this repository enforces "
+                                     "the decisions-first rule, or with --decline that it does not")
+    s.add_argument("--repo", help="a directory in the repository (default: the working directory)")
+    s.add_argument("--decline", action="store_true",
+                   help="record that this repository does not enforce the rule")
     s.add_argument("--dry-run", action="store_true")
     s.set_defaults(fn=cmd_setup)
+
+    st = sub.add_parser("state", help="print enforce, off, undecided or invalid: what "
+                                      f"{DECISION_FILE} says about the decisions-first rule")
+    st.add_argument("--repo", help="a directory in the repository (default: the working directory)")
+    st.set_defaults(fn=cmd_state)
+
+    ph = sub.add_parser("proposal-hook", help="the hook run after a file is written")
+    ph.add_argument("--host", default="")
+    ph.set_defaults(fn=cmd_proposal_hook)
 
     g = sub.add_parser("sign", help="check the staged openspec change and print the trailer")
     g.add_argument("--read", required=True, choices=["subagent", "self"],

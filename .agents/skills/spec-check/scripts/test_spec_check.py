@@ -22,6 +22,8 @@ import unittest
 HERE = pathlib.Path(__file__).resolve().parent
 SCRIPT = HERE / "spec_check.py"
 HOOK = HERE / "check-commit-trailer.sh"
+PROPOSAL_HOOK = HERE / "proposal-hook.sh"
+SKILLS_PY = HERE.parent.parent / "manage-skills" / "scripts" / "skills.py"
 VERIFY = HERE / "verify-staged.sh"
 SKILLS = HERE.parent.parent
 LIB = SKILLS.parent / "lib" / "commit-trailer" / "commit-with-trailers.sh"
@@ -94,14 +96,18 @@ TASKS = "## 1. Build\n\n- [ ] 1.1 Expire records\n"
 
 
 class Repo:
-    """A throwaway repository with one main spec and a ten-line source file."""
+    """A throwaway repository with one main spec and a ten-line source file.
+    It enforces the decisions-first rule unless the test passes another
+    decision, or None for a repository that has not decided."""
 
-    def __init__(self, test):
+    def __init__(self, test, decision="enforce"):
         self.path = pathlib.Path(tempfile.mkdtemp(prefix="spec-check-test-")).resolve()
         test.addCleanup(shutil.rmtree, self.path, ignore_errors=True)
         self.git("init", "-q", "-b", "main")
         self.git("config", "commit.gpgsign", "false")
         self.write("openspec/config.yaml", "schema: spec-driven\n")
+        if decision is not None:
+            self.write("openspec/spec-check.yaml", f"decisions-first: {decision}\n")
         self.write("openspec/specs/cap/spec.md", MAIN_SPEC)
         self.write("src/app.py", "".join(f"line{i}\n" for i in range(1, 11)))
         self.git("add", "-A")
@@ -394,14 +400,6 @@ class FoundByBugHunterTests(unittest.TestCase):
         r = self.repo.run("check", "--base", "main", "specs")
         self.assertIn("openspec/specs/cap/spec.md: error [openspec-validate]", r.stdout)
 
-    def test_setup_keeps_crlf_line_endings(self):
-        config = self.repo.path / "openspec/config.yaml"
-        config.write_bytes(b"schema: spec-driven\r\nrules:\r\n  proposal:\r\n    - Keep it short\r\n")
-        self.repo.run("setup")
-        data = config.read_bytes()
-        self.assertNotIn(b"\n", data.replace(b"\r\n", b""))
-        self.assertIn(spec_check.RULE_TEXT.encode(), data)
-
     def test_sign_a_commit_that_deletes_openspec(self):
         self.repo.git("rm", "-rq", "openspec")
         r = self.repo.run("sign", "--read", "self", "--base", "main", "--no-validate")
@@ -448,16 +446,6 @@ class FoundByBugHunterIteration2Tests(unittest.TestCase):
         self.repo.git("checkout", "-q", "main")
         r = self.repo.check("--ref", "nospec")
         self.assertEqual(r.returncode, 2, r.stdout)
-
-    def test_setup_keeps_each_lines_own_ending(self):
-        config = self.repo.path / "openspec/config.yaml"
-        config.write_bytes(b"schema: spec-driven\nrules:\n  proposal:\n    - Keep it short\r\n"
-                           b"  tasks:\n    - Small\n")
-        self.repo.run("setup")
-        data = config.read_bytes()
-        self.assertTrue(data.startswith(b"schema: spec-driven\nrules:\n  proposal:\n"), data)
-        self.assertTrue(data.endswith(b"  tasks:\n    - Small\n"), data)
-        self.assertIn(spec_check.RULE_TEXT.encode(), data)
 
     def test_a_bare_name_with_an_uncommon_extension_is_still_a_citation(self):
         self.repo.change("x", proposal=GOOD_PROPOSAL.replace("src/app.py:5", "schema.prisma:40"))
@@ -745,101 +733,6 @@ class QuotesAndSubmodulesTests(unittest.TestCase):
         self.assertNotIn("this change adds it", r.stdout)
 
 
-IGOR_STYLE = """schema: spec-driven
-
-# Project context (optional)
-# This is shown to AI when creating artifacts.
-
-# Per-artifact rules (optional)
-# Example:
-#   rules:
-#     proposal:
-#       - Keep proposals under 500 words
-"""
-
-
-class SetupTests(unittest.TestCase):
-    def setUp(self):
-        self.repo = Repo(self)
-        self.config = self.repo.path / "openspec" / "config.yaml"
-
-    def setup_with(self, text):
-        self.config.write_text(text)
-        r = self.repo.run("setup")
-        self.assertEqual(r.returncode, 0, r.stderr)
-        return self.config.read_text()
-
-    def assert_only_added(self, before, after):
-        """Every original line survives, in order."""
-        it = iter(after.splitlines())
-        for line in before.splitlines():
-            self.assertIn(line, it, f"lost or reordered: {line!r}")
-
-    def test_a_config_with_only_comments_gets_a_rules_block(self):
-        after = self.setup_with(IGOR_STYLE)
-        self.assert_only_added(IGOR_STYLE, after)
-        self.assertTrue(after.endswith(f'rules:\n  proposal:\n    {spec_check.RULE_MARKER}\n'
-                                       f'    - "{spec_check.RULE_TEXT}"\n'))
-
-    def test_a_second_run_changes_nothing(self):
-        once = self.setup_with(IGOR_STYLE)
-        r = self.repo.run("setup")
-        self.assertIn("already", r.stdout)
-        self.assertEqual(self.config.read_text(), once)
-
-    def test_an_edited_rule_under_the_marker_is_left_alone(self):
-        once = self.setup_with(IGOR_STYLE).replace("then everything else.", "then the rest.")
-        self.config.write_text(once)
-        self.repo.run("setup")
-        self.assertEqual(self.config.read_text(), once)
-
-    def test_rules_without_proposal_get_a_proposal_list(self):
-        before = ("schema: spec-driven\nrules:  # ours\n    tasks:\n      - Small tasks\n"
-                  "# trailing note\ncontext: |\n  Stack\n")
-        after = self.setup_with(before)
-        self.assert_only_added(before, after)
-        self.assertIn("rules:  # ours\n    proposal:\n        # spec-check", after)
-        self.assertIn("    tasks:\n      - Small tasks\n# trailing note\ncontext: |\n", after)
-
-    def test_an_existing_proposal_list_gets_the_rule_last(self):
-        before = ("rules:\n  proposal:\n    # keep it short\n    - Under 500 words\n"
-                  "    - Name non-goals,\n      always\n  tasks:\n    - Small\ncontext: x\n")
-        after = self.setup_with(before)
-        self.assert_only_added(before, after)
-        self.assertIn("      always\n    # spec-check: decisions first\n    - \"Open with", after)
-        self.assertIn("\n  tasks:\n    - Small\ncontext: x\n", after)
-
-    def test_a_list_at_the_keys_own_indent_is_extended_at_that_indent(self):
-        before = "rules:\n  proposal:\n  - Under 500 words\n  tasks:\n  - Small\n"
-        after = self.setup_with(before)
-        self.assertIn("  - Under 500 words\n  # spec-check: decisions first\n  - \"Open", after)
-        self.assertTrue(after.endswith("  tasks:\n  - Small\n"))
-
-    def test_flow_style_is_refused_and_the_file_is_untouched(self):
-        for before in ("rules:\n  proposal: [a, b]\n", "rules: {}\n"):
-            self.config.write_text(before)
-            r = self.repo.run("setup")
-            self.assertEqual(r.returncode, 2)
-            self.assertIn("by hand", r.stderr)
-            self.assertEqual(self.config.read_text(), before)
-
-    def test_dry_run_writes_nothing(self):
-        self.config.write_text(IGOR_STYLE)
-        r = self.repo.run("setup", "--dry-run")
-        self.assertIn(spec_check.RULE_TEXT, r.stdout)
-        self.assertEqual(self.config.read_text(), IGOR_STYLE)
-
-    @unittest.skipUnless(HAS_OPENSPEC, "openspec CLI not on PATH")
-    def test_openspec_shows_the_rule_to_the_agent(self):
-        for before in (IGOR_STYLE, "rules:\n  proposal:\n    - Under 500 words\n"):
-            self.config.write_text("schema: spec-driven\n" + before.replace("schema: spec-driven\n", ""))
-            self.repo.run("setup")
-            self.repo.change("probe")
-            r = subprocess.run(["openspec", "instructions", "proposal", "--change", "probe"],
-                               cwd=self.repo.path, capture_output=True, text=True, env=ENV)
-            rules = r.stdout.split("<rules>", 1)[1].split("</rules>", 1)[0]
-            self.assertIn(spec_check.RULE_TEXT, rules)
-
 
 class TrailerTests(unittest.TestCase):
     def setUp(self):
@@ -879,6 +772,42 @@ class TrailerTests(unittest.TestCase):
         self.assertEqual(r.returncode, 2)
         self.assertIn("1 new commit(s) changed openspec/ without a Spec-check: trailer", r.stderr)
         self.assertIn("Add a spec", r.stderr)
+
+    def test_an_undecided_repository_gets_one_more_line(self):
+        self.stage_change()
+        self.repo.git("commit", "-q", "-m", "Add a spec")
+        self.assertNotIn("ask your agent to set up spec-check", self.hook().stderr)
+        self.repo.git("rm", "-q", "openspec/spec-check.yaml")
+        self.repo.git("commit", "-q", "-m", "Undecide")
+        r = self.hook()
+        self.assertEqual(r.returncode, 2)
+        self.assertEqual(r.stderr.count("ask your agent to set up spec-check in this repository"), 1)
+
+    def test_a_commit_removing_openspec_does_not_ask_for_setup(self):
+        self.repo.git("rm", "-rq", "openspec")
+        self.repo.git("commit", "-q", "-m", "Drop OpenSpec")
+        r = self.hook()
+        self.assertEqual(r.returncode, 2)
+        self.assertNotIn("ask your agent to set up spec-check", r.stderr)
+
+    def test_a_decision_only_commit_gets_its_trailer_from_sign(self):
+        for args in (("setup",), ("setup", "--decline")):
+            with self.subTest(args=args):
+                self.repo = Repo(self, None)
+                self.hook()
+                r = self.repo.run(*args)
+                self.assertEqual(r.returncode, 0, r.stderr)
+                self.repo.git("add", "openspec/")
+                r = self.sign()
+                self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+                value = r.stdout.strip().splitlines()[-1][len("Spec-check: "):]
+                self.assertIn("no open change or spec staged", value)
+                r = self.commit_with("--verified-value", str(VERIFY), "Spec-check", value,
+                                     message="Settle the decisions-first rule")
+                self.assertEqual(r.returncode, 0, r.stderr)
+                self.assertIn("openspec/spec-check.yaml",
+                              self.repo.git("diff", "--name-only", "HEAD~1", "HEAD"))
+                self.assertEqual(self.hook().returncode, 0)
 
     def test_a_commit_outside_openspec_is_never_reported(self):
         self.repo.write("src/other.py", "x\n")
@@ -964,10 +893,405 @@ class TrailerTests(unittest.TestCase):
 
 
 class ManifestTests(unittest.TestCase):
-    def test_hook_json_names_an_executable_script(self):
+    def test_hook_json_names_executable_scripts(self):
         manifest = json.loads((HERE.parent / "hook.json").read_text())
         self.assertEqual(manifest["default"], "enabled")
-        self.assertTrue(os.access(HERE.parent / manifest["command"], os.X_OK))
+        commands = [h["command"] for h in manifest["hooks"]]
+        self.assertEqual(commands, ["scripts/check-commit-trailer.sh", "scripts/proposal-hook.sh"])
+        for command in commands:
+            self.assertTrue(os.access(HERE.parent / command, os.X_OK), command)
+
+    def test_a_sandboxed_install_wires_both_hooks_on_both_hosts(self):
+        tmp = pathlib.Path(tempfile.mkdtemp(prefix="spec-check-install-")).resolve()
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        env = dict(ENV, SHARED_SKILLS_TARGET=str(tmp / "skills"),
+                   SHARED_SKILLS_HOOK_HOME=str(tmp / "home"),
+                   SHARED_SKILLS_CONFIG=str(tmp / "config"),
+                   SHARED_SKILLS_REPO=str(SKILLS.parent.parent))
+        (tmp / "skills").mkdir()
+        r = subprocess.run([sys.executable, str(SKILLS_PY), "install", "spec-check"],
+                           capture_output=True, text=True, env=env, cwd=tmp)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        claude = json.loads((tmp / "home/.claude/settings.json").read_text())["hooks"]
+        wired = {(g["matcher"], h["command"].split("/")[-1].split(" ")[0])
+                 for g in claude["PostToolUse"] for h in g["hooks"]}
+        self.assertIn(("Bash", "check-commit-trailer.sh"), wired)
+        self.assertIn(("^(Write|Edit|MultiEdit)$", "proposal-hook.sh"), wired)
+        cursor = json.loads((tmp / "home/.cursor/hooks.json").read_text())["hooks"]
+        self.assertTrue(any("check-commit-trailer.sh --host cursor" in h["command"]
+                            for h in cursor["postToolUse"]))
+        self.assertTrue(any("proposal-hook.sh --host cursor" in h["command"]
+                            for h in cursor["postToolUse"] if h.get("matcher") == "Write"))
+        r = subprocess.run([sys.executable, str(SKILLS_PY), "doctor"],
+                           capture_output=True, text=True, env=env, cwd=tmp)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("No problems found in any target.", r.stdout)
+        # The command as wired runs, and speaks in an undecided repository.
+        command = next(h["command"] for g in claude["PostToolUse"] for h in g["hooks"]
+                       if "proposal-hook.sh" in h["command"])
+        repo = Repo(self, None)
+        repo.change("x")
+        payload = {"tool_name": "Write", "cwd": str(repo.path),
+                   "tool_input": {"file_path": str(repo.path / "openspec/changes/x/proposal.md")}}
+        r = subprocess.run(command, shell=True, input=json.dumps(payload),
+                           capture_output=True, text=True, env=ENV)
+        self.assertIn("has not decided", json.loads(r.stdout)["hookSpecificOutput"]["additionalContext"])
+
+
+class DecisionFileTests(unittest.TestCase):
+    """openspec/spec-check.yaml: what it says, and what check does with it."""
+
+    BAD = GOOD_PROPOSAL.replace("## Decisions", "## Why first")
+
+    def test_the_states_on_disk(self):
+        for text, want in ((None, "undecided"), ("decisions-first: enforce\n", "enforce"),
+                           ("decisions-first: off\n", "off"),
+                           ("\r\ndecisions-first:   off  \r\n\r\n", "off"),
+                           ("decisions-first: on\n", "invalid"), ("", "invalid"),
+                           ("decisions-first: enforce\nother: x\n", "invalid"),
+                           ("# comment\ndecisions-first: enforce\n", "invalid")):
+            with self.subTest(text=text):
+                repo = Repo(self, None)
+                if text is not None:
+                    repo.write("openspec/spec-check.yaml", text)
+                self.assertEqual(repo.run("state").stdout.strip(), want)
+
+    def test_no_openspec_is_undecided(self):
+        repo = Repo(self, None)
+        shutil.rmtree(repo.path / "openspec")
+        self.assertEqual(repo.run("state").stdout.strip(), "undecided")
+
+    def test_enforce_makes_it_an_error(self):
+        repo = Repo(self, "enforce")
+        repo.change("x", proposal=self.BAD)
+        r = repo.check("x")
+        self.assertEqual((r.returncode, kinds(r)), (1, ["decisions-first"]))
+
+    def test_off_is_not_checked(self):
+        repo = Repo(self, "off")
+        repo.change("x", proposal=self.BAD)
+        r = repo.check("x")
+        self.assertEqual((r.returncode, kinds(r)), (0, []), r.stdout)
+        self.assertEqual(json.loads(repo.check("x", "--json").stdout)["decisions_first"], "off")
+
+    def test_undecided_gives_one_note_and_no_errors(self):
+        repo = Repo(self, None)
+        repo.change("x", proposal=self.BAD)
+        repo.change("y", proposal="## Why\n\nNo decisions.\n")
+        r = repo.check()
+        self.assertEqual((r.returncode, kinds(r)), (0, ["decisions-first"]), r.stdout)
+        self.assertIn("openspec/spec-check.yaml: check [decisions-first] this repository "
+                      "has not decided", r.stdout)
+        self.assertIn("setup --decline", r.stdout)
+        data = json.loads(repo.check("x", "--json").stdout)
+        self.assertEqual((data["decisions_first"], data["errors"], data["checks"]),
+                         ("undecided", 0, 1))
+
+    def test_only_specs_get_no_note(self):
+        self.assertEqual(kinds(Repo(self, None).check("specs")), [])
+
+    def test_an_invalid_file_gives_one_note_without_setup_advice(self):
+        repo = Repo(self, None)
+        repo.write("openspec/spec-check.yaml", "decisions-first: yes\n")
+        repo.change("x", proposal=self.BAD)
+        r = repo.check("x")
+        self.assertEqual((r.returncode, kinds(r)), (0, ["decisions-first"]), r.stdout)
+        self.assertIn("must hold one line", r.stdout)
+        self.assertNotIn("setup", r.stdout)
+        self.assertEqual(json.loads(repo.check("x", "--json").stdout)["decisions_first"], "invalid")
+
+    def test_a_link_is_not_followed_on_disk_or_in_a_tree(self):
+        repo = Repo(self, None)
+        repo.write("shared/sc.yaml", "decisions-first: enforce\n")
+        (repo.path / "openspec/spec-check.yaml").symlink_to("../shared/sc.yaml")
+        repo.change("x", proposal=self.BAD)
+        repo.git("add", "-A")
+        repo.git("commit", "-q", "-m", "linked")
+        self.assertEqual(repo.run("state").stdout.strip(), "invalid")
+        for args in (("x",), ("--ref", "HEAD", "x")):
+            with self.subTest(args=args):
+                r = repo.check(*args)
+                self.assertEqual((r.returncode, kinds(r)), (0, ["decisions-first"]), r.stdout)
+                self.assertIn("is a symlink, not a plain file", r.stdout)
+
+    def test_a_submodule_or_directory_in_a_tree_is_reported(self):
+        repo = Repo(self, None)
+        repo.write("openspec/spec-check.yaml/x", "y\n")
+        repo.change("x", proposal=self.BAD)
+        repo.git("add", "-A")
+        repo.git("commit", "-q", "-m", "dir")
+        r = repo.check("--ref", "HEAD", "x")
+        self.assertIn("is a directory, not a plain file", r.stdout)
+        sub = repo.path.parent / f"{repo.path.name}-sub"
+        sub.mkdir()
+        self.addCleanup(shutil.rmtree, sub, ignore_errors=True)
+        subprocess.run(["git", "init", "-q", "-b", "main"], cwd=sub, check=True, env=ENV)
+        (sub / "f").write_text("decisions-first: enforce\n")
+        subprocess.run(["git", "add", "-A"], cwd=sub, check=True, env=ENV)
+        subprocess.run(["git", "commit", "-q", "-m", "s"], cwd=sub, check=True, env=ENV)
+        repo.git("rm", "-rq", "openspec/spec-check.yaml")
+        repo.git("-c", "protocol.file.allow=always", "submodule", "add", "-q", str(sub),
+                 "openspec/spec-check.yaml")
+        repo.git("commit", "-q", "-m", "sub")
+        r = repo.check("--ref", "HEAD", "x")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("is a submodule, not a plain file", r.stdout)
+
+    def test_a_branch_is_judged_by_its_own_file(self):
+        repo = Repo(self, None)
+        repo.git("checkout", "-q", "-b", "spec/x")
+        repo.change("x", proposal=self.BAD)
+        repo.write("openspec/spec-check.yaml", "decisions-first: enforce\n")
+        repo.git("add", "-A")
+        repo.git("commit", "-q", "-m", "x")
+        repo.git("checkout", "-q", "main")
+        r = repo.check("--ref", "spec/x", "x")
+        self.assertEqual((r.returncode, kinds(r)), (1, ["decisions-first"]))
+
+    def test_sign_reads_the_staged_file(self):
+        repo = Repo(self, None)
+        repo.change("x", proposal=self.BAD)
+        repo.git("add", "-A")
+        r = repo.run("sign", "--read", "subagent", "--base", "main", "--no-validate")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("0 errors, 1 checks", r.stdout)
+        repo.write("openspec/spec-check.yaml", "decisions-first: enforce\n")
+        r = repo.run("sign", "--read", "subagent", "--base", "main", "--no-validate")
+        self.assertEqual(r.returncode, 0, "unstaged, so the staged tree is still undecided")
+        repo.git("add", "-A")
+        r = repo.run("sign", "--read", "subagent", "--base", "main", "--no-validate")
+        self.assertEqual(r.returncode, 1, r.stdout)
+
+
+class FoundByBugHunterDecisionTests(unittest.TestCase):
+    """Regressions found by bug-hunter over the decision file."""
+
+    def setUp(self):
+        self.repo = Repo(self, None)
+        self.openspec = self.repo.path / "openspec"
+
+    def test_a_link_at_the_temporary_name_is_not_written_through(self):
+        outside = self.repo.path.parent / f"{self.repo.path.name}-victim.txt"
+        outside.write_text("keep\n")
+        self.addCleanup(outside.unlink)
+        (self.openspec / "spec-check.yaml.tmp").symlink_to(outside)
+        r = self.repo.run("setup")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(outside.read_text(), "keep\n")
+        self.assertFalse((self.openspec / "spec-check.yaml").is_symlink())
+        self.assertEqual(self.repo.run("state").stdout.strip(), "enforce")
+
+    def test_a_decision_file_linked_out_of_the_repository_is_reported_from_a_tree(self):
+        outside = self.repo.path.parent / f"{self.repo.path.name}-out.yaml"
+        outside.write_text("decisions-first: enforce\n")
+        self.addCleanup(outside.unlink)
+        (self.openspec / "spec-check.yaml").symlink_to(f"../../{outside.name}")
+        self.repo.change("x")
+        self.repo.git("add", "-A")
+        self.repo.git("commit", "-q", "-m", "linked")
+        r = self.repo.check("--ref", "HEAD", "x")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("is a symlink, not a plain file", r.stdout)
+
+
+class FoundByBugHunterDecisionIteration2Tests(unittest.TestCase):
+    def setUp(self):
+        self.repo = Repo(self, None)
+        self.openspec = self.repo.path / "openspec"
+
+    def test_a_ref_whose_openspec_holds_only_the_decision_file(self):
+        (self.openspec / "config.yaml").unlink()
+        shutil.rmtree(self.openspec / "specs")
+        self.repo.write("openspec/spec-check.yaml", "decisions-first: off\n")
+        self.repo.git("add", "-A")
+        self.repo.git("commit", "-q", "-m", "only the decision")
+        r = self.repo.check("--ref", "HEAD")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
+class SetupDecisionTests(unittest.TestCase):
+    def setUp(self):
+        self.repo = Repo(self, None)
+        self.decision = self.repo.path / "openspec" / "spec-check.yaml"
+        self.config = self.repo.path / "openspec" / "config.yaml"
+
+    def test_setup_writes_enforce_and_never_touches_the_config(self):
+        before = self.config.read_bytes()
+        r = self.repo.run("setup")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(self.decision.read_text(), "decisions-first: enforce\n")
+        self.assertEqual(self.config.read_bytes(), before)
+        self.assertIn("SKILL.md", r.stdout)
+        self.assertEqual(self.repo.run("state").stdout.strip(), "enforce")
+
+    def test_decline_writes_off_and_never_touches_the_config(self):
+        before = self.config.read_bytes()
+        r = self.repo.run("setup", "--decline")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(self.decision.read_text(), "decisions-first: off\n")
+        self.assertEqual(self.config.read_bytes(), before)
+        self.assertEqual(self.repo.run("state").stdout.strip(), "off")
+
+    def test_setup_needs_no_config_at_all(self):
+        self.config.unlink()
+        for args, want in ((("setup",), "enforce"), (("setup", "--decline"), "off")):
+            with self.subTest(args=args):
+                r = self.repo.run(*args)
+                self.assertEqual(r.returncode, 0, r.stderr)
+                self.assertEqual(self.decision.read_text(), f"decisions-first: {want}\n")
+        self.assertFalse(self.config.exists())
+
+    def test_each_is_idempotent_and_one_switches_the_other(self):
+        for args, want in ((("setup",), "enforce"), (("setup",), "enforce"),
+                           (("setup", "--decline"), "off"), (("setup", "--decline"), "off"),
+                           (("setup",), "enforce")):
+            with self.subTest(args=args):
+                r = self.repo.run(*args)
+                self.assertEqual(r.returncode, 0, r.stderr)
+                self.assertEqual(self.decision.read_text(), f"decisions-first: {want}\n")
+        self.assertIn("already says", self.repo.run("setup").stdout)
+
+    def test_dry_runs_write_nothing(self):
+        for args in (("setup", "--dry-run"), ("setup", "--decline", "--dry-run")):
+            with self.subTest(args=args):
+                r = self.repo.run(*args)
+                self.assertEqual(r.returncode, 0, r.stderr)
+                self.assertIn("--- openspec/spec-check.yaml\ndecisions-first:", r.stdout)
+                self.assertFalse(self.decision.exists())
+
+    def test_a_linked_decision_file_is_replaced_by_a_plain_file(self):
+        self.repo.write("shared/sc.yaml", "decisions-first: off\n")
+        self.decision.symlink_to("../shared/sc.yaml")
+        r = self.repo.run("setup")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertFalse(self.decision.is_symlink())
+        self.assertEqual(self.decision.read_text(), "decisions-first: enforce\n")
+        self.assertEqual((self.repo.path / "shared/sc.yaml").read_text(), "decisions-first: off\n")
+
+    def test_repo_naming_a_subdirectory_writes_the_tops_decision(self):
+        nested = self.repo.path / "pkg"
+        (nested / "openspec").mkdir(parents=True)
+        r = self.repo.run("setup", "--decline", "--repo", str(nested))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(self.decision.read_text(), "decisions-first: off\n")
+        self.assertFalse((nested / "openspec/spec-check.yaml").exists())
+        self.assertEqual(self.repo.run("state", "--repo", str(nested)).stdout.strip(), "off")
+
+    def test_no_openspec_refuses(self):
+        shutil.rmtree(self.repo.path / "openspec")
+        r = self.repo.run("setup")
+        self.assertEqual(r.returncode, 2)
+        self.assertIn("openspec init", r.stderr)
+
+
+class ProposalHookTests(unittest.TestCase):
+    def setUp(self):
+        self.repo = Repo(self, None)
+        self.proposal = self.repo.path / "openspec/changes/x/proposal.md"
+        self.repo.change("x")
+
+    def run_hook(self, host, payload):
+        data = payload if isinstance(payload, str) else json.dumps(payload)
+        return subprocess.run(["sh", str(PROPOSAL_HOOK), "--host", host], input=data,
+                              capture_output=True, text=True, env=ENV, cwd=tempfile.gettempdir())
+
+    def claude(self, path, tool="Write"):
+        return {"hook_event_name": "PostToolUse", "tool_name": tool, "cwd": str(self.repo.path),
+                "tool_input": {"file_path": str(path), "content": "x"}}
+
+    def cursor(self, path):
+        return {"hook_event_name": "postToolUse", "tool_name": "Write",
+                "tool_input": {"file_path": str(path), "contents": "x"},
+                "tool_output": "{}", "cwd": str(self.repo.path)}
+
+    def context(self, r, host):
+        self.assertEqual((r.returncode, r.stderr), (0, ""))
+        if not r.stdout:
+            return None
+        data = json.loads(r.stdout)
+        if host == "claude":
+            self.assertEqual(data["hookSpecificOutput"]["hookEventName"], "PostToolUse")
+            return data["hookSpecificOutput"]["additionalContext"]
+        return data["additional_context"]
+
+    def test_a_proposal_in_an_undecided_repository_adds_context(self):
+        for host, payload in (("claude", self.claude(self.proposal)),
+                              ("claude", self.claude(self.proposal, "Edit")),
+                              ("claude", self.claude(self.proposal, "MultiEdit")),
+                              ("cursor", self.cursor(self.proposal))):
+            with self.subTest(host=host, payload=payload):
+                text = self.context(self.run_hook(host, payload), host)
+                self.assertIn("has not decided", text)
+                self.assertIn(f"{SCRIPT} setup --repo {self.repo.path}`", text)
+                self.assertIn(f"{SCRIPT} setup --repo {self.repo.path} --decline`", text)
+                self.assertIn("Before finishing this proposal", text)
+
+    def test_cursor_write_input_may_name_the_path_by_any_known_key(self):
+        for key in ("path", "target_file"):
+            with self.subTest(key=key):
+                payload = self.cursor(self.proposal)
+                payload["tool_input"] = {key: str(self.proposal)}
+                self.assertIn("has not decided", self.context(self.run_hook("cursor", payload), "cursor"))
+
+    def test_a_relative_path_is_read_from_the_payloads_cwd(self):
+        payload = self.claude("openspec/changes/x/proposal.md")
+        self.assertIsNotNone(self.context(self.run_hook("claude", payload), "claude"))
+
+    def test_a_nested_proposal_asks_about_the_repository_top(self):
+        nested = self.repo.path / "pkg/openspec/changes/y/proposal.md"
+        nested.parent.mkdir(parents=True)
+        nested.write_text(GOOD_PROPOSAL)
+        text = self.context(self.run_hook("claude", self.claude(nested)), "claude")
+        self.assertIn(f"--repo {self.repo.path}`", text)
+        self.assertNotIn(f"--repo {self.repo.path / 'pkg'}", text)
+
+    def test_a_nested_proposal_with_no_openspec_at_the_top_is_silent(self):
+        shutil.rmtree(self.repo.path / "openspec")
+        nested = self.repo.path / "pkg/openspec/changes/y/proposal.md"
+        nested.parent.mkdir(parents=True)
+        nested.write_text(GOOD_PROPOSAL)
+        self.assertIsNone(self.context(self.run_hook("claude", self.claude(nested)), "claude"))
+
+    def test_a_nested_openspec_in_a_decided_repository_is_silent(self):
+        self.repo.write("openspec/spec-check.yaml", "decisions-first: enforce\n")
+        nested = self.repo.path / "examples/demo/openspec/changes/b/proposal.md"
+        nested.parent.mkdir(parents=True)
+        nested.write_text(GOOD_PROPOSAL)
+        self.assertIsNone(self.context(self.run_hook("claude", self.claude(nested)), "claude"))
+
+    def test_a_decided_repository_is_silent(self):
+        for config in ("decisions-first: enforce\n", "decisions-first: off\n", "nonsense\n"):
+            self.repo.write("openspec/spec-check.yaml", config)
+            for host, payload in (("claude", self.claude(self.proposal)),
+                                  ("cursor", self.cursor(self.proposal))):
+                with self.subTest(config=config, host=host):
+                    self.assertIsNone(self.context(self.run_hook(host, payload), host))
+
+    def test_other_paths_are_silent(self):
+        others = [self.repo.path / "openspec/changes/x/design.md",
+                  self.repo.path / "openspec/changes/archive/2026-01-01-x/proposal.md",
+                  self.repo.path / "openspec/specs/cap/proposal.md",
+                  self.repo.path / "docs/proposal.md",
+                  self.repo.path / "openspec/changes/x/proposal.md.bak"]
+        for path in others:
+            for host, payload in (("claude", self.claude(path)), ("cursor", self.cursor(path))):
+                with self.subTest(path=path, host=host):
+                    self.assertIsNone(self.context(self.run_hook(host, payload), host))
+
+    def test_outside_a_git_repository_is_silent(self):
+        tmp = pathlib.Path(tempfile.mkdtemp(prefix="spec-check-nogit-")).resolve()
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        path = tmp / "openspec/changes/x/proposal.md"
+        path.parent.mkdir(parents=True)
+        path.write_text(GOOD_PROPOSAL)
+        self.assertIsNone(self.context(self.run_hook("claude", self.claude(path)), "claude"))
+
+    def test_a_bad_payload_is_silent(self):
+        for payload in ("", "not json", "[]", "null", '{"tool_input": "openspec/changes/x/proposal.md"}',
+                        json.dumps({"tool_input": {"file_path": 7}, "file_path": "proposal.md"}),
+                        json.dumps({"tool_input": {"file_path": "openspec/changes/x/proposal.md"}})):
+            for host in ("claude", "cursor"):
+                with self.subTest(payload=payload, host=host):
+                    self.assertIsNone(self.context(self.run_hook(host, payload), host))
 
 
 if __name__ == "__main__":

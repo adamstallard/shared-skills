@@ -3,10 +3,11 @@ name: spec-check
 description: >-
   Check an OpenSpec change for correctness and consistency before a person
   reviews it, so the reviewer judges only whether the rules are the right
-  ones. Use before committing or opening a pull request that adds or changes
-  anything under openspec/changes/ or openspec/specs/, when reviewing a spec
-  pull request, or when asked to "check this spec", "cross-check the change"
-  or "is this spec consistent". Runs mechanical checks with a script, has a
+  ones. Use when drafting or reviewing an OpenSpec change, before committing
+  or opening a pull request that adds or changes anything under
+  openspec/changes/ or openspec/specs/, when reviewing a spec pull request,
+  when asked to set up spec-check for a repository, or when asked to "check
+  this spec", "cross-check the change" or "is this spec consistent". Runs mechanical checks with a script, has a
   fresh subagent read the change against every other spec, change and open
   pull request, and fixes findings in the spec itself. Commits that change
   openspec/ carry a Spec-check: trailer.
@@ -26,6 +27,8 @@ tests to scenarios after implementation is a separate step.
 
 ## When
 
+- When drafting a proposal in a repository that has not decided on the
+  decisions-first rule: see [Setting up a repository](#setting-up-a-repository).
 - Before any commit, and before opening a pull request, that changes a path
   under `openspec/changes/` or `openspec/specs/`.
 - When reviewing a spec pull request, yours or someone else's.
@@ -50,7 +53,7 @@ errors to fix. Exit 2: it could not run, and says why.
 | `scenario-incomplete` | error | A scenario has no WHEN or no THEN |
 | `duplicate` | error | A sentence of the rule also appears under another requirement, here or in another spec or change |
 | `citation` | error, or check | A `path:line` with a `/` whose line is in neither the base branch nor the change is an error. Any other citation finding is a check: a bare name such as `config.py:50`, or a line only the change adds. Text in a code fence, and addresses such as `0.0.0.0:8080`, are skipped |
-| `decisions-first` | error | The proposal does not open with a decisions section, or the section lists no decisions |
+| `decisions-first` | error, or check, as `openspec/spec-check.yaml` says | `enforce`: an error when the proposal does not open with a decisions section, or the section lists none. `off`: not checked. No file: no proposal is checked, and one check says the repository has not decided. A file holding anything else: one check naming the problem |
 | `openspec-validate` | error, or check when validation passed | An issue `openspec validate --strict` reported |
 | `undefined-term` | check | A backticked or bold term in a requirement appears nowhere in the specs or the change's proposal or design |
 
@@ -119,12 +122,69 @@ work.
 ...
 ```
 
-`spec_check.py setup` adds this rule to the repository's
-`openspec/config.yaml`, under `rules: proposal:`. OpenSpec shows config rules
-to the agent drafting a proposal, inside `<rules>` in
-`openspec instructions proposal`. The command edits the file as text, keeps
-every comment, and changes nothing on a second run. `--dry-run` prints the
-result instead.
+Each repository decides whether its proposals must follow this rule, and
+`openspec/spec-check.yaml` records the answer.
+
+## Setting up a repository
+
+`openspec/spec-check.yaml` holds one line, written only by `setup`:
+
+- **`decisions-first: enforce`:** `check` fails a proposal that does not
+  open with its decisions.
+- **`decisions-first: off`:** `check` does not look for a decisions section.
+- **No file:** the repository has not decided. `check` reports no
+  `decisions-first` errors, and adds one check saying so.
+
+Anything else in the file, or a link, a directory or a submodule in its
+place, gets one check naming the problem, and decisions-first is not
+checked. `sign` and `check --ref` read the file from the git tree and never
+follow a link.
+
+Ask the user whether to enforce the rule when any of these happens:
+
+- `check` reports that the repository has not decided;
+- after you write a proposal, the hook tells you the repository has not decided;
+- the user asks you to set up spec-check for a repository.
+
+Then:
+
+1. Show the user what will change: `python3 "$SC/spec_check.py" setup
+   --dry-run`, or `setup --decline --dry-run`.
+2. Run the same command without `--dry-run`. `setup` writes `enforce`, and
+   `setup --decline` writes `off`. Running either again changes nothing, and
+   running one after the other switches the value. Pass `--repo <dir>` for
+   another repository.
+3. **If the user chose to enforce the rule,** add it to OpenSpec's config
+   yourself, with your own edit tools, so that `openspec instructions
+   proposal` shows it to the agent drafting a proposal. The script never
+   touches OpenSpec's config.
+   - The file is `openspec/config.yaml`, or `openspec/config.yml` if that is
+     the one present. If neither exists, create `openspec/config.yaml`
+     holding the lines below.
+   - Add the rule as an item of the list under `rules:` → `proposal:`. Use
+     the existing keys; create `rules:` or `proposal:` only where they are
+     missing. Keep every comment.
+   - Show the user the change before committing it.
+   - If you cannot edit the file, tell the user the exact lines and where
+     they go, and say that this step is optional: agents drafting a
+     proposal will not see the rule, but `check` still enforces it.
+
+   The rule:
+
+   ```yaml
+   rules:
+     proposal:
+       - "Open with the decisions the reviewer is asked to make; then what is still open; then everything else. Where a decision turned down a real alternative, say what it was and why; do not invent one to fill a slot."
+   ```
+4. **If the user turned the rule off,** look at OpenSpec's config. Only if
+   the rule is there, tell the user, and ask whether to remove it.
+5. Commit the files that changed, on their own. There was no consistency
+   read, so sign with `sign --read self`: for a commit that changes nothing
+   else under `openspec/`, it prints `Spec-check: ✓ <tree> no open change or
+   spec staged`. Pass that value like any other (see [Commit](#commit)).
+
+Once that commit lands, every agent working in the repository reads the same
+answer and stops asking.
 
 ## When to write a TLA+ model
 
@@ -182,9 +242,10 @@ Without bug-hunter, call the library directly with the same families:
 Sign after prose's rewrite is staged: staging anything after signing changes
 the tree, and the commit script refuses the stale value.
 
-The hook reports a commit that changes `openspec/` without a valid
+The commit hook reports a commit that changes `openspec/` without a valid
 `Spec-check:` trailer. It never reports a commit that changes nothing under
-`openspec/`.
+`openspec/`. In a repository with no `openspec/spec-check.yaml`, its report
+adds a line telling the user to ask you to set up spec-check.
 
 ## Report
 

@@ -63,7 +63,9 @@ change and says what is missing.
     from something unbuilt must read "not checked", never pass by default.
 12. Decisions the proposal does not open with: a choice the reviewer is asked
     to accept that is not in its decisions section, or a question still open
-    that is not listed as open.
+    that is not listed as open. Check this item only when the repository's
+    `openspec/spec-check.yaml` says `decisions-first: enforce`: otherwise its
+    team has not chosen to open proposals with their decisions.
 
 Write each finding as:
 

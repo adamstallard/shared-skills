@@ -19,7 +19,8 @@ Before an agent commits, or opens a pull request for, anything under
    - the same rule stated under two requirements;
    - a `path:line` citation whose line is on neither the base branch nor
      the change;
-   - a proposal that does not open with its decisions;
+   - a proposal that does not open with its decisions, in a repository that
+     enforces that rule (see Setup);
    - terms nothing defines (a hint only, never a failure).
 
    It also runs `openspec validate --strict` and includes the result.
@@ -43,19 +44,45 @@ records who the agent says did.
 ## Setup
 
 Install it by asking your agent: "Install the spec-check skill". Installing
-turns on its hook (see below).
+turns on its hooks (see below).
 
-Then, once per repository, add the decisions-first rule to OpenSpec's config
-so the agent drafting a proposal sees it:
+Then, once per repository, ask your agent: "Set up spec-check in this
+repository". It asks whether you want the decisions-first rule, which makes
+every proposal open with the decisions the reviewer is asked to make, and
+records the answer in `openspec/spec-check.yaml`:
+
+- **Yes** (`decisions-first: enforce`): `check` fails a proposal that does
+  not open with its decisions. Your agent also adds the rule to OpenSpec's
+  `openspec/config.yaml`, so the agent drafting a proposal sees it.
+- **No** (`decisions-first: off`): `check` stops looking for a decisions
+  section.
+
+Your agent shows you the changes before making them, then commits them. Once
+they are committed, every agent on the team reads the same answer and none of
+them asks again.
+
+Until a repository decides, the agent raises it at three moments:
+
+- right after it writes a proposal, prompted by the proposal hook;
+- when `check` runs, which adds one note saying the repository has not
+  decided, and checks no proposal against the rule;
+- when the commit hook reports an `openspec/` commit, whose report ends with
+  "ask your agent to set up spec-check in this repository".
+
+To do it yourself, run either command in the repository; `--dry-run` shows
+what would change without writing it:
 
 ```bash
-python3 ~/.agents/skills/spec-check/scripts/spec_check.py setup
+python3 ~/.agents/skills/spec-check/scripts/spec_check.py setup             # enforce the rule
+python3 ~/.agents/skills/spec-check/scripts/spec_check.py setup --decline   # turn it off
 ```
 
-This adds the rule under `rules: proposal:` in `openspec/config.yaml`,
-keeping every comment. Running it again changes nothing. Use `--dry-run` to
-see the result first. OpenSpec prints config rules to the agent in
-`openspec instructions proposal`.
+Running either again changes nothing, and running one after the other
+switches the answer. The script only records the answer; it never touches
+OpenSpec's config. Adding the rule there, under `rules:` → `proposal:`, is
+optional: it shows the rule to the agent drafting a proposal, and `check`
+enforces the rule either way. SKILL.md, "Setting up a repository", has the
+exact lines.
 
 ## Examples of what to say
 
@@ -74,14 +101,19 @@ python3 ~/.agents/skills/spec-check/scripts/spec_check.py check --ref origin/spe
 `--ref` reads a branch without checking it out. Citations are checked
 against `origin/HEAD` (then `origin/main`, then `main`); `--base` changes it.
 
-## The hook
+## The hooks
 
-After each shell command, the hook looks for new commits that change
-`openspec/` and reports any without a valid `Spec-check:` trailer. It reports
-and never blocks, and a commit that changes nothing under `openspec/` is never
-reported. Only `openspec/` at the repository root counts.
+- **The commit hook.** After each shell command, it looks for new commits that
+  change `openspec/` and reports any without a valid `Spec-check:` trailer. A
+  commit that changes nothing under `openspec/` is never reported. Only
+  `openspec/` at the repository root counts.
+- **The proposal hook.** After the agent writes or edits an
+  `openspec/changes/<name>/proposal.md`, in a repository that has not decided
+  on the decisions-first rule, it tells the agent to ask you. Otherwise it
+  says nothing. In Cursor it runs on `postToolUse` for the `Write` tool; the
+  hook has not been tried in Cursor itself.
 
-To turn it off:
+Neither hook ever blocks. To turn both off:
 
 ```bash
 python3 ~/.agents/skills/manage-skills/scripts/skills.py disable-hook spec-check
@@ -103,5 +135,5 @@ python3 ~/.agents/skills/manage-skills/scripts/skills.py disable-hook spec-check
 - **The agent cannot make the trailer.** `spec_check.py sign`, which prints
   the `Spec-check:` line, refuses while errors remain, and prints them. For
   work in progress, the agent commits with `Spec-check: skipped (<reason>)`.
-- **`setup` refuses.** Your config writes `rules` or `proposal` in flow style
-  (`proposal: [...]`). Add the rule by hand.
+- **`check` says `openspec/spec-check.yaml` must hold one line.** Run
+  `setup` or `setup --decline`, which rewrites it.

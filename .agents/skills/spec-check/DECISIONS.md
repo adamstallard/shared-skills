@@ -7,7 +7,8 @@ approved before any code for it is written, and that review is where a
 reviewer's time goes. It has two parts: a script, `scripts/spec_check.py`,
 and a consistency read done by a fresh subagent. The script's `check`
 subcommand runs the mechanical checks, `sign` runs them on the staged tree
-and prints the commit trailer, and `setup` adds a rule to OpenSpec's config.
+and prints the commit trailer, and `setup` records whether the repository
+enforces the decisions-first rule.
 This file is why it works the way it does.
 
 Each entry: the decision, why, and what was rejected.
@@ -145,12 +146,12 @@ nobody is doing.
 ## Proposals open with their decisions
 
 **Decision.** A proposal opens with the decisions the reviewer is asked to
-make; then what is still open; then everything else. The script fails a
-proposal whose first section is not a decisions section, or whose decisions
-section lists no decisions. `setup` puts the rule in `openspec/config.yaml`,
-which OpenSpec prints to the agent drafting the proposal (verified with
-OpenSpec 1.6.0: config rules appear inside `<rules>` in
-`openspec instructions proposal`).
+make; then what is still open; then everything else. In a repository that
+enforces this rule, the script fails a proposal whose first section is not a
+decisions section, or whose decisions section lists no decisions, and the
+agent puts the rule in `openspec/config.yaml`. OpenSpec prints config rules
+to the agent drafting a proposal (verified with OpenSpec 1.6.0: they appear
+inside `<rules>` in `openspec instructions proposal`).
 
 **Why.** At the spec stage, the reviewer's job is the decisions.
 
@@ -168,17 +169,108 @@ the script once checked by searching each decision for the word "reject". A
 search like that cannot judge a decision anyway: it finds the word, not a
 real alternative.
 
-**`setup` edits text, not YAML.** The standard library has no YAML parser,
-and a parse-and-dump would drop every comment. The edit appends a marker
-comment and one list item, and refuses flow style rather than guess at it.
-The marker is what makes a second run a no-op even after someone rewords the
-rule.
+---
 
-An earlier `setup` wrote a rule that asked each decision for the alternative
-it rejects. A config holding that wording keeps it until someone edits it,
-because a re-run sees the marker and changes nothing. `setup` does not
-replace the text under the marker, because that would overwrite a team's
-own rewording.
+## Each repository's decisions-first answer lives in spec-check's own file
+
+**Decision (Adam, 2026-10-14).** Each repository decides whether its
+proposals must open with their decisions, and `openspec/spec-check.yaml`
+records the answer in one line: `decisions-first: enforce` or
+`decisions-first: off`. With no file, the repository has not decided. Only
+`setup` writes the file: `setup` writes `enforce`, `setup --decline` writes
+`off`.
+
+`check` and `sign` read the file from where they read the change: the
+working tree, the `--ref` branch, or the staged files. From a git tree they
+read it with git and never follow a link. With `enforce`, a proposal that
+does not open with its decisions is an error. With `off`, it is not checked.
+Undecided, no proposal is checked, and the run adds one finding of severity
+`check` saying how to enforce or turn off the rule. A file that holds
+anything else, or a link, directory or submodule in its place, gets one
+`check` naming the problem, and decisions-first is not checked. `check
+--json` reports the state as `decisions_first`.
+
+**Why its own file.** Recording a decision should not depend on reading or
+writing a file OpenSpec owns. When the decision was kept as marker comments
+in `openspec/config.yaml`, telling the states apart meant parsing a file teams
+edit by hand, and each round of bug-hunting found another layout it misread:
+a commented-out rule, a rewording below a comment, a `config.yml`. Reading it
+from a git tree for `sign` meant resolving links by hand, through symlinks
+and into submodules, and each of those found another case too. A file only
+`setup` writes, holding one of two lines, has no such cases. Anything else in
+it is reported, never guessed at.
+
+**Why the check follows the decision.** A team that turned the rule off chose
+not to follow it, and failing their proposals for it would overrule that
+choice. An undecided repository has not chosen either; failing its proposals
+would decide for it, and saying nothing would leave it undecided for good. A
+`check` never fails a run, so the question is raised without stopping work.
+
+**Why in the repository.** Installing a skill happens once per machine; the
+decision belongs to the repository. Committed there, it is shared: every
+agent on the team reads it, and none asks again.
+
+**The script never edits OpenSpec's config.** Editing a file it does not
+own, as text, in YAML it cannot parse, caused most of the bugs found while
+building this: a rule appended after a document end, a second `rules:` key
+that makes OpenSpec ignore the whole file, a write that failed half way, a
+config that was a link. The agent's own edit tools follow links and
+understand YAML. So when the user chooses to enforce the rule, the agent adds
+it to `openspec/config.yaml` (or `config.yml`), under the existing `rules:`
+→ `proposal:`, and shows the user the change. On a decline, it looks for the
+rule and asks before removing it. SKILL.md, "Setting up a repository", says
+how.
+
+**The rule in OpenSpec's config is best-effort.** It only helps the agent
+drafting a proposal; `check` enforces the rule from `spec-check.yaml` either
+way. Where the agent cannot edit the config, it gives the user the lines and
+says adding them is optional.
+
+**Rejected:**
+- **Marker comments in `openspec/config.yaml` as the record**, read back to
+  decide the state. That is the design above that kept misreading layouts.
+- **The script editing OpenSpec's config as text.** See above.
+- **Following links to read OpenSpec's config from a git tree**, the way the
+  file system would, while the answer was kept there. Each kind of link (out of `openspec/`, into a submodule, out
+  of a submodule) needed its own resolution code and turned up the next case.
+- **Asking at install time.** The installer cannot know which repositories a
+  person will work in, and an answer kept on one machine leaves every
+  teammate's agent asking again.
+
+---
+
+## The proposal hook asks before a proposal is finished
+
+**Decision.** Besides the commit hook, a proposal hook runs after the agent
+writes or edits a file:
+`PostToolUse` on `Write`, `Edit` and `MultiEdit` in Claude Code, and
+`postToolUse` on `Write` in Cursor. If the file is
+`openspec/changes/<name>/proposal.md`, at any depth, inside a git repository
+whose top has an `openspec/` but no `openspec/spec-check.yaml`, the hook tells
+the agent to ask the user whether to enforce or turn off the rule, giving
+both commands for the repository top. Otherwise it prints nothing. It never
+blocks, and any error means silence.
+
+A proposal under a nested `openspec/` is judged by the top's decision,
+because `check`, `sign` and the commit hook read only the top's `openspec/`.
+A decision recorded beside a nested one would be read by nothing.
+
+**Why.** The moment to settle the rule is while a proposal is being drafted,
+before anyone reviews it. A hook fires at that moment every time.
+
+**Rejected:**
+- **Relying on the skill's description alone.** The description says to use
+  the skill when drafting a change, but a model decides by judgement whether
+  to load a skill, so the description alone does not reliably fire.
+- **A session-start hook.** It would fire in every session, in every
+  repository, whether or not anyone is writing a proposal.
+
+**In Cursor, `postToolUse` on `Write`, not `afterFileEdit`** (Adam,
+2026-10-14). Cursor's documentation gives `postToolUse` an
+`additional_context` output, which reaches the agent, and gives
+`afterFileEdit` no output at all. It does not document the Write tool's
+input, so the hook reads the path from `file_path`, `path` or `target_file`.
+The hook has not been tried in Cursor itself.
 
 ---
 
@@ -199,8 +291,8 @@ understood.
 
 **Decision.** `sign` runs the mechanical checks on the staged tree and prints
 `Spec-check: ✓ <tree> <summary>`. The commit script runs `verify-staged.sh`
-before committing, and the hook runs `verify-commit` after, both comparing
-the value's tree with the tree that lands. A value starting `skipped` binds
+before committing, and the commit hook runs `verify-commit` after. Both
+compare the value's tree with the tree that lands. A value starting `skipped` binds
 nothing.
 
 **Why.** A trailer typed from memory can look right. One bound to the tree
@@ -223,7 +315,7 @@ spec, not the commit message.
 
 ## Only commits that change `openspec/` are judged
 
-**Decision.** The hook sets the library's `COMMIT_TRAILER_PATHSPEC` to
+**Decision.** The commit hook sets the library's `COMMIT_TRAILER_PATHSPEC` to
 `:(top)openspec/`. A commit that changes nothing there is never judged, with
 or without a trailer.
 
@@ -242,20 +334,23 @@ OpenSpec puts it.
 
 ---
 
-## The hook is enabled by default
+## The hooks are enabled by default
 
-**Decision.** `hook.json` says `"default": "enabled"`.
+**Decision.** `hook.json` says `"default": "enabled"`, for both hooks: the
+commit hook and the proposal hook. A skill's hooks are switched on and off
+together.
 
 **Why.** Several organizations install from this repository, each with its
 own repositories, so the default must suit a repository that uses OpenSpec and
 one that does not:
-- Installing spec-check is itself the opt-in. Nobody gets the hook without
+- Installing spec-check is itself the opt-in. Nobody gets either hook without
   asking for the skill.
-- The hook judges only commits that change `openspec/`, so in a repository
-  without OpenSpec it never speaks.
-- It reports and never blocks.
+- In a repository without OpenSpec, neither hook speaks. The commit hook
+  judges only commits that change `openspec/`. The proposal hook speaks only
+  after a proposal is written, and only until the repository decides.
+- Neither blocks.
 - Off by default, an installed spec-check would leave the spec stage
   unchecked, and nothing would say so.
 
 **Rejected:** off by default. It suits a hook that reports on every commit,
-which this one does not.
+which neither of these does.

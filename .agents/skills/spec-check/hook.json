@@ -1,10 +1,22 @@
 {
   "version": 1,
-  "summary": "Reports any commit that changes openspec/ and lands without a valid Spec-check: trailer.",
-  "command": "scripts/check-commit-trailer.sh",
   "default": "enabled",
-  "events": {
-    "claude": { "event": "PostToolUse", "matcher": "Bash" },
-    "cursor": { "event": "postToolUse", "matcher": "Shell" }
-  }
+  "hooks": [
+    {
+      "summary": "Reports any commit that changes openspec/ and lands without a valid Spec-check: trailer.",
+      "command": "scripts/check-commit-trailer.sh",
+      "events": {
+        "claude": { "event": "PostToolUse", "matcher": "Bash" },
+        "cursor": { "event": "postToolUse", "matcher": "Shell" }
+      }
+    },
+    {
+      "summary": "After the agent writes an OpenSpec proposal, asks it to settle the decisions-first rule when the repository has not (Cursor: untried).",
+      "command": "scripts/proposal-hook.sh",
+      "events": {
+        "claude": { "event": "PostToolUse", "matcher": "^(Write|Edit|MultiEdit)$" },
+        "cursor": { "event": "postToolUse", "matcher": "Write" }
+      }
+    }
+  ]
 }
