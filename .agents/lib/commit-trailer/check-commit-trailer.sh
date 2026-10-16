@@ -13,10 +13,15 @@
 #                          invalid with the reason on stdout, anything else
 #                          "could not verify", reported as such. A callback
 #                          that exits instead of returning has not answered.
-#                          Under the file's own `set -e`, a non-zero return
-#                          reads the same way: sh cannot tell it from an
-#                          aborted command. The file runs without this hook's
-#                          `set -u`
+#                          So does a callback returning non-zero under the
+#                          file's own `set -e`, because sh cannot tell that
+#                          return from an aborted command: such a file can
+#                          never report "invalid". The file runs without this
+#                          hook's `set -u`, so it may read unset variables
+#   COMMIT_TRAILER_PATHSPEC  optional: git pathspecs, separated by spaces. When
+#                          set, only a commit that changes a path they match
+#                          needs the trailer; every other commit is not
+#                          judged at all. Unset, every commit needs it
 #
 # Sourced, not executed, so $0 stays the wrapper: the submodule walk re-invokes
 # $0 and has to come back through the wrapper's configuration.
@@ -479,6 +484,19 @@ verify_with_skill() {   # verify_with_skill <sha> <raw value>
 "
 }
 
+# Whether a commit changes a path the skill's pathspecs match. Globbing is off
+# while the pathspecs are split into words, so a `*` in one reaches git rather
+# than the shell. A git failure counts as a match: the commit is judged, and a
+# false report is visible where a skipped commit would not be.
+PATHSPEC=${COMMIT_TRAILER_PATHSPEC:-}
+touches_pathspec() {   # touches_pathspec <sha>
+  set -f
+  changed=$(g diff-tree --no-commit-id --name-only -r --root "$1" -- $PATHSPEC 2>/dev/null) ||
+    changed=error
+  set +f
+  [ -n "$changed" ]
+}
+
 unchecked=""
 unminted=""
 rejected=""
@@ -492,6 +510,9 @@ for sha in $authored; do
   case "$(g log -1 --format='%P' "$sha" 2>/dev/null)" in
     *' '*) continue ;;
   esac
+  if [ -n "$PATHSPEC" ] && ! touches_pathspec "$sha"; then
+    continue
+  fi
   # `,unfold` joins a wrapped trailer's indented continuation lines back into
   # one logical value — confirmed against a real repro: without it, a single
   # wrapped `Bug-hunter:` trailer and two genuinely separate `Bug-hunter:`
