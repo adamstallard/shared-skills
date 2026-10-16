@@ -18,6 +18,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 HERE = pathlib.Path(__file__).resolve().parent
 SCRIPT = HERE / "spec_check.py"
@@ -1210,6 +1211,26 @@ class ProposalHookTests(unittest.TestCase):
     def test_a_relative_path_is_read_from_the_payloads_cwd(self):
         payload = self.claude("openspec/changes/x/proposal.md")
         self.assertIsNotNone(self.context(self.run_hook("claude", payload), "claude"))
+
+    def test_git_is_asked_about_the_directory_holding_openspec(self):
+        cases = (("/openspec/changes/x/proposal.md", "/", ["/"]),
+                 ("openspec/changes/x/proposal.md", "/", ["/"]),
+                 ("/r/openspec/changes/x/proposal.md", "/", ["/r"]),
+                 ("openspec/changes/x/proposal.md", "/r", ["/r"]),
+                 ("/r/myopenspec/changes/x/proposal.md", "/", []),
+                 ("myopenspec/changes/x/proposal.md", "/r", []),
+                 ("/r/openspec/changes/archive/2026-01-01-x/proposal.md", "/", []))
+        for path, cwd, want in cases:
+            asked = []
+
+            def fake_run(cmd, **_):
+                asked.append(cmd[2])
+                return subprocess.CompletedProcess(cmd, 1, "", "")
+            with self.subTest(path=path, cwd=cwd), \
+                    mock.patch.object(spec_check.subprocess, "run", fake_run):
+                payload = {"cwd": cwd, "tool_input": {"file_path": path}}
+                self.assertIsNone(spec_check.proposal_hook_message(payload))
+                self.assertEqual(asked, want)
 
     def test_a_nested_proposal_asks_about_the_repository_top(self):
         nested = self.repo.path / "pkg/openspec/changes/y/proposal.md"

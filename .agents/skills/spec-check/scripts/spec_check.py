@@ -943,7 +943,7 @@ def cmd_state(args):
 # A proposal, under an openspec/ directory at any depth; archived changes
 # (openspec/changes/archive/<name>/) have one more level, so they never match.
 # Wherever the proposal is, the decision read is the repository top's.
-PROPOSAL_PATH = re.compile(r"(?:^|/)openspec/changes/[^/]+/proposal\.md$")
+PROPOSAL_PATH = re.compile(r"/openspec/changes/[^/]+/proposal\.md$")
 
 
 def proposal_hook_message(payload):
@@ -968,7 +968,7 @@ def proposal_hook_message(payload):
         path = os.path.join(cwd, path)
     path = os.path.normpath(path).replace(os.sep, "/")
     m = PROPOSAL_PATH.search(path)
-    if not m or not m.group(0).startswith("/"):
+    if not m:
         return None
     out = subprocess.run(["git", "-C", path[:m.start()] or "/", "rev-parse", "--show-toplevel"],
                          capture_output=True, text=True, timeout=5)
