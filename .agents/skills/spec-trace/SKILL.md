@@ -67,7 +67,7 @@ Run from the repository root:
 ```bash
 python3 $T check             # exit 1 on any problem, each named with file:line and its fix
 python3 $T report            # markdown table per capability: scenario, tests that tag it
-python3 $T report --include-changes   # the specs as open changes will leave them, for a local view
+python3 $T report --include-changes   # the same, with open changes applied: what an implementation has left to test
 python3 $T baseline          # write every untagged scenario to the baseline file
 python3 $T state             # adopted, declined, undecided or unknown; n/a without openspec/
 python3 $T decline           # write openspec/spec-trace.yaml, declining it for the repository
@@ -133,6 +133,31 @@ is honest.
 pull request that only proposes a spec needs no tags. A tag may already name
 a scenario that an open change in `openspec/changes/` adds: `check` accepts it
 without requiring it. So tag the tests in the pull request that writes them.
+
+**While implementing an open change,** run
+`python3 $T report --include-changes`. `check` can't show which of the
+change's scenarios still lack a test, because they reach `openspec/specs/`
+only at the archive. The command prints the table for the specs as they will
+be once every open change is archived; it applies the changes in memory and
+writes no file. Rows marked `(change: <name>)` are that change's scenarios:
+every scenario of a requirement it adds, modifies or renames, unchanged ones
+included. `none` in the Tests column means no test tags that row's scenario
+yet.
+
+- Tag a test for each of your change's `none` rows before you say the work
+  is done.
+- For each tag that the output's `### Problems` section, below the tables,
+  says names no scenario, change the tag to the scenario's current name, or
+  delete it if the scenario is gone. Most such tags name a scenario the
+  change removes or renames.
+- Before opening the implementation pull request, paste your change's part
+  of the output into its body, so the reviewer sees which test covers each
+  scenario. For each capability the change touches, that is the `###`
+  heading, the `| Scenario | Tests |` and `| --- | --- |` lines, and the
+  change's rows. It is already markdown.
+
+Don't add `report --include-changes` to CI: it always exits 0, so it can't
+fail a build. CI runs `check`.
 
 Archiving moves a change's scenarios into `openspec/specs/`, and from then on
 `check` requires a tag for each one. So before the archive lands, every

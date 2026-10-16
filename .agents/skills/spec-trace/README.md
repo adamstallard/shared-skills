@@ -129,10 +129,49 @@ python3 ~/.agents/skills/spec-trace/scripts/spec_trace.py report   # table of sc
 ```
 
 `report` prints a markdown table per capability, ready to paste into a pull
-request. `report --include-changes` shows the specs as the open changes in
-`openspec/changes/` will leave them once archived: added, modified, removed
-and renamed requirements applied. `check` requires tags only for scenarios in
-`openspec/specs/`.
+request. `check` requires tags only for scenarios in `openspec/specs/`.
+
+**While implementing an open change.** A change's scenarios stay in
+`openspec/changes/` until the change is archived, and its tests are written
+before that, whether the code comes in the spec's pull request or, where a
+spec is reviewed before its code, in a later one. Until the archive, `check`
+and plain `report` can't see those scenarios, and CI won't flag a missing
+test.
+
+`report --include-changes` builds the table from the specs as they will be
+once every open change is archived. It applies each change in memory, and
+changes no file: an added requirement joins its spec, a modified one
+replaces the requirement of the same name, a removed one goes, and a renamed
+one takes its new name. Each of the change's scenarios is marked
+`(change: <name>)`, including the unchanged scenarios of a requirement it
+modifies or renames. `none` in the Tests column means no test tags that
+scenario yet:
+
+```markdown
+### work-claiming (3 of 5 tagged)
+
+| Scenario | Tests |
+| --- | --- |
+| Claim precedes work | tests/claim.test.ts:1 |
+| Stale claim expires (change: claim-expiry) | tests/claim.test.ts:5 |
+| Fresh claim holds (change: claim-expiry) | none |
+| Release on finish (change: claim-expiry) | tests/claim.test.ts:3 |
+| Release on crash (change: claim-expiry) | none |
+```
+
+Run `report --include-changes` while writing the change's tests, and again
+before calling the work done: each `none` row of the change still needs a
+test. A tag that names a scenario the change removes or renames is listed
+below the tables, under `### Problems`: change it to the scenario's new
+name, or delete it.
+
+When you open the implementation pull request, paste the change's part of
+the output into the body, so the reviewer sees which test covers each
+scenario. For each capability the change touches, that is the `###` heading,
+the `| Scenario | Tests |` and `| --- | --- |` lines, and the change's rows.
+
+`report --include-changes` always exits 0, so it can't fail a build; CI runs
+`check`.
 
 Test files are the ones your test runner's configuration names: Vitest's
 `test.include`, Jest's `testMatch` or `testRegex`, pytest's `testpaths` and
