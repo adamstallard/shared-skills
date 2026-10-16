@@ -55,7 +55,6 @@ errors to fix. Exit 2: it could not run, and says why.
 | `citation` | error, or check | A `path:line` with a `/` whose line is in neither the base branch nor the change is an error. Any other citation finding is a check: a bare name such as `config.py:50`, or a line only the change adds. Text in a code fence, and addresses such as `0.0.0.0:8080`, are skipped |
 | `decisions-first` | error, or check, as `openspec/spec-check.yaml` says | `enforce`: an error when the proposal does not open with a decisions section, or the section lists none. `off`: not checked. No file: no proposal is checked, and one check says the repository has not decided. A file holding anything else: one check naming the problem |
 | `openspec-validate` | error, or check when validation passed | An issue `openspec validate --strict` reported |
-| `undefined-term` | check | A backticked or bold term in a requirement appears nowhere in the specs or the change's proposal or design |
 
 A **check** is a heuristic: judge it, and fix it or leave it. An `openspec
 validate` result of "not run" means it was not checked, never that it passed;

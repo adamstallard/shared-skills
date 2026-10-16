@@ -71,25 +71,6 @@ HOST_SUFFIXES = set("""com org net io dev ai app co uk us de eu fr jp cn ru in a
 localhost internal lan home arpa edu gov mil int info biz me tv cloud xyz site online
 tech""".split())
 
-BACKTICK = re.compile(r"`([^`\n]+)`")
-BOLD = re.compile(r"\*\*([^*\n]+)\*\*")
-IDENT = re.compile(r"^[A-Za-z][A-Za-z0-9_-]{2,}$")
-
-
-def looks_like_code(term):
-    """Whether a backticked word is a literal from code rather than a term a
-    spec defines: a prefix (`ghp_`, `xoxb-`), an all-caps name (`PASSWORD`,
-    `GITHUB_TOKEN`), a snake_case or camelCase identifier, or one with a
-    digit. A plain lowercase word, hyphens included (`tier`, `no-output`),
-    is still a term."""
-    return (term.endswith(("_", "-")) or term.isupper() or "_" in term
-            or any(c.isdigit() for c in term)
-            or re.search(r"[a-z][A-Z]", term) is not None)
-BOLD_WORDS = re.compile(r"^[A-Za-z][A-Za-z' -]{1,48}[A-Za-z]$")
-NOT_TERMS = {"when", "then", "and", "given", "or", "but", "not", "note",
-             "breaking", "rejected", "still open", "shall", "must", "shall not",
-             "must not", "should", "may", "none", "all", "only", "every"}
-
 DUPLICATE_MIN_WORDS = 10
 
 
@@ -472,41 +453,6 @@ def check_duplicates(targets, corpus, out):
                                    "state it once and refer to it"))
 
 
-def check_terms(targets, corpus, change, out):
-    """Backticked or bold terms in a change's requirements that nothing defines."""
-    elsewhere = [corpus.texts[path] for path in corpus.specs]
-    for f in ("proposal.md", "design.md"):
-        p = f"openspec/changes/{change}/{f}"
-        if p in corpus.texts:
-            elsewhere.append(corpus.texts[p])
-    headings = [r.name for r in corpus.all_reqs()]
-    headings += [s.name for r in corpus.all_reqs() for s in r.scenarios]
-    names = set(corpus.changes) | {p.split("/")[2] for p in corpus.specs}
-    haystack = "\n".join(elsewhere + headings).lower()
-    seen = set()
-    for r in targets:
-        if r.section in ("REMOVED", "RENAMED"):
-            continue
-        for n, t in r.text:
-            candidates = [m for m in BACKTICK.findall(t) if IDENT.match(m) and not looks_like_code(m)]
-            # A bold label followed by a colon defines what follows it.
-            candidates += [m.group(1).strip() for m in BOLD.finditer(t)
-                           if not m.group(1).strip().endswith(":")
-                           and not t[m.end():].startswith(":")
-                           and BOLD_WORDS.match(m.group(1).strip())]
-            for term in candidates:
-                low = term.lower()
-                if low in NOT_TERMS or low in names or low in seen:
-                    continue
-                if re.search(r"(?<![\w-])" + re.escape(low) + r"(?![\w-])", haystack):
-                    continue
-                seen.add(low)
-                out.append(Finding(r.path, n, "check", "undefined-term",
-                                   f'"{term}" is used here and appears nowhere in openspec/specs '
-                                   "or this change's proposal or design; "
-                                   "define it before it is used, or say what it refers to"))
-
-
 SUBMODULE = "submodule"  # a path inside a submodule: unreadable, not missing
 
 
@@ -806,7 +752,6 @@ def run_checks(root, repo, base_ref, targets, headings, validate, base_required=
             check_decisions(change, corpus, headings, findings)
         check_scenarios(reqs, findings)
         check_duplicates(reqs, corpus, findings)
-        check_terms(reqs, corpus, change, findings)
         check_citations(corpus.files_of(change), corpus, base, findings)
         if validate:
             v, status = run_validate(root, change)

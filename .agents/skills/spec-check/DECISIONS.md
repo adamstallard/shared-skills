@@ -26,7 +26,8 @@ scenario; an undefined term; rationale in requirement text; stale citations;
 unhandled hazards; a workflow interaction that voided a change; an unmeasured
 fact stated as known; and evidence shown as checked when its source did not
 exist. The script takes the kinds a program can detect, and the subagent's
-consistency read takes the rest.
+consistency read takes the rest, undefined terms among them (see *Undefined
+terms are left to the consistency read*).
 
 **Why.** Those are the mistakes a careful author made. A checklist from
 first principles would rank them by guesswork.
@@ -102,6 +103,30 @@ decision above it, whatever it says.
   are never files.
 - Treating every citation as a check. That would drop the error for a
   citation copied from another branch, whose line no longer exists here.
+
+---
+
+## Undefined terms are left to the consistency read
+
+**Decision** (Adam, 2026-10-15). The script does not look for undefined
+terms. The consistency read does (checklist item 5: "A term used before it
+is defined, or defined nowhere"), whether or not the writer set the term in
+bold or backticks.
+
+**Why.** A program cannot tell a term from any other word unless the writer
+marks it, and OpenSpec has no way to mark a defined term. The rejected check
+below used bold and backticks as the mark, but writers use them for other
+things. In igor, the repository whose specs this skill was built from (see
+*Why the skill exists*), bold marks almost only WHEN, THEN and AND, and
+backticks mark code and config names. So most of what the check read was not
+a term: it had to skip those keywords, and guess which backticked words were
+code. And it never saw the unmarked new terms, which are the ones a writer
+assumes everyone knows.
+
+**Rejected:** a check that took each backticked or bold term in a
+requirement and reported the term when it appeared nowhere in the specs or
+the change's proposal or design. It is worth reconsidering only if OpenSpec
+gains a way to mark a defined term.
 
 ---
 

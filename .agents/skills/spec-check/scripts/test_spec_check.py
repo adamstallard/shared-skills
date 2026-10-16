@@ -205,31 +205,6 @@ class CheckTests(unittest.TestCase):
                          .join(["## MODIFIED Requirements\n", ""]))
         self.assertEqual(kinds(self.repo.check("x")), [])
 
-    def test_an_undefined_term_is_a_check_not_a_failure(self):
-        self.repo.change("x", delta=GOOD_DELTA.replace(
-            "its last read.", "its last read, by the record's `tier`."))
-        r = self.repo.check("x")
-        self.assertEqual(r.returncode, 0)
-        self.assertEqual(kinds(r), ["undefined-term"])
-        self.assertIn('check [undefined-term] "tier"', r.stdout)
-
-    def test_code_like_literals_are_not_terms(self):
-        literals = "`ghp_`, `xoxb-`, `sk-ant-`, `PASSWORD`, `AKIA`, `GITHUB_TOKEN`, " \
-                   "`NotebookEdit`, `prBody`, `max_retries`, `v2api`"
-        self.repo.change("x", delta=GOOD_DELTA.replace(
-            "its last read.", f"its last read, and SHALL redact {literals}."))
-        self.assertEqual(kinds(self.repo.check("x")), [])
-
-    def test_a_plain_word_in_backticks_is_still_a_term(self):
-        self.repo.change("x", delta=GOOD_DELTA.replace(
-            "its last read.", "its last read, by the record's `tier` and `no-output` state."))
-        self.assertEqual(kinds(self.repo.check("x")), ["undefined-term", "undefined-term"])
-
-    def test_a_term_the_proposal_names_is_defined(self):
-        self.repo.change("x", proposal=GOOD_PROPOSAL + "\nA `tier` is how long a record lives.\n",
-                         delta=GOOD_DELTA.replace("its last read.", "its last read, by its `tier`."))
-        self.assertEqual(kinds(self.repo.check("x")), [])
-
     def test_a_citation_to_a_missing_file_fails(self):
         self.repo.change("x", proposal=GOOD_PROPOSAL.replace("src/app.py:5", "src/gone.py:5"))
         r = self.repo.check("x")

@@ -20,8 +20,7 @@ Before an agent commits, or opens a pull request for, anything under
    - a `path:line` citation whose line is on neither the base branch nor
      the change;
    - a proposal that does not open with its decisions, in a repository that
-     enforces that rule (see Setup);
-   - terms nothing defines (a hint only, never a failure).
+     enforces that rule (see Setup).
 
    It also runs `openspec validate --strict` and includes the result.
 2. **Has a fresh subagent read the change** against every spec, every other
