@@ -342,6 +342,66 @@ the question matters.
 **Rejected: relying on the skill's description alone.** A model loads a skill
 by judgement, so nothing makes sure the question is ever asked.
 
+## A monorepo with an `openspec/` per package is only partly supported
+
+**Decision (Adam, 2026-10-16).** spec-trace stays built around one
+`openspec/` at the git top level. The path for an `openspec/` per package is
+recorded below, to be built when a repository with that layout uses
+spec-trace.
+
+spec-trace keeps three things per `openspec/`: the baseline
+(`openspec/spec-trace-baseline.txt`, the scenarios no test tags yet), the
+optional hand-set globs file (`openspec/spec-trace-tests.txt`, naming the test
+files when the runner's configuration doesn't), and the decision file
+(`openspec/spec-trace.yaml`, which records a decline). A repository has
+adopted spec-trace when it has a baseline, a hand-set globs file, or a GitHub
+workflow that runs `spec_trace.py`. Once adopted, the hook stops asking.
+
+**One `openspec/` at the top works.** Those files, and the CI step, are at
+the top. Test files come from the runner's configuration there, Vitest's
+workspace file included, or from `--tests` globs or the hand-set globs file
+naming each package's tests. A tag can name any capability, wherever its
+test is.
+
+**An `openspec/` per package**, such as `packages/api/openspec/`, can be
+checked one package at a time with `spec_trace.py --root packages/api check`.
+Its baseline, hand-set globs file and decision file are then the package's
+own. Four things fall short:
+- **The hook never asks about a package.** If it asked about every
+  `openspec/` in a repository, it would also ask about test fixtures that
+  hold one. So it asks only about the `openspec/` at the git top level; see
+  *The agent asks whether to adopt it, when scenarios are written*, above.
+- **A CI step doesn't mark a package adopted.** `runs_checker_in_ci` reads
+  `.github/workflows/` under `--root`, but workflows live at the top. So a
+  package counts as adopted only through its baseline or hand-set globs
+  file, and the hook would keep asking if it asked about packages at all.
+- **A test outside the package can't tag its scenarios.** An end-to-end test
+  at the top is not among `packages/api`'s test files.
+- **CI needs a `check` step per package.**
+
+**The path, if a repository needs it:**
+1. Treat each OpenSpec project as the unit: a directory whose `openspec/`
+   holds a `config.yaml`, which `openspec init` creates and a fixture
+   usually lacks. The hook asks about the project enclosing the spec it
+   wrote, and the answer goes in that project's
+   `openspec/spec-trace.yaml`.
+2. Count a workflow at the top as adopting a project when it runs
+   `spec_trace.py` with `--root` naming that project.
+3. Add `check --all`, which finds every project and checks each, so CI needs
+   one step.
+4. Let a project's test globs name files outside it, for shared end-to-end
+   tests.
+
+Step 1 replaces "only the top's `openspec/`" with a guess: an `openspec/`
+holding a `config.yaml` is a project. A fixture that does hold a
+`config.yaml` is asked about once; its answer is then recorded and the
+question stops.
+
+**Why not now.** No repository using spec-trace has an `openspec/` per
+package. igor, the repository this skill was built for, has one at its top.
+Building the path without such a repository would add that guess and its
+tests for a layout nobody has.
+
 ## Known issues
 
 - An orphan tag's text (a tag that names no scenario) is shown cut short when a single quote followed by a
