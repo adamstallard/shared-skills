@@ -1045,7 +1045,7 @@ lands every trailer. A skill's SKILL.md points here for the rule rather than
 restating it; it names only the skills whose values its own commit step
 forwards, and how to tell each is installed.
 
-Today that is two skills:
+Today that is three skills:
 - **bug-hunter's** commit step asks the `manage-skills` skill (`list`)
   whether prose is installed. If it is, it runs prose's two
   `check` calls on the final staged change and message, and passes the
@@ -1054,6 +1054,10 @@ Today that is two skills:
 - **prose**, while bug-hunter is running, leaves the commit to bug-hunter's
   commit step. When the agent commits itself, it calls this script with both
   families.
+- **spec-check**, on a commit that changes `openspec/`, passes its
+  `Spec-check:` value as one more `--verified-value` family: to bug-hunter's
+  `commit-with-trailer.sh` beside prose's, or to this script directly.
+  bug-hunter's and prose's SKILL.md point to spec-check's for the step.
 
 **Why.** Each skill's hook reports a commit missing its trailer. Before this,
 following bug-hunter's procedure alone committed without `Prose:`, and prose's
@@ -1332,3 +1336,33 @@ rare, and an edit to their script is rarer.
 - **Environment variables are not in the record.** A pass made with
   `HUSKY=0`, which makes husky's hooks exit 0 without running, is reused by a
   commit made without it.
+
+---
+
+## A skill may judge only commits that change some paths
+
+**Decision.** A wrapper may set `COMMIT_TRAILER_PATHSPEC` to git pathspecs,
+separated by spaces. The check then judges only a commit whose diff against
+its parent (`git diff-tree --root`) changes a matching path. Every other
+commit is skipped before its trailer is read, so it is never reported or
+verified. When the variable is unset, every commit is judged, as before it
+existed. spec-check sets `:(top)openspec/`.
+
+**Why.** A skill whose trailer means something only for some files, such as
+spec-check's for specs, would otherwise report every code-only commit, and a
+report that is usually noise gets ignored.
+
+**Rules this filter shares with the rest of the check:**
+- A git failure counts as a match, so the commit is judged. A false report
+  is visible; a skipped commit is not.
+- Globbing is off while the pathspecs are split into words, so a `*` reaches
+  git, not the shell.
+- `:(top)` in a pathspec anchors it at the repository root. The hook may run
+  from a subdirectory, and plain pathspecs are relative to it.
+
+**Rejected.**
+- **A callback the skill defines, like `commit_trailer_verify`.** Sourced
+  skill code needs the subshell and status-marker guards that *A skill may
+  verify its own trailer* describes. A pathspec is data and needs none.
+- **Filtering in the skill's report.** By then the library has decided to
+  report, and an empty report falls back to the generic one.

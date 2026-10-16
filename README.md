@@ -37,8 +37,9 @@ Try a new skill in the session you're in; if the agent doesn't see it, start a
 new session. [manage-skills' README](.agents/skills/manage-skills/README.md)
 has the commands to run yourself.
 
-Installing bug-hunter, prose or worktrees also turns on its hook, which is
-written to `~/.claude/settings.json` and `~/.cursor/hooks.json`. To turn a hook off, see
+Installing bug-hunter, prose, spec-check or worktrees also turns on its hook,
+which is written to `~/.claude/settings.json` and `~/.cursor/hooks.json`. To
+turn a hook off, see
 [Skills that come with a hook](.agents/skills/manage-skills/README.md#skills-that-come-with-a-hook).
 
 ## Updating
@@ -59,6 +60,7 @@ and refreshes `manage-skills`, the one skill installed as a copy.
 | `manage-skills` | Installs, removes, and diagnoses the skills below. Start here                                         | [README](.agents/skills/manage-skills/README.md) | [SKILL.md](.agents/skills/manage-skills/SKILL.md) |
 | `bug-hunter`    | Catch bugs in code just written, before it is committed — every bug proven with a failing test first | [README](.agents/skills/bug-hunter/README.md)    | [SKILL.md](.agents/skills/bug-hunter/SKILL.md)    |
 | `prose`         | Makes agents rewrite the text you review — docs, comments, commit messages, PR descriptions — so it reads in one pass, and proves the pass ran | [README](.agents/skills/prose/README.md) | [SKILL.md](.agents/skills/prose/SKILL.md) |
+| `spec-check`    | Checks an OpenSpec change before you review it: mechanical checks, then a fresh agent reads it against every other spec, change and open PR, and fixes go into the spec | [README](.agents/skills/spec-check/README.md) | [SKILL.md](.agents/skills/spec-check/SKILL.md) |
 | `linear-app`    | Gives an agent its own Linear identity, an app user that can be delegated issues, with tokens minted on demand so nothing is renewed by hand | [README](.agents/skills/linear-app/README.md) | [SKILL.md](.agents/skills/linear-app/SKILL.md) |
 | `github-app`    | Gives an agent its own GitHub identity, a GitHub App whose work shows as a bot, with tokens minted on demand and its identity only in the environment of the processes that act as it | [README](.agents/skills/github-app/README.md) | [SKILL.md](.agents/skills/github-app/SKILL.md) |
 | `worktrees`     | Has agents work in locked git worktrees and remove each one as soon as its work has landed: your checkout is never switched, no agent removes another's, and the branch is free for you to review | [README](.agents/skills/worktrees/README.md) | [SKILL.md](.agents/skills/worktrees/SKILL.md) |

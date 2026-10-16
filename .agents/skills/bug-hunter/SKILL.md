@@ -639,6 +639,11 @@ a blank line, body) to `msg.txt`, unstaged, and:
   -F msg.txt "1 iteration, 1 bug fixed" "Claude Opus 5 (1M context) <noreply@anthropic.com>"
 ```
 
+A commit that changes `openspec/` carries spec-check's `Spec-check:` value
+too, when spec-check is installed (the same `list` says so): one more
+`--verified-value` family before `--`, as spec-check's SKILL.md (*Commit*)
+shows.
+
 The message is `msg.txt` itself, the file prose signed. Stage and edit nothing between the
 second call and the commit: the script runs prose's verifier first and refuses
 the commit if the tree or the message changed. A skip gets the prose pass too.

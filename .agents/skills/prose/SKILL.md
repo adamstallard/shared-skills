@@ -345,6 +345,10 @@ $C --minted-by $B/scripts/mint-trailer.sh Bug-hunter "1 iteration, 1 bug fixed" 
    --co-authored-by "<co-author>" --message-file msg.txt --
 ```
 
+**When spec-check is installed,** a commit that changes `openspec/` carries its
+`Spec-check:` value too, as one more `--verified-value` family; spec-check's
+SKILL.md (*Commit*) shows it.
+
 **To amend,** run both calls with `--amend`, so the first lists the change
 against the commit's parent; the trailer is the same either way. The commit
 script cannot amend, so pass the block's whole `Prose:` line to git:
