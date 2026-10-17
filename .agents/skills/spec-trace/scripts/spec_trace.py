@@ -1,19 +1,20 @@
 #!/usr/bin/env python3
 """Link tests to OpenSpec scenarios: each test names the scenario it checks with a tag.
 
-A tag is `@scenario <capability>: <Scenario name>`, anywhere in a test file.
+A tag is `@scenario <capability>: <Scenario name>`, in a test file. Tags are
+found with one `git grep` over every file under the root whose path
+.gitignore doesn't match, tracked or not, except DEFAULT_EXCLUDES and the
+patterns in IGNORE_FILE.
 `check` fails on a scenario in openspec/specs that no test tags and the
 baseline does not list, on a tag that names no scenario, and on a baseline
-line that is now tagged or names no scenario. It checks that a tagged test
-exists, not that it passes. Standard library only.
+line that is now tagged or names no scenario. It checks that a tag exists,
+not that its test runs or passes. Standard library only; needs git.
 
 Why it is built this way, and what was tried and rejected: ../DECISIONS.md.
 """
 
 import argparse
-import configparser
 import difflib
-import json
 import os
 import re
 import shlex
@@ -21,18 +22,15 @@ import subprocess
 import sys
 
 DEFAULT_BASELINE = "openspec/spec-trace-baseline.txt"
-# Test globs set by hand, one per line, `!` before a glob to exclude: used in place of detection.
-TESTS_FILE = "openspec/spec-trace-tests.txt"
-DEFAULT_TESTS = [
-    "**/test/**",
-    "**/tests/**",
-    "**/__tests__/**",
-    "**/*_test.*",
-    "**/*.test.*",
-    "**/*.spec.*",
-    "**/test_*.py",
-]
-SKIP_DIRS = {".git", "node_modules"}
+# Places where a tag never belongs to a test: documentation, and OpenSpec's own files. Git
+# glob pathspecs, relative to the root, passed to git grep as excludes.
+DEFAULT_EXCLUDES = ("**/*.md", "**/*.mdx", "**/*.rst", "**/*.adoc", "**/*.txt", "openspec/**")
+# More paths to leave out, one git glob pattern per line, relative to the
+# root; # comments and blank lines are skipped. Optional.
+IGNORE_FILE = "openspec/spec-trace-ignore.txt"
+# The longest IGNORE_FILE read, in characters. ignore_patterns reads one more, and
+# stops the command if it gets it.
+IGNORE_FILE_LIMIT = 65536
 
 # What a repository has decided about spec-trace (adoption_state).
 # UNKNOWN: the decision file holds something other than DECLINED_TEXT, or
@@ -227,496 +225,111 @@ def load_scenarios(root, include_changes=False):
     return scenarios, problems
 
 
-def closing(pattern, i, open_, close):
-    """The index of the bracket closing the one at i, or ValueError."""
-    depth = 0
-    for j in range(i, len(pattern)):
-        if pattern[j] == open_:
-            depth += 1
-        elif pattern[j] == close:
-            depth -= 1
-            if not depth:
-                return j
-    raise ValueError(f"unclosed {open_} in {pattern}")
+class Refusal(Exception):
+    """A command that reads tags cannot search the repository; args[0] says why."""
 
 
-def split_top(body, sep):
-    """body split at each sep outside brackets."""
-    parts, depth, start = [], 0, 0
-    for j, c in enumerate(body):
-        if c in "({[":
-            depth += 1
-        elif c in ")}]":
-            depth -= 1
-        elif c == sep and not depth:
-            parts.append(body[start:j])
-            start = j + 1
-    return parts + [body[start:]]
+def git_env(root):
+    """The environment for the git commands that search root, or None to inherit this one.
 
-
-EXTGLOB = {"?": "?", "*": "*", "+": "+", "@": ""}
-
-
-def glob_regex(pattern):
-    """A glob as regex source: **, *, ?, [...], {a,b} and the extglobs ?(), *(), +(), @()."""
-    out, i = [], 0
-    while i < len(pattern):
-        c = pattern[i]
-        if c in "?*+@!" and pattern.startswith("(", i + 1):
-            if c == "!":
-                raise ValueError(f"!(...) is not supported in {pattern}")
-            end = closing(pattern, i + 1, "(", ")")
-            alternatives = "|".join(glob_regex(a) for a in split_top(pattern[i + 2:end], "|"))
-            out.append(f"(?:{alternatives}){EXTGLOB[c]}")
-            i = end + 1
-        elif c == "{":
-            end = closing(pattern, i, "{", "}")
-            out.append("(?:" + "|".join(glob_regex(a) for a in split_top(pattern[i + 1:end], ",")) + ")")
-            i = end + 1
-        elif c == "[" and pattern.find("]", i + 2) != -1:
-            end = pattern.find("]", i + 2)
-            body = pattern[i + 1:end]
-            negate = body[:1] in ("!", "^")
-            body = body[1:] if negate else body
-            out.append("[" + ("^/" if negate else "") + body.replace("\\", "\\\\") + "]")
-            i = end + 1
-        elif pattern.startswith("**/", i):
-            out.append("(?:.*/)?")
-            i += 3
-        elif pattern.startswith("**", i):
-            out.append(".*")
-            i += 2
-        elif c == "*":
-            out.append("[^/]*")
-            i += 1
-        elif c == "?":
-            out.append("[^/]")
-            i += 1
-        else:
-            out.append(re.escape(c))
-            i += 1
-    return "".join(out)
-
-
-def glob_to_regex(pattern):
-    return re.compile("^" + glob_regex(pattern) + "$")
-
-
-def list_files(root):
-    """Repository files as POSIX paths relative to root, honouring .gitignore where git can."""
-    try:
-        # With -C root, ls-files lists only root's subtree, as paths relative to
-        # root, which is what the globs are matched against.
-        out = subprocess.run(
-            ["git", "-C", root, "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
-            capture_output=True, check=True).stdout
-    except (OSError, subprocess.CalledProcessError):
-        return walk_files(root)
-    # dict.fromkeys: a file in a merge conflict is listed once per stage.
-    files = [name for name in dict.fromkeys(out.decode("utf-8", "replace").split("\0"))
-             if name and not any(part in SKIP_DIRS for part in name.split("/"))]
-    return [f for f in files if os.path.isfile(os.path.join(root, f))]
-
-
-def walk_files(root):
-    files = []
-    for dirpath, dirnames, filenames in os.walk(root):
-        # A nested repository or worktree is somebody else's tree.
-        dirnames[:] = sorted(d for d in dirnames if d not in SKIP_DIRS
-                             and not os.path.exists(os.path.join(dirpath, d, ".git")))
-        for name in sorted(filenames):
-            files.append(os.path.relpath(os.path.join(dirpath, name), root).replace(os.sep, "/"))
-    return files
-
-
-def read_tests_file(path):
-    """The globs in a tests file: one per line, blank lines and # comments skipped."""
-    with open(path, encoding="utf-8", errors="replace") as f:
-        return [line.strip() for line in f if line.strip() and not line.strip().startswith("#")]
-
-
-def matcher(pattern):
-    """A match function for a glob, or for a compiled regex searched in "/" + the path.
-
-    The leading / is there because Jest matches its testRegex against an absolute path.
+    Git exports GIT_DIR, without GIT_WORK_TREE, to hooks in a linked worktree and
+    to `git rebase -x`. git -C root then takes root for the top of the work tree,
+    so a .gitignore above root is not read. When git finds that same repository
+    from root on its own, GIT_DIR is dropped; otherwise it is kept, because a
+    separate git directory or a dotfiles setup depends on it.
     """
-    if isinstance(pattern, str):
-        return glob_to_regex(pattern).match
-    return lambda f: pattern.search("/" + f)
-
-
-def test_files(root, includes, excludes=()):
-    include, exclude = [matcher(p) for p in includes], [matcher(p) for p in excludes]
-    return sorted(f for f in list_files(root)
-                  if any(m(f) for m in include) and not any(m(f) for m in exclude))
-
-
-# The test files each runner uses when its configuration names none, as each runner
-# documents them; Vitest and Jest write these with extglobs.
-VITEST_DEFAULT = ["**/*.{test,spec}.?(c|m)[jt]s?(x)"]
-VITEST_DEFAULT_EXCLUDE = ["**/node_modules/**", "**/dist/**"]
-JEST_DEFAULT = ["**/__tests__/**/*.?([mc])[jt]s?(x)", "**/?(*.)+(spec|test).?([mc])[jt]s?(x)"]
-PYTEST_DEFAULT_FILES = ["test_*.py", "*_test.py"]
-# The extensions a Vitest, Vite or Jest config file may have.
-CONFIG_EXTS = ("ts", "mts", "cts", "js", "mjs", "cjs")
-
-
-class Unreadable(Exception):
-    """A runner's configuration spec-trace cannot read with confidence.
-
-    args[0] says what could not be read and why; args[1], when given, names the file.
-    """
-
-
-JS_TOKEN = re.compile(r"""
-    (?P<string>'(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*"|`(?:[^`\\$]|\\.|\$(?!\{))*`)
-  | (?P<template>`)
-  | (?P<comment>//[^\n]*|/\*.*?\*/)
-  | (?P<space>\s+)
-  | (?P<word>[A-Za-z_$][\w$]*)
-  | (?P<spread>\.\.\.)
-  | (?P<slash>/)
-  | (?P<other>.)
-""", re.S | re.X)
-
-
-def js_tokens(text):
-    """A JavaScript config's tokens as (kind, text), without comments or spaces.
-
-    A / outside a string or comment is a regex literal or a division, and a template with
-    ${...} computes its text; neither is read, so either makes the whole file Unreadable.
-    """
-    tokens = []
-    for m in JS_TOKEN.finditer(text):
-        kind = m.lastgroup
-        if kind in ("comment", "space"):
-            continue
-        line = text.count("\n", 0, m.start()) + 1
-        if kind == "slash":
-            raise Unreadable(f"the file, which has a regex literal or a division on line {line}")
-        if kind == "template":
-            raise Unreadable(f"the file, which has a template string with ${{...}} on line {line}")
-        tokens.append((kind, m.group()))
-    return tokens
-
-
-def js_unescape(literal):
-    """A string literal's value: each backslash escape is the character it escapes."""
-    return re.sub(r"\\(.)", r"\1", literal[1:-1])
-
-
-def js_settings(text, paths, refused=()):
-    """The string values at each key path (e.g. ("test", "include")) of a JS config.
-
-    Walks the tokens tracking object nesting by key. The path is made of the keys of the
-    enclosing objects; an object or array with no key of its own, such as a call's
-    argument, adds nothing to it. So `defineConfig({ test: { include: [...] } })` gives
-    ("test", "include"), while `coverage: { include: [...] }` inside it does not. Raises Unreadable wherever a wanted
-    value could hide: a value that is not a string literal or an array of them, a key on the
-    way to one (`test`) whose value is not an object literal, a shorthand or spread at a
-    level where a wanted key could be, a key set twice, and any key in `refused`.
-    """
-    tokens = js_tokens(text)
-    prefixes = {p[:k] for p in paths for k in range(1, len(p))}
-    found = {}
-    stack = []  # the key that opened each enclosing { or [, or None
-    i = 0
-    while i < len(tokens):
-        kind, tok = tokens[i]
-        named = tuple(k for k in stack if k is not None)
-        level = [p for p in paths | prefixes | set(refused) if p[:-1] == named]
-        if kind in ("word", "string") and i + 1 < len(tokens) and tokens[i + 1][1] == ":":
-            key = js_unescape(tok) if kind == "string" else tok
-            path = named + (key,)
-            if path in refused:
-                raise Unreadable(f"{'.'.join(path)}, which spec-trace does not read")
-            if path in paths:
-                if path in found:
-                    raise Unreadable(f"{'.'.join(path)}, which is set twice")
-                found[path], i = js_value(tokens, i + 2, path)
-                continue
-            opens = i + 2 < len(tokens) and tokens[i + 2] in (("other", "{"), ("other", "["))
-            if path in prefixes and not (opens and tokens[i + 2][1] == "{"):
-                raise Unreadable(f"{'.'.join(path)}, which is not an object literal")
-            if opens:
-                stack.append(key)
-                i += 3
-                continue
-            i += 2
-            continue
-        if level and kind == "spread":
-            raise Unreadable(f"{'.'.join(named) or 'the config'}, which has a spread (...)")
-        if level and kind == "word" and any(tok == p[-1] for p in level) \
-                and i + 1 < len(tokens) and tokens[i + 1][1] in ",}":
-            raise Unreadable(f"{'.'.join(named + (tok,))}, which is a shorthand property")
-        if kind == "other" and tok in "{[":
-            stack.append(None)
-        elif kind == "other" and tok in "}]" and stack:
-            stack.pop()
-        i += 1
-    return found
-
-
-def js_value(tokens, i, path):
-    """The strings of the value at tokens[i], and the index after it."""
-    name = ".".join(path)
-    if i < len(tokens) and tokens[i][0] == "string" and (i + 1 == len(tokens) or tokens[i + 1][1] in ",}"):
-        return [js_unescape(tokens[i][1])], i + 1
-    if i >= len(tokens) or tokens[i][1] != "[":
-        raise Unreadable(f"{name}, which is computed rather than a list of string literals")
-    values, i = [], i + 1
-    while i < len(tokens) and tokens[i][1] != "]":
-        kind, tok = tokens[i]
-        if kind == "string":
-            values.append(js_unescape(tok))
-        elif tok != ",":
-            raise Unreadable(f"{name}, which is computed rather than a list of string literals")
-        i += 1
-    return values, i + 1
-
-
-def read_text(root, name):
-    with open(os.path.join(root, name), encoding="utf-8", errors="replace") as f:
-        return f.read()
-
-
-def first_existing(root, names):
-    for name in names:
-        if os.path.isfile(os.path.join(root, name)):
-            return name
-    return None
-
-
-def checked_globs(globs, key):
-    """globs, after checking spec-trace can match each one."""
-    for glob in globs:
-        try:
-            glob_to_regex(glob)
-        except (ValueError, re.error) as e:
-            raise Unreadable(f"{key}, which has a glob spec-trace cannot match ({e})")
-    return globs
-
-
-def detect_vitest(root):
-    name = first_existing(root, [f"{base}.config.{ext}" for base in ("vitest", "vite") for ext in CONFIG_EXTS])
-    if name is None:
+    git_dir = os.environ.get("GIT_DIR")
+    if not git_dir or "GIT_WORK_TREE" in os.environ:
         return None
+    env = {k: v for k, v in os.environ.items() if k != "GIT_DIR"}
     try:
-        workspace = first_existing(root, [f"vitest.workspace.{ext}" for ext in CONFIG_EXTS + ("json",)])
-        if workspace:
-            raise Unreadable(f"its projects, which {workspace} defines")
-        text = read_text(root, name)
-        if name.startswith("vite.") and not re.search(r"\btest\s*:", text):
-            return None  # a Vite config with no test settings says nothing about Vitest
-        settings = js_settings(text, {("test", "include"), ("test", "exclude")},
-                               refused={("test", "projects"), ("test", "workspace"), ("test", "includeSource"),
-                                        ("test", "dir"), ("test", "root"), ("root",)})
-        include = settings.get(("test", "include"))
-        exclude = checked_globs(settings.get(("test", "exclude"), VITEST_DEFAULT_EXCLUDE), "test.exclude")
-        if include is not None:
-            return name, f"{name} (test.include)", checked_globs(include, "test.include"), exclude
-        return name, f"{name} (Vitest's default include)", VITEST_DEFAULT, exclude
-    except Unreadable as e:
-        raise Unreadable(e.args[0], name)
+        found = subprocess.run(["git", "-C", root, "rev-parse", "--absolute-git-dir"],
+                               capture_output=True, encoding="utf-8", errors="replace", env=env)
+    except OSError:
+        return None
+    # git reads a relative GIT_DIR after -C, so it is relative to root.
+    same = (found.returncode == 0 and os.path.realpath(found.stdout.rstrip("\n"))
+            == os.path.realpath(os.path.join(root, git_dir)))
+    return env if same else None
 
 
-# Jest settings that change which files are tests or what a glob is relative to.
-JEST_REFUSED = ("projects", "rootDir", "roots")
-
-
-def detect_jest(root):
-    name = first_existing(root, [f"jest.config.{ext}" for ext in CONFIG_EXTS + ("json",)])
+def require_work_tree(root, env=None):
+    """Raise Refusal unless git runs and root is inside a git work tree."""
     try:
-        if name is not None and name.endswith(".json"):
-            try:
-                config = json.loads(read_text(root, name))
-            except ValueError:
-                raise Unreadable("its JSON")
-        elif name is not None:
-            settings = js_settings(read_text(root, name), {("testMatch",), ("testRegex",)},
-                                   refused={(key,) for key in JEST_REFUSED})
-            config = {key[0]: value for key, value in settings.items()}
-        else:
-            if not os.path.isfile(os.path.join(root, "package.json")):
-                return None
-            try:
-                config = json.loads(read_text(root, "package.json")).get("jest")
-            except (ValueError, AttributeError):
-                return None
-            if not isinstance(config, dict):
-                return None
-            name = "package.json"
-        if not isinstance(config, dict):
-            raise Unreadable("its settings, which are not an object")
-        for key in JEST_REFUSED:
-            if key in config:
-                raise Unreadable(f"{key}, which spec-trace does not read")
-        regex = config.get("testRegex")
-        if regex:
-            try:
-                regexes = [re.compile(r) for r in ([regex] if isinstance(regex, str) else regex)]
-            except (re.error, TypeError):
-                raise Unreadable("testRegex, which is not a Python regular expression")
-            return name, f"{name} (testRegex)", regexes, []
-        match = config.get("testMatch")
-        if match:
-            if not isinstance(match, list) or not all(isinstance(g, str) for g in match):
-                raise Unreadable("testMatch, which is not a list of globs")
-            if any(g.startswith("!") for g in match):
-                raise Unreadable("testMatch, which has a negated (!) entry")
-            globs = checked_globs([g.replace("<rootDir>/", "") for g in match], "testMatch")
-            return name, f"{name} (testMatch)", globs, []
-        return name, f"{name} (Jest's default testMatch)", JEST_DEFAULT, []
-    except Unreadable as e:
-        raise Unreadable(e.args[0], name)
+        result = subprocess.run(["git", "-C", root, "rev-parse", "--is-inside-work-tree"],
+                                capture_output=True, encoding="utf-8", errors="replace", env=env)
+    except OSError as e:
+        raise Refusal(f"git could not be run ({e}). check, report and baseline find tags with "
+                      "git grep, so they need git; state and decline do not.")
+    if result.returncode != 0 or result.stdout.strip() != "true":
+        said = result.stderr.strip() or result.stdout.strip()
+        raise Refusal(f"{root} is not inside a git work tree" + (f" (git: {said})" if said else "")
+                      + ". check, report and baseline find tags with git grep, so they need one; "
+                      "state and decline do not.")
 
 
-def detect_pytest(root):
-    for name in ("pytest.toml", ".pytest.toml"):
-        if os.path.isfile(os.path.join(root, name)):
-            raise Unreadable("its settings, since spec-trace does not read this file", name)
-    # pytest's own order. pytest.ini and .pytest.ini are read even with no [pytest] section;
-    # the others only when they hold pytest settings.
-    for name, section in (("pytest.ini", None), (".pytest.ini", None), ("pyproject.toml", None),
-                          ("tox.ini", "pytest"), ("setup.cfg", "tool:pytest")):
-        path = os.path.join(root, name)
-        if not os.path.isfile(path):
-            continue
-        if name == "pyproject.toml":
-            options = pyproject_pytest(path)
-            if options is None:
-                continue
-        else:
-            parser = configparser.ConfigParser(interpolation=None)
-            try:
-                parser.read(path, encoding="utf-8")
-            except (configparser.Error, UnicodeDecodeError) as e:
-                raise Unreadable(f"its settings ({e})", name)
-            if section is None:
-                section = "pytest"
-                if not parser.has_section(section):
-                    return name, f"{name} (pytest's defaults)", pytest_globs([], []), []
-            if not parser.has_section(section):
-                continue
-            options = dict(parser.items(section))
-        globs = pytest_globs(words(options.get("testpaths", [])), words(options.get("python_files", [])))
-        try:
-            return name, f"{name} (pytest testpaths and python_files)", \
-                checked_globs(globs, "testpaths and python_files"), []
-        except Unreadable as e:
-            raise Unreadable(e.args[0], name)
-    return None
+def ignore_patterns(root):
+    """The patterns in IGNORE_FILE, or [] when there is none. Refusal when it cannot be read."""
+    path = os.path.join(root, IGNORE_FILE)
+    if not os.path.lexists(path):
+        return []
+    # utf-8-sig: a file saved on Windows may start with a byte order mark,
+    # which would otherwise stay on the first pattern.
+    text = read_regular_file(path, IGNORE_FILE_LIMIT, encoding="utf-8-sig")
+    if text is None:
+        raise Refusal(f"{IGNORE_FILE} cannot be read: it is not a regular file, or reading it failed.")
+    if len(text) > IGNORE_FILE_LIMIT:
+        raise Refusal(f"{IGNORE_FILE} is longer than {IGNORE_FILE_LIMIT} characters.")
+    return [line.strip() for line in text.splitlines()
+            if line.strip() and not line.strip().startswith("#")]
 
 
-def words(value):
-    """A pytest list setting: a list, or a string of whitespace-separated words."""
-    if isinstance(value, list):
-        return [w for v in value for w in str(v).split()]
-    return str(value).split()
+def grep_command(root, patterns):
+    """The git grep that finds every line holding a tag under root.
 
-
-def pyproject_pytest(path):
-    """[tool.pytest.ini_options] of a pyproject.toml, or None."""
-    try:
-        import tomllib
-    except ImportError:
-        tomllib = None
-    if tomllib is None:
-        with open(path, encoding="utf-8") as f:
-            if "[tool.pytest" not in f.read():
-                return None
-        raise Unreadable(f"[tool.pytest.ini_options], since Python {sys.version.split()[0]} "
-                         "has no tomllib (Python 3.11 or later does)", "pyproject.toml")
-    with open(path, "rb") as f:
-        try:
-            data = tomllib.load(f)
-        except (tomllib.TOMLDecodeError, UnicodeDecodeError) as e:
-            raise Unreadable(f"its settings ({e})", "pyproject.toml")
-    pytest = data.get("tool", {}).get("pytest", {})
-    if not isinstance(pytest, dict) or set(pytest) - {"ini_options"}:
-        raise Unreadable("[tool.pytest], which spec-trace does not read", "pyproject.toml")
-    options = pytest.get("ini_options")
-    return options if isinstance(options, dict) else None
-
-
-def pytest_globs(testpaths, files):
-    files = files or PYTEST_DEFAULT_FILES
-    dirs = [os.path.normpath(p).replace(os.sep, "/").strip("/") for p in testpaths] or ["."]
-    dirs = ["" if d == "." else d for d in dirs]
-    return [f"{d}/**/{f}" if d else f"**/{f}" for d in dirs for f in files]
-
-
-def anywhere(root, name):
-    """Whether a file of this name is in the repository, at any depth."""
-    return any(f == name or f.endswith("/" + name) for f in list_files(root))
-
-
-def detect_go(root):
-    if anywhere(root, "go.mod"):
-        return "go.mod", "go.mod (Go's *_test.go)", ["**/*_test.go"], []
-    return None
-
-
-def detect_rust(root):
-    if anywhere(root, "Cargo.toml"):
-        # Unit tests live in #[cfg(test)] modules inside src/, so every source file may hold one.
-        return "Cargo.toml", "Cargo.toml (Rust's tests/ and src/)", ["**/tests/**/*.rs", "**/src/**/*.rs"], []
-    return None
-
-
-DETECTORS = (detect_vitest, detect_jest, detect_pytest, detect_go, detect_rust)
-# A runner configuration below the root applies to its own directory. spec-trace does not read
-# such a configuration, so the root's globs may miss the tests it names.
-NESTED_CONFIG = re.compile(r"(?:^|/)(?:(?:vitest|vite|jest)\.config\.[a-z]+|vitest\.workspace\.[a-z]+"
-                           r"|pytest\.ini|\.pytest\.ini|pytest\.toml|\.pytest\.toml)$")
-
-
-class Detected:
-    def __init__(self, sources, groups, troubles):
-        # groups: one (includes, excludes) per runner; a runner's excludes apply to its own files only
-        self.sources, self.groups, self.troubles = sources, groups, troubles
-
-
-def detect_tests(root):
-    """The test file globs the repository's runners name, where they came from, and any trouble.
-
-    A runner whose configuration cannot be read with confidence contributes nothing and adds
-    a trouble line; the others still count. With no runner read, the defaults apply.
+    --untracked adds files git would track: not yet added, and not ignored.
+    -I skips binary files. The --no- options undo settings in the user's git
+    config that would change the output's shape: paths relative to the top
+    (grep.fullName), a column number (grep.column) or colour codes.
+    --no-recurse-submodules undoes submodule.recurse, which git refuses
+    alongside --untracked. --no-literal-pathspecs undoes GIT_LITERAL_PATHSPECS,
+    which would read the excludes as plain paths, so none would apply. -F reads
+    the pattern as text, whatever grep.patternType says.
     """
-    sources, groups, failed = [], [], []
-    for detect in DETECTORS:
-        runner = detect.__name__.replace("detect_", "")
-        try:
-            found = detect(root)
-        except Unreadable as e:
-            failed.append((e.args[1] if len(e.args) > 1 else f"the {runner} configuration", e.args[0]))
-            continue
-        except Exception as e:  # noqa: BLE001 - a config spec-trace trips on is trouble, never a crash
-            failed.append((f"the {runner} configuration", f"its settings ({type(e).__name__}: {e})"))
-            continue
-        if found:
-            _, source, inc, exc = found
-            sources.append(source)
-            groups.append((inc, exc))
-    for name in list_files(root):
-        if "/" in name and NESTED_CONFIG.search(name):
-            failed.append((name, "it, since spec-trace reads runner configurations only at the root"))
-    if not sources:
-        why = "" if failed else ", since no test runner configuration was found"
-        sources, groups = [f"the defaults{why}"], [(DEFAULT_TESTS, [])]
-    used = " ".join(g if isinstance(g, str) else g.pattern for inc, _ in groups for g in inc)
-    troubles = [f"{name}: could not read {what}. Using instead: {used}. To set the test globs by hand, "
-                f"list them in {TESTS_FILE}, one per line, or pass --tests."
-                for name, what in failed]
-    return Detected(sources, groups, troubles)
+    excludes = [f":(exclude,glob){p}" for p in (*DEFAULT_EXCLUDES, *patterns)]
+    return ["git", "--no-literal-pathspecs", "-C", root, "grep", "--untracked",
+            "--no-recurse-submodules", "-I", "-n", "-z", "--no-color", "--no-column",
+            "--no-full-name", "-F", "-e", "@scenario", "--", ".", *excludes]
 
 
-def detected_files(root, found):
-    """Files that any runner's globs include and that runner does not exclude."""
-    files = set()
-    for includes, excludes in found.groups:
-        files.update(test_files(root, includes, excludes))
-    return sorted(files)
+def tag_lines(root):
+    """Each line under root holding `@scenario`, as (path relative to root, line number, text),
+    sorted. Refusal when git cannot search root."""
+    env = git_env(root)
+    require_work_tree(root, env)
+    patterns = ignore_patterns(root)
+    try:
+        result = subprocess.run(grep_command(root, patterns), capture_output=True, env=env)
+    except (OSError, ValueError) as e:  # ValueError: a NUL in a pattern
+        raise Refusal(f"git grep could not be run ({e}).")
+    if result.returncode == 1:
+        return []  # no line matched
+    if result.returncode != 0:
+        said = result.stderr.decode("utf-8", "replace").strip()
+        hint = f" Check the patterns in {IGNORE_FILE}." if patterns else ""
+        raise Refusal(f"git grep failed: {said or f'exit {result.returncode}'}.{hint}")
+    # With -z each match is `path NUL number NUL text LF`. A path may hold a
+    # newline, so it ends only at its NUL; the text ends at the newline.
+    out, found, i = result.stdout, [], 0
+    while i < len(out):
+        path_end = out.index(b"\0", i)
+        number_end = out.index(b"\0", path_end + 1)
+        text_end = out.find(b"\n", number_end + 1)
+        text_end = len(out) if text_end == -1 else text_end
+        found.append((out[i:path_end].decode("utf-8", "replace"), int(out[path_end + 1:number_end]),
+                      out[number_end + 1:text_end].decode("utf-8", "replace").rstrip("\r")))
+        i = text_end + 1
+    return sorted(found)
 
 
 class Tag:
@@ -816,52 +429,52 @@ def repeats(scenarios):
     return out
 
 
-def scan_tags(root, files, scenarios, pending=()):
+def scan_tags(lines, scenarios, pending=()):
+    """The tags in lines, which are (path, line number, text) as tag_lines gives them.
+
+    Each tag either names a scenario or carries a problem: it names no
+    capability, no scenario, or a name that is ambiguous. pending holds the
+    scenarios open changes add; a tag naming one of them is left out.
+    """
     index, waiting = name_index(scenarios), name_index(pending)
     repeated, repeated_waiting = repeats(scenarios), repeats(pending)
     tags = []
-    for rel in files:
-        try:
-            with open(os.path.join(root, rel), encoding="utf-8", errors="replace") as f:
-                lines = f.readlines()
-        except OSError:
-            continue
-        for number, line in enumerate(lines, 1):
-            starts = list(TAG.finditer(line))
-            for i, m in enumerate(starts):
-                end = starts[i + 1].start() if i + 1 < len(starts) else len(line)
-                capability, rest = m.group(1), line[m.end():end]
-                # Every reading of the tag, ranked for ties:
-                #   3, a main scenario: the tag counts for it;
-                #   2, a name repeated in the main specs: ambiguous;
-                #   1, a scenario an open change adds: accepted, neither counted nor an error;
-                #   0, a name repeated in an open change: ambiguous.
-                # The longest match wins, so a tag is never counted for a shorter name its text
-                # also starts with; on a tie the higher rank wins, so the main specs come first.
-                readings = []
-                found = resolve(capability, rest, index)
-                if found:
-                    readings.append((len(found[0]), 3, found))
-                for rank, table in ((2, repeated), (0, repeated_waiting)):
-                    bare = longest(rest, [name for cap, name in table if cap == capability])
-                    if bare is not None:
-                        readings.append((len(bare), rank, (bare, table[(capability, bare)])))
-                waits = resolve(capability, rest, waiting)
-                if waits:
-                    readings.append((len(waits[0]), 1, waits))
-                if readings:
-                    _, rank, (text, what) = max(readings, key=lambda r: r[:2])
-                    if rank == 3:
-                        tags.append(Tag(rel, number, capability, text, scenario=what))
-                    elif rank != 1:  # a scenario an open change adds is neither covered nor an error
-                        tags.append(Tag(rel, number, capability, text, problem="ambiguous",
-                                        choices=[s.key for s in what]))
-                    continue
-                text = shown(rest)
-                if capability not in index:
-                    tags.append(Tag(rel, number, capability, text, problem="capability"))
-                else:
-                    tags.append(Tag(rel, number, capability, text, problem="orphan"))
+    for rel, number, line in lines:
+        starts = list(TAG.finditer(line))
+        for i, m in enumerate(starts):
+            end = starts[i + 1].start() if i + 1 < len(starts) else len(line)
+            capability, rest = m.group(1), line[m.end():end]
+            # Every reading of the tag, ranked for ties:
+            #   3, a main scenario: the tag counts for it;
+            #   2, a name repeated in the main specs: ambiguous;
+            #   1, a scenario an open change adds: accepted, neither counted nor an error;
+            #   0, a name repeated in an open change: ambiguous.
+            # The longest match wins, so a tag is never counted for a shorter name its text
+            # also starts with; on a tie the higher rank wins, so the main specs come first.
+            readings = []
+            found = resolve(capability, rest, index)
+            if found:
+                readings.append((len(found[0]), 3, found))
+            for rank, table in ((2, repeated), (0, repeated_waiting)):
+                bare = longest(rest, [name for cap, name in table if cap == capability])
+                if bare is not None:
+                    readings.append((len(bare), rank, (bare, table[(capability, bare)])))
+            waits = resolve(capability, rest, waiting)
+            if waits:
+                readings.append((len(waits[0]), 1, waits))
+            if readings:
+                _, rank, (text, what) = max(readings, key=lambda r: r[:2])
+                if rank == 3:
+                    tags.append(Tag(rel, number, capability, text, scenario=what))
+                elif rank != 1:  # a scenario an open change adds is neither covered nor an error
+                    tags.append(Tag(rel, number, capability, text, problem="ambiguous",
+                                    choices=[s.key for s in what]))
+                continue
+            text = shown(rest)
+            if capability not in index:
+                tags.append(Tag(rel, number, capability, text, problem="capability"))
+            else:
+                tags.append(Tag(rel, number, capability, text, problem="orphan"))
     return tags
 
 
@@ -907,31 +520,40 @@ def coverage(scenarios, tags):
     return covered
 
 
+# Ends the message for a tag that names no scenario or no capability: the tag may be
+# text in a file that is not a test.
+NOT_A_TEST = f"If the file is not a test, add a pattern for its path to {IGNORE_FILE}."
+
+
 def tag_problem(t, scenarios):
     if t.problem == "ambiguous":
-        lines = "\n".join(f"      @scenario {key}" for key in t.choices)
+        # A log of this output saved in the repository is searched by the next run. The
+        # choice lines never read as a tag, so they never count for a scenario; the echo
+        # of the bad tag does read as one, but it is ambiguous again.
+        lines = "\n".join(f"      {key}" for key in t.choices)
         return (f"{t.where}: tag '@scenario {t.capability}: {t.text}' is ambiguous: that scenario name "
-                f"appears under more than one requirement. Name the requirement too, as one of:\n{lines}")
+                f"appears under more than one requirement. Name the requirement too: write `@scenario` "
+                f"followed by one of these lines:\n{lines}")
     if t.problem == "capability":
         caps = sorted({s.capability for s in scenarios})
         hint = difflib.get_close_matches(t.capability, caps, n=1)
         more = f" Did you mean '{hint[0]}'?" if hint else f" Capabilities: {', '.join(caps)}."
         return (f"{t.where}: tag '@scenario {t.capability}: {t.text}' names no capability under "
-                f"openspec/specs.{more}")
+                f"openspec/specs.{more} {NOT_A_TEST}")
     names = [s.ident for s in scenarios if s.capability == t.capability]
     hint = difflib.get_close_matches(t.text, names, n=1, cutoff=0.5)
     more = f" Did you mean '{hint[0]}'?" if hint else ""
     return (f"{t.where}: tag '@scenario {t.capability}: {t.text}' names no scenario in "
             f"openspec/specs/{t.capability}/spec.md.{more} If the scenario was renamed, change the "
-            "tag to its new name; if it was removed, delete the tag.")
+            f"tag to its new name; if it was removed, delete the tag. {NOT_A_TEST}")
 
 
 PRUNE_HINT = "Run `baseline --prune` to remove this line, and commit the result with the change."
 
 
-def check(root, files, baseline_path):
+def check(root, lines, baseline_path):
     scenarios, problems = load_scenarios(root)
-    tags = scan_tags(root, files, scenarios, pending_scenarios(root))
+    tags = scan_tags(lines, scenarios, pending_scenarios(root))
     covered = coverage(scenarios, tags)
     baseline = read_baseline(baseline_path)
     rel_baseline = os.path.relpath(baseline_path, root)
@@ -940,8 +562,8 @@ def check(root, files, baseline_path):
     for s in scenarios:
         if s.key not in covered and s.key not in baseline:
             problems.append(
-                f"{s.path}:{s.line}: no test tags scenario '{s.key}'. Add this line to the test that "
-                f"checks it, or write that test:\n      @scenario {s.key}")
+                f"{s.path}:{s.line}: no test tags scenario '{s.key}'. Tag the test that checks it with "
+                f"`@scenario` followed by this line, or write that test:\n      {s.key}")
     problems += [tag_problem(t, scenarios) for t in tags if t.problem]
     for entry, number in sorted(baseline.items(), key=lambda e: e[1]):
         if entry in covered:
@@ -962,18 +584,7 @@ def check(root, files, baseline_path):
     return 0
 
 
-def uncertain(troubles, command):
-    """Print why `command` refuses while the test files are uncertain; True if it must."""
-    if not troubles:
-        return False
-    for t in troubles:
-        print(t)
-    print(f"spec-trace: not writing the baseline while the test files are uncertain. Set the "
-          f"test globs in {TESTS_FILE} or pass --tests, then run {command} again.")
-    return True
-
-
-def tagged_scenarios(root, files):
+def tagged_scenarios(root, lines):
     """The main specs' scenarios and which of them tests tag. None, after printing
     load_scenarios' problems, when two scenarios share a name under one requirement:
     no tag or baseline line can tell those apart."""
@@ -982,10 +593,10 @@ def tagged_scenarios(root, files):
         for p in problems:
             print(p)
         return None
-    return scenarios, coverage(scenarios, scan_tags(root, files, scenarios, pending_scenarios(root)))
+    return scenarios, coverage(scenarios, scan_tags(lines, scenarios, pending_scenarios(root)))
 
 
-def write_baseline(root, files, baseline_path, troubles=()):
+def write_baseline(root, lines, baseline_path):
     rel = os.path.relpath(baseline_path, root)
     if os.path.lexists(baseline_path):
         # A rewrite would add every scenario untagged today, exempting new ones that have no test.
@@ -993,11 +604,7 @@ def write_baseline(root, files, baseline_path, troubles=()):
               "to drop its lines that are now tagged or name no scenario, or delete the file first "
               "to write it from scratch.")
         return 2
-    # While detection reports trouble, the fallback globs may miss real tests, and a baseline
-    # written from them would exempt the scenarios those tests tag.
-    if uncertain(troubles, "baseline"):
-        return 2
-    found = tagged_scenarios(root, files)
+    found = tagged_scenarios(root, lines)
     if found is None:
         return 1
     scenarios, covered = found
@@ -1007,24 +614,21 @@ def write_baseline(root, files, baseline_path, troubles=()):
         f.write("# Scenarios in openspec/specs that no test tagged when spec-trace was adopted.\n"
                 "# spec-trace check fails on a line whose scenario a test now tags, or that names no\n"
                 "# scenario: run `baseline --prune` to remove such lines. Never add one; a new scenario\n"
-                "# gets a tagged test instead.\n")
+                "# gets a tagged test instead. Keep this file when no scenario is left in it: it\n"
+                "# records that this repository adopted spec-trace.\n")
         for key in untagged:
             f.write(key + "\n")
     print(f"spec-trace: wrote {len(untagged)} untagged scenario(s) of {len(scenarios)} to {rel}.")
     return 0
 
 
-def prune_baseline(root, files, baseline_path, troubles=()):
+def prune_baseline(root, lines, baseline_path):
     """Remove the baseline lines `check` fails on, keeping every other line as written. Never adds one."""
     rel = os.path.relpath(baseline_path, root)
     if not os.path.isfile(baseline_path):
         print(f"spec-trace: there is no baseline file at {rel}, so there is nothing to prune.")
         return 2
-    # While detection reports trouble, the fallback globs may count a file that is not a test,
-    # and a tag in it would remove the line of a scenario that no test checks.
-    if uncertain(troubles, "baseline --prune"):
-        return 2
-    found = tagged_scenarios(root, files)
+    found = tagged_scenarios(root, lines)
     if found is None:
         return 1
     scenarios, covered = found
@@ -1047,7 +651,9 @@ def prune_baseline(root, files, baseline_path, troubles=()):
         f.writelines(kept)
     for line in removed:
         print(line)
-    print(f"spec-trace: pruned {len(removed)} line(s) from {rel}; {remain} scenario line(s) remain. "
+    keep = (" Keep the file: it records that this repository adopted spec-trace."
+            if not remain else "")
+    print(f"spec-trace: pruned {len(removed)} line(s) from {rel}; {remain} scenario line(s) remain.{keep} "
           "Commit it with the change.")
     return 0
 
@@ -1056,9 +662,38 @@ def cell(text):
     return text.replace("|", "\\|")
 
 
-def report(root, files, include_changes):
+RUNNER_EXCLUDES_HINT = ("If any of these directories holds tests your test runner doesn't run, "
+                        f"ask your agent to add it to {IGNORE_FILE}.")
+
+
+def where_found(lines):
+    """Print each directory holding a tag, with its count of files and tags, sorted by path.
+
+    A tag counts wherever the search finds it, even in a file the test runner
+    excludes. This list is how a person spots such a directory.
+    """
+    found = {}
+    for rel, _, line in lines:
+        count = len(TAG.findall(line))
+        if count:
+            files, tags = found.setdefault(os.path.dirname(rel) or ".", (set(), [0]))
+            files.add(rel)
+            tags[0] += count
+    print("\n### Where tags were found\n")
+    if not found:
+        print("No tags were found.")
+        return
+    print("| Directory | Files | Tags |")
+    print("| --- | --- | --- |")
+    for folder in sorted(found):
+        files, tags = found[folder]
+        print(f"| {cell(folder)} | {len(files)} | {tags[0]} |")
+    print(f"\n{RUNNER_EXCLUDES_HINT}")
+
+
+def report(root, lines, include_changes):
     scenarios, problems = load_scenarios(root, include_changes)
-    tags = scan_tags(root, files, scenarios, () if include_changes else pending_scenarios(root))
+    tags = scan_tags(lines, scenarios, () if include_changes else pending_scenarios(root))
     covered = coverage(scenarios, tags)
     print(f"{len(covered)} of {len(scenarios)} scenarios are tagged by a test.")
     for capability in sorted({s.capability for s in scenarios}):
@@ -1071,6 +706,7 @@ def report(root, files, include_changes):
             name = s.ident + (f" (change: {s.change})" if s.change else "")
             where = "<br>".join(t.where for t in covered.get(s.key, [])) or "none"
             print(f"| {cell(name)} | {cell(where)} |")
+    where_found(lines)
     bad = [tag_problem(t, scenarios) for t in tags if t.problem] + problems
     if bad:
         print("\n### Problems\n")
@@ -1145,20 +781,19 @@ def adoption_state(root, baseline=DEFAULT_BASELINE):
     """ADOPTED, DECLINED, UNDECIDED or UNKNOWN for the repository at root, or
     None when root has no openspec/ directory: spec-trace does not apply there.
 
-    ADOPTED: the baseline file, the hand-set globs file (TESTS_FILE), or a
-    GitHub workflow in root/.github/workflows that runs spec_trace.py. The
-    baseline alone is not enough: `check` passes without one, so a repository
-    whose every scenario is tagged may delete it, and --baseline moves it.
-    Adoption wins over a decision file left behind.
+    ADOPTED: the baseline file, or a GitHub workflow in root/.github/workflows
+    that runs spec_trace.py. The baseline stays once every scenario is tagged,
+    as the record of adoption; the workflow counts too because --baseline can
+    move the file where the hook, which passes no --baseline, does not look.
+    IGNORE_FILE is not a sign of adoption. Adoption wins over a decision file
+    left behind.
     DECLINED: DECISION_FILE says DECLINED_TEXT. UNKNOWN: DECISION_FILE exists
     but says anything else, is longer than DECISION_FILE_LIMIT, is not a
     regular file, or cannot be read; neither the hook nor `decline` acts on it.
     """
     if not os.path.isdir(os.path.join(root, "openspec")):
         return None
-    if (os.path.isfile(os.path.join(root, baseline))
-            or os.path.isfile(os.path.join(root, TESTS_FILE))
-            or runs_checker_in_ci(root)):
+    if os.path.isfile(os.path.join(root, baseline)) or runs_checker_in_ci(root):
         return ADOPTED
     path = os.path.join(root, DECISION_FILE)
     if not os.path.lexists(path):
@@ -1193,7 +828,7 @@ def decline(root, baseline, dry_run):
         return 2
     if state == ADOPTED:
         print("spec-trace: this repository has adopted spec-trace (it has the baseline file, "
-              f"{TESTS_FILE}, or a workflow that runs spec_trace.py), so nothing was declined. "
+              "or a workflow that runs spec_trace.py), so nothing was declined. "
               "To stop using it, remove those first, then run decline again.")
         return 1
     if state == UNKNOWN:
@@ -1293,10 +928,6 @@ def hook_message(payload):
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="spec_trace.py", description=__doc__.splitlines()[0])
     parser.add_argument("--root", default=".", help="repository root (default: the current directory)")
-    parser.add_argument("--tests", action="append", metavar="GLOB",
-                        help="test file glob, relative to the root; repeat for several. Without it, "
-                             "the globs come from the test runner's configuration (Vitest, Jest, "
-                             "pytest, Go, Rust), else these defaults: " + " ".join(DEFAULT_TESTS))
     parser.add_argument("--baseline", default=DEFAULT_BASELINE,
                         help=f"baseline file, relative to the root (default: {DEFAULT_BASELINE})")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -1326,47 +957,18 @@ def main(argv=None):
         return 0
     if args.command == "decline":
         return decline(root, args.baseline, args.dry_run)
-    troubles = []
-    if args.tests:
-        source, manual = "--tests", args.tests
-    elif os.path.isfile(os.path.join(root, TESTS_FILE)):
-        source, manual = TESTS_FILE, read_tests_file(os.path.join(root, TESTS_FILE))
-    else:
-        source, manual = None, None
-    if manual is not None:
-        print(f"spec-trace: test files from {source}", file=sys.stderr)
-        includes = [g for g in manual if not g.startswith("!")]
-        excludes = [g[1:] for g in manual if g.startswith("!")]
-        try:
-            files = test_files(root, includes, excludes)
-            # A glob that matches nothing finds none of the tags it was meant to, so
-            # `baseline` would exempt those scenarios.
-            unmatched = [g for g in includes if not test_files(root, [g])]
-        except (ValueError, re.error) as e:
-            print(f"spec-trace: bad glob in {source}: {e}")
-            return 2
-        if not includes or unmatched:
-            print(f"spec-trace: no test files match {' '.join(unmatched) or '(no globs)'} "
-                  f"from {source} under {root}.")
-            return 2
-    else:
-        found = detect_tests(root)
-        troubles = found.troubles
-        files = detected_files(root, found)
-        # On stderr, so `report` stays pasteable.
-        print(f"spec-trace: test files from {'; '.join(found.sources)}", file=sys.stderr)
-        for t in troubles:
-            print(f"spec-trace: warning: {t}", file=sys.stderr)
-        if not files:
-            print(f"spec-trace: warning: no test files found; list the test globs in {TESTS_FILE} "
-                  "or pass --tests.", file=sys.stderr)
+    try:
+        lines = tag_lines(root)
+    except Refusal as e:
+        print(f"spec-trace: {e}")
+        return 2
     if args.command == "check":
-        return check(root, files, baseline)
+        return check(root, lines, baseline)
     if args.command == "baseline" and args.prune:
-        return prune_baseline(root, files, baseline, troubles)
+        return prune_baseline(root, lines, baseline)
     if args.command == "baseline":
-        return write_baseline(root, files, baseline, troubles)
-    return report(root, files, args.include_changes)
+        return write_baseline(root, lines, baseline)
+    return report(root, lines, args.include_changes)
 
 
 if __name__ == "__main__":

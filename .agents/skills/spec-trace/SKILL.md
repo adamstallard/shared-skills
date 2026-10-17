@@ -5,10 +5,12 @@ description: >-
   with an `@scenario <capability>: <Scenario name>` tag, and a checker fails
   CI on a scenario no test tags or a tag that names no scenario. Use when
   writing or changing a test in a repository that has openspec/specs/, when
-  archiving an OpenSpec change, when a spec-trace CI step fails, or when the
-  user asks to "trace tests to specs", "tag the scenario", "which tests cover
-  this spec" or to adopt or decline spec-trace in a repository, or when its
-  hook says the repository has not decided.
+  archiving an OpenSpec change, when a spec-trace CI step fails, when
+  editing a test runner's configuration to exclude test files in a
+  repository that has adopted spec-trace, or when the user asks to "trace
+  tests to specs", "tag the scenario", "which tests cover this spec" or to
+  adopt or decline spec-trace in a repository, or when its hook says the
+  repository has not decided.
 ---
 
 # spec-trace
@@ -38,7 +40,8 @@ script from this one.
 ## The tag
 
 `@scenario <capability>: <Scenario name>`, anywhere in a test file: a comment
-above the test, or inside the test's name.
+above the test, or inside the test's name. Tags belong in tests; see *Where
+tags are found*, below.
 
 - `<capability>` is the directory name under `openspec/specs/`.
 - `<Scenario name>` is the text after `#### Scenario:` in that spec, as
@@ -66,7 +69,7 @@ Run from the repository root:
 
 ```bash
 python3 $T check             # exit 1 on any problem, each named with file:line and its fix
-python3 $T report            # markdown table per capability: scenario, tests that tag it
+python3 $T report            # markdown table per capability: scenario, tests that tag it; then where tags were found
 python3 $T report --include-changes   # the same, with open changes applied: what an implementation has left to test
 python3 $T baseline          # write every untagged scenario to a new baseline file; refused once one exists
 python3 $T baseline --prune  # remove the baseline lines check fails on; never adds one
@@ -74,39 +77,23 @@ python3 $T state             # adopted, declined, undecided or unknown; n/a with
 python3 $T decline           # write openspec/spec-trace.yaml, declining it for the repository
 ```
 
-**Which files are tests.** Without `--tests`, the globs come from the
-repository's test runner configuration:
+**Where tags are found.** Every file under the root (`--root`, by default
+the current directory) whose path `.gitignore` doesn't match, tracked or
+not, is searched with one `git grep`. So `check`, `report` and
+`baseline` need git and a git work tree; `state` and `decline` do not. Left
+out:
 
-| Runner | Read from |
-| --- | --- |
-| Vitest | `test.include` and `test.exclude` in `vitest.config.*` or `vite.config.*`, else Vitest's default include |
-| Jest | `testMatch` or `testRegex` in `jest.config.*` or the `jest` key of `package.json`, else Jest's default `testMatch` |
-| pytest | `testpaths` and `python_files` in `pytest.ini`, `.pytest.ini`, `pyproject.toml`, `tox.ini` or `setup.cfg`, else pytest's default `test_*.py` and `*_test.py` |
-| Go | `*_test.go`, when a `go.mod` exists anywhere in the repository |
-| Rust | every `.rs` file under `tests/` and `src/`, when a `Cargo.toml` exists anywhere |
+- files `.gitignore` matches, even ones git tracks, and binary files and
+  nested repositories. A test committed under an ignored path is not
+  supported: move it;
+- doc files: `*.md`, `*.mdx`, `*.rst`, `*.adoc` and `*.txt`;
+- everything under `openspec/`;
+- paths matching a line of `openspec/spec-trace-ignore.txt`, if it exists.
+  Each line is one git glob pattern, relative to the root: `vendor/**`,
+  `docs/*.html`. `#` starts a comment.
 
-With no such configuration the defaults apply: `test/`, `tests/`,
-`__tests__/`, `*_test.*`, `*.test.*`, `*.spec.*` and `test_*.py`. Every
-command prints the source it used on stderr, as `spec-trace: test files from
-...`.
-
-A configuration spec-trace cannot read with confidence prints a warning
-naming the file, what it could not read, and the globs used instead: the
-other runners' globs, or the defaults. Examples are a computed or shorthand
-`include`, Vitest projects or `includeSource`, a `root` or `rootDir` setting,
-Jest `projects`, a regex literal anywhere in the file, a negated Jest
-`testMatch` entry, `pytest.toml`, `pyproject.toml` on Python before 3.11,
-and any runner configuration below the repository root. While there is such
-a warning, `baseline` and `baseline --prune` refuse to write (exit 2).
-
-**Setting the globs by hand.** When detection warns or picks the wrong
-files, list the globs in `openspec/spec-trace-tests.txt`, one per line, with
-`!` before a glob to exclude and `#` for comments. When that file exists it
-replaces detection, in CI as well. `--tests GLOB` (repeatable) wins over
-both. A glob may use `**`, `*`,
-`?`, `{a,b}`, `[...]` and the extglobs `?(...)`, `*(...)`, `+(...)` and
-`@(...)`. When a glob from `--tests` or `openspec/spec-trace-tests.txt` is
-malformed or matches no file, every command exits 2 and writes nothing.
+Put `@scenario` tags only in tests. A tag elsewhere that names a real
+scenario counts as covering it, and one that names none fails `check`.
 
 `--baseline PATH` moves the baseline from `openspec/spec-trace-baseline.txt`.
 
@@ -114,21 +101,34 @@ malformed or matches no file, every command exits 2 and writes nothing.
 
 | Failure | Fix |
 | --- | --- |
-| `no test tags scenario 'cap: Name'` | Add the printed tag to the test that checks it. If no test checks it, write one. Never add the scenario to the baseline. |
+| `no test tags scenario 'cap: Name'` | Tag the test that checks it: `@scenario` followed by the printed `cap: Name` line. If no test checks it, write one. Never add the scenario to the baseline. |
 | `tag ... names no scenario` | The scenario was renamed: change the tag to the new name (the message suggests the closest). It was removed: delete the tag. |
-| `tag ... is ambiguous` | Use one of the qualified tags the message lists. |
+| `tag ... names no scenario` or `names no capability`, in a file that is not a test (a vendored file, a doc that is not `.md`, `.mdx`, `.rst`, `.adoc` or `.txt`) | Add a pattern for that path to `openspec/spec-trace-ignore.txt`, such as `vendor/**`, and commit it. |
+| `git grep failed` | Fix or remove the pattern git names in `openspec/spec-trace-ignore.txt`. |
+| `not inside a git work tree`, or `git could not be run` | Run it from a git clone, or pass `--root` inside one. |
+| `tag ... is ambiguous` | Write `@scenario` followed by one of the qualified names the message lists. |
 | `baseline ... is now tagged` | Run `python3 $T baseline --prune`, and commit the pruned baseline with the change that added the tag. |
 | `baseline ... names no scenario` | Run `python3 $T baseline --prune`, and commit the pruned baseline with the change that renamed or removed the scenario. |
 
 The baseline only shrinks: lines come out as tests get tagged, and no line is
 ever added after adoption. `baseline --prune` only removes lines. Plain
 `baseline` refuses (exit 2) once the file exists, because writing it again
-would add every scenario untagged today.
+would add every scenario untagged today. Keep the file when its last
+scenario line goes: it records that the repository adopted spec-trace.
 
-`check` confirms that a test file carries the tag. It does not run the test
-and cannot tell whether the test checks what the scenario says. The
+`check` confirms that the tag exists. It does not run the test and cannot
+tell whether the test checks what the scenario says. The
 repository's own test run covers passing; the review covers whether the tag
-is honest.
+is honest. A tag counts even when its test is skipped, or sits in a file the
+test runner excludes. `report` ends with *Where tags were found*, a list of
+the directories holding tags; a directory there that the runner excludes
+belongs in `openspec/spec-trace-ignore.txt`.
+
+**When you edit a test runner's configuration to exclude test files** in a
+repository that has adopted spec-trace (`python3 $T state` says `adopted`),
+add the same paths as patterns to `openspec/spec-trace-ignore.txt`, and
+commit them with the configuration change. Otherwise the excluded tests'
+tags still count, though the tests never run.
 
 ## Implementing and archiving a change
 
@@ -199,7 +199,10 @@ says `undecided`. On `unknown` it says why, on stderr:
 4. If `openspec/spec-trace.yaml` exists, delete it. Adoption wins over it,
    but the repository should not say both.
 
-Show the user the new and changed files before committing them.
+Show the user the new and changed files before committing them. Run
+`python3 $T report` and show the user its *Where tags were found* list.
+Tell them that a directory holding tests their runner doesn't run, or files
+that aren't tests, goes in `openspec/spec-trace-ignore.txt`.
 
 **To decline:** run `python3 $T decline`. It writes `openspec/spec-trace.yaml`
 holding `adoption: declined`, and changes nothing else; `--dry-run` shows

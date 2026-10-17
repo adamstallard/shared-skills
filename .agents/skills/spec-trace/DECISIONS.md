@@ -62,9 +62,11 @@ have to go into the archive commit.
 `check` fails on a scenario that is untagged and absent from the baseline,
 and also on a baseline line whose scenario is now tagged or no longer exists.
 `baseline --prune` removes those lines and keeps every other line as
-written; it never adds one. Plain `baseline`
-writes the file only when there is none, and refuses (exit 2) once it
-exists.
+written; it never adds one. When no scenario line is left, it keeps the
+file and its comment header: the file is the record that the repository
+adopted spec-trace (see *The agent asks whether to adopt it*, below). Plain
+`baseline` writes the file only when there is none, and refuses (exit 2)
+once it exists.
 
 **Why.** A repository adopting this has hundreds of untagged scenarios, and
 tagging them all first would block adoption. Failing on a stale line means
@@ -75,11 +77,6 @@ scenario with no test would be exempt without anyone deciding it should be.
 `--prune` reads lines with the same parser as `check`, so it removes exactly
 the lines `check` fails on. With two parsers, it could keep a line `check`
 fails on, or remove one that `check` reads as an exemption.
-`--prune` also refuses while a test runner's configuration cannot be read,
-as `baseline` does (see *A configuration that cannot be read is reported,
-and blocks the baseline*, below). The fallback globs may count a file that
-is not a test, and a tag in it would remove the line of a scenario that no
-test checks.
 
 **Rejected: a baseline that tolerates stale lines.** A tagged scenario left
 in the baseline stays exempt: if its only test is later deleted, `check`
@@ -175,33 +172,111 @@ written `\'`, and 28 of its scenario names contain one. Unescaping alone is
 not enough: `'` ends a tag, so `A person\'s command` would then count for a
 scenario named `A person`.
 
-## Test file globs that match nothing stop the command
+## Tags are found by searching the repository, not by finding test files
 
-**Decision.** Globs support `**`, `*`, `?`, `{a,b}` and `[...]`. When a
-`--tests` glob is malformed or matches no file, `check`, `baseline` and
-`report` exit 2 and write nothing. Each glob is tested on its own. When the
-default globs match nothing, the command warns and carries on.
+**Decision (Adam, 2026-10-16).** `check`, `report` and `baseline` find tags
+with one `git grep` under `--root`:
 
-**Why.** A glob that matches nothing finds no tags, so the scenarios only its
-files would tag look untagged, `baseline` writes them, and `check` then
-passes without reading those files. A glob that matches nothing usually
-comes from a typo or from glob syntax the checker doesn't know. A second glob
-that does match would hide the first from a check of all of them together,
-which is why each is tested alone. The default globs matching nothing is
-different: a repository with specs and no tests yet can still adopt with a
-full baseline.
+```
+git --no-literal-pathspecs -C <root> grep --untracked --no-recurse-submodules \
+    -I -n -z --no-color --no-column --no-full-name -F -e @scenario -- . \
+    ':(exclude,glob)**/*.md' ':(exclude,glob)**/*.mdx' ':(exclude,glob)**/*.rst' \
+    ':(exclude,glob)**/*.adoc' ':(exclude,glob)**/*.txt' \
+    ':(exclude,glob)openspec/**' [':(exclude,glob)<pattern>' for each line of the ignore file]
+```
 
-## Test files come from git when it is available
+- `--untracked` adds files not yet added to git, so a test the agent has
+  not staged still counts. It honours `.gitignore`, so other worktrees under
+  an ignored `.claude/worktrees/`, `node_modules/` and build output are
+  skipped. Nested repositories are skipped too. It also skips a file git
+  tracks whose path `.gitignore` matches; see *A test whose path
+  `.gitignore` matches is not supported*, below.
+- `-I` skips binary files.
+- The default exclusions are doc files (`*.md`, `*.mdx`, `*.rst`, `*.adoc`,
+  `*.txt`) and everything under `openspec/`, where `@scenario` appears in
+  prose and examples.
+- `openspec/spec-trace-ignore.txt`, when present, adds one exclude per line:
+  a git glob pattern relative to the root; `#` lines and blank lines are
+  skipped. A pattern git rejects stops the command with git's error, exit 2.
+- The `--no-` options undo user settings (`grep.fullName`, `grep.column`,
+  colour) that would change the output's shape. `--no-recurse-submodules`
+  undoes `submodule.recurse`, which git refuses alongside `--untracked`.
+  `--no-literal-pathspecs` undoes `GIT_LITERAL_PATHSPECS`, under which the
+  excludes would be read as plain paths and none would apply. `-F` reads the
+  pattern as text whatever `grep.patternType` says.
 
-**Decision.** Files are listed with `git ls-files --cached --others
---exclude-standard`, so ignored files are skipped. Outside a git repository
-the tree is walked, skipping `.git`, `node_modules` and any directory holding
-a `.git` entry.
+Without git, or with `--root` outside a git work tree, these commands refuse
+(exit 2). `state` and `decline` read no tags and work without git.
 
-**Why.** A local clone can hold other worktrees under an ignored directory,
-such as `.claude/worktrees/`, each with a full copy of the tests. Scanning
-them would count their tags, including tags for scenarios that the branch
-being checked doesn't have.
+**Why.**
+- **Finding test files meant reproducing each runner's selection from its
+  configuration.** For Vitest and Jest that configuration is code, and every
+  pass of bug-hunter (the skill that finds and proves bugs before a commit)
+  found more configurations that the code misread. Its last run over the
+  config-reading code fixed 22 bugs in 3 passes and still left 6, 3 of them
+  regressions from its own fixes.
+- **The places where a tag is not a test make a short, static list:** doc
+  files and `openspec/`. A list of test files depends on every runner's
+  configuration instead.
+- **A tag outside a test counts only if it names a real scenario exactly.**
+  Text that only looks like a tag, such as another tool's syntax, almost
+  never matches a scenario's name exactly, so wrongly counting one is rare.
+  The common case is text that names no scenario, and that fails `check`
+  loudly as an orphan tag instead of passing quietly.
+- **The skill already accepts this kind of limit:** it checks that a tag
+  exists, not that its test runs or passes.
+
+**Rejected: reading each runner's configuration** (Vitest, Jest, pytest, Go,
+Rust), for the first reason above.
+**Rejected: an allow-list JavaScript parser** for Vitest and Jest configs,
+which reads only string literals and refuses anything else. Those configs are
+code, and each bug-hunter pass found more configs that the parser misread.
+
+**When to reconsider.** If a repository ever needs a long exclusion list that
+keeps changing, finding tags this way has become as hard as finding tests.
+
+## A test whose path `.gitignore` matches is not supported
+
+**Decision (Adam, 2026-10-16).** A file git tracks whose path `.gitignore`
+matches, such as a test committed under an ignored `build/`, is not
+searched, because `git grep --untracked` leaves out every path
+`.gitignore` matches, tracked or not. Its tags are skipped, so `check`
+reports its scenarios as untagged, and the author moves the test. A
+`--root` inside an ignored folder likewise finds no tags. A person's own ignore rules
+(`.git/info/exclude`, `core.excludesFile`) count too, so a tracked test
+they match is skipped only on that person's machine, and `check` there can
+disagree with CI.
+
+**Why.** A test in such a place is rare. Adam, who maintains this skill,
+is "not worried about supporting putting a test in such a weird place".
+
+**Rejected: a second `git grep` without `--untracked`, merged with the
+first.** It would find those files, at the cost of a second search for a
+layout nobody uses.
+
+## A tag in a test the runner skips or excludes still counts
+
+**Decision (Adam, 2026-10-16).** A tag counts wherever the search finds it,
+even when its test is skipped or sits in a file the test runner's
+configuration excludes. This is the same limit as a skipped test: spec-trace
+checks that a tag exists, not that its test runs. Two things help a person
+spot such files:
+- `report` ends with *Where tags were found*: each directory holding tags,
+  with its count of files and tags, sorted by path, and a line saying to add
+  any directory the runner doesn't run to `openspec/spec-trace-ignore.txt`.
+  `check` doesn't print it, because CI would repeat it on every run, and
+  `baseline` doesn't, because a repository usually has no tags at adoption.
+- SKILL.md's description, which lists the situations in which an agent
+  loads the skill, includes editing a test runner's configuration to
+  exclude test files, in a repository that has adopted spec-trace. The
+  skill then tells the agent to add the same paths to
+  `openspec/spec-trace-ignore.txt` in the same commit. At adoption, the
+  agent shows the user `report`'s *Where tags were found* list, and tells
+  them what `openspec/spec-trace-ignore.txt` is for.
+
+**Rejected: a hook that notices an edit to a test runner's configuration.**
+It would need a list of every runner's configuration file names, which is
+never complete: the problem of finding test files again, in smaller form.
 
 ## A code fence closes only with its own kind of line
 
@@ -214,96 +289,15 @@ the example itself holds a ```` ``` ```` fence. Closing on any fence line
 would end the example at that inner line, read the example's headings as
 real ones, and then skip the rest of the file as fenced.
 
-## Test globs come from the test runner's configuration file
-
-**Decision.** Without `--tests`, the test file globs are read from the
-repository's test runner configuration: Vitest's `test.include` and
-`test.exclude`, Jest's `testMatch` or `testRegex`, pytest's `testpaths` and
-`python_files`, and for Go and Rust their fixed layouts. A runner whose
-configuration names no globs gets that runner's own default. The file is
-read as text: a JavaScript config yields its globs only when they are
-string literals, found by walking the object keys (`test` then `include`, so
-`coverage.include` is not mistaken for them). Anything computed, such as
-`include: dirs.map(...)`, is reported, not guessed: see the next entry.
-`openspec/spec-trace-tests.txt` replaces detection, and `--tests` wins over
-both.
-
-**Why.** The runner's configuration is what decides which files are tests,
-so reading it keeps spec-trace from reading a helper file as a test or
-missing a test the runner runs. The source is printed every time, because a
-wrong guess is otherwise invisible: it shows up only as scenarios that look
-untagged.
-
-**Rejected: parsing the test script in package.json.** It is usually just
-`vitest run` or `jest`, which names no files; the configuration file does.
-**Rejected: running the runner to list its tests** (`vitest list`, `pytest
---collect-only`). It needs the repository's dependencies installed, which
-spec-trace's CI step does not have.
-
-**Where it stops applying.** Rust's unit tests live in `#[cfg(test)]`
-modules inside ordinary source files, which no glob can tell apart, so every
-`.rs` file under `src/` is read. Jest's `<rootDir>` is taken to be the
-repository root. `testRegex` is searched in the file's path with a `/` put
-in front, since Jest matches it against an absolute path: a pattern such as
-`/__tests__/` then matches a top-level `__tests__` directory too.
-
-## A configuration that cannot be read is reported, and blocks the baseline
-
-**Decision.** A detector that cannot read its runner's configuration with
-confidence contributes no globs and prints a warning: the file, what it
-could not read, the globs used instead, and how to set them by hand. The
-other runners' globs still count; with none, the defaults apply. `baseline`
-exits 2 while any such warning stands, unless the globs are set by hand.
-
-**Why.** A wrong guess at the test files shows up only as scenarios that
-look untagged, and `baseline` would write them into the baseline, where they
-stay exempt even though a test tags them. Reporting costs a warning;
-guessing hides a tag for as long as the guess stands, since `check` runs
-with the same wrong globs and never sees the test that would flag the line. These cases are treated as unreadable
-rather than parsed:
-- in a JavaScript config: a regex literal (a `/` outside strings and
-  comments), a template string with `${...}`, a computed, shorthand or spread
-  value, or a `test` setting that is not an object literal;
-- settings that change which files are tests or where globs start: Vitest's
-  projects, workspaces, `includeSource`, `root` and `test.dir`, and Jest's
-  `projects`, `rootDir` and `roots`;
-- a negated Jest `testMatch` entry;
-- `pytest.toml`, pytest's native `[tool.pytest]` table, and `pyproject.toml`
-  on Python before 3.11, which has no `tomllib`;
-- a Vitest, Jest or pytest configuration below the repository root, which
-  applies to its own directory.
-
-Any other error while reading a configuration becomes the same kind of
-warning, never a crash. Each runner's excludes apply to its own globs only,
-so Vitest excluding `backend/**` does not hide pytest's tests there.
-
-**Rejected: a full JavaScript parser.** Reading these configs exactly means
-evaluating them: a parser still cannot know what `dirs.map(...)` or an
-imported setting yields. Refusing every construct outside a small, known set
-gives the same warnings with far less code, and nothing it doesn't know can
-slip through as a guess.
-
-## The test globs can be set by hand, in a file next to the baseline
-
-**Decision.** `openspec/spec-trace-tests.txt`, when present, lists the test
-globs, one per line, `!` to exclude and `#` for comments. It replaces
-detection. `--tests` still wins over it.
-
-**Why.** A repository whose configuration spec-trace cannot read needs a
-setting that CI and every agent pick up without a flag. Next to the
-baseline, it is in the one directory spec-trace already owns, and a plain
-list of globs needs no parser.
-
 ## The agent asks whether to adopt it, when scenarios are written
 
 **Decision.** A hook runs after the agent writes or edits a `spec.md` under
 `openspec/specs/` or `openspec/changes/<name>/specs/`. In a repository that
 has neither adopted nor declined spec-trace, it tells the agent to ask the
 user which. The answer is recorded in the repository: adopted is the
-baseline file, the hand-set globs file, or a GitHub workflow that runs
-`spec_trace.py`; declined is spec-trace's own file,
-`openspec/spec-trace.yaml`, holding `adoption: declined`, which `decline`
-writes. The hook is enabled by
+baseline file, or a GitHub workflow that runs `spec_trace.py`; declined is
+spec-trace's own file, `openspec/spec-trace.yaml`, holding
+`adoption: declined`, which `decline` writes. The hook is enabled by
 default.
 
 **Why.**
@@ -315,10 +309,14 @@ default.
 - **The answer lives in the repository**, so it reaches every agent and
   person on the team, and a committed answer stops the question for all of
   them.
-- **The baseline alone does not mark adoption.** `check` passes without a
-  baseline file, so a repository whose every scenario is tagged may delete
-  it, and the `--baseline` option puts it at another path. So the hand-set
-  globs file and a CI step that runs `spec_trace.py` mark adoption too.
+- **The baseline file stays once every scenario is tagged,** as the record
+  of adoption; `baseline --prune` keeps it, with its header, when its last
+  scenario line goes.
+- **A CI step that runs `spec_trace.py` marks adoption too,** because the
+  `--baseline` option can put the baseline at a path the hook does not look
+  at.
+- **`openspec/spec-trace-ignore.txt` does not mark adoption.** It only
+  changes where tags are searched for.
 - **spec-trace treats the git top level as the repository.** The hook asks
   only about a spec in the top's own `openspec/`. A test fixture or a
   monorepo project with its own `openspec/` below the top is never asked
@@ -369,32 +367,32 @@ spec-trace.
 
 spec-trace keeps three things per `openspec/`: the baseline
 (`openspec/spec-trace-baseline.txt`, the scenarios no test tags yet), the
-optional hand-set globs file (`openspec/spec-trace-tests.txt`, naming the test
-files when the runner's configuration doesn't), and the decision file
-(`openspec/spec-trace.yaml`, which records a decline). A repository has
-adopted spec-trace when it has a baseline, a hand-set globs file, or a GitHub
-workflow that runs `spec_trace.py`. Once adopted, the hook stops asking.
+optional ignore file (`openspec/spec-trace-ignore.txt`, paths the search for
+tags leaves out), and the decision file (`openspec/spec-trace.yaml`, which records
+a decline). A repository has adopted spec-trace when it has a baseline or a
+GitHub workflow that runs `spec_trace.py`. Once adopted, the hook stops
+asking.
 
 **One `openspec/` at the top works.** Those files, and the CI step, are at
-the top. Test files come from the runner's configuration there, Vitest's
-workspace file included, or from `--tests` globs or the hand-set globs file
-naming each package's tests. A tag can name any capability, wherever its
-test is.
+the top. The whole repository is searched for tags, so a tag can name any
+capability, wherever its test is.
 
 **An `openspec/` per package**, such as `packages/api/openspec/`, can be
 checked one package at a time with `spec_trace.py --root packages/api check`.
-Its baseline, hand-set globs file and decision file are then the package's
-own. Four things fall short:
+Its baseline, ignore file and decision file are then the package's own, and
+only files under `packages/api` are searched. Four things fall short:
 - **The hook never asks about a package.** If it asked about every
   `openspec/` in a repository, it would also ask about test fixtures that
   hold one. So it asks only about the `openspec/` at the git top level; see
   *The agent asks whether to adopt it, when scenarios are written*, above.
-- **A CI step doesn't mark a package adopted.** `runs_checker_in_ci` reads
-  `.github/workflows/` under `--root`, but workflows live at the top. So a
-  package counts as adopted only through its baseline or hand-set globs
-  file, and the hook would keep asking if it asked about packages at all.
-- **A test outside the package can't tag its scenarios.** An end-to-end test
-  at the top is not among `packages/api`'s test files.
+- **A CI step doesn't mark a package adopted.** spec-trace looks for a
+  workflow that runs `spec_trace.py` in `.github/workflows/` under `--root`,
+  but workflows live at the top. So a package counts as adopted only through
+  its baseline. If the hook did ask about packages, it would keep asking
+  about one that a CI step had adopted.
+- **A test outside the package can't tag its scenarios.** The search covers
+  only files under `--root`, so an end-to-end test at the top is never
+  read.
 - **CI needs a `check` step per package.**
 
 **The path, if a repository needs it:**
@@ -407,7 +405,7 @@ own. Four things fall short:
    `spec_trace.py` with `--root` naming that project.
 3. Add `check --all`, which finds every project and checks each, so CI needs
    one step.
-4. Let a project's test globs name files outside it, for shared end-to-end
+4. Let a project's search reach files outside it, for shared end-to-end
    tests.
 
 Step 1 replaces "only the top's `openspec/`" with a guess: an `openspec/`

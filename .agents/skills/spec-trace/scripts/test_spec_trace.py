@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Tests for spec_trace.py. Standard library only; each test builds a scratch repository.
+"""Tests for spec_trace.py. Standard library only; each test builds a scratch git repository.
+
+Every git command here runs with the user's and the system's git config shut out
+(setUpModule), so settings such as a global excludes file or hooks change nothing.
 
 Run from the root of the shared-skills clone:  python3 .agents/skills/spec-trace/scripts/test_spec_trace.py
 """
@@ -38,17 +41,39 @@ Every pickup SHALL take a claim.
 - **THEN** no work is performed
 """
 
-# The tag word is split so this file holds no tag of its own: the default
-# globs match test_*.py, so a literal tag here would be read as a real one.
+# The fixtures build the tag word from parts, so their text in this file is not
+# a tag. This file still holds tag-shaped text in the messages it expects, so a
+# repository that vendors spec-trace's scripts folder must list this file in its
+# openspec/spec-trace-ignore.txt, or check fails on those messages as tags.
 AT = "@" + "scenario"
 
 
+def setUpModule():
+    """Shut out the user's and the system's git config for every git this module runs."""
+    scratch = tempfile.mkdtemp()
+    empty = os.path.join(scratch, "gitconfig")
+    open(empty, "w").close()
+    patcher = mock.patch.dict(os.environ, {"GIT_CONFIG_GLOBAL": empty, "GIT_CONFIG_NOSYSTEM": "1"})
+    patcher.start()
+    unittest.addModuleCleanup(patcher.stop)
+    unittest.addModuleCleanup(shutil.rmtree, scratch)
+
+
+def git(root, *args):
+    subprocess.run(["git", "-C", root, "-c", "user.name=t", "-c", "user.email=t@t", *args],
+                   check=True, capture_output=True)
+
+
 class Repo(unittest.TestCase):
-    """A scratch repository with one capability, work-claiming, and its two scenarios."""
+    """A scratch git repository with one capability, work-claiming, and its two scenarios.
+
+    Files are left untracked unless a test adds them: spec-trace searches both.
+    """
 
     def setUp(self):
         self.root = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.root)
+        subprocess.run(["git", "init", "-q", "-b", "main", self.root], check=True)
         self.write("openspec/specs/work-claiming/spec.md", CLAIMING)
 
     def write(self, rel, text):
@@ -90,7 +115,8 @@ class Check(Repo):
         self.assertEqual(code, 1)
         self.assertIn("openspec/specs/work-claiming/spec.md:13: no test tags scenario "
                       "'work-claiming: Unclaimed work refused'", out)
-        self.assertIn(f"{AT} work-claiming: Unclaimed work refused", out)
+        self.assertIn(f"with `{AT}` followed by this line, or write that test:\n"
+                      "      work-claiming: Unclaimed work refused", out)
 
     def test_untagged_scenario_in_baseline_passes(self):
         self.write("test/claim.test.ts", f"// {AT} work-claiming: Claim precedes work\n")
@@ -211,43 +237,334 @@ class Check(Repo):
         code, out = self.run_cmd("check")
         self.assertEqual(code, 0, out)
 
-    def test_tags_outside_test_files_are_not_read(self):
-        self.tag_both()
-        self.write("src/claim.ts", f"// {AT} work-claiming: No such scenario\n")
-        code, out = self.run_cmd("check")
-        self.assertEqual(code, 0, out)
-
-    def test_test_globs_can_be_replaced(self):
-        self.write("checks/claim.ts", f"""\
-            // {AT} work-claiming: Claim precedes work
-            // {AT} work-claiming: Unclaimed work refused
-            """)
-        self.assertEqual(self.run_cmd("check")[0], 1)
-        code, out = self.run_cmd("--tests", "checks/**", "check")
-        self.assertEqual(code, 0, out)
-
-    def test_node_modules_and_nested_repositories_are_skipped(self):
-        self.tag_both()
-        self.write("node_modules/pkg/test/x.test.js", f"// {AT} work-claiming: Nope\n")
-        self.write(".claude/worktrees/other/.git", "gitdir: elsewhere\n")
-        self.write(".claude/worktrees/other/test/x.test.ts", f"// {AT} work-claiming: Nope\n")
-        code, out = self.run_cmd("check")
-        self.assertEqual(code, 0, out)
-
-    @unittest.skipUnless(shutil.which("git"), "git not installed")
-    def test_in_a_git_repository_ignored_files_are_skipped(self):
-        self.tag_both()
-        self.write(".gitignore", "build/\n")
-        self.write("build/test/x.test.js", f"// {AT} work-claiming: Nope\n")
-        subprocess.run(["git", "init", "-q", self.root], check=True)
-        code, out = self.run_cmd("check")
-        self.assertEqual(code, 0, out)
-
     def test_no_openspec_specs_is_an_error(self):
         shutil.rmtree(os.path.join(self.root, "openspec"))
         with self.assertRaises(SystemExit) as raised:
             self.run_cmd("check")
         self.assertIn("no openspec/specs", str(raised.exception))
+
+
+class Search(Repo):
+    """Tags are found with git grep over every file git tracks or would track under the root."""
+
+    def test_tags_in_tracked_and_untracked_files_count(self):
+        self.write("test/a.test.ts", f"// {AT} work-claiming: Claim precedes work\n")
+        git(self.root, "add", "test/a.test.ts")
+        self.write("src/b.go", f"// {AT} work-claiming: Unclaimed work refused\n")
+        code, out = self.run_cmd("check")
+        self.assertEqual(code, 0, out)
+        out = self.run_cmd("report")[1]
+        self.assertIn("| Claim precedes work | test/a.test.ts:1 |", out)
+        self.assertIn("| Unclaimed work refused | src/b.go:1 |", out)
+
+    def test_a_tag_outside_a_test_counts_when_it_names_a_scenario_and_fails_when_not(self):
+        self.tag_both()
+        self.write("src/claim.ts", f"// {AT} work-claiming: No such scenario\n")
+        code, out = self.run_cmd("check")
+        self.assertEqual(code, 1)
+        self.assertIn("src/claim.ts:1: tag '@scenario work-claiming: No such scenario' names no scenario", out)
+
+    def test_ignored_files_are_skipped(self):
+        self.tag_both()
+        self.write(".gitignore", "build/\n*.log\n")
+        self.write("build/test/x.test.js", f"// {AT} work-claiming: Nope\n")
+        self.write("run.log", f"{AT} work-claiming: Nope\n")
+        code, out = self.run_cmd("check")
+        self.assertEqual(code, 0, out)
+
+    def test_a_tracked_file_that_gitignore_matches_is_not_searched(self):
+        # Deliberately unsupported: DECISIONS.md, "A test whose path .gitignore matches is not supported".
+        self.tag_both()
+        self.write(".gitignore", "build/\n*.log\n")
+        self.write("build/x.test.js", f"// {AT} work-claiming: Nope\n")
+        self.write("x.log", f"{AT} work-claiming: Nope\n")
+        git(self.root, "add", "-f", "build/x.test.js", "x.log")
+        self.assertEqual(self.run_cmd("check")[0], 0)
+
+    def test_each_default_exclusion_is_skipped(self):
+        self.tag_both()
+        for rel in ("README.md", "docs/deep/guide.md", "docs/a.mdx", "docs/b.rst", "docs/c.adoc",
+                    "notes.txt", "openspec/changes/x/proposal.md", "openspec/notes.yaml"):
+            self.write(rel, f"{AT} work-claiming: Nope\n")
+            code, out = self.run_cmd("check")
+            self.assertEqual(code, 0, f"{rel}: {out}")
+
+    def test_binary_files_are_skipped(self):
+        self.tag_both()
+        # Without -I, git prints "Binary file ... matches" for this file, a line with no NUL.
+        # The parser fails on it only when it ends the output. Named to sort last, the file
+        # makes this test fail if -I is ever dropped.
+        with open(os.path.join(self.root, "zz.bin"), "wb") as f:
+            f.write(b"\0\0" + f"{AT} work-claiming: Nope\n".encode())
+        code, out = self.run_cmd("check")
+        self.assertEqual(code, 0, out)
+
+    def test_a_nested_repository_is_skipped(self):
+        self.tag_both()
+        nested = os.path.join(self.root, ".claude/worktrees/other")
+        os.makedirs(nested)
+        subprocess.run(["git", "init", "-q", nested], check=True)
+        self.write(".claude/worktrees/other/test/x.test.ts", f"// {AT} work-claiming: Nope\n")
+        self.assertEqual(self.run_cmd("check")[0], 0)
+
+    def test_a_path_with_a_colon_and_a_crlf_line_is_read(self):
+        self.write("test/a:b.test.ts", f"// {AT} work-claiming: Claim precedes work\r\n"
+                                        f"// {AT} work-claiming: Unclaimed work refused\r\n")
+        out = self.run_cmd("report")[1]
+        self.assertIn("| Claim precedes work | test/a:b.test.ts:1 |", out)
+        self.assertIn("| Unclaimed work refused | test/a:b.test.ts:2 |", out)
+
+    def test_git_settings_that_change_its_output_are_undone(self):
+        self.tag_both()
+        settings = {"grep.fullName": "true", "grep.column": "true", "color.grep": "always",
+                    "color.ui": "always", "grep.patternType": "perl", "grep.lineNumber": "false"}
+        env = {"GIT_CONFIG_COUNT": str(len(settings))}
+        for i, (key, value) in enumerate(settings.items()):
+            env[f"GIT_CONFIG_KEY_{i}"], env[f"GIT_CONFIG_VALUE_{i}"] = key, value
+        with mock.patch.dict(os.environ, env):
+            out = self.run_cmd("report")[1]
+        self.assertIn("| Claim precedes work | test/claim.test.ts:1 |", out)
+
+    def test_submodule_recurse_in_git_config_does_not_stop_the_search(self):
+        self.tag_both()
+        with mock.patch.dict(os.environ, {"GIT_CONFIG_COUNT": "1", "GIT_CONFIG_KEY_0": "submodule.recurse",
+                                          "GIT_CONFIG_VALUE_0": "true"}):
+            code, out = self.run_cmd("check")
+        self.assertEqual(code, 0, out)
+
+    def test_literal_pathspecs_in_the_environment_keep_the_exclusions(self):
+        self.tag_both()
+        self.write("NOTES.md", f"{AT} work-claiming: Gone\n")
+        with mock.patch.dict(os.environ, {"GIT_LITERAL_PATHSPECS": "1"}):
+            code, out = self.run_cmd("check")
+        self.assertEqual(code, 0, out)
+
+    def test_the_grep_command(self):
+        self.assertEqual(st.grep_command("/r", ["vendor/**"]), [
+            "git", "--no-literal-pathspecs", "-C", "/r", "grep", "--untracked",
+            "--no-recurse-submodules", "-I", "-n", "-z", "--no-color", "--no-column", "--no-full-name",
+            "-F", "-e", "@scenario", "--", ".",
+            ":(exclude,glob)**/*.md", ":(exclude,glob)**/*.mdx", ":(exclude,glob)**/*.rst",
+            ":(exclude,glob)**/*.adoc", ":(exclude,glob)**/*.txt", ":(exclude,glob)openspec/**",
+            ":(exclude,glob)vendor/**"])
+
+    def test_a_name_ending_in_a_parenthesis_is_shown_whole(self):
+        self.tag_both()
+        self.write("test/r.test.ts", f"it('{AT} work-claiming: Run (fast)', () => {{}})\n")
+        self.assertIn("tag '@scenario work-claiming: Run (fast)' names no scenario", self.run_cmd("check")[1])
+
+
+class IgnoreFile(Repo):
+    """openspec/spec-trace-ignore.txt: one git glob pattern per line, each an extra exclude."""
+
+    def setUp(self):
+        super().setUp()
+        self.tag_both()
+        self.write("docs/tags.html", f"<!-- {AT} work-claiming: Some scenario -->\n")
+        self.write("vendor/tool/x.js", f"// {AT} other: Not ours\n")
+
+    def test_its_patterns_silence_tags_that_are_not_tests(self):
+        code, out = self.run_cmd("check")
+        self.assertEqual(code, 1)
+        self.assertIn("docs/tags.html:1: tag '@scenario work-claiming: Some scenario' names no scenario", out)
+        self.assertIn("vendor/tool/x.js:1: tag '@scenario other: Not ours' names no capability", out)
+        self.assertEqual(out.count(f"If the file is not a test, add a pattern for its path to {st.IGNORE_FILE}."), 2)
+        self.write(st.IGNORE_FILE, "# Not tests\n\ndocs/*.html\n  vendor/  \n")
+        code, out = self.run_cmd("check")
+        self.assertEqual(code, 0, out)
+
+    def test_a_pattern_leaves_other_files_alone(self):
+        self.write(st.IGNORE_FILE, "docs/*.html\nvendor/**\n")
+        self.write("docs/sub/more.html", f"{AT} work-claiming: Nope\n")
+        code, out = self.run_cmd("check")
+        self.assertEqual(code, 1)
+        self.assertIn("docs/sub/more.html:1:", out)
+        self.assertNotIn("docs/tags.html", out)
+
+    def test_a_byte_order_mark_does_not_spoil_the_first_pattern(self):
+        with open(os.path.join(self.root, st.IGNORE_FILE), "wb") as f:
+            f.write(b"\xef\xbb\xbfdocs/**\r\nvendor/**\r\n")
+        code, out = self.run_cmd("check")
+        self.assertEqual(code, 0, out)
+
+    def test_a_bad_pattern_stops_every_command_with_gits_error(self):
+        self.write(st.IGNORE_FILE, "vendor/**\n/elsewhere/x\n")
+        self.write(st.DEFAULT_BASELINE, "work-claiming: Claim precedes work\n")
+        for command in (["check"], ["report"], ["report", "--include-changes"], ["baseline", "--prune"]):
+            code, out = self.run_cmd(*command)
+            self.assertEqual(code, 2, f"{command}: {out}")
+            self.assertIn("spec-trace: git grep failed: fatal:", out)
+            self.assertIn("/elsewhere", out)
+            self.assertIn(f"Check the patterns in {st.IGNORE_FILE}.", out)
+        self.assertEqual(self.read(st.DEFAULT_BASELINE), "work-claiming: Claim precedes work\n")
+        os.remove(os.path.join(self.root, st.DEFAULT_BASELINE))
+        self.assertEqual(self.run_cmd("baseline")[0], 2)
+        self.assertFalse(os.path.exists(os.path.join(self.root, st.DEFAULT_BASELINE)))
+
+    def test_one_that_is_not_a_regular_file_or_too_long_stops_the_command(self):
+        os.makedirs(os.path.join(self.root, st.IGNORE_FILE))
+        code, out = self.run_cmd("check")
+        self.assertEqual(code, 2)
+        self.assertIn(f"{st.IGNORE_FILE} cannot be read", out)
+        os.rmdir(os.path.join(self.root, st.IGNORE_FILE))
+        self.write(st.IGNORE_FILE, "# x\n" * (st.IGNORE_FILE_LIMIT // 4 + 1))
+        code, out = self.run_cmd("check")
+        self.assertEqual(code, 2)
+        self.assertIn(f"is longer than {st.IGNORE_FILE_LIMIT} characters", out)
+
+
+class SubdirectoryRoot(unittest.TestCase):
+    """--root below the top of the repository: the search, the exclusions and the
+    ignore file's patterns all start at the root."""
+
+    def setUp(self):
+        self.top = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.top)
+        subprocess.run(["git", "init", "-q", self.top], check=True)
+        self.pkg = os.path.join(self.top, "packages/api")
+        for rel, text in (
+                ("packages/api/openspec/specs/work-claiming/spec.md", CLAIMING),
+                ("packages/api/test/claim.test.ts", f"// {AT} work-claiming: Claim precedes work\n"),
+                ("packages/api/README.md", f"{AT} work-claiming: Nope\n"),
+                ("packages/api/vendor/x.js", f"{AT} work-claiming: Nope\n"),
+                ("packages/api/openspec/spec-trace-ignore.txt", "vendor/**\n"),
+                ("e2e/claim.test.ts", f"// {AT} work-claiming: Unclaimed work refused\n"),
+                ("openspec/x.js", f"{AT} work-claiming: Nope\n")):
+            path = os.path.join(self.top, rel)
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(text)
+
+    def run_cmd(self, *args):
+        out = io.StringIO()
+        with redirect_stdout(out), redirect_stderr(io.StringIO()):
+            code = st.main(["--root", self.pkg, *args])
+        return code, out.getvalue()
+
+    def test_only_files_under_the_root_are_searched(self):
+        code, out = self.run_cmd("report")
+        self.assertEqual(code, 0)
+        self.assertIn("| Claim precedes work | test/claim.test.ts:1 |", out)
+        # A test outside the package can't tag its scenarios.
+        self.assertIn("| Unclaimed work refused | none |", out)
+        self.assertNotIn("### Problems", out)
+
+    def test_git_settings_that_change_its_output_are_undone_below_the_top(self):
+        settings = {"grep.fullName": "true", "grep.column": "true"}
+        env = {"GIT_CONFIG_COUNT": str(len(settings))}
+        for i, (key, value) in enumerate(settings.items()):
+            env[f"GIT_CONFIG_KEY_{i}"], env[f"GIT_CONFIG_VALUE_{i}"] = key, value
+        with mock.patch.dict(os.environ, env):
+            out = self.run_cmd("report")[1]
+        self.assertIn("| Claim precedes work | test/claim.test.ts:1 |", out)
+
+    def test_an_inherited_git_dir_does_not_hide_the_top_level_gitignore(self):
+        # git exports GIT_DIR, without GIT_WORK_TREE, to hooks in a linked worktree
+        # and to `git rebase -x`; git -C <root> would then take the root for the top.
+        with open(os.path.join(self.top, ".gitignore"), "w", encoding="utf-8") as f:
+            f.write("build/\n")
+        os.makedirs(os.path.join(self.pkg, "build"))
+        with open(os.path.join(self.pkg, "build/out.js"), "w", encoding="utf-8") as f:
+            f.write(f"// {AT} work-claiming: Generated\n")
+        with mock.patch.dict(os.environ, {"GIT_DIR": os.path.join(self.top, ".git")}):
+            out = self.run_cmd("report")[1]
+        self.assertNotIn("build/out.js", out)
+        self.assertIn("| Claim precedes work | test/claim.test.ts:1 |", out)
+
+    def ignored_build(self):
+        with open(os.path.join(self.top, ".gitignore"), "w", encoding="utf-8") as f:
+            f.write("build/\n")
+        os.makedirs(os.path.join(self.pkg, "build"))
+        with open(os.path.join(self.pkg, "build/out.js"), "w", encoding="utf-8") as f:
+            f.write(f"// {AT} work-claiming: Generated\n")
+
+    def test_a_relative_inherited_git_dir_is_read_from_the_root(self):
+        # git reads a relative GIT_DIR after -C, so from the root.
+        self.ignored_build()
+        with mock.patch.dict(os.environ, {"GIT_DIR": "../../.git"}):
+            out = self.run_cmd("report")[1]
+        self.assertNotIn("build/out.js", out)
+        self.assertIn("| Claim precedes work | test/claim.test.ts:1 |", out)
+
+    def test_a_git_dir_set_on_purpose_is_kept(self):
+        # A work tree whose git directory lives elsewhere, as in a dotfiles setup:
+        # git finds no repository from the root without GIT_DIR.
+        base = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, base)
+        tree, gitdir = os.path.join(base, "tree"), os.path.join(base, "store.git")
+        shutil.copytree(self.pkg, tree)
+        subprocess.run(["git", "init", "-q", "--separate-git-dir", gitdir, tree], check=True)
+        os.remove(os.path.join(tree, ".git"))
+        out = io.StringIO()
+        with mock.patch.dict(os.environ, {"GIT_DIR": gitdir, "GIT_CEILING_DIRECTORIES": base}), \
+                redirect_stdout(out), redirect_stderr(io.StringIO()):
+            code = st.main(["--root", tree, "report"])
+        self.assertEqual(code, 0, out.getvalue())
+        self.assertIn("| Claim precedes work | test/claim.test.ts:1 |", out.getvalue())
+
+    def test_saved_check_output_is_not_read_as_tags(self):
+        self.write_pkg("trace.log", self.run_cmd("check")[1])
+        self.assertEqual(self.run_cmd("check")[0], 1)
+
+    def write_pkg(self, rel, text):
+        with open(os.path.join(self.pkg, rel), "w", encoding="utf-8") as f:
+            f.write(text)
+
+    def test_baseline_and_check(self):
+        self.assertEqual(self.run_cmd("baseline")[0], 0)
+        with open(os.path.join(self.pkg, st.DEFAULT_BASELINE), encoding="utf-8") as f:
+            self.assertIn("work-claiming: Unclaimed work refused\n", f.read())
+        self.assertEqual(self.run_cmd("check")[0], 0)
+
+
+class NoGit(unittest.TestCase):
+    """The commands that read tags need git and a git work tree; state and decline do not."""
+
+    def setUp(self):
+        base = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, base)
+        self.root = os.path.join(base, "repo")
+        os.makedirs(os.path.join(self.root, "openspec/specs/work-claiming"))
+        with open(os.path.join(self.root, "openspec/specs/work-claiming/spec.md"), "w", encoding="utf-8") as f:
+            f.write(CLAIMING)
+        with open(os.path.join(self.root, "claim.test.ts"), "w", encoding="utf-8") as f:
+            f.write(f"// {AT} work-claiming: Claim precedes work\n")
+        # git must not find a repository above the scratch folder.
+        patcher = mock.patch.dict(os.environ, {"GIT_CEILING_DIRECTORIES": base})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def run_cmd(self, *args):
+        out = io.StringIO()
+        with redirect_stdout(out), redirect_stderr(io.StringIO()):
+            code = st.main(["--root", self.root, *args])
+        return code, out.getvalue()
+
+    def refused(self, says):
+        for command in (["check"], ["report"], ["report", "--include-changes"], ["baseline"],
+                        ["baseline", "--prune"]):
+            code, out = self.run_cmd(*command)
+            self.assertEqual(code, 2, f"{command}: {out}")
+            self.assertIn(says, out)
+            self.assertIn("state and decline do not", out)
+        self.assertFalse(os.path.exists(os.path.join(self.root, st.DEFAULT_BASELINE)))
+
+    def test_outside_a_git_work_tree_tag_commands_are_refused(self):
+        self.refused(f"spec-trace: {self.root} is not inside a git work tree")
+
+    def test_without_git_tag_commands_are_refused(self):
+        empty = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, empty)
+        with mock.patch.dict(os.environ, {"PATH": empty}):
+            self.refused("spec-trace: git could not be run")
+
+    def test_state_and_decline_work_without_git(self):
+        empty = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, empty)
+        with mock.patch.dict(os.environ, {"PATH": empty}):
+            self.assertEqual(self.run_cmd("state"), (0, "undecided\n"))
+            self.assertEqual(self.run_cmd("decline")[0], 0)
+            self.assertEqual(self.run_cmd("state"), (0, "declined\n"))
 
 
 class FoundByTheHunt(Repo):
@@ -269,17 +586,6 @@ class FoundByTheHunt(Repo):
         code, out = self.run_cmd("check")
         self.assertEqual(code, 1)
         self.assertIn("test/a.test.ts:1: tag '@scenario run: Ordinary' is ambiguous", out)
-
-    def test_brace_and_bracket_globs_match(self):
-        self.tag_both()
-        self.assertEqual(self.run_cmd("--tests", "test/*.{test,spec}.[jt]s", "check")[0], 0)
-
-    def test_globs_that_match_no_file_fail(self):
-        self.tag_both()
-        code, out = self.run_cmd("--tests", "nowhere/**", "baseline")
-        self.assertEqual(code, 2, out)
-        self.assertIn("no test files", out)
-        self.assertFalse(os.path.exists(os.path.join(self.root, st.DEFAULT_BASELINE)))
 
     def test_a_repository_with_no_tests_yet_can_still_adopt(self):
         code, out = self.run_cmd("baseline")
@@ -304,7 +610,6 @@ class FoundByTheHunt(Repo):
     @unittest.skipUnless(shutil.which("git"), "git not installed")
     def test_a_file_in_a_merge_conflict_is_read_once(self):
         git = ["git", "-C", self.root, "-c", "user.name=t", "-c", "user.email=t@t"]
-        subprocess.run(["git", "init", "-q", "-b", "main", self.root], check=True)
         self.write("test/a.test.ts", f"// {AT} work-claiming: Claim precedes work\n")
         subprocess.run(git + ["add", "-A"], check=True)
         subprocess.run(git + ["commit", "-qm", "a"], check=True)
@@ -359,11 +664,6 @@ class FoundByTheSecondHunt(Repo):
         self.assertIn("2 of 2 scenarios are tagged", out)
         self.assertNotIn("### Problems", out)
 
-    def test_an_unclosed_brace_in_a_glob_is_a_usage_error(self):
-        self.tag_both()
-        code, out = self.run_cmd("--tests", "test/{a", "check")
-        self.assertEqual(code, 2, out)
-
     def test_an_orphan_in_a_single_quoted_name_is_shown_without_the_rest_of_the_line(self):
         self.tag_both()
         self.write("test/c.test.ts", f"it('claims {AT} work-claiming: Claim precedes all work', async () => {{\n")
@@ -384,12 +684,6 @@ class FoundByTheThirdHunt(Repo):
         self.write("test/a.test.ts", f"// {AT} work-claiming: New\n// {AT} newcap: Fresh\n")
         code, out = self.run_cmd("check")
         self.assertEqual(code, 0, out)
-
-    def test_each_explicit_glob_must_match_a_file(self):
-        self.tag_both()
-        code, out = self.run_cmd("--tests", "test/**", "--tests", "ee2/**", "baseline")
-        self.assertEqual(code, 2, out)
-        self.assertIn("ee2/**", out)
 
     def test_a_fenced_example_in_a_delta_changes_nothing(self):
         self.tag_both()
@@ -496,7 +790,8 @@ class RepeatedNames(Repo):
         self.assertEqual(code, 1)
         self.assertIn("test/run.test.ts:1: tag '@scenario task-execution: An ordinary run is unaffected' "
                       "is ambiguous", out)
-        self.assertIn(f"{AT} task-execution: No removal is lost / An ordinary run is unaffected", out)
+        self.assertIn(f"write `{AT}` followed by one of these lines:", out)
+        self.assertIn("\n      task-execution: No removal is lost / An ordinary run is unaffected", out)
 
     def test_the_baseline_names_each_by_its_requirement(self):
         code, out = self.run_cmd("baseline")
@@ -626,16 +921,6 @@ class Prune(Repo):
         self.assertIn(f"there is no baseline file at {st.DEFAULT_BASELINE}, so there is nothing to prune", out)
         self.assertFalse(os.path.exists(os.path.join(self.root, st.DEFAULT_BASELINE)))
 
-    def test_refused_while_the_test_files_are_uncertain(self):
-        self.write("vitest.config.ts", "export default { test: { include: dirs } }\n")
-        self.write("test/claim.test.ts", f"// {AT} work-claiming: Claim precedes work\n")
-        self.write(st.DEFAULT_BASELINE, "work-claiming: Claim precedes work\n")
-        code, out = self.run_cmd("baseline", "--prune")
-        self.assertEqual(code, 2, out)
-        self.assertIn("vitest.config.ts: could not read test.include", out)
-        self.assertIn("then run baseline --prune again", out)
-        self.assertEqual(self.read(st.DEFAULT_BASELINE), "work-claiming: Claim precedes work\n")
-
     def test_a_byte_order_mark_does_not_hide_the_first_line(self):
         self.write("test/a.test.ts", f"// {AT} alpha: Bee\n")
         path = os.path.join(self.root, st.DEFAULT_BASELINE)
@@ -647,6 +932,16 @@ class Prune(Repo):
         self.assertNotIn("Zed", out)
         with open(path, encoding="utf-8-sig") as f:
             self.assertEqual(f.read(), "alpha: Zed\n")
+
+    def test_the_file_stays_with_its_header_when_no_scenario_line_is_left(self):
+        self.write("test/a.test.ts", f"// {AT} alpha: Ay\n// {AT} alpha: Zed\n")
+        self.write(st.DEFAULT_BASELINE, self.HEADER + "alpha: Ay\nalpha: Zed\nalpha: Gone\n")
+        code, out = self.run_cmd("baseline", "--prune")
+        self.assertEqual(code, 0, out)
+        self.assertIn("0 scenario line(s) remain. Keep the file: it records that this repository "
+                      "adopted spec-trace.", out)
+        self.assertEqual(self.read(st.DEFAULT_BASELINE), self.HEADER)
+        self.assertEqual(st.adoption_state(self.root), st.ADOPTED)
 
     def test_respects_the_baseline_option(self):
         self.write("test/claim.test.ts", f"// {AT} work-claiming: Claim precedes work\n")
@@ -687,345 +982,61 @@ class Report(Repo):
         self.assertNotIn("Going away", out)
         self.assertNotIn("Archived", out)
 
+    def test_include_changes_finds_tags_for_a_change_s_scenarios(self):
+        self.tag_both()
+        self.write("openspec/changes/add-x/specs/work-claiming/spec.md",
+                   "## ADDED Requirements\n### Requirement: New\n#### Scenario: Fresh\n#### Scenario: Stale\n")
+        self.write("src/fresh_test.go", f"// {AT} work-claiming: Fresh\n")
+        code, out = self.run_cmd("report", "--include-changes")
+        self.assertEqual(code, 0)
+        self.assertIn("3 of 4 scenarios are tagged by a test.", out)
+        self.assertIn("| Fresh (change: add-x) | src/fresh_test.go:1 |", out)
+        self.assertIn("| Stale (change: add-x) | none |", out)
+
+    def test_where_tags_were_found_lists_each_directory_sorted(self):
+        self.tag_both()
+        self.write("src/b/pay.go", f"// {AT} work-claiming: Claim precedes work\n")
+        self.write("src/a/x.py", f"# {AT} work-claiming: Nope\n")
+        self.write("src/a/y.py", f"# {AT} work-claiming: Gone {AT} work-claiming: Also gone\n")
+        self.write("top.js", f"// {AT} work-claiming: Claim precedes work\n")
+        self.write("src/a/untagged.py", "print('no tag here')\n")
+        out = self.run_cmd("report")[1]
+        section = out[out.index("### Where tags were found"):out.index("### Problems")]
+        self.assertEqual(section, "### Where tags were found\n\n"
+                         "| Directory | Files | Tags |\n| --- | --- | --- |\n"
+                         "| . | 1 | 1 |\n| src/a | 2 | 3 |\n| src/b | 1 | 1 |\n| test | 1 | 2 |\n\n"
+                         f"{st.RUNNER_EXCLUDES_HINT}\n\n")
+        self.assertIn("ask your agent to add it to openspec/spec-trace-ignore.txt.", section)
+
+    def test_where_tags_were_found_counts_tags_for_an_open_change(self):
+        self.tag_both()
+        self.write("openspec/changes/add-x/specs/work-claiming/spec.md",
+                   "## ADDED Requirements\n### Requirement: New\n#### Scenario: Fresh\n")
+        self.write("pending/a.test.ts", f"// {AT} work-claiming: Fresh\n")
+        for args in (["report"], ["report", "--include-changes"]):
+            out = self.run_cmd(*args)[1]
+            self.assertIn("| pending | 1 | 1 |", out, args)
+
+    def test_where_tags_were_found_skips_a_line_that_only_mentions_the_word(self):
+        self.tag_both()
+        self.write("src/notes.js", "// the @scenario tag goes above a test\n")
+        self.assertNotIn("| src |", self.run_cmd("report")[1])
+
+    def test_where_tags_were_found_with_no_tags(self):
+        out = self.run_cmd("report")[1]
+        self.assertIn("### Where tags were found\n\nNo tags were found.\n", out)
+        self.assertNotIn(st.RUNNER_EXCLUDES_HINT, out)
+
+    def test_check_and_baseline_do_not_list_directories(self):
+        self.tag_both()
+        self.assertNotIn("Where tags were found", self.run_cmd("check")[1])
+        self.assertNotIn("Where tags were found", self.run_cmd("baseline")[1])
+
     def test_problems_are_listed_after_the_tables(self):
         self.write("test/x.test.ts", f"// {AT} work-claiming: Nope\n")
         out = self.run_cmd("report")[1]
         self.assertIn("### Problems", out)
         self.assertIn("- test/x.test.ts:1: tag", out)
-
-
-class Detection(Repo):
-    """Test globs come from the repository's test runner configuration when --tests is not given."""
-
-    def files(self):
-        found = st.detect_tests(self.root)
-        self.troubles = found.troubles
-        return found.sources, st.detected_files(self.root, found)
-
-    def test_vitest_include(self):
-        self.write("vitest.config.ts", """\
-            export default defineConfig({
-              test: {
-                include: ['checks/**/*.check.ts'],  // where the tests live
-                coverage: { include: ['src/**'] },
-              },
-            })
-            """)
-        self.write("checks/a.check.ts", "")
-        self.write("test/b.test.ts", "")
-        sources, files = self.files()
-        self.assertEqual(sources, ["vitest.config.ts (test.include)"])
-        self.assertEqual(files, ["checks/a.check.ts"])
-
-    def test_vitest_default_include_and_its_exclude(self):
-        self.write("vitest.config.ts", "export default defineConfig({ test: { exclude: ['old/**'] } })\n")
-        for f in ("test/a.test.ts", "src/b.spec.mjs", "old/c.test.ts", "test/helpers.ts"):
-            self.write(f, "")
-        sources, files = self.files()
-        self.assertEqual(sources, ["vitest.config.ts (Vitest's default include)"])
-        self.assertEqual(files, ["src/b.spec.mjs", "test/a.test.ts"])
-
-    def test_a_computed_vitest_include_falls_back_to_the_defaults(self):
-        self.write("vitest.config.ts", "export default defineConfig({ test: { include: dirs.map(d => d + '/**') } })\n")
-        sources, _ = self.files()
-        self.assertEqual(sources, ["the defaults"])
-        self.assertIn("vitest.config.ts: could not read test.include", self.troubles[0])
-
-    def test_a_vite_config_without_test_settings_says_nothing(self):
-        self.write("vite.config.js", "export default { build: { outDir: 'dist' } }\n")
-        self.assertEqual(self.files()[0], ["the defaults, since no test runner configuration was found"])
-        self.assertEqual(self.troubles, [])
-
-    def test_jest_test_match_in_a_config_file(self):
-        self.write("jest.config.js", "module.exports = { testMatch: ['<rootDir>/spec/**/*.js'] }\n")
-        self.write("spec/a.js", "")
-        self.write("test/b.test.js", "")
-        sources, files = self.files()
-        self.assertEqual(sources, ["jest.config.js (testMatch)"])
-        self.assertEqual(files, ["spec/a.js"])
-
-    def test_jest_default_test_match_from_package_json(self):
-        self.write("package.json", '{"name": "x", "jest": {"verbose": true}}\n')
-        for f in ("src/__tests__/a.js", "src/b.test.tsx", "src/c.js"):
-            self.write(f, "")
-        sources, files = self.files()
-        self.assertEqual(sources, ["package.json (Jest's default testMatch)"])
-        self.assertEqual(files, ["src/__tests__/a.js", "src/b.test.tsx"])
-
-    def test_jest_test_regex(self):
-        self.write("package.json", '{"jest": {"testRegex": "/specs/.*\\\\.js$"}}\n')
-        self.write("specs/a.js", "")
-        self.write("test/b.test.js", "")
-        self.assertEqual(self.files()[1], ["specs/a.js"])
-
-    def test_jest_test_regex_string_in_a_config_file(self):
-        self.write("jest.config.js", "module.exports = {\n  'testRegex': '/specs/.*\\\\.js$',\n}\n")
-        self.write("specs/a.js", "")
-        self.write("test/b.test.js", "")
-        self.assertEqual(self.files(), (["jest.config.js (testRegex)"], ["specs/a.js"]))
-
-    def test_pytest_ini(self):
-        self.write("pytest.ini", "[pytest]\ntestpaths = checks\npython_files = check_*.py\n")
-        self.write("checks/check_a.py", "")
-        self.write("tests/test_b.py", "")
-        sources, files = self.files()
-        self.assertEqual(sources, ["pytest.ini (pytest testpaths and python_files)"])
-        self.assertEqual(files, ["checks/check_a.py"])
-
-    def test_pytest_in_pyproject_and_setup_cfg(self):
-        self.write("pyproject.toml", '[tool.pytest.ini_options]\ntestpaths = ["suite"]\n')
-        self.write("suite/test_a.py", "")
-        self.write("suite/deep/b_test.py", "")
-        self.write("other/test_c.py", "")
-        self.assertEqual(self.files()[1], ["suite/deep/b_test.py", "suite/test_a.py"])
-        os.remove(os.path.join(self.root, "pyproject.toml"))
-        self.write("setup.cfg", "[tool:pytest]\npython_files = check_*.py\n")
-        self.write("x/check_d.py", "")
-        self.assertEqual(self.files()[1], ["x/check_d.py"])
-
-    def test_go(self):
-        self.write("go.mod", "module x\n")
-        self.write("pkg/a_test.go", "")
-        self.write("pkg/a.go", "")
-        self.assertEqual(self.files(), (["go.mod (Go's *_test.go)"], ["pkg/a_test.go"]))
-
-    def test_rust(self):
-        self.write("Cargo.toml", "[package]\n")
-        self.write("src/lib.rs", "")
-        self.write("tests/it.rs", "")
-        self.write("build.rs", "")
-        self.assertEqual(self.files()[1], ["src/lib.rs", "tests/it.rs"])
-
-    def test_no_runner_configuration_falls_back_to_the_defaults(self):
-        self.tag_both()
-        code, out = self.run_cmd("check")
-        self.assertEqual(code, 0, out)
-        self.assertIn("test files from the defaults, since no test runner configuration was found", self.err)
-
-    def test_the_source_is_printed_and_tests_overrides_detection(self):
-        self.write("go.mod", "module x\n")
-        self.write("checks/claim.ts", f"// {AT} work-claiming: Claim precedes work\n// {AT} work-claiming: Unclaimed work refused\n")
-        self.assertEqual(self.run_cmd("check")[0], 1)
-        self.assertIn("test files from go.mod (Go's *_test.go)", self.err)
-        code, out = self.run_cmd("--tests", "checks/**", "check")
-        self.assertEqual(code, 0, out)
-        self.assertIn("test files from --tests", self.err)
-
-
-class Trouble(Repo):
-    """A config spec-trace cannot read with confidence is reported, and never guessed at silently."""
-
-    def trouble(self, *args):
-        code, out = self.run_cmd(*args)
-        return code, out, self.err
-
-    def test_a_regex_literal_makes_the_vitest_config_unreadable_and_pytest_still_counts(self):
-        self.write("vite.config.ts", "export default { server: { proxy: { '/api': { rewrite: (p) => "
-                   "p.replace(/^\\/api\\//, '/') } } }, test: { include: ['src/**/*.unit.ts'] } }\n")
-        self.write("pytest.ini", "[pytest]\ntestpaths = checks\n")
-        self.write("checks/test_claim.py", f"# {AT} work-claiming: Claim precedes work\n"
-                   f"# {AT} work-claiming: Unclaimed work refused\n")
-        code, out, err = self.trouble("check")
-        self.assertEqual(code, 0, out + err)
-        self.assertIn("vite.config.ts: could not read", err)
-        self.assertIn("checks/**/test_*.py", err)
-        self.assertIn("openspec/spec-trace-tests.txt", err)
-
-    def test_a_comment_with_an_apostrophe_inside_the_include_list_is_read(self):
-        self.write("vitest.config.ts", "export default {\n  test: {\n    include: [\n"
-                   "      'src/**/*.unit.ts', // don't add e2e here\n    ],\n  },\n}\n")
-        self.write("src/a.unit.ts", "")
-        self.assertEqual(Detection.files(self), (["vitest.config.ts (test.include)"], ["src/a.unit.ts"]))
-        self.assertEqual(self.troubles, [])
-
-    def test_a_shorthand_include_is_trouble(self):
-        self.write("vitest.config.ts", "const include = ['src/**']\nexport default { test: { include } }\n")
-        Detection.files(self)
-        self.assertIn("vitest.config.ts: could not read test.include", self.troubles[0])
-
-    def test_vitest_projects_are_trouble(self):
-        self.write("vitest.config.ts", "export default { test: { projects: [{ test: { include: ['a/**'] } }] } }\n")
-        Detection.files(self)
-        self.assertIn("vitest.config.ts: could not read test.projects", self.troubles[0])
-
-    def test_a_negated_jest_test_match_entry_is_trouble(self):
-        self.write("jest.config.js", "module.exports = { testMatch: ['**/src/**/*.check.js', '!**/fixtures/**'] }\n")
-        Detection.files(self)
-        self.assertIn("jest.config.js: could not read testMatch", self.troubles[0])
-
-    def test_pyproject_without_tomllib_is_trouble(self):
-        self.write("pyproject.toml", '[tool.pytest.ini_options]\npython_files = "check_*.py test_*.py"\n')
-        with mock.patch.dict(sys.modules, {"tomllib": None}):
-            Detection.files(self)
-        self.assertIn("pyproject.toml: could not read", self.troubles[0])
-
-    def test_pytest_reads_its_config_files_in_pytests_order(self):
-        self.write(".pytest.ini", "[pytest]\npython_files = dot_*.py\n")
-        self.write("pyproject.toml", '[tool.pytest.ini_options]\npython_files = ["py_*.py"]\n')
-        self.write("tox.ini", "[pytest]\npython_files = tox_*.py\n")
-        self.assertEqual(Detection.files(self)[0], [".pytest.ini (pytest testpaths and python_files)"])
-        os.remove(os.path.join(self.root, ".pytest.ini"))
-        self.assertEqual(Detection.files(self)[0], ["pyproject.toml (pytest testpaths and python_files)"])
-
-    def test_baseline_refuses_to_write_while_detection_reports_trouble(self):
-        self.write("vitest.config.ts", "export default { test: { include: dirs } }\n")
-        code, out, err = self.trouble("baseline")
-        self.assertEqual(code, 2, out + err)
-        self.assertIn("vitest.config.ts: could not read test.include", out)
-        self.assertFalse(os.path.exists(os.path.join(self.root, st.DEFAULT_BASELINE)))
-        self.tag_both()
-        self.write(st.TESTS_FILE, "test/**\n")
-        self.assertEqual(self.trouble("baseline")[0], 0)
-
-    def test_a_bad_detected_glob_does_not_crash(self):
-        self.tag_both()
-        self.write("vitest.config.ts", "export default { test: { include: ['src/**/!(*.e2e).test.ts'] } }\n")
-        code, out, err = self.trouble("check")
-        self.assertEqual(code, 0, out + err)
-        self.assertIn("vitest.config.ts: could not read test.include", err)
-
-    def test_a_name_ending_in_a_parenthesis_is_shown_whole(self):
-        self.tag_both()
-        self.write("test/r.test.ts", f"it('{AT} work-claiming: Run (fast)', () => {{}})\n")
-        self.assertIn("tag '@scenario work-claiming: Run (fast)' names no scenario", self.run_cmd("check")[1])
-
-
-class FoundByTheDetectionHunt(Repo):
-    """Regression tests: detection must never silently miss a tagged test, nor crash."""
-
-    def setUp(self):
-        super().setUp()
-        self.write("openspec/specs/work-claiming/spec.md", "### Requirement: R\n#### Scenario: Claim precedes work\n")
-
-    def baseline_must_not_exempt(self, tagged):
-        self.write(tagged, f"// {AT} work-claiming: Claim precedes work\n")
-        # Some tests call this twice. A baseline left by the first call would make the second
-        # refuse, and the test pass without checking anything.
-        if os.path.exists(os.path.join(self.root, st.DEFAULT_BASELINE)):
-            os.remove(os.path.join(self.root, st.DEFAULT_BASELINE))
-        code, out = self.run_cmd("baseline")
-        written = os.path.exists(os.path.join(self.root, st.DEFAULT_BASELINE)) and \
-            "work-claiming: Claim precedes work" in self.read(st.DEFAULT_BASELINE)
-        self.assertFalse(written, out + self.err)
-
-    def test_a_runner_config_below_the_root_is_reported(self):
-        self.write("pyproject.toml", '[tool.pytest.ini_options]\ntestpaths = ["tests"]\n')
-        self.write("web/vitest.config.ts", "export default { test: { include: ['src/**/*.test.ts'] } }\n")
-        self.baseline_must_not_exempt("web/src/a.test.ts")
-
-    def test_a_go_module_below_the_root_is_read(self):
-        self.write("svc/go.mod", "module x\n")
-        self.write("svc/a_test.go", f"// {AT} work-claiming: Claim precedes work\n")
-        self.assertEqual(self.run_cmd("check")[0], 0, self.err)
-
-    def test_one_runners_exclude_does_not_hide_another_runners_tests(self):
-        self.write("vitest.config.ts", "export default { test: { exclude: ['backend/**'] } }\n")
-        self.write("pytest.ini", "[pytest]\ntestpaths = backend/tests\n")
-        self.baseline_must_not_exempt("backend/tests/test_a.py")
-
-    def test_a_test_setting_that_is_not_an_object_literal_is_reported(self):
-        self.write("vitest.config.ts", "const test = { include: ['src/**/*.check.ts'] }\n"
-                   "export default defineConfig({ plugins: [react()], test })\n")
-        self.baseline_must_not_exempt("src/a.check.ts")
-        os.remove(os.path.join(self.root, "vitest.config.ts"))
-        self.write("vitest.config.ts", "export default { test: ci ? { include: ['a/**'] } : { include: ['src/**/*.check.ts'] } }\n")
-        self.baseline_must_not_exempt("src/a.check.ts")
-
-    def test_vitest_in_source_tests_are_reported(self):
-        self.write("vitest.config.ts", "export default { test: { includeSource: ['src/**/*.ts'] } }\n")
-        self.baseline_must_not_exempt("src/add.ts")
-
-    def test_jest_projects_are_reported(self):
-        self.write("jest.config.js", "module.exports = { projects: [{ testMatch: ['<rootDir>/src/**/*.unit.js'] }] }\n")
-        self.baseline_must_not_exempt("src/a.unit.js")
-
-    def test_a_base_directory_is_reported(self):
-        self.write("vitest.config.ts", "export default { root: 'app', test: { include: ['tests/**/*.ts'] } }\n")
-        self.baseline_must_not_exempt("app/tests/a.ts")
-
-    def test_pytest_testpaths_with_a_leading_dot(self):
-        self.write("pytest.ini", "[pytest]\ntestpaths = ./tests\n")
-        self.write("tests/test_a.py", f"# {AT} work-claiming: Claim precedes work\n")
-        self.assertEqual(self.run_cmd("check")[0], 0, self.err)
-
-    def test_pytest_toml_and_the_native_pytest_table_are_reported(self):
-        self.write("pytest.toml", '[pytest]\ntestpaths = ["checks"]\n')
-        self.write("pyproject.toml", '[tool.pytest.ini_options]\ntestpaths = ["tests"]\n')
-        self.baseline_must_not_exempt("checks/check_a.py")
-        os.remove(os.path.join(self.root, "pytest.toml"))
-        self.write("pyproject.toml", '[tool.pytest]\npython_files = ["check_*.py"]\n')
-        self.write("go.mod", "module x\n")
-        self.baseline_must_not_exempt("src/pkg/check_a.py")
-
-    def test_jest_30_default_test_match_takes_mjs(self):
-        self.write("package.json", '{"jest": {"testEnvironment": "node"}}\n')
-        self.write("src/a.test.mjs", f"// {AT} work-claiming: Claim precedes work\n")
-        self.assertEqual(self.run_cmd("check")[0], 0, self.err)
-
-    def test_broken_configs_never_crash(self):
-        cases = [
-            ("vitest.config.ts", "export default { test: { include: ['src/**/*.[t-j]s'] } }\n".encode()),
-            ("pytest.ini", b"[pytest]\npython_files = test_[z-a]*.py\n"),
-            ("setup.cfg", "[metadata]\nauthor = J\u00fcrgen\n".encode("latin-1")),
-            ("pyproject.toml", "[project]\nname = 'J\u00fcrgen'\n".encode("latin-1")),
-            ("jest.config.json", b"[]\n"),
-            (st.TESTS_FILE, "# caf\u00e9\ntest/**\n".encode("latin-1")),
-        ]
-        self.write("test/a.test.ts", f"// {AT} work-claiming: Claim precedes work\n")
-        for name, data in cases:
-            path = os.path.join(self.root, name)
-            with open(path, "wb") as f:
-                f.write(data)
-            for command in (["check"], ["report"], ["baseline"], ["baseline", "--prune"]):
-                code, out = self.run_cmd(*command)
-                self.assertIn(code, (0, 1, 2), f"{name} {command}: {out}{self.err}")
-            os.remove(path)
-            if os.path.exists(os.path.join(self.root, st.DEFAULT_BASELINE)):
-                os.remove(os.path.join(self.root, st.DEFAULT_BASELINE))
-
-
-class TestsFile(Repo):
-    """openspec/spec-trace-tests.txt sets the test globs by hand, in place of detection."""
-
-    def test_it_replaces_detection_and_tests_wins_over_it(self):
-        self.write("go.mod", "module x\n")
-        self.write("checks/claim.ts", f"// {AT} work-claiming: Claim precedes work\n// {AT} work-claiming: Unclaimed work refused\n")
-        self.write("checks/fixtures/old.ts", f"// {AT} work-claiming: Gone\n")
-        self.write(st.TESTS_FILE, "# where the tests live\nchecks/**\n!checks/fixtures/**\n")
-        code, out = self.run_cmd("check")
-        self.assertEqual(code, 0, out)
-        self.assertIn(f"test files from {st.TESTS_FILE}", self.err)
-        code, out = self.run_cmd("--tests", "test/**", "check")
-        self.assertEqual(code, 2)
-        self.assertIn("test files from --tests", self.err)
-
-    def test_a_glob_in_it_that_matches_nothing_stops_the_command(self):
-        self.tag_both()
-        self.write(st.TESTS_FILE, "test/**\nee2/**\n")
-        code, out = self.run_cmd("baseline")
-        self.assertEqual(code, 2)
-        self.assertIn("ee2/**", out)
-
-
-class Globs(unittest.TestCase):
-    def test_defaults_match_common_layouts(self):
-        patterns = [st.glob_to_regex(g) for g in st.DEFAULT_TESTS]
-        hit = lambda p: any(r.match(p) for r in patterns)  # noqa: E731
-        for path in ["test/a.ts", "pkg/tests/b.py", "src/__tests__/c.js", "x_test.go",
-                     "src/a.test.ts", "src/a.spec.js", "test_x.py", "deep/test_y.py"]:
-            self.assertTrue(hit(path), path)
-        for path in ["src/a.ts", "openspec/specs/x/spec.md", "contest/a.ts", "latest.py"]:
-            self.assertFalse(hit(path), path)
-
-    def test_extglobs(self):
-        r = st.glob_to_regex("**/?(*.)+(spec|test).[jt]s?(x)")
-        for path in ["a.test.js", "src/a.spec.tsx", "src/test.ts"]:
-            self.assertTrue(r.match(path), path)
-        for path in ["src/a.js", "src/a.test.jsxx"]:
-            self.assertFalse(r.match(path), path)
-        with self.assertRaises(ValueError):
-            st.glob_to_regex("!(a)")
-
 
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -1035,11 +1046,10 @@ CONFIG_TEXT = "schema: spec-driven\n\n# Project context (optional)\n#   context:
 
 
 class GitRepo(Repo):
-    """A Repo that is a git repository and has an openspec/config.yaml."""
+    """A Repo that has an openspec/config.yaml."""
 
     def setUp(self):
         super().setUp()
-        subprocess.run(["git", "init", "-q", self.root], check=True)
         self.write("openspec/config.yaml", CONFIG_TEXT)
 
 
@@ -1077,9 +1087,13 @@ class AdoptionState(GitRepo):
         self.write(".github/workflows/notes.txt", "spec_trace.py\n")
         self.assertEqual(self.state(), st.UNDECIDED)
 
-    def test_the_hand_set_globs_file_is_adopted(self):
-        self.write(st.TESTS_FILE, "test/**\n")
-        self.assertEqual(self.state(), st.ADOPTED)
+    def test_the_ignore_file_is_not_adoption(self):
+        self.write(st.IGNORE_FILE, "vendor/**\n")
+        self.assertEqual(self.state(), st.UNDECIDED)
+
+    def test_the_old_tests_file_is_not_read(self):
+        self.write("openspec/spec-trace-tests.txt", "test/**\n")
+        self.assertEqual(self.state(), st.UNDECIDED)
 
     def test_the_decision_file_is_declined(self):
         self.write(st.DECISION_FILE, "# why we declined\n\nadoption :  declined \n")
@@ -1187,13 +1201,6 @@ class Decline(GitRepo):
     def test_no_openspec_directory_is_refused(self):
         shutil.rmtree(os.path.join(self.root, "openspec"))
         self.assertEqual(self.run_cmd("decline")[0], 2)
-
-    def test_runs_without_reading_test_configuration(self):
-        self.write("vitest.config.ts", "export default { test: { include: [x] } }\n")
-        code, _ = self.run_cmd("decline")
-        self.assertEqual(code, 0)
-        self.assertEqual(self.err, "")
-
 
 class NestedOpenSpec(GitRepo):
     """openspec/ only below the top of the repository, as in a monorepo. The
