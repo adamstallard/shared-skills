@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "summary": "After the agent writes an OpenSpec spec, asks it to have the user adopt or decline spec-trace when the repository has done neither (Cursor: untried).",
+  "command": "scripts/scenario_hook.py",
+  "default": "enabled",
+  "events": {
+    "claude": { "event": "PostToolUse", "matcher": "^(Write|Edit|MultiEdit)$" },
+    "cursor": { "event": "postToolUse", "matcher": "Write" }
+  }
+}
