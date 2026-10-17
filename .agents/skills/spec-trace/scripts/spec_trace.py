@@ -865,18 +865,37 @@ def scan_tags(root, files, scenarios, pending=()):
     return tags
 
 
+def baseline_entry(raw):
+    """The scenario a baseline line names, as `capability: name`, or None for a blank or # line.
+
+    `check` and `baseline --prune` both read lines through this, so they agree on what each means.
+    """
+    line = norm(raw)
+    if not line or line.startswith("#"):
+        return None
+    cap, sep, name = line.partition(":")
+    return f"{cap.strip()}: {name.strip()}" if sep else line
+
+
+def baseline_lines(path):
+    """The baseline's lines, each with its line ending as written; `check` and `baseline --prune`
+    both read the file through this.
+
+    utf-8-sig: a file saved by an editor on Windows may start with a byte order mark, which
+    would otherwise stay on the first line and make it name no scenario.
+    """
+    with open(path, encoding="utf-8-sig", newline="") as f:
+        return f.readlines()
+
+
 def read_baseline(path):
     entries = {}
     if not os.path.isfile(path):
         return entries
-    with open(path, encoding="utf-8") as f:
-        for number, raw in enumerate(f, 1):
-            line = norm(raw)
-            if line and not line.startswith("#"):
-                cap, sep, name = line.partition(":")
-                if sep:
-                    line = f"{cap.strip()}: {name.strip()}"
-                entries.setdefault(line, number)
+    for number, raw in enumerate(baseline_lines(path), 1):
+        entry = baseline_entry(raw)
+        if entry is not None:
+            entries.setdefault(entry, number)
     return entries
 
 
@@ -907,6 +926,9 @@ def tag_problem(t, scenarios):
             "tag to its new name; if it was removed, delete the tag.")
 
 
+PRUNE_HINT = "Run `baseline --prune` to remove this line, and commit the result with the change."
+
+
 def check(root, files, baseline_path):
     scenarios, problems = load_scenarios(root)
     tags = scan_tags(root, files, scenarios, pending_scenarios(root))
@@ -924,11 +946,10 @@ def check(root, files, baseline_path):
     for entry, number in sorted(baseline.items(), key=lambda e: e[1]):
         if entry in covered:
             where = ", ".join(t.where for t in covered[entry])
-            problems.append(f"{rel_baseline}:{number}: '{entry}' is now tagged by {where}. "
-                            "Remove this line from the baseline.")
+            problems.append(f"{rel_baseline}:{number}: '{entry}' is now tagged by {where}. {PRUNE_HINT}")
         elif entry not in keys:
             problems.append(f"{rel_baseline}:{number}: '{entry}' names no scenario in openspec/specs. "
-                            "Remove this line from the baseline.")
+                            f"{PRUNE_HINT}")
 
     if problems:
         for p in problems:
@@ -941,31 +962,93 @@ def check(root, files, baseline_path):
     return 0
 
 
-def write_baseline(root, files, baseline_path, troubles=()):
-    if troubles:
-        # Written from globs that missed tests, the baseline would exempt scenarios those tests tag.
-        for t in troubles:
-            print(t)
-        print(f"spec-trace: not writing the baseline while the test files are uncertain. Set the "
-              f"test globs in {TESTS_FILE} or pass --tests, then run baseline again.")
-        return 2
+def uncertain(troubles, command):
+    """Print why `command` refuses while the test files are uncertain; True if it must."""
+    if not troubles:
+        return False
+    for t in troubles:
+        print(t)
+    print(f"spec-trace: not writing the baseline while the test files are uncertain. Set the "
+          f"test globs in {TESTS_FILE} or pass --tests, then run {command} again.")
+    return True
+
+
+def tagged_scenarios(root, files):
+    """The main specs' scenarios and which of them tests tag. None, after printing
+    load_scenarios' problems, when two scenarios share a name under one requirement:
+    no tag or baseline line can tell those apart."""
     scenarios, problems = load_scenarios(root)
     if problems:
         for p in problems:
             print(p)
+        return None
+    return scenarios, coverage(scenarios, scan_tags(root, files, scenarios, pending_scenarios(root)))
+
+
+def write_baseline(root, files, baseline_path, troubles=()):
+    rel = os.path.relpath(baseline_path, root)
+    if os.path.lexists(baseline_path):
+        # A rewrite would add every scenario untagged today, exempting new ones that have no test.
+        print(f"spec-trace: {rel} already exists, so baseline wrote nothing. Run `baseline --prune` "
+              "to drop its lines that are now tagged or name no scenario, or delete the file first "
+              "to write it from scratch.")
+        return 2
+    # While detection reports trouble, the fallback globs may miss real tests, and a baseline
+    # written from them would exempt the scenarios those tests tag.
+    if uncertain(troubles, "baseline"):
+        return 2
+    found = tagged_scenarios(root, files)
+    if found is None:
         return 1
-    tags = scan_tags(root, files, scenarios, pending_scenarios(root))
-    covered = coverage(scenarios, tags)
+    scenarios, covered = found
     untagged = sorted(s.key for s in scenarios if s.key not in covered)
     os.makedirs(os.path.dirname(baseline_path) or ".", exist_ok=True)
     with open(baseline_path, "w", encoding="utf-8") as f:
         f.write("# Scenarios in openspec/specs that no test tagged when spec-trace was adopted.\n"
                 "# spec-trace check fails on a line whose scenario a test now tags, or that names no\n"
-                "# scenario: delete such a line. Never add one; a new scenario gets a tagged test instead.\n")
+                "# scenario: run `baseline --prune` to remove such lines. Never add one; a new scenario\n"
+                "# gets a tagged test instead.\n")
         for key in untagged:
             f.write(key + "\n")
-    print(f"spec-trace: wrote {len(untagged)} untagged scenario(s) of {len(scenarios)} to "
-          f"{os.path.relpath(baseline_path, root)}.")
+    print(f"spec-trace: wrote {len(untagged)} untagged scenario(s) of {len(scenarios)} to {rel}.")
+    return 0
+
+
+def prune_baseline(root, files, baseline_path, troubles=()):
+    """Remove the baseline lines `check` fails on, keeping every other line as written. Never adds one."""
+    rel = os.path.relpath(baseline_path, root)
+    if not os.path.isfile(baseline_path):
+        print(f"spec-trace: there is no baseline file at {rel}, so there is nothing to prune.")
+        return 2
+    # While detection reports trouble, the fallback globs may count a file that is not a test,
+    # and a tag in it would remove the line of a scenario that no test checks.
+    if uncertain(troubles, "baseline --prune"):
+        return 2
+    found = tagged_scenarios(root, files)
+    if found is None:
+        return 1
+    scenarios, covered = found
+    keys = {s.key for s in scenarios}
+    kept, removed = [], []
+    for number, raw in enumerate(baseline_lines(baseline_path), 1):
+        entry = baseline_entry(raw)
+        if entry in covered:
+            where = ", ".join(t.where for t in covered[entry])
+            removed.append(f"{rel}:{number}: removed '{entry}': now tagged by {where}.")
+        elif entry is not None and entry not in keys:
+            removed.append(f"{rel}:{number}: removed '{entry}': names no scenario in openspec/specs.")
+        else:
+            kept.append(raw)
+    remain = sum(1 for raw in kept if baseline_entry(raw) is not None)
+    if not removed:
+        print(f"spec-trace: nothing to prune; {rel} is unchanged, with {remain} scenario line(s).")
+        return 0
+    with open(baseline_path, "w", encoding="utf-8", newline="") as f:
+        f.writelines(kept)
+    for line in removed:
+        print(line)
+    print(f"spec-trace: pruned {len(removed)} line(s) from {rel}; {remain} scenario line(s) remain. "
+          "Commit it with the change.")
     return 0
 
 
@@ -1218,7 +1301,10 @@ def main(argv=None):
                         help=f"baseline file, relative to the root (default: {DEFAULT_BASELINE})")
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("check", help="fail on an untagged scenario, a stale tag or a stale baseline line")
-    sub.add_parser("baseline", help="write every untagged scenario to the baseline file")
+    base = sub.add_parser("baseline", help="write every untagged scenario to a new baseline file")
+    base.add_argument("--prune", action="store_true",
+                      help="instead, remove the lines of the existing baseline whose scenario is now "
+                           "tagged or no longer exists; never adds a line")
     rep = sub.add_parser("report", help="print a markdown table of scenarios and the tests that tag them")
     rep.add_argument("--include-changes", action="store_true",
                      help="also list scenarios from open changes in openspec/changes/*/specs")
@@ -1276,6 +1362,8 @@ def main(argv=None):
                   "or pass --tests.", file=sys.stderr)
     if args.command == "check":
         return check(root, files, baseline)
+    if args.command == "baseline" and args.prune:
+        return prune_baseline(root, files, baseline, troubles)
     if args.command == "baseline":
         return write_baseline(root, files, baseline, troubles)
     return report(root, files, args.include_changes)

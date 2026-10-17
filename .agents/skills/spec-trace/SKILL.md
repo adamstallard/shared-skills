@@ -68,7 +68,8 @@ Run from the repository root:
 python3 $T check             # exit 1 on any problem, each named with file:line and its fix
 python3 $T report            # markdown table per capability: scenario, tests that tag it
 python3 $T report --include-changes   # the same, with open changes applied: what an implementation has left to test
-python3 $T baseline          # write every untagged scenario to the baseline file
+python3 $T baseline          # write every untagged scenario to a new baseline file; refused once one exists
+python3 $T baseline --prune  # remove the baseline lines check fails on; never adds one
 python3 $T state             # adopted, declined, undecided or unknown; n/a without openspec/
 python3 $T decline           # write openspec/spec-trace.yaml, declining it for the repository
 ```
@@ -96,7 +97,7 @@ other runners' globs, or the defaults. Examples are a computed or shorthand
 Jest `projects`, a regex literal anywhere in the file, a negated Jest
 `testMatch` entry, `pytest.toml`, `pyproject.toml` on Python before 3.11,
 and any runner configuration below the repository root. While there is such
-a warning, `baseline` refuses to write (exit 2).
+a warning, `baseline` and `baseline --prune` refuse to write (exit 2).
 
 **Setting the globs by hand.** When detection warns or picks the wrong
 files, list the globs in `openspec/spec-trace-tests.txt`, one per line, with
@@ -116,11 +117,13 @@ malformed or matches no file, every command exits 2 and writes nothing.
 | `no test tags scenario 'cap: Name'` | Add the printed tag to the test that checks it. If no test checks it, write one. Never add the scenario to the baseline. |
 | `tag ... names no scenario` | The scenario was renamed: change the tag to the new name (the message suggests the closest). It was removed: delete the tag. |
 | `tag ... is ambiguous` | Use one of the qualified tags the message lists. |
-| `baseline ... is now tagged` | Delete that line from the baseline. |
-| `baseline ... names no scenario` | Delete that line from the baseline. |
+| `baseline ... is now tagged` | Run `python3 $T baseline --prune`, and commit the pruned baseline with the change that added the tag. |
+| `baseline ... names no scenario` | Run `python3 $T baseline --prune`, and commit the pruned baseline with the change that renamed or removed the scenario. |
 
 The baseline only shrinks: lines come out as tests get tagged, and no line is
-ever added after adoption.
+ever added after adoption. `baseline --prune` only removes lines. Plain
+`baseline` refuses (exit 2) once the file exists, because writing it again
+would add every scenario untagged today.
 
 `check` confirms that a test file carries the tag. It does not run the test
 and cannot tell whether the test checks what the scenario says. The
@@ -208,8 +211,10 @@ that requires a trailer on such commits (spec-check's `Spec-check:`, for
 example), add the trailer that hook asks for.
 
 Tagging existing tests is optional at adoption. Tag one where it plainly
-checks a scenario's WHEN and THEN, then run `baseline` again so the file lists
-exactly the untagged rest.
+checks a scenario's WHEN and THEN. If you tag tests after step 1 wrote the
+baseline, run `python3 $T baseline --prune`, so
+`openspec/spec-trace-baseline.txt` lists exactly the scenarios still
+untagged.
 
 After changing the script, run its tests from the root of your
 shared-skills clone:

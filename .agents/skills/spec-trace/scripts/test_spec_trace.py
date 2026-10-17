@@ -104,14 +104,15 @@ class Check(Repo):
         code, out = self.run_cmd("check")
         self.assertEqual(code, 1)
         self.assertIn("openspec/spec-trace-baseline.txt:2: 'work-claiming: Unclaimed work refused' "
-                      "is now tagged by test/claim.test.ts:3. Remove this line", out)
+                      "is now tagged by test/claim.test.ts:3. Run `baseline --prune` to remove this line", out)
 
     def test_baseline_line_naming_no_scenario_fails(self):
         self.tag_both()
         self.write(st.DEFAULT_BASELINE, "work-claiming: Gone\n")
         code, out = self.run_cmd("check")
         self.assertEqual(code, 1)
-        self.assertIn("'work-claiming: Gone' names no scenario", out)
+        self.assertIn("'work-claiming: Gone' names no scenario in openspec/specs. "
+                      "Run `baseline --prune` to remove this line", out)
 
     def test_orphan_tag_fails_with_file_line_and_a_suggestion(self):
         self.tag_both()
@@ -544,6 +545,119 @@ class Baseline(Repo):
         self.assertTrue(os.path.isfile(os.path.join(self.root, "trace.txt")))
         self.assertEqual(self.run_cmd("--baseline", "trace.txt", "check")[0], 0)
 
+    def test_an_existing_baseline_is_refused_and_left_untouched(self):
+        self.write(st.DEFAULT_BASELINE, "# kept\nwork-claiming: Claim precedes work\n")
+        code, out = self.run_cmd("baseline")
+        self.assertEqual(code, 2, out)
+        self.assertIn(f"{st.DEFAULT_BASELINE} already exists, so baseline wrote nothing. "
+                      "Run `baseline --prune`", out)
+        self.assertIn("or delete the file first to write it from scratch", out)
+        self.assertEqual(self.read(st.DEFAULT_BASELINE), "# kept\nwork-claiming: Claim precedes work\n")
+        os.remove(os.path.join(self.root, st.DEFAULT_BASELINE))
+        self.assertEqual(self.run_cmd("baseline")[0], 0)
+        self.assertIn("work-claiming: Unclaimed work refused\n", self.read(st.DEFAULT_BASELINE))
+
+    def test_an_existing_baseline_at_another_path_is_refused(self):
+        self.write("trace.txt", "")
+        code, out = self.run_cmd("--baseline", "trace.txt", "baseline")
+        self.assertEqual(code, 2, out)
+        self.assertEqual(self.read("trace.txt"), "")
+
+
+class Prune(Repo):
+    """`baseline --prune` removes the lines `check` fails on, and never adds one."""
+
+    HEADER = "# Scenarios no test tagged at adoption.\n\n"
+
+    def setUp(self):
+        super().setUp()
+        self.write("openspec/specs/alpha/spec.md",
+                   "### Requirement: R\n#### Scenario: Zed\n#### Scenario: Ay\n#### Scenario: Bee\n")
+
+    def test_removes_a_now_tagged_line_and_one_naming_no_scenario(self):
+        self.write("test/claim.test.ts", f"// {AT} work-claiming: Claim precedes work\n")
+        self.write(st.DEFAULT_BASELINE, self.HEADER + "alpha: Zed\nwork-claiming: Claim precedes work\n"
+                   "alpha: Gone\nalpha: Ay\nalpha: Bee\nwork-claiming: Unclaimed work refused\n")
+        code, out = self.run_cmd("baseline", "--prune")
+        self.assertEqual(code, 0, out)
+        self.assertEqual(self.read(st.DEFAULT_BASELINE), self.HEADER + "alpha: Zed\nalpha: Ay\nalpha: Bee\n"
+                         "work-claiming: Unclaimed work refused\n")
+        self.assertIn(f"{st.DEFAULT_BASELINE}:4: removed 'work-claiming: Claim precedes work': "
+                      "now tagged by test/claim.test.ts:1.", out)
+        self.assertIn(f"{st.DEFAULT_BASELINE}:5: removed 'alpha: Gone': names no scenario in openspec/specs.", out)
+        self.assertIn(f"pruned 2 line(s) from {st.DEFAULT_BASELINE}; 4 scenario line(s) remain.", out)
+        self.assertEqual(self.run_cmd("check")[0], 0)
+
+    def test_never_adds_an_untagged_scenario_missing_from_the_file(self):
+        self.write("test/claim.test.ts", f"// {AT} work-claiming: Claim precedes work\n")
+        self.write(st.DEFAULT_BASELINE, "alpha: Zed\nwork-claiming: Claim precedes work\n")
+        code, out = self.run_cmd("baseline", "--prune")
+        self.assertEqual(code, 0, out)
+        self.assertEqual(self.read(st.DEFAULT_BASELINE), "alpha: Zed\n")
+        self.assertEqual(self.run_cmd("check")[0], 1)
+
+    def test_nothing_to_prune_leaves_the_file_untouched(self):
+        text = self.HEADER + "alpha: Bee\r\n  alpha :  Zed  \nalpha: Ay"
+        path = os.path.join(self.root, st.DEFAULT_BASELINE)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8", newline="") as f:
+            f.write(text)
+        before = os.stat(path).st_mtime_ns
+        code, out = self.run_cmd("baseline", "--prune")
+        self.assertEqual(code, 0, out)
+        self.assertIn(f"nothing to prune; {st.DEFAULT_BASELINE} is unchanged, with 3 scenario line(s).", out)
+        with open(path, encoding="utf-8", newline="") as f:
+            self.assertEqual(f.read(), text)
+        self.assertEqual(os.stat(path).st_mtime_ns, before)
+
+    def test_kept_lines_keep_their_text_and_line_endings(self):
+        self.write("test/a.test.ts", f"// {AT} alpha: Ay\n")
+        path = os.path.join(self.root, st.DEFAULT_BASELINE)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8", newline="") as f:
+            f.write("# h\r\nalpha: Ay\r\n  alpha :  Zed  \r\n")
+        self.assertEqual(self.run_cmd("baseline", "--prune")[0], 0)
+        with open(path, encoding="utf-8", newline="") as f:
+            self.assertEqual(f.read(), "# h\r\n  alpha :  Zed  \r\n")
+
+    def test_with_no_baseline_it_is_refused(self):
+        code, out = self.run_cmd("baseline", "--prune")
+        self.assertEqual(code, 2, out)
+        self.assertIn(f"there is no baseline file at {st.DEFAULT_BASELINE}, so there is nothing to prune", out)
+        self.assertFalse(os.path.exists(os.path.join(self.root, st.DEFAULT_BASELINE)))
+
+    def test_refused_while_the_test_files_are_uncertain(self):
+        self.write("vitest.config.ts", "export default { test: { include: dirs } }\n")
+        self.write("test/claim.test.ts", f"// {AT} work-claiming: Claim precedes work\n")
+        self.write(st.DEFAULT_BASELINE, "work-claiming: Claim precedes work\n")
+        code, out = self.run_cmd("baseline", "--prune")
+        self.assertEqual(code, 2, out)
+        self.assertIn("vitest.config.ts: could not read test.include", out)
+        self.assertIn("then run baseline --prune again", out)
+        self.assertEqual(self.read(st.DEFAULT_BASELINE), "work-claiming: Claim precedes work\n")
+
+    def test_a_byte_order_mark_does_not_hide_the_first_line(self):
+        self.write("test/a.test.ts", f"// {AT} alpha: Bee\n")
+        path = os.path.join(self.root, st.DEFAULT_BASELINE)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8-sig") as f:
+            f.write("alpha: Zed\nalpha: Bee\n")
+        code, out = self.run_cmd("baseline", "--prune")
+        self.assertEqual(code, 0, out)
+        self.assertNotIn("Zed", out)
+        with open(path, encoding="utf-8-sig") as f:
+            self.assertEqual(f.read(), "alpha: Zed\n")
+
+    def test_respects_the_baseline_option(self):
+        self.write("test/claim.test.ts", f"// {AT} work-claiming: Claim precedes work\n")
+        self.write("ci/trace.txt", "work-claiming: Claim precedes work\nalpha: Ay\n")
+        self.write(st.DEFAULT_BASELINE, "work-claiming: Claim precedes work\n")
+        code, out = self.run_cmd("--baseline", "ci/trace.txt", "baseline", "--prune")
+        self.assertEqual(code, 0, out)
+        self.assertEqual(self.read("ci/trace.txt"), "alpha: Ay\n")
+        self.assertIn("ci/trace.txt:1: removed 'work-claiming: Claim precedes work'", out)
+        self.assertEqual(self.read(st.DEFAULT_BASELINE), "work-claiming: Claim precedes work\n")
+
 
 class Report(Repo):
     def test_a_table_per_capability_with_file_and_line(self):
@@ -785,6 +899,10 @@ class FoundByTheDetectionHunt(Repo):
 
     def baseline_must_not_exempt(self, tagged):
         self.write(tagged, f"// {AT} work-claiming: Claim precedes work\n")
+        # Some tests call this twice. A baseline left by the first call would make the second
+        # refuse, and the test pass without checking anything.
+        if os.path.exists(os.path.join(self.root, st.DEFAULT_BASELINE)):
+            os.remove(os.path.join(self.root, st.DEFAULT_BASELINE))
         code, out = self.run_cmd("baseline")
         written = os.path.exists(os.path.join(self.root, st.DEFAULT_BASELINE)) and \
             "work-claiming: Claim precedes work" in self.read(st.DEFAULT_BASELINE)
@@ -858,10 +976,12 @@ class FoundByTheDetectionHunt(Repo):
             path = os.path.join(self.root, name)
             with open(path, "wb") as f:
                 f.write(data)
-            for command in ("check", "report", "baseline"):
-                code, out = self.run_cmd(command)
+            for command in (["check"], ["report"], ["baseline"], ["baseline", "--prune"]):
+                code, out = self.run_cmd(*command)
                 self.assertIn(code, (0, 1, 2), f"{name} {command}: {out}{self.err}")
             os.remove(path)
+            if os.path.exists(os.path.join(self.root, st.DEFAULT_BASELINE)):
+                os.remove(os.path.join(self.root, st.DEFAULT_BASELINE))
 
 
 class TestsFile(Repo):

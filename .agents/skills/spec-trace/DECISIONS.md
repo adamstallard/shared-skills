@@ -61,15 +61,33 @@ have to go into the archive commit.
 **Decision.** The baseline lists scenarios that no test tagged at adoption.
 `check` fails on a scenario that is untagged and absent from the baseline,
 and also on a baseline line whose scenario is now tagged or no longer exists.
+`baseline --prune` removes those lines and keeps every other line as
+written; it never adds one. Plain `baseline`
+writes the file only when there is none, and refuses (exit 2) once it
+exists.
 
 **Why.** A repository adopting this has hundreds of untagged scenarios, and
 tagging them all first would block adoption. Failing on a stale line means
 the line comes out in the same change that tags its scenario. The list can
 only get shorter, and it always lists exactly the scenarios still untagged.
+Writing the file again would add every scenario untagged today, so a new
+scenario with no test would be exempt without anyone deciding it should be.
+`--prune` reads lines with the same parser as `check`, so it removes exactly
+the lines `check` fails on. With two parsers, it could keep a line `check`
+fails on, or remove one that `check` reads as an exemption.
+`--prune` also refuses while a test runner's configuration cannot be read,
+as `baseline` does (see *A configuration that cannot be read is reported,
+and blocks the baseline*, below). The fallback globs may count a file that
+is not a test, and a tag in it would remove the line of a scenario that no
+test checks.
 
 **Rejected: a baseline that tolerates stale lines.** A tagged scenario left
 in the baseline stays exempt: if its only test is later deleted, `check`
 still passes.
+**Rejected: a `--force` flag on `baseline` to overwrite the file.** Deleting
+the file does the same, and shows up plainly in the diff.
+**Rejected: `check` removing stale lines itself.** CI runs `check`, and CI
+must not edit files.
 
 ## It checks that a tag exists, not that the test passes
 

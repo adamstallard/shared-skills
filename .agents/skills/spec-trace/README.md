@@ -84,6 +84,9 @@ To adopt by hand, from the repository root:
    added to `openspec/specs/` from then on needs a tagged test, and the
    baseline only shrinks: `check` fails on a line whose scenario is now
    tagged, so the line comes out in the same change that adds the tag.
+   `baseline --prune` removes such lines and never adds one. Running
+   `baseline` again is refused once the file exists: it would add every
+   scenario untagged today, exempting new scenarios that have no test.
 
 2. **Add the CI step** below.
 
@@ -184,9 +187,11 @@ the defaults apply: `test/`, `tests/`, `__tests__/`, `*_test.*`, `*.test.*`,
 If spec-trace cannot read a configuration with confidence, for example
 because its globs are computed in code, it warns on stderr, names the file
 and what it could not read, and says which globs it used instead. While such
-a warning stands, `baseline` refuses to write: the globs used instead may
-miss real tests, and the scenarios those tests tag would look untagged and
-be written into the baseline, exempt from then on.
+a warning stands, `baseline` and `baseline --prune` refuse to write. The
+globs used instead may miss real tests, and the scenarios those tests tag
+would look untagged and be written into the baseline, exempt from then on.
+They may also count a file that is not a test, and a tag there would make
+`--prune` remove the line of a scenario that no test checks.
 
 To set the globs yourself, list them in `openspec/spec-trace-tests.txt`, one
 per line (`!` before a glob excludes, `#` starts a comment). That file
@@ -206,7 +211,9 @@ Each problem is printed with its file and line and the fix:
   it, or write that test.
 - **A tag names no scenario.** The scenario was renamed or removed. Update or
   delete the tag; the message suggests the closest name.
-- **A baseline line is now tagged, or names no scenario.** Delete the line.
+- **A baseline line is now tagged, or names no scenario.** Run
+  `spec_trace.py baseline --prune`, and commit the pruned baseline with the
+  change that tagged the scenario or removed it.
 
 `check` requires a tag only for scenarios in `openspec/specs/`, so a pull
 request that only proposes a spec passes. A test may already tag a scenario
