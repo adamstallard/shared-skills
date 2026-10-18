@@ -625,12 +625,15 @@ a blank line, body) to `msg.txt`, unstaged, and:
    `python3 "$S/prose.py" check -F msg.txt --pass <token>`.
    If it exits 5, it printed a cold-read brief instead: follow prose's
    SKILL.md, *The cold read*, then run it again with `--cold-read <report>`
-   and, when the report has findings, `--dispositions <file>`. A finding you
-   would keep needs a person's answer first, through your picker (prose's
+   and `--dispositions <file>`. The cold reader's report holds findings,
+   each a place it stopped, and one understood line per item, saying what it
+   took the item to mean. To keep one is to leave its item as it is: for an
+   understood line, although it shows a meaning other than yours. Each one
+   you would keep needs a person's answer first, through your host's interactive picker (prose's
    SKILL.md, *The cold read*). If you cannot ask, because you run for another
    agent or under *caller commits*, don't commit: leave the change staged,
-   and put prose's refusal, which names each kept finding, in your report
-   with one open decision per finding ("keep as is · fix it"). Once signed,
+   and put prose's refusal, which names each one kept, in your bug-hunter
+   report, with one open decision per kept one ("keep as is · fix it"). Once signed,
    the trailer ends with the cold read's counts; pass it as printed.
 4. Commit once, passing the text after `Prose: ` as a family before `--`:
 
@@ -757,11 +760,11 @@ EOF
 
    With nothing open, drop `--decisions` and the heredoc. A skip passes its
    `skipped at triage (<reason>)` value and mints nothing. When prose is
-   installed and a cold-read finding would be kept, prose cannot sign until
-   a person answers it: add one decision line per kept finding, such as
-   `prose: keep «<quote>» in <file>? — 1 keep as is · 2 fix it`, and put
-   prose's refusal, with its report and dispositions paths and token, in the
-   report.
+   installed and a cold-read finding or understood line would be kept, prose
+   cannot sign until a person answers it: add one decision line per kept one,
+   such as `prose: keep «<quote>» in <file>? — 1 keep as is · 2 fix it`. Put
+   prose's refusal in the bug-hunter report, with the paths of the cold-read
+   report and the dispositions file, and prose's pass token.
 4. **End the reply with the script's output, whole and unedited.** The caller
    parses it and passes the trailer lines through unchanged:
 

@@ -36,4 +36,19 @@ For an item you read straight through, write one line instead:
 Every item gets findings or that line, never both. Don't suggest a rewrite,
 and don't report wording you read straight through.
 
+Then, after all your findings and straight-through lines, write one line
+for every item, whether it has findings or not, saying what you understood
+it to state:
+
+  Item 3, understood: The worker always retries a failed upload, by itself.
+
+That line says three things about what the item states:
+- who or what does each thing;
+- whether it always happens, or only in some case, and which;
+- whether the code (or whatever the item describes) does it, or someone else
+  could make it happen.
+
+Say what you took the item to mean, even where you read it straight through: a misreading you were sure of
+shows only here. Don't suggest a rewrite here either.
+
 Begin your report with this line, exactly as written:

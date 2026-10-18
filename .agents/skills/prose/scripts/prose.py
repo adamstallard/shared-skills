@@ -66,12 +66,16 @@ RUN_PRE_COMMIT = LIBRARY / "run-pre-commit.sh"
 KEY = "Prose"
 MARK = "\u2713"
 # Each half of the trailer, `✓ <tree>:<message>`, is this many hex digits.
-# After a cold read, the value ends with its counts, such as `; cold read: 5
-# findings, 3 fixed, 2 kept` (DECISIONS: Every cold-read finding is answered
-# before signing); cold_counts is the only form accepted.
 HALF = 12
-TRAILER = re.compile(r"✓ ([0-9a-f]{%d}):([0-9a-f]{%d})(?:; cold read: ([^;]*))?"
-                     % (HALF, HALF))
+# The trailer's value. After a cold read it ends with counts, such as `; cold
+# read: 5 findings, 3 fixed, 2 kept; understood: 4 items, 1 fixed, 0 kept`
+# (DECISIONS: Every cold-read finding is answered before signing, and The cold
+# reader says what it understood). This pattern only splits the counts out;
+# counts_valid accepts them only in the forms cold_counts and understood_counts
+# print. A value without the understood part is accepted too: commits signed
+# before cold readers wrote understood lines carry none.
+TRAILER = re.compile(r"✓ ([0-9a-f]{%d}):([0-9a-f]{%d})"
+                     r"(?:; cold read: ([^;]*)(?:; understood: ([^;]*))?)?" % (HALF, HALF))
 FOOTER_LENGTH = 6
 FOOTER = re.compile(r"^prose ✓ ([0-9a-f]{%d})$" % FOOTER_LENGTH)
 
@@ -462,7 +466,7 @@ def prose_in(root, base, read: Callable[[str], str]):
 # start of its `## ` heading. The rules section holds `### <n>. <title>`
 # subsections.
 RULE_SECTIONS = ("Scope", "The pass", "The rules", "How agents cheat")
-RULES_IN_FULL = 8
+RULES_IN_FULL = 9
 
 
 def _fenced_lines(lines):
@@ -738,9 +742,26 @@ def cold_counts(fixed, kept):
     return f"{total} finding{'' if total == 1 else 's'}, {fixed} fixed, {kept} kept"
 
 
-def counts_valid(counts):
-    """Whether a trailer value's cold-read counts, None when it has none, are
-    in the one form cold_counts prints."""
+def understood_counts(items, fixed, kept):
+    """What a commit's trailer value says of the cold reader's understood
+    lines, after `; understood: `: how many items; then, of the lines that
+    did not match what the writer meant, how many were fixed and how many
+    were kept."""
+    return f"{items} item{'' if items == 1 else 's'}, {fixed} fixed, {kept} kept"
+
+
+def counts_valid(counts, understood=None):
+    """Whether counts and understood, a trailer value's cold-read and
+    understood counts, are each None (the value has none) or in the one form
+    cold_counts or understood_counts prints. Understood counts also need at
+    least one item, and no more lines fixed and kept than items."""
+    if understood is not None:
+        found = re.fullmatch(r"([0-9]+) items?, ([0-9]+) fixed, ([0-9]+) kept", understood)
+        if not found:
+            return False
+        items, fixed, kept = (int(group) for group in found.groups())
+        if not items or fixed + kept > items or understood != understood_counts(items, fixed, kept):
+            return False
     if counts is None or counts == "no findings":
         return True
     found = re.fullmatch(r"[0-9]+ findings?, ([0-9]+) fixed, ([0-9]+) kept", counts)
@@ -756,7 +777,7 @@ def verify_staged(line, message, root):
     if not found:
         return False, f"unrecognised: {line.strip()}"
     tree_half, message_half = found.group(2), found.group(3)
-    if not counts_valid(found.group(4)):
+    if not counts_valid(found.group(4), found.group(5)):
         return False, f"unrecognised: {line.strip()}"
     tree = git(["write-tree"], root).strip()
     if message_half != message_hash(message):
@@ -807,7 +828,7 @@ def verify_commit(sha, root):
         return False, (f"mismatch: the message is stored as {encoding}, and `prose check` "
                        f"signs only UTF-8 messages")
     found = TRAILER.fullmatch(value)
-    if not found or not counts_valid(found.group(3)):
+    if not found or not counts_valid(found.group(3), found.group(4)):
         return False, f"unrecognised: {KEY}: {value}"
     tree_half, message_half = found.group(1), found.group(2)
     message = git(["log", "-1", "--format=%B", sha], root)
@@ -1845,8 +1866,11 @@ def print_cold_read(token, items, next_command, stream=None, root=None):
           "outside the commit. Fix the places it names, and restage. Then answer every finding "
           f"in {DISPOSITIONS_FILE}: its first line '{dispositions_header(token)}', then one "
           "line per finding, '<n>. fixed' once you changed the item it is in, or "
-          "'<n>. kept (asked): <why>' once a person chose to keep it. A report with no "
-          "findings needs no dispositions file. Then run:\n", file=stream)
+          "'<n>. kept (asked): <why>' once a person chose to keep it. Answer every item's "
+          "understood line there too: 'Item <n>: matches' when it says what you meant, "
+          "'Item <n>: fixed' once you changed the item so that it reads as you meant, or "
+          "'Item <n>: kept (asked): <why>' once a person chose to keep it. Then run:\n",
+          file=stream)
     print(f"  {next_command}\n", file=stream)
     print("=== cold-read brief ===", file=stream)
     print(brief, file=stream)
@@ -1856,18 +1880,25 @@ def print_cold_read(token, items, next_command, stream=None, root=None):
 # What a report and a dispositions file must look like, for their refusals.
 REPORT_FORM = ("After its first line, a report holds only findings, each 'Finding <n>, item "
                "<item>, <stopped, reread or guessed>: «<the exact words>» <what was guessed or "
-               "missing>', numbered from 1, with any more of it on indented lines below; and "
-               "'Item <item>: read straight through.' lines. Every item gets findings or that "
-               "line, never both. Ask the cold reader for its report in that form; don't "
-               "reword it yourself.")
+               "missing>', numbered from 1, with any more of it on indented lines below; "
+               "'Item <item>: read straight through.' lines; and 'Item <item>, understood: "
+               "<what the item says>' lines. Every item gets findings or the straight-through "
+               "line, never both, and exactly one understood line. Ask the cold reader for its "
+               "report in that form; don't reword it yourself.")
 DISPOSITIONS_FORM = ("After its first line, a dispositions file holds one line per finding: "
                      "'<n>. fixed', or '<n>. kept (asked): <the reason, on one line>' once a "
-                     "person chose to keep it.")
+                     "person chose to keep it; and one line per item, answering its understood "
+                     "line: 'Item <n>: matches', 'Item <n>: fixed', or 'Item <n>: kept (asked): "
+                     "<the reason, on one line>' once a person chose to keep it.")
 FINDING = re.compile(r"Finding ([0-9]+), item ([0-9]+), (stopped|reread|guessed): "
                      r"«([^«»]*)»(.*)")
 STRAIGHT = re.compile(r"Item ([0-9]+): read straight through\.?")
+UNDERSTOOD = re.compile(r"Item ([0-9]+), understood: (.*\S.*)")
 # kept without "(asked)" is read, so that its refusal can name the finding.
 DISPOSITION = re.compile(r"([0-9]+)\. (?:(fixed)|kept( \(asked\))?:(.*))")
+# The answer to an item's understood line. kept without "(asked)" is read too,
+# so that its refusal can name the line.
+UNDERSTOOD_ANSWER = re.compile(r"Item ([0-9]+): (?:(matches)|(fixed)|kept( \(asked\))?:(.*))")
 
 
 class Finding(NamedTuple):
@@ -1909,10 +1940,17 @@ def _read_text(path, what):
 KEPT = "Nothing is signed, and the token is kept."
 
 
+class ColdReport(NamedTuple):
+    """A cold reader's report: its findings, and the text of each item's
+    understood line, {item number: text}."""
+    findings: list
+    understood: dict
+
+
 def read_cold_report(path, token, count):
-    """[Finding] in the cold reader's report at path, for a brief of count
-    items. Refused unless its first non-blank line is the brief's header and
-    every other line is in the brief's form (REPORT_FORM)."""
+    """The ColdReport at path, for a brief of count items. Refused unless its
+    first non-blank line is the brief's header, every other line is in the
+    brief's form (REPORT_FORM), and every item has one understood line."""
     lines = _nonblank(_read_text(path, "cold-read report"))
     header = cold_read_header(token)
     if not lines or lines[0].strip() != header:
@@ -1921,7 +1959,7 @@ def read_cold_report(path, token, count):
     if len(lines) < 2:
         raise Refused(f"the cold-read report {path} holds only its first line, and no report. "
                       f"{KEPT}")
-    findings, straight, after_finding = [], [], False
+    findings, straight, understood, last = [], [], [], None
 
     def refuse(problem):
         raise Refused(f"the cold-read report {path} {problem}. {REPORT_FORM} {KEPT}")
@@ -1929,17 +1967,24 @@ def read_cold_report(path, token, count):
     for line in lines[1:]:
         found = FINDING.fullmatch(line.strip())
         through = STRAIGHT.fullmatch(line.strip())
+        saw = UNDERSTOOD.fullmatch(line.strip())
         if found:
             number, item, _, quote, missing = found.groups()
             findings.append(Finding(int(number), int(item), quote, missing.strip()))
+            last = "finding"
         elif through:
             straight.append(int(through.group(1)))
-        elif line[:1].isspace() and after_finding:
-            last = findings[-1]
-            findings[-1] = last._replace(missing=f"{last.missing} {line.strip()}".strip())
+            last = None
+        elif saw:
+            understood.append([int(saw.group(1)), saw.group(2).strip()])
+            last = "understood"
+        elif line[:1].isspace() and last == "finding":
+            previous = findings[-1]
+            findings[-1] = previous._replace(missing=f"{previous.missing} {line.strip()}".strip())
+        elif line[:1].isspace() and last == "understood":
+            understood[-1][1] = f"{understood[-1][1]} {line.strip()}".strip()
         else:
             refuse(f"has a line prose cannot read: {line.strip()!r}")
-        after_finding = bool(found) or (after_finding and not through)
     for index, finding in enumerate(findings, start=1):
         if finding.number != index:
             refuse(f"numbers finding {index} as {finding.number}; findings are numbered "
@@ -1959,10 +2004,20 @@ def read_cold_report(path, token, count):
                    + ("twice" if times > 1 else "and also reports findings in it"))
         if not times and not with_findings:
             refuse(f"says nothing about item {item}")
-    for item in straight:
+    for item in straight + [item for item, _ in understood]:
         if not 1 <= item <= count:
             refuse(f"names item {item}, but the brief has items 1 to {count}")
-    return findings
+    said = {}
+    for item, text in understood:
+        if item in said:
+            refuse(f"says what it understood of item {item} twice")
+        said[item] = text
+    for item in range(1, count + 1):
+        if item not in said:
+            refuse(f"does not say what it understood of item {item}: every item gets one "
+                   f"'Item {item}, understood: <what the item says>' line, whether it has "
+                   "findings or was read straight through")
+    return ColdReport(findings, said)
 
 
 class Kept(NamedTuple):
@@ -1972,16 +2027,34 @@ class Kept(NamedTuple):
     asked: bool
 
 
-def read_dispositions(path, token, findings):
-    """{finding number: None for fixed, or Kept}, one for each finding. Refused unless the file at path starts with this token's
-    dispositions header and answers every finding exactly once."""
+def read_dispositions(path, token, findings, items):
+    """({finding number: None for fixed, or Kept}, {item number: "matches",
+    "fixed" or Kept}): an answer to each finding, and to the understood line
+    of each item number in items. Refused unless the file at path starts with this token's
+    dispositions header and answers each of them exactly once."""
     lines = _nonblank(_read_text(path, "dispositions file"))
     header = dispositions_header(token)
     if not lines or lines[0].strip() != header:
         raise Refused(f"the dispositions file {path} does not start with '{header}', which "
                       f"binds it to this pass's cold read. {KEPT}")
     answers, numbers = {}, {finding.number for finding in findings}
+    understood, wanted = {}, set(items)
     for line in lines[1:]:
+        saw = UNDERSTOOD_ANSWER.fullmatch(line.strip())
+        if saw:
+            item, matches, fixed, asked, reason = (int(saw.group(1)), saw.group(2),
+                                                   saw.group(3), saw.group(4), saw.group(5))
+            if item not in wanted:
+                raise Refused(f"the dispositions file {path} answers the understood line of "
+                              f"item {item}, which the report does not have. {KEPT}")
+            if item in understood:
+                raise Refused(f"the dispositions file {path} answers the understood line of "
+                              f"item {item} twice. {KEPT}")
+            if not matches and not fixed and not reason.strip():
+                raise Refused(f"the dispositions file {path} keeps the understood line of item "
+                              f"{item} without a reason; write it after 'kept (asked):'. {KEPT}")
+            understood[item] = matches or fixed or Kept(reason.strip(), bool(asked))
+            continue
         found = DISPOSITION.fullmatch(line.strip())
         if not found:
             raise Refused(f"the dispositions file {path} has a line prose cannot read: "
@@ -2002,58 +2075,86 @@ def read_dispositions(path, token, findings):
         raise Refused(f"the dispositions file {path} does not answer finding"
                       f"{'s' if len(missing) > 1 else ''} {', '.join(map(str, missing))}; every "
                       f"finding is answered once, fixed or kept. {KEPT}")
-    return answers
+    missing = sorted(wanted - set(understood))
+    if missing:
+        raise Refused(f"the dispositions file {path} does not answer the understood line of "
+                      f"item{'s' if len(missing) > 1 else ''} {', '.join(map(str, missing))}; "
+                      "every item's understood line is answered once: 'Item <n>: matches' when "
+                      "it says what you meant, 'Item <n>: fixed' once you changed the item, or "
+                      f"'Item <n>: kept (asked): <why>'. {KEPT}")
+    return answers, understood
 
 
 def check_cold_read(token, record, report, dispositions, current):
-    """Refused unless the report answers the brief recorded for this token
-    and every finding has a disposition, with each fixed one's item changed
-    in current(path), the text as it is signed ("" for a post). A ColdResult."""
+    """Refused unless the report answers the brief recorded for this token;
+    every finding and every item's understood line has a disposition; each
+    one marked fixed is in an item that has changed since the brief; and
+    each one kept says a person was asked.
+    current(path) gives a file's text as it is signed; a post's path is "",
+    and current gives the post's text. A ColdResult."""
     brief = record.get("cold")
     if not brief:
         raise Refused(f"no cold-read brief was printed for pass token {token}, so there is no "
                       "report to check. Run the signing call without --cold-read to print one. "
                       + KEPT)
     paths, texts, spans = brief["items"], brief["texts"], brief["spans"]
-    findings = read_cold_report(report, token, len(paths))
-    if not findings:
-        if dispositions:
-            read_dispositions(dispositions, token, findings)
-        return ColdResult(0, 0)
+    findings, understood = read_cold_report(report, token, len(paths))
     if not dispositions:
-        raise Refused(f"the cold-read report has {len(findings)} finding(s), and each needs an "
-                      f"answer: pass --dispositions <file>. {DISPOSITIONS_FORM} Its first line is "
+        raise Refused(f"the cold-read report has {len(findings)} finding(s) and "
+                      f"{len(understood)} understood line(s), and each needs an answer: pass "
+                      f"--dispositions <file>. {DISPOSITIONS_FORM} Its first line is "
                       f"'{dispositions_header(token)}'. {KEPT}")
-    answers = read_dispositions(dispositions, token, findings)
+    answers, said = read_dispositions(dispositions, token, findings, understood)
     now = {}
-    for finding in findings:
-        path = paths[finding.item - 1]
-        if answers[finding.number] is not None:
-            continue
+
+    def unchanged(item):
+        path = paths[item - 1]
         if path not in now:
             now[path] = current(path)
-        if not item_changed(texts[path], now[path], spans[finding.item - 1]):
+        return not item_changed(texts[path], now[path], spans[item - 1])
+
+    for finding in findings:
+        if answers[finding.number] is None and unchanged(finding.item):
             raise Refused(f"finding {finding.number} is marked fixed, but item {finding.item}, in "
-                          f"{path or 'the post'}, has not changed since the brief was printed. "
-                          f"Fix it, or keep it with a reason. {KEPT}")
+                          f"{paths[finding.item - 1] or 'the post'}, has not changed since the "
+                          f"brief was printed. Fix it, or keep it with a reason. {KEPT}")
+    for item, answer in sorted(said.items()):
+        if answer == "fixed" and unchanged(item):
+            raise Refused(f"the understood line of item {item} is marked fixed, but item {item}, "
+                          f"in {paths[item - 1] or 'the post'}, has not changed since the brief "
+                          f"was printed. Fix it, or keep it with a reason. {KEPT}")
     kept = [finding for finding in findings if answers[finding.number] is not None]
     unasked = [finding for finding in kept if not answers[finding.number].asked]
-    if unasked:
-        raise Refused(unasked_refusal(token, unasked, paths, answers, report, dispositions))
-    return ColdResult(len(findings) - len(kept), len(kept))
+    kept_items = [item for item, answer in sorted(said.items()) if isinstance(answer, Kept)]
+    unasked_items = [item for item in kept_items if not said[item].asked]
+    if unasked or unasked_items:
+        raise Refused(unasked_refusal(token, unasked, paths, answers, report, dispositions,
+                                      [(item, understood[item], said[item])
+                                       for item in unasked_items]))
+    return ColdResult(len(findings) - len(kept), len(kept), len(said),
+                      sum(answer == "fixed" for answer in said.values()), len(kept_items))
 
 
 class ColdResult(NamedTuple):
-    """A checked cold read: how many findings were fixed and how many kept."""
+    """A checked cold read: how many findings were fixed and how many kept;
+    how many items it covered, and how many of their understood lines were
+    fixed and how many kept."""
     fixed: int
     kept: int
+    items: int
+    understood_fixed: int
+    understood_kept: int
 
 
-def unasked_refusal(token, unasked, paths, answers, report, dispositions):
-    """The refusal of findings kept without a person being asked: each one,
-    what to ask, and, for an agent that cannot ask, what to hand back
-    (DECISIONS: Every cold-read finding is answered before signing)."""
-    lines = [f"{len(unasked)} finding(s) are kept, and no person was asked about them. Nothing "
+def unasked_refusal(token, unasked, paths, answers, report, dispositions, items=()):
+    """The refusal of findings and understood lines kept without a person
+    being asked: each one, what to ask, and, for an agent that cannot ask,
+    what to hand back (DECISIONS: Every cold-read finding is answered before
+    signing). items holds (item number, understood line, Kept) for each
+    understood line kept without a person asked."""
+    kinds = [f"{count} {kind}(s)" for count, kind in ((len(unasked), "finding"),
+                                                      (len(items), "understood line")) if count]
+    lines = [f"{' and '.join(kinds)} are kept, and no person was asked about them. Nothing "
              f"is signed, and the token is kept: {token}, unspent, lasts {PASS_LIFETIME // 3600} "
              "hours from its first call.", ""]
     for finding in unasked:
@@ -2061,10 +2162,14 @@ def unasked_refusal(token, unasked, paths, answers, report, dispositions):
                   f"«{finding.quote}»",
                   f"  The cold reader: {finding.missing}",
                   f"  Kept, because: {answers[finding.number].reason}"]
-    lines += ["", "Ask a person about each, one question per finding, with two options: "
-              "\"Keep as is\" makes its line '<n>. kept (asked): <reason>'; \"Fix it\" means "
-              "rewrite the passage (and restage it, for a commit) and make its line "
-              "'<n>. fixed'. Then run the signing call again.",
+    for item, line, answer in items:
+        lines += [f"Item {item}, in {paths[item - 1] or 'the post'}, understood: {line}",
+                  f"  Kept, because: {answer.reason}"]
+    lines += ["", "Ask a person about each, one question per finding or understood line, with "
+              "two options: \"Keep as is\" makes its line '<n>. kept (asked): <reason>' (for an "
+              "understood line, 'Item <n>: kept (asked): <reason>'); \"Fix it\" means rewrite "
+              "the passage (and restage it, for a commit) and make its line '<n>. fixed' (or "
+              "'Item <n>: fixed'). Then run the signing call again.",
               "If you cannot ask (a subagent, a background job, no picker), don't sign and don't "
               "commit: leave the change staged, and put this message in your result for "
               "whoever holds it, with the report "
@@ -2593,7 +2698,10 @@ def main(argv=None):
                     result = check_cold_read(args.token, record,
                                              args.report, args.dispositions,
                                              lambda path: staged_text(path, args.repo))
-                    trailer += f"; cold read: {cold_counts(result.fixed, result.kept)}"
+                    understood = understood_counts(result.items, result.understood_fixed,
+                                                   result.understood_kept)
+                    trailer += (f"; cold read: {cold_counts(result.fixed, result.kept)}"
+                                f"; understood: {understood}")
                 elif cold:
                     record_brief(args.token, cold,
                                  {item.path: staged_text(item.path, args.repo) for item in cold},
