@@ -1377,7 +1377,7 @@ class Check(unittest.TestCase):
 
     def test_the_rules_hold_a_doc_to_what_is(self):
         out = self.check().stdout
-        self.assertIn("### 7. What is, not how it got here", out)
+        self.assertIn("### 8. What is, not how it got here", out)
         self.assertIn("A narrow role's unused", out)
         self.assertIn("Labelling the past does not make it worth keeping", out)
         self.assertIn("Keeping context a reviewer needed in a document whose reader never will", out)
@@ -1385,13 +1385,14 @@ class Check(unittest.TestCase):
     def test_the_rules_print_a_hypothetical_in_full(self):
         out = self.check().stdout
         self.assertIn("### 4. A hypothetical reads as one", out)
+        self.assertIn("### 5. Say when, and whether", out)
         self.assertIn("**Put its consequences in \"would\" or \"might\".**", out)
         self.assertIn("adding \"if\" and leaving its consequences in the plain present", out)
         self.assertIn("Answering `matches` to an understood line", out)
 
     def test_the_rules_ask_for_a_reason_instead_of_a_catchphrase(self):
         out = self.check().stdout
-        self.assertIn("### 6. Plain words, and reasons instead of catchphrases", out)
+        self.assertIn("### 7. Plain words, and reasons instead of catchphrases", out)
         self.assertIn("A claim is stated once, with its reason", out)
         self.assertIn("grep the repository for it", out)
         self.assertIn("Repeating a phrase that sounds like a reason in place of the reason.", out)

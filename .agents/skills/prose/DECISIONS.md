@@ -44,7 +44,7 @@ line — "Checked: X. Not checked: Y." — is narrowing, not hedging.
 
 ---
 
-## Rule 5: each sentence follows from the last
+## Rule 6: each sentence follows from the last
 
 **Decision (Adam, 2026-10-04).** No abrupt switch to a subject the reader
 wasn't expecting, or may not know or care about. A new subject the reader
@@ -55,13 +55,15 @@ and they slowed reading down: a README about GitHub saying in passing how
 claiming works on Linear. Each one makes the reader hesitate, reread, or ask
 the agent what it meant.
 
-**Ranked right after *Read once, understood once*,** because an abrupt
-switch fails the same way: the reader stops and goes back. It was rule 4 when
-added; *A hypothetical reads as one* now sits between the two. It is not *One
-topic per block*, which is about how text is divided; this is about whether
-one sentence leads to the next. `RULES_IN_FULL` became 7, so *Spend words
-where they save reading time*, which was rule 7 at that time, was still
-printed in full with its example.
+**Ranked right after *Read once, understood once* when added,** because an
+abrupt switch fails the same way: the reader stops and goes back. It was rule
+4 then, and is rule 6 now: *A hypothetical reads as one* and *Say when, and
+whether* sit between it and *Read once, understood once*. It is a separate
+rule from *One topic per block*, which is about how text is divided; this rule
+is about whether one sentence leads to the next. `RULES_IN_FULL`, the number
+of rules `prose check` prints in full, became 7, so *Spend words where they
+save reading time*, which was rule 7 at that time, was still printed in full
+with its example.
 
 ---
 
@@ -168,7 +170,7 @@ call per doc above is the next step.
 
 ## A claim is stated once, with its reason
 
-**Decision (Adam, 2026-10-06).** Rule 6, numbered 5 at the time, became *Plain words, and reasons
+**Decision (Adam, 2026-10-06).** Rule 7, numbered 5 at the time, became *Plain words, and reasons
 instead of catchphrases*: a claim is stated once, with its reason, and
 elsewhere linked or restated in plain terms. The pass greps the repository for
 a phrase a changed passage repeats, and a phrase that recurs with no definition
@@ -183,9 +185,9 @@ the phrase gave no reason; it restated the rule, one role per Igor, in a form
 that sounded like a reason. So the reasons were never written down, and
 Adam's question, why a role can't extend two bases, had no recorded answer.
 
-**Folded into rule 6, not a new rule.** An undefined catchphrase is shorthand,
-which rule 6 already covers. *Spend words where they save reading time* was
-then the eighth and last rule printed in full, so a ninth rule in full would
+**Folded into rule 7, not a new rule.** An undefined catchphrase is shorthand,
+which rule 7 already covers. On 2026-10-06, *Spend words where they save
+reading time* was the eighth and last rule printed in full, so a ninth rule in full would
 have pushed it out of the printout or grown `RULES_IN_FULL` again.
 
 **Where this stops applying.** A phrase that is defined once and used as a
@@ -194,15 +196,16 @@ catchphrase.
 
 ---
 
-## Three causes of a reread, added to rules 3, 5 and 9
+## Three causes of a reread, added to rules 3, 6 and 9
 
 **Decision (Adam, 2026-10-12).** Three failures become part of rules that
-already exist:
+already exist. This entry gives the rules' current numbers; at the time, rules
+6, 7, 9 and 10 were 4, 5, 8 and 9, and rules 1 to 8 were printed in full.
 - **Rule 3** names *a pointer whose one referent is far back* as a usual cause
   of a reread: "it", "there" or "these commands" with a single possible
   referent, a paragraph back. The rule had named only a pointer with two
   possible referents.
-- **Rule 5** says *a "so" points at what the reader just read*: "so",
+- **Rule 6** says *a "so" points at what the reader just read*: "so",
   "because", "which", "therefore" and "thus" claim that a sentence follows
   from the one before it.
 - **Rule 9** says *one claim per sentence*, and its sentence "a longer
@@ -214,10 +217,10 @@ already exist:
 trailer) is hard to read although the pass ran on it. Of its seven
 failures, four are ones the rules already named, missed because the author
 reviewed their own text (*A cold read before signing*, below, is the fix):
-- an idiom in place of the mechanism, "take a command off the token" (rule 6);
+- an idiom in place of the mechanism, "take a command off the token" (rule 7);
 - a missing actor, "authenticates with the token where it fetches" (rule 10);
 - an exception without the reason it is safe, "`.git/config` is still read
-  by the fetches `merge` makes" (rule 6);
+  by the fetches `merge` makes" (rule 7);
 - an opening that says what the code avoids before what it does (rule 2).
 
 The other three no rule covered:
@@ -236,11 +239,12 @@ rules in full, and the rest as one-line headings. Three new rules added after
 the 14 there were would have reached the agent as headings alone, without
 their reasons or examples, and those were what the motivating comment needed. Each failure is also a case of
 an existing rule's question: a far pointer sends the reader back (rule 3), a
-misplaced "so" breaks one sentence leading to the next (rule 5), and a
+misplaced "so" breaks one sentence leading to the next (rule 6), and a
 sentence's claims are what its words are spent on (rule 9).
 
 **Rejected.**
-- **New rules numbered within 1 to 8**, with `RULES_IN_FULL` raised to 11.
+- **New rules numbered within the 8 then printed in full**, with
+  `RULES_IN_FULL` raised to 11.
   Every rule after the insertion is renumbered, and this file, SKILL.md and
   past reviews cite rules by number.
 - **A word or clause limit per sentence.** A number reads as a target (*No
@@ -252,15 +256,17 @@ sentence's claims are what its words are spent on (rule 9).
 ## Rule 4: a hypothetical reads as one
 
 **Decision (Adam, 2026-10-18).** A new rule 4, *A hypothetical reads as one*,
-goes between *Read once, understood once* and *Each sentence follows from the
-last*. A doc or comment describes what normally happens. A case that happens
-only by accident, rarely, or by someone else's choice is marked three ways
-together: the text leads with what is always true, says the case is unusual
-and whose doing it would be, and puts its consequences in "would" or "might".
-Every later rule moved down one. `RULES_IN_FULL` became 9, so *Spend words
-where they save reading time*, now rule 9, is still printed in full. This file
-cites rules by their current numbers, and says so where a number differed at
-the time.
+goes right after *Read once, understood once*. A doc or comment describes what
+normally happens. A case that happens only by accident, rarely, or by someone
+else's choice is marked three ways together: the text leads with what is
+always true, says the case is unusual and whose doing it would be, and puts
+its consequences in "would" or "might". *Say when, and whether* moved up to
+rule 5, beside it (*Rule 5 sits beside rule 4*, below). *Each sentence follows
+from the last*, *Plain words, and reasons instead of catchphrases* and *What
+is, not how it got here* are now rules 6 to 8, and every rule after them moved
+down one. `RULES_IN_FULL` became 9, so *Spend words where they save reading
+time*, now rule 9, is still printed in full. This file cites rules by their
+current numbers, and says so where a number differed at the time.
 
 **Why.** A code comment in spec-trace (`.agents/skills/spec-trace/scripts/spec_trace.py`,
 commit `e76371f` on branch `spec-trace`) read:
@@ -278,7 +284,7 @@ case: a person saves the output in the repository, and the next run's
 three cold reads. Rounds 1 and 2 stopped on the comment. The fix after round 2
 wrote that round's reader's guess into the comment as its first sentence,
 stated as fact, and round 3 read it straight through. Two gaps let it through:
-- **Rule 8, *Say when, and whether*, found no condition to label.** It asks
+- ***Say when, and whether* found no condition to label.** It asks
   for actual and conditional to be labelled. Here the condition hid in the
   subject, "a log … saved in the repository", which stands for "if someone
   saved a log", and the verb, "is searched", stayed in the plain present. The
@@ -287,12 +293,13 @@ stated as fact, and round 3 read it straight through. Two gaps let it through:
   meaning has none to report (*The cold reader says what it understood*,
   below).
 
-**A new rule, not a paragraph in rule 8.** Rule 8 is about labels, and a label
-was not enough. Adam rejected the rewrite "If someone saves this output…, the
-next run's search reads that file": it still reads like a step in the normal
-workflow. The fix changes what the text leads with and the mood of its verbs,
-which a label does not. A paragraph inside rule 8 would also sit behind the
-label that misses the case, where a writer who sees no condition never looks.
+**A new rule, not a paragraph in *Say when, and whether*.** That rule is about
+labels, and a label was not enough. Adam rejected the rewrite "If someone
+saves this output…, the next run's search reads that file": it still reads
+like a step in the normal workflow. The fix changes what the text leads with
+and the mood of its verbs, which a label does not. A paragraph inside that
+rule would also go unread: a writer turns to that rule on seeing a condition
+to label, and this writer saw none.
 
 **Why "if" alone is not enough.** "If" marks one clause as conditional. When
 the case is still the topic, and its consequences are in the plain present,
@@ -309,9 +316,20 @@ about a reader who goes back, and this reader never does. A misreading also
 costs more than a reread, so the rule ranks just after rule 3 and is printed
 in full, with its example. The citations in this repository were renumbered
 in the same change. A review or comment elsewhere that cites rule 4 or later
-by its old number now names the rule before the one it meant: an old "rule
-5" meant *Plain words*, and rule 5 is now *Each sentence follows from the
-last*.
+by its old number now names a different rule: an old "rule 5" meant *Plain
+words*, which is now rule 7, and rule 5 is now *Say when, and whether*.
+
+**Rule 5 sits beside rule 4.** Inserting rule 4 alone would have left *Say
+when, and whether* at rule 8, with three rules between it and rule 4. Rules 4 and 5 are both about the status of a claim: whether it
+is past, present or future, and whether it is actual or conditional. Both
+guard against the harm that ranks rule 4 so high: a reader who leaves
+misinformed without ever stopping. A plan written in the present tense
+misleads as silently as a hypothetical written as fact. With three rules
+between them, someone applying one would read past the other. `RULES_IN_FULL`
+stays 9, so both are printed in full. The goals at the top of rules.md name
+the harm both rules prevent, *Read as meant*, as a goal of its own: its cost
+is a wrong belief, not reading time, so it fits under none of the other three:
+*Read once*, *Understood without help* and *Not verbose*.
 
 **Rejected.**
 - **A mechanical lint for passives without an agent,** such as "is searched"
@@ -340,7 +358,7 @@ catchphrases and line-number references, skimmed comment blocks printed
 without their code, and judged each by its own test ("does it give a reason or
 record a measurement?") under its own reader goals instead of the table's. It
 changed 5 comments and reported the file in good shape. Among those it left was
-this one, which fails rule 3 (read once) and rule 6 (shorthand coined during
+this one, which fails rule 3 (read once) and rule 7 (shorthand coined during
 the work):
 
 ```
