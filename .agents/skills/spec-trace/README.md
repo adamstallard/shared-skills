@@ -97,6 +97,12 @@ To adopt by hand, from the repository root:
    the file once every scenario is tagged: it records that the repository
    adopted spec-trace.
 
+   A repository that adopts OpenSpec at the same time has no
+   `openspec/specs/` until its first change is archived. Its baseline then
+   holds only its comment lines and lists no scenario; commit it all the
+   same. `check` requires no tag until that archive, and from then on each
+   archived scenario needs a tagged test.
+
 2. **Add the CI step** below.
 
 3. **Tell agents and contributors.** One line in AGENTS.md or CLAUDE.md: tests

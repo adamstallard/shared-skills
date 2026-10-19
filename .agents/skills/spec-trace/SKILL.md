@@ -4,7 +4,7 @@ description: >-
   Link tests to OpenSpec scenarios: each test names the scenario it checks
   with an `@scenario <capability>: <Scenario name>` tag, and a checker fails
   CI on a scenario no test tags or a tag that names no scenario. Use when
-  writing or changing a test in a repository that has openspec/specs/, when
+  writing or changing a test in a repository that has openspec/, when
   archiving an OpenSpec change, when a spec-trace CI step fails, when
   editing a test runner's configuration to exclude test files in a
   repository that has adopted spec-trace, or when the user asks to "trace
@@ -190,7 +190,9 @@ says `undecided`. On `unknown` it says why, on stderr:
 
 1. From the repository root, run `python3 $T baseline`. It writes
    `openspec/spec-trace-baseline.txt` listing every scenario no test tags
-   yet.
+   yet. A repository that adopts OpenSpec at the same time has no
+   `openspec/specs/` until its first change is archived, so its baseline
+   holds only its comment lines, and `check` requires no tag until then.
 2. Add the CI step from this skill's [README](README.md#ci). It fetches
    `spec_trace.py` pinned to a full commit SHA of shared-skills.
 3. Add one line to the repository's AGENTS.md or CLAUDE.md, in its own voice,
