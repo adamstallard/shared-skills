@@ -1,16 +1,20 @@
 #!/usr/bin/env python3
 """Link tests to OpenSpec scenarios: each test names the scenario it checks with a tag.
 
-A tag is `@scenario <capability>: <Scenario name>`, in a test file. Tags are
-found with one `git grep` over every file under the root whose path
-.gitignore doesn't match, tracked or not, except DEFAULT_EXCLUDES and the
-patterns in IGNORE_FILE.
-`check` fails on a scenario in openspec/specs that no test tags and the
-baseline does not list, on a tag that names no scenario, and on a baseline
-line that is now tagged or names no scenario. It checks that a tag exists,
-not that its test runs or passes. Standard library only; needs git.
+A tag is `@scenario <capability>: <Scenario name>`, written in a test. `check` fails on:
+- a scenario in openspec/specs that no tag names and the baseline file does not list;
+- a tag that names no capability or no scenario, or names a repeated scenario name
+  without its requirement;
+- a baseline line whose scenario is now tagged, or no longer exists;
+- two scenarios with the same name under one requirement, which no tag could tell apart.
+It checks that a tag exists, not that its test runs or passes.
 
-Why it is built this way, and what was tried and rejected: ../DECISIONS.md.
+Tags are found with one `git grep` over every file under the root that .gitignore doesn't
+match, tracked or not, except DEFAULT_EXCLUDES and the patterns in IGNORE_FILE. A tag
+counts in any file the search reaches, not only in a test.
+
+Standard library only. check, report and baseline need git; state and decline do not.
+Why it is built this way, and what was rejected: ../DECISIONS.md.
 """
 
 import argparse
@@ -22,26 +26,26 @@ import subprocess
 import sys
 
 DEFAULT_BASELINE = "openspec/spec-trace-baseline.txt"
-# Places where a tag never belongs to a test: documentation, and OpenSpec's own files. Git
-# glob pathspecs, relative to the root, passed to git grep as excludes.
+# Paths never searched for tags: documentation, whose tag-shaped examples are not tests,
+# and OpenSpec's own files. Git glob pathspecs relative to the root, which grep_command
+# passes to git grep as excludes.
 DEFAULT_EXCLUDES = ("**/*.md", "**/*.mdx", "**/*.rst", "**/*.adoc", "**/*.txt", "openspec/**")
-# More paths to leave out, one git glob pattern per line, relative to the
-# root; # comments and blank lines are skipped. Optional.
+# Optional. More paths to leave out of the search: one git glob pattern per line,
+# relative to the root. Blank lines and lines starting with # are skipped.
 IGNORE_FILE = "openspec/spec-trace-ignore.txt"
-# The longest IGNORE_FILE read, in characters. ignore_patterns reads one more, and
-# stops the command if it gets it.
+# The longest IGNORE_FILE accepted, in characters. ignore_patterns reads one character
+# more; when it gets that character, the command refuses and exits 2.
 IGNORE_FILE_LIMIT = 65536
 
-# What a repository has decided about spec-trace (adoption_state).
-# UNKNOWN: the decision file holds something other than DECLINED_TEXT, or
-# cannot be read (unknown_reason says which; adoption_state lists every case).
+# What a repository has decided about spec-trace, as adoption_state returns it. Its
+# docstring says what puts a repository in each state.
 ADOPTED, DECLINED, UNDECIDED, UNKNOWN = "adopted", "declined", "undecided", "unknown"
-# spec-trace's own decision file, which `decline` writes. OpenSpec's config.yaml
-# is left alone, so declining works whether or not that file exists.
+# spec-trace's own decision file, which `decline` writes. spec-trace never edits
+# OpenSpec's config.yaml, so declining works in a repository that has none.
 DECISION_FILE = "openspec/spec-trace.yaml"
 DECLINED_TEXT = "adoption: declined"
-# Characters adoption_state reads from DECISION_FILE at most; a longer file
-# is UNKNOWN.
+# The longest DECISION_FILE accepted, in characters; adoption_state treats a longer
+# one as UNKNOWN.
 DECISION_FILE_LIMIT = 4096
 WORKFLOWS = ".github/workflows"
 
@@ -49,24 +53,28 @@ REQUIREMENT = re.compile(r"^###\s+Requirement:\s*(.+?)\s*$")
 SCENARIO = re.compile(r"^####\s+Scenario:\s*(.+?)\s*$")
 FENCE = re.compile(r"^\s*(`{3,}|~{3,})(.*)$")
 TAG = re.compile(r"@scenario\s+([A-Za-z0-9][A-Za-z0-9_.-]*)\s*:")
-# A tag ends at the end of its line, or where one of these follows the name:
-# a closing quote, a comment closer, punctuation that ends an argument, or the
-# `{` that opens a test's body.
-# A period ends it too when it ends a sentence, so "Foo." is Foo but "Foo.bar" is not.
+# Where a tag's scenario name may end: at the end of the line, or before a closing quote,
+# a comment closer (`*/` or `-->`), a `)`, `,` or `;`, or the `{` that opens a test's body.
+# A period ends it only when a space, a quote, `)`, a comment closer or the line's end
+# follows: a tag reading "Foo." names Foo, and one reading "Foo.bar" names Foo.bar.
 TAG_END = re.compile(r"\s*(?:$|[\"'`),;{]|\*/|-->|\.(?:\s|$|[\"'`)]|\*/|-->))")
-# A quote escaped inside a quoted test name is part of the name, never its end.
+# A backslash-escaped quote inside a quoted test name is part of the name, never its end.
+# longest() replaces each one with NOT_AN_END, a private-use character TAG_END never
+# matches, to find where a name may end.
 ESCAPED_QUOTES = ("\\'", '\\"')
 NOT_AN_END = "\uE000"
-# The separator between a requirement and a scenario, for a scenario whose
-# name repeats within its capability.
+# Joins a requirement and a scenario name in a qualified tag, `<Requirement> / <Scenario>`.
+# A scenario whose name repeats within its capability can be tagged only this way.
 QUALIFIER = " / "
 
 
 def fence_after(line, fence):
-    """The open fence after this line, and whether this line opens or closes one.
+    """Track Markdown code fences: the fence open after this line, and whether this line
+    opens or closes one. The spec parsers skip fenced lines, so a scenario heading inside
+    an example is not a scenario.
 
-    A fence closes only on a line of its own character, at least as long, and nothing else,
-    so a ``` line inside a ~~~ example is part of the example: neither opens nor closes.
+    A fence closes only on a line of the same character, at least as long, with nothing
+    after it. Any other fence line inside it, such as ``` in a ~~~ example, is content.
     """
     m = FENCE.match(line)
     if not m:
@@ -91,7 +99,7 @@ class Scenario:
         self.path = path
         self.line = line
         self.change = change
-        self.ident = name  # qualified by assign_idents when the name repeats
+        self.ident = name  # the name a tag uses; assign_idents qualifies a repeated one
 
     @property
     def key(self):
@@ -99,7 +107,11 @@ class Scenario:
 
 
 def parse_spec(path, rel, capability, change=None):
-    """Scenarios in one spec file. A change's delta skips its REMOVED section."""
+    """The scenarios in one spec file, each with the requirement heading above it.
+
+    Fenced lines are skipped. In a change's delta spec (change given), a REMOVED section's
+    scenarios are left out.
+    """
     scenarios = []
     requirement = ""
     fence = None
@@ -129,7 +141,8 @@ RENAME = re.compile(r"^\s*-\s*(FROM|TO):\s*`?\s*###\s+Requirement:\s*(.+?)\s*`?\
 
 
 def parse_delta(path):
-    """A change's delta: requirements it removes, renames (old to new), and adds or modifies."""
+    """The requirement names a change's delta spec removes, renames (a dict, old name to
+    new) and restates (adds or modifies)."""
     removed, renamed, restated = set(), {}, set()
     section = ""
     old = None
@@ -159,14 +172,21 @@ def parse_delta(path):
 
 
 def apply_delta(scenarios, changed, removed, renamed, restated, capability, change):
-    """The scenarios as they will be once the change is archived."""
+    """The scenarios as they will be once the change is archived.
+
+    Only scenarios in the given capability change. A removed requirement's scenarios are
+    dropped, a renamed one's take its new name, and a restated one's are replaced by the
+    change's own scenarios, which the caller passes as changed.
+    """
     kept = []
     for s in scenarios:
         if s.capability == capability:
             if s.requirement in removed:
                 continue
             if s.requirement in renamed:
-                # Under its new name the scenario exists only in the change, until the archive.
+                # The new name exists only in the change until it is archived, so the
+                # scenario now belongs to the change. scan_tags neither counts a tag naming it
+                # as coverage nor reports that tag as an error.
                 s.requirement, s.change = renamed[s.requirement], change
             if s.requirement in restated:
                 continue
@@ -175,9 +195,11 @@ def apply_delta(scenarios, changed, removed, renamed, restated, capability, chan
 
 
 def assign_idents(scenarios):
-    """Qualify a name that repeats within a capability with its requirement.
+    """Set ident to `<requirement> / <name>` for each scenario whose name repeats within
+    its capability.
 
-    Returns the problems: scenarios that even the requirement cannot tell apart.
+    Returns a message for each scenario that still shares an ident with an earlier one:
+    the same name under the same requirement, which no tag can tell apart.
     """
     by_name = {}
     for s in scenarios:
@@ -226,17 +248,20 @@ def load_scenarios(root, include_changes=False):
 
 
 class Refusal(Exception):
-    """A command that reads tags cannot search the repository; args[0] says why."""
+    """git cannot search the repository for tags. args[0] is the reason; main prints it
+    and exits 2."""
 
 
 def git_env(root):
-    """The environment for the git commands that search root, or None to inherit this one.
+    """The environment for the git commands that search root: this process's environment
+    without GIT_DIR, or None to inherit this process's environment unchanged.
 
-    Git exports GIT_DIR, without GIT_WORK_TREE, to hooks in a linked worktree and
-    to `git rebase -x`. git -C root then takes root for the top of the work tree,
-    so a .gitignore above root is not read. When git finds that same repository
-    from root on its own, GIT_DIR is dropped; otherwise it is kept, because a
-    separate git directory or a dotfiles setup depends on it.
+    Git exports GIT_DIR, without GIT_WORK_TREE, to hooks in a linked worktree and to
+    `git rebase -x`. With it, `git -C root` takes root for the top of the work tree, and
+    does not read a .gitignore above root, so files that .gitignore ignores would be
+    searched for tags. GIT_DIR is dropped only when git, run from
+    root without it, finds the same git directory. Otherwise it is kept: a separate git
+    directory or a dotfiles setup needs it.
     """
     git_dir = os.environ.get("GIT_DIR")
     if not git_dir or "GIT_WORK_TREE" in os.environ:
@@ -247,7 +272,7 @@ def git_env(root):
                                capture_output=True, encoding="utf-8", errors="replace", env=env)
     except OSError:
         return None
-    # git reads a relative GIT_DIR after -C, so it is relative to root.
+    # git applies -C before it reads GIT_DIR, so a relative GIT_DIR is relative to root.
     same = (found.returncode == 0 and os.path.realpath(found.stdout.rstrip("\n"))
             == os.path.realpath(os.path.join(root, git_dir)))
     return env if same else None
@@ -269,12 +294,16 @@ def require_work_tree(root, env=None):
 
 
 def ignore_patterns(root):
-    """The patterns in IGNORE_FILE, or [] when there is none. Refusal when it cannot be read."""
+    """The patterns in IGNORE_FILE, without blank and # lines; [] when there is no file.
+
+    Raises Refusal when the file is not a regular file, cannot be read, or is longer than
+    IGNORE_FILE_LIMIT.
+    """
     path = os.path.join(root, IGNORE_FILE)
     if not os.path.lexists(path):
         return []
-    # utf-8-sig: a file saved on Windows may start with a byte order mark,
-    # which would otherwise stay on the first pattern.
+    # utf-8-sig drops a byte order mark, which some Windows editors write. Left in, it
+    # would become part of the first pattern.
     text = read_regular_file(path, IGNORE_FILE_LIMIT, encoding="utf-8-sig")
     if text is None:
         raise Refusal(f"{IGNORE_FILE} cannot be read: it is not a regular file, or reading it failed.")
@@ -285,16 +314,19 @@ def ignore_patterns(root):
 
 
 def grep_command(root, patterns):
-    """The git grep that finds every line holding a tag under root.
+    """The git grep command that prints every line under root holding `@scenario`.
 
-    --untracked adds files git would track: not yet added, and not ignored.
-    -I skips binary files. The --no- options undo settings in the user's git
-    config that would change the output's shape: paths relative to the top
-    (grep.fullName), a column number (grep.column) or colour codes.
-    --no-recurse-submodules undoes submodule.recurse, which git refuses
-    alongside --untracked. --no-literal-pathspecs undoes GIT_LITERAL_PATHSPECS,
-    which would read the excludes as plain paths, so none would apply. -F reads
-    the pattern as text, whatever grep.patternType says.
+    --untracked also searches files not yet added, unless .gitignore matches them. -I
+    skips binary files. -n and -z give the line numbers and NUL separators that tag_lines
+    parses. Don't remove the options below: each one overrides a setting that a user's
+    git config or environment may hold.
+    - --no-full-name, --no-column, --no-color: grep.fullName (paths from the top of the
+      repository), grep.column and colour settings would change the output tag_lines
+      parses.
+    - --no-recurse-submodules: with submodule.recurse set, git refuses --untracked.
+    - --no-literal-pathspecs: GIT_LITERAL_PATHSPECS would read each exclude as a plain
+      path, so none would apply.
+    - -F: reads `@scenario` as plain text, whatever grep.patternType says.
     """
     excludes = [f":(exclude,glob){p}" for p in (*DEFAULT_EXCLUDES, *patterns)]
     return ["git", "--no-literal-pathspecs", "-C", root, "grep", "--untracked",
@@ -303,23 +335,27 @@ def grep_command(root, patterns):
 
 
 def tag_lines(root):
-    """Each line under root holding `@scenario`, as (path relative to root, line number, text),
-    sorted. Refusal when git cannot search root."""
+    """Every line under root holding `@scenario`, as sorted (path relative to root, line
+    number, text) tuples.
+
+    Raises Refusal when git cannot run, root is not in a git work tree, IGNORE_FILE cannot
+    be used, or git grep fails.
+    """
     env = git_env(root)
     require_work_tree(root, env)
     patterns = ignore_patterns(root)
     try:
         result = subprocess.run(grep_command(root, patterns), capture_output=True, env=env)
-    except (OSError, ValueError) as e:  # ValueError: a NUL in a pattern
+    except (OSError, ValueError) as e:  # ValueError: a pattern in IGNORE_FILE holds a NUL
         raise Refusal(f"git grep could not be run ({e}).")
     if result.returncode == 1:
-        return []  # no line matched
+        return []  # git grep exits 1 when no line matches
     if result.returncode != 0:
         said = result.stderr.decode("utf-8", "replace").strip()
         hint = f" Check the patterns in {IGNORE_FILE}." if patterns else ""
         raise Refusal(f"git grep failed: {said or f'exit {result.returncode}'}.{hint}")
-    # With -z each match is `path NUL number NUL text LF`. A path may hold a
-    # newline, so it ends only at its NUL; the text ends at the newline.
+    # With -z, git grep prints each match as `path NUL number NUL text LF`. A path can hold
+    # a newline, so it ends only at its NUL; the text ends at the newline.
     out, found, i = result.stdout, [], 0
     while i < len(out):
         path_end = out.index(b"\0", i)
@@ -334,7 +370,7 @@ def tag_lines(root):
 
 class Tag:
     def __init__(self, path, line, capability, text, scenario=None, problem=None, choices=()):
-        self.choices = choices  # for an ambiguous tag, the qualified tags it may mean
+        self.choices = choices  # for an ambiguous tag: the qualified keys it could mean
         self.path = path
         self.line = line
         self.capability = capability
@@ -348,11 +384,14 @@ class Tag:
 
 
 def unescape(text, quote_to):
-    """text with each escaped quote replaced by one character.
+    """text with each backslash-escaped quote replaced by one character: quote_to, or the
+    quote itself when quote_to is None.
 
-    longest() makes two copies of a tag's text this way: one with the real quotes, and one
-    with a placeholder that never ends a tag. One character per escape keeps both copies the
-    same length, so a name's length indexes the same place in each.
+    longest() makes two copies of a tag's text: one with each escape turned back into a
+    plain quote, to compare with the names, and one with NOT_AN_END in place of each
+    escape, to find where a name may end. Each escape becomes one
+    character in both, so the copies stay the same length, and a name's length points at
+    the same place in each.
     """
     for escaped in ESCAPED_QUOTES:
         text = text.replace(escaped, quote_to or escaped[1])
@@ -360,17 +399,23 @@ def unescape(text, quote_to):
 
 
 def shown(rest):
-    """The tag's text as written, for a message, when it names no scenario."""
-    # Each escaped quote becomes its own placeholder, so neither is taken for a closing quote.
+    """The text of a tag that names no scenario or no capability, cut where the tag most
+    likely ends, for its error message.
+
+    With no name to match, where the tag ends is a guess from quotes, comment closers and
+    trailing punctuation.
+    """
+    # Hide each kind of escaped quote behind its own placeholder, so the cuts below never
+    # take it for a closing quote. The last step puts the quotes back.
     held = {"\\'": "\uE001", '\\"': "\uE002"}
     for escaped, mark in held.items():
         rest = rest.replace(escaped, mark)
     for stop in ("*/", "-->"):
         if stop in rest:
             rest = rest[:rest.index(stop)]
-    # For " and for a backtick: when the rest of the line holds an odd number of that quote,
-    # the tag sits inside a quoted test name, and the first one closes the name. Quotes in
-    # pairs are a comment's own text.
+    # When the rest of the line holds an odd number of " or of backticks, the tag sits inside
+    # a test name quoted with that character, and its first occurrence closes the name. An even
+    # number is taken as quotes in a comment's own text.
     for quote in ('"', "`"):
         if rest.count(quote) % 2:
             rest = rest[:rest.index(quote)]
@@ -386,10 +431,16 @@ def shown(rest):
 
 
 def longest(rest, names):
-    """The longest of names that the tag's text starts with, followed by a tag end."""
+    """The longest of names that the tag's text starts with and that a TAG_END follows,
+    or None.
+
+    Every name is tried, and the longest match wins. A tag for "Claim precedes work, always"
+    also starts with "Claim precedes work" and a comma, which is a tag end, so the shorter
+    name matches too.
+    """
     rest = norm(rest)
-    text = unescape(rest, None)  # what the name says
-    ends = unescape(rest, NOT_AN_END)  # where it may end: an escaped quote never ends it
+    text = unescape(rest, None)  # compared with the names
+    ends = unescape(rest, NOT_AN_END)  # searched for a tag end; an escaped quote is never one
     best = None
     for name in names:
         if text.startswith(name) and TAG_END.match(ends, len(name)):
@@ -399,7 +450,8 @@ def longest(rest, names):
 
 
 def resolve(capability, rest, index):
-    """The scenario a tag names: the longest identity its text starts with, then a tag end."""
+    """(ident, scenario) for the scenario in index that a tag names, chosen by longest(),
+    or None."""
     idents = index.get(capability, {})
     ident = longest(rest, idents)
     return (ident, idents[ident]) if ident is not None else None
@@ -410,18 +462,24 @@ def name_index(scenarios):
     for s in scenarios:
         caps = index.setdefault(s.capability, {})
         caps[s.ident] = s
-        # A qualified name may always be written; a bare one only when it is unique.
+        # The qualified name always resolves. The bare name is in the index only when it
+        # is unique, because ident is the qualified name otherwise.
         caps.setdefault(f"{s.requirement}{QUALIFIER}{s.name}", s)
     return index
 
 
 def pending_scenarios(root):
-    """Scenarios that open changes add or restate: a tag may name one before the archive."""
+    """The scenarios that open changes add, restate, or move to a renamed requirement.
+
+    A tag may name one of them before its change is archived; scan_tags neither counts
+    nor rejects such a tag.
+    """
     return [s for s in load_scenarios(root, include_changes=True)[0] if s.change]
 
 
 def repeats(scenarios):
-    """Each scenario name that repeats within its capability, with its scenarios."""
+    """{(capability, name): scenarios} for each name that repeats within its capability.
+    scan_tags reports a bare tag for one of these names as ambiguous."""
     out = {}
     for s in scenarios:
         if s.ident != s.name:
@@ -430,11 +488,13 @@ def repeats(scenarios):
 
 
 def scan_tags(lines, scenarios, pending=()):
-    """The tags in lines, which are (path, line number, text) as tag_lines gives them.
+    """The tags in lines, the (path, line number, text) tuples tag_lines returns.
 
-    Each tag either names a scenario or carries a problem: it names no
-    capability, no scenario, or a name that is ambiguous. pending holds the
-    scenarios open changes add; a tag naming one of them is left out.
+    Each Tag names a main scenario or carries a problem: "capability" (no such
+    capability), "orphan" (no such scenario) or "ambiguous" (a repeated name without its
+    requirement). A tag naming a scenario in pending (one that an open change adds,
+    restates or moves to a renamed requirement) gets no Tag: it is neither counted nor an
+    error.
     """
     index, waiting = name_index(scenarios), name_index(pending)
     repeated, repeated_waiting = repeats(scenarios), repeats(pending)
@@ -444,13 +504,13 @@ def scan_tags(lines, scenarios, pending=()):
         for i, m in enumerate(starts):
             end = starts[i + 1].start() if i + 1 < len(starts) else len(line)
             capability, rest = m.group(1), line[m.end():end]
-            # Every reading of the tag, ranked for ties:
+            # Every reading of the tag, with its rank:
             #   3, a main scenario: the tag counts for it;
             #   2, a name repeated in the main specs: ambiguous;
-            #   1, a scenario an open change adds: accepted, neither counted nor an error;
+            #   1, a scenario an open change adds: neither counted nor an error;
             #   0, a name repeated in an open change: ambiguous.
-            # The longest match wins, so a tag is never counted for a shorter name its text
-            # also starts with; on a tie the higher rank wins, so the main specs come first.
+            # The longest matched name wins, so a tag never counts for a shorter name its
+            # text also starts with. On a tie the higher rank wins: the main specs first.
             readings = []
             found = resolve(capability, rest, index)
             if found:
@@ -466,7 +526,7 @@ def scan_tags(lines, scenarios, pending=()):
                 _, rank, (text, what) = max(readings, key=lambda r: r[:2])
                 if rank == 3:
                     tags.append(Tag(rel, number, capability, text, scenario=what))
-                elif rank != 1:  # a scenario an open change adds is neither covered nor an error
+                elif rank != 1:  # rank 1, a scenario an open change adds, gets no Tag
                     tags.append(Tag(rel, number, capability, text, problem="ambiguous",
                                     choices=[s.key for s in what]))
                 continue
@@ -479,9 +539,11 @@ def scan_tags(lines, scenarios, pending=()):
 
 
 def baseline_entry(raw):
-    """The scenario a baseline line names, as `capability: name`, or None for a blank or # line.
+    """The scenario a baseline line names, as `capability: name` with its spacing
+    normalised, or None for a blank or # line.
 
-    `check` and `baseline --prune` both read lines through this, so they agree on what each means.
+    `check` and `baseline --prune` both read lines through this, so they agree on what each
+    line names.
     """
     line = norm(raw)
     if not line or line.startswith("#"):
@@ -491,11 +553,11 @@ def baseline_entry(raw):
 
 
 def baseline_lines(path):
-    """The baseline's lines, each with its line ending as written; `check` and `baseline --prune`
-    both read the file through this.
+    """The baseline file's lines, each with its line ending as written, so `baseline --prune`
+    writes back the lines it keeps unchanged. `check` reads the file through this too.
 
-    utf-8-sig: a file saved by an editor on Windows may start with a byte order mark, which
-    would otherwise stay on the first line and make it name no scenario.
+    utf-8-sig drops a byte order mark, which some Windows editors write. Left in, it would
+    make the first line name no scenario, and `--prune` would delete that line.
     """
     with open(path, encoding="utf-8-sig", newline="") as f:
         return f.readlines()
@@ -520,16 +582,18 @@ def coverage(scenarios, tags):
     return covered
 
 
-# Ends the message for a tag that names no scenario or no capability: the tag may be
-# text in a file that is not a test.
+# Ends the message for a tag that names no scenario or no capability. The search reads
+# files that are not tests, and tag-shaped text in one, such as an example in an HTML
+# doc or a docstring, fails this way.
 NOT_A_TEST = f"If the file is not a test, add a pattern for its path to {IGNORE_FILE}."
 
 
 def tag_problem(t, scenarios):
     if t.problem == "ambiguous":
-        # A log of this output saved in the repository is searched by the next run. The
-        # choice lines never read as a tag, so they never count for a scenario; the echo
-        # of the bad tag does read as one, but it is ambiguous again.
+        # The choice lines leave out `@scenario` so that no line of this message could make a
+        # scenario count as tested. spec-trace never saves its output, but if a person saved
+        # it to a file in the repository, the next run would search that file. There, the
+        # echo of the bad tag would fail as ambiguous again, and count for no scenario.
         lines = "\n".join(f"      {key}" for key in t.choices)
         return (f"{t.where}: tag '@scenario {t.capability}: {t.text}' is ambiguous: that scenario name "
                 f"appears under more than one requirement. Name the requirement too: write `@scenario` "
@@ -585,9 +649,11 @@ def check(root, lines, baseline_path):
 
 
 def tagged_scenarios(root, lines):
-    """The main specs' scenarios and which of them tests tag. None, after printing
-    load_scenarios' problems, when two scenarios share a name under one requirement:
-    no tag or baseline line can tell those apart."""
+    """The main specs' scenarios, and coverage(): the tags naming each one.
+
+    Returns None, after printing load_scenarios' problems, when two scenarios share a name
+    under one requirement: no tag or baseline line could tell them apart.
+    """
     scenarios, problems = load_scenarios(root)
     if problems:
         for p in problems:
@@ -599,7 +665,8 @@ def tagged_scenarios(root, lines):
 def write_baseline(root, lines, baseline_path):
     rel = os.path.relpath(baseline_path, root)
     if os.path.lexists(baseline_path):
-        # A rewrite would add every scenario untagged today, exempting new ones that have no test.
+        # Never rewrite a baseline. A rewrite would list every scenario untagged today, so it
+        # would exempt each scenario added since adoption that has no test.
         print(f"spec-trace: {rel} already exists, so baseline wrote nothing. Run `baseline --prune` "
               "to drop its lines that are now tagged or name no scenario, or delete the file first "
               "to write it from scratch.")
@@ -623,7 +690,9 @@ def write_baseline(root, lines, baseline_path):
 
 
 def prune_baseline(root, lines, baseline_path):
-    """Remove the baseline lines `check` fails on, keeping every other line as written. Never adds one."""
+    """Remove the baseline lines `check` fails on: those whose scenario is now tagged, and
+    those that name no scenario. Every other line, comments included, stays as written.
+    Never adds a line."""
     rel = os.path.relpath(baseline_path, root)
     if not os.path.isfile(baseline_path):
         print(f"spec-trace: there is no baseline file at {rel}, so there is nothing to prune.")
@@ -667,10 +736,11 @@ RUNNER_EXCLUDES_HINT = ("If any of these directories holds tests your test runne
 
 
 def where_found(lines):
-    """Print each directory holding a tag, with its count of files and tags, sorted by path.
+    """Print a table of each directory holding a tag, with how many files and tags it
+    holds, sorted by path.
 
-    A tag counts wherever the search finds it, even in a file the test runner
-    excludes. This list is how a person spots such a directory.
+    A tag counts wherever the search finds it, even in a file the test runner never runs.
+    This table is how a person spots such a directory, to add it to IGNORE_FILE.
     """
     found = {}
     for rel, _, line in lines:
@@ -716,7 +786,8 @@ def report(root, lines, include_changes):
 
 
 def git_top(root):
-    """The top of the git repository holding root, or None outside one."""
+    """The top of the git work tree holding root; None outside one, or when git cannot run
+    or takes over 5 seconds."""
     try:
         top = subprocess.run(["git", "-C", root, "rev-parse", "--show-toplevel"],
                              capture_output=True, text=True, timeout=5)
@@ -726,21 +797,25 @@ def git_top(root):
     return (top.stdout.rstrip("\n") or None) if top.returncode == 0 else None
 
 
-# spec_trace.py by name: test_spec_trace.py, the checker's own tests, does not count.
+# A mention of spec_trace.py itself. test_spec_trace.py, the checker's own tests, does not
+# match, so a workflow that only runs those tests is not adoption.
 RUNS_CHECKER = re.compile(r"(?<![\w.-])spec_trace\.py")
 
 
-# Characters runs_checker_in_ci reads from one workflow file at most. A mention
-# of spec_trace.py past it is not seen; real workflows are a few kilobytes.
+# The most characters runs_checker_in_ci searches in one workflow file. A mention of
+# spec_trace.py past it is missed; real workflows are a few kilobytes.
 WORKFLOW_LIMIT = 1_000_000
 
 
 def read_regular_file(path, limit, encoding="utf-8"):
-    """Up to limit + 1 characters of path, or None when it is not a regular file
-    (a link to one counts) or cannot be read. Only a regular file is opened,
-    because a repository can commit a link to a FIFO, whose open blocks, or to
-    a device such as /dev/zero, which never ends. limit bounds what a large
-    regular file costs."""
+    """Up to limit + 1 characters of path, so a caller can tell when the file is longer
+    than limit; None when path is not a regular file (a link to one counts) or cannot be
+    read.
+
+    Only a regular file is opened, because a repository can commit a link to a FIFO, and
+    opening a FIFO blocks until something writes to it. limit bounds what a large regular
+    file costs.
+    """
     if not os.path.isfile(path):
         return None
     try:
@@ -778,18 +853,20 @@ def says_declined(text):
 
 
 def adoption_state(root, baseline=DEFAULT_BASELINE):
-    """ADOPTED, DECLINED, UNDECIDED or UNKNOWN for the repository at root, or
-    None when root has no openspec/ directory: spec-trace does not apply there.
+    """What the repository at root has decided about spec-trace: ADOPTED, DECLINED,
+    UNDECIDED or UNKNOWN. None when root has no openspec/ directory: spec-trace does not
+    apply there.
 
-    ADOPTED: the baseline file, or a GitHub workflow in root/.github/workflows
-    that runs spec_trace.py. The baseline stays once every scenario is tagged,
-    as the record of adoption; the workflow counts too because --baseline can
-    move the file where the hook, which passes no --baseline, does not look.
-    IGNORE_FILE is not a sign of adoption. Adoption wins over a decision file
-    left behind.
-    DECLINED: DECISION_FILE says DECLINED_TEXT. UNKNOWN: DECISION_FILE exists
-    but says anything else, is longer than DECISION_FILE_LIMIT, is not a
-    regular file, or cannot be read; neither the hook nor `decline` acts on it.
+    - ADOPTED: root has the baseline file, or a workflow in root/.github/workflows that
+      runs spec_trace.py. The baseline file stays after its last scenario is tagged, as
+      the record of adoption. The workflow counts because --baseline can put the file
+      where the agent hook (hook_message), which calls this with the default path, does
+      not look. IGNORE_FILE
+      alone is not adoption. Adoption wins over any DECISION_FILE.
+    - DECLINED: DECISION_FILE holds DECLINED_TEXT.
+    - UNKNOWN: DECISION_FILE holds anything else, is longer than DECISION_FILE_LIMIT, is
+      not a regular file, or cannot be read. The hook stays silent, and `decline` refuses.
+    - UNDECIDED: none of these.
     """
     if not os.path.isdir(os.path.join(root, "openspec")):
         return None
@@ -798,17 +875,18 @@ def adoption_state(root, baseline=DEFAULT_BASELINE):
     path = os.path.join(root, DECISION_FILE)
     if not os.path.lexists(path):
         return UNDECIDED
-    # utf-8-sig: a file written by hand on Windows may start with a byte order mark.
+    # utf-8-sig drops a byte order mark, which some Windows editors write.
     text = read_regular_file(path, DECISION_FILE_LIMIT, encoding="utf-8-sig")
-    # The file holds one line. Past the limit, a cut-off read could drop a line
-    # that makes it unknown, so a longer file is unknown.
+    # A file longer than the limit is UNKNOWN. A cut-off read might miss a second line,
+    # and a second line makes the file UNKNOWN.
     if text is None or len(text) > DECISION_FILE_LIMIT:
         return UNKNOWN
     return DECLINED if says_declined(text) else UNKNOWN
 
 
 def unknown_reason(root):
-    """Why adoption_state said UNKNOWN for root, as a sentence without its full stop."""
+    """Why adoption_state returned UNKNOWN for root: a sentence without its full stop, for
+    the caller to finish."""
     path = os.path.join(root, DECISION_FILE)
     try:
         if not os.path.isfile(path):
@@ -821,7 +899,12 @@ def unknown_reason(root):
 
 
 def decline(root, baseline, dry_run):
-    """Write DECISION_FILE, holding DECLINED_TEXT."""
+    """Write DECISION_FILE, holding DECLINED_TEXT, in an UNDECIDED repository, and return
+    the exit code.
+
+    Changes nothing, and says why, when the repository has no openspec/ (exit 2), is
+    ADOPTED or UNKNOWN (exit 1), or is already DECLINED (exit 0), or with dry_run.
+    """
     state = adoption_state(root, baseline)
     if state is None:
         print(f"spec-trace: {root} has no openspec/ directory, so there is nothing to decline.")
@@ -848,9 +931,9 @@ def decline(root, baseline, dry_run):
     return 0
 
 
-# A spec under openspec/specs/ or in an open change, relative to the top of the
-# repository. An archived change (openspec/changes/archive/<name>/specs/) has
-# one more level, so it never matches.
+# A spec under openspec/specs/ or in an open change, as a path relative to the top of the
+# repository. An archived change's spec, under openspec/changes/archive/<name>/specs/, has
+# one more folder before specs/, so it never matches.
 SPEC_PATH = re.compile(r"openspec/(?:specs|changes/[^/]+/specs)/(?:[^/]+/)+spec\.md")
 
 
@@ -865,13 +948,14 @@ def same_folder(a, b):
 def hook_message(payload):
     """What the hook tells the agent after it writes a file, or None for silence.
 
-    payload is the hook's input: Claude Code's PostToolUse (tool_input
-    file_path), Cursor's postToolUse (tool_input file_path or path) or Cursor's
-    afterFileEdit (file_path). The message goes out only when the file is an
-    OpenSpec spec in a git repository that has neither adopted nor declined
-    spec-trace. The repository is its git top level: a spec must sit in the
-    top's own openspec/, and an openspec/ folder below the top (a test fixture,
-    a project in a monorepo) is never asked about.
+    There is a message only when the file is an OpenSpec spec in the openspec/ folder at
+    the top of a git repository, and that repository is UNDECIDED. An openspec/ folder
+    below the top, such as a test fixture or a project in a monorepo, is never asked about.
+
+    payload is the hook's input. Claude Code's PostToolUse puts the path in tool_input's
+    file_path. Cursor's docs don't say where postToolUse puts it, so tool_input's path is
+    read too. A top-level file_path, the shape of Cursor's afterFileEdit, is read as well:
+    the skill's hook.json does not wire that event, but a person might by hand.
     """
     if not isinstance(payload, dict):
         return None
@@ -889,24 +973,24 @@ def hook_message(payload):
             return None
         path = os.path.join(cwd, path)
     path = os.path.normpath(path)
-    # The path stays as written, and each folder above an openspec/ in it is
-    # compared with git's top by identity, not spelling. git prints the top
-    # resolved (on macOS /var is a link to /private/var); resolving the written
-    # path would also follow an openspec/ link into the folder it points at,
-    # whose path no longer ends in openspec/.
+    # Keep the path as written. Each folder in it that holds an openspec/, a candidate
+    # root, is compared with git's top by identity (same_folder), not by spelling. git prints the top with links
+    # resolved: on macOS, /var is a link to /private/var. Resolving the written path instead
+    # would also follow an openspec/ that is a link, and the result would no longer end in
+    # openspec/.
     written = path.replace(os.sep, "/")
     candidates = [written[:i] or "/" for i in range(len(written))
                   if written.startswith("/openspec/", i)
                   and SPEC_PATH.fullmatch(written[i + 1:])]
     if not candidates:
         return None
-    # git runs from the spec's folder, or the nearest one that exists, without
-    # resolving links first, so it follows an openspec/ link. When openspec/
-    # links outside the repository, git finds no top, or another repository's,
-    # and the hook says nothing. That is deliberate: a spec-trace.yaml written
-    # through that link would land outside this repository and not be committed
-    # in it, so it would not stop this repository's agents asking. Running git
-    # from a folder above openspec/ instead would make the hook ask there.
+    # Run git from the spec's folder, or the nearest folder above it that exists, without
+    # resolving links, so git follows an openspec/ that is a link. If that link points
+    # outside the repository, git finds no top or another repository's, and the hook stays
+    # silent on purpose. In that case `decline` would write spec-trace.yaml through the link,
+    # outside this repository, so the decision could not be committed here and agents
+    # would keep asking. Don't run git from the folder above openspec/ instead: it would
+    # find this repository, and the hook would ask a question no answer can settle.
     folder = os.path.dirname(path)
     while not os.path.isdir(folder) and os.path.dirname(folder) != folder:
         folder = os.path.dirname(folder)
