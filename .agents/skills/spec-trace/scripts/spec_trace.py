@@ -861,8 +861,7 @@ def adoption_state(root, baseline=DEFAULT_BASELINE):
       runs spec_trace.py. The baseline file stays after its last scenario is tagged, as
       the record of adoption. The workflow counts because --baseline can put the file
       where the agent hook (hook_message), which calls this with the default path, does
-      not look. IGNORE_FILE
-      alone is not adoption. Adoption wins over any DECISION_FILE.
+      not look. IGNORE_FILE alone is not adoption. Adoption wins over any DECISION_FILE.
     - DECLINED: DECISION_FILE holds DECLINED_TEXT.
     - UNKNOWN: DECISION_FILE holds anything else, is longer than DECISION_FILE_LIMIT, is
       not a regular file, or cannot be read. The hook stays silent, and `decline` refuses.
