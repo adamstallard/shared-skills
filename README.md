@@ -74,6 +74,10 @@ column is what the agent reads; you don't need to.
 
 ## Creating a new skill
 
+A new skill starts as an OpenSpec change under `openspec/changes/`. Its
+specification is approved in a pull request before the skill is built; the
+first rule in [AGENTS.md](AGENTS.md) gives the steps.
+
 ```
 .agents/skills/<skill-name>/
 ├── SKILL.md        # required — instructions for the agent

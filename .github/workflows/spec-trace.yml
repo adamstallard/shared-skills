@@ -1,0 +1,18 @@
+name: spec-trace
+on: [push, pull_request]
+jobs:
+  spec-trace:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Every scenario in openspec/specs is tagged by a test
+        env:
+          # A full 40-character commit SHA of adamstallard/shared-skills, never a
+          # branch or a short SHA. With a branch, a later change to the checker
+          # could pass or fail this repository's CI with no change here. The pin
+          # holds in shared-skills too, so a change to the checker is not judged
+          # by its own new copy.
+          SPEC_TRACE_SHA: 6b92f20ea17610f29bf4719a6472e941f73df213
+        run: |
+          curl -fsSL "https://raw.githubusercontent.com/adamstallard/shared-skills/$SPEC_TRACE_SHA/.agents/skills/spec-trace/scripts/spec_trace.py" -o "$RUNNER_TEMP/spec_trace.py"
+          python3 "$RUNNER_TEMP/spec_trace.py" check

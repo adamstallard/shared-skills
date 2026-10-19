@@ -1,0 +1,28 @@
+schema: spec-driven
+
+# Project context (optional)
+# This is shown to AI when creating artifacts.
+# Add your tech stack, conventions, style guides, domain knowledge, etc.
+# Example:
+#   context: |
+#     Tech stack: TypeScript, React, Node.js
+#     We use conventional commits
+#     Domain: e-commerce platform
+
+# Per-artifact rules (optional)
+# Add custom rules for specific artifacts.
+# Example:
+#   rules:
+#     proposal:
+#       - Keep proposals under 500 words
+#       - Always include a "Non-goals" section
+#     tasks:
+#       - Break tasks into chunks of max 2 hours
+
+# The rules in force. OpenSpec shows each list to the agent drafting that
+# artifact: `openspec instructions proposal`, `openspec instructions tasks`.
+rules:
+  proposal:
+    - "Open with the decisions the reviewer is asked to make; then what is still open; then everything else. Where a decision turned down a real alternative, say what it was and why; do not invent one for a decision that had none."
+  tasks:
+    - "End with a task to fold the change's lasting reasoning into the DECISIONS.md of each skill it affects, when the change is archived, as AGENTS.md says."
