@@ -102,9 +102,9 @@ Run the mechanical checks again after amending.
 
 A proposal opens with the decisions the reviewer is asked to make; then what
 is still open; then everything else. Where a decision turned down a real
-alternative, say what it was and why. Do not invent one where there was
-none. Not every decision has one, and a weak one only adds to the reader's
-work.
+alternative, say what it was and why. Do not make up a rejected alternative
+for a decision that had none. A made-up alternative only adds to the
+reader's work.
 
 ```markdown
 ## Decisions
@@ -173,7 +173,7 @@ Then:
    ```yaml
    rules:
      proposal:
-       - "Open with the decisions the reviewer is asked to make; then what is still open; then everything else. Where a decision turned down a real alternative, say what it was and why; do not invent one to fill a slot."
+       - "Open with the decisions the reviewer is asked to make; then what is still open; then everything else. Where a decision turned down a real alternative, say what it was and why. Do not make up a rejected alternative for a decision that had none."
    ```
 4. **If the user turned the rule off,** look at OpenSpec's config. Only if
    the rule is there, tell the user, and ask whether to remove it.
