@@ -34,7 +34,7 @@ VERIFY_STAGED = HERE / "verify-staged.sh"
 LIBRARY = HERE.parent.parent.parent / "lib" / "commit-trailer"
 COMMIT_SCRIPT = LIBRARY / "commit-with-trailers.sh"
 BUG_HUNTER_MINT = HERE.parent.parent / "bug-hunter" / "scripts" / "mint-trailer.sh"
-TRAILER = r"^Prose: ✓ [0-9a-f]{12}:[0-9a-f]{12}(; cold read: [^;]+)?$"
+TRAILER = r"^Prose: ✓ [0-9a-f]{12}:[0-9a-f]{12}(; cold read: [^;]+; understood: [^;]+)?$"
 BUG_HUNTER_HOOK = HERE.parent.parent / "bug-hunter" / "scripts" / "check-commit-trailer.sh"
 GATE = HERE / "require-first-call.sh"
 
@@ -76,33 +76,62 @@ def pass_token(output):
 REPORTS = pathlib.Path(tempfile.mkdtemp())
 
 
-def cold_report(token, body="Item 1: read straight through.\n", name=""):
+def understood_lines(count):
+    """One understood line, as a report holds it, for each item from 1 to count."""
+    return "".join(f"Item {n}, understood: The code does this, always.\n"
+                   for n in range(1, count + 1))
+
+
+def cold_report(token, body="Item 1: read straight through.\n", name="", understood=1):
     """A cold reader's report for this token, as a file outside any test
-    repository; its path."""
+    repository; its path. Its last lines are understood lines for the first
+    `understood` items, none when that is 0."""
     # Named by the token's hash: a test may pass a token shaped like a path.
     path = REPORTS / ((name or hashlib.sha256(token.encode("utf-8")).hexdigest()) + ".txt")
-    path.write_text(f"cold-read {token}\n\n{body}", encoding="utf-8")
+    path.write_text(f"cold-read {token}\n\n{body}{understood_lines(understood)}",
+                    encoding="utf-8")
     return str(path)
 
 
+def matching(token, count=1, *lines, name=""):
+    """A dispositions file for this token: lines, then 'Item <n>: matches' for
+    each item from 1 to count; its path."""
+    path = REPORTS / ((name or hashlib.sha256(token.encode("utf-8")).hexdigest())
+                      + "-dispositions.txt")
+    path.write_text("\n".join([f"dispositions {token}", *lines]
+                              + [f"Item {n}: matches" for n in range(1, count + 1)]) + "\n",
+                    encoding="utf-8")
+    return str(path)
+
+
+def cold_flags(token, count=1):
+    """The signing call's flags for a report that reads each item from 1 to
+    count straight through, and dispositions that find each understood line a
+    match."""
+    return ["--cold-read", cold_report(token, "".join(
+        f"Item {n}: read straight through.\n" for n in range(1, count + 1)), understood=count),
+        "--dispositions", matching(token, count)]
+
+
 def straight_report(output):
-    """A report for the brief in output that reads every item straight
-    through; its path."""
+    """The signing call's flags for the brief in output: a report that reads
+    every item straight through, and dispositions answering each understood
+    line with a match."""
     token = re.search(r"^  cold-read ([0-9a-f]{16})$", output, re.M).group(1)
     count = len(re.findall(r"^\d+\. (?:A code comment|A doc passage|The post below)", output,
                            re.M))
-    return cold_report(token, "".join(f"Item {n}: read straight through.\n"
-                                      for n in range(1, count + 1)))
+    return cold_flags(token, count)
 
 
 def cold_read(call):
-    """call(*cold) runs a signing call, with cold where the report's flags go.
-    Runs it without them; when that prints a brief, answers it with every item
-    read straight through and runs it again. The last call's result."""
+    """Runs call() with no flags. When that prints a brief, runs call again,
+    passing it the flags for a report that reads every item straight through
+    and dispositions that find every understood line a match. The last
+    call's result."""
     first = call()
     if first.returncode != prose.COLD_READ_NEEDED:
         return first
-    return call("--cold-read", straight_report(first.stdout + first.stderr))
+    return call(*straight_report(first.stdout + first.stderr))
 
 
 def run(args, cwd=None, stdin=None, env=None):
@@ -200,7 +229,7 @@ class RulesFile(unittest.TestCase):
 
     GOOD = ("# Title\n\nPrinciple.\n\n## Scope\n\nS.\n\n## The pass\n\nP.\n\n"
             "## The rules, most important first\n\n"
-            + "".join(f"### {n}. Rule {n}\nBody {n}.\n\n" for n in range(1, 9))
+            + "".join(f"### {n}. Rule {n}\nBody {n}.\n\n" for n in range(1, 10))
             + "## How agents cheat on this pass\n\n- One.\n")
 
     def read(self, text):
@@ -225,7 +254,7 @@ class RulesFile(unittest.TestCase):
     def test_a_good_file_splits_into_its_parts(self):
         preamble, heading, rules, cheats = self.read(self.GOOD)
         self.assertEqual(heading, "## The rules, most important first")
-        self.assertEqual([(n, t) for n, t, _ in rules], [(n, f"Rule {n}") for n in range(1, 9)])
+        self.assertEqual([(n, t) for n, t, _ in rules], [(n, f"Rule {n}") for n in range(1, 10)])
         self.assertEqual(rules[0][2], "### 1. Rule 1\nBody 1.")
 
     def test_a_missing_or_misordered_section_is_refused(self):
@@ -500,7 +529,7 @@ class SignatureThroughGit(unittest.TestCase):
         tree = self.repo.git("write-tree").strip()
         # The staged doc was read cold, with nothing found.
         self.assertEqual(trailer, f"Prose: \u2713 {tree[:12]}:{prose.message_hash(message)}"
-                                  "; cold read: no findings")
+                                  "; cold read: no findings; understood: 1 item, 0 fixed, 0 kept")
         self.repo.commit(message, trailer)
         result = self.repo.verify()
         self.assertEqual((result.returncode, result.stdout), (0, "checked\n"))
@@ -1027,8 +1056,8 @@ class Check(unittest.TestCase):
             self.assertIn(f"\n### {number}. ", out)
         self.assertIn("Before: The hook reports commits landed without trailers skipped.", out)
         self.assertIn("a sentence lengthened to read once beats a shorter one read twice", out)
-        self.assertIn("  [ ] 9. Say who acts", out)
-        self.assertIn("  [ ] 13. Commit subject says what changed; the body says why", out)
+        self.assertIn("  [ ] 10. Say who acts", out)
+        self.assertIn("  [ ] 14. Commit subject says what changed; the body says why", out)
         self.assertNotIn(f"### {prose.RULES_IN_FULL + 1}.", out)
 
     def listing(self, out):
@@ -1348,14 +1377,22 @@ class Check(unittest.TestCase):
 
     def test_the_rules_hold_a_doc_to_what_is(self):
         out = self.check().stdout
-        self.assertIn("### 6. What is, not how it got here", out)
+        self.assertIn("### 8. What is, not how it got here", out)
         self.assertIn("A narrow role's unused", out)
         self.assertIn("Labelling the past does not make it worth keeping", out)
         self.assertIn("Keeping context a reviewer needed in a document whose reader never will", out)
 
+    def test_the_rules_print_a_hypothetical_in_full(self):
+        out = self.check().stdout
+        self.assertIn("### 4. A hypothetical reads as one", out)
+        self.assertIn("### 5. Say when, and whether", out)
+        self.assertIn("**Put its consequences in \"would\" or \"might\".**", out)
+        self.assertIn("adding \"if\" and leaving its consequences in the plain present", out)
+        self.assertIn("Answering `matches` to an understood line", out)
+
     def test_the_rules_ask_for_a_reason_instead_of_a_catchphrase(self):
         out = self.check().stdout
-        self.assertIn("### 5. Plain words, and reasons instead of catchphrases", out)
+        self.assertIn("### 7. Plain words, and reasons instead of catchphrases", out)
         self.assertIn("A claim is stated once, with its reason", out)
         self.assertIn("grep the repository for it", out)
         self.assertIn("Repeating a phrase that sounds like a reason in place of the reason.", out)
@@ -2554,8 +2591,8 @@ class PreCommitHook(unittest.TestCase):
         needed = self.repo.prose("check", "-F", ".msg", "--pass", token)
         self.assertEqual(needed.returncode, prose.COLD_READ_NEEDED, needed.stderr)
         self.assertIn("the trailer signs the files as it left them", needed.stderr)
-        signed = self.repo.prose("check", "-F", ".msg", "--pass", token, "--cold-read",
-                                 straight_report(needed.stdout))
+        signed = self.repo.prose("check", "-F", ".msg", "--pass", token,
+                                 *straight_report(needed.stdout))
         self.assertEqual(signed.returncode, 0, signed.stderr)
         made = self.commit(block_trailer(signed.stdout))
         self.assertEqual(made.returncode, 0, made.stderr)
@@ -2849,7 +2886,7 @@ class ColdRead(unittest.TestCase):
         self.assertIn("1. A code comment: a.py, lines 2-3, and the code it sits on.", brief)
         self.assertIn("   - what it does that the code doesn't show", brief)
         self.assertIn(f"--pass {token} --cold-read cold-read.txt", needed.stdout)
-        signed = self.signing(token, "FEAT(x): a\n", "--cold-read", cold_report(token))
+        signed = self.signing(token, "FEAT(x): a\n", *cold_flags(token))
         self.assertEqual(signed.returncode, 0, signed.stderr)
         self.repo.commit("FEAT(x): a\n", block_trailer(signed.stdout))
         self.assertEqual(self.repo.verify().stdout, "checked\n")
@@ -2956,7 +2993,8 @@ class ColdRead(unittest.TestCase):
         self.assertEqual(self.signing(token, message).returncode, prose.COLD_READ_NEEDED)
         bad = REPORTS / "bad.txt"
         for text in ("Item 1: read straight through.\n", f"cold-read {token}\n\n",
-                     f"cold-read {other}\nItem 1: read straight through.\n"):
+                     f"cold-read {other}\nItem 1: read straight through.\n"
+                     + understood_lines(1)):
             bad.write_text(text, encoding="utf-8")
             refused = self.signing(token, message, "--cold-read", str(bad))
             self.assertEqual(refused.returncode, 2, text)
@@ -2964,7 +3002,7 @@ class ColdRead(unittest.TestCase):
         missing = self.signing(token, message, "--cold-read", str(REPORTS / "none.txt"))
         self.assertEqual(missing.returncode, 2)
         self.assertIn("cannot read the cold-read report", missing.stderr)
-        signed = self.signing(token, message, "--cold-read", cold_report(token))
+        signed = self.signing(token, message, *cold_flags(token))
         self.assertEqual(signed.returncode, 0, signed.stderr)
 
     def test_a_report_starting_with_a_byte_order_mark_is_accepted(self):
@@ -2973,8 +3011,9 @@ class ColdRead(unittest.TestCase):
         report = REPORTS / "bom.txt"
         self.assertEqual(self.signing(token, "FEAT(x): a\n").returncode, prose.COLD_READ_NEEDED)
         report.write_bytes(f"\ufeffcold-read {token}\nItem 1: read straight through.\n"
-                           .encode("utf-8"))
-        signed = self.signing(token, "FEAT(x): a\n", "--cold-read", str(report))
+                           f"{understood_lines(1)}".encode("utf-8"))
+        signed = self.signing(token, "FEAT(x): a\n", "--cold-read", str(report),
+                              "--dispositions", matching(token))
         self.assertEqual(signed.returncode, 0, signed.stderr)
 
     def test_a_cold_read_without_a_pass_is_refused(self):
@@ -3000,7 +3039,7 @@ class ColdRead(unittest.TestCase):
         self.assertIn("   One line.\n   ----", brief)
         self.assertIn(f"sign --pass {token} --cold-read cold-read.txt --dispositions "
                       "dispositions.txt < body.md", needed.stderr)
-        signed = self.sign("--pass", token, "--cold-read", cold_report(token), stdin=post)
+        signed = self.sign("--pass", token, *cold_flags(token), stdin=post)
         self.assertEqual(signed.returncode, 0, signed.stderr)
         self.assertEqual(prose.verify_post(signed.stdout), (True, "signed"))
 
@@ -3038,15 +3077,19 @@ class ColdReadFindings(unittest.TestCase):
                                stdin=self.MESSAGE, file_goals=False)
 
     def report(self, *findings):
-        """A report holding these findings, each (item, quote)."""
+        """A report holding these findings, each (item, quote), and an
+        understood line for item 1."""
         return cold_report(self.token, "".join(
             f"Finding {n}, item {item}, guessed: «{quote}» It was not clear.\n"
             for n, (item, quote) in enumerate(findings, start=1)), name="findings")
 
-    def answers(self, *lines, token=None):
+    def answers(self, *lines, token=None, understood=("Item 1: matches",)):
+        """A dispositions file holding lines, then the answers to the
+        understood lines, which the understood argument gives."""
         path = REPORTS / "dispositions.txt"
         header = [] if token == "" else [f"dispositions {token or self.token}"]
-        path.write_text("\n".join(header + list(lines)) + "\n", encoding="utf-8")
+        path.write_text("\n".join(header + list(lines) + list(understood)) + "\n",
+                        encoding="utf-8")
         return str(path)
 
     def refused(self, result, *words):
@@ -3184,7 +3227,8 @@ class ColdReadFindings(unittest.TestCase):
                 ("Item 1: read straight through.\nItem 2: read straight through.\n",
                  "names item 2, but the brief has items 1 to 1"),
         ):
-            result = self.signing("--cold-read", cold_report(self.token, body, name="bad"))
+            result = self.signing("--cold-read", cold_report(self.token, body, name="bad",
+                                                             understood=0))
             self.refused(result, problem)
             if problem != "holds only its first line":
                 self.assertIn("'Item <item>: read straight through.'", result.stderr)
@@ -3196,12 +3240,16 @@ class ColdReadFindings(unittest.TestCase):
                               self.answers("1. kept (asked): a test"))
         self.assertEqual(signed.returncode, 0, signed.stderr)
 
-    def test_a_report_with_no_findings_signs_without_dispositions(self):
+    def test_a_report_with_no_findings_still_answers_its_understood_lines(self):
         report = cold_report(self.token, "Item 1: read straight through.\n", name="clean")
-        signed = self.signing("--cold-read", report)
+        self.refused(self.signing("--cold-read", report),
+                     "0 finding(s) and 1 understood line(s), and each needs an answer: pass "
+                     "--dispositions", f"'dispositions {self.token}'")
+        signed = self.signing("--cold-read", report, "--dispositions", self.answers())
         self.assertEqual(signed.returncode, 0, signed.stderr)
-        self.assertTrue(block_trailer(signed.stdout).endswith(":"
-                        + prose.message_hash(self.MESSAGE) + "; cold read: no findings"))
+        self.assertTrue(block_trailer(signed.stdout).endswith(
+            ":" + prose.message_hash(self.MESSAGE)
+            + "; cold read: no findings; understood: 1 item, 0 fixed, 0 kept"))
 
     def hook(self, script):
         payload = json.dumps({"cwd": str(self.repo.path)})
@@ -3219,7 +3267,8 @@ class ColdReadFindings(unittest.TestCase):
         self.assertEqual(signed.returncode, 0, signed.stderr)
         trailer = block_trailer(signed.stdout)
         self.assertRegex(trailer, TRAILER)
-        self.assertTrue(trailer.endswith("; cold read: 2 findings, 1 fixed, 1 kept"), trailer)
+        self.assertTrue(trailer.endswith("; cold read: 2 findings, 1 fixed, 1 kept"
+                                         "; understood: 1 item, 0 fixed, 0 kept"), trailer)
         self.assertEqual(signed.stdout.count("\n"), 4, signed.stdout)
         made = self.repo.commit_script(
             "FEAT(x): a", "", "--minted-by", str(BUG_HUNTER_MINT), "Bug-hunter", "0 bugs found",
@@ -3237,7 +3286,111 @@ class ColdReadFindings(unittest.TestCase):
         self.fix("x = 1\n# The worker runs the command in the clone.\ny = 2\n")
         signed = self.signing("--cold-read", report, "--dispositions", self.answers("1. fixed"))
         self.assertTrue(block_trailer(signed.stdout).endswith(
-            "; cold read: 1 finding, 1 fixed, 0 kept"))
+            "; cold read: 1 finding, 1 fixed, 0 kept; understood: 1 item, 0 fixed, 0 kept"))
+
+    def test_a_report_missing_an_understood_line_is_refused(self):
+        for body, understood, problem in (
+                ("Finding 1, item 1, guessed: «It runs there.» Where?\n", 0,
+                 "does not say what it understood of item 1: every item gets one 'Item 1, "
+                 "understood: <what the item says>' line"),
+                ("Item 1: read straight through.\n", 0, "does not say what it understood of item 1"),
+                ("Item 1: read straight through.\nItem 1, understood: Once.\n", 1,
+                 "says what it understood of item 1 twice"),
+                ("Item 1: read straight through.\nItem 2, understood: Once.\n", 1,
+                 "names item 2, but the brief has items 1 to 1"),
+                ("Item 1: read straight through.\nItem 1, understood:\n", 0,
+                 "a line prose cannot read: 'Item 1, understood:'"),
+        ):
+            result = self.signing("--cold-read", cold_report(self.token, body, name="bad",
+                                                             understood=understood),
+                                  "--dispositions", self.answers())
+            self.refused(result, problem)
+            self.assertIn("'Item <item>, understood: <what the item says>'", result.stderr)
+
+    def test_an_understood_line_may_go_on_over_indented_lines(self):
+        report = cold_report(self.token, "Item 1: read straight through.\n"
+                                         "Item 1, understood: The worker takes a command\n"
+                                         "   and runs it, always.\n", name="wrapped",
+                             understood=0)
+        signed = self.signing("--cold-read", report, "--dispositions", self.answers())
+        self.assertEqual(signed.returncode, 0, signed.stderr)
+
+    def test_every_understood_line_is_answered_once(self):
+        report = self.report((1, "It runs there."))
+        for understood, problem in (
+                ((), "does not answer the understood line of item 1; every item's understood "
+                     "line is answered once"),
+                (("Item 1: matches", "Item 1: matches"),
+                 "answers the understood line of item 1 twice"),
+                (("Item 1: matches", "Item 2: matches"),
+                 "answers the understood line of item 2, which the report does not have"),
+                (("Item 1: match",), "a line prose cannot read: 'Item 1: match'"),
+                (("Item 1: kept (asked):",), "keeps the understood line of item 1 without a "
+                                             "reason"),
+        ):
+            self.refused(self.signing("--cold-read", report, "--dispositions",
+                                      self.answers("1. kept (asked): fine",
+                                                   understood=understood)), problem)
+        signed = self.signing("--cold-read", report, "--dispositions",
+                              self.answers("1. kept (asked): fine"))
+        self.assertEqual(signed.returncode, 0, signed.stderr)
+
+    def test_an_understood_line_marked_fixed_needs_its_item_changed(self):
+        report = cold_report(self.token, "Item 1: read straight through.\n", name="clean")
+        answers = self.answers(understood=("Item 1: fixed",))
+        self.refused(self.signing("--cold-read", report, "--dispositions", answers),
+                     "the understood line of item 1 is marked fixed, but item 1, in a.py, has "
+                     "not changed since the brief was printed")
+        self.fix(self.COMMENT.replace("It runs there.", "A person may run it there."))
+        signed = self.signing("--cold-read", report, "--dispositions", answers)
+        self.assertEqual(signed.returncode, 0, signed.stderr)
+        trailer = block_trailer(signed.stdout)
+        self.assertTrue(trailer.endswith("; cold read: no findings; understood: 1 item, 1 fixed, "
+                                         "0 kept"), trailer)
+        self.repo.commit(self.MESSAGE, trailer)
+        self.assertEqual(self.repo.verify().stdout, "checked\n")
+
+    def test_a_kept_understood_line_needs_a_person_asked(self):
+        report = cold_report(self.token, "Item 1: read straight through.\n", name="clean")
+        refused = self.signing("--cold-read", report, "--dispositions",
+                               self.answers(understood=("Item 1: kept: close enough",)))
+        self.refused(refused, "1 understood line(s) are kept, and no person was asked",
+                     "Item 1, in a.py, understood: The code does this, always.\n"
+                     "  Kept, because: close enough\n",
+                     "(for an understood line, 'Item <n>: kept (asked): <reason>')")
+        self.assertNotIn("finding(s)", refused.stderr.split("\n")[0])
+        signed = self.signing("--cold-read", report, "--dispositions",
+                              self.answers(understood=("Item 1: kept (asked): close enough",)))
+        self.assertEqual(signed.returncode, 0, signed.stderr)
+        self.assertTrue(block_trailer(signed.stdout).endswith(
+            "; understood: 1 item, 0 fixed, 1 kept"))
+
+    def test_understood_counts_in_any_other_form_are_unrecognised(self):
+        good = f"Prose: ✓ {'0' * 12}:{prose.message_hash(self.MESSAGE)}; cold read: no findings"
+        for counts in ("0 items, 0 fixed, 0 kept", "1 items, 0 fixed, 0 kept",
+                       "2 item, 0 fixed, 0 kept", "1 item, 1 fixed, 1 kept", "1 item, 1 fixed",
+                       "01 items, 0 fixed, 0 kept", "", "2 items, 0 fixed, 0 kept; x"):
+            ok, reason = prose.verify_staged(f"{good}; understood: {counts}", self.MESSAGE,
+                                             self.repo.path)
+            self.assertEqual((ok, reason.split(":")[0]), (False, "unrecognised"), counts)
+        # A value from before the understood lines, and each new form, is
+        # recognised: each fails only on its tree, a zero hash here.
+        for value in (good, f"{good}; understood: 1 item, 0 fixed, 0 kept",
+                      f"{good}; understood: 41 items, 2 fixed, 1 kept"):
+            ok, reason = prose.verify_staged(value, self.MESSAGE, self.repo.path)
+            self.assertTrue(reason.startswith("tree:"), (value, reason))
+        ok, reason = prose.verify_staged(f"Prose: ✓ {'0' * 12}:{prose.message_hash(self.MESSAGE)}"
+                                         "; understood: 1 item, 0 fixed, 0 kept", self.MESSAGE,
+                                         self.repo.path)
+        self.assertEqual((ok, reason.split(":")[0]), (False, "unrecognised"))
+
+    def test_a_commit_signed_before_the_understood_lines_still_verifies(self):
+        report = cold_report(self.token, "Item 1: read straight through.\n", name="clean")
+        trailer = block_trailer(self.signing("--cold-read", report, "--dispositions",
+                                             self.answers()).stdout)
+        self.assertTrue(trailer.endswith("; understood: 1 item, 0 fixed, 0 kept"), trailer)
+        self.repo.commit(self.MESSAGE, trailer[:-len("; understood: 1 item, 0 fixed, 0 kept")])
+        self.assertEqual(self.repo.verify().stdout, "checked\n")
 
     def test_counts_in_any_other_form_are_unrecognised(self):
         good = f"Prose: ✓ {'0' * 12}:{prose.message_hash(self.MESSAGE)}"
@@ -3254,7 +3407,8 @@ class ColdReadFindings(unittest.TestCase):
 
     def test_a_committed_value_with_counts_in_another_form_is_unrecognised(self):
         report = cold_report(self.token, "Item 1: read straight through.\n", name="clean")
-        trailer = block_trailer(self.signing("--cold-read", report).stdout)
+        trailer = block_trailer(self.signing("--cold-read", report, "--dispositions",
+                                             self.answers()).stdout)
         self.repo.commit(self.MESSAGE, trailer.replace("no findings", "0 findings, 0 fixed, 0 kept"))
         result = self.repo.verify()
         self.assertEqual(result.returncode, 1)
@@ -3346,9 +3500,9 @@ class FixedItemChanged(unittest.TestCase):
         self.assertEqual(needed.returncode, prose.COLD_READ_NEEDED, needed.stderr)
         lines = [f"Finding 1, item {item}, guessed: «x» Which call?"] + [
             f"Item {n}: read straight through." for n in range(1, items + 1) if n != item]
-        report = cold_report(token, "\n".join(lines) + "\n", name="item-changed")
-        answers = REPORTS / "item-changed-dispositions.txt"
-        answers.write_text(f"dispositions {token}\n1. fixed\n", encoding="utf-8")
+        report = cold_report(token, "\n".join(lines) + "\n", name="item-changed",
+                             understood=items)
+        answers = matching(token, items, "1. fixed", name="item-changed")
         for path, text in fixes.items():
             self.repo.write(path, text)
         for path in deleted:

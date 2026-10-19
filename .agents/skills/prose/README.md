@@ -14,8 +14,10 @@ ran.
   the staged files and the final message when the agent signed, so an edit
   after signing breaks it. In a repository with a pre-commit hook, prose runs
   the hook before signing, so a formatter's changes are signed instead of
-  breaking the trailer. After a cold read, the value ends with its counts,
-  such as `; cold read: 5 findings, 3 fixed, 2 kept`.
+  breaking the trailer. After a cold read (below), the value ends with its
+  counts, such as `; cold read: 5 findings, 3 fixed, 2 kept; understood: 4
+  items, 1 fixed, 0 kept`: the findings and how many were fixed or kept, then
+  the items read and how many were misunderstood and then fixed or kept.
 - **Pull request descriptions and comments** end with a short footer, such as
   `prose ✓ 3f2a91`. The hash covers the text above it, so it shows the pass ran
   over exactly what you are reading.
@@ -30,12 +32,18 @@ followed them.
 
 **A cold read.** Before it signs a changed comment, doc passage or post, the
 agent has a fresh agent, one that never saw the conversation, read it and
-report where it stopped, reread or guessed, quoting the words. The agent then
-answers every finding: fixed, which the script checks by the finding's item
-having changed since the brief, or kept, which a person decides. The signing
-call refuses without a report and those answers, both bound to that pass's
-token, and refuses a kept finding unless the agent says a person was asked.
-An agent that cannot ask hands the findings back to its caller unsigned.
+report where it stopped, reread or guessed, quoting the words. For every item
+it also says in one line what it understood: who does each thing, whether it
+always happens, and whose doing it is. That line catches a confident
+misreading, which makes no reader stop. The agent then answers every finding
+and every understood line. A finding is fixed, which the script checks by its
+item having changed since the brief, or kept, which a person decides. An
+understood line matches what the agent meant, or else is fixed or kept in the
+same way. The signing call refuses without
+a report and those answers, both bound to that pass's token, and refuses a
+kept one unless the agent says a person was asked. An agent that cannot ask
+leaves the change unsigned, and hands each finding or understood line it would
+keep back to its caller.
 Nothing proves a fresh agent wrote the report, or that the person was asked.
 
 To install it, ask your agent to install the `prose` skill; the
@@ -88,7 +96,7 @@ docs/api.md: call the API correctly
 | GitHub posts, through MCP | A hook blocks the post unless its body ends with a valid footer |
 | GitHub posts, through `gh` | The same hook, for a few exact command forms (see [Posting through `gh`](#posting-through-gh)) |
 | A Claude Code session's first file write or GitHub post | A hook blocks it until prose's first call has printed the rules in that session |
-| A changed comment or doc passage, or a post | The signing call signs it only with a cold reader's report for that pass, and an answer to each finding |
+| A changed comment or doc passage, or a post | The signing call signs it only with a cold reader's report for that pass, and an answer to each finding and understood line |
 
 To turn the hooks off, run
 `python3 ~/.agents/skills/manage-skills/scripts/skills.py disable-hook prose`;

@@ -159,7 +159,7 @@ It prints:
 - a warning for any pattern that matches no listed file, which is usually a
   typo;
 - history-language flags in those comments, as warnings;
-- the rules: the pass, rules 1 to 8 in full, the rest as a checklist, and how
+- the rules: the pass, rules 1 to 9 in full, the rest as a checklist, and how
   agents cheat on the pass;
 - the pass token, and the command to run next.
 
@@ -193,6 +193,11 @@ Prose: ✓ 4d593e935186:9138830a72a2
 You read your own text knowing what you meant, so you fill its gaps without
 seeing them. Before a text is signed, an agent that has never seen the
 conversation reads it and reports every place it stopped, reread or guessed.
+For every item it also says in one line what it understood the item to state,
+because a reader who misreads with confidence never stops. The line says:
+- who or what does each thing;
+- whether it always happens, or only in some case;
+- whether the code does it, or someone else could make it happen.
 
 **What gets one:** every comment block the change adds to or edits, read
 whole even when one line changed; every doc or spec passage it adds to; and
@@ -212,63 +217,79 @@ doc by its file and lines, a post quoted in full.
    summary of the change.
 2. Save its report, as it wrote it, to a file outside the commit, such as
    `cold-read.txt` beside `msg.txt`. The brief asks for one line per
-   finding, quoting the words that stopped the reader, and one line for each
-   item read straight through:
+   finding, quoting the words that stopped the reader, one line for each
+   item read straight through, and one understood line for every item:
 
    ```text
    cold-read <token>
    Finding 1, item 1, guessed: «It runs there» What runs, and where?
+   Item 1, understood: The worker runs each command in its own clone.
    Item 2: read straight through.
+   Item 2, understood: A person may rerun a failed upload; nothing retries it.
    ```
 
-3. Fix the places the report names, by the rules, and restage.
-4. Answer every finding in a dispositions file beside the report, such as
-   `dispositions.txt`. Its first line binds it to the same token; then one
-   line per finding:
+3. Fix the places the report names, by the rules, and restage. Compare each
+   understood line with what you meant, and fix the item where they differ.
+4. Answer every finding and every understood line in a dispositions file
+   beside the report, such as `dispositions.txt`. Its first line binds it to
+   the same token; then one line per finding, and one per item:
 
    ```text
    dispositions <token>
    1. fixed
-   2. kept (asked): the reader of this file has just read the function it names
+   Item 1: matches
+   Item 2: fixed
    ```
 
-   `fixed` means you changed the item the finding is in. A report with no
-   findings needs no dispositions file.
-5. **A person decides every kept finding.** For each finding you would keep,
-   ask a person one question, through your host's interactive picker (in Claude
-   Code, the `AskUserQuestion` tool): show the quoted words, the cold reader's
-   note and your reason, with two options, "Keep as is" and "Fix it". "Fix it":
-   rewrite the passage, restage it, and make its line `fixed`. "Keep as is":
-   make its line `kept (asked): <reason>`. Neither answer needs a new cold
-   read: asking spends no token, and a fixed finding is checked by its item
-   having changed, not read cold again. `(asked)` is your statement that a
+   `fixed` means you changed the item: the one the finding is in, or the one
+   the understood line describes.
+   `matches` means the understood line says what you meant: who acts,
+   whether it always happens, and whose doing it is.
+5. **A person decides every kept finding and understood line.** To keep one
+   is to leave its item as it is: for an understood line, although it shows
+   a meaning other than yours. For each one you would keep, ask a person one
+   question, through your host's interactive picker (in Claude
+   Code, the `AskUserQuestion` tool): show the quoted words and the cold
+   reader's note, or its understood line beside what you meant, and your
+   reason, with two options, "Keep as is" and "Fix it". "Fix it": rewrite the
+   passage, restage it, and make its line `fixed`. "Keep as is": make its
+   line `kept (asked): <reason>`. Neither answer needs a new cold read. The
+   token is still unspent after you ask, and a fixed line is checked by its
+   item having changed, not read cold again. `(asked)` is your statement that a
    person answered; the script cannot check it.
 6. Run the signing call again, adding `--cold-read cold-read.txt
    --dispositions dispositions.txt`.
 
 **When you cannot ask** (you are a subagent or a background job, or your host
-has no picker), don't sign and don't commit. Write each finding you would keep
-as `kept: <reason>` and run the signing call anyway. It refuses, keeps the
-token and prints a message naming each of those findings with its quote, the
-cold reader's note and your reason, and the paths of the report and the
+has no picker), don't sign and don't commit. Write the line of each one you
+would keep without `(asked)`, as `<n>. kept: <reason>` or `Item <n>: kept:
+<reason>`, and run the signing call anyway. It
+refuses and keeps the token. Its message names each one you kept: a finding
+with its quote and the cold reader's note, an understood line with its text,
+and your reason for each. It ends with the paths of the report and the
 dispositions file. Leave the change staged and put that message, whole, in
-your result for whoever holds it. That agent asks the person, edits the
+your result. Whoever receives your result asks the person, edits the
 dispositions file and runs the signing call before the token's 2 hours are
 up.
 
 A commit's `Prose:` value then ends with the cold read's counts, such as
-`; cold read: 5 findings, 3 fixed, 2 kept`, or `; cold read: no findings`.
+`; cold read: 5 findings, 3 fixed, 2 kept; understood: 4 items, 1 fixed, 0 kept`,
+or `; cold read: no findings; understood: 2 items, 0 fixed, 0 kept`. The
+understood counts are the number of items, then how many of their understood
+lines did not match and were fixed or kept. A value from before the understood lines,
+without them, still verifies.
 The script mints them; pass the value as the result block prints it. A commit
 with no cold read keeps the plain value. A post's footer carries no counts.
 
 The signing call refuses (exit 2), signs nothing and keeps the token when:
 - the report or the dispositions file does not start with this token's line;
-- the report has a line not in the brief's form, or says nothing about an
-  item;
-- a finding is unanswered, answered twice, or not in the report, or is kept
-  without a reason;
-- a finding is marked `fixed`, but its item has not changed since the brief;
-- a finding is kept without `(asked)`;
+- the report has a line not in the brief's form, says nothing about an
+  item, or has no understood line for one;
+- a finding or understood line is unanswered, answered twice, or not in the
+  report, or is kept without a reason;
+- a finding or understood line is marked `fixed`, but its item has not
+  changed since the brief;
+- a finding or understood line is kept without `(asked)`;
 - a file the brief did not name now has a changed comment or doc passage:
   run the signing call without `--cold-read` for a new brief, and have that
   read cold.
@@ -296,8 +317,9 @@ As workflow stages, that is three agents:
 3. **The finisher** works in the same repository with the report and the
    token. It first runs `prose.py start`, which prints the rules and lets
    the hook allow its first file edit; then it fixes, answers each finding
-   and signs. A finding it would keep goes to a person, as in *When you cannot
-   ask*.
+   and understood line, and signs. One it would keep goes to a person:
+   through its own picker if it has one, or else handed back as in *When you
+   cannot ask*.
 
 Read the brief yourself only when nothing will read your result: read it as
 if it were all you knew, open only what it names, and write the report as it

@@ -44,7 +44,7 @@ line — "Checked: X. Not checked: Y." — is narrowing, not hedging.
 
 ---
 
-## Rule 4: each sentence follows from the last
+## Rule 6: each sentence follows from the last
 
 **Decision (Adam, 2026-10-04).** No abrupt switch to a subject the reader
 wasn't expecting, or may not know or care about. A new subject the reader
@@ -55,11 +55,15 @@ and they slowed reading down: a README about GitHub saying in passing how
 claiming works on Linear. Each one makes the reader hesitate, reread, or ask
 the agent what it meant.
 
-**Ranked fourth,** after *Read once, understood once*, because an abrupt
-switch fails the same way: the reader stops and goes back. It is not *One
-topic per block*, which is about how text is divided; this is about whether
-one sentence leads to the next. `RULES_IN_FULL` became 7, so *Spend words
-where they save reading time* is still printed in full with its example.
+**Ranked right after *Read once, understood once* when added,** because an
+abrupt switch fails the same way: the reader stops and goes back. It was rule
+4 then, and is rule 6 now: *A hypothetical reads as one* and *Say when, and
+whether* sit between it and *Read once, understood once*. It is a separate
+rule from *One topic per block*, which is about how text is divided; this rule
+is about whether one sentence leads to the next. `RULES_IN_FULL`, the number
+of rules `prose check` prints in full, became 7, so *Spend words where they
+save reading time*, which was rule 7 at that time, was still printed in full
+with its example.
 
 ---
 
@@ -70,8 +74,8 @@ message's, for its reader, the reviewer. Each doc, spec and comment it lists is
 judged against goals of its own, which the agent names per file (the next
 entry). The listing and the pass both say to reread each changed doc passage
 inside its section, as that section's reader. *What is, not how it got here*
-became rule 6, printed in full and covering docs as well as comments, and
-`RULES_IN_FULL` became 8. Rule 7, *Say when, and whether*, now says that
+moved up into the rules printed in full, covering docs as well as comments,
+and `RULES_IN_FULL` became 8. *Say when, and whether* now says that
 labelling the past does not make it worth keeping.
 
 **Why.** A commit to Igor's `docs/architecture.md` passed the pass with a valid
@@ -81,7 +85,7 @@ for multi-role Igors … does not apply". Three things let it through:
   wants to know an old argument no longer applies. The architecture's reader
   was never shown that argument, and has to reconstruct it to follow the
   sentence.
-- **Rule 7, numbered 5 at the time, licensed it.** The passage labelled its
+- ***Say when, and whether* licensed it.** The passage labelled its
   past ("once made"), which is all *Say when, and whether* asked. The rule
   that forbids it was a one-line checklist item worded for code comments.
 - **Hunks, not sections.** Read beside the spec change in the diff, the passage
@@ -166,7 +170,7 @@ call per doc above is the next step.
 
 ## A claim is stated once, with its reason
 
-**Decision (Adam, 2026-10-06).** Rule 5 became *Plain words, and reasons
+**Decision (Adam, 2026-10-06).** Rule 7, numbered 5 at the time, became *Plain words, and reasons
 instead of catchphrases*: a claim is stated once, with its reason, and
 elsewhere linked or restated in plain terms. The pass greps the repository for
 a phrase a changed passage repeats, and a phrase that recurs with no definition
@@ -181,10 +185,10 @@ the phrase gave no reason; it restated the rule, one role per Igor, in a form
 that sounded like a reason. So the reasons were never written down, and
 Adam's question, why a role can't extend two bases, had no recorded answer.
 
-**Folded into rule 5, not a new rule.** An undefined catchphrase is shorthand,
-which rule 5 already covers, and a ninth rule in full would push *Spend words
-where they save reading time* out of the printout or grow `RULES_IN_FULL`
-again.
+**Folded into rule 7, not a new rule.** An undefined catchphrase is shorthand,
+which rule 7 already covers. On 2026-10-06, *Spend words where they save
+reading time* was the eighth and last rule printed in full, so a ninth rule in full would
+have pushed it out of the printout or grown `RULES_IN_FULL` again.
 
 **Where this stops applying.** A phrase that is defined once and used as a
 name, such as a term the project's glossary gives, is vocabulary, not a
@@ -192,18 +196,19 @@ catchphrase.
 
 ---
 
-## Three causes of a reread, added to rules 3, 4 and 8
+## Three causes of a reread, added to rules 3, 6 and 9
 
 **Decision (Adam, 2026-10-12).** Three failures become part of rules that
-already exist:
+already exist. This entry gives the rules' current numbers; at the time, rules
+6, 7, 9 and 10 were 4, 5, 8 and 9, and rules 1 to 8 were printed in full.
 - **Rule 3** names *a pointer whose one referent is far back* as a usual cause
   of a reread: "it", "there" or "these commands" with a single possible
   referent, a paragraph back. The rule had named only a pointer with two
   possible referents.
-- **Rule 4** says *a "so" points at what the reader just read*: "so",
+- **Rule 6** says *a "so" points at what the reader just read*: "so",
   "because", "which", "therefore" and "thus" claim that a sentence follows
   from the one before it.
-- **Rule 8** says *one claim per sentence*, and its sentence "a longer
+- **Rule 9** says *one claim per sentence*, and its sentence "a longer
   sentence that reads once beats a shorter one read twice" now says what may
   make it longer: words that serve its one claim, not a second claim.
 
@@ -212,10 +217,10 @@ already exist:
 trailer) is hard to read although the pass ran on it. Of its seven
 failures, four are ones the rules already named, missed because the author
 reviewed their own text (*A cold read before signing*, below, is the fix):
-- an idiom in place of the mechanism, "take a command off the token" (rule 5);
-- a missing actor, "authenticates with the token where it fetches" (rule 9);
+- an idiom in place of the mechanism, "take a command off the token" (rule 7);
+- a missing actor, "authenticates with the token where it fetches" (rule 10);
 - an exception without the reason it is safe, "`.git/config` is still read
-  by the fetches `merge` makes" (rule 5);
+  by the fetches `merge` makes" (rule 7);
 - an opening that says what the code avoids before what it does (rule 2).
 
 The other three no rule covered:
@@ -223,27 +228,115 @@ The other three no rule covered:
   follows the sentence on `insteadOf`, but its cause is the decision two
   sentences earlier, to read no global or system config.
 - Each sentence carries a rule, its mechanism and a consequence at once, and
-  rule 8's sentence about longer sentences reads as permission for that.
+  rule 9's sentence about longer sentences reads as permission for that.
 - "there", "these commands" and "it" each have one referent, but a paragraph
   back. Rule 3 named only the pointer with two.
 
 Each rule's new example is taken from that comment, shortened.
 
-**Folded into existing rules, not new ones.** `prose check` prints rules 1 to 8
-in full and the rest as one-line headings. A rule numbered 15, 16 or 17
-would reach the agent as a heading alone, without its reason or its example,
-which is what the motivating comment needed. Each failure is also a case of
+**Folded into existing rules, not new ones.** `prose check` then printed eight
+rules in full, and the rest as one-line headings. Three new rules added after
+the 14 there were would have reached the agent as headings alone, without
+their reasons or examples, and those were what the motivating comment needed. Each failure is also a case of
 an existing rule's question: a far pointer sends the reader back (rule 3), a
-misplaced "so" breaks one sentence leading to the next (rule 4), and a
-sentence's claims are what its words are spent on (rule 8).
+misplaced "so" breaks one sentence leading to the next (rule 6), and a
+sentence's claims are what its words are spent on (rule 9).
 
 **Rejected.**
-- **New rules numbered within 1 to 8**, with `RULES_IN_FULL` raised to 11.
+- **New rules numbered within the 8 then printed in full**, with
+  `RULES_IN_FULL` raised to 11.
   Every rule after the insertion is renumbered, and this file, SKILL.md and
   past reviews cite rules by number.
 - **A word or clause limit per sentence.** A number reads as a target (*No
   length budgets*); the rule is about claims, which a count of words does not
   see.
+
+---
+
+## Rule 4: a hypothetical reads as one
+
+**Decision (Adam, 2026-10-18).** A new rule 4, *A hypothetical reads as one*,
+goes right after *Read once, understood once*. A doc or comment describes what
+normally happens. A case that happens only by accident, rarely, or by someone
+else's choice is marked three ways together: the text leads with what is
+always true, says the case is unusual and whose doing it would be, and puts
+its consequences in "would" or "might". *Say when, and whether* moved up to
+rule 5, beside it (*Rule 5 sits beside rule 4*, below). *Each sentence follows
+from the last*, *Plain words, and reasons instead of catchphrases* and *What
+is, not how it got here* are now rules 6 to 8, and every rule after them moved
+down one. `RULES_IN_FULL` became 9, so *Spend words where they save reading
+time*, now rule 9, is still printed in full. This file cites rules by their
+current numbers, and says so where a number differed at the time.
+
+**Why.** A code comment in spec-trace (`.agents/skills/spec-trace/scripts/spec_trace.py`,
+commit `e76371f` on branch `spec-trace`) read:
+
+```
+# A log of this output saved in the repository is searched by the next run. The
+# choice lines never read as a tag, so they never count for a scenario; the echo
+# of the bad tag does read as one, but it is ambiguous again.
+```
+
+Adam read it as "spec-trace saves a log of its output, and the next run
+searches it". spec-trace never saves its output. The comment meant an unusual
+case: a person saves the output in the repository, and the next run's
+`git grep --untracked` would then search that file. The commit went through
+three cold reads. Rounds 1 and 2 stopped on the comment. The fix after round 2
+wrote that round's reader's guess into the comment as its first sentence,
+stated as fact, and round 3 read it straight through. Two gaps let it through:
+- ***Say when, and whether* found no condition to label.** It asks
+  for actual and conditional to be labelled. Here the condition hid in the
+  subject, "a log … saved in the repository", which stands for "if someone
+  saved a log", and the verb, "is searched", stayed in the plain present. The
+  writer saw a statement, not a condition.
+- **The cold read reported only stumbles.** A reader sure of the wrong
+  meaning has none to report (*The cold reader says what it understood*,
+  below).
+
+**A new rule, not a paragraph in *Say when, and whether*.** That rule is about
+labels, and a label was not enough. Adam rejected the rewrite "If someone
+saves this output…, the next run's search reads that file": it still reads
+like a step in the normal workflow. The fix changes what the text leads with
+and the mood of its verbs, which a label does not. A paragraph inside that
+rule would also go unread: a writer turns to that rule on seeing a condition
+to label, and this writer saw none.
+
+**Why "if" alone is not enough.** "If" marks one clause as conditional. When
+the case is still the topic, and its consequences are in the plain present,
+the reader takes away a workflow with a condition attached: something that
+happens, and often. So the rule asks for all three marks together, and the
+cheat list names adding "if" while leaving the consequences in the plain
+present.
+
+**Inserted at 4, against the earlier choice to fold new rules in** (*A claim
+is stated once*, and *Three causes of a reread*, above). That choice rejected
+new rules within 1 to 8 because renumbering breaks citations by number. Both
+earlier cases fit an existing rule's question; this one does not. Rule 3 is
+about a reader who goes back, and this reader never does. A misreading also
+costs more than a reread, so the rule ranks just after rule 3 and is printed
+in full, with its example. The citations in this repository were renumbered
+in the same change. A review or comment elsewhere that cites rule 4 or later
+by its old number now names a different rule: an old "rule 5" meant *Plain
+words*, which is now rule 7, and rule 5 is now *Say when, and whether*.
+
+**Rule 5 sits beside rule 4.** Inserting rule 4 alone would have left *Say
+when, and whether* at rule 8, with three rules between it and rule 4. Rules 4 and 5 are both about the status of a claim: whether it
+is past, present or future, and whether it is actual or conditional. Both
+guard against the harm that ranks rule 4 so high: a reader who leaves
+misinformed without ever stopping. A plan written in the present tense
+misleads as silently as a hypothetical written as fact. With three rules
+between them, someone applying one would read past the other. `RULES_IN_FULL`
+stays 9, so both are printed in full. The goals at the top of rules.md name
+the harm both rules prevent, *Read as meant*, as a goal of its own: its cost
+is a wrong belief, not reading time, so it fits under none of the other three:
+*Read once*, *Understood without help* and *Not verbose*.
+
+**Rejected.**
+- **A mechanical lint for passives without an agent,** such as "is searched"
+  with no "by". It would flag far more harmless sentences than harmful ones,
+  and prose's checks are worth reading because they don't cry wolf.
+- **The rule only in a personal CLAUDE.md.** Everyone who reads agent-written
+  text meets this, so the rule goes where every agent running prose gets it.
 
 ---
 
@@ -265,7 +358,7 @@ catchphrases and line-number references, skimmed comment blocks printed
 without their code, and judged each by its own test ("does it give a reason or
 record a measurement?") under its own reader goals instead of the table's. It
 changed 5 comments and reported the file in good shape. Among those it left was
-this one, which fails rule 3 (read once) and rule 5 (shorthand coined during
+this one, which fails rule 3 (read once) and rule 7 (shorthand coined during
 the work):
 
 ```
@@ -596,7 +689,7 @@ the pass. `SKILL.md` keeps no copy; it says that `prose check` prints the rules
 and `rules.md` is their only copy.
 
 `prose check` prints it by its headings, every time: everything before the
-rules section, rules 1 to 8 in full, the rest as one-line checklist items (their
+rules section, rules 1 to 9 in full, the rest as one-line checklist items (their
 `###` heading), and the cheat list. It refuses when a section is missing or out
 of order, or the rules are not numbered 1, 2, 3, even on a signing call.
 
@@ -1055,9 +1148,10 @@ report's findings once:
 
 A missing, duplicated or unknown finding number is refused, naming it. The
 file's first line is `dispositions <token>`, the token the report starts with,
-so answers written for one cold read cannot be passed with another. A report
-with no findings, every item read straight through, needs no dispositions
-file.
+so answers written for one cold read cannot be passed with another. The same
+file answers each item's understood line, with a line such as `Item 2:
+matches` (*The cold reader says what it understood*, below), so every cold
+read needs one, even a report with no findings.
 
 **Why.** The signing call proved only that a report existed. An author could
 pass it and change nothing: the findings were ignored without a trace, and the
@@ -1071,12 +1165,14 @@ parses:
 ```text
 cold-read <token>
 Finding 1, item 2, guessed: «the exact words» What was guessed or missing.
+Item 2, understood: What the reader took item 2 to state.
 Item 3: read straight through.
+Item 3, understood: What the reader took item 3 to state.
 ```
 
 Findings are numbered from 1 in order; what was missing may go on over
 indented lines. Every item gets findings or the straight-through line, never
-both, so a report that skips an item is refused. A line in no other form is
+both, and one understood line, so a report that skips an item is refused. A line in no other form is
 refused, with the form in the message: the author asks the reader again
 rather than prose guessing what a free-form report meant.
 
@@ -1182,6 +1278,62 @@ through. Editing another part of the item is on the cheat list. Where a file
 repeats identical lines, the diff may place an added one at a different
 repeat, which can land it beside an item. A `kept` reason is not checked
 beyond being there; the cheat list names a reason that restates the wording.
+
+---
+
+## The cold reader says what it understood
+
+**Decision (Adam, 2026-10-18).** For every item, whether it has findings or
+was read straight through, the cold reader writes one line:
+`Item <n>, understood: <one line>`. The line says three things about what the
+item states:
+- who or what does each thing;
+- whether it always happens, or only in some case;
+- whether the code, or whatever the item describes, does it, or someone else
+  could make it happen.
+
+The brief tells
+the reader not to suggest a rewrite in that line, as it already forbids in
+findings. The author answers each
+understood line in the dispositions file:
+- `Item <n>: matches`: the line says what the author meant.
+- `Item <n>: fixed`: checked as a fixed finding is, by the item having changed
+  since the brief.
+- `Item <n>: kept (asked): <reason>`: a person chose to keep it, as for a
+  finding (*A person decides every kept finding*, above).
+
+A report missing an understood line for any item is refused, and so is a
+dispositions file that leaves one unanswered or answers one twice. The
+trailer's counts gain a part, such as `; understood: 41 items, 2 fixed,
+0 kept`: the number of items read, then how many of their understood lines
+did not match and were fixed or kept. `verify-staged` and `verify-commit` still accept a
+value without that part, so a commit signed before it verifies as it did.
+With it, they accept only the form `understood_counts` prints.
+
+**Why.** The report showed only where the reader stumbled: where it stopped,
+reread or guessed. A reader sure of a wrong meaning stumbles nowhere, so its
+report says "read straight through". The spec-trace comment (*Rule 4: a
+hypothetical reads as one*, above) passed its third cold read that way. A line
+per item shows the meaning the reader took away, and the author, who knows
+what was meant, can see a difference the reader could not.
+
+**Why those three things.** They are what a hypothetical written as fact gets
+wrong: who acts (a person, not the tool), whether it always happens (only
+when someone does that), and whose doing it is. A summary with no such
+questions tends to restate the item's words, and carries a misreading
+through unseen.
+
+**Rejected.**
+- **A line only for items read straight through.** An item with findings can
+  be misread confidently at another place.
+- **Accepting reports without understood lines.** Nothing needs it. A report
+  is passed with the pass token it was written for, and a token expires 2
+  hours after it is issued, so no report written before this change can
+  still be passed.
+
+**Known gap.** `matches` is the author's claim, and the script cannot check
+it. Answering `matches` to a line that doesn't say what the author meant is
+on the cheat list.
 
 ---
 
