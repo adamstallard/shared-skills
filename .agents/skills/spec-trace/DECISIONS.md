@@ -56,6 +56,30 @@ spec-only pull request.
 implementation pull request could then not tag its tests, and the tags would
 have to go into the archive commit.
 
+## A missing `openspec/specs/` holds no scenarios; a missing `openspec/` is an error
+
+**Decision.** When `openspec/` exists and `openspec/specs/` does not, the
+main specs hold no scenarios. `check`, `report` and `baseline` run as usual,
+and a tag naming an open change's scenario is accepted. When `openspec/`
+itself is missing, those three commands exit 1 with
+`no openspec/ under <root>`.
+
+**Why.** A repository that adopts OpenSpec has `openspec/changes/<name>/`
+and no `openspec/specs/` until it archives its first change. git records no
+empty folder, so a clone cannot hold an empty `specs/` either. Such a
+repository should be able to adopt spec-trace in the same change, and its
+first CI run should pass.
+
+Every command looks for `openspec/` under the root, which `--root` sets and
+which is the current directory by default. spec-trace runs only in a
+repository that uses OpenSpec, so a missing `openspec/` most likely means the
+root is the wrong folder. A check that passed there would have checked
+nothing.
+
+**Rejected: refusing a missing `openspec/specs/`.** Every repository that
+adopts both at once would fail CI until its first archive, or would have to
+commit a placeholder file in `specs/` only to satisfy the checker.
+
 ## The baseline only shrinks
 
 **Decision.** The baseline lists scenarios that no test tagged at adoption.

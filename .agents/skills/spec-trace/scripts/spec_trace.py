@@ -223,11 +223,20 @@ def assign_idents(scenarios):
 
 
 def load_scenarios(root, include_changes=False):
+    """Returns (scenarios, problems). scenarios are the main specs' scenarios, with each
+    open change applied when include_changes is set; problems are assign_idents'.
+
+    A missing openspec/specs/ means no main scenarios. A repository that has just
+    adopted OpenSpec has no openspec/specs/ until it archives its first change, and git
+    keeps no empty folder, so a clone cannot have an empty one. A missing openspec/
+    raises SystemExit instead: --root most likely names the wrong folder, and a check
+    that passed there would have checked nothing.
+    """
+    if not os.path.isdir(os.path.join(root, "openspec")):
+        raise SystemExit(f"spec-trace: no openspec/ under {root}")
     specs = os.path.join(root, "openspec", "specs")
-    if not os.path.isdir(specs):
-        raise SystemExit(f"spec-trace: no openspec/specs under {root}")
     scenarios = []
-    for capability in sorted(os.listdir(specs)):
+    for capability in sorted(os.listdir(specs)) if os.path.isdir(specs) else []:
         path = os.path.join(specs, capability, "spec.md")
         if os.path.isfile(path):
             scenarios += parse_spec(path, f"openspec/specs/{capability}/spec.md", capability)
@@ -601,7 +610,12 @@ def tag_problem(t, scenarios):
     if t.problem == "capability":
         caps = sorted({s.capability for s in scenarios})
         hint = difflib.get_close_matches(t.capability, caps, n=1)
-        more = f" Did you mean '{hint[0]}'?" if hint else f" Capabilities: {', '.join(caps)}."
+        if hint:
+            more = f" Did you mean '{hint[0]}'?"
+        elif caps:
+            more = f" Capabilities: {', '.join(caps)}."
+        else:
+            more = " It holds no scenario yet: a change's scenarios arrive there when it is archived."
         return (f"{t.where}: tag '@scenario {t.capability}: {t.text}' names no capability under "
                 f"openspec/specs.{more} {NOT_A_TEST}")
     names = [s.ident for s in scenarios if s.capability == t.capability]
