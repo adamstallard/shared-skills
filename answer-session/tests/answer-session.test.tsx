@@ -1,4 +1,5 @@
 import { expect, mock, test } from 'claude-code/testing'
+import type { Engine } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
 /** A store the test can read back: $.store answered from a Map. */
@@ -33,59 +34,122 @@ const PANE = {
 
 const SURFACES = ['terminal', 'desktop'] as const
 
+const TYPED = { origin: { kind: 'composer' }, wait: false } as const
+
+/**
+ * An answer session as `/answer` opens it, with the engine's side stood in
+ * for: `open` starts it, `enter` presses Enter on text in the prompt box and
+ * returns what the session said it did, `filled` is every text a click put in
+ * the box, and `sent` every prompt that reached the model. Like every test
+ * hook, these are added before the test's first `$` call.
+ */
+function answerSession(on: On) {
+  let isUp = false
+  const filled: string[] = []
+  const sent: string[] = []
+  mock.env(on, {})
+  on('command.register', () => ({ value: { command: 'answer' } }))
+  on('ui.open', () => {
+    isUp = true
+    return { value: { isPlaced: true } }
+  })
+  on('ui.panes', () => ({ value: isUp ? SHOWN : [] }))
+  on('prompt.fill', (_, e) => {
+    filled.push(e.text)
+    return { isFilled: true }
+  })
+  on('prompt.read', () => ({ value: { text: '', cursor: 0 } }))
+  on('prompt.submit', (_, e) => {
+    sent.push(e.text)
+    return { text: e.text }
+  })
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  return {
+    filled,
+    sent,
+    open: async ($: Engine) => {
+      await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+      await $.command.run({ command: 'answer', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 120 } })
+    },
+    enter: async ($: Engine, text: string) => (await $.prompt.submit({ ...TYPED, text })).drop,
+  }
+}
+
+type Drawn = { redraw(): Promise<unknown>; find(query: { type?: string; text?: RegExp; key?: string }): Promise<unknown> }
+
+/** Redraws until `query` is on screen: a model call runs on after Enter returns. */
+async function waitFor(ui: Drawn, query: { type?: string; text?: RegExp; key?: string }): Promise<unknown> {
+  for (let i = 0; i < 50; i++) {
+    await ui.redraw()
+    const found = await ui.find(query)
+    if (found) return found
+  }
+  return undefined
+}
+
 for (const surface of SURFACES) {
-  test(`choosing an option previews the exact message; relaying it moves on (${surface})`, async $ => {
+  test(`an option's number and Enter relay it and move on (${surface})`, async ($, on) => {
+    const s = answerSession(on)
+    await s.open($)
     const ui = await $.ui.mount({ ...PANE, surface })
     expect(await ui.find({ type: 'Text', text: /During a run/ })).toBeDefined()
-    expect(await ui.find({ key: 'send:igor-216-scope' })).toBeUndefined()
-
+    // A click on an option types its number, as the person would.
     await ui.press({ key: 'opt:igor-216-scope:1' })
-    expect(await ui.find({ type: 'Text', text: /No, show them as input/ })).toBeDefined()
-    expect(await ui.find({ key: 'send:igor-216-scope' })).toBeDefined()
+    expect(s.filled).toEqual(['2'])
 
-    await ui.press({ key: 'send:igor-216-scope' })
-    // The next new question is Maya's, a person's: a reply field, no options.
+    expect(await s.enter($, '2')).toContain('Relayed to GitHub')
+    await ui.redraw()
+    // The next new question is Maya's, a person's: a reply, no options.
     expect(await ui.find({ type: 'Text', text: /onboarding flag/ })).toBeDefined()
-    expect(await ui.find({ type: 'Input', key: 'field:eng-412' })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /Reply to Maya Ortiz/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /Relayed to GitHub/ })).toBeDefined()
 
     // Back to the first: it now shows what was relayed.
-    await ui.press({ key: 'prev' })
-    expect(await ui.find({ type: 'Text', text: /Relayed on GitHub as|RELAYED ON GITHUB AS/ })).toBeDefined()
+    expect(await s.enter($, 'p')).toBe('Question 1 of 8')
+    await ui.redraw()
+    expect(await ui.find({ type: 'Text', text: /RELAYED ON GITHUB AS/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /No, show them as input/ })).toBeDefined()
     expect(await ui.find({ key: 'opt:igor-216-scope:0' })).toBeUndefined()
+    expect(s.sent).toEqual([])
     await ui.unmount()
   })
 }
 
-test("a person's question is answered by typing; Enter relays the text", async $ => {
+test("a person's question is answered by typing; Enter relays the text", async ($, on) => {
+  const s = answerSession(on)
+  await s.open($)
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
-  await ui.press({ key: 'next' })
-  await ui.input({ key: 'field:eng-412', text: 'Ship Friday', kind: 'change' })
+  await s.enter($, 'n')
+  expect(await s.enter($, 'Ship Friday')).toContain('Relayed to Linear')
+  await s.enter($, 'p')
+  await ui.redraw()
   expect(await ui.find({ type: 'Text', text: /Ship Friday/ })).toBeDefined()
-  expect(await ui.find({ key: 'send:eng-412' })).toBeDefined()
-  await ui.input({ key: 'field:eng-412', text: 'Ship Friday' })
-  expect(await ui.find({ type: 'Text', text: /Relayed to Linear/ })).toBeDefined()
   await ui.unmount()
 })
 
-test('deferring and relaying everything ends on the summary', async $ => {
+test('deferring and relaying everything ends on the summary', async ($, on) => {
+  const s = answerSession(on)
+  await s.open($)
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
-  await ui.press({ key: 'defer:igor-216-scope' })
-  expect(await ui.find({ type: 'Text', text: /Deferred/ })).toBeDefined()
-  for (const id of ['eng-412', 'igor-216-jlee', 'ops-staging']) {
-    // walk to it and answer in words
-    for (let i = 0; i < 8 && !(await ui.find({ key: `field:${id}` })); i++) await ui.press({ key: 'next' })
-    await ui.input({ key: `field:${id}`, text: 'ok' })
-  }
-  for (const id of ['igor-216-visibility', 'lore-backoff', 'igor-216-citation-time', 'igor-216-sensitive']) {
-    for (let i = 0; i < 9 && !(await ui.find({ key: `opt:${id}:0` })); i++) await ui.press({ key: 'next' })
-    await ui.press({ key: `opt:${id}:0` })
-    await ui.press({ key: `send:${id}` })
-  }
+  expect(await s.enter($, 'd')).toContain('Deferred')
+  // The rest in queue order: a person's gets words, an agent's its first option.
+  for (const text of ['ok', '1', '1', 'ok', '1', 'ok', '1']) expect(await s.enter($, text)).toContain('Relayed')
+  await ui.redraw()
   expect(await ui.find({ type: 'Text', text: /Nothing new\. 1 deferred\./ })).toBeDefined()
-  await ui.press({ key: 'review' })
+  await s.enter($, 'r')
+  await ui.redraw()
   expect(await ui.find({ key: 'opt:igor-216-scope:0' })).toBeDefined()
   await ui.unmount()
+})
+
+test('Enter refuses what the screen cannot take, and sends nothing', async ($, on) => {
+  const s = answerSession(on)
+  await s.open($)
+  expect(await s.enter($, '3')).toBe('There is no answer 3.')
+  await s.enter($, '1')
+  await s.enter($, 'p')
+  expect(await s.enter($, 'Changed my mind')).toBe('This question is already relayed.')
+  expect(s.sent).toEqual([])
 })
 
 test('the pane has no close control of its own: the engine draws one', async ($, on) => {
@@ -135,6 +199,7 @@ const REPHRASED = {
 }
 
 test('talking a question through, then rephrasing it, keeps the queue where it was', async ($, on) => {
+  const s = answerSession(on)
   const prompts: string[] = []
   on('session.model', () => ({ value: 'test-model' }))
   on('model.complete', (_, e) => {
@@ -142,65 +207,75 @@ test('talking a question through, then rephrasing it, keeps the queue where it w
     const text = /JSON only/.test(e.prompt) ? JSON.stringify(REPHRASED) : 'It asks whether out-of-scope question files are hidden.'
     return { value: { isAnswered: true, text, usage: USAGE } }
   })
+  await s.open($)
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
-  await ui.press({ key: 'next' })
-  await ui.press({ key: 'prev' })
-  await ui.press({ key: 'talk:igor-216-scope:open' })
+  await s.enter($, 't')
+  await ui.redraw()
   expect(await ui.find({ type: 'Text', text: /TALKING IT THROUGH/ })).toBeDefined()
   // The question stays in view above the discussion.
   expect(await ui.find({ type: 'Text', text: /During a run/ })).toBeDefined()
 
-  await ui.input({ key: 'talk:igor-216-scope:0', text: 'What is the questions branch?' })
+  expect(await s.enter($, 'What is the questions branch?')).toBe('Sent to Claude')
+  expect(await waitFor(ui, { type: 'Text', text: /out-of-scope question files are hidden/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /What is the questions branch\?/ })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /out-of-scope question files are hidden/ })).toBeDefined()
   expect(prompts[0]).toContain('What is the questions branch?')
 
-  await ui.press({ key: 'rephrase:igor-216-scope' })
-  expect(await ui.find({ type: 'Text', text: /Rephrased after your discussion/ })).toBeDefined()
+  await s.enter($, 'r')
+  expect(await waitFor(ui, { type: 'Text', text: /Rephrased after your discussion/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /leave out questions-branch files/ })).toBeDefined()
   expect(await ui.find({ key: 'opt:igor-216-scope:0' })).toBeDefined()
   // Same place in the queue: 1 of 8.
   expect(await ui.find({ type: 'Text', text: /1 of 8/ })).toBeDefined()
 
-  await ui.press({ key: 'orig:igor-216-scope' })
+  await s.enter($, 'o')
+  await ui.redraw()
   expect(await ui.find({ type: 'Text', text: /During a run/ })).toBeDefined()
-  await ui.press({ key: 'orig:igor-216-scope' })
+  await s.enter($, 'o')
 
-  await ui.press({ key: 'opt:igor-216-scope:0' })
+  expect(await s.enter($, '1')).toContain('Relayed')
+  await s.enter($, 'p')
+  await ui.redraw()
   expect(await ui.find({ type: 'Text', text: /Logged with the answer in the real skill/ })).toBeDefined()
-  await ui.press({ key: 'send:igor-216-scope' })
-  expect(await ui.find({ type: 'Input', key: 'field:eng-412' })).toBeDefined()
+  expect(s.sent).toEqual([])
   await ui.unmount()
 })
 
 test('back without changes keeps the question and its discussion', async ($, on) => {
+  const s = answerSession(on)
   on('session.model', () => ({ value: 'test-model' }))
   on('model.complete', () => ({ value: { isAnswered: true, text: 'A reply.', usage: USAGE } }))
+  await s.open($)
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
-  await ui.press({ key: 'talk:igor-216-scope:open' })
-  await ui.input({ key: 'talk:igor-216-scope:0', text: 'Why now?' })
-  await ui.press({ key: 'back:igor-216-scope' })
+  await s.enter($, 't')
+  await s.enter($, 'Why now?')
+  expect(await waitFor(ui, { type: 'Text', text: /A reply\./ })).toBeDefined()
+  await s.enter($, 'b')
+  await ui.redraw()
   expect(await ui.find({ type: 'Text', text: /During a run/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /TALKING IT THROUGH/ })).toBeUndefined()
   expect(await ui.find({ type: 'Text', text: /Rephrased/ })).toBeUndefined()
   // Reopening continues where it was.
-  await ui.press({ key: 'talk:igor-216-scope:open' })
+  await s.enter($, 't')
+  await ui.redraw()
   expect(await ui.find({ type: 'Text', text: /Why now\?/ })).toBeDefined()
-  expect(await ui.find({ type: 'Input', key: 'talk:igor-216-scope:2' })).toBeDefined()
   await ui.unmount()
 })
 
 test("a failed model call is shown in place and the discussion stays usable", async ($, on) => {
+  const s = answerSession(on)
   on('session.model', () => ({ value: 'test-model' }))
   on('model.complete', () => ({ value: { isAnswered: false, reason: 'empty-reply', usage: USAGE } }))
+  await s.open($)
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
-  await ui.press({ key: 'talk:igor-216-scope:open' })
-  await ui.input({ key: 'talk:igor-216-scope:0', text: 'Hello?' })
-  expect(await ui.find({ type: 'Text', text: /No reply: the reply was empty/ })).toBeDefined()
-  expect(await ui.find({ type: 'Input', key: 'talk:igor-216-scope:2' })).toBeDefined()
+  await s.enter($, 't')
+  await s.enter($, 'Hello?')
+  expect(await waitFor(ui, { type: 'Text', text: /No reply: the reply was empty/ })).toBeDefined()
+  expect(await s.enter($, 'Hello again?')).toBe('Sent to Claude')
   await ui.unmount()
 })
 
 test('asking the asker: send, wait, the reply arrives, back in the queue', async ($, on) => {
+  const s = answerSession(on)
   const clock = mock.clock(on)
   const toasts: string[] = []
   on('session.model', () => ({ value: 'test-model' }))
@@ -211,27 +286,32 @@ test('asking the asker: send, wait, the reply arrives, back in the queue', async
     toasts.push(e.text)
     return { value: undefined }
   })
+  await s.open($)
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
-  await ui.press({ key: 'talk:igor-216-scope:open' })
-  await ui.press({ key: 'ask:igor-216-scope:open' })
-  // The model's draft, exactly as it would post.
-  expect(await ui.find({ type: 'Text', text: /WILL POST ON GITHUB AS/ })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /Do hidden files stay on the branch\?/ })).toBeDefined()
-  await ui.input({ key: 'ask:igor-216-scope', text: 'Do hidden files stay on the branch, or are they removed?', kind: 'change' })
-  await ui.press({ key: 'ask-send:igor-216-scope' })
+  await s.enter($, 't')
+  await s.enter($, 'a')
+  expect(await waitFor(ui, { type: 'Text', text: /ASK CLAUDE, IN THE THREAD/ })).toBeDefined()
+  // The model's draft goes into the empty prompt box, to edit or send.
+  for (let i = 0; i < 50 && !s.filled.length; i++) await ui.redraw()
+  expect(s.filled).toEqual(['Do hidden files stay on the branch?'])
+  expect(await s.enter($, 'Do hidden files stay on the branch, or are they removed?')).toContain('Asked claude on GitHub')
 
   // Nothing blocks: the next new question is up, the first waits.
-  expect(await ui.find({ type: 'Input', key: 'field:eng-412' })).toBeDefined()
+  await ui.redraw()
+  expect(await ui.find({ type: 'Text', text: /Reply to Maya Ortiz/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /1 waiting/ })).toBeDefined()
 
   await clock.advance(30_000)
   expect(toasts).toEqual(['claude replied: their question is back in the queue.'])
+  await ui.redraw()
   expect(await ui.find({ type: 'Text', text: /1 waiting/ })).toBeUndefined()
-  await ui.press({ key: 'prev' })
+  await s.enter($, 'p')
+  await ui.redraw()
   expect(await ui.find({ type: 'Text', text: /replied to your question/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /or are they removed\?/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /Revised by claude after your question/ })).toBeDefined()
   expect(await ui.find({ key: 'opt:igor-216-scope:0' })).toBeDefined()
+  expect(s.sent).toEqual([])
   await ui.unmount()
 })
 
@@ -298,31 +378,15 @@ test('while the pane is up the conversation draws nothing', async ($, on) => {
   await turn.unmount()
 })
 
-test('while the pane is open, typed prompts stay out of the model; slash commands run', async ($, on) => {
+test('while the pane is open, Enter acts in the session and nothing reaches the model; slash commands run', async ($, on) => {
   memoryStore(on)
-  const typed = { origin: { kind: 'composer' }, wait: false } as const
-  let isUp = false
-  const entered: string[] = []
-  on('command.register', () => ({ value: { command: 'answer' } }))
-  on('ui.open', () => {
-    isUp = true
-    return { value: { isPlaced: true } }
-  })
-  on('ui.panes', () => ({
-    value: isUp ? [{ id: 'answer-session', title: 'Answer session', isShown: true, isFocused: true, isPlaced: true }] : [],
-  }))
-  on('prompt.submit', (_, e) => {
-    entered.push(e.text)
-    return { text: e.text }
-  })
-  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  const s = answerSession(on)
   await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
-
-  expect((await $.prompt.submit({ ...typed, text: 'before' })).drop).toBeUndefined()
+  expect((await $.prompt.submit({ ...TYPED, text: 'before' })).drop).toBeUndefined()
   await $.command.run({ command: 'answer', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 90 } })
-  expect((await $.prompt.submit({ ...typed, text: 'stray typing' })).drop).toContain('not sent to Claude')
-  expect((await $.prompt.submit({ ...typed, text: '/model', command: { name: 'model', args: '' } })).drop).toBeUndefined()
-  expect(entered).toEqual(['before', '/model'])
+  expect(await s.enter($, 'An answer in my own words')).toContain('Relayed to GitHub')
+  expect((await $.prompt.submit({ ...TYPED, text: '/model', command: { name: 'model', args: '' } })).drop).toBeUndefined()
+  expect(s.sent).toEqual(['before', '/model'])
 })
 
 const INLINE = { ...PANE, props: { ...PANE.props, placement: 'inline' } } as const

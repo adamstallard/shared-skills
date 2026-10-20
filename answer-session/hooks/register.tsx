@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, ModelCompleteResult, Register } from 'claude-code'
 
-import type { Answer, Returned, Revision, Staged, Turn } from '../types'
+import type { Answer, Returned, Revision, Turn } from '../types'
 
 // Prototype only: the questions are fixed examples, and an answer is kept in
 // the session's state instead of being posted by the relay account.
@@ -236,11 +236,11 @@ const RULE = 'subtle'
 const PANE = 'answer-session'
 const PREFIX = 'User says: '
 const SPEAKER = 9
+// Lines k or j moves the discussion by.
+const TALK_SCROLL_STEP = 8
 const cursorAtom = atom({ plugin: 'answer-session', key: 'cursor' } as const, 0)
 const answersAtom = atom({ plugin: 'answer-session', key: 'answers' } as const, {} as Record<string, Answer>)
-const stagedAtom = atom({ plugin: 'answer-session', key: 'staged' } as const, {} as Record<string, Staged>)
-const draftsAtom = atom({ plugin: 'answer-session', key: 'drafts' } as const, {} as Record<string, string>)
-const seedsAtom = atom({ plugin: 'answer-session', key: 'seeds' } as const, {} as Record<string, string>)
+const promptAtom = atom({ plugin: 'answer-session', key: 'prompt' } as const, '')
 const flashAtom = atom({ plugin: 'answer-session', key: 'flash' } as const, null as string | null)
 const talkingAtom = atom({ plugin: 'answer-session', key: 'talking' } as const, null as string | null)
 const talksAtom = atom({ plugin: 'answer-session', key: 'talks' } as const, {} as Record<string, Turn[]>)
@@ -251,10 +251,7 @@ const thinkingAtom = atom(
 const rephrasedAtom = atom({ plugin: 'answer-session', key: 'rephrased' } as const, {} as Record<string, Revision>)
 const originalAtom = atom({ plugin: 'answer-session', key: 'original' } as const, {} as Record<string, boolean>)
 const talkScrollAtom = atom({ plugin: 'answer-session', key: 'talkScroll' } as const, 0)
-const askingAtom = atom(
-  { plugin: 'answer-session', key: 'asking' } as const,
-  {} as Record<string, { seed: string; text: string }>,
-)
+const askingAtom = atom({ plugin: 'answer-session', key: 'asking' } as const, {} as Record<string, true>)
 const returnedAtom = atom({ plugin: 'answer-session', key: 'returned' } as const, {} as Record<string, Returned>)
 const immersiveAtom = atom({ plugin: 'answer-session', key: 'immersive' } as const, false)
 const placingAtom = atom({ plugin: 'answer-session', key: 'placing' } as const, false)
@@ -309,13 +306,6 @@ function view(base: Question, rephrased?: Revision, returned?: Returned, showOri
   }
 }
 
-/** The text the relay posts for a staged answer, without its prefix. */
-function stagedText(q: Question, staged: Staged | undefined, draft: string): string | undefined {
-  if (!staged) return undefined
-  if (staged.kind === 'option') return q.options?.[staged.index]?.label
-  return draft.trim() || undefined
-}
-
 /** The first question after `from` with nothing done to it, or the summary's index. */
 function nextFresh(from: number, answers: Record<string, Answer>): number {
   for (let step = 1; step <= QUESTIONS.length; step++) {
@@ -323,11 +313,6 @@ function nextFresh(from: number, answers: Record<string, Answer>): number {
     if (!answers[QUESTIONS[i]!.id]) return i
   }
   return QUESTIONS.length
-}
-
-/** The key the focus ring starts on for a question: the recommendation, or the reply field. */
-function landingKey(q: Question): string {
-  return q.options ? `opt:${q.id}:0` : `field:${q.id}`
 }
 
 /** Everything the model is told about the question it helps with. */
@@ -501,6 +486,349 @@ async function takeRestart($: EngineInterface, cwd: string): Promise<ResumeRecor
   return record
 }
 
+// ── what Enter does ─────────────────────────────────────────────────────
+//
+// The keyboard stays in the prompt box for the whole session. What the box
+// holds is read against the screen on show: a digit chooses an option, one
+// letter names a command, anything longer is an answer (or, in a
+// discussion, a message to the model). The pane previews it as it is typed;
+// Enter does it, and the prompt never reaches the model.
+
+/** The answer session's state, as the screen and Enter both read it. */
+type Ctx = {
+  at: number
+  base?: Question
+  /** The question as it now stands (rephrased, revised, or as asked). */
+  q?: Question
+  answer?: Answer
+  open: boolean
+  talking: boolean
+  composing: boolean
+  busy?: 'reply' | 'rephrase' | 'draft'
+  hasReply: boolean
+  changed: boolean
+  deferredAt: number
+}
+
+async function snapshot($: EngineInterface): Promise<Ctx> {
+  const N = QUESTIONS.length
+  const at = Math.min(Math.max(await read($, cursorAtom), 0), N)
+  const answers = await read($, answersAtom)
+  const deferredAt = QUESTIONS.findIndex(one => answers[one.id]?.kind === 'defer')
+  const base = QUESTIONS[at]
+  if (!base) return { at, open: false, talking: false, composing: false, hasReply: false, changed: false, deferredAt }
+  const rephrased = (await read($, rephrasedAtom))[base.id]
+  const returned = (await read($, returnedAtom))[base.id]
+  const q = view(base, rephrased, returned, !!(await read($, originalAtom))[base.id])
+  const answer = answers[base.id]
+  const talking = (await read($, talkingAtom)) === base.id
+  return {
+    at,
+    base,
+    q,
+    answer,
+    open: answer?.kind !== 'answer' && answer?.kind !== 'wait',
+    talking,
+    composing: talking && !!(await read($, askingAtom))[base.id],
+    busy: (await read($, thinkingAtom))[base.id],
+    hasReply: ((await read($, talksAtom))[base.id] ?? []).some(t => t.who === 'model'),
+    changed: !!(rephrased ?? returned?.revised),
+    deferredAt,
+  }
+}
+
+/** A one-letter command: its key and what it does (`runCommand` does it). */
+type Command = { key: string; what: string }
+
+/** The commands the screen offers now, in the order the key row shows them. */
+function commands(c: Ctx): Command[] {
+  const q = c.q
+  const nav: Command[] = [
+    { key: 'p', what: 'previous' },
+    { key: 'n', what: 'next' },
+  ]
+  if (!q) return [...(c.deferredAt >= 0 ? [{ key: 'r', what: 'review the deferred' }] : []), ...nav]
+  if (c.composing) return [{ key: 'b', what: 'back to the discussion' }]
+  if (c.talking) {
+    return [
+      ...(c.hasReply && !c.busy ? [{ key: 'r', what: 'rephrase and ask again' }] : []),
+      ...(!c.busy ? [{ key: 'a', what: `ask ${q.asker.name}` }] : []),
+      { key: 'k', what: 'earlier' },
+      { key: 'j', what: 'later' },
+      { key: 'b', what: 'back without changes' },
+    ]
+  }
+  return [
+    ...(c.open
+      ? [
+          { key: 't', what: 'talk it through' },
+          ...(q.answered ? [{ key: 'c', what: 'cite the decision' }] : []),
+          { key: 'd', what: 'defer' },
+        ]
+      : []),
+    ...(c.changed ? [{ key: 'o', what: 'original' }] : []),
+    ...nav,
+  ]
+}
+
+/** Does command `key` on the screen `c` describes, and says what it did. */
+async function runCommand($: EngineInterface, c: Ctx, key: string): Promise<string> {
+  const q = c.q
+  if (key === 'p') return stepBy($, c.at, -1)
+  if (key === 'n') return stepBy($, c.at, 1)
+  if (!q) return key === 'r' ? go($, c.deferredAt, 'Back to a deferred question') : ''
+  if (c.composing) return key === 'b' ? backToTalk($, q) : ''
+  if (c.talking) {
+    switch (key) {
+      case 'r':
+        return rephrase($, q)
+      case 'a':
+        return draftAsk($, q)
+      case 'k':
+        return scrollTalk($, 1)
+      case 'j':
+        return scrollTalk($, -1)
+      case 'b':
+        return backToQuestion($, q)
+    }
+    return ''
+  }
+  switch (key) {
+    case 't':
+      return openTalk($, q)
+    case 'c':
+      return cite($, q)
+    case 'd':
+      return settle($, q, { kind: 'defer', text: '' }, `Deferred: ${q.asker.name}'s question waits until the new ones are done`)
+    case 'o':
+      return toggleOriginal($, q)
+  }
+  return ''
+}
+
+/** What Enter would do with the prompt box's text. */
+type Intent =
+  | { kind: 'none' }
+  | { kind: 'option'; index: number; text: string }
+  | { kind: 'relay'; text: string }
+  | { kind: 'command'; command: Command }
+  | { kind: 'say'; text: string }
+  | { kind: 'ask'; text: string }
+  | { kind: 'refused'; why: string }
+
+function intent(c: Ctx, draft: string): Intent {
+  const text = draft.trim()
+  if (!text) return { kind: 'none' }
+  const command = text.length === 1 ? commands(c).find(one => one.key === text.toLowerCase()) : undefined
+  if (command) return { kind: 'command', command }
+  const q = c.q
+  if (!q) return { kind: 'refused', why: 'Nothing to answer here: p or n moves to a question.' }
+  if (c.composing) return { kind: 'ask', text }
+  if (c.talking) return c.busy ? { kind: 'refused', why: 'Claude is still replying.' } : { kind: 'say', text }
+  if (!c.open) {
+    return { kind: 'refused', why: c.answer?.kind === 'wait' ? `This question waits for ${q.asker.name}'s reply.` : 'This question is already relayed.' }
+  }
+  if (q.options && /^[1-9]$/.test(text)) {
+    const index = Number(text) - 1
+    const option = q.options[index]
+    return option ? { kind: 'option', index, text: option.label } : { kind: 'refused', why: `There is no answer ${text}.` }
+  }
+  return { kind: 'relay', text }
+}
+
+/** Does what Enter does with `draft`, and says what it did. */
+async function enter($: EngineInterface, draft: string): Promise<string> {
+  const c = await snapshot($)
+  const it = intent(c, draft)
+  const q = c.q
+  switch (it.kind) {
+    case 'none':
+      return 'Nothing to send.'
+    case 'refused':
+      return it.why
+    case 'command':
+      return runCommand($, c, it.command.key)
+    case 'option':
+    case 'relay':
+      return q ? relay($, q, it.text) : ''
+    case 'say':
+      return q ? say($, q, it.text) : ''
+    case 'ask':
+      return q ? sendAsk($, q, it.text) : ''
+  }
+}
+
+// ── actions ─────────────────────────────────────────────────────────────
+
+/** Moves to question `i` (the queue's length is the summary). */
+async function go($: EngineInterface, i: number, note: string): Promise<string> {
+  await update($, cursorAtom, () => i)
+  await update($, flashAtom, () => null)
+  return note
+}
+
+function stepBy($: EngineInterface, at: number, by: number): Promise<string> {
+  const N = QUESTIONS.length
+  const i = (at + by + N + 1) % (N + 1)
+  return go($, i, i === N ? 'The summary' : `Question ${i + 1} of ${N}`)
+}
+
+/** Records what was done with a question and moves to the next new one. */
+async function settle($: EngineInterface, one: Question, answer: Answer, note: string): Promise<string> {
+  let after: Record<string, Answer> = {}
+  await update($, answersAtom, a => (after = { ...a, [one.id]: answer }))
+  await update($, talkingAtom, () => null)
+  await update($, cursorAtom, () => nextFresh(QUESTIONS.findIndex(x => x.id === one.id), after))
+  await update($, flashAtom, () => note)
+  return note
+}
+
+function relay($: EngineInterface, one: Question, text: string): Promise<string> {
+  return settle($, one, { kind: 'answer', text }, `Relayed to ${SURFACE_NAME[one.surface]} ${one.where} as ${one.relayAs}`)
+}
+
+/** One completion on the session's own model; an error in words, never a throw. */
+async function complete(
+  $: EngineInterface,
+  system: string,
+  prompt: string,
+  maxTokens: number,
+): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
+  try {
+    const model = await $.session.model()
+    const r = await $.model.complete({ model, system, prompt, maxTokens, timeoutMs: 120_000 })
+    return r.isAnswered ? { ok: true, text: r.text.trim() } : { ok: false, error: why(r) }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) }
+  }
+}
+
+const think = ($: EngineInterface, id: string, kind: 'reply' | 'rephrase' | 'draft' | undefined) =>
+  update($, thinkingAtom, t => (kind ? { ...t, [id]: kind } : without(t, id)))
+const addTurn = ($: EngineInterface, id: string, turn: Turn) =>
+  update($, talksAtom, t => ({ ...t, [id]: [...(t[id] ?? []), turn] }))
+
+async function openTalk($: EngineInterface, one: Question): Promise<string> {
+  await update($, talkScrollAtom, () => 0)
+  await update($, flashAtom, () => null)
+  await update($, talkingAtom, () => one.id)
+  return 'Talking it through'
+}
+
+async function backToQuestion($: EngineInterface, one: Question): Promise<string> {
+  await update($, askingAtom, a => without(a, one.id))
+  await update($, talkingAtom, () => null)
+  return 'Back to the question'
+}
+
+async function backToTalk($: EngineInterface, one: Question): Promise<string> {
+  await update($, askingAtom, a => without(a, one.id))
+  return 'Back to the discussion'
+}
+
+async function scrollTalk($: EngineInterface, by: number): Promise<string> {
+  // The screen clamps the scroll to the discussion's length.
+  await update($, talkScrollAtom, s => Math.max(0, s + by * TALK_SCROLL_STEP))
+  return by > 0 ? 'Earlier in the discussion' : 'Later in the discussion'
+}
+
+async function toggleOriginal($: EngineInterface, one: Question): Promise<string> {
+  let isOriginal = false
+  await update($, originalAtom, o => ({ ...o, [one.id]: (isOriginal = !o[one.id]) }))
+  return isOriginal ? 'The original question' : 'The question as asked now'
+}
+
+/** Puts the reply citing the earlier decision in the prompt box, to edit or send. */
+async function cite($: EngineInterface, one: Question): Promise<string> {
+  if (one.answered) await $.prompt.fill({ text: one.answered.cite, mode: 'replace' })
+  return 'The citing reply is in the prompt box: Enter relays it'
+}
+
+/** Adam's message, then the model's reply, both kept with the question. */
+async function say($: EngineInterface, one: Question, text: string): Promise<string> {
+  let turns: Turn[] = []
+  await update($, talksAtom, t => {
+    turns = [...(t[one.id] ?? []), { who: 'you', text }]
+    return { ...t, [one.id]: turns }
+  })
+  await update($, talkScrollAtom, () => 0)
+  void (async () => {
+    await think($, one.id, 'reply')
+    const returned = (await read($, returnedAtom))[one.id]
+    const r = await complete($, systemPrompt(one, returned), `${transcript(turns)}\n\nReply to Adam's last message.`, 1024)
+    await addTurn($, one.id, r.ok ? { who: 'model', text: r.text } : { who: 'error', text: `No reply: ${r.error}. Send again to retry.` })
+    await think($, one.id, undefined)
+  })()
+  return 'Sent to Claude'
+}
+
+/** The question rewritten in light of the discussion, then asked again. */
+async function rephrase($: EngineInterface, one: Question): Promise<string> {
+  void (async () => {
+    await think($, one.id, 'rephrase')
+    const shape = one.options
+      ? '{"question": string, "context": string (one or two sentences, or ""), "options": [{"label": string, "effect": string}] (2 to 4 answers, the recommended one first: the asker\'s recommendation unless the discussion showed it no longer fits; each effect says what that answer would change), "summary": string (one line: what the discussion settled)}'
+      : '{"question": string (what the person is asking, restated clearly), "context": string (one or two sentences, or ""), "options": [], "summary": string (one line: what the discussion settled)}'
+    const returned = (await read($, returnedAtom))[one.id]
+    const talks = (await read($, talksAtom))[one.id] ?? []
+    const r = await complete(
+      $,
+      systemPrompt(one, returned),
+      `${transcript(talks)}\n\nThe discussion is over. Rewrite the question in light of it, so that Adam can answer it at once: keep what the asker needs to know, use the words the discussion made clear, and drop what confused him. Answer with JSON only, in this shape:\n${shape}`,
+      1500,
+    )
+    const revision = r.ok ? parseRevision(r.text, !!one.options) : undefined
+    await think($, one.id, undefined)
+    if (!revision) {
+      await addTurn($, one.id, {
+        who: 'error',
+        text: !r.ok ? `Could not rephrase: ${r.error}. r and Enter try again.` : 'The rephrasing came back unreadable. r and Enter try again.',
+      })
+      return
+    }
+    await update($, rephrasedAtom, x => ({ ...x, [one.id]: revision }))
+    await update($, originalAtom, o => without(o, one.id))
+    await update($, talkingAtom, () => null)
+    await update($, flashAtom, () => 'Rephrased after your discussion. Asked again below.')
+  })()
+  return 'Rephrasing the question'
+}
+
+/** A clarifying question for the asker, drafted by the model into the prompt box. */
+async function draftAsk($: EngineInterface, one: Question): Promise<string> {
+  await update($, askingAtom, a => ({ ...a, [one.id]: true as const }))
+  void (async () => {
+    await think($, one.id, 'draft')
+    const returned = (await read($, returnedAtom))[one.id]
+    const talks = (await read($, talksAtom))[one.id] ?? []
+    const r = await complete(
+      $,
+      systemPrompt(one, returned),
+      `${transcript(talks)}\n\nDraft the one clarifying question Adam should send back to ${one.asker.name} in the thread, about what the discussion shows is unclear. Write it as Adam would: one or two plain sentences addressed to them, no greeting, no sign-off, no quotation marks.`,
+      300,
+    )
+    await think($, one.id, undefined)
+    if (!r.ok) {
+      await addTurn($, one.id, { who: 'error', text: `Could not draft a question: ${r.error}. Write your own in the prompt box.` })
+      return
+    }
+    // The draft lands only in an empty box: what Adam started typing is his.
+    const still = (await read($, askingAtom))[one.id]
+    if (still && !(await $.prompt.read()).text.trim()) {
+      await $.prompt.fill({ text: r.text.replace(/^["“]|["”]$/g, '').trim(), mode: 'replace' })
+    }
+  })()
+  return `Drafting a question for ${one.asker.name}`
+}
+
+async function sendAsk($: EngineInterface, one: Question, text: string): Promise<string> {
+  await update($, askingAtom, a => without(a, one.id))
+  const note = await settle($, one, { kind: 'wait', text }, `Asked ${one.asker.name} on ${SURFACE_NAME[one.surface]}. Their question waits for the reply; nothing else does.`)
+  // Prototype only: the asker "replies" after a while.
+  $.clock.after(SIM_REPLY_MS, () => void deliverReply($, one.id))
+  return note
+}
+
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     // Immediate: /answer opens the pane at once, even mid-turn. Its hook only
@@ -530,7 +858,7 @@ export const register: Register = on => {
       // The answer session is the whole screen: the pane asks for every row
       // and column, and the conversation beside it draws nothing.
       void update($, immersiveAtom, () => true)
-      void $.ui.open({ id: PANE, title: 'Answer session', focus: true, rows: 500, columns: 500 }).then(opened => {
+      void $.ui.open({ id: PANE, title: 'Answer session', rows: 500, columns: 500 }).then(opened => {
         // Unasked, the engine seats a pane only on a wide terminal (144
         // columns, or 110 once the person has opened this id). Otherwise it
         // waits, seating itself if the terminal widens, and /answer seats it.
@@ -551,7 +879,9 @@ export const register: Register = on => {
     // columns it keeps for the transcript); on the main screen it sits inline
     // above the prompt, as tall as the layout spares.
     await update($, immersiveAtom, () => true)
-    await $.ui.open({ id: PANE, title: 'Answer session', focus: true, rows: 500, columns: 500 })
+    // Opened without the keyboard: it stays in the prompt box, where every
+    // answer and command is typed.
+    await $.ui.open({ id: PANE, title: 'Answer session', rows: 500, columns: 500 })
     if (await read($, placingAtom)) {
       $.ui.status(undefined)
       await update($, placingAtom, () => false)
@@ -618,33 +948,46 @@ export const register: Register = on => {
     const panes = await $.ui.panes()
     if (!panes.some(pane => pane.id === PANE && pane.isShown && pane.isPlaced)) return next(e)
     const { Text } = $.ui.resolve(e)
-    return <Text dimColor>answer session · only /commands go to Claude · ctrl+x tab returns to it</Text>
+    return <Text dimColor>answer session · type here, Enter does it · only /commands go to Claude</Text>
   })
 
-  // While the pane is open nothing typed in the prompt box reaches the model:
-  // slash commands run, and prompts the engine sends itself pass. A failure
-  // here drops the prompt rather than letting it through.
+  // The pane previews what Enter would do with the prompt box's text, so it
+  // keeps a copy: every edit, and every change no edit carried (a fill, a
+  // recalled history entry, a clear).
+  on('prompt.edit', async ($, e, next) => {
+    const box = await next(e)
+    if (await read($, immersiveAtom)) await update($, promptAtom, () => box.text)
+    return box
+  })
+  on('prompt.change', async ($, e, next) => {
+    const changed = await next(e)
+    if (await read($, immersiveAtom)) await update($, promptAtom, () => e.text)
+    return changed
+  })
+
+  // While the pane is open, Enter in the prompt box answers or acts in the
+  // answer session, and the prompt never reaches the model: slash commands
+  // run, and prompts the engine sends itself pass. The drop's reason is what
+  // the person sees, so it says what was done. A failure here drops the
+  // prompt rather than letting it through.
   on('prompt.submit', async ($, e, next) => {
     if (e.command || e.isMeta || !(await read($, immersiveAtom))) return next(e)
     const panes = await $.ui.panes()
     if (!panes.some(pane => pane.id === PANE && pane.isPlaced)) return next(e)
-    return { drop: 'The answer session is open, so this was not sent to Claude. Close the pane to chat.' }
+    const done = await enter($, e.text)
+    await update($, promptAtom, () => '')
+    return { drop: done }
   }).catch(($, e, next) => (next.called ? next(e) : { drop: 'The answer session could not check this prompt, so it was not sent.' }))
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
-    const ui = $.ui.resolve(e)
-    const { Box, Text, Button, Link } = ui
-    // Input is on the terminal and desktop surfaces only.
-    const Input = 'Input' in ui ? ui.Input : undefined
+    const { Box, Text, Button, Link } = $.ui.resolve(e)
     // Drawn at last after a launch-time open waited: the hint has done its job.
     // (A drawing never writes state; /answer clears the flag.)
     if (await read($, placingAtom)) $.ui.status(undefined)
     const cursor = await read($, cursorAtom)
     const answers = await read($, answersAtom)
-    const stagedAll = await read($, stagedAtom)
-    const drafts = await read($, draftsAtom)
+    const draft = await read($, promptAtom)
     const flash = await read($, flashAtom)
-    const seeds = await read($, seedsAtom)
     const talking = await read($, talkingAtom)
     const talks = await read($, talksAtom)
     const thinking = await read($, thinkingAtom)
@@ -664,7 +1007,6 @@ export const register: Register = on => {
     // Vertical rhythm: the summary's gaps grow with the pane; a question's
     // are fitted to it below, once its lines are counted.
     const gap = rows >= 40 ? 2 : 1
-    const focused = e.props.isFocused
 
     const N = QUESTIONS.length
     const at = Math.min(Math.max(cursor, 0), N)
@@ -675,166 +1017,22 @@ export const register: Register = on => {
     const waiting = count('wait')
     const fresh = N - relayed - deferred - waiting
 
-    // ── actions ──────────────────────────────────────────────────────────
-
-    const drop = <T,>(record: Record<string, T>, id: string) => {
-      const { [id]: _gone, ...rest } = record
-      return rest
-    }
-    const focus = (key: string) => {
-      if (focused) void $.ui.focus({ requestId: PANE, key })
-    }
-    // Moves to question `i` (N is the summary) and lands the focus ring there.
-    const go = (i: number) => {
-      void (async () => {
-        const target = QUESTIONS[i]
-        await update($, cursorAtom, () => i)
-        await update($, flashAtom, () => null)
-        if (target) focus(landingKey(target))
-      })()
-    }
-    const step = (by: number) => () => go((at + by + N + 1) % (N + 1))
-    const leaving = (one: Question) => {
-      // An unsent draft is not kept past the question: it would be text the
-      // field no longer shows.
-      void update($, draftsAtom, d => ({ ...d, [one.id]: '' }))
-      void update($, seedsAtom, d => ({ ...d, [one.id]: '' }))
-      void update($, stagedAtom, s => (s[one.id]?.kind === 'text' ? drop(s, one.id) : s))
-    }
-    const stage = (one: Question, staged: Staged) => {
-      void (async () => {
-        await update($, stagedAtom, s => ({ ...s, [one.id]: staged }))
-        await update($, flashAtom, () => null)
-        // Choosing is not sending: the ring moves to Relay, so Enter sends
-        // exactly the message the preview shows.
-        if (staged.kind === 'option') focus(`send:${one.id}`)
-      })()
-    }
-    // Records what was done with a question and moves to the next new one.
-    const settle = (one: Question, answer: Answer, note: string) => {
-      void (async () => {
-        let after: Record<string, Answer> = {}
-        await update($, answersAtom, a => (after = { ...a, [one.id]: answer }))
-        await update($, stagedAtom, s => drop(s, one.id))
-        await update($, draftsAtom, d => ({ ...d, [one.id]: '' }))
-        await update($, seedsAtom, d => ({ ...d, [one.id]: '' }))
-        await update($, talkingAtom, () => null)
-        const target = nextFresh(QUESTIONS.findIndex(x => x.id === one.id), after)
-        await update($, cursorAtom, () => target)
-        await update($, flashAtom, () => note)
-        const next = QUESTIONS[target]
-        if (next) focus(landingKey(next))
-      })()
-    }
-    // One completion on the session's own model; an error in words, never a throw.
-    const complete = async (
-      system: string,
-      prompt: string,
-      maxTokens: number,
-    ): Promise<{ ok: true; text: string } | { ok: false; error: string }> => {
-      try {
-        const model = await $.session.model()
-        const r = await $.model.complete({ model, system, prompt, maxTokens, timeoutMs: 120_000 })
-        return r.isAnswered ? { ok: true, text: r.text.trim() } : { ok: false, error: why(r) }
-      } catch (err) {
-        return { ok: false, error: err instanceof Error ? err.message : String(err) }
-      }
-    }
-    const think = (id: string, kind: 'reply' | 'rephrase' | 'draft' | undefined) =>
-      update($, thinkingAtom, t => (kind ? { ...t, [id]: kind } : drop(t, id)))
-    const addTurn = (id: string, turn: Turn) => update($, talksAtom, t => ({ ...t, [id]: [...(t[id] ?? []), turn] }))
-
-    const openTalk = (one: Question) => {
-      void (async () => {
-        leaving(one)
-        await update($, talkScrollAtom, () => 0)
-        await update($, flashAtom, () => null)
-        await update($, talkingAtom, () => one.id)
-        focus(`talk:${one.id}:${(talks[one.id] ?? []).length}`)
-      })()
-    }
-    const backToQuestion = (one: Question) => {
-      void (async () => {
-        await update($, askingAtom, a => drop(a, one.id))
-        await update($, talkingAtom, () => null)
-        focus(landingKey(one))
-      })()
-    }
-    // Adam's message, then the model's reply, both kept with the question.
-    const say = (one: Question, text: string) => {
-      if (!text.trim() || thinking[one.id]) return
-      void (async () => {
-        let turns: Turn[] = []
-        await update($, talksAtom, t => {
-          turns = [...(t[one.id] ?? []), { who: 'you', text: text.trim() }]
-          return { ...t, [one.id]: turns }
-        })
-        await update($, talkScrollAtom, () => 0)
-        focus(`talk:${one.id}:${turns.length}`)
-        await think(one.id, 'reply')
-        const r = await complete(systemPrompt(one, returnedAll[one.id]), `${transcript(turns)}\n\nReply to Adam's last message.`, 1024)
-        await addTurn(one.id, r.ok ? { who: 'model', text: r.text } : { who: 'error', text: `No reply: ${r.error}. Send again to retry.` })
-        await think(one.id, undefined)
-      })()
-    }
-    // The question rewritten in light of the discussion, then asked again.
-    const rephrase = (one: Question) => {
-      if (thinking[one.id]) return
-      void (async () => {
-        await think(one.id, 'rephrase')
-        const shape = one.options
-          ? '{"question": string, "context": string (one or two sentences, or ""), "options": [{"label": string, "effect": string}] (2 to 4 answers, the recommended one first: the asker\'s recommendation unless the discussion showed it no longer fits; each effect says what that answer would change), "summary": string (one line: what the discussion settled)}'
-          : '{"question": string (what the person is asking, restated clearly), "context": string (one or two sentences, or ""), "options": [], "summary": string (one line: what the discussion settled)}'
-        const r = await complete(
-          systemPrompt(one, returnedAll[one.id]),
-          `${transcript(talks[one.id] ?? [])}\n\nThe discussion is over. Rewrite the question in light of it, so that Adam can answer it at once: keep what the asker needs to know, use the words the discussion made clear, and drop what confused him. Answer with JSON only, in this shape:\n${shape}`,
-          1500,
-        )
-        const revision = r.ok ? parseRevision(r.text, !!one.options) : undefined
-        await think(one.id, undefined)
-        if (!revision) {
-          await addTurn(one.id, {
-            who: 'error',
-            text: !r.ok ? `Could not rephrase: ${r.error}. Press r to try again.` : 'The rephrasing came back unreadable. Press r to try again.',
-          })
-          return
-        }
-        await update($, rephrasedAtom, x => ({ ...x, [one.id]: revision }))
-        await update($, originalAtom, o => drop(o, one.id))
-        await update($, stagedAtom, s => drop(s, one.id))
-        await update($, talkingAtom, () => null)
-        await update($, flashAtom, () => 'Rephrased after your discussion. Asked again below.')
-        focus(landingKey(one))
-      })()
-    }
-    // A clarifying question for the asker, drafted by the model; Adam edits it.
-    const draftAsk = (one: Question) => {
-      if (thinking[one.id]) return
-      void (async () => {
-        await update($, askingAtom, a => ({ ...a, [one.id]: a[one.id] ?? { seed: '', text: '' } }))
-        focus(`ask:${one.id}`)
-        await think(one.id, 'draft')
-        const r = await complete(
-          systemPrompt(one, returnedAll[one.id]),
-          `${transcript(talks[one.id] ?? [])}\n\nDraft the one clarifying question Adam should send back to ${one.asker.name} in the thread, about what the discussion shows is unclear. Write it as Adam would: one or two plain sentences addressed to them, no greeting, no sign-off, no quotation marks.`,
-          300,
-        )
-        await think(one.id, undefined)
-        if (r.ok) {
-          const text = r.text.replace(/^["“]|["”]$/g, '').trim()
-          await update($, askingAtom, a => ({ ...a, [one.id]: { seed: text, text } }))
-        } else {
-          await addTurn(one.id, { who: 'error', text: `Could not draft a question: ${r.error}. Write your own below.` })
-        }
-      })()
-    }
-    const sendAsk = (one: Question, text: string) => {
-      if (!text.trim()) return
-      settle(one, { kind: 'wait', text: text.trim() }, `Asked ${one.asker.name} on ${SURFACE_NAME[one.surface]}. Their question waits for the reply; nothing else does.`)
-      void update($, askingAtom, a => drop(a, one.id))
-      // Prototype only: the asker "replies" after a while.
-      $.clock.after(SIM_REPLY_MS, () => void deliverReply($, one.id))
-    }
+    // What Enter would do with the prompt box's text, and the commands on
+    // screen; a click on one does what typing its key and Enter does.
+    const c = await snapshot($)
+    const it = intent(c, draft)
+    const cmds = commands(c)
+    const run = (doing: Promise<unknown>) => void doing.catch(() => undefined)
+    const enterDoes =
+      it.kind === 'option' || it.kind === 'relay'
+        ? 'relay'
+        : it.kind === 'command'
+          ? it.command.what
+          : it.kind === 'say'
+            ? 'send to Claude'
+            : it.kind === 'ask' && base
+              ? `send to ${base.asker.name}`
+              : undefined
 
     // ── pieces ────────────────────────────────────────────────────────────
 
@@ -853,6 +1051,11 @@ export const register: Register = on => {
         <Text color={ACCENT}>{key}</Text>
         <Text dimColor>: {what}</Text>
       </Text>
+    )
+    const keyButton = (cmd: Command) => (
+      <Button key={`cmd:${cmd.key}`} plain onPress={() => run(runCommand($, c, cmd.key))}>
+        {hint([cmd.key, cmd.what])}
+      </Button>
     )
     const isTalking = !!base && talking === base.id
 
@@ -888,7 +1091,10 @@ export const register: Register = on => {
     // Fullscreen under 110 columns seats it above the prompt too, but caps it
     // at half the rows: say so, where the relay confirmation goes.
     const isSqueezed = e.props.placement === 'inline' && e.viewport?.isFullscreen === true
-    const flashLine = flash ? (
+    const flashLine =
+      it.kind === 'refused' ? (
+        <Text color={LATER} wrap="truncate-end">{it.why}</Text>
+      ) : flash ? (
       <Text color={DONE} wrap="truncate-end">✓ {flash}</Text>
     ) : isSqueezed ? (
       <Text color={LATER} wrap="truncate-end">
@@ -917,29 +1123,15 @@ export const register: Register = on => {
         <Box columnGap={4} flexWrap="wrap">
           {keys.map(hint)}
           {buttons}
+          {enterDoes ? hint(['Enter', enterDoes]) : null}
         </Box>
       </Box>
     )
-    const navButtons = (one?: Question) => [
-      <Button key="prev" hotkey="p" plain dimColor onPress={() => {
-        if (one) leaving(one)
-        step(-1)()
-      }}>
-        previous
-      </Button>,
-      <Button key="next" hotkey="n" plain dimColor onPress={() => {
-        if (one) leaving(one)
-        step(1)()
-      }}>
-        next
-      </Button>,
-    ]
 
     // ── the summary: every question handled, or the end of the queue ──────
 
     if (!base) {
       const done = QUESTIONS.filter(one => answers[one.id]?.kind === 'answer')
-      const later = QUESTIONS.findIndex(one => answers[one.id]?.kind === 'defer')
       const settled = fresh === 0 && deferred === 0 && waiting === 0
       const head =
         fresh > 0
@@ -983,14 +1175,9 @@ export const register: Register = on => {
               ))}
             </Box>
           )}
-          {later >= 0 && (
-            <Button key="review" hotkey="r" plain onPress={() => go(later)}>
-              {`review the ${deferred === 1 ? 'deferred question' : `${deferred} deferred questions`}`}
-            </Button>
-          )}
         </Box>,
         [],
-        navButtons(),
+        cmds.map(keyButton),
       )
     }
 
@@ -1004,9 +1191,7 @@ export const register: Register = on => {
     const answer = answers[base.id]
     const isRelayed = answer?.kind === 'answer'
     const isWaiting = answer?.kind === 'wait'
-    const staged = stagedAll[q.id]
-    const draft = drafts[q.id] ?? ''
-    const message = stagedText(q, staged, draft)
+    const message = it.kind === 'option' || it.kind === 'relay' ? it.text : undefined
     const isHuman = !q.options
     const turns = talks[q.id] ?? []
     const busy = thinking[q.id]
@@ -1064,8 +1249,7 @@ export const register: Register = on => {
     // ── talking it through: this question only, the queue waits ──────────
 
     if (isTalking) {
-      const asking = askingAll[q.id]
-      const composing = !!asking
+      const composing = !!askingAll[q.id]
       const hasReply = turns.some(t => t.who === 'model')
       const textWidth = Math.max(20, measure - SPEAKER)
 
@@ -1085,7 +1269,7 @@ export const register: Register = on => {
       }
       if (!all.length) {
         for (const text of wrap(
-          `Ask anything about this question: what it means, what each answer would change, what you are unsure of. The rest of the queue waits where it was. When it is clear, r rephrases the question and asks it again, or a asks ${q.asker.name} a question of your own, through the relay.`,
+          `Type anything about this question in the prompt box: what it means, what each answer would change, what you are unsure of. The rest of the queue waits where it was. When it is clear, r rephrases the question and asks it again, or a asks ${q.asker.name} a question of your own, through the relay.`,
           textWidth,
         ))
           all.push({ text })
@@ -1093,8 +1277,8 @@ export const register: Register = on => {
 
       const optionLines = q.options?.length ?? 0
       const head = 5 + 2 + 1 + wrap(q.text, measure).length + (optionLines ? 1 + optionLines : 0) + 1 + 2
-      const askText = asking?.text ?? ''
-      const lower = composing ? 1 + 1 + 5 + 1 + 1 + wrap(PREFIX + (askText || '…'), bubbleWidth).length + 2 : 1 + 4
+      const askText = it.kind === 'ask' ? it.text : ''
+      const lower = composing ? 1 + 1 + 1 + wrap(PREFIX + (askText || '…'), bubbleWidth).length + 1 : 1 + 1
       const window = Math.max(3, rows - head - lower - 1) // less the spacer under the body
       const scroll = Math.min(talkScroll, Math.max(0, all.length - window))
       let shown = all.slice(Math.max(0, all.length - window - scroll), all.length - scroll)
@@ -1151,51 +1335,42 @@ export const register: Register = on => {
         </Box>
       )
 
-      const talkField = Input ? (
-        <Box paddingLeft={SPEAKER}>
-          <Input
-            // A new key per message sent: the field starts empty again.
-            key={`talk:${q.id}:${turns.length}`}
-            placeholder={busy ? 'Claude is replying…' : turns.length ? 'Reply, or ask more…' : 'Ask about this question…'}
-            submitLabel="send"
-            rows={2}
-            autoFocus={composing ? undefined : true}
-            onSubmit={(text: string) => say(q, text)}
-          />
+      // What Enter would send, from the prompt box, beneath the exchange.
+      const pending = (
+        <Box>
+          <Box width={SPEAKER} flexShrink={0}>
+            {it.kind === 'say' ? (
+              <Text color={ACCENT} bold>
+                you
+              </Text>
+            ) : (
+              <Text> </Text>
+            )}
+          </Box>
+          <Text dimColor wrap="truncate-end">
+            {it.kind === 'say'
+              ? `${it.text}  ⏎`
+              : busy
+                ? 'Claude is replying…'
+                : turns.length
+                  ? 'Reply in the prompt box, or ask more.'
+                  : 'Type a question about this in the prompt box.'}
+          </Text>
         </Box>
-      ) : (
-        <Text dimColor>Talking a question through needs a keyboard: this surface has no text field.</Text>
       )
 
       const compose = composing ? (
         <Box flexDirection="column">
           {label(`Ask ${q.asker.name}, in the thread`)}
-          {Input ? (
-            <Input
-              key={`ask:${q.id}`}
-              // The model's draft seeds the field; Adam's edits are his own.
-              value={asking.seed}
-              placeholder={busy === 'draft' ? 'Drafting…' : `Your question for ${q.asker.name}…`}
-              submitLabel="send"
-              rows={3}
-              autoFocus
-              onInput={(text: string) => void update($, askingAtom, a => ({ ...a, [q.id]: { seed: a[q.id]?.seed ?? '', text } }))}
-              onSubmit={(text: string) => sendAsk(q, text)}
-            />
-          ) : null}
-          <Box height={1} />
-          {label(askText.trim() ? `Will post ${postsAs}` : `Posts ${postsAs}`, `${q.relayAs}, replying in ${q.where}`)}
-          {bubble(askText.trim() || undefined, askText.trim() ? ACCENT : RULE)}
-          <Box marginTop={1} gap={2}>
-            {askText.trim() ? (
-              <Button key={`ask-send:${q.id}`} hotkey="s" variant="primary" onPress={() => sendAsk(q, askText)}>
-                Send
-              </Button>
-            ) : (
-              <Text> </Text>
-            )}
-            {askText.trim() ? <Text dimColor>The question waits for their reply; the queue moves on.</Text> : ''}
-          </Box>
+          {label(askText ? `Will post ${postsAs}` : `Posts ${postsAs}`, `${q.relayAs}, replying in ${q.where}`)}
+          {bubble(askText || undefined, askText ? ACCENT : RULE)}
+          <Text dimColor>
+            {busy === 'draft'
+              ? 'Drafting a question into the prompt box…'
+              : askText
+                ? 'Enter sends exactly this. The question waits for their reply; the queue moves on.'
+                : `Type your question for ${q.asker.name} in the prompt box.`}
+          </Text>
         </Box>
       ) : null
 
@@ -1223,62 +1398,12 @@ export const register: Register = on => {
           <Box height={1} />
           {exchange}
           <Box height={1} />
-          {composing ? compose : talkField}
+          {composing ? compose : pending}
         </Box>,
-        composing
-          ? [
-              ['Enter', `send to ${q.asker.name}`],
-              ['Tab', 'leave the field'],
-            ]
-          : [
-              ['Enter', 'send'],
-              ['Tab', 'leave the field'],
-            ],
-        [
-          ...(!composing && hasReply
-            ? [
-                <Button key={`rephrase:${q.id}`} hotkey="r" plain onPress={() => rephrase(q)}>
-                  rephrase and ask again
-                </Button>,
-              ]
-            : []),
-          ...(!composing
-            ? [
-                <Button key={`ask:${q.id}:open`} hotkey="a" plain onPress={() => draftAsk(q)}>
-                  ask the asker
-                </Button>,
-              ]
-            : []),
-          ...(hiddenAbove > 0
-            ? [
-                <Button key="earlier" hotkey="k" plain dimColor onPress={() => void update($, talkScrollAtom, s => s + Math.max(1, window - 2))}>
-                  earlier
-                </Button>,
-              ]
-            : []),
-          ...(scroll > 0
-            ? [
-                <Button key="later" hotkey="j" plain dimColor onPress={() => void update($, talkScrollAtom, s => Math.max(0, s - Math.max(1, window - 2)))}>
-                  later
-                </Button>,
-              ]
-            : []),
-          composing ? (
-            <Button key={`back:${q.id}`} hotkey="b" plain dimColor onPress={() => {
-              void update($, askingAtom, a => drop(a, q.id))
-              focus(`talk:${q.id}:${turns.length}`)
-            }}>
-              back to the discussion
-            </Button>
-          ) : (
-            <Button key={`back:${q.id}`} hotkey="b" plain dimColor onPress={() => backToQuestion(q)}>
-              back without changes
-            </Button>
-          ),
-        ],
+        [],
+        cmds.filter(cmd => (cmd.key === 'k' ? hiddenAbove > 0 : cmd.key === 'j' ? scroll > 0 : true)).map(keyButton),
       )
     }
-
     // ── the question view ────────────────────────────────────────────────
 
     const contextBlock = q.context ? (
@@ -1327,12 +1452,7 @@ export const register: Register = on => {
               ? '↻ Rephrased after your discussion'
               : `↻ Revised by ${q.asker.name} after your question`}
         </Text>
-        <Button key={`orig:${q.id}`} hotkey="o" plain dimColor onPress={() => {
-          void update($, originalAtom, o => ({ ...o, [q.id]: !o[q.id] }))
-          void update($, stagedAtom, s => (s[q.id]?.kind === 'option' ? drop(s, q.id) : s))
-        }}>
-          {showOriginal ? 'show it as asked now' : 'show the original'}
-        </Button>
+        <Text dimColor>{showOriginal ? 'o: show it as asked now' : 'o: show the original'}</Text>
       </Box>
     ) : null
 
@@ -1351,24 +1471,7 @@ export const register: Register = on => {
                 <Text color={LATER}>Possibly answered already </Text>
                 {q.answered.decision}
               </Text>
-              {!isRelayed && !isWaiting && Input && (
-                <Button
-                  key={`cite:${q.id}`}
-                  hotkey="c"
-                  plain
-                  dimColor
-                  onPress={() => {
-                    void (async () => {
-                      await update($, seedsAtom, d => ({ ...d, [q.id]: q.answered!.cite }))
-                      await update($, draftsAtom, d => ({ ...d, [q.id]: q.answered!.cite }))
-                      await update($, stagedAtom, s => ({ ...s, [q.id]: { kind: 'text' as const } }))
-                      focus(`send:${q.id}`)
-                    })()
-                  }}
-                >
-                  reply by citing it
-                </Button>
-              )}
+              {!isRelayed && !isWaiting && <Text dimColor>c: reply by citing it</Text>}
             </Box>
           )}
         </Box>
@@ -1378,7 +1481,7 @@ export const register: Register = on => {
     // label on the first row, what changes beneath it, dim and indented.
     const effectWidth = Math.max(20, measure - 7)
     const optionRows = (q.options ?? []).map((o, i) => {
-      const isChosen = staged?.kind === 'option' && staged.index === i
+      const isChosen = it.kind === 'option' && it.index === i
       const effect = wrap(o.effect, effectWidth - 2).map((line, j) => (j === 0 ? '→ ' : '  ') + line)
       const mark = isChosen ? '▌' : ' '
       return (
@@ -1390,15 +1493,14 @@ export const register: Register = on => {
           </Box>
           <Box flexDirection="column" flexGrow={1}>
             <Box gap={3}>
-              <Button
-                key={`opt:${q.id}:${i}`}
-                hotkey={String(i + 1)}
-                plain
-                autoFocus={i === 0 && !staged ? true : undefined}
-                onPress={() => stage(q, { kind: 'option', index: i })}
-              >
-                <Text bold color={isChosen ? ACCENT : undefined}>
-                  {o.label}
+              {/* A click types the option's number, as the person would. */}
+              <Button key={`opt:${q.id}:${i}`} plain onPress={() => run($.prompt.fill({ text: String(i + 1), mode: 'replace' }))}>
+                <Text>
+                  <Text color={ACCENT}>{i + 1}</Text>
+                  <Text dimColor>: </Text>
+                  <Text bold color={isChosen ? ACCENT : undefined}>
+                    {o.label}
+                  </Text>
                 </Text>
               </Button>
               {i === 0 && <Text color={ACCENT}>★ recommended</Text>}
@@ -1459,11 +1561,10 @@ export const register: Register = on => {
       (open
         ? (isHuman || !t.label ? 0 : 2) + // the label and its gap
           (q.options ?? []).reduce((sum, o) => sum + 2 + lines(o.effect, effectWidth - 2), 0) +
-          (isHuman ? 2 : 1) + 2 // the own-words row and the field's frame
+          1 // the own-words row
         : 0) +
       1 + lines(PREFIX + (sent ?? '…'), bubbleWidth) + (open && t.reserve ? 2 : 0) + logLines
     const gaps = open ? 3 : 2
-    const minField = isHuman ? 3 : 1
     // In order: the options' label, then the empty Relay row, each before a
     // gap closes; then the gaps; then the context, cut to a line, then dropped.
     const steps: [Trim, number][] = [
@@ -1475,11 +1576,8 @@ export const register: Register = on => {
       [{ label: false, reserve: !!message, context: 'line', related: false }, 0],
       [{ label: false, reserve: !!message, context: 'none', related: false }, 0],
     ]
-    const trim = (steps.find(([t, room]) => measureWith(t) + minField + room <= rows) ?? steps[steps.length - 1]!)[0]
-    const counted = measureWith(trim)
-    const roomy = rows - counted >= 3 * (gaps + 1) + 3
-    const fieldRows = isHuman ? (roomy ? 5 : 3) : roomy ? 2 : 1
-    const free = rows - counted - fieldRows
+    const trim = (steps.find(([t, room]) => measureWith(t) + room <= rows) ?? steps[steps.length - 1]!)[0]
+    const free = rows - measureWith(trim)
     const fit = Math.min(3, Math.max(0, Math.floor(free / (gaps + 1))))
     // Too short for a row in every gap: what rows there are go first above the
     // answers, then above the preview, then under where it came from.
@@ -1497,45 +1595,19 @@ export const register: Register = on => {
         )
       ) : null
 
-    const field = Input ? (
-      <Input
-        key={`field:${q.id}`}
-        // A seed is text the mod puts in the field (a citation); typing never
-        // changes it, so a redraw never takes back what was typed since.
-        value={seeds[q.id]}
-        placeholder={isHuman ? 'Write your reply…' : 'Type an answer instead…'}
-        submitLabel="relay"
-        rows={fieldRows}
-        autoFocus={isHuman ? true : undefined}
-        onInput={(text: string) => {
-          void update($, draftsAtom, d => ({ ...d, [q.id]: text }))
-          void update($, stagedAtom, s => (text.trim() ? { ...s, [q.id]: { kind: 'text' as const } } : s[q.id]?.kind === 'text' ? drop(s, q.id) : s))
-          void update($, flashAtom, () => null)
-        }}
-        onSubmit={(text: string) => {
-          // The preview showed this text as it was typed: Enter sends it.
-          if (text.trim()) settle(q, { kind: 'answer', text: text.trim() }, `Relayed to ${SURFACE_NAME[q.surface]} ${q.where} as ${q.relayAs}`)
-        }}
-      />
-    ) : null
-    const isWriting = staged?.kind === 'text'
-    const ownWords = field ? (
+    // Typing in the prompt box is the own words; this row says so, and marks
+    // it chosen while the box holds an answer.
+    const isWriting = it.kind === 'relay'
+    const ownWords = (
       <Box flexDirection="row">
         <Box flexDirection="column" width={2}>
           <Text color={ACCENT}>{isWriting ? '▌' : ' '}</Text>
         </Box>
-        <Box flexDirection="column" flexGrow={1}>
-          <Button key={`write:${q.id}`} hotkey="w" plain onPress={() => focus(`field:${q.id}`)}>
-            <Text bold={isWriting} color={isWriting ? ACCENT : undefined}>
-              {isHuman ? `Reply to ${q.asker.name}` : 'Or answer in your own words'}
-            </Text>
-          </Button>
-          <Box paddingLeft={3} marginTop={isHuman ? 1 : 0}>
-            {field}
-          </Box>
-        </Box>
+        <Text bold={isWriting} color={isWriting ? ACCENT : undefined} dimColor={!isWriting}>
+          {isHuman ? `Reply to ${q.asker.name}: type it in the prompt box` : 'Or type your own answer in the prompt box'}
+        </Text>
       </Box>
-    ) : null
+    )
 
     const preview = isRelayed ? (
       <Box flexDirection="column">
@@ -1563,36 +1635,19 @@ export const register: Register = on => {
             unless the pane is too short to spare it. */}
         <Box marginTop={1} gap={2} display={message || trim.reserve ? 'flex' : 'none'}>
           {message ? (
-            <Button
-              key={`send:${q.id}`}
-              hotkey="s"
-              variant="primary"
-              onPress={() => settle(q, { kind: 'answer', text: message }, `Relayed to ${SURFACE_NAME[q.surface]} ${q.where} as ${q.relayAs}`)}
-            >
+            <Button key={`send:${q.id}`} variant="primary" onPress={() => run(relay($, q, message))}>
               Relay
             </Button>
           ) : (
             <Text> </Text>
           )}
-          {message ? <Text dimColor>Enter or s sends exactly this</Text> : ''}
+          {message ? <Text dimColor>Enter relays exactly this</Text> : ''}
         </Box>
       </Box>
     )
 
     const options = q.options ?? []
-    const keys: [string, string][] = !open
-      ? []
-      : isHuman
-        ? [
-            ['Enter', 'relay'],
-            ['Tab', 'leave the field'],
-            ...(q.answered ? ([['c', 'cite the decision']] as [string, string][]) : []),
-          ]
-        : [
-            [`1–${options.length}`, 'choose'],
-            ...(message ? ([['Enter', 'relay']] as [string, string][]) : []),
-            ['w', 'own words'],
-          ]
+    const keys: [string, string][] = !open ? [] : isHuman ? [['type', 'your reply']] : [[`1–${options.length}`, 'choose']]
 
     return frame(
       <Box flexDirection="column">
@@ -1616,19 +1671,7 @@ export const register: Register = on => {
         {preview}
       </Box>,
       keys,
-      [
-        ...(open
-          ? [
-              <Button key={`talk:${q.id}:open`} hotkey="t" plain onPress={() => openTalk(q)}>
-                {turns.length ? 'continue the discussion' : 'talk it through'}
-              </Button>,
-              <Button key={`defer:${q.id}`} hotkey="d" plain dimColor onPress={() => settle(q, { kind: 'defer', text: '' }, `Deferred: ${q.asker.name}'s question waits until the new ones are done`)}>
-                defer
-              </Button>,
-            ]
-          : []),
-        ...navButtons(q),
-      ],
+      cmds.map(keyButton),
     )
   })
 }

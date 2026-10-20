@@ -6,8 +6,11 @@ import { __store } from './shim'
 import { EventEmitter } from 'node:events'
 
 const hooks: Record<string, any> = {}
-register(((ev: string, a: any, b?: any) => { hooks[ev + (typeof a === 'function' ? '' : ':' + JSON.stringify(a))] = b ?? a }) as any, {} as any)
+register(((ev: string, a: any, b?: any) => { hooks[ev + (typeof a === 'function' ? '' : ':' + JSON.stringify(a))] = b ?? a; return { catch() {} } }) as any, {} as any)
 const renderHook = Object.entries(hooks).find(([k]) => k.startsWith('ui.render') && k.includes('"Pane"'))![1]
+const submitHook = hooks['prompt.submit']
+// The pane is open and placed, as after /answer; the prompt box is the store's copy.
+__store.set('immersive', true)
 
 const mk = (type: string) => (props: any) => ({ type, props })
 const comps = { Box: mk('Box'), Text: mk('Text'), Button: mk('Button'), Input: mk('Input'), Link: mk('Link'), Select: mk('Select') }
@@ -30,7 +33,11 @@ const $: any = {
     },
   },
   clock: { after: (_ms: number, fn: () => void) => { timers.push(fn); return { cancel() {} } } },
-  ui: { toast: (t: string) => log.push('toast ' + t), resolve: () => comps, status: (t: any) => log.push('status ' + t), focus: async (a: any) => { log.push('focus ' + a.key); return {} }, close: async () => log.push('close') },
+  prompt: {
+    read: async () => ({ text: (__store.get('prompt') as string) ?? '', cursor: 0 }),
+    fill: async (a: any) => { __store.set('prompt', a.text); log.push('fill ' + a.text); return { isFilled: true } },
+  },
+  ui: { panes: async () => [{ id: 'answer-session', isShown: true, isPlaced: true }], toast: (t: string) => log.push('toast ' + t), resolve: () => comps, status: (t: any) => log.push('status ' + t), focus: async (a: any) => { log.push('focus ' + a.key); return {} }, close: async () => log.push('close') },
 }
 let buttons: Record<string, any> = {}
 let inputs: Record<string, any> = {}
@@ -65,7 +72,7 @@ const toInk = (n: any, i = 0): any => {
 
 async function frame(cols: number, rows: number) {
   buttons = {}; inputs = {}
-  const tree = await renderHook($, { props: { bodyColumns: cols, scroll: { bodyRows: rows, offset: 0 }, isFocused: true, placement: process.env.PLACEMENT ?? 'dock' } })
+  const tree = await renderHook($, { props: { bodyColumns: cols, scroll: { bodyRows: rows, offset: 0 }, isFocused: false, placement: process.env.PLACEMENT ?? 'dock' } })
   const out: any = new EventEmitter(); out.columns = cols; out.rows = rows + 5
   let last = ''; out.write = (s: string) => { last = s }
   const inst = render(toInk(tree), { stdout: out, debug: true, patchConsole: false, exitOnCtrlC: false } as any)
@@ -82,9 +89,14 @@ const script = (process.argv[3] ?? '').split('|').filter(Boolean)
     if (act === 'tick') { for (const fn of timers.splice(0)) fn() }
     else if (act.startsWith('say@')) { const [pre, ...rest] = act.slice(4).split(':'); const k = Object.keys(inputs).find(x => x.startsWith(pre!))!; inputs[k].onSubmit(rest.join(':')) }
     else if (act.startsWith('edit@')) { const [pre, ...rest] = act.slice(5).split(':'); const k = Object.keys(inputs).find(x => x.startsWith(pre!))!; inputs[k].onInput(rest.join(':')) }
-    else if (act.startsWith('type:')) { const t = act.slice(5); const k = Object.keys(inputs)[0]!; inputs[k].onInput?.(t); await settle(); await frame(cols!, rows!); if (process.env.SUBMIT) {} }
-    else if (act.startsWith('submit:')) { const t = act.slice(7); const k = Object.keys(inputs)[0]!; inputs[k].onSubmit(t) }
-    else { const b = Object.values(buttons).find((p: any) => p.hotkey === act); if (!b) { console.log('no button for', act); continue } b.onPress({}) }
+    // type:<text> puts text in the prompt box; enter:<text>, or bare text, presses Enter on it.
+    else if (act.startsWith('type:')) { __store.set('prompt', act.slice(5)) }
+    else {
+      const text = act.startsWith('enter:') ? act.slice(6) : act
+      const r = await submitHook($, { text, origin: { kind: 'composer' } }, async () => ({ text }))
+      log.push('⏎ ' + (r?.drop ?? 'REACHED THE MODEL'))
+      __store.set('prompt', '')
+    }
     await settle(); await frame(cols!, rows!)
   }
   const f = await frame(cols!, rows!)
@@ -92,5 +104,6 @@ const script = (process.argv[3] ?? '').split('|').filter(Boolean)
   console.log('┌' + '─'.repeat(cols!) + '┐')
   for (const l of lines) console.log('│' + l.padEnd(cols!) + '│')
   console.log('└' + '─'.repeat(cols!) + '┘')
+  console.log('> ' + ((__store.get('prompt') as string) || ''))
   console.log(lines.length, 'rows;', log.join(' | '))
 })()

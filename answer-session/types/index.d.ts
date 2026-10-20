@@ -12,9 +12,6 @@ export type Answer = {
   kind: 'answer' | 'defer' | 'wait'
 }
 
-/** What the relay would post if the person relayed now. */
-export type Staged = { kind: 'option'; index: number } | { kind: 'text' }
-
 /** One message in a question's discussion. */
 export type Turn = {
   /** `you` is the person; `model` the session's model; `error` a call that gave no reply. */
@@ -50,12 +47,11 @@ declare module 'claude-code' {
       cursor: number
       /** Answers, deferrals and questions sent back, by question id. */
       answers: Record<string, Answer>
-      /** The answer chosen but not yet relayed, by question id. */
-      staged: Record<string, Staged>
-      /** Text typed in each question's own-words field, by question id. */
-      drafts: Record<string, string>
-      /** Text the mod put in a question's field (a citation), by question id. */
-      seeds: Record<string, string>
+      /**
+       * The prompt box's text while the pane is open, kept so the pane can
+       * preview what Enter would do with it.
+       */
+      prompt: string
       /** The last relay, confirmed on the next screen; null once acted past. */
       flash: string | null
       /** The question whose discussion is open, or null on the question view. */
@@ -70,8 +66,8 @@ declare module 'claude-code' {
       original: Record<string, boolean>
       /** How many lines the discussion is scrolled up from its newest. */
       talkScroll: number
-      /** A clarifying question being written to the asker: the model's draft, and the text now. */
-      asking: Record<string, { seed: string; text: string }>
+      /** Questions whose clarifying question to the asker is being written in the prompt box. */
+      asking: Record<string, true>
       /** Askers' replies to clarifying questions, by question id. */
       returned: Record<string, Returned>
       /**
