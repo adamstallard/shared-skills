@@ -62,7 +62,6 @@ function answerSession(on: On) {
   const contexts: (readonly string[] | undefined)[] = []
   let turns = 0
   const clock = mock.clock(on)
-  mock.env(on, {})
   on('command.register', () => ({ value: { command: 'answer' } }))
   on('prompt.fill', (_, e) => {
     filled.push(e.text)
@@ -200,18 +199,8 @@ async function isShown($: Engine): Promise<boolean> {
   return found !== undefined
 }
 
-test('a session launched with INQUISITOR_ANSWER_SESSION=1 opens the band by itself', async ($, on) => {
-  mock.env(on, { INQUISITOR_ANSWER_SESSION: '1' })
-  memoryStore(on)
-  on('command.register', () => ({ value: { command: 'answer' } }))
-  on('session.start', (_, e) => ({ cwd: e.cwd }))
-  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
-  expect(await isShown($)).toBe(true)
-})
-
-test('without the variable, the band shows nothing until /answer', async ($, on) => {
+test('a new session shows nothing until /answer', async ($, on) => {
   engineBand(on)
-  mock.env(on, {})
   memoryStore(on)
   on('command.register', () => ({ value: { command: 'answer' } }))
   on('prompt.read', () => ({ value: { text: '', cursor: 0 } }))
@@ -553,7 +542,6 @@ test('while the session is open, Enter acts in it and nothing reaches the model;
 
 test('after the restart the band reopens by itself where it was', async ($, on) => {
   mock.clock(on, { now: 1_060_000 })
-  mock.env(on, {})
   const store = memoryStore(on, {
     'reopen-after-restart': {
       sessionId: 'S1',
@@ -581,7 +569,6 @@ test('after the restart the band reopens by itself where it was', async ($, on) 
 test("another session never reopens the band from a stale record", async ($, on) => {
   engineBand(on)
   mock.clock(on, { now: 9_000_000 })
-  mock.env(on, {})
   const store = memoryStore(on, {
     'reopen-after-restart': { sessionId: 'S1', cwd: '/work', at: 1_000_000, cursor: 2, answers: {}, talks: {}, rephrased: {}, original: {}, returned: {} },
   })

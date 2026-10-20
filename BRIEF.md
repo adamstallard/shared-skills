@@ -23,9 +23,9 @@ UI is **not specified**. Iterate on the prototype until Adam approves it by usin
 ## Load and check it
 
 - In a new session: `claude --plugin-dir ~/answer-session-prototype/answer-session`, then `/answer` (registered `immediate`, so it runs mid-turn). `/answer` again closes it.
-- Launched as an answer session: `INQUISITOR_ANSWER_SESSION=1 claude --plugin-dir ~/answer-session-prototype/answer-session` opens it at once (Adam hasn't decided whether to keep this).
+- Launched as an answer session: `claude --plugin-dir ~/answer-session-prototype/answer-session '/answer'` opens it at once, at any width (`/answer` as the first prompt counts as the person's own command).
 - To try it in a private tmux server: `tmux -L asband new-session -d -s r -x 140 -y 40 "CLAUDE_CODE_NO_FLICKER=1 claude --plugin-dir <mod> '/answer'"` from a trusted folder, `set -g mouse on` on that server, `capture-pane -p`, `resize-window`, `send-keys`; a click is an SGR mouse event sent with `send-keys -l $'\e[<0;COL;ROWM'` then the same ending `m` (1-based cells). `kill-server` at the end.
-- After every change: `claude plugin validate <mod>` (the author warning and the plugin directory's README and LICENSE checks are fine), `claude plugin test <mod>` (26 pass), and a type-check: `tsc -p <mod>` once the engine has loaded the mod and laid `.claude-plugin/types/`; before that, a tsconfig outside the mod using the options in the header of the plugin-authoring skill's `types/claude-code.d.ts`, `include` naming that types file and the mod's `hooks`, `types` and `tests`.
+- After every change: `claude plugin validate <mod>` (the author warning and the plugin directory's README and LICENSE checks are fine), `claude plugin test <mod>` (25 pass), and a type-check: `tsc -p <mod>` once the engine has loaded the mod and laid `.claude-plugin/types/`; before that, a tsconfig outside the mod using the options in the header of the plugin-authoring skill's `types/claude-code.d.ts`, `include` naming that types file and the mod's `hooks`, `types` and `tests`.
 
 ## What's built (and why)
 
@@ -75,7 +75,8 @@ Not built here; these go into the answer session's OpenSpec change, which Adam w
 - **Polling, not webhooks:** webhooks need a public HTTPS server and Discord's push a permanent connection, both services to run; GitHub's notifications endpoint answers conditional requests that don't count against the rate limit and sets the interval (usually 60 s).
 - **Polling runs only while an answer session is open:** about every 60 s, with a catch-up poll on opening; nothing runs in the background.
 - **A question asked of Adam** is any of: an @-mention of him in a subscribed channel (agents running the inquisitor included), a reply to or mention of his relay account, a pull request requesting his review or an issue assigned to him, and a question file on a lore repository's questions branch addressed to him.
-- **Still open:** what the setup-installed `answer` terminal command starts (fullscreen in the terminal, or a background session to attach from the picker), and dropping the `INQUISITOR_ANSWER_SESSION` auto-open, which neither entry point needs.
+- **Two ways in:** `/answer` in any session, and a setup-installed `answer` terminal command that starts a session with `/answer` as its first prompt. The `INQUISITOR_ANSWER_SESSION` auto-open variable is dropped (Adam, 2026-10-20): neither way in needs it, and a session from the picker can't set it.
+- **Still open:** what the `answer` terminal command starts (fullscreen in place, or a background session to attach from the picker), and whether the main screen is supported only when a person's own session runs on it (never launched into or designed for).
 
 ## Next
 

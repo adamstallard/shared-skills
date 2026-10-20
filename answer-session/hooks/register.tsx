@@ -236,7 +236,7 @@ const RULE = 'subtle'
 // Prototype only: shown in the top bar, so a tester can tell which build is
 // loaded. v0.1-N, N the number of commits in the prototype repository once
 // this build is committed.
-const BUILD = 'v0.1-10'
+const BUILD = 'v0.1-11'
 const PREFIX = 'User says: '
 const SPEAKER = 8
 const cursorAtom = atom({ plugin: 'answer-session', key: 'cursor' } as const, 0)
@@ -1003,11 +1003,9 @@ export const register: Register = on => {
         if (answer.kind === 'wait') $.clock.after(SIM_REPLY_MS, () => void deliverReply($, id))
       }
     }
-    // A session launched as an answer session opens it by itself:
-    //   INQUISITOR_ANSWER_SESSION=1 claude
-    const flag = await $.env.get('INQUISITOR_ANSWER_SESSION')
-    const isAnswerSession = !!flag && flag !== '0' && flag !== 'false'
-    if (e.isInteractive && (isAnswerSession || restored)) await update($, openAtom, () => true)
+    // An answer session opens by /answer: typed, or given as the session's
+    // first prompt (`claude '/answer'`). Only a restart reopens it unasked.
+    if (e.isInteractive && restored) await update($, openAtom, () => true)
     return started
   })
 
