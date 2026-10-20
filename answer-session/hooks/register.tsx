@@ -236,7 +236,7 @@ const RULE = 'subtle'
 // Prototype only: shown in the top bar, so a tester can tell which build is
 // loaded. v0.1-N, N the number of commits in the prototype repository once
 // this build is committed.
-const BUILD = 'v0.1-17'
+const BUILD = 'v0.1-18'
 const PREFIX = 'User says: '
 const SPEAKER = 8
 const cursorAtom = atom({ plugin: 'answer-session', key: 'cursor' } as const, 0)
@@ -642,7 +642,7 @@ function commands(c: Ctx): Command[] {
   // In a discussion the key sits inside the words, as Adam wrote them.
   if (c.talking) {
     return [
-      { key: 't', what: 'keep (t)alking it through' },
+      { key: 't', what: 'keep (t)alking' },
       ...(c.hasReply && !c.busy ? [{ key: 'r', what: '(r)eword the question' }] : []),
       ...(!c.busy ? [{ key: 'a', what: '(a)sk the asker' }] : []),
       { key: 'b', what: 'go (b)ack' },
