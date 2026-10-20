@@ -15,13 +15,11 @@ are written down:
 He gave those of 2026-10-19 and 2026-10-20 while reviewing this pull
 request, [#25](https://github.com/adamstallard/shared-skills/pull/25), whose
 own thread holds none of them. In the same sessions he also ruled on every
-decision this change proposed itself: 16 to 30, 36, 37, 50, 79, 86, 99 and
-107. Those stay listed under *Proposed by this change* below, each marked
+decision this change proposed itself: 16 to 30, 36, 37, 50, 79, 86, 99,
+107 and 111. Those stay listed under *Proposed by this change* below, each marked
 with what he did. He changed 26, replaced 36 with his decision 42,
 confirmed 79 only in part, replaced 107's item 6 with his decision 108,
 and added his decision 109 to 107's item 5. He confirmed the rest.
-Decision 111, which this change made while writing his decision 110,
-waits for him to confirm or overrule.
 
 1. **Four filters run before any question reaches a person.**
    1. **Already answered:** the agent finds the earlier answer, cites where it
@@ -637,7 +635,7 @@ needed to write the requirements. Reviewing #25, Adam confirmed 16
 to 30, 37 and 50, except 26, which he changed; his decision 42 replaced 36.
 His decision 32 replaced part of 19, and his decision 35 part of 18. The
 later decisions 79, 86, 99, 107 and 111 came from this change too, and
-each but 111 says what Adam confirmed.
+each says what Adam did with it.
 
 16. **Confirmed by Adam (2026-10-19).** **A prepared question** states the recommended answer, what changes under
     the other answer, and a link to any related earlier decision, so that most
@@ -839,9 +837,11 @@ cheap to reverse, so this change made them under filter 4:
 Decision 111 came from writing Adam's decision 110. igor's review reads
 citation files from two writers, the inquisitor and an Igor, so the format
 needs its encoding fixed. Nothing writes a citation yet, so the encoding is
-cheap to change, and this change chose it under filter 4:
+cheap to change. This change chose it under filter 4 and, as with its other
+decisions, put it to Adam, who confirmed it:
 
-111. **How a citation file is written:**
+111. **Confirmed by Adam (2026-10-20).** **How a citation file is
+     written:**
      1. `<date>`, in the file's name and in the file, is `yyyy-mm-dd` in
         UTC, as in a question file's name. The commit's date is midnight
         UTC of that day.
@@ -856,7 +856,8 @@ cheap to change, and this change chose it under filter 4:
 
 **Still open:**
 
-Decision 111 waits for Adam to confirm or overrule; nothing else does.
+Nothing waits for Adam: the items below are facts to measure and changes
+elsewhere.
 
 Eleven of the items below are unmeasured facts, measured by tasks 0.1 to
 0.13 before anything is built; the first fact takes three tasks, 0.1 to
