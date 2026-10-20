@@ -38,8 +38,9 @@ as `create_issue`, or `issue_write` with the `method` `create`.
 
 A command that mentions no gh post verb sends no post. Nor does a command
 that runs prose's script and nothing else, whatever its arguments say: a
-single simple command whose command is a path ending in `/prose.py`, or
-`python3` followed by such a path.
+single simple command whose command is `prose.py` or a path ending in
+`/prose.py`, or `python3` or `python` followed directly by such a path,
+with no option between them.
 
 A **simple command** is one command with its arguments, as the shell splits
 a command line at `|`, `|&`, `||`, `&&`, `;`, `&` and line breaks, with
@@ -121,6 +122,12 @@ exactly, such as one with a backtick, `$'…'` or an unterminated quote.
 #### Scenario: A command that only runs prose is no post
 
 - **WHEN** a hook asks about `/abs/prose.py sign --goals 'approve the gh
+  pr create body'`
+- **THEN** the reader reports that the command sends no post
+
+#### Scenario: prose run through `python` is no post
+
+- **WHEN** a hook asks about `python prose.py sign --goals 'approve the gh
   pr create body'`
 - **THEN** the reader reports that the command sends no post
 

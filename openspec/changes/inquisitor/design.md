@@ -30,7 +30,10 @@ judged well.
    and the time. For an `ask` on a picker question, the record keeps the
    field's account of what changes under the other options, and drops the
    recommended option's label: the recommendation is always the first
-   option, as the second call checks. The record of a question given a
+   option, as the second call checks. The label is question text, which no
+   record holds. The cost is that no record names what the agent
+   recommended, so nobody can check later from the records whether the
+   person took the recommendation (proposal decision 130). The record of a question given a
    category holds the category in place of the field, so it holds no text at
    all.
 
@@ -160,7 +163,8 @@ beside it.
   its own, because a question about a change belongs in that change's
   history and merges with it. A file on a branch or a pull request that has
   not merged is invisible to filter 1 elsewhere, so parallel work can ask
-  the same question again; this change accepts that cost.
+  the same question again; this change accepts that cost (proposal
+  decision 130).
 - **A question about an organization or project:** a file under
   `questions/` on an orphan branch named `questions` in the team's lore
   repository, separate from igor's
@@ -199,9 +203,10 @@ frontmatter (`repository`, `asked`, `answered_by`, `authority`:
 GitHub comment or review holding the answer, when there is one) and the
 question and answer as its body. An `answer_link` is only ever a
 github.com comment or review. An answer given on Discord, Slack or Linear
-is logged as `input`. Filter 1 counts it as an answer only once a decision
-document on the default branch of the repository the question concerns
-records it. One such document is the `accepted` decision record written by
+is logged as `input`. Filter 1 counts it as an answer only once it is
+recorded in a decision document that the spec's *Only an answer with
+authority stops a question* counts as an answer, such as one on the
+default branch of the repository the question concerns. One such document is the `accepted` decision record written by
 igor's scribe, the Igor role that writes a discussion's decisions down
 (proposal decision 109). An agent's choice has `answered_by: agent`.
 
@@ -217,12 +222,15 @@ less visible than the lore repository (decision 93). Both the inquisitor and an 
 citation files, and igor's review reads them all, so the spec states their
 format once, in the requirement *A citation file has one format*, and igor
 PR #216 is to point to it rather than state a format of its own (decisions
-110 and 111). During an Igor's run the worker, the agent the Igor starts
-on the item, reports each citation in its output instead of pushing it, since a worker
-holds only the token of the seat it runs on, which cannot push to the lore
-repository. When and which of them the Igor pushes is igor's to say, in
-igor PR #216's requirement *An Igor publishes the citations its worker
-reports* (proposal decision 123). The
+110 and 111). During an Igor's run the agent pushes no citation itself.
+A worker, the agent an Igor starts on a work item, holds only the token
+of the seat its work is charged to, a credential for the model, which
+cannot push to the lore repository. igor PR #216's requirement *An Igor
+publishes the citations its worker reports* says how a worker reports its
+citations, and which citations the Igor pushes, and when (proposal
+decisions 123 and 129). The same rules cover the citations of an
+inquisitor run the Igor starts itself, with no worker, when a question
+stops its own work. The
 inquisitor's commits to the `questions` branch are machine records with a
 fixed message, `inquisitor: log <file>`, exempt from prose's and
 bug-hunter's trailers; the branch is never checked out, so their checks
@@ -280,8 +288,10 @@ the GitHub login of the person running the session:
 
 `path` is a local clone. The search reads the clone's remote-tracking default branch, such as
 `origin/main`, with `git show`, never the working tree or a local branch, which could be on another branch or hold an
-unreviewed edit. The skill fetches only the `questions` branch, and reads
-it with `git show` too, without checking it out. For the date, the search
+unreviewed edit. The skill fetches only the `questions` branch, so an
+entry merged since the person last fetched the clone is not found
+(proposal decision 130). It reads the `questions` branch with `git show`
+too, without checking it out. For the date, the search
 reads the reflog of the remote-tracking default branch, not `FETCH_HEAD`,
 which the `questions` fetch rewrites. It reports when that default branch
 was last updated by a fetch in this clone, so the date and the content
@@ -329,9 +339,13 @@ returns the person; that is why it can confirm the configured login, and
 also why it can't tell which login a post sent with the github-app
 skill's token goes out as (task 0.7).
 
-A headless session, such as an Igor worker, never uses the picker: it tags
-the login only when the login has write access and the post goes out as
-someone else, and otherwise tags no one. In a session with a person in it,
+These are rules for the agent, which SKILL.md states; the script only
+chooses whom a post tags. A headless session never uses the picker. An
+Igor worker holds no
+credential that can post, so it asks only in its handback comment, which
+its Igor posts (proposal decision 126). A headless session that can post,
+such as a scheduled agent, tags the login only when the login has write
+access and the post goes out as someone else, and otherwise tags no one. In a session with a person in it,
 the script reads the configured login's write access with the same
 permission call, and then:
 - no login configured: the agent asks the question through the picker;

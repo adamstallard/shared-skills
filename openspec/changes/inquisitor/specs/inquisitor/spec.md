@@ -242,10 +242,12 @@ Filter 1 SHALL search:
 The search SHALL run the same way in an Igor worker as in any other
 session. It SHALL hide every lore entry whose scope is not in the
 question's scope, and never show, count or mention it, even as input.
-Inside an Igor it SHALL follow igor's rule for a search during a run (igor
-PR #216), which, as #216 states it, shows only entries whose scope covers
-the run's role: `global`, `role:<that role>`, and `project:<name>` for any
-repository the role works. Outside an Igor, an
+Inside an Igor it SHALL follow the rule for a search during a run that
+igor PR #216 adds to igor's lore-firing requirement *Lore reaches the
+worker unbidden*: it shows only entries whose scope covers the run's role
+by firing's scope rule, which includes `project:` entries for every
+repository the role works. Outside an
+Igor, an
 entry is in scope when its `scope` is `global`, or `project:<name>` where
 `<name>` is the short name of the repository the question concerns, the
 part after the `/`. When the
@@ -285,7 +287,9 @@ needs no Igor role, no Igor configuration and no Igor service.
 #### Scenario: A lore repository's questions are searched
 
 - **WHEN** a file on the team's lore repository's questions branch holds an
-  answer to the question, with `authority: decision`
+  answer to the question, with `authority: decision`, it links a GitHub
+  comment that its `answered_by` wrote holding that answer, and that
+  `answered_by` has write access to what the question concerns
 - **THEN** the search fetches that branch and shows the file, without
   checking the branch out, and filter 1 treats it as an answer
 
@@ -416,7 +420,9 @@ agent. The search SHALL never show a rejected candidate.
 #### Scenario: The current change's own decision answers within that change
 
 - **WHEN** the agent working on a change has a question that the change's
-  own spec, on its branch, already decides
+  own spec, on its branch, already decides, that branch is in the
+  repository itself, not a fork, and the change's pull request author has
+  write access to the repository
 - **THEN** filter 1 treats it as an answer, labelled as this change's, not
   yet merged
 
@@ -622,34 +628,44 @@ put a question to a person only through the picker, in a post, in a message on a
 Linear or Discord, or, for a `vulnerability` question, in the repository's
 private security advisory; never in the text of its reply. A subagent of
 such a session SHALL return each surviving question, prepared, to whoever
-started it. A session with no person in it SHALL never use the picker: it
-SHALL ask the question in a post, tagged as *A question in a post tags one
-person who can decide* says, unless the question has a category,
-which *Some questions are recorded by hash only* governs, or is about one
-person's way of working, which it SHALL NOT ask: it stops only if the work
-needs the answer, and reports that the question waits for the person.
-Under filter 2, a question about one person's way of working SHALL be
-deferred only into the agent's report, and never listed in a post or filed
-as an issue. An
-Igor worker that is handing an item back SHALL instead ask in its handback
-comment.
+started it. A session with no person in it SHALL never use the picker.
+An Igor worker SHALL ask only in its handback comment, which its Igor
+posts. A session with no person in it that can post, such
+as a scheduled agent, SHALL ask the question in a post, tagged as *A
+question in a post tags one person who can decide* says. A session
+with no person in it that can neither post nor hand back SHALL ask nowhere: it stops only if the work
+needs the answer, and reports the question in its output. In every
+session with no person in it, a question with a category is governed by
+*Some questions are recorded by hash only*, and a question about one
+person's way of working SHALL NOT be asked: the session stops only if the
+work needs the answer, and reports that the question waits for the
+person. Under filter 2, a question about one person's way of working SHALL
+be deferred only into the agent's report, and never listed in a post or
+filed as an issue.
 
-#### Scenario: A headless session posts its question
+#### Scenario: A headless session that can post posts its question
 
-- **WHEN** a `claude -p` job, or an Igor worker that is not handing an item
-  back, has a question that survives the filters
+- **WHEN** a scheduled agent with no person in it, whose `gh` can post, has
+  a question that survives the filters
 - **THEN** it does not call the picker, and asks the question in a post
 
-#### Scenario: An Igor handing an item back asks in its handback comment
+#### Scenario: An Igor worker asks in its handback comment
 
-- **WHEN** an Igor worker hands an item back because of a question that
-  survives the filters
-- **THEN** it asks the question in its handback comment, and opens no other
-  post for it
+- **WHEN** an Igor worker has a question that survives the filters
+- **THEN** it asks the question in its handback comment, which its Igor
+  posts, and opens no post and calls no picker
+
+#### Scenario: A headless session that cannot post asks nowhere
+
+- **WHEN** a `claude -p` job that is not an Igor worker, and whose `gh` is
+  logged in to no account, has a question that survives the filters, and
+  the work needs the answer
+- **THEN** it opens no post and calls no picker, stops, and reports the
+  question in its output
 
 #### Scenario: A headless session doesn't ask a way-of-working question
 
-- **WHEN** an Igor worker has a question about the person's way of working,
+- **WHEN** an Igor worker has a question about one person's way of working,
   and the work needs the answer
 - **THEN** it asks it nowhere, stops, and reports that the question waits
   for the person
@@ -1121,8 +1137,8 @@ author has one is input.
 
 #### Scenario: A headless session with no candidate posts untagged
 
-- **WHEN** an Igor worker posts a question, no candidate in the order has
-  write access, and no login is configured
+- **WHEN** a scheduled agent with no person in it posts a question, no
+  candidate in the order has write access, and no login is configured
 - **THEN** the question tags no one, uses no picker, and the post says that
   no one with authority to decide could be found
 
@@ -1148,8 +1164,9 @@ where its audience is no wider than what the question concerns: a post or
 issue no more visible, by the order *More visible* gives, and a message on
 another service, such as Linear or Discord, to an audience no wider. Where
 the place would be wider, the agent SHALL ask through the picker, or, in a
-session with no person in it, post in the repository the question
-concerns. Where the agent cannot tell how wide an audience is, it SHALL ask
+session with no person in it that can post, post in the repository the
+question concerns. An Igor worker asks only in its handback comment, as
+*An agent asks through the picker, never in its reply* says. Where the agent cannot tell how wide an audience is, it SHALL ask
 through the picker, or, in a session with no person in it, not post the
 question and report that it did not.
 
@@ -1234,12 +1251,13 @@ SHALL push a **citation file** to the questions branch of the lore
 repository holding that entry, in the format that *A citation file has one
 format* states. No citation is sent for a question with a category,
 or when the lore repository is more visible than the repository the
-question concerns. During an Igor's run, the worker SHALL push no
-citation, and SHALL instead report in its output each citation it would
-otherwise push. When and which of those citations the Igor pushes is set
-by igor's lore-firing requirement
+question concerns. During an Igor's run, the agent SHALL push no citation
+itself. igor's lore-firing requirement
 [*An Igor publishes the citations its worker reports*](https://github.com/adamstallard/igor/blob/spec-lore-search/openspec/changes/lore-search/specs/lore-firing/spec.md),
-in igor PR #216; this spec does not restate it. A citation file
+in igor PR #216, sets every rule for a run's citations: how a worker
+reports them, and when and which the Igor pushes, whether from a worker or
+from an inquisitor run the Igor starts itself with no worker. This spec
+does not restate them. A citation file
 is never an answer. Every commit
 the script makes to a lore repository's questions branch SHALL have the
 message `inquisitor: log <file>`, and SHALL carry no prose or bug-hunter
@@ -1305,7 +1323,7 @@ why.
 
 #### Scenario: A question about a public repository is logged in it
 
-- **WHEN** a person answers a question about a public repository
+- **WHEN** an agent asks a question about a public repository
 - **THEN** the log file is written to that repository's
   `.inquisitor/questions/`, and no log file is written outside a
   repository
@@ -1356,7 +1374,7 @@ why.
 
 #### Scenario: An organization's question goes to its lore repository
 
-- **WHEN** a person answers a question that holds for every repository of
+- **WHEN** an agent asks a question that holds for every repository of
   the owner, and a configured lore repository serves that owner
 - **THEN** the agent pushes the log file to that lore repository's
   questions branch, and opens no pull request
@@ -1426,7 +1444,7 @@ why.
 
 #### Scenario: An organization's question with no lore repository is not logged
 
-- **WHEN** a person answers a question about an organization, and no
+- **WHEN** an agent asks a question about an organization, and no
   configured lore repository serves the repository the question concerns
 - **THEN** no log file is written, and the agent tells the person the question
   was not logged
@@ -1458,12 +1476,13 @@ why.
   lore entry answers it
 - **THEN** no citation file is pushed
 
-#### Scenario: An Igor's worker reports citations for the Igor to push
+#### Scenario: An agent pushes no citation during an Igor's run
 
 - **WHEN** filter 1 stops a question that has no category with an `active`
   lore entry during an Igor's run
-- **THEN** the worker reports the citation in its output and pushes
-  nothing
+- **THEN** the agent pushes no citation itself, and the citation is
+  handled as igor's *An Igor publishes the citations its worker reports*
+  says
 
 #### Scenario: A question filter 1 stopped about another repository is not logged
 
@@ -1557,7 +1576,7 @@ written.
 ### Requirement: A citation file has one format
 
 Every citation file SHALL take this format, whether the agent pushes it or
-an Igor pushes it for its worker.
+an Igor pushes it from a run.
 
 - **Path:** `citations/<date>-<6 random hex digits>` on the lore
   repository's questions branch, with no extension. `<date>` is the day
@@ -1566,11 +1585,10 @@ an Igor pushes it for its worker.
 - **Contents:** YAML holding the key `entry`, the cited lore entry's id,
   and the key `date`, the same `yyyy-mm-dd` as the file's name, each as a
   quoted string, and nothing about the question. A citation that an Igor
-  pushes from a run SHALL also hold the key `run`, the run's id: an opaque
-  id that the Igor adds when it pushes, and records with the run's
-  transcript on its `igor-state` branch. A worker's report of a citation
-  holds no run id. A citation pushed outside an Igor's run has no run, and
-  SHALL hold no `run` key. The file SHALL hold no other key.
+  pushes from a run SHALL also hold the key `run`, the run's id, an opaque
+  id that igor PR #216 defines. A citation pushed outside an Igor's run
+  has no run, and SHALL hold no `run` key. The file SHALL hold no other
+  key.
 - **Commit:** the message `inquisitor: log <file>` and nothing else, with
   no trailer, where `<file>` is the file's path from the branch's root,
   such as `citations/2026-10-20-3f9a1c`; the author and committer
@@ -1578,12 +1596,11 @@ an Igor pushes it for its worker.
 
 #### Scenario: A citation an Igor pushes from a run holds the run's id
 
-- **WHEN** an Igor pushes a citation its worker reported, under igor's
+- **WHEN** an Igor pushes a citation from a run, under igor's
   requirement *An Igor publishes the citations its worker reports*
 - **THEN** the citation file is under `citations/`, named by the
   date and 6 random hex digits, holding `entry`, `date` and `run`, where
-  `run` is the id the Igor records with the run's transcript on its
-  `igor-state` branch
+  `run` is the run's id
 
 #### Scenario: A citation from a session outside an Igor's run holds no run id
 
@@ -1659,7 +1676,9 @@ and use it in the code of the fix.
 
 #### Scenario: A headless session files a vulnerability's advisory
 
-- **WHEN** an Igor worker has a question with the category `vulnerability`
+- **WHEN** a scheduled agent with no person in it, which can open a private
+  security advisory in the repository, or write in the one already open for
+  the weakness, has a question with the category `vulnerability`
 - **THEN** it asks the question only in the repository's private security
   advisory, posts nothing, stops the work that needs the answer, and reports
   only that a `vulnerability` question is blocking
@@ -1746,12 +1765,16 @@ When no advisory exists for the weakness, or the agent cannot read whether
 it is published, the agent SHALL treat it as unpublished.
 
 A fix committed after the advisory is published is described as any other
-fix is. So is a fix committed in the advisory's private fork, when the
-fork's pull request is merged at the moment the advisory is published. If
-GitHub lets the fork's pull request be merged before the advisory is
-published, a fork commit SHALL follow the rule above unless, when the agent
-writes it, the agent knows the pull request will be merged only at the
-moment of publication.
+fix is. A commit in the advisory's private fork SHALL follow the rule
+above, describing neither the weakness nor how to exploit it, until
+task 0.13 shows that GitHub merges the fork's pull request only when the
+advisory is published; the full description goes in the advisory's text.
+Once task 0.13 shows that, a fork commit is described as any other fix
+is. If it shows instead that the pull request can be merged before
+publication, a fork commit SHALL follow the rule above unless, when the
+agent writes it, the agent knows the pull request will be merged only at
+the moment of publication, because the person who will publish the
+advisory has said so.
 
 #### Scenario: A fix on a public branch before publication doesn't describe the weakness
 
@@ -1797,21 +1820,41 @@ moment of publication.
 - **THEN** its commit message says what the weakness was and why the fix
   closes it, and the regression test may land with it
 
+#### Scenario: A fork commit follows the public rule until task 0.13 settles it
+
+- **WHEN** task 0.13 has not yet shown whether the private fork's pull
+  request can be merged before the advisory is published, and the agent
+  commits a fix in the fork
+- **THEN** its commit message describes neither the weakness nor how to
+  exploit it, and the agent writes the full description in the advisory's
+  text
+
 #### Scenario: A fix in the private fork is described normally
 
-- **WHEN** the agent commits a fix in the advisory's private fork, and
-  the fork's pull request is merged at the moment the advisory is published
+- **WHEN** task 0.13 has shown that GitHub merges the private fork's pull
+  request only when the advisory is published, and the agent commits a fix
+  in the fork
 - **THEN** its commit message says what the weakness was and why the fix
   closes it
 
 #### Scenario: A fork commit merged before publication follows the public rule
 
-- **WHEN** GitHub lets the private fork's pull request be merged before the
-  advisory is published, and the agent commits a fix in the fork without
-  knowing the pull request will be merged only at the moment of
+- **WHEN** task 0.13 has shown that GitHub lets the private fork's pull
+  request be merged before the advisory is published, and the agent
+  commits a fix in the fork while nobody who will publish the advisory has
+  told it the pull request will be merged only at the moment of
   publication
 - **THEN** that commit's message describes neither the weakness nor how to
   exploit it
+
+#### Scenario: A fork commit the publisher will merge at publication is described normally
+
+- **WHEN** task 0.13 has shown that GitHub lets the private fork's pull
+  request be merged before the advisory is published, and the person who
+  will publish the advisory has told the agent the pull request will be
+  merged only at the moment of publication
+- **THEN** the agent's commit in the fork says what the weakness was and
+  why the fix closes it
 
 ### Requirement: An answer that generalizes is proposed as lore
 
@@ -1842,7 +1885,13 @@ that an entry or a rejection in that lore repository already holds. It
 SHALL give the entry another id when an entry holds it, and SHALL NOT
 propose the entry at all when a rejection holds it. During
 an Igor's run, a collision with an entry or rejection outside the run's
-scope SHALL be reported only as "id taken", without naming it.
+scope is reported as igor PR #216's lore-review requirement *An entry
+already in the store is never overwritten by proposing* says: only as "id
+taken", naming nothing. That report does not say whether an entry holds
+the id, which would allow another id, or a rejection, which forbids
+proposing the entry. So on that report the agent SHALL NOT propose the
+entry during the run, and its report SHALL say so. A person can propose it
+outside a run.
 
 #### Scenario: A general answer becomes a lore pull request
 
@@ -1899,7 +1948,8 @@ scope SHALL be reported only as "id taken", without naming it.
 
 - **WHEN** during an Igor's run the id the agent would propose is held by
   an entry outside the run's role's scope
-- **THEN** the agent reports only that the id is taken, and names no entry
+- **THEN** the agent does not propose the entry, reports only that the id
+  is taken, and names no entry
 
 #### Scenario: A rejected candidate is not proposed again
 

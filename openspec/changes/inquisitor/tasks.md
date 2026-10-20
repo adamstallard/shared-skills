@@ -38,7 +38,11 @@ contradicts what design.md assumed.
       `inquisitor.json` in reach, as igor PR #216's task 4.1 measures
 - [ ] 0.13 Whether GitHub lets a security advisory's private-fork pull
       request be merged before the advisory is published, as decision 108
-      needs
+      needs. Until this shows the merge waits for publication, fork commit
+      messages describe no weakness (decision 127)
+- [ ] 0.14 Whether an Igor worker's `gh` can post, from a login stored in
+      the home directory igor gives it rather than in its environment, as
+      decision 126 assumes it can't
 
 ## 1. Shared post reader
 
@@ -102,8 +106,8 @@ contradicts what design.md assumed.
       lore repository's `questions` branch when filter 1 stops a question
       with a lore entry. It sends none for a question with a category, and
       none to a more visible lore repository. During an Igor's run it
-      prints the citation, without a run id, for the Igor to push; the
-      Igor adds the run id
+      pushes nothing, and the citation is handled as igor PR #216's *An
+      Igor publishes the citations its worker reports* says
 - [ ] 2.5 The question finder for posts, as one function the post hook also
       calls
 - [ ] 2.6 `tag`, choosing whom a post's question tags. It takes the first
@@ -121,8 +125,9 @@ contradicts what design.md assumed.
       - the login has write access and the post goes out as anyone else:
         tag it
 - [ ] 2.7 `lore`, opening a lore pull request, or a promotion from the
-      `questions` branch, or refusing it by visibility, or by an id outside
-      igor's id rule
+      `questions` branch, or refusing it by visibility, by an id outside
+      igor's id rule, or, during an Igor's run, by an id reported only as
+      "id taken"
 
 ## 3. Hooks
 
@@ -154,8 +159,9 @@ contradicts what design.md assumed.
       privacy of what it concerns, posting no more publicly than that, the
       questions other skills require a person to decide, preparing, batching and tagging, the order
       with prose, logging answers and misses, the three categories recorded
-      by hash only, what a headless session does (no picker, an Igor's
-      handback comment, stopping on a categorized question), describing no
+      by hash only, what a headless session does (no picker, an Igor
+      worker asking only in its handback comment, stopping on a
+      categorized question), describing no
       weakness in public text before its advisory is published, reviewing
       misses, and lessons by scope
 - [ ] 5.2 `README.md`: what the skill is for, `inquisitor.json` and

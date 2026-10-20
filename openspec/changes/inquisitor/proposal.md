@@ -10,18 +10,18 @@ others in Claude Code sessions, and this proposal is the first place they
 are written down:
 - 11 to 15 and 31;
 - 32 to 35, 38 to 49 and 51 to 63, on 2026-10-19;
-- 64 to 78, 80 to 85, 87 to 98, 100 to 106, 108 to 110 and 112 to 124, on
-  2026-10-20.
+- 64 to 78, 80 to 85, 87 to 98, 100 to 106, 108 to 110, 112 to 124 and
+  126 to 129, on 2026-10-20.
 
 He gave those of 2026-10-19 and 2026-10-20 while reviewing this pull
 request, [#25](https://github.com/adamstallard/shared-skills/pull/25), whose
 own thread holds none of them. In the same sessions he also ruled on the
 decisions this change proposed itself: 16 to 30, 36, 37, 50, 79, 86, 99,
-107 and 111. Those stay listed under *Proposed by this change* below, each marked
+107, 111 and 125. Those stay listed under *Proposed by this change* below, each marked
 with what he did. He changed 26, replaced 36 with his decision 42,
 confirmed 79 only in part, replaced 107's item 6 with his decision 108,
 and added his decision 109 to 107's item 5. He confirmed the rest. The
-one decision of this change he has not yet ruled on is 125.
+one decision of this change he has not yet ruled on is 130.
 
 1. **Four filters run before any question reaches a person.**
    1. **Already answered:** the agent finds the earlier answer, cites where it
@@ -275,6 +275,9 @@ consistency read:
     session. How the agent tells a session with a person in it from one
     without is unmeasured (task 0.9);
     when it can't tell, the session counts as having no person in it.
+    Adam's decision 126 limits the posting to a session with no person in
+    it that can post, such as a scheduled agent; an Igor worker can't, and
+    asks in its handback comment.
 59. **A `deferred` verdict passes the post hook only for a question listed
     in an open-questions section and tagging no one.** Anywhere else the
     question needs an `ask` verdict. Decision 113 adds a deferral section
@@ -326,8 +329,8 @@ fifth consistency read:
     PR #216): scope hard, status labelled.
 65. **An Igor worker that is handing an item back asks in its handback
     comment,** as igor #211 says; decision 40 already exempts that comment.
-    Decision 58's rule covers other headless runs, and an Igor posting
-    outside a handback.
+    Decision 58's rule covers other headless runs. Adam's decision 126
+    makes the handback comment an Igor worker's only way to ask.
 66. **A decision record with a status, such as a MADR, counts as an answer
     only when its status is `accepted`;** any other status is labelled
     input. Filter 1 also reads the lore repository's MADRs once igor PR #202
@@ -459,11 +462,13 @@ ninth consistency read:
     it, a citation is written for a private question too. This amends
     decision 83. Decision 104 sends none for a categorized question, and
     decision 110 adds a run id to a citation an Igor pushes from a run.
-88. **During an Igor's run, the worker reports its citations in its
+88. **Amended by Adam's decision 129.** **During an Igor's run, the worker reports its citations in its
     output, and the Igor pushes them to the `questions` branch when it
     publishes the run,** as igor has a worker edit and its Igor publish; a
     worker holds only its seat's token. Adam decided this for igor #216.
-    His later decision 110 sets the format the Igor pushes them in.
+    His later decision 110 sets the format the Igor pushes them in, and
+    his decisions 123 and 129 leave the rest, including how the worker
+    reports them, to #216.
 89. **An answer carrying context more private than what the question
     concerns is generalised first,** with the question (decisions 33 and
     68). If the agent can't generalise it, nothing is logged: the answer is
@@ -518,7 +523,8 @@ tenth consistency read:
       reported only when the run publishes, as bookkeeping outside the
       actions the role's `allow` list permits, and only citations of existing `active` entries
       in the run's role's scope. Adam's later decision 110 sets their
-      format, with the run's id.
+      format, with the run's id, and his decision 123 leaves these rules
+      to igor #216.
     - During a run, the repository the question concerns is the repository
       of the item the run works, never one the worker names.
     - igor's review count of an entry's citations is a lower bound, and says
@@ -548,7 +554,8 @@ eleventh consistency read:
      needs the comment-link proof** (decision 78's first), since the
      github-app skill commits as the bot, unsigned.
 106. **From the igor side:** the Igor pushes a run's citations when the run
-     publishes, and a handback comment counts as publishing.
+     publishes, and a handback comment counts as publishing. Decision 123
+     leaves this rule to igor #216.
 
 Adam gave 108 on 2026-10-20, reviewing #25. Spec-check's thirteenth
 consistency read then raised questions about it, and his answers the same
@@ -556,8 +563,9 @@ day are its items 1 to 6:
 
 108. **Until a weakness's security advisory is published, nothing the agent
      writes where people outside the advisory can read it describes the
-     weakness or how to exploit it.** A fix made in the advisory's private
-     fork, or after the advisory is published, is described normally.
+     weakness or how to exploit it.** A fix made after the advisory is
+     published is described normally, and so, once task 0.13 allows it, is
+     one made in the advisory's private fork (item 6 and decision 127).
      1. It covers text: commit messages, pull request text, comments and
         code comments. The fix's code may land publicly.
      2. It covers any weakness under an unpublished advisory, whether or not
@@ -573,10 +581,16 @@ day are its items 1 to 6:
         private fork, or publicly after the advisory is published.
      5. When no advisory exists for the weakness, or the agent can't read
         whether it is published, the agent treats it as unpublished.
-     6. If GitHub lets the private fork's pull request be merged before the
-        advisory is published (task 0.13), the fork's commits are described
-        normally only if they are merged at the moment the advisory is
-        published; otherwise they follow the rule for public text.
+     6. **Amended by Adam's decision 127.** Task 0.13 measures whether
+        GitHub lets the private fork's pull request be merged before the
+        advisory is published. Until it shows that the merge waits for
+        publication, the fork's commit messages follow the rule for public
+        text (decision 127). If it shows instead that the merge can come
+        first, a fork commit is described normally only when the agent
+        knows, as it writes the commit, that the pull request will be
+        merged at the moment of publication, because the
+        person who will publish the advisory has told it so; otherwise it
+        follows the rule for public text.
 
      This replaces item 6 of decision 107, which kept a vulnerability
      question and its answer out of a fix's commit messages, pull request
@@ -714,9 +728,45 @@ against everything it must agree with:
      where. This change points to that requirement instead of restating
      it, and keeps its own rules for a session outside an Igor's run.
 124. **Citation commits stay machine records with no trailer** (decision
-     90). igor's signed-publishing change, igor #153, should exempt them
+     90). igor's signed-publishing change, igor PR #153, should exempt them
      from the trailers it requires on an Igor's commits; that is #153's to
      settle, and *Still open* lists it. Decisions 90 and 110 are unchanged.
+
+Adam gave 126 to 129 on 2026-10-20, answering points raised while
+recording decisions 112 to 125:
+
+126. **An Igor worker always asks in its handback comment, which its Igor
+     posts.** A worker holds no credential that can post: igor's
+     task-execution requirement *The worker is given an explicit
+     environment holding no credential but its seat's* gives it only its
+     seat's token. So decision 65's handback comment is its only way to
+     ask. Decision 58's rule that a headless session posts its question
+     applies only to a session with no person in it that can post, such as
+     a scheduled agent. This amends decisions 58 and 65.
+
+     One rule beside 126 is this change's, not Adam's: a session with no
+     person in it that can neither post nor hand back has nowhere to ask,
+     so it asks nowhere. It stops only if the work needs the answer, and
+     reports the question in its output. That is the only option with
+     merit, so this change took it under filter 3, which needs no ruling.
+127. **Until task 0.13 shows that a private fork's pull request can't be
+     merged before the advisory is published, the fork's commit messages
+     follow the rule for public text:** they describe neither the weakness
+     nor how to exploit it. The full description goes in the advisory's
+     text. This amends decision 108's item 6.
+128. **During an Igor's run, an id reported as "id taken" stops the
+     entry.** When the id the agent would give a lore entry is reported
+     only as "id taken" (decision 92), the agent does not propose the
+     entry, and its report says so. A person can propose the entry outside
+     a run. Adam decided the same for igor #216's id gate, which #216 is
+     to record.
+129. **An inquisitor run an Igor starts itself, with no worker, has its
+     citations pushed by the Igor under igor #216's rules,** as Adam
+     decided for #216. This change points to #216's requirement *An Igor
+     publishes the citations its worker reports* for every rule about an
+     Igor's run, including how a worker reports its citations, and keeps
+     its own rules only for a session outside a run. This extends decision
+     123.
 
 ### Proposed by this change
 
@@ -725,8 +775,8 @@ other proposals concern the role. Decisions 19 to 30, 36, 37 and 50 were
 needed to write the requirements. Reviewing #25, Adam confirmed 16
 to 30, 37 and 50, except 26, which he changed; his decision 42 replaced 36.
 His decision 32 replaced part of 19, and his decision 35 part of 18. The
-later decisions 79, 86, 99, 107, 111 and 125 came from this change too,
-and each says what Adam did with it.
+later decisions 79, 86, 99, 107, 111, 125 and 130 came from this change too,
+and each says what Adam did with it, or, for 130, that it waits for him.
 
 16. **Confirmed by Adam (2026-10-19).** **A prepared question** states the recommended answer, what changes under
     the other answer, and a link to any related earlier decision, so that most
@@ -949,9 +999,9 @@ decisions, put it to Adam, who confirmed it:
 
 Decision 125 came from writing Adam's decision 118. Nothing writes a log
 file or a miss file yet, so their format is cheap to change. This change
-chose it under filter 4, and puts it to Adam to confirm or overrule:
+chose it under filter 4 and put it to Adam, who confirmed it as written:
 
-125. **Waiting for Adam.** **How a log file and a miss file are
+125. **Confirmed by Adam (2026-10-20).** **How a log file and a miss file are
      written:**
      1. **Path:** in a repository, `.inquisitor/questions/<name>` for a
         question and `.inquisitor/misses/<name>` for a miss, at the root of
@@ -981,20 +1031,43 @@ chose it under filter 4, and puts it to Adam to confirm or overrule:
         spec's path). No other key. Its body is the
         question under `## Question`.
 
+Decision 130 came from spec-check's consistency read of the change after
+decisions 112 to 125. The design accepts three costs that no decision
+recorded, so this change records them and puts them to Adam to confirm or
+overrule:
+
+130. **Waiting for Adam.** **Three costs this change accepts:**
+     1. **A log file not yet merged is invisible to parallel work.** A
+        question's file in a repository is committed with the work
+        (decision 43), so until that work merges, an agent on another
+        branch, or in another pull request, does not find it, and may ask
+        the same question again.
+     2. **Lore is only as fresh as the person's fetches.** Filter 1 reads
+        each lore clone's remote-tracking default branch as the clone last
+        fetched it, and fetches only the `questions` branch, so an entry
+        merged since that fetch is not found. The search reports when that
+        fetch was (decision 107's item 7), so the agent can tell.
+     3. **The record of an `ask` drops the option's label.** For a picker
+        question, the hooks' record keeps what changes under the other
+        options but not the recommended option's label, so that it holds
+        no question text. Nothing the skill keeps then shows which option
+        the agent recommended, so nobody can check later from the records
+        whether the person took the recommendation.
+
 **Still open:**
 
-Decision 125 waits for Adam. The other items below are facts to measure
-and changes elsewhere.
+Decision 130 waits for Adam. The other items below are facts to measure,
+changes elsewhere, and one extension this change does not plan.
 
-Eleven of the items below are unmeasured facts, measured by tasks 0.1 to
-0.13 before anything is built; the first fact takes three tasks, 0.1 to
+Twelve of the items below are unmeasured facts, measured by tasks 0.1 to
+0.14 before anything is built; the first fact takes three tasks, 0.1 to
 0.3. The other items are changes elsewhere that this change depends on:
 - igor PR [#216](https://github.com/adamstallard/igor/pull/216), with igor
   issue [#215](https://github.com/adamstallard/igor/issues/215), which
-  amends igor's lore-firing spec (decision 60) and holds an Igor's citation
-  push (decision 123);
+  amends igor's lore-firing spec (decision 60) and holds every rule for
+  an Igor's citations (decisions 123 and 129);
 - igor PR #202, the scribe's records (decision 63);
-- igor issue #153, signed publishing (decision 124);
+- igor PR #153, signed publishing (decision 124);
 - in bug-hunter, a rule for a vulnerability fix's regression test (decision
   108).
 
@@ -1029,9 +1102,13 @@ The last item is a possible extension that this change does not plan.
   vulnerability's question and answer nowhere but the fix, and reports only
   that a vulnerability question is blocking, with no text.
 - **Can the private fork's pull request be merged before the advisory is
-  published?** Task 0.13 measures it. If it can, the fork's commits are
-  described normally only if they are merged as the advisory is published
-  (decision 108).
+  published?** Task 0.13 measures it. Until it shows the merge waits for
+  publication, the fork's commit messages describe no weakness, and the
+  full description goes in the advisory's text (decision 127). If the
+  merge can come first, a fork commit is described normally only when the
+  agent knows, as it writes the commit, that the pull request will be
+  merged as the advisory is published, because the person
+  publishing it said so (decision 108).
 - **bug-hunter needs a matching note:** a vulnerability fix's regression
   test lands only in the advisory's private fork, or publicly after the
   advisory is published (decision 108). A separate change to bug-hunter
@@ -1039,24 +1116,32 @@ The last item is a possible extension that this change does not plan.
 - **Does GitHub's API give a comment's author and a commit's verified
   signer as decision 78 needs?** If not, every `questions`-branch `decision`
   or `agent` file counts as input.
-- **igor PR #216's citation report** is still open. #216's worker reports
-  each citation "with the category it gave the question, if any", and
-  #216 is to drop the category from that report, since a worker here
-  reports no citation for a question with a category. The rest of what
-  this change relies on, #216 already holds:
+- **igor PR #216** holds what this change relies on from igor, and has not
+  merged:
   - its requirement *An Igor publishes the citations its worker reports*
-    says when and which citations an Igor pushes (decision 123), in this
-    change's format (decision 110);
+    says what a worker reports for a citation, with no category, and when
+    and which citations an Igor pushes, from a worker or from an
+    inquisitor run the Igor starts itself (decisions 123 and 129), in
+    this change's format (decision 110);
   - igor's review counts citations on the lore repository's `questions`
     branch (its decision 8; decision 83 here);
   - its id check reports an out-of-scope collision during a run only as
-    "id taken" (its decision 6; decision 92 here).
-- **igor issue #153, signed publishing,** would have an Igor whose role
+    "id taken" (its decision 6; decision 92 here). #216 is still to
+    record that such an entry is not proposed during the run, as decision
+    128 says here.
+- **igor PR #153, signed publishing,** would have an Igor whose role
   lists prose or bug-hunter push only commits that went through those
   skills and carry their trailers. Citation commits
   carry none (decisions 90 and 110), so #153 should exempt an Igor's
   commits to a lore repository's `questions` branch. That is #153's to
   settle (decision 124).
+- **Can an Igor worker post?** igor's task-execution requirement keeps
+  every credential but its seat's out of the worker's environment, but a
+  `gh` login stored in the home directory the worker is given is neither
+  an environment variable nor in its working tree. Task 0.14 measures it.
+  If a worker can post, it still asks only in its handback comment
+  (decision 126), and the credential within its reach is reported to igor
+  as a breach of that requirement.
 - **Can an Igor's worker run the inquisitor skill at all,** with a lore
   clone and `inquisitor.json` in reach? igor PR #216's task 4.1 measures it,
   and task 0.12 here waits on it. If not, nothing in this change runs inside
@@ -1071,8 +1156,9 @@ The last item is a possible extension that this change does not plan.
   - #202 has not settled how the scribe recognises an approval given off
     GitHub. Until it does, the scribe can't mark a record of a Discord,
     Slack or Linear answer `accepted`, so such an answer counts only when a
-    person writes it into a decision document on the default branch of the
-    repository the question concerns.
+    person writes it into another decision document that filter 1 counts,
+    such as one on the default branch of the repository the question
+    concerns.
   - #202's spec puts a decision about several repositories in the lore
     repository. Filter 1 reads the lore repository's decision records once
     #202 says where they live there (decision 66, task 6.0). Until then,
