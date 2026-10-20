@@ -201,7 +201,7 @@ Then:
    rules:
      proposal:
        - |
-         Open the proposal, right after its title (its `#` heading), like this:
+         Begin the proposal, right after its title (its `#` heading), like this:
          ## Decisions
          1. <a decision you ask the reviewer to approve>
          2. <another decision> *Rejected:* <an alternative you actually considered>, because <why it lost>.
