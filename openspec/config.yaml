@@ -32,12 +32,12 @@ schema: spec-driven
 rules:
   proposal:
     - |
-      Open the proposal, right after its title, like this:
+      Begin the proposal, right after its title (its `#` heading), like this:
       ## Decisions
       1. <a decision you ask the reviewer to approve>
       2. <another decision> *Rejected:* <an alternative you actually considered>, because <why it lost>.
       **Still open:** <the questions this change leaves for later, or 'none'>
       Then the rest of OpenSpec's proposal template (Why, What Changes, and so on).
-      List at least one decision. When the change makes no choice beyond its requirements (no mechanism picked, no alternative turned down), its one decision is to adopt them, written as an item such as "1. Adopt this change's requirements." Add *Rejected:* only where you really considered an alternative; never invent one. Always write the **Still open:** line, with 'none' when nothing is open. In this repository, spec-check fails the proposal if its first heading after the title does not start with 'Decisions', or if that section lists no decision as a numbered or bulleted item. It does not check the rest, including the **Still open:** line; the reviewer does.
+      List at least one decision. When the change makes no choice beyond its requirements (no mechanism picked, no alternative turned down), its one decision is to adopt those requirements, written as an item such as "1. Adopt this change's requirements." Add *Rejected:* only where you really considered an alternative; never invent one. Always write the **Still open:** line, with 'none' when nothing is open. In this repository, spec-check fails the proposal in only two cases: its first heading after the title does not start with 'Decisions' (a heading such as '## Decisions made' passes), or that section has no numbered or bulleted item, since a decision written as a plain paragraph does not count. The reviewer judges everything else in the proposal, including the **Still open:** line.
   tasks:
     - "End with a task to fold the change's lasting reasoning into the DECISIONS.md of each skill it affects, when the change is archived, as AGENTS.md says."
