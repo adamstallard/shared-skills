@@ -236,7 +236,7 @@ const RULE = 'subtle'
 // Prototype only: shown in the top bar, so a tester can tell which build is
 // loaded. v0.1-N, N the number of commits in the prototype repository once
 // this build is committed.
-const BUILD = 'v0.1-15'
+const BUILD = 'v0.1-16'
 const PREFIX = 'User says: '
 const SPEAKER = 8
 const cursorAtom = atom({ plugin: 'answer-session', key: 'cursor' } as const, 0)
@@ -641,9 +641,9 @@ function commands(c: Ctx): Command[] {
   if (c.composing) return [{ key: 'b', what: 'back to the discussion' }, close]
   if (c.talking) {
     return [
-      ...(c.hasReply && !c.busy ? [{ key: 'r', what: 'rephrase and ask again' }] : []),
-      ...(!c.busy ? [{ key: 'a', what: `ask ${q.asker.name}` }] : []),
-      { key: 'b', what: 'back without changes' },
+      ...(c.hasReply && !c.busy ? [{ key: 'r', what: 'reword the question from this talk' }] : []),
+      ...(!c.busy ? [{ key: 'a', what: `ask the asker (${q.asker.name}) in the thread` }] : []),
+      { key: 'b', what: 'back to the question' },
       close,
     ]
   }
@@ -1726,14 +1726,13 @@ export const register: Register = on => {
           <Text dimColor> · in the conversation above</Text>
         </Text>
       )
-      if (composing) return [head, ...compose(width)]
+      // The conversation above is where the discussion happens, so the band
+      // can spare the rows: a blank row each side of the head, and one above
+      // the key row.
+      const spaced = (rows: Row[]): Row[] => [blank(), head, blank(), ...rows, blank()]
+      if (composing) return spaced(compose(width))
       // A number chooses an answer here too: what it would post.
-      if (it.kind === 'option') {
-        return [
-          head,
-          ...postRows(it.text, width, 2),
-        ]
-      }
+      if (it.kind === 'option') return spaced(postRows(it.text, width, 2))
       const said = turns.filter(turn => turn.who === 'you').length
       const last = turns[turns.length - 1]
       const state: Row[] =
@@ -1745,7 +1744,7 @@ export const register: Register = on => {
               ? wrap(last.text, width).map(line => plain(line, { color: LATER }))
               : said
                 ? wrap(
-                    `${said} message${said === 1 ? '' : 's'} so far. Ask more, or: r rephrases the question and asks it again; a asks ${q.asker.name} in the thread${q.options ? '; a number chooses an answer' : ''}.`,
+                    `${said} message${said === 1 ? '' : 's'} so far. Keep typing to ask more${q.options ? `, or type 1–${q.options.length} to answer` : ''}.`,
                     width,
                   ).map(line => plain(line, { dim: true }))
                 : wrap(
@@ -1763,7 +1762,7 @@ export const register: Register = on => {
               </Text>,
             ]
           : []
-      return [head, ...state, ...pending]
+      return spaced([...state, ...pending])
     }
 
     if (isWide) {

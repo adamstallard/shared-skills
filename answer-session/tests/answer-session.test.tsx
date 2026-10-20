@@ -450,7 +450,7 @@ test('rephrasing reads the discussion as it happened in the session, and keeps t
   await ui.unmount()
 })
 
-test('back without changes keeps the question and its discussion', async ($, on) => {
+test('back to the question keeps the question and its discussion', async ($, on) => {
   const s = answerSession(on)
   await s.open($)
   const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
