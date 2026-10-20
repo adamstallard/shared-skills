@@ -19,10 +19,24 @@ schema: spec-driven
 #     tasks:
 #       - Break tasks into chunks of max 2 hours
 
-# The rules in force. OpenSpec shows each list to the agent drafting that
-# artifact: `openspec instructions proposal`, `openspec instructions tasks`.
+# spec-check checks the start of a proposal against the rule below: its first
+# heading after the title must start with "Decisions", and that section must
+# list at least one decision. This repository's openspec/spec-check.yaml says
+# `decisions-first: enforce`, which turns the check on. The file's only other
+# value, `off`, turns it off, and so does having no spec-check.yaml.
+# `spec-check check` fails a proposal that breaks it, and the spec-check skill
+# tells an agent to run that check before committing a change under
+# openspec/. The rule repeats what is checked, because the agent drafting a
+# proposal sees the rule but not this comment.
 rules:
   proposal:
-    - "Open with the decisions the reviewer is asked to make; then what is still open; then everything else. Where a decision turned down a real alternative, say what it was and why; do not invent one for a decision that had none."
+    - |
+      Open the proposal, right after its title, like this:
+      ## Decisions
+      1. <a decision you ask the reviewer to approve>
+      2. <another decision> *Rejected:* <an alternative you actually considered>, because <why it lost>.
+      **Still open:** <the questions this change leaves for later, or 'none'>
+      Then the rest of OpenSpec's proposal template (Why, What Changes, and so on).
+      List at least one decision. When the change's requirements are the only thing it decides, its one decision is to adopt them, written as an item such as "1. Adopt this change's requirements." Add *Rejected:* only where you really considered an alternative; never invent one. Always write the **Still open:** line, with 'none' when nothing is open. spec-check fails the proposal if its first heading after the title does not start with 'Decisions', or if that section lists no decision as a numbered or bulleted item. It does not check the rest, including the **Still open:** line; the reviewer does.
   tasks:
     - "End with a task to fold the change's lasting reasoning into the DECISIONS.md of each skill it affects, when the change is archived, as AGENTS.md says."

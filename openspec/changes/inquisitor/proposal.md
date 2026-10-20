@@ -71,7 +71,8 @@ given on the same day and are recorded here first.
 
 Decisions 16 to 18 are #211's proposals that apply to the skill; #211's
 other proposals concern the role. The rest were needed to write the
-requirements.
+requirements. Adam confirmed 19, 21 and 27 on 2026-10-19, and each is
+marked so; the others here still wait for him.
 
 16. **A prepared question** states the recommended answer, what changes under
     the other answer, and a link to any related earlier decision, so that most
@@ -88,14 +89,25 @@ requirements.
     be read counts as having none.
 18. **Answers live in the repository the question concerns.** An answer
     spanning repositories also goes to the team's lore repository.
-19. **The log is one file per question,** under `.inquisitor/questions/` at
-    the root of that repository, committed with the work, with a random
-    suffix in its name. A question about a public repository, or about none,
-    is logged under `~/.config/shared-skills/inquisitor/` instead, the
-    directory where the worktrees skill keeps its `worktrees.json`, because a
-    question can carry private context from the session. *Rejected:* one log
-    file that every question appends to, because two branches that each log
-    a question then conflict when they merge.
+19. **Confirmed by Adam (2026-10-19).** **The log is one file per
+    question,** under `.inquisitor/questions/` at the root of the repository
+    the question concerns, committed with the work. Each file's name has a
+    random suffix, so two branches that each log a question never write the
+    same file. Two kinds of question are logged under
+    `~/.config/shared-skills/inquisitor/` instead, the directory where the
+    worktrees skill keeps its `worktrees.json`:
+    - a question about a public repository, because a question can carry
+      private context from the session;
+    - a question that concerns no repository, because there is no
+      repository to commit it to. A question concerns no repository when it
+      is asked in a session outside any repository, or is about no
+      repository in particular.
+
+    Concerning no repository does not make a question's lesson hold for
+    everyone. Where a lesson lands is a separate choice, made by its scope
+    (decision 14). *Rejected:* one log file that every question appends to,
+    because two branches that each log a question then conflict when they
+    merge.
 20. **Only an answer with authority stops a question.** An answer is a
     decision document in the repository, an issue's decision block written
     by someone with write access, a logged answer from such a person, or an
@@ -103,10 +115,12 @@ requirements.
     else, including `provisional` and `deprecated` entries, is shown as
     input. An answer in the picker is the decision of the person running the
     session.
-21. **An agent asks a person only through the picker,** where the host has
-    one, so that the hook sees every question. *Rejected:* a hook at the end
-    of the agent's turn that reads questions in its reply, because the person
-    has already read the reply when that hook runs.
+21. **Confirmed by Adam (2026-10-19).** **An agent asks a person only
+    through the picker,** where the host has one, so that the hook sees
+    every question. On a host with no picker, this decision does not apply,
+    and no hook checks the question. *Rejected:* a hook at the end of the
+    agent's turn that reads questions in its reply, because the person has
+    already read the reply when that hook runs.
 22. **Two calls prove the filters ran,** as prose's two calls prove its pass
     ran. The first prints the filters, runs filter 1's search and issues a
     token. The second records a verdict for each question. The hook allows a
@@ -131,10 +145,11 @@ requirements.
 26. **Lessons are drafted from the misses only when a person asks** to review
     them, and the script refuses a lesson for shared-skills that quotes a
     logged question.
-27. **The skill opens a lore pull request without asking first,** as a
-    `provisional` entry, and reports its link: a pull request is itself a
-    proposal, and closing it is cheap. It refuses one to a public lore
-    repository when the answer came from a private repository.
+27. **Confirmed by Adam (2026-10-19).** **The skill opens a lore pull
+    request without asking first,** as a `provisional` entry, and reports
+    its link: a pull request is itself a proposal, and closing it is cheap.
+    The skill's script refuses to open one to a public lore repository when
+    the answer came from a private repository.
 28. **The hooks are enabled by default,** as prose's blocking hooks are.
     Installing the skill is the opt-in.
 29. **A scenario about what the agent does is traced to a test that checks
@@ -147,7 +162,7 @@ requirements.
     get no spec until a change touches them. This pull request adopts OpenSpec,
     spec-check's decisions-first rule and spec-trace for the repository.
 
-### Still open
+**Still open:**
 
 Two facts are unmeasured. Tasks 0.1 to 0.3 measure the first, including the
 shape of the hook's input, and task 0.4 measures the second.
