@@ -100,22 +100,36 @@ Run the mechanical checks again after amending.
 
 ## Decisions first
 
-A proposal opens with the decisions the reviewer is asked to make; then what
-is still open; then everything else. Where a decision turned down a real
-alternative, say what it was and why. Do not make up a rejected alternative
-for a decision that had none. A made-up alternative only adds to the
-reader's work.
+A proposal opens, right after its title, with a `## Decisions` section. It
+lists each decision the reviewer is asked to approve as a numbered item, then
+a bold **Still open:** label followed by the questions the change leaves for
+later, or 'none'. The rest of OpenSpec's proposal template follows. Every
+proposal lists at least one decision. When the requirements are the only
+thing a change decides, its one decision is to adopt them.
+
+Where a decision turned down an alternative that was really considered, the
+same item says so after *Rejected:*, with why it lost. Do not make up a
+rejected alternative for a decision that had none: a made-up one only adds to
+the reader's work.
+
+`check` tests only the start of the proposal. It fails a proposal whose first
+heading after the title does not start with "Decisions", or whose decisions
+section lists no decision as an item; a bulleted item counts as well as a
+numbered one. `check` does not look for the **Still open:** line, so a
+proposal that leaves it out still passes `check`; the reviewer catches the
+missing line and judges everything else. Write the line anyway, with 'none'
+when nothing is open.
 
 ```markdown
+# Expire old records
+
 ## Decisions
 
-1. **Records expire ninety days after their last read.** *Rejected:*
-   keeping them forever, which grows the store without bound.
-2. **The purge runs nightly.**
+1. Records expire ninety days after their last read. *Rejected:* keeping
+   them forever, because the store would grow without bound.
+2. The purge runs nightly.
 
-**Still open:**
-
-- Whether archived records expire too.
+**Still open:** whether archived records expire too.
 
 ## Why
 ...
@@ -160,20 +174,38 @@ Then:
    - The file is `openspec/config.yaml`, or `openspec/config.yml` if that is
      the one present. If neither exists, create `openspec/config.yaml`
      holding the lines below.
-   - Add the rule as an item of the list under `rules:` → `proposal:`. Use
-     the existing keys; create `rules:` or `proposal:` only where they are
-     missing. Keep every comment.
+   - Put the comment below just above `rules:`, and the rule as an item of
+     the list under `rules:` → `proposal:`. Use the existing keys; create
+     `rules:` or `proposal:` only where they are missing. Keep every other
+     comment.
    - Show the user the change before committing it.
    - If you cannot edit the file, tell the user the exact lines and where
      they go, and say that this step is optional: agents drafting a
      proposal will not see the rule, but `check` still enforces it.
 
-   The rule:
+   Copy the comment's words and the rule's text exactly as they are below,
+   because every repository's agents should read the same rule, and copies
+   reworded by hand drift apart.
 
    ```yaml
+   # spec-check checks the start of a proposal against the rule below: its first
+   # heading after the title must start with "Decisions", and that section must
+   # list at least one decision. This repository's openspec/spec-check.yaml says
+   # `decisions-first: enforce`, so the check is on; `off`, or no spec-check.yaml,
+   # turns it off. `spec-check check` fails a proposal that breaks it, and the
+   # spec-check skill tells an agent to run that check before committing a change
+   # under openspec/. The rule repeats what is checked, because the agent drafting
+   # a proposal sees the rule but not this comment.
    rules:
      proposal:
-       - "Open with the decisions the reviewer is asked to make; then what is still open; then everything else. Where a decision turned down a real alternative, say what it was and why. Do not make up a rejected alternative for a decision that had none."
+       - |
+         Open the proposal, right after its title, like this:
+         ## Decisions
+         1. <a decision you ask the reviewer to approve>
+         2. <another decision> *Rejected:* <an alternative you actually considered>, because <why it lost>.
+         **Still open:** <the questions this change leaves for later, or 'none'>
+         Then the rest of OpenSpec's proposal template (Why, What Changes, and so on).
+         List at least one decision. When the change's requirements are the only thing it decides, its one decision is to adopt them. Add *Rejected:* only where you really considered an alternative; never invent one. Always write the **Still open:** line, with 'none' when nothing is open. spec-check fails the proposal if its first heading after the title does not start with 'Decisions', or if that section lists no decision as a numbered or bulleted item. It does not check the rest, including the **Still open:** line; the reviewer does.
    ```
 4. **If the user turned the rule off,** look at OpenSpec's config. Only if
    the rule is there, tell the user, and ask whether to remove it.
