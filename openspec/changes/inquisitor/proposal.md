@@ -3,8 +3,9 @@
 ### Decided by Adam (2026-10-19)
 
 Decisions 1 to 10 are recorded in the body of
-[igor #211](https://github.com/adamstallard/igor/issues/211); 11 to 15 were
-given on the same day and are recorded here first.
+[igor #211](https://github.com/adamstallard/igor/issues/211). Adam gave 11 to
+15, and later 31, on the same day; this proposal is the first place they are
+written down.
 
 1. **Four filters run before any question reaches a person.**
    1. **Already answered:** the agent finds the earlier answer, cites where it
@@ -67,6 +68,19 @@ given on the same day and are recorded here first.
     puts the rule in `AGENTS.md`, and makes it the last task
     `openspec/config.yaml` asks of every change.
 
+Decision 31 came after decisions 16 to 30 below were numbered, so it takes the
+next free number:
+
+31. **When no candidate in the tagging order can decide, the inquisitor's
+    script tags the person running the session, or no one.** When the
+    inquisitor vets a question in a post and none of the candidates its
+    tagging order finds has write access to the repository the question
+    concerns, the script tags the person running the session, if that person
+    has write access. Otherwise it posts the question with no tag, and the
+    post says that no one with authority to decide could be found. The
+    tagging order is decision 17's, which still waits for Adam; decision 31
+    holds for whatever order he settles on, and does not approve 17's.
+
 ### For Adam to confirm
 
 Decisions 16 to 18 are #211's proposals that apply to the skill; #211's
@@ -78,15 +92,17 @@ marked so; the others here still wait for him.
     the other answer, and a link to any related earlier decision, so that most
     can be answered "yes". In the picker the recommendation is the first
     option, and the hook checks it.
-17. **Who is tagged in a post:** the fewest people who can decide; the
-    script tags one. Only a person with write access to the repository the question
-    concerns can decide it. Among them, the inquisitor tags the first it finds
+17. **Who is tagged in a post:** one person who can decide, where #211
+    proposed the fewest who can. Only a person with write access to the
+    repository the question concerns can decide it. Among them, the script
+    tags the first it finds
     of: whoever approved the related earlier decision, a reviewer listed in
     that repository's `.inquisitor/reviewers`, then whoever last changed the
     files involved. #211 named "a reviewer or expert named in the team's
     configuration"; a file in the repository is that configuration, so
     every teammate's agent tags the same person. A person whose access can't
-    be read counts as having none.
+    be read counts as having none. When no candidate has write access,
+    decision 31 says who is tagged; Adam has already decided it.
 18. **Answers live in the repository the question concerns.** An answer
     spanning repositories also goes to the team's lore repository.
 19. **Confirmed by Adam (2026-10-19).** **The log is one file per

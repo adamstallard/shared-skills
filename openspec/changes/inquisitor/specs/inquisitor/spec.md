@@ -367,19 +367,28 @@ body vetted before prose signs it is still vetted once the footer is added.
 - **WHEN** the hook cannot parse its input as JSON
 - **THEN** it lets the command through
 
-### Requirement: A question in a post tags one person who can decide
+### Requirement: A question in a post tags one person who can decide, if there is one
 
-Where a post asks a question, the question SHALL tag one person who can
-decide it: a person with write access to the repository the question
-concerns. Among them, the script SHALL pick the first it finds of:
+Where a post asks a question and a person who can decide it is found, the
+question SHALL tag one such person: a person with write access to the
+repository the question concerns. Among the candidates with write access,
+the script SHALL pick the first it finds of:
 
 1. whoever approved the related earlier decision: the approver of the pull
    request that added it;
 2. a login listed in that repository's `.inquisitor/reviewers` file;
 3. whoever last committed to the files the question concerns.
 
+When none of these candidates has write access, the script SHALL tag the
+person running the session, if that person has write access. That person is
+the login `gh api user` returns, and their write access is read the same way
+as any candidate's. When the person running the session has no write access
+either, the question SHALL tag no one, and the post SHALL say that no one
+with authority to decide could be found.
+
 When the script cannot learn whether a person has write access, it SHALL
-treat that person as lacking it.
+treat that person as lacking it. When `gh api user` fails, the script SHALL
+treat the person running the session as lacking write access.
 
 #### Scenario: The approver of the earlier decision is tagged
 
@@ -404,6 +413,27 @@ treat that person as lacking it.
 
 - **WHEN** `gh` cannot read a candidate's permission on the repository
 - **THEN** the script skips that candidate
+
+#### Scenario: The person running the session is tagged when no candidate can decide
+
+- **WHEN** no candidate in the order has write access to the repository the
+  question concerns, and the login `gh api user` returns has write access
+- **THEN** the question tags that login
+
+#### Scenario: A question no one can decide is posted untagged
+
+- **WHEN** no candidate in the order has write access to the repository the
+  question concerns, and the person running the session has no write access
+  either
+- **THEN** the question tags no one
+- **AND** the post says that no one with authority to decide could be found
+
+#### Scenario: A failed `gh api user` counts as no write access
+
+- **WHEN** no candidate in the order has write access to the repository the
+  question concerns, and `gh api user` fails
+- **THEN** the question tags no one
+- **AND** the post says that no one with authority to decide could be found
 
 ### Requirement: Every answer is recorded and every asked question logged
 

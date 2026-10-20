@@ -138,7 +138,13 @@ push access is unmeasured (task 0.4). Each check fails closed:
   public when choosing where to log the question, and as private when
   deciding whether its answer may go to a public lore repository;
 - an unread visibility of a lore repository counts as public;
-- an unread permission counts as no write access.
+- an unread permission counts as no write access, so a question never tags
+  a person who might be unable to decide it.
+
+When no candidate has write access, the script considers the person running
+the session: the `login` that `gh api user` returns. It reads their write
+access with the same permission call, and tags them only if they have it.
+Otherwise, or when `gh api user` fails, the question tags no one.
 
 The search reads each markdown file under a clone whose frontmatter holds
 `conditions`, and matches the question's terms against `claim`,

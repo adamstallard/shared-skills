@@ -37,7 +37,8 @@ contradicts what design.md assumed.
       none; `misses`, listing the misses by filter for a review
 - [ ] 2.5 The question finder for posts, as one function the post hook also
       calls
-- [ ] 2.6 `tag`, choosing whom a post's question tags
+- [ ] 2.6 `tag`, choosing whom a post's question tags: the first candidate
+      with write access, else the person running the session, else no one
 - [ ] 2.7 `lesson --check`, refusing a lesson for shared-skills that holds a
       logged question or miss; `lore`, opening a lore pull request or refusing
       it by visibility
