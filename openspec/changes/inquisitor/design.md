@@ -135,8 +135,11 @@ configuration, no `gh` login or other GitHub credential, no picker and no
 hooks, which can read only its working tree, its outbox and what its Igor
 passes it. Adam then chose how the worker searches lore (proposal
 decision 144): it calls a read-only search command igor provides, which
-igor PR #216 is specifying and this change calls `<igor's lore search command>` until #216
-names it. igor runs the search on its own lore checkout and `questions`
+igor PR #216 specifies as `igor lore-search`. The worker passes the
+question on standard input and no argument. The Igor tells which run and
+role a request is for by the channel it arrives on, one that only that
+run's worker can reach, so a worker can't ask on behalf of another run or
+role. igor runs the search on its own lore checkout and `questions`
 branch with the role's scope, so the worker needs no lore clone,
 `inquisitor.json` or `gh`, and igor, not the worker, applies the scope
 rules to lore entries and to question and miss files alike.
@@ -244,10 +247,15 @@ beside it.
   rewrite the answer. An Igor worker holds no credential for the lore
   repository, so it pushes nothing there: the question, miss and
   `authority: agent` files it would push go in its report, and its Igor
-  pushes them under the rules for the run's citations, which igor PR #216
-  is to record (proposal decision 142). The Igor pushes only files that
-  hold no answer, agent choices and misses, and only at paths not already
-  on the branch (proposal decision 145). An answer worth giving agents as lore is promoted by a pull
+  pushes them (proposal decision 142). igor PR #216's requirement *An Igor
+  publishes the questions-branch files its worker reports* holds every rule
+  for which files the Igor pushes, and when (proposal decisions 145, 149
+  and 150). The only answered file the Igor accepts from a worker is one
+  whose `answer_link` is a person's comment on the item the run works.
+  Filter 1, the search for an earlier answer, counts such a file as a
+  decision only when GitHub gives that comment's author as the file's
+  `answered_by` and the author has write access; otherwise it is input.
+  So a worker steered by text it read can't forge a person's answer. An answer worth giving agents as lore is promoted by a pull
   request to main adding a `provisional` entry; the question's file stays
   on its branch. Before pushing or promoting, the script checks
   visibility: nothing goes to a lore repository more visible than the
@@ -446,7 +454,15 @@ the search finds it. Inside an Igor it uses igor's own scope, the running
 role's, from `scopeMatches`: `global`, `role:<role>`, and `project:`
 matching any repository the role works. An entry out of scope is hidden,
 never shown, since scope decides who may see an entry. Status is labelled,
-not filtered: an in-scope entry that is not `active` is shown as input. igor's lore-firing spec, which bans offering a worker a
+not filtered: an in-scope entry that is not `active` is shown as input.
+A question or miss file on a lore repository's `questions` branch is in
+scope for every role whose Igor uses that lore repository, whatever
+repository its `repository` key names (proposal decision 148). One
+exception: during a run, igor's search hides a file about a repository
+more private than the repository of the item the run works, such as a
+file about a private repository from a run on a public one (proposal
+decision 151). The worker could otherwise repost what it read into the
+more public item. Both rules are #216's; the spec points to them. igor's lore-firing spec, which bans offering a worker a
 search tool, is amended by igor PR #216 (decisions in igor issue #215) to
 allow a search that applies firing's scope rule and labels status.
 A worker reports a cited entry by its id alone, and the Igor checks that
@@ -454,8 +470,10 @@ id against the lore repository it injects from. If the search covered
 another lore repository, an entry found there could be refused, or
 counted as a different entry with the same id. So during a run the search
 covers only the lore repository the Igor injects from (proposal decision
-133). When the script can't tell which lore
-repository the Igor injects from, it searches none.
+133). In an inquisitor run the Igor starts itself, with no worker, the
+script runs that search; when it can't tell which lore repository the
+Igor injects from, it searches none. In a worker, igor's command searches
+that lore repository instead.
 
 During a run, when the agent picks an id for a lore entry it would
 propose, igor reports a clash with an id held outside the run's scope

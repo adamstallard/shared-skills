@@ -209,8 +209,10 @@ contradicts what design.md assumed.
       those places (decisions 63, 66 and 109). Until #202 says so, filter 1
       searches `docs/decisions/` in the repository a question concerns,
       and no lore repository's decision records. Once #216 has merged,
-      point the spec's link to *An Igor publishes the citations its worker
-      reports* at igor's `openspec/specs/lore-firing/spec.md` on main, and
+      point the spec's links to *An Igor publishes the citations its worker
+      reports*, *An Igor publishes the questions-branch files its worker
+      reports* and *An Igor runs its worker's lore searches* at igor's
+      `openspec/specs/lore-firing/spec.md` on main, and
       its link to *Transcripts and outcomes are captured to the state
       branch* at igor's `openspec/specs/task-execution/spec.md` on main
 - [ ] 6.1 Say in prose's and bug-hunter's `DECISIONS.md` that the

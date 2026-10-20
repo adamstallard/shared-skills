@@ -11,7 +11,7 @@ are written down:
 - 11 to 15 and 31;
 - 32 to 35, 38 to 49 and 51 to 63, on 2026-10-19;
 - 64 to 78, 80 to 85, 87 to 98, 100 to 106, 108 to 110, 112 to 124,
-  126 to 129, 131 to 142, and 144 to 147, on 2026-10-20.
+  126 to 129, 131 to 142, and 144 to 151, on 2026-10-20.
 
 He gave those of 2026-10-19 and 2026-10-20 while reviewing this pull
 request, [#25](https://github.com/adamstallard/shared-skills/pull/25), whose
@@ -886,18 +886,21 @@ consistency read of the change before commit d93f48b:
 142. **An Igor worker pushes nothing to a lore repository,** since it
      holds no credential for one. Each question file, miss file and
      `authority: agent` file it would push to a `questions` branch goes in
-     its report instead, and its Igor pushes it under the same rules as the
-     run's citations. igor PR #216 is to record the Igor's side. Decision 145
-     says which of these files the Igor pushes.
+     its report instead, and its Igor pushes it. igor PR #216 records the
+     Igor's side in its requirement *An Igor publishes the questions-branch
+     files its worker reports*, which pushes these files when it would push
+     the run's citations. Decisions 145 and 149 say which of these files
+     the Igor pushes.
 
 Adam gave 144 to 146 on 2026-10-20, while task 0.12's result was being
 recorded, and 147 the same day, on how UI work goes through pull
-requests. He gave 145 and 146 for igor PR #216; they are recorded here
-where this change touches them:
+requests. He gave 144 to 146 for igor PR #216 too, which records them as
+its decisions 23, 21 and 22. They are recorded here where this change
+touches them:
 
 144. **In an Igor worker, igor runs filter 1's lore search.** The worker
-     calls a read-only search command igor provides, `<igor's lore search command>`, which igor
-     PR #216 is specifying. igor searches its own lore checkout and
+     calls a read-only search command igor provides, `igor lore-search`,
+     which igor PR #216 specifies. igor searches its own lore checkout and
      `questions` branch with the role's scope, and returns its hits
      labelled as answers or as input, as filter 1 labels them. So in Igor-worker mode filter 1 calls that command instead
      of reading lore itself, and needs no lore clone, `inquisitor.json`
@@ -906,10 +909,11 @@ where this change touches them:
      file holds no answer, has `authority: agent` and `answered_by:
      agent`, or is a miss file,** and only at a path not already on the
      branch. It pushes no other file, such as one with `authority:
-     decision`. This narrows decision 142.
+     decision`. This narrows decision 142, and decision 149 extends it.
 146. **In the rules for a question with a category, an Igor's run is the
      whole execution on the item,** not only one worker's part of it.
-     This applies to decision 136's flag.
+     This applies to decision 136's bare flag, the mark a worker's report
+     carries when its run meets a question with a category.
 147. **UI is prototyped, not specified.** Once Adam has used a UI's
      prototype and approved it, the UI goes straight to an implementation
      pull request: whether a UI works is easier to see than to read in a
@@ -918,6 +922,32 @@ where this change touches them:
      steps, spec then implementation. A spec names a UI only as an
      interface that the feature's other parts use, and does not describe
      the UI itself. `AGENTS.md` states the rule. This amends decision 30.
+
+Adam gave 148 to 151 on 2026-10-20 for igor PR #216, which records them as
+its decisions 25, 24, 26 and 27. They are recorded here where this change
+touches them:
+
+148. **A file on a lore repository's `questions` branch is in scope for
+     every role whose Igor uses that lore repository,** whatever its
+     `repository` key names. Before this, a search during a run showed
+     only the question and miss files whose `repository` key named a
+     repository the role works.
+149. **When a worker re-works an item after a person answered its
+     handback, the Igor pushes a log file recording the answer,** with an
+     `answer_link` to the person's comment on that item. The file holds
+     `authority: decision` when the person has write access to what the
+     question concerns, and `input` otherwise. It is a new file that supersedes the
+     unanswered one, as decision 140 has it. This extends decision 145.
+150. **A run that counts as flagged pushes nothing to the `questions`
+     branch,** citations included. A run counts as flagged when its
+     worker reported decision 136's bare flag, or when the provider
+     refused it over a usage limit before the worker's completed report
+     (#216's decision 19).
+151. **igor's search returns no `questions`-branch file about a more
+     private repository.** During a run, a file is returned only when the
+     repository of the item the run works is no more visible than the
+     repository the file's `repository` key names. A visibility that can't
+     be read counts against returning the file. This limits decision 148.
 
 ### Proposed by this change
 
@@ -1308,9 +1338,20 @@ The last item is a possible extension that this change does not plan.
     to the state branch* defines the bare flag a worker raises when its
     run meets a question with a category, and what the Igor does with it
     (decision 136 here);
-  - the Igor pushes the question, miss and `authority: agent` files its
-    worker reports, under the same rules as the run's citations (decision
-    142 here).
+  - its requirement *An Igor publishes the questions-branch files its
+    worker reports* says when and which of a worker's question, miss and
+    `authority: agent` files the Igor pushes, including the answer to a
+    handback when a worker re-works the item, and that a flagged run
+    pushes none (its decisions 20, 21, 24 and 26; decisions 142, 145, 149
+    and 150 here);
+  - its requirement *An Igor runs its worker's lore searches* defines
+    `igor lore-search`, the search command a worker calls, which labels
+    each question file it returns as an answer or as input (its decision
+    23; decision 144 here);
+  - a questions-branch file is in scope for every role whose Igor uses
+    that lore repository, and is returned only to a run whose item's
+    repository is no more visible than the one the file names (its
+    decisions 25 and 27; decisions 148 and 151 here).
 - **igor PR #153, signed publishing,** would have an Igor whose role
   lists prose or bug-hunter push only commits that went through those
   skills and carry their trailers. Citation commits
@@ -1324,17 +1365,20 @@ The last item is a possible extension that this change does not plan.
   If a worker can post, it still asks only in its handback comment
   (decision 126), and the credential within its reach is reported to igor
   as a breach of that requirement.
-- **Igor-worker mode waits for igor's search command.** Task 0.12
-  measured that an Igor worker can't run this skill, today or once igor
-  PRs #174 and #175 land as specified (decision 141; design.md gives the
-  evidence). The worker has no `inquisitor.json`, no `gh` login, no
+- **Igor-worker mode waits for igor to build its search command.** Task
+  0.12 measured that an Igor worker can't run this skill, today or once
+  igor PRs #174 and #175 land as specified (decision 141; design.md gives
+  the evidence). The worker has no `inquisitor.json`, no `gh` login, no
   picker and no hooks, and can't read the lore checkout. By decision 144,
   filter 1 in a worker calls igor's read-only search command instead,
-  which igor PR #216 is specifying; this change names it `<igor's lore search command>`
-  until #216 gives its name. The skill's script must also be one the
-  worker can run, which today means a role's `commands` lists it. Until
-  igor provides both, a worker searches no lore, as the spec's fallback
-  says, and gate two builds everything else.
+  `igor lore-search`, which igor PR #216 specifies and igor has not built.
+  #216's task 4.5 has yet to measure whether a worker can give the
+  command its standard input. If it can't, #216 gives the command another
+  way to take the text, and until this change adopts that way, a worker
+  searches no lore, as this change's spec says for a command that fails. The skill's script must also be one the worker can run,
+  which today means a role's `commands` lists it. Until igor builds the
+  command and lets a worker run the script, a worker searches no lore, as
+  the spec's fallback says, and gate two builds everything else.
 - **Can the post hook tell an Igor's handback comment from other posts?**
   Igor's own code might post it outside any tool call, where no hook sees
   it, or an agent might post it with `gh`. If the hook can't tell, it would

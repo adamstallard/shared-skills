@@ -253,23 +253,29 @@ Filter 1 SHALL search:
   questions branch with `git fetch` and `git show`, without checking it
   out.
 
-During an Igor's run, a worker's or an inquisitor run the Igor starts
-itself, the search SHALL cover only the lore repository the Igor injects
-lore from, and no other configured lore repository. When the script cannot tell
-which lore repository that is, it SHALL search no lore repository, and its
-output SHALL say that lore was not searched.
+During an Igor's run, the search SHALL cover only the lore repository the
+Igor injects lore from, and no other configured lore repository. In a
+worker, igor's command searches it, as the paragraph on Igor workers
+below says. In an inquisitor run the Igor starts itself, with no worker,
+the script searches it, and when the script cannot tell which lore
+repository that is, it SHALL search no lore repository, and its output
+SHALL say that lore was not searched.
 
 The search SHALL run the same way in an Igor worker as in any other
-session, except for the lore, which a worker searches as the paragraph on
-Igor workers below says. It SHALL hide every lore entry whose scope is not in the
+session, except for its sources, which the paragraph on Igor workers below
+sets. It SHALL hide every lore entry whose scope is not in the
 question's scope, and never show, count or mention it, even as input.
 Inside an Igor it SHALL follow the rule for a search during a run that
 igor PR #216 adds to igor's lore-firing requirement *Lore reaches the
 worker unbidden*: it shows only entries whose scope covers the run's role
 by firing's scope rule, which includes `project:` entries for every
-repository the role works, and only those question and miss files on the
-questions branch whose `repository` key names a repository the role
-works. Outside an
+repository the role works. That requirement and igor's
+[*An Igor runs its worker's lore searches*](https://github.com/adamstallard/igor/blob/spec-lore-search/openspec/changes/lore-search/specs/lore-firing/spec.md),
+in #216, set which question and miss files on the questions branch a
+search during a run may show. In short, it may show any such file of the
+lore repository the role's Igor uses, whatever repository the file names,
+except one about a repository more private than the run's item; this spec
+does not restate the rules. Outside an
 Igor, an
 entry is in scope when its `scope` is `global`, or `project:<name>` where
 `<name>` is the short name of the repository the question concerns, the
@@ -282,15 +288,25 @@ clone's remote-tracking default branch's last update by a fetch in that
 clone, or that the time is unknown. Outside an Igor's run, it needs no
 Igor role, no Igor configuration and no Igor service.
 
-In an Igor worker, filter 1 SHALL search lore only by calling the
-read-only search command igor provides, `<igor's lore search command>`, which igor PR #216
-is to specify. igor runs that search on its own lore checkout and questions
-branch, with the role's scope, and returns labelled results; filter 1
-shows them as the rules above say, and reads no lore clone itself.
+In an Igor worker, filter 1 SHALL search lore only by calling `igor
+lore-search`, the read-only search command that igor's lore-firing
+requirement
+[*An Igor runs its worker's lore searches*](https://github.com/adamstallard/igor/blob/spec-lore-search/openspec/changes/lore-search/specs/lore-firing/spec.md),
+in igor PR #216, defines. The command takes no argument and reads the
+question's text or search terms on standard input. The Igor tells which
+run and role a request is for by the channel it arrives on, which only
+that run's worker can reach. igor runs that search on
+its own lore checkout and questions branch, under the rules for a search
+during a run. It labels each question file it returns as an answer or as
+input, as filter 1 labels it, and marks each miss file as a miss. It
+returns each lore entry with its status, and filter 1 labels the entry as
+an answer or as input by the rules above. Filter 1 reads no lore clone
+itself.
 Besides the command's results, the search SHALL cover only the worker's
 working tree, and SHALL report every other source as not searched,
 GitHub's issues included. When the
-command is missing or fails, the search SHALL search no lore and say so.
+command is missing, fails, or exits with an error because it got no
+question on standard input, the search SHALL search no lore and say so.
 
 #### Scenario: During an Igor's run, only the Igor's lore repository is searched
 
@@ -308,14 +324,17 @@ command is missing or fails, the search SHALL search no lore and say so.
 #### Scenario: An Igor worker searches lore through igor's command
 
 - **WHEN** an Igor worker runs filter 1 on a question
-- **THEN** the search calls `<igor's lore search command>` for lore and the questions branch,
+- **THEN** the search calls `igor lore-search` with no argument, passing
+  the question on standard input, for lore and the questions branch,
   shows the labelled results it returns, reads no lore clone, covers
   otherwise only the decision documents and question log in its working
   tree, and reports GitHub's issues as not searched
 
 #### Scenario: An Igor worker without igor's search command searches no lore
 
-- **WHEN** an Igor worker runs filter 1, and `<igor's lore search command>` is missing or fails
+- **WHEN** an Igor worker runs filter 1, and `igor lore-search` is
+  missing, fails, or exits with an error because it got no question on
+  standard input
 - **THEN** the search covers no lore, and its output says lore was not
   searched
 
@@ -629,12 +648,21 @@ agent. The search SHALL never show a rejected candidate.
   it
 - **THEN** the search shows the entry, and filter 1 treats it as an answer
 
-#### Scenario: Inside an Igor, another project's question file is hidden
+#### Scenario: Inside an Igor, a question file about another repository is in scope
 
-- **WHEN** during an Igor's run whose role works only `o/api`, a question
-  file on the questions branch whose `repository` key is `o/web` matches
-  the question
-- **THEN** the search does not show, count or mention it
+- **WHEN** during an Igor's run on an item in `o/api`, whose role works
+  only `o/api`, a question file on the questions branch of the lore
+  repository the Igor uses, whose `repository` key is `o/web`, matches the
+  question
+- **AND** `o/api` is no more visible than `o/web`
+- **THEN** the search shows it, labelled by the authority rules above
+
+#### Scenario: Inside an Igor, a question file about a more private repository is hidden
+
+- **WHEN** during an Igor's run on an item in a public repository, a
+  question file on the questions branch whose `repository` key names a
+  private repository matches the question
+- **THEN** the search does not show it
 
 #### Scenario: A project entry matches the repository's short name
 
@@ -1423,12 +1451,17 @@ in igor PR #216, sets every rule for a run's citations: how a worker
 reports them, and when and which the Igor pushes, whether from a worker or
 from an inquisitor run the Igor starts itself with no worker. This spec
 does not restate them. An Igor worker SHALL push nothing to a lore
-repository either: each question file, miss file and `authority: agent`
-file it would push to a questions branch SHALL go in its report, and its
-Igor pushes it under the same rules as the run's citations. The Igor pushes such a file only when it holds
-no answer, when its `authority` is `agent` and its `answered_by` is
-`agent`, or when it is a miss file, and only at a path not already on the
-branch. It pushes no other file, such as one with `authority: decision`. A citation file
+repository either. Each question file, miss file and `authority: agent`
+file it would push to a questions branch SHALL go in its report. So SHALL
+a log file recording a person's answer to its handback question, when a
+worker re-works the item after that answer: the file holds the question
+and the answer, with an `answer_link` to the person's comment on the
+item, and it is a new file, beside the unanswered one. Its `authority` is
+`decision` when the person has write access to what the question
+concerns, and `input` otherwise. igor's lore-firing requirement
+[*An Igor publishes the questions-branch files its worker reports*](https://github.com/adamstallard/igor/blob/spec-lore-search/openspec/changes/lore-search/specs/lore-firing/spec.md),
+in igor PR #216, sets which of these files the Igor pushes, and when.
+This spec does not restate those rules either. A citation file
 is never an answer. Every commit
 the script makes to a lore repository's questions branch SHALL have the
 message `inquisitor: log <file>`, and SHALL carry no prose or bug-hunter
@@ -1587,11 +1620,14 @@ why.
 - **THEN** the worker pushes nothing to the lore repository, and its
   report holds the question file and the miss file for its Igor to push
 
-#### Scenario: An Igor does not push a worker's answered decision file
+#### Scenario: A worker re-working an answered handback reports the answer
 
-- **WHEN** an Igor worker's report holds a question file with
-  `authority: decision`
-- **THEN** its Igor pushes no such file to the questions branch
+- **WHEN** a person answers, in a comment on the item, the organization
+  question an Igor worker asked in its handback comment, and a worker
+  re-works the item
+- **THEN** the worker pushes nothing to the lore repository, and its
+  report holds a new log file holding the question and the answer, with
+  `authority: decision` or `input` and an `answer_link` to that comment
 
 #### Scenario: A rejected push to the questions branch is retried
 
