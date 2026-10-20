@@ -360,6 +360,14 @@ these:
   signature GitHub verifies for `answered_by`'s account;
 - an in-scope lore entry whose `status` is `active`.
 
+An answer given on another surface, such as a Discord thread, a Slack
+message or a Linear comment, SHALL be input until a decision document that
+the list above counts records it. One such document is the `accepted`
+decision record igor's scribe (igor PR #202) writes in a place filter 1
+searches, such as `docs/decisions/` on the default branch of the
+repository the question concerns. A link to a message on such a surface SHALL NOT prove a
+questions-branch file's writer.
+
 Every other hit the search shows SHALL be shown to the agent as input,
 labelled with why it is not an answer: a `provisional` entry as unreviewed,
 a `deprecated` entry as retired, a `decision` or `agent` log entry that
@@ -438,6 +446,27 @@ agent. The search SHALL never show a rejected candidate.
 - **WHEN** a `decision` file on a lore questions branch links a comment by
   `alice` that says only "LGTM", while the file records a different answer
 - **THEN** the search shows the file labelled as unconfirmed
+
+#### Scenario: A link to a Discord message proves no writer
+
+- **WHEN** a `decision` file on a lore questions branch names `alice` as
+  `answered_by`, and its `answer_link` is a Discord message by `alice`
+- **THEN** the search shows the file labelled as unconfirmed
+
+#### Scenario: An answer given in a Discord thread is input until the scribe records it
+
+- **WHEN** the agent reads a maintainer's answer in a Discord thread, with
+  a tool outside filter 1's search, and no decision document that filter 1
+  counts records that answer
+- **THEN** it writes the answer to the question's log file with
+  `authority: input`, and does not treat the question as answered
+
+#### Scenario: The scribe's accepted record of a Discord answer is an answer
+
+- **WHEN** igor's scribe has recorded a maintainer's Discord answer as an
+  `accepted` decision record under `docs/decisions/` on the default branch
+  of the repository the question concerns
+- **THEN** filter 1 treats the record as an answer, and the agent cites it
 
 #### Scenario: A questions-branch decision with a verified signature is an answer
 

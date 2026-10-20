@@ -183,7 +183,13 @@ Each log file has YAML frontmatter (`repository`, `asked`, `answered_by`,
 `authority`: `decision`, `input` or `agent`, `recorded_in`, and
 `answer_link`, the GitHub comment or review holding the answer, when there
 is one) and the
-question and answer as its body. An agent's choice has `answered_by: agent`.
+question and answer as its body. An `answer_link` is only ever a
+github.com comment or review. An answer given on Discord, Slack or Linear
+is logged as `input`. Filter 1 counts it as an answer only once a decision
+document on the default branch of the repository the question concerns
+records it. One such document is the `accepted` decision record written by
+igor's scribe, the Igor role that writes a discussion's decisions down
+(proposal decision 109). An agent's choice has `answered_by: agent`.
 
 When filter 1 stops a question with a lore entry, the citation goes to that
 lore repository's `questions` branch, as a file under `citations/` holding

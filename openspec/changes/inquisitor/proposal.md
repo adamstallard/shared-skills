@@ -10,16 +10,16 @@ others in Claude Code sessions, and this proposal is the first place they
 are written down:
 - 11 to 15 and 31;
 - 32 to 35, 38 to 49 and 51 to 63, on 2026-10-19;
-- 64 to 78, 80 to 85, 87 to 98, 100 to 106 and 108, on 2026-10-20.
+- 64 to 78, 80 to 85, 87 to 98, 100 to 106, 108 and 109, on 2026-10-20.
 
 He gave those of 2026-10-19 and 2026-10-20 while reviewing this pull
 request, [#25](https://github.com/adamstallard/shared-skills/pull/25), whose
-own thread holds none of them. In the same sessions he confirmed or changed
-every decision this change had proposed by then, 16 to 30, 36, 37, 50 and
-79, confirming 79 only in part; *Proposed by this change* below says which.
-He has not reviewed the change's later decisions 86, 99 and 107. Of 107 he
-has seen only item 6, which his decision 108 replaced; its other items
-still wait for him.
+own thread holds none of them. In the same sessions he also ruled on every
+decision this change proposed itself: 16 to 30, 36, 37, 50, 79, 86, 99 and
+107. Those stay listed under *Proposed by this change* below, each marked
+with what he did. He changed 26, replaced 36 with his decision 42,
+confirmed 79 only in part, replaced 107's item 6 with his decision 108,
+and added his decision 109 to 107's item 5. He confirmed the rest.
 
 1. **Four filters run before any question reaches a person.**
    1. **Already answered:** the agent finds the earlier answer, cites where it
@@ -584,13 +584,31 @@ day are its items 1 to 6:
        disclosure, against prose's rule 14, that a commit message's body
        says why.
 
+Adam gave 109 on 2026-10-20, reviewing #25, as an addition to item 5 of
+decision 107:
+
+109. **An answer given on another surface, such as Discord, Slack or
+     Linear, counts once igor's scribe records it as an `accepted` decision
+     record;** until then it is input. The scribe is the Igor role that
+     writes a discussion's decisions down (igor issue #201, PR #202). What
+     109 adds is that the answer itself never counts: not as a logged
+     decision, and not through a link to the message, since a linked answer
+     (decision 78) is only a github.com comment or review, as 107's item 5
+     says. The record it counts through is one filter 1 already counts: an
+     `accepted` record (decision 66), in a place decision 63 says filter 1
+     searches. Any other decision document that records the answer, on the
+     default branch of the repository the question concerns, counts too, by
+     decision 20, whoever writes it.
+
 ### Proposed by this change
 
 Decisions 16 to 18 are #211's proposals that apply to the skill; #211's
 other proposals concern the role. Decisions 19 to 30, 36, 37 and 50 were
 needed to write the requirements. Reviewing #25, Adam confirmed 16
 to 30, 37 and 50, except 26, which he changed; his decision 42 replaced 36.
-His decision 32 replaced part of 19, and his decision 35 part of 18.
+His decision 32 replaced part of 19, and his decision 35 part of 18. The
+later decisions 79, 86, 99 and 107 came from this change too, and each
+says what Adam confirmed.
 
 16. **Confirmed by Adam (2026-10-19).** **A prepared question** states the recommended answer, what changes under
     the other answer, and a link to any related earlier decision, so that most
@@ -735,21 +753,19 @@ Decision 79 came from spec-check's eighth consistency read:
     different projects (decision 85).
 
 Decision 86 came from writing Adam's decision 85. It is cheap to reverse,
-so this change made it under filter 4, and lists it so Adam can overrule
-it:
+so this change made it under filter 4:
 
-86. **When more than one lore repository serves what a question
-    concerns,** the most specific match wins (a named repository beats an
+86. **Confirmed by Adam (2026-10-20).** **When more than one lore
+    repository serves what a question concerns,** the most specific match wins (a named repository beats an
     owner), then the first listed in the configuration, and the agent's
     report says which it chose. It once had a second part, giving a
     categorized question's citation no hash, which Adam's decisions 87 and
     104 made moot.
 
 Decision 99 came from spec-check's eleventh consistency read. Its parts are
-cheap to reverse, so this change made them under filter 4, and lists them
-so Adam can overrule them:
+cheap to reverse, so this change made them under filter 4:
 
-99. **Three details the spec fixes:**
+99. **Confirmed by Adam (2026-10-20).** **Three details the spec fixes:**
     1. A linked comment proves a `questions`-branch file's writer (decision
        78) only when the comment's text holds the answer the file records,
        so a bare "LGTM" proves nothing.
@@ -761,33 +777,39 @@ so Adam can overrule them:
        GitHub API call, so an answer whose author has one is input.
 
 Decision 107 came from spec-check's twelfth consistency read. Its parts are
-cheap to reverse, so this change made them under filter 4, and lists them
-so Adam can overrule them:
+cheap to reverse, so this change made them under filter 4:
 
 107. **Details the spec fixes:**
-     1. The shared post reader also reads `python3 <github-app script> run
-        -- gh …`, and the script path given as the github-app skill's `$G`.
-     2. A `gh api` call writes when its method is `POST`, `PATCH` or `PUT`,
-        given by `-X` or `--method` or implied by fields or `--input` with
-        no `-X GET`, or when its GraphQL query is a mutation. A write whose
+     1. **Confirmed by Adam (2026-10-20).** The shared post reader also
+        reads `python3 <github-app script> run -- gh …`, including when the
+        script's path is written as `$G`, the variable the github-app skill
+        uses for it.
+     2. **Confirmed by Adam (2026-10-20).** A `gh api` call writes when its
+        method is `POST`, `PATCH` or `PUT`, given by `-X` or `--method` or
+        implied by fields or `--input` with no `-X GET`, or when its GraphQL query is a mutation. A write whose
         fields carry no `body` sends no post. This narrows how decision 96
         is read, so that reads such as GraphQL queries and label edits pass.
-     3. A rhetorical question is rewritten as a statement, and its
-        `decided` verdict names the post.
-     4. A proposed lore entry whose id an entry holds gets another id; one
-        whose id a rejection holds is not proposed.
-     5. A linked answer (decision 78) must be a github.com comment or review
+     3. **Confirmed by Adam (2026-10-20).** A rhetorical question is
+        rewritten as a statement, and its `decided` verdict names the post.
+     4. **Confirmed by Adam (2026-10-20).** A proposed lore entry whose id
+        an existing entry already uses gets another id; one whose id a
+        rejected candidate uses is not proposed.
+     5. **Confirmed by Adam (2026-10-20), with his decision 109 added.** A
+        linked answer (decision 78) must be a github.com comment or review
         on the repository the question concerns or on the lore repository.
+        An answer given on another surface counts only through a decision
+        document that records it, such as the scribe's (decision 109).
      6. **Replaced by Adam's decision 108.** It kept a vulnerability's
         question and answer out of a fix's commit messages, pull request
         text and comments.
-     7. A lore clone's reported date is when its remote-tracking default
-        branch was last updated by a fetch in that clone.
+     7. **Confirmed by Adam (2026-10-20).** The date filter 1's search
+        reports for each lore clone, so the agent can tell how fresh it is,
+        is when the clone's remote-tracking default branch was last updated
+        by a fetch in that clone.
 
 **Still open:**
 
-Nothing waits for Adam except decisions 86, 99 and 107, which this change
-made and he may overrule.
+Nothing waits for Adam.
 
 Eleven of the items below are unmeasured facts, measured by tasks 0.1 to
 0.13 before anything is built; the first fact takes three tasks, 0.1 to
@@ -796,7 +818,8 @@ igor, PR [#216](https://github.com/adamstallard/igor/pull/216), with igor
 issue [#215](https://github.com/adamstallard/igor/issues/215), amending
 igor's lore-firing spec (decision 60), and PR #202, the scribe's records
 (decision 63); and in bug-hunter, a rule for a vulnerability fix's
-regression test (decision 108).
+regression test (decision 108). The last item is a possible extension that
+this change does not plan.
 
 - **Can a `PreToolUse` hook block `AskUserQuestion`?** If not, the picker is
   covered by the skill's instructions alone, and the README says so.
@@ -858,6 +881,26 @@ regression test (decision 108).
   it, or an agent might post it with `gh`. If the hook can't tell, it would
   block an unvetted question in such a comment, against decision 40, until
   the Igor inquisitor role's work marks the comment.
+- **igor PR #202, the scribe's records.** Two of its open points decide
+  when decision 109 can apply:
+  - #202 has not settled how the scribe recognises an approval given off
+    GitHub. Until it does, the scribe can't mark a record of a Discord,
+    Slack or Linear answer `accepted`, so such an answer counts only when a
+    person writes it into a decision document on the default branch of the
+    repository the question concerns.
+  - #202's spec puts a decision about several repositories in the lore
+    repository. Filter 1 reads the lore repository's decision records once
+    #202 says where they live there (decision 66, task 6.0). Until then,
+    a scribe's record can answer only a question about one repository.
+- **Not planned here: proving an answer by a link to a message on another
+  surface,** such as Discord, with that surface's API vouching for the
+  message's author, and a file in the lore repository mapping the author
+  to a GitHub login. igor issue #160 already maps a Discord user to a
+  GitHub login, by a configuration entry keyed by the Discord user id; a
+  later change would choose between that entry and a file in the lore
+  repository. Until one adds it, such an answer
+  counts only through a decision document, such as the scribe's record
+  (decision 109).
 
 #211's other open questions: decision 23 settles the first. The other two,
 how long to wait before following up and whether a discussion is a new kind

@@ -154,9 +154,12 @@ contradicts what design.md assumed.
 ## 6. Archive
 
 - [ ] 6.0 Archive only after igor PR #216 has merged, since filter 1's
-      search in an Igor worker depends on it; keep `docs/decisions/` as a
-      decision-document location until igor PR #202 settles where the
-      scribe's records live
+      search in an Igor worker depends on it. If igor PR #202 has by then
+      said where the scribe's records live, both in the repository a
+      question concerns and in the lore repository, make filter 1 search
+      those places (decisions 63, 66 and 109). Until #202 says so, filter 1
+      searches `docs/decisions/` in the repository a question concerns,
+      and no lore repository's decision records
 - [ ] 6.1 Say in prose's and bug-hunter's `DECISIONS.md` that the
       inquisitor's commits to a lore `questions` branch are machine records,
       exempt from their trailers
