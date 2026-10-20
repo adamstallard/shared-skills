@@ -236,7 +236,7 @@ const RULE = 'subtle'
 // Prototype only: shown in the top bar, so a tester can tell which build is
 // loaded. v0.1-N, N the number of commits in the prototype repository once
 // this build is committed.
-const BUILD = 'v0.1-18'
+const BUILD = 'v0.1-19'
 const PREFIX = 'User says: '
 const SPEAKER = 8
 const cursorAtom = atom({ plugin: 'answer-session', key: 'cursor' } as const, 0)
@@ -632,12 +632,12 @@ type Command = { key: string; what: string }
 /** The commands the screen offers now, in the order the key row shows them. */
 function commands(c: Ctx): Command[] {
   const q = c.q
-  const close: Command = { key: 'q', what: 'close' }
+  const close: Command = { key: 'q', what: '(q)uit' }
   const nav: Command[] = [
-    { key: 'p', what: 'previous' },
-    { key: 'n', what: 'next' },
+    { key: 'p', what: '(p)revious' },
+    { key: 'n', what: '(n)ext' },
   ]
-  if (!q) return [...(c.deferredAt >= 0 ? [{ key: 'r', what: 'back to those for later' }] : []), ...nav, close]
+  if (!q) return [...(c.deferredAt >= 0 ? [{ key: 'r', what: '(r)eview those for later' }] : []), ...nav, close]
   if (c.composing) return [{ key: 'b', what: 'go (b)ack to the discussion' }, close]
   // In a discussion the key sits inside the words, as Adam wrote them.
   if (c.talking) {
@@ -652,12 +652,12 @@ function commands(c: Ctx): Command[] {
   return [
     ...(c.open
       ? [
-          { key: 't', what: 'talk it through' },
-          ...(q.answered ? [{ key: 'c', what: 'cite the decision' }] : []),
-          { key: 'l', what: 'later' },
+          { key: 't', what: '(t)alk it through' },
+          ...(q.answered ? [{ key: 'c', what: '(c)ite the decision' }] : []),
+          { key: 'l', what: '(l)ater' },
         ]
       : []),
-    ...(c.changed ? [{ key: 'o', what: 'original' }] : []),
+    ...(c.changed ? [{ key: 'o', what: '(o)riginal' }] : []),
     ...nav,
     close,
   ]
@@ -1345,7 +1345,7 @@ export const register: Register = on => {
         </Box>
         <Box gap={3} flexShrink={1} justifyContent="flex-end">
           {status}
-          {keyButton({ key: 'q', what: 'close' })}
+          {keyButton({ key: 'q', what: '(q)uit' })}
         </Box>
       </Box>
     )
@@ -1514,7 +1514,7 @@ export const register: Register = on => {
                   : `↻ Revised by ${q.asker.name} after your question`}
             </Text>
             <Button key="original" plain dimColor onPress={() => run(pressKey($, 'o'))}>
-              {showOriginal ? 'o: show it as asked now' : 'o: show the original'}
+              {showOriginal ? 'show it as asked n(o)w' : 'show the (o)riginal'}
             </Button>
           </Box>,
         ]
@@ -1593,7 +1593,7 @@ export const register: Register = on => {
                 ? [
                     <Box height={1} overflow="hidden">
                       <Button key="cite" plain dimColor onPress={() => run(pressKey($, 'c'))}>
-                        c: reply by citing it
+                        (c)ite it in a reply
                       </Button>
                     </Box>,
                   ]
