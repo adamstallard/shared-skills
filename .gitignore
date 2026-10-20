@@ -1,0 +1,7 @@
+sim/node_modules/
+sim/out/
+# Compiled leftovers from the sim build; the mod loads the .tsx sources.
+answer-session/hooks/*.js
+answer-session/tests/*.js
+# Laid by the engine when it loads the mod.
+answer-session/.claude-plugin/types/

@@ -1,0 +1,49 @@
+   Answer session   ◇ ○ ○ ○ ○ ○ ○ ○   1 of 8  ·  talking it through                                                                                                 x: close
+   ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+                                            GitHub  adamstallard/igor #216                                                   12m ago
+                                            claude asks, an agent via the inquisitor
+
+                                            During a run, should the inquisitor's first filter hide questions-branch files about
+                                            projects the role doesn't work on, as it hides lore entries outside the role's scope?
+
+                                            1  Yes, filter them by the role's scope  ★
+                                            2  No, show them as input
+
+                                            ◇ TALKING IT THROUGH · this question only
+
+
+
+
+
+
+
+
+                                            you      What does questions-branch mean here?
+
+                                            claude   It asks whether the scope filter, which already hides lore entries outside the
+                                                     role's projects, should also hide files on the questions branch. Those files
+                                                     are questions agents asked about any project, so today a worker on igor can
+                                                     read a question about a payments project.
+
+                                                     The trade-off:
+
+                                                     - Filtering keeps workers focused and leaks nothing across projects.
+                                                     - Showing them lets a worker learn from a similar question elsewhere.
+
+                                                     Which matters more to you here: isolation between projects, or reuse of
+                                                     answers?
+
+                                            you      Isolation.
+
+                                            claude   Then the first answer fits what you described: hide them, the same way lore is
+                                                     hidden. One thing to settle first: the question doesn't say whether hidden
+                                                     files stay on the branch. If you're unsure, asking claude is cheap.
+
+                                                     ┌─────────────────────────────────────────────────────────────────────────────┐
+                                                     │ › Reply, or ask more…                                                       │
+                                                     │                                                                             │
+                                                     └─────────────────────────────────────────────────────────────────────────────┘
+
+   ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   Enter: send    Tab: leave the field    r: rephrase and ask again    a: ask the asker    b: back without changes

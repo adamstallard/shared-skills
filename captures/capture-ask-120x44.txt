@@ -1,0 +1,45 @@
+   Answer session   ◇ ○ ○ ○ ○ ○ ○ ○   1 of 8  ·  talking it through                                          x: close
+   ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+                GitHub  adamstallard/igor #216                                                   12m ago
+                claude asks, an agent via the inquisitor
+
+                During a run, should the inquisitor's first filter hide questions-branch files about
+                projects the role doesn't work on, as it hides lore entries outside the role's scope?
+
+                1  Yes, filter them by the role's scope  ★
+                2  No, show them as input
+
+                ◇ TALKING IT THROUGH · this question only
+
+                you      What does questions-branch mean here?
+
+                claude   It asks whether the scope filter, which already hides lore entries outside the
+                         role's projects, should also hide files on the questions branch. Those files
+                         are questions agents asked about any project, so today a worker on igor can
+                         read a question about a payments project.
+
+                         The trade-off:
+
+                         - Filtering keeps workers focused and leaks nothing across projects.
+                         - Showing them lets a worker learn from a similar question elsewhere.
+
+                         Which matters more to you here: isolation between projects, or reuse of
+                         answers?
+
+                ASK CLAUDE, IN THE THREAD
+                ┌──────────────────────────────────────────────────────────────────────────────────────┐
+                │ › When the filter hides a question file, does it stay on the branch for other roles, │
+                │  or is it removed?                                                                   │
+                │                                                                                      │
+                │                                                                                      │
+                └──────────────────────────────────────────────────────────────────────────────────────┘
+
+                WILL POST ON GITHUB AS adam-relay[bot], replying in adamstallard/igor #216
+                │ User says: When the filter hides a question file, does it stay on the branch for other
+                │ roles, or is it removed?
+
+                [ Send ]  The question waits for their reply; the queue moves on.
+
+   ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   Enter: send to claude    Tab: leave the field    b: back to the discussion

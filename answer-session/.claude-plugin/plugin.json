@@ -1,0 +1,6 @@
+{
+  "name": "answer-session",
+  "version": "0.1.0",
+  "description": "Prototype of the inquisitor's answer session: relayed questions, answered in one immersive pane",
+  "types": "./types/index.d.ts"
+}

@@ -1,0 +1,44 @@
+   Answer session   ◉ ○ ○ ○ ○ ○ ○ ○   1 of 8  ·  8 new · 0 relayed · 0 deferred                              x: close
+   ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+                GitHub  adamstallard/igor #216                                                   12m ago
+                claude asks, an agent via the inquisitor
+
+
+                ↻ Rephrased after your discussion   o: show the original
+                Should a worker's search leave out questions-branch files about projects outside the
+                role's scope, the way it leaves out lore entries?
+
+                The files stay on the branch; only what a worker sees changes.
+
+                Related #216 decision 3: scope is a hard filter
+
+
+                CHOOSE AN ANSWER
+
+                ▌ 1: Yes, leave them out   ★ recommended
+                ▌    → Workers see only their own projects' questions.
+
+                  2: No, include them
+                     → Workers also see other projects' questions.
+
+                  w: Or answer in your own words
+                     ┌─────────────────────────────────────────────────────────────────────────────────┐
+                     │ › Type an answer instead…                                                       │
+                     └─────────────────────────────────────────────────────────────────────────────────┘
+
+
+                WILL POST ON GITHUB AS adam-relay[bot]
+                │ User says: Yes, leave them out
+
+                  Logged with the answer in the real skill, not posted: the question as rephrased, and
+                  the discussion in a line: “Adam wants isolation between projects; hidden files stay on
+                  the branch.”
+
+                [ Relay ]  Enter or s sends exactly this
+
+
+
+   ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   1–2: choose    Enter: relay    w: own words    t: continue the discussion    d: defer    p: previous    n: next

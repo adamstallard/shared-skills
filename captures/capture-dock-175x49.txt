@@ -1,0 +1,49 @@
+   Answer session   ◉ ○ ○ ○ ○ ○ ○ ○   1 of 8  ·  8 new · 0 relayed · 0 deferred                                                                                     x: close
+   ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+
+
+                                            GitHub  adamstallard/igor #216                                                   12m ago
+                                            claude asks, an agent via the inquisitor
+
+
+
+                                            During a run, should the inquisitor's first filter hide questions-branch files about
+                                            projects the role doesn't work on, as it hides lore entries outside the role's scope?
+
+                                            The scope filter covers lore entries only. Question files on the lore repository's
+                                            questions branch can be about any project.
+
+                                            Related #216 decision 3: scope is a hard filter
+
+
+
+                                            CHOOSE AN ANSWER
+
+                                            ▌ 1: Yes, filter them by the role's scope   ★ recommended
+                                            ▌    → A worker never sees another project's questions.
+
+                                              2: No, show them as input
+                                                 → Workers may read other projects' questions.
+
+                                              w: Or answer in your own words
+                                                 ┌─────────────────────────────────────────────────────────────────────────────────┐
+                                                 │ › Type an answer instead…                                                       │
+                                                 │                                                                                 │
+                                                 └─────────────────────────────────────────────────────────────────────────────────┘
+
+
+
+                                            WILL POST ON GITHUB AS adam-relay[bot]
+                                            │ User says: Yes, filter them by the role's scope
+
+                                            [ Relay ]  Enter or s sends exactly this
+
+
+
+
+
+
+   ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   1–2: choose    Enter: relay    w: own words    t: talk it through    d: defer    p: previous    n: next
