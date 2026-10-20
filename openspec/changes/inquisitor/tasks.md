@@ -14,6 +14,12 @@ contradicts what design.md assumed.
 - [ ] 0.4 `gh api repos/<owner>/<repo>/collaborators/<login>/permission` works
       for a caller without push access, or fails in a way the script can tell
       from "no access"
+- [ ] 0.5 The GitHub login of the last person to commit to a file can be
+      found from the repository's commits on GitHub, such as the
+      `author.login` that `gh api repos/<owner>/<repo>/commits?path=<file>`
+      returns, or the script must skip that candidate
+- [ ] 0.6 How an Igor posts its handback comment, and whether the post hook
+      can tell that comment from other posts
 
 ## 1. Shared post reader
 
@@ -27,18 +33,27 @@ contradicts what design.md assumed.
       `--questions` and `--post`, printing the filters and filter 1's search
       results, issuing a token
 - [ ] 2.2 `vet --pass <token> --verdicts <file>` (second call): the four
-      verdicts and their fields, the refusals, and the records the hooks read
-- [ ] 2.3 Filter 1's search over decision documents, issues through `gh`, both
-      question logs and configured lore clones; the authority rules; each
-      source not searched; each clone's last fetch
+      verdicts and their fields, the three categories recorded by hash only,
+      the refusals, and the records the hooks read, each deleted once it is
+      more than 2 hours old
+- [ ] 2.3 Filter 1's search over decision documents, issues through `gh`, the
+      repository's question log, and configured lore clones' entries and
+      `questions/`; the authority rules; each source not searched; each
+      clone's last fetch
 - [ ] 2.4 `log` and `miss`, writing one file per question or miss with a safe
-      name and quoted frontmatter: in the repository's `.inquisitor/`, or
-      under `~/.config/shared-skills/inquisitor/` for a public repository or
-      none; `misses`, listing the misses by filter for a review
+      name and quoted frontmatter: in the repository's `.inquisitor/` for a
+      question about it, or by a pull request to the team's lore
+      repository's `questions/` for a question about the organization or
+      project; `misses`, listing the misses by filter for a review
 - [ ] 2.5 The question finder for posts, as one function the post hook also
       calls
-- [ ] 2.6 `tag`, choosing whom a post's question tags: the first candidate
-      with write access, else the person running the session, else no one
+- [ ] 2.6 `tag`, choosing whom a post's question tags. It takes the first
+      candidate with write access. When there is none, it turns to the login
+      configured for the person running the session:
+      - no login configured, or the post goes out as that login: ask
+        through the picker instead;
+      - the login has write access: tag it;
+      - the login has no write access: tag no one
 - [ ] 2.7 `lesson --check`, refusing a lesson for shared-skills that holds a
       logged question or miss; `lore`, opening a lore pull request or refusing
       it by visibility
@@ -47,9 +62,13 @@ contradicts what design.md assumed.
 
 - [ ] 3.1 `scripts/check-ask.sh`: `PreToolUse` on `AskUserQuestion` (Claude Code
       only), checking verdicts and that each question's first option is its
-      recommendation, blocking with exit 2 and failing open
+      recommendation (except a question recorded by hash only), blocking
+      with exit 2 and failing open
 - [ ] 3.2 `scripts/check-post.sh`: `PreToolUse` on Bash and the GitHub MCP tools,
-      through `.agents/lib/gh-post/`
+      through `.agents/lib/gh-post/`, blocking a post that holds a question
+      with a category, and letting an Igor's handback comment through as
+      far as task 0.6 finds the hook can tell that comment apart from other
+      posts
 - [ ] 3.3 `hook.json` with both hooks, `"default": "enabled"`
 
 ## 4. Tests
@@ -63,9 +82,10 @@ contradicts what design.md assumed.
 
 ## 5. Docs and registration
 
-- [ ] 5.1 `SKILL.md`: the filters, the two calls, preparing, batching and
-      tagging, the order with prose, logging answers and misses, reviewing
-      misses, and lessons by scope
+- [ ] 5.1 `SKILL.md`: the filters, the two calls, writing a question at the
+      privacy of what it concerns, preparing, batching and tagging, the order
+      with prose, logging answers and misses, the three categories recorded
+      by hash only, reviewing misses, and lessons by scope
 - [ ] 5.2 `README.md`: what the skill is for, `inquisitor.json` and
       `.inquisitor/reviewers`, what to say to the agent, and troubleshooting a
       blocked picker or post

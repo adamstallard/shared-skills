@@ -13,23 +13,40 @@ judged well.
    `questions`. `vet --post body.md` takes a post's body and finds its
    questions with the function the post hook uses. Either way it prints the
    four filters, runs filter 1's search on each question and prints the hits,
-   and issues a token. The token is bound to the set of questions.
+   and issues a token. The token is bound to the set of questions, and holds
+   their hashes, never their text. The agent may give a question a category
+   (`vulnerability`, `secret` or `personal`) in this call. Filter 1 then
+   searches only files on the machine for it, the repository and the lore
+   clones, and skips GitHub's issues.
 2. `inquisitor.py vet --pass <token> --verdicts v.json` takes one verdict per
-   question, with the field each verdict needs, and appends one record per
-   question: the SHA-256 of the question's text (as the spec defines it), the
-   verdict, its field, and the time.
+   question, with the field each verdict needs (a citation for `answered`,
+   where the question is listed or filed for `deferred`, where the choice is
+   recorded for `decided`, and the recommended option and what changes under
+   the others for `ask`), and appends one record per question: the SHA-256 of the question's text (as the spec defines it), the
+   verdict, its field, and the time. The record of a question given a
+   category holds the category in place of the field, so it holds no text at
+   all.
 
 Tokens and records live in `${XDG_STATE_HOME:-$HOME/.local/state}/inquisitor/`,
 where prose keeps its session marks, and for the same reason: a session spans
 repositories, and the hook's working directory can differ from the one `vet`
-ran in (prose's DECISIONS.md, *The gate*). Concurrent Igor workers that
-share one HOME also share records, so one worker's verdict on a question's
-text can let another worker ask the same text. Either way, the hook allows a
-question only while the latest verdict on its text is `ask`.
+ran in (prose's DECISIONS.md, *The gate*). These records are the hooks'
+state, not a question log: they hold no question's text, and whichever
+call or hook next reads them deletes each one more than 2 hours old, with a
+category or without one. Nothing else keeps a record of a question with a
+category; a vulnerability's lasting record is the repository's private
+security advisory. Concurrent Igor workers (the AI teammates the igor
+project runs) that share one HOME also share records, so one worker's
+verdict on a question's text can let another worker ask the same text.
+Whether one worker or several wrote the records, the hook allows a question
+only while the latest verdict on its text is `ask`.
 
 The hook hashes each question in the tool's input the same way, reads the
 most recent record for each hash, and allows the call when each is `ask` and
-less than 2 hours old. A record is not spent by the call: when the hook
+less than 2 hours old, and when each question's first option is the
+recommendation its record holds. A record with a category holds no
+recommendation, so the hook does not check that question's first option. A record is not spent
+by the call: when the hook
 blocks a call because of one question in it, the other questions need no
 vetting again.
 
@@ -78,39 +95,53 @@ so filter 3 stops it, and the agent rewrites it as a statement.
 
 ## Where the logs live
 
-**One file per question,** `.inquisitor/questions/<yyyy-mm-dd>-<slug>-<6 hex>.md`,
-with YAML frontmatter (`repository`, `asked`, `answered_by`, `authority`:
-`decision` or `input`, `recorded_in`) and the question and answer as its body.
-The hex is random, so two branches logging the same question on the same day
-still write different files. Misses go in `misses/` beside it, in the same
-form, with `filter` and `said` in place of the answer fields.
+**A question's log goes with what it concerns, at that place's privacy.**
+The question is written for that privacy before it is asked (the spec's *A
+question is written at the privacy of what it concerns*), so its log can sit
+beside it.
 
-The files are committed with the work, so every agent on the team finds them,
-as spec-check's `openspec/spec-check.yaml` is found. A public repository's
-questions are logged under `~/.config/shared-skills/inquisitor/` instead,
-since a question can carry private context from the session. Its answer is
-still recorded in the repository's own decision document, which is where
-filter 1 finds it for everyone else.
+- **A question about one repository:**
+  `.inquisitor/questions/<yyyy-mm-dd>-<slug>-<6 hex>.md` in that repository,
+  committed with the work, so every agent on the team finds it, as
+  spec-check's `openspec/spec-check.yaml` is found.
+- **A question about an organization or project:**
+  `questions/<yyyy-mm-dd>-<slug>-<6 hex>.md` at the root of the team's lore
+  repository, added by a pull request. Its files hold no `conditions`, so
+  neither the search nor Igor reads one as a lore entry. An answer worth
+  giving agents as lore moves from there into a lore entry by another pull
+  request in the same repository.
+- **A question about one person's way of working:** no log. Its answer goes
+  into that person's memory or `CLAUDE.md`, which agents already read.
+- **A question in one of the three categories** (`vulnerability`, `secret`,
+  `personal`): no log. Only the hooks' record above holds it, as a hash.
 
-Outside any git repository, the logs also go under
-`~/.config/shared-skills/inquisitor/`, beside the shared-skills config the
-installer writes and the worktrees skill's `worktrees.json`.
+Each log file has YAML frontmatter (`repository`, `asked`, `answered_by`,
+`authority`: `decision` or `input`, `recorded_in`) and the question and
+answer as its body. The hex is random, so two branches logging the same
+question on the same day still write different files. Misses, the questions
+a person said need not have been asked, go in `misses/` beside `questions/`, in the same form, with `filter` and `said` in
+place of the answer fields.
 
 **Rejected:**
 
+- **A personal log under `~/.config/shared-skills/inquisitor/`** for a
+  question about a public repository or about no repository. A question
+  whose context was private would then be kept, with that context, where
+  only one person finds it; the question is instead written without that
+  context, or not asked.
 - **One file that every question appends to.** Two branches that each append
   a line conflict when they merge, every time.
 - **The git directory.** It is never committed, so the next agent on another
   machine would ask again.
-- **`$XDG_STATE_HOME` for the fallback.** That directory is for state a program
-  can lose and rebuild, such as tokens; a log of answers can't be rebuilt.
 
 ## Configuration
 
-`~/.config/shared-skills/inquisitor.json` holds the lore repositories:
+`~/.config/shared-skills/inquisitor.json` holds the lore repositories, and
+the GitHub login of the person running the session:
 
 ```json
 {
+  "login": "adamstallard",
   "lore": [
     {"path": "/Users/me/src/team-lore", "owners": ["adamstallard"]}
   ]
@@ -119,7 +150,8 @@ installer writes and the worktrees skill's `worktrees.json`.
 
 `path` is a local clone, searched as it is on disk; the skill never fetches
 it, and reports when the clone was last fetched (the time of its
-`FETCH_HEAD`). `owners` lists the GitHub owners whose repositories the lore
+`FETCH_HEAD`, or "unknown" for a clone with none, such as a fresh one).
+`owners` lists the GitHub owners whose repositories the lore
 repository serves. A missing file means no lore repository, and filter 1's
 search says lore was not searched.
 
@@ -135,20 +167,33 @@ access is read with `gh api repos/<owner>/<repo>/collaborators/<login>/permissio
 from `user.permissions.push`. Whether that call works for a caller without
 push access is unmeasured (task 0.4). Each check fails closed:
 - an unread visibility of the repository the question concerns counts as
-  public when choosing where to log the question, and as private when
-  deciding whether its answer may go to a public lore repository;
+  private when deciding whether its answer may go to a public lore
+  repository;
 - an unread visibility of a lore repository counts as public;
 - an unread permission counts as no write access, so a question never tags
   a person who might be unable to decide it.
 
-When no candidate has write access, the script considers the person running
-the session: the `login` that `gh api user` returns. It reads their write
-access with the same permission call, and tags them only if they have it.
-Otherwise, or when `gh api user` fails, the question tags no one.
+When none of decision 17's candidates (the approver of the related
+decision, a listed reviewer, the last committer) has write access, the
+script considers the person running the session, identified by the `login`
+in the configuration. `gh api user` can't identify them: an agent posting
+as a GitHub App gets no user from it, and one posting as the person gets the
+post's own author, whom a tag would not notify. The script uses
+`gh api user` only to learn which login the post goes out as. It reads the
+configured login's write access with the same permission call:
+- no login configured: the agent asks the question through the picker;
+- write access, and `gh api user` returns that same login, so the post
+  would go out as them: the agent asks through the picker, because a
+  self-tag sends no notification;
+- write access, and the post goes out as anyone else, including an App for
+  which `gh api user` fails: the question tags the login;
+- no write access: the question tags no one.
 
 The search reads each markdown file under a clone whose frontmatter holds
 `conditions`, and matches the question's terms against `claim`,
-`conditions.prose`, the `conditions.paths` globs and the body. Igor's own
+`conditions.prose`, the `conditions.paths` globs and the body. It also reads
+each file under the clone's `questions/`, as it reads a repository's
+`.inquisitor/questions/`. The igor project's own
 configuration has a `destination` setting naming the directory of a lore
 repository that holds its entries; the search does not use it, since a plain
 session has no Igor configuration.

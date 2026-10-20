@@ -3,9 +3,11 @@
 ### Decided by Adam (2026-10-19)
 
 Decisions 1 to 10 are recorded in the body of
-[igor #211](https://github.com/adamstallard/igor/issues/211). Adam gave 11 to
-15, and later 31, on the same day; this proposal is the first place they are
-written down.
+[igor #211](https://github.com/adamstallard/igor/issues/211). Adam gave the
+others on the same day, and this proposal is the first place they are
+written down: 11 to 15 and 31 in Claude Code sessions, and 32 to 35 and 38
+to 41 while reviewing this pull request,
+[#25](https://github.com/adamstallard/shared-skills/pull/25).
 
 1. **Four filters run before any question reaches a person.**
    1. **Already answered:** the agent finds the earlier answer, cites where it
@@ -22,7 +24,12 @@ written down.
       is cheap, the agent decides and records it, without asking.
 2. **Every answer is recorded where the next agent will look.** Every question
    asked is logged, pointing to where its answer is recorded, so an agent
-   using the inquisitor finds the answer instead of asking again.
+   using the inquisitor finds the answer instead of asking again. Adam's
+   decisions 32 and 34 make two exceptions: a question about one person's
+   way of working gets no log, and a question in one of 34's categories is
+   recorded by hash only. Decision 36, which still waits for him, would add a
+   third: a question about an organization with no lore repository
+   configured would not be logged.
 3. **An answer that generalizes becomes lore.** Where a person's answer, or a
    lesson learned from a person, is broadly useful, it is proposed as a lore
    entry: a pull request to the team's lore repository.
@@ -57,9 +64,9 @@ written down.
     shared-skills. One that holds for one team or organization is a pull
     request to that team's lore repository. One that holds for one person goes
     to that person's own memory or `CLAUDE.md`. The question and miss logs
-    stay in the person's own repositories and configuration, because they can
-    hold private content, so a pull request to shared-skills carries only the
-    generalized lesson.
+    stay with the repositories and lore repositories they concern (decision
+    32), because they can hold private content, so a pull request to
+    shared-skills carries only the generalized lesson.
 15. **A skill's `DECISIONS.md` is its current reasoning in one place, not a
     log.** While a change is open, its reasoning lives in its proposal and
     design.md. When the change is archived, its lasting reasoning is folded
@@ -68,8 +75,9 @@ written down.
     puts the rule in `AGENTS.md`, and makes it the last task
     `openspec/config.yaml` asks of every change.
 
-Decision 31 came after decisions 16 to 30 below were numbered, so it takes the
-next free number:
+Decisions 31 to 35 came after decisions 16 to 30 below were numbered, so they
+take the next free numbers. 32 to 35 came from Adam's review of #25, and
+replace what decisions 18 and 19 said about where questions are logged:
 
 31. **When no candidate in the tagging order can decide, the inquisitor's
     script tags the person running the session, or no one.** When the
@@ -80,13 +88,81 @@ next free number:
     post says that no one with authority to decide could be found. The
     tagging order is decision 17's, which still waits for Adam; decision 31
     holds for whatever order he settles on, and does not approve 17's.
+    Decision 41 says how the person running the session is identified, and
+    when they are asked in the session instead of tagged.
+32. **No personal question log.** Every question concerns a project, an
+    organization or a repository, and a question that concerns none of them
+    is not asked. Each question's record goes with what it concerns, at that
+    place's privacy, which its maintainers decide. No question log is kept
+    under the person's home directory, or anywhere else personal. The one
+    exception is a question about one person's way of working, such as "should I keep working while you're
+    away?": its answer goes into that person's memory or `CLAUDE.md`, which
+    agents already read, and it gets no log.
+33. **Recontextualise or don't ask.** A question is about one thing, a
+    repository, a project or an organization, and is written at that thing's
+    privacy. Context from something more private is generalised ("because
+    some private backend might do Y", not "because gmango's backend does Y")
+    or left out. If the question can't stand without that context, it is not
+    asked. A question is never filed in a more private place to keep its
+    context.
+34. **Some questions are asked but never logged in readable form:** one
+    about an unfixed security vulnerability (such as whether a path
+    traversal is exploitable), one holding a secret (a key or token), and
+    one holding personal information about someone (their health, an HR
+    matter, a conflict between people). The filters still run, and the agent
+    may still ask. The picker hook matches a question's exact text against its
+    latest verdict (decision 22), so the script still records a verdict for
+    such a question, but only as a hash of its text, the verdict, the time,
+    and a category from a fixed list: `vulnerability`, `secret` or
+    `personal`. No text, context or answer is recorded. The fixed list keeps
+    "don't log this" from becoming a way to skip the record: the agent must
+    name why the question is not logged. A vulnerability's answer goes to the
+    fix and to the repository's private security advisory, which is its
+    lasting record. Decision 38 says how long the hash record is kept.
+35. **A team's lore repository has a `questions/` area** for questions about
+    the organization or project that are not important enough to become lore
+    but are worth keeping so that nobody asks them again. It sits outside
+    the lore entries, so nothing in it is given to agents as lore, and it has
+    the lore's privacy and access, which its maintainers set. Filter 1
+    searches both the lore entries and `questions/`. Promoting an answer from
+    `questions/` to lore is a pull request in the same repository. A question
+    about one repository stays in that repository's `.inquisitor/questions/`.
+
+Adam gave 38 to 41 after decisions 36 and 37 below were numbered, answering
+four questions that spec-check's consistency read raised:
+
+38. **Every hook record expires after 2 hours.** A record of a verdict, with
+    a category or without one, is the hooks' state: it is kept 2 hours, the
+    time in which a hook reads it, and then deleted. Nothing keeps a lasting
+    record of a question in one of decision 34's categories. Kept on the
+    person's machine, it would be a personal log, which decision 32 rules
+    out. Kept in a `questions/` area, it would show, in a public repository,
+    that such a question was asked and when.
+39. **A question in one of decision 34's categories is asked only through
+    the picker,** or, for a vulnerability, in the repository's private
+    security advisory. The post hook blocks a post that holds one.
+40. **An Igor's handback comment is outside this change.** The comment an
+    Igor posts when it hands an item back is governed by igor #211, whose
+    decision 9 says nothing posts it to a discussion, batches it or tags
+    anyone. The post hook, batching and tagging do not apply to it. The Igor
+    inquisitor role is out of scope here.
+41. **The person running the session is the GitHub login in the
+    inquisitor's configuration,** `~/.config/shared-skills/inquisitor.json`
+    (decision 25), not the login `gh api user` returns: an agent posting as
+    a GitHub App has no user, and one posting as the person would tag
+    itself. When the post would go out as that same login, the agent asks
+    the person through the picker in the session instead of tagging them,
+    since a self-tag sends no notification. When no login is configured, it
+    also asks through the picker.
 
 ### For Adam to confirm
 
 Decisions 16 to 18 are #211's proposals that apply to the skill; #211's
-other proposals concern the role. The rest were needed to write the
-requirements. Adam confirmed 19, 21 and 27 on 2026-10-19, and each is
-marked so; the others here still wait for him.
+other proposals concern the role. Decisions 19 to 30, 36 and 37 were needed
+to write the requirements. Adam confirmed 19, 21 and 27 on 2026-10-19, and
+each is marked so. His decision 32 later replaced part of 19, and his
+decision 35 part of 18.
+The others here still wait for him.
 
 16. **A prepared question** states the recommended answer, what changes under
     the other answer, and a link to any related earlier decision, so that most
@@ -103,25 +179,18 @@ marked so; the others here still wait for him.
     every teammate's agent tags the same person. A person whose access can't
     be read counts as having none. When no candidate has write access,
     decision 31 says who is tagged; Adam has already decided it.
-18. **Answers live in the repository the question concerns.** An answer
-    spanning repositories also goes to the team's lore repository.
-19. **Confirmed by Adam (2026-10-19).** **The log is one file per
-    question,** under `.inquisitor/questions/` at the root of the repository
-    the question concerns, committed with the work. Each file's name has a
+18. **An answer about one repository lives in that repository.** This half
+    of #211's proposal still waits for Adam. His decision 35 settled the
+    other half, an answer that spans repositories: it goes to the team's
+    lore repository's `questions/`, or into lore itself when it is important
+    enough.
+19. **Confirmed by Adam (2026-10-19), and amended by his decision 32.** **The
+    log is one file per question,** under `.inquisitor/questions/` at the
+    root of the repository the question concerns, committed with the work.
+    A question about an organization or project goes to its lore
+    repository's `questions/` instead (decision 35). Each file's name has a
     random suffix, so two branches that each log a question never write the
-    same file. Two kinds of question are logged under
-    `~/.config/shared-skills/inquisitor/` instead, the directory where the
-    worktrees skill keeps its `worktrees.json`:
-    - a question about a public repository, because a question can carry
-      private context from the session;
-    - a question that concerns no repository, because there is no
-      repository to commit it to. A question concerns no repository when it
-      is asked in a session outside any repository, or is about no
-      repository in particular.
-
-    Concerning no repository does not make a question's lesson hold for
-    everyone. Where a lesson lands is a separate choice, made by its scope
-    (decision 14). *Rejected:* one log file that every question appends to,
+    same file. *Rejected:* one log file that every question appends to,
     because two branches that each log a question then conflict when they
     merge.
 20. **Only an answer with authority stops a question.** An answer is a
@@ -178,16 +247,47 @@ marked so; the others here still wait for him.
     get no spec until a change touches them. This pull request adopts OpenSpec,
     spec-check's decisions-first rule and spec-trace for the repository.
 
+Decision 36 came after Adam's 32 to 35, from writing 35's requirements:
+
+36. **A question's file reaches a lore repository's `questions/` by a pull
+    request,** opened without asking first, as decision 27's lore pull
+    requests are, since the current work's commits can't carry a file into
+    another repository. Where no lore repository is configured for the owner of the
+    repository the question concerns, the question is not logged, and the
+    agent tells the person so.
+
+Decision 37 came from spec-check's consistency read of 32 to 36:
+
+37. **The hooks' records live in
+    `${XDG_STATE_HOME:-$HOME/.local/state}/inquisitor/`,** as prose's
+    session marks do, because a session spans repositories and the hook's
+    working directory can differ from the one the script ran in. They hold
+    hashes, verdicts, fields and times, never a question's text, and each is
+    deleted 2 hours after it was made, with a category or without one
+    (Adam's decision 38). So they are the hooks' state and not the question
+    log decision 32 rules out.
+    *Rejected:* the repository's git directory, where a run in another
+    repository would leave records the hook never reads. See design.md.
+
 **Still open:**
 
-Two facts are unmeasured. Tasks 0.1 to 0.3 measure the first, including the
-shape of the hook's input, and task 0.4 measures the second.
+Four facts are unmeasured. Tasks 0.1 to 0.3 measure the first, including
+the shape of the hook's input; tasks 0.4, 0.5 and 0.6 measure the others.
 
 - **Can a `PreToolUse` hook block `AskUserQuestion`?** If not, the picker is
   covered by the skill's instructions alone, and the README says so.
 - **Can an agent without push access read another person's permission on a
-  repository?** If not, every answer in a post counts as input wherever the
-  agent lacks push access.
+  repository?** If not, wherever the agent lacks push access, every answer
+  in a post and every issue's decision block counts as input, and a post's
+  question tags no one.
+- **Can the script find the GitHub login of the last person to commit to a
+  file?** Git records a name and an email, not a login. If not, the third
+  candidate in decision 17's order is skipped.
+- **Can the post hook tell an Igor's handback comment from other posts?**
+  Igor's own code might post it outside any tool call, where no hook sees
+  it, or an agent might post it with `gh`. If the hook can't tell, it would
+  block an unvetted question in such a comment, against decision 40, until
+  the Igor inquisitor role's work marks the comment.
 
 #211's other open questions: decision 23 settles the first. The other two,
 how long to wait before following up and whether a discussion is a new kind
@@ -208,7 +308,8 @@ agent asks it again.
   answer.
 - The questions that survive are prepared for a quick answer, batched, and
   asked through the picker or in a post. Each one asked is logged with where
-  its answer is recorded, so the next agent finds the answer instead of asking.
+  its answer is recorded, in the repository or the team's lore repository it
+  concerns, so the next agent finds the answer instead of asking.
 - A hook blocks a question in the picker, or in a GitHub post, that has not
   been through the filters.
 - A person's "that was obvious" is logged as a miss. Reviewing the misses
@@ -239,7 +340,8 @@ None.
 - prose: its posting hook's command reader moves to `.agents/lib/gh-post/`,
   unchanged in behaviour, so the inquisitor's post hook reads posts the same
   way.
-- In each repository where it runs, the skill writes `.inquisitor/`.
+- In each repository where it runs, the skill writes `.inquisitor/`. In a
+  team's lore repository, it opens pull requests that add to `questions/`.
 - The README's skills table, and its list of skills that turn on a hook.
 - This pull request's first commit adds `openspec/`, `AGENTS.md` and
   spec-trace's CI workflow to shared-skills.

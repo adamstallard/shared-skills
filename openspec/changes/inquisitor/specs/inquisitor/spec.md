@@ -23,8 +23,13 @@ Terms used throughout this spec:
 
 - **The current work** is what the agent was asked to do: an OpenSpec change,
   a pull request, or the task in hand.
-- **The repository the question concerns** is the git repository holding the
-  current work.
+- **The repository the question concerns** is the git repository whose code,
+  docs or decisions the question is about. When the agent cannot tell, it is
+  the repository holding the current work.
+- **What a question concerns** is one of: the repository the question
+  concerns; the organization or project that the team's lore repository
+  serves, when the question holds beyond that one repository; or one
+  person's way of working. The agent judges which.
 - **A decision document** is a `DECISIONS.md` file, an OpenSpec spec or
   change, a decision record under `docs/decisions/`, the decision block at the
   top of an issue, or a lore entry.
@@ -34,14 +39,25 @@ Terms used throughout this spec:
   `global`, `role:<name>` or `project:<name>`.
 - **The decision document the question concerns** is the one in the
   repository the question concerns whose subject the question is about,
-  such as the current change's spec. Where none fits, or the question
-  concerns no repository, the question's log entry takes its place.
+  such as the current change's spec. Where none fits, it is the question's
+  log file, written where *Every answer is recorded and every asked question
+  logged* puts one; for a question about one person's way of working, it is
+  that person's memory or `CLAUDE.md`. Some questions have none of these,
+  such as a question with a category, which gets no log file: for such a
+  question, the agent states its choice and reason in its report to the
+  person.
 - **The picker** is the host's interactive question tool: `AskUserQuestion`
   in Claude Code.
 - **A post** is a pull request description, review or comment, or an issue
-  or issue comment, sent through `gh` or a GitHub MCP tool.
+  or issue comment, sent through `gh` or a GitHub MCP tool. The comment an
+  Igor, one of the AI teammates of the igor project, posts when it hands an
+  item back is not a post in this spec: igor
+  #211 governs it, and nothing here vets, batches or tags it.
 - **The inquisitor's configuration** is the file
-  `~/.config/shared-skills/inquisitor.json`.
+  `~/.config/shared-skills/inquisitor.json`. It names the lore repositories,
+  and the GitHub login of the person running the session.
+- **The team's lore repository** is the configured lore repository whose
+  `owners` lists the owner of the repository the question concerns.
 
 #### Scenario: An answered question is not asked
 
@@ -83,14 +99,14 @@ Filter 1 SHALL search:
   including archived OpenSpec changes;
 - that repository's issues on GitHub, each read with
   `gh issue view <n> --json title,body,comments`;
-- the question logs: the repository's own and the one under
-  `~/.config/shared-skills/inquisitor/`;
-- the lore entries of each lore repository the inquisitor's configuration
-  names for the owner of the repository the question concerns, or of every
-  configured lore repository when the question concerns no repository.
+- the repository's own question log, `.inquisitor/questions/`;
+- the lore entries, and the `questions/` directory, of each lore repository
+  the inquisitor's configuration names for the owner of the repository the
+  question concerns, or of every configured lore repository when the agent
+  is working in no git repository.
 
 The search SHALL report each source it could not search, and each lore
-clone's last fetch time, or that it was never fetched. It needs no Igor role,
+clone's last fetch time, or that the time is unknown. It needs no Igor role,
 no Igor configuration and no Igor service.
 
 #### Scenario: A lore entry answers a question in a plain session
@@ -99,6 +115,12 @@ no Igor configuration and no Igor service.
   ask a question, and an `active` entry in a configured lore repository
   answers it
 - **THEN** the search shows that entry, and the agent cites it and does not ask
+
+#### Scenario: A lore repository's questions are searched
+
+- **WHEN** a file in the team's lore repository's `questions/` holds an
+  answer to the question, with `authority: decision`
+- **THEN** the search shows it, and filter 1 treats it as an answer
 
 #### Scenario: An archived change is searched
 
@@ -240,15 +262,19 @@ The skill's script SHALL take each set of questions in two calls:
 2. **The second call** takes the token and a verdict for each question:
    `answered`, with the citation; `deferred`, with where the question is
    listed or the issue filed; `decided`, with where the choice is recorded;
-   or `ask`, with the recommended answer and what changes under each other
-   answer.
+   or `ask`, with the recommended answer, given as the label of one of the
+   question's options, and what changes under each other answer.
 
 The second call SHALL refuse a verdict that lacks its field, a question the
-first call did not take, and a token that is spent or more than 2 hours
-old. A refused call records nothing and keeps the token; a call that records
-verdicts spends it. Otherwise it SHALL
-record every verdict, with its field and the time, against the question's
-text.
+first call did not take, a question the first call took that has no verdict,
+and a token that is spent or more than 2 hours old. A refused call records
+nothing and keeps the token. Otherwise the second call SHALL record every
+verdict, with its field and the time, against the question's text, and
+SHALL spend the token. A verdict on a question with a category is recorded
+differently, as *Some questions are recorded by hash only* says.
+
+Every record, with a category or without one, SHALL be deleted once it is
+more than 2 hours old, by the next call or hook that reads the records.
 
 **A question's text** is, for a picker question, its `question` field and
 each option's `label`, in order; for a question in a post, the list item or
@@ -270,6 +296,18 @@ sentence that holds it. Runs of whitespace count as one space.
 - **WHEN** the second call passes a token that an earlier second call spent
 - **THEN** it refuses and records nothing
 
+#### Scenario: An old record is deleted
+
+- **WHEN** a hook reads the records and one of them was made more than 2
+  hours earlier
+- **THEN** that record is deleted, whether or not it has a category
+
+#### Scenario: A question left without a verdict is refused
+
+- **WHEN** the first call took two questions and the second call gives a
+  verdict for one of them
+- **THEN** the second call refuses, records nothing, and keeps the token
+
 #### Scenario: A question the first call did not take is refused
 
 - **WHEN** the verdicts name a question that the token's first call did not
@@ -280,7 +318,8 @@ sentence that holds it. Runs of whitespace count as one space.
 
 In Claude Code, a `PreToolUse` hook on `AskUserQuestion` SHALL block the call
 unless, for every question in it, the most recent verdict recorded against
-the question's text is `ask` and is less than 2 hours old. The block message
+the question's text is `ask` and is less than 2 hours old, and the
+question's first option is the one that verdict recommends. The block message
 SHALL name each question that failed and why, and give the command to run.
 The hook SHALL let the call through when it cannot read the call or the
 records.
@@ -320,18 +359,22 @@ A **question in a post** is:
 
 - each item of a list in an open-questions section. The section starts at a
   heading, a bold label or a line ending in a colon whose own text starts
-  with "Open" or "Still open", and ends at the next heading, bold label or
-  line ending in a colon;
+  with the word "Open" or the words "Still open", and ends at the next
+  heading or bold label;
 - each sentence elsewhere in the body that ends in a question mark.
 
 Text in fenced code blocks, inline code, lines starting with `>`, and the
 signed footer the prose skill appends as a post's last line (such as
 `prose ✓ 3f2a91`) holds no question.
 
-A `PreToolUse` hook SHALL block a post that holds a question not passed by
-the picker hook's rule. It SHALL read a `gh` command's body by the same rules
-as prose's posting hook, and let the post through wherever that hook does: a
-payload that is not JSON, or a command that sends no body. The first call SHALL
+A `PreToolUse` hook SHALL block a post that holds a question with no
+verdict, a question whose most recent verdict is neither `ask` nor
+`deferred`, or one whose most recent verdict is more than 2 hours old.
+A `deferred` question may appear in a post, since filter 2 has the agent
+list it or file it as an issue. The hook SHALL read a `gh` command's body by
+the same rules as prose's posting hook. It SHALL let through a payload that is not JSON, and a
+command that sends no body, as that hook does. It SHALL block a `gh` command
+whose body it cannot read, as that hook does. The first call SHALL
 take a post's body and find its questions the same way the hook does, so a
 body vetted before prose signs it is still vetted once the footer is added.
 
@@ -346,6 +389,29 @@ body vetted before prose signs it is still vetted once the footer is added.
 - **WHEN** an agent calls a GitHub MCP tool whose `body` asks an unvetted
   question
 - **THEN** the hook blocks the call and names the question
+
+#### Scenario: A deferred question may be listed in a post
+
+- **WHEN** a post lists, under "Still open", a question whose most recent
+  verdict is `deferred`
+- **THEN** the hook lets the post through
+
+#### Scenario: A post whose body cannot be read is blocked
+
+- **WHEN** an agent runs `gh pr comment 5 --body "$(cat body.md)"`
+- **THEN** the hook blocks the command as unreadable, as prose's posting hook
+  does
+
+#### Scenario: An Igor's handback comment is not vetted
+
+- **WHEN** an Igor hands an item back with a comment that asks its question
+- **THEN** the post hook lets the comment through, and the agent neither
+  batches the question with others nor tags anyone in it
+
+#### Scenario: A heading that starts with another word is not an open-questions section
+
+- **WHEN** a post has a heading "OpenSpec changes" followed by a list
+- **THEN** the items of that list are not questions
 
 #### Scenario: A question in a code block is not a question
 
@@ -379,16 +445,25 @@ the script SHALL pick the first it finds of:
 2. a login listed in that repository's `.inquisitor/reviewers` file;
 3. whoever last committed to the files the question concerns.
 
-When none of these candidates has write access, the script SHALL tag the
-person running the session, if that person has write access. That person is
-the login `gh api user` returns, and their write access is read the same way
-as any candidate's. When the person running the session has no write access
-either, the question SHALL tag no one, and the post SHALL say that no one
-with authority to decide could be found.
+When none of these candidates has write access, the script SHALL turn to
+the person running the session: the login the inquisitor's configuration
+names, whose write access is read the same way as any candidate's.
+
+- When no login is configured, the agent SHALL ask the question through the
+  picker in the session instead of in the post.
+- When that login has write access and the post would go out as that same
+  login, the agent SHALL ask the question through the picker instead of
+  tagging, since a self-tag sends no notification. The login a post goes out
+  as is the one `gh api user` returns. When that call fails, as it does for
+  a GitHub App, the script treats the post as going out as someone else.
+- When that login has write access and the post goes out as someone else,
+  the question SHALL tag that login.
+- When that login has no write access, the question SHALL tag no one, and
+  the post SHALL say that no one with authority to decide could be found.
 
 When the script cannot learn whether a person has write access, it SHALL
-treat that person as lacking it. When `gh api user` fails, the script SHALL
-treat the person running the session as lacking write access.
+treat that person as lacking it. When it cannot find the GitHub login of the
+last person to commit to the files, it SHALL skip that candidate.
 
 #### Scenario: The approver of the earlier decision is tagged
 
@@ -414,52 +489,107 @@ treat the person running the session as lacking write access.
 - **WHEN** `gh` cannot read a candidate's permission on the repository
 - **THEN** the script skips that candidate
 
-#### Scenario: The person running the session is tagged when no candidate can decide
+#### Scenario: A committer with no known login is skipped
+
+- **WHEN** the script cannot find the GitHub login of the last person to
+  commit to the files the question concerns
+- **THEN** it skips that candidate
+
+#### Scenario: The configured login is tagged when no candidate can decide
 
 - **WHEN** no candidate in the order has write access to the repository the
-  question concerns, and the login `gh api user` returns has write access
-- **THEN** the question tags that login
+  question concerns, the configured login has write access, and the post
+  goes out as a GitHub App
+- **THEN** the question tags the configured login
+
+#### Scenario: A post by the configured login asks through the picker
+
+- **WHEN** no candidate in the order has write access, the configured login
+  has write access, and `gh api user` returns that same login
+- **THEN** the agent asks the question through the picker, and the post
+  does not tag that login
+
+#### Scenario: No configured login means asking through the picker
+
+- **WHEN** no candidate in the order has write access, and the inquisitor's
+  configuration names no login
+- **THEN** the agent asks the question through the picker
 
 #### Scenario: A question no one can decide is posted untagged
 
 - **WHEN** no candidate in the order has write access to the repository the
-  question concerns, and the person running the session has no write access
-  either
+  question concerns, and the configured login has no write access either
 - **THEN** the question tags no one
 - **AND** the post says that no one with authority to decide could be found
 
-#### Scenario: A failed `gh api user` counts as no write access
+### Requirement: A question is written at the privacy of what it concerns
 
-- **WHEN** no candidate in the order has write access to the repository the
-  question concerns, and `gh api user` fails
-- **THEN** the question tags no one
-- **AND** the post says that no one with authority to decide could be found
+An agent SHALL ask a question only when it concerns a repository, an
+organization or a project, or one person's way of working. A question SHALL
+be about one of these, and SHALL be written so that it can be read by anyone
+who can read that repository or that team's lore repository, or, for a
+question about one person's way of working, by that person. Context from
+anything more private SHALL be generalised or left out; when the question
+cannot be understood without that context, the agent SHALL NOT ask it. A
+question's log file SHALL never go to a more private place than what the
+question concerns, to keep that context.
+
+#### Scenario: Private context is generalised
+
+- **WHEN** an agent working on a private backend has a question about a
+  public repository, and the reason for it is how that backend handles a
+  request
+- **THEN** the question gives the reason as what some private backend might
+  do, and does not name the backend or quote its code
+
+#### Scenario: A question that needs private context is not asked
+
+- **WHEN** a question about a public repository cannot be understood without
+  naming a private repository's code
+- **THEN** the agent does not ask it, and does not log it in the private
+  repository instead
+
+#### Scenario: A question about nothing it can be filed with is not asked
+
+- **WHEN** a question concerns no repository, organization or project, and
+  is not about the person's way of working
+- **THEN** the agent does not ask it
 
 ### Requirement: Every answer is recorded and every asked question logged
 
 When a person answers a question, the agent SHALL record the answer in the
 decision document the question concerns, or, where none fits, in the log
-entry itself. An answer given in the picker is the decision of the person
+file itself. An answer given in the picker is the decision of the person
 running the session. An answer given in a post by a person without write
 access to the repository the question concerns SHALL be logged with
 `authority: input`, and the question SHALL stay unanswered.
 
-Each question asked SHALL be logged as one file under `.inquisitor/questions/`
-at the root of the repository the question concerns, committed with the
-work, unless that repository is public or its visibility cannot be read. The
-log file of a question about a public repository, or about no repository,
-SHALL go under `~/.config/shared-skills/inquisitor/questions/`, and SHALL
-name the repository when there is one.
+Each question asked SHALL be logged as one file, with what it concerns:
+
+- a question about one repository: under `.inquisitor/questions/` at the
+  root of that repository, committed with the work;
+- a question about an organization or project: under `questions/` at the
+  root of the team's lore repository, added by a pull request to that
+  repository that the agent opens without asking first, and whose link it
+  reports. When the agent cannot find the team's lore repository, because
+  none is configured for the owner of the repository the question concerns
+  or the agent is working in no git repository, it SHALL log nothing and
+  tell the person the question was not logged.
+
+A question about one person's way of working SHALL get no log file: the
+agent SHALL record its answer in that person's agent memory or `CLAUDE.md`.
+No log file SHALL be written under the person's home directory.
 
 The file SHALL hold the question as asked, the date, who answered, the
 answer's `authority`, the answer in one sentence, and where the answer is
-recorded. Its name SHALL be the date, a slug of at most 40 characters from
+recorded, and SHALL hold no `conditions`, so that nothing reads it as a lore
+entry. Its name SHALL be the date, a slug of at most 40 characters from
 `a` to `z`, `0` to `9` and `-`, and 6 random hex digits. Every value in its
 frontmatter SHALL be written as a quoted YAML string.
 
 #### Scenario: An answer is logged with its place
 
-- **WHEN** a person answers a question about a private repository's spec
+- **WHEN** a person answers a question about a repository's spec
 - **THEN** the agent records the answer in that spec, and adds a file to that
   repository's `.inquisitor/questions/` pointing to it
 
@@ -468,19 +598,32 @@ frontmatter SHALL be written as a quoted YAML string.
 - **WHEN** a person answers a question that no decision document covers
 - **THEN** the log file holds the answer, and filter 1 later treats it as one
 
-#### Scenario: A question about a public repository is logged locally
+#### Scenario: A question about a public repository is logged in it
 
 - **WHEN** a person answers a question about a public repository
-- **THEN** the answer is recorded in that repository's decision document, and
-  the log file is written under
-  `~/.config/shared-skills/inquisitor/questions/`, naming the repository
+- **THEN** the log file is written to that repository's
+  `.inquisitor/questions/`, and no log file is written under the person's
+  home directory
 
-#### Scenario: A question outside any repository
+#### Scenario: An organization's question goes to its lore repository
 
-- **WHEN** an agent working in no git repository asks a question and gets an
-  answer
-- **THEN** the log file is written under
-  `~/.config/shared-skills/inquisitor/questions/`
+- **WHEN** a person answers a question that holds for every repository of
+  the owner, and a lore repository is configured for that owner
+- **THEN** the agent opens a pull request adding the log file to that lore
+  repository's `questions/`, and reports its link
+
+#### Scenario: An organization's question with no lore repository is not logged
+
+- **WHEN** a person answers a question about an organization, and no lore
+  repository is configured for its owner
+- **THEN** no log file is written, and the agent tells the person the question
+  was not logged
+
+#### Scenario: A question about the person's way of working goes to their memory
+
+- **WHEN** a person answers "should I keep working while you're away?"
+- **THEN** the agent records the answer in that person's memory or
+  `CLAUDE.md`, and writes no log file
 
 #### Scenario: Two branches log the same question without a conflict
 
@@ -501,13 +644,84 @@ frontmatter SHALL be written as a quoted YAML string.
 - **THEN** the log file's name holds none of them, and its frontmatter still
   parses to the same text
 
+### Requirement: Some questions are recorded by hash only
+
+A question in one of three categories SHALL be logged nowhere in readable
+form:
+
+- `vulnerability`: it concerns a security vulnerability that is not yet
+  fixed, such as whether a path traversal can be exploited;
+- `secret`: it holds a secret, such as a key or a token;
+- `personal`: it holds personal information about someone, such as their
+  health, an HR matter or a conflict between people.
+
+The filters SHALL still run on such a question, and the agent may still ask
+it, but only through the picker, or, for a `vulnerability` question, in the
+repository's private security advisory. The post hook SHALL block a post
+holding a question whose most recent record has a category.
+
+The agent gives the question's category in the first call. For such a
+question, the first call SHALL search no source outside the machine, such
+as GitHub's issues, and SHALL keep only the SHA-256 of its text. The second
+call SHALL record only that hash, the verdict, the time and the category:
+not the text, the verdict's field or the answer. The first call SHALL
+refuse a category that is not one of the three.
+
+No log file and no miss file SHALL be written for such a question. The
+hooks SHALL match its record by the hash, as they match any other, and the
+picker hook SHALL skip its check of the first option, since no
+recommendation is recorded. The agent SHALL record the answer to a
+`vulnerability` question in the fix and in the repository's private security
+advisory.
+
+#### Scenario: A question holding a secret is recorded by hash only
+
+- **WHEN** the second call records the verdict `ask` for a question that the
+  first call took with the category `secret`
+- **THEN** the record holds the question's hash, the verdict, the time and
+  `secret`, and none of the question's text or the verdict's field
+- **AND** no log file is written for the question
+
+#### Scenario: A question holding a secret is not searched for on GitHub
+
+- **WHEN** the first call takes a question with the category `secret`
+- **THEN** it does not search the repository's issues, and its output says
+  they were not searched
+
+#### Scenario: A post holding a question with a category is blocked
+
+- **WHEN** an agent runs `gh issue comment 7 --body-file body.md`, and the
+  body holds a question recorded as `ask` with the category `vulnerability`
+- **THEN** the post hook blocks the command, and says to ask through the
+  picker or the private security advisory
+
+#### Scenario: An unknown category is refused
+
+- **WHEN** the first call gives a question the category `private`
+- **THEN** it refuses, and issues no token
+
+#### Scenario: The hook lets through a question recorded by hash only
+
+- **WHEN** an agent calls the picker with a question whose latest record is
+  an `ask` with the category `personal`, made within 2 hours
+- **THEN** the picker hook lets the call through, whichever option is first
+
+#### Scenario: A vulnerability's answer goes to its advisory
+
+- **WHEN** a person answers whether a path traversal in the repository can
+  be exploited
+- **THEN** the agent records the answer in the fix and in the repository's
+  private security advisory, and writes no log file
+
 ### Requirement: An answer that generalizes is proposed as lore
 
 Where a person's answer holds beyond the repository the question concerns,
+and the agent judges it important enough for agents to be given as lore,
 the agent SHALL open a pull request adding it as a `provisional` entry to the
-team's lore repository, without asking first, and report the link. The
-team's lore repository is the configured lore repository whose `owners`
-lists the owner of the repository the question concerns.
+team's lore repository, without asking first, and report the link. When a
+person asks to promote an answer from the lore repository's `questions/`,
+the agent SHALL open a pull request in that repository adding it as a
+`provisional` entry.
 
 The script SHALL refuse to open the pull request to a public lore repository
 when the repository the question concerns is private. A lore repository
@@ -518,9 +732,17 @@ the agent SHALL tell the person the lesson instead.
 #### Scenario: A general answer becomes a lore pull request
 
 - **WHEN** a person's answer holds for every repository the team works on,
-  and a lore repository is configured for the team
+  the agent judges it important enough to be lore, and a lore repository is
+  configured for the team
 - **THEN** the agent opens a pull request to it adding the entry, and reports
   its link
+
+#### Scenario: A logged answer is promoted to lore
+
+- **WHEN** a person asks the agent to promote an answer logged in the lore
+  repository's `questions/`
+- **THEN** the agent opens a pull request in that lore repository adding the
+  answer as a `provisional` entry
 
 #### Scenario: A private answer never reaches a public lore repository
 
@@ -539,10 +761,12 @@ the agent SHALL tell the person the lesson instead.
 When a person says a question did not need asking (it was already answered,
 could have waited, had one sensible answer, or was cheap to reverse), the
 agent SHALL log a **miss**: one file under a `misses/` directory beside the
-question log the question belongs to, named and written like a question log
-file. The file holds the question, the filter that should have stopped it,
-and what the person said. A miss is logged whatever words the person uses;
-"that was obvious" is one way to say it.
+`questions/` directory the question was logged in, named and written like a
+question log file. A miss on a question logged in a lore repository is added
+by a pull request, as the question's file was. The file holds the question, the filter that should have
+stopped it, and what the person said. A miss is logged whatever words the
+person uses; "that was obvious" is one way to say it. A question that got no
+log file gets no miss file either.
 
 #### Scenario: "That was obvious" is logged against a filter
 
@@ -550,6 +774,12 @@ and what the person said. A miss is logged whatever words the person uses;
   spec"
 - **THEN** the agent logs a miss against filter 1, citing the spec the person
   named
+
+#### Scenario: A question with no log file gets no miss file
+
+- **WHEN** a person says a question about their own way of working did not
+  need asking
+- **THEN** no miss file is written
 
 ### Requirement: Lessons from misses land by their scope
 
