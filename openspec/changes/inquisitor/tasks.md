@@ -36,6 +36,9 @@ contradicts what design.md assumed.
       needs
 - [ ] 0.12 Whether an Igor's worker can run this skill, with a lore clone and
       `inquisitor.json` in reach, as igor PR #216's task 3.1 measures
+- [ ] 0.13 Whether GitHub lets a security advisory's private-fork pull
+      request be merged before the advisory is published, as decision 108
+      needs
 
 ## 1. Shared post reader
 
@@ -137,7 +140,8 @@ contradicts what design.md assumed.
       questions other skills require a person to decide, preparing, batching and tagging, the order
       with prose, logging answers and misses, the three categories recorded
       by hash only, what a headless session does (no picker, an Igor's
-      handback comment, stopping on a categorized question), reviewing
+      handback comment, stopping on a categorized question), describing no
+      weakness in public text before its advisory is published, reviewing
       misses, and lessons by scope
 - [ ] 5.2 `README.md`: what the skill is for, `inquisitor.json` and
       `.inquisitor/reviewers`, what to say to the agent, and troubleshooting a

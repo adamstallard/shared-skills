@@ -6,15 +6,20 @@
 
 Decisions 1 to 10 are recorded in the body of
 [igor #211](https://github.com/adamstallard/igor/issues/211). Adam gave the
-others, and this proposal is the first place they are
-written down: 11 to 15 and 31 in Claude Code sessions, and 32 to 35 and 38
-to 49 and 51 to 63 on 2026-10-19, and 64 to 78, 80 to 85 and 87 to 98 and 100 to 106 on 2026-10-20, in Claude
-Code sessions while reviewing this pull
+others in Claude Code sessions, and this proposal is the first place they
+are written down:
+- 11 to 15 and 31;
+- 32 to 35, 38 to 49 and 51 to 63, on 2026-10-19;
+- 64 to 78, 80 to 85, 87 to 98, 100 to 106 and 108, on 2026-10-20.
+
+He gave those of 2026-10-19 and 2026-10-20 while reviewing this pull
 request, [#25](https://github.com/adamstallard/shared-skills/pull/25), whose
 own thread holds none of them. In the same sessions he confirmed or changed
 every decision this change had proposed by then, 16 to 30, 36, 37, 50 and
 79, confirming 79 only in part; *Proposed by this change* below says which.
-The change's later decisions 86, 99 and 107 he has not seen.
+He has not reviewed the change's later decisions 86, 99 and 107. Of 107 he
+has seen only item 6, which his decision 108 replaced; its other items
+still wait for him.
 
 1. **Four filters run before any question reaches a person.**
    1. **Already answered:** the agent finds the earlier answer, cites where it
@@ -538,6 +543,47 @@ eleventh consistency read:
 106. **From the igor side:** the Igor pushes a run's citations when the run
      publishes, and a handback comment counts as publishing.
 
+Adam gave 108 on 2026-10-20, reviewing #25. Spec-check's thirteenth
+consistency read then raised questions about it, and his answers the same
+day are its items 1 to 6:
+
+108. **Until a weakness's security advisory is published, nothing the agent
+     writes where people outside the advisory can read it describes the
+     weakness or how to exploit it.** A fix made in the advisory's private
+     fork, or after the advisory is published, is described normally.
+     1. It covers text: commit messages, pull request text, comments and
+        code comments. The fix's code may land publicly.
+     2. It covers any weakness under an unpublished advisory, whether or not
+        the agent asked a `vulnerability` question about it, such as one the
+        bug-hunter skill finds.
+     3. People outside the advisory are everyone who cannot read the
+        advisory. A public branch is any branch that people outside the
+        advisory can read. In a private repository, collaborators who cannot
+        read the advisory can still read every branch, so its branches count
+        as public too.
+     4. A fix's regression test, such as bug-hunter's test that fails before
+        the fix, is a working exploit. It lands only in the advisory's
+        private fork, or publicly after the advisory is published.
+     5. When no advisory exists for the weakness, or the agent can't read
+        whether it is published, the agent treats it as unpublished.
+     6. If GitHub lets the private fork's pull request be merged before the
+        advisory is published (task 0.13), the fork's commits are described
+        normally only if they are merged at the moment the advisory is
+        published; otherwise they follow the rule for public text.
+
+     This replaces item 6 of decision 107, which kept a vulnerability
+     question and its answer out of a fix's commit messages, pull request
+     text and comments. Adam gave three reasons:
+     - The risk is describing the weakness, in any words, so whether the
+       text states the question or its answer was the wrong test.
+     - The risk exists only while the fix is public and the advisory is
+       not. GitHub's private advisories come with a temporary private fork,
+       whose commits become public with the advisory, so a fix made there
+       is not public before the advisory is.
+     - A blanket rule would leave a fix's commit message useless even after
+       disclosure, against prose's rule 14, that a commit message's body
+       says why.
+
 ### Proposed by this change
 
 Decisions 16 to 18 are #211's proposals that apply to the skill; #211's
@@ -732,8 +778,9 @@ so Adam can overrule them:
         whose id a rejection holds is not proposed.
      5. A linked answer (decision 78) must be a github.com comment or review
         on the repository the question concerns or on the lore repository.
-     6. A fix for a vulnerability states neither its question nor its
-        answer in commit messages, pull request text or comments.
+     6. **Replaced by Adam's decision 108.** It kept a vulnerability's
+        question and answer out of a fix's commit messages, pull request
+        text and comments.
      7. A lore clone's reported date is when its remote-tracking default
         branch was last updated by a fetch in that clone.
 
@@ -742,14 +789,14 @@ so Adam can overrule them:
 Nothing waits for Adam except decisions 86, 99 and 107, which this change
 made and he may overrule.
 
-Ten of the items below are unmeasured facts, each measured by tasks 0.1
-to 0.12 before anything is built. The others are changes in igor that this
-change depends on.
-Two other changes are dependencies: igor PR
-[#216](https://github.com/adamstallard/igor/pull/216), with igor issue
-[#215](https://github.com/adamstallard/igor/issues/215), amending igor's
-lore-firing spec (decision 60), and igor PR #202, the scribe's records
-(decision 63).
+Eleven of the items below are unmeasured facts, measured by tasks 0.1 to
+0.13 before anything is built; the first fact takes three tasks, 0.1 to
+0.3. The other items are changes elsewhere that this change depends on: in
+igor, PR [#216](https://github.com/adamstallard/igor/pull/216), with igor
+issue [#215](https://github.com/adamstallard/igor/issues/215), amending
+igor's lore-firing spec (decision 60), and PR #202, the scribe's records
+(decision 63); and in bug-hunter, a rule for a vulnerability fix's
+regression test (decision 108).
 
 - **Can a `PreToolUse` hook block `AskUserQuestion`?** If not, the picker is
   covered by the skill's instructions alone, and the README says so.
@@ -779,6 +826,14 @@ lore-firing spec (decision 60), and igor PR #202, the scribe's records
   admin or security-manager role. If it can't, the agent records a
   vulnerability's question and answer nowhere but the fix, and reports only
   that a vulnerability question is blocking, with no text.
+- **Can the private fork's pull request be merged before the advisory is
+  published?** Task 0.13 measures it. If it can, the fork's commits are
+  described normally only if they are merged as the advisory is published
+  (decision 108).
+- **bug-hunter needs a matching note:** a vulnerability fix's regression
+  test lands only in the advisory's private fork, or publicly after the
+  advisory is published (decision 108). A separate change to bug-hunter
+  carries it.
 - **Does GitHub's API give a comment's author and a commit's verified
   signer as decision 78 needs?** If not, every `questions`-branch `decision`
   or `agent` file counts as input.

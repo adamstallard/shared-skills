@@ -1434,8 +1434,9 @@ that category is blocking, with no text. When the agent cannot open or
 write in the repository's private security advisory, it SHALL record a
 `vulnerability` question and its answer nowhere: the answer is used only
 in the code of the fix, and the agent reports only that such a question is
-blocking. A fix's commit messages, pull request text and comments SHALL
-NOT state a `vulnerability` question or its answer. The host's own transcripts, such as Claude Code's under
+blocking. What the agent may write about the weakness is set by *A
+weakness is not described in public text before its advisory is
+published*. The host's own transcripts, such as Claude Code's under
 `~/.claude/projects/`, are outside this requirement.
 
 The agent gives the question's category in the first call, and SHALL pass
@@ -1473,9 +1474,10 @@ and use it in the code of the fix.
 - **WHEN** the agent has a `vulnerability` question and cannot open the
   repository's private security advisory
 - **THEN** it records the question and answer nowhere, uses the answer
-  only in the code of the fix, states neither in the fix's commit messages
-  or pull request text, and reports only that a `vulnerability` question
-  is blocking
+  only in the code of the fix, writes nothing about the weakness that
+  anyone else can read (with no advisory it can open, it treats everyone
+  as outside the advisory), and reports only that a
+  `vulnerability` question is blocking
 
 #### Scenario: A headless session stops on a personal question
 
@@ -1526,6 +1528,95 @@ and use it in the code of the fix.
   be exploited
 - **THEN** the agent records the answer in the fix and in the repository's
   private security advisory, and writes no log file
+
+### Requirement: A weakness is not described in public text before its advisory is published
+
+Until the security advisory for a weakness is published, the agent SHALL
+NOT describe the weakness or how to exploit it in any text that people
+outside the advisory can read: commit messages and code comments on a
+public branch, and pull request text and comments that such people can
+read. This holds for any weakness, whether or
+not the agent asked a `vulnerability` question about it.
+
+People outside the advisory are everyone who cannot read the advisory. A
+public branch is a branch any of them can read, in a private or internal
+repository as in a public one; the advisory's private fork is not one.
+
+The rule covers text, not the fix's code: the code may land on a public
+branch before the advisory is published. A fix's regression test that fails before the fix, such as the one
+the bug-hunter skill writes, SHALL land only in the advisory's private
+fork, or on a public branch after the advisory is published.
+
+When no advisory exists for the weakness, or the agent cannot read whether
+it is published, the agent SHALL treat it as unpublished.
+
+A fix committed after the advisory is published is described as any other
+fix is. So is a fix committed in the advisory's private fork, when the
+fork's pull request is merged at the moment the advisory is published. If
+GitHub lets the fork's pull request be merged before the advisory is
+published, a fork commit SHALL follow the rule above unless, when the agent
+writes it, the agent knows the pull request will be merged only at the
+moment of publication.
+
+#### Scenario: A fix on a public branch before publication doesn't describe the weakness
+
+- **WHEN** the agent pushes a fix to a public branch while the weakness's
+  advisory is a draft
+- **THEN** the fix's code lands, and its commit message, pull request text,
+  comments and code comments describe neither the weakness nor how to
+  exploit it
+
+#### Scenario: A weakness found without a question is covered
+
+- **WHEN** the bug-hunter skill finds a weakness, the agent asked no
+  `vulnerability` question about it, and its advisory is unpublished
+- **THEN** the agent describes neither the weakness nor how to exploit it
+  in text on a public branch
+
+#### Scenario: A private repository's branch counts as public
+
+- **WHEN** the agent commits a fix in a private repository whose
+  collaborators include people who cannot read the weakness's unpublished
+  advisory
+- **THEN** its commit message describes neither the weakness nor how to
+  exploit it
+
+#### Scenario: The regression test waits for the private fork or publication
+
+- **WHEN** the agent has a regression test that fails before the fix of a
+  weakness whose advisory is unpublished
+- **THEN** it commits the test only in the advisory's private fork, and not
+  on a public branch until the advisory is published
+
+#### Scenario: With no advisory, the weakness counts as unpublished
+
+- **WHEN** no advisory exists for a weakness, or the agent cannot read
+  whether its advisory is published
+- **THEN** the agent describes neither the weakness nor how to exploit it in
+  text on a public branch
+
+#### Scenario: A fix after publication is described normally
+
+- **WHEN** the agent commits a fix after the weakness's advisory is
+  published
+- **THEN** its commit message says what the weakness was and why the fix
+  closes it, and the regression test may land with it
+
+#### Scenario: A fix in the private fork is described normally
+
+- **WHEN** the agent commits a fix in the advisory's private fork, and
+  the fork's pull request is merged at the moment the advisory is published
+- **THEN** its commit message says what the weakness was and why the fix
+  closes it
+
+#### Scenario: A fork commit merged before publication follows the public rule
+
+- **WHEN** GitHub lets the private fork's pull request be merged before the
+  advisory is published, and the agent commits a fix in the fork without
+  knowing the pull request will be merged only at the moment of
+  publication
+- **THEN** that commit's message describes neither the weakness nor how to
+  exploit it
 
 ### Requirement: An answer that generalizes is proposed as lore
 
