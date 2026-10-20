@@ -39,14 +39,16 @@ const TYPED = { origin: { kind: 'composer' }, wait: false } as const
 /**
  * An answer session as `/answer` opens it, with the engine's side stood in
  * for: `open` starts it, `enter` presses Enter on text in the prompt box and
- * returns what the session said it did, `filled` is every text a click put in
- * the box, and `sent` every prompt that reached the model. Like every test
+ * returns what the session said it did, `filled` is every text the session put
+ * in the box, `sent` every prompt that reached the model, and `clock` the
+ * session's mock clock. Like every test
  * hook, these are added before the test's first `$` call.
  */
 function answerSession(on: On) {
   let isUp = false
   const filled: string[] = []
   const sent: string[] = []
+  const clock = mock.clock(on)
   mock.env(on, {})
   on('command.register', () => ({ value: { command: 'answer' } }))
   on('ui.open', () => {
@@ -67,6 +69,7 @@ function answerSession(on: On) {
   return {
     filled,
     sent,
+    clock,
     open: async ($: Engine) => {
       await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
       await $.command.run({ command: 'answer', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 120 } })
@@ -140,6 +143,21 @@ test('deferring and relaying everything ends on the summary', async ($, on) => {
   await ui.redraw()
   expect(await ui.find({ key: 'opt:igor-216-scope:0' })).toBeDefined()
   await ui.unmount()
+})
+
+test("after Enter the box is left to the engine's put-back, and a citation lands once it is due", async ($, on) => {
+  const s = answerSession(on)
+  await s.open($)
+  await s.enter($, 'd')
+  await s.clock.advance(1_000)
+  // No put-back came: an empty box is left alone.
+  expect(s.filled).toEqual([])
+  // Walk to jlee's question, which a decision may already answer; c cites it.
+  for (let i = 0; i < 8 && !((await s.enter($, 'n')) ?? '').startsWith('Question 5'); i++);
+  expect(await s.enter($, 'c')).toContain('citing reply')
+  expect(s.filled).toEqual([])
+  await s.clock.advance(1_000)
+  expect(s.filled).toEqual(["See decision 10 in #216: the run id links to the run's ledger row, which an item number cannot."])
 })
 
 test('Enter refuses what the screen cannot take, and sends nothing', async ($, on) => {
@@ -276,7 +294,7 @@ test("a failed model call is shown in place and the discussion stays usable", as
 
 test('asking the asker: send, wait, the reply arrives, back in the queue', async ($, on) => {
   const s = answerSession(on)
-  const clock = mock.clock(on)
+  const clock = s.clock
   const toasts: string[] = []
   on('session.model', () => ({ value: 'test-model' }))
   on('model.complete', () => ({
@@ -291,7 +309,9 @@ test('asking the asker: send, wait, the reply arrives, back in the queue', async
   await s.enter($, 't')
   await s.enter($, 'a')
   expect(await waitFor(ui, { type: 'Text', text: /ASK CLAUDE, IN THE THREAD/ })).toBeDefined()
-  // The model's draft goes into the empty prompt box, to edit or send.
+  // The model's draft goes into the empty prompt box, to edit or send, once
+  // the engine's put-back of the "a" is due.
+  await clock.advance(1_000)
   for (let i = 0; i < 50 && !s.filled.length; i++) await ui.redraw()
   expect(s.filled).toEqual(['Do hidden files stay on the branch?'])
   expect(await s.enter($, 'Do hidden files stay on the branch, or are they removed?')).toContain('Asked claude on GitHub')

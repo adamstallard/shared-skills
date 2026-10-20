@@ -237,7 +237,7 @@ const PANE = 'answer-session'
 // Prototype only: shown in the top bar, so a tester can tell which build is
 // loaded. v0.1-N, N the number of commits in the prototype repository once
 // this build is committed.
-const BUILD = 'v0.1-5'
+const BUILD = 'v0.1-6'
 const PREFIX = 'User says: '
 const SPEAKER = 9
 // Lines k or j moves the discussion by.
@@ -682,6 +682,38 @@ async function enter($: EngineInterface, draft: string): Promise<string> {
   }
 }
 
+// ── the prompt box ──────────────────────────────────────────────────────
+//
+// After Enter, the engine puts the dropped prompt back in the box (a
+// prompt.change with origin `engine`). What the box should hold instead
+// (nothing, or a citation Enter put there) waits here until that put-back
+// arrives, or PUT_BACK_MS passes without one.
+let afterDrop: { dropped: string; text: string } | undefined
+const PUT_BACK_MS = 500
+
+/** Puts `text` in the prompt box, after any put-back still due. */
+async function putInBox($: EngineInterface, text: string): Promise<void> {
+  if (afterDrop) {
+    afterDrop.text = text
+    return
+  }
+  await $.prompt.fill({ text, mode: 'replace' })
+  // The mod's own fill skips its own prompt.change hook: keep the copy here.
+  await update($, promptAtom, () => text)
+}
+
+/** Applies what the box should hold after a drop; `isPutBack` when the engine just put the prompt back. */
+async function settleBox($: EngineInterface, isPutBack: boolean): Promise<void> {
+  const due = afterDrop
+  if (!due) return
+  afterDrop = undefined
+  // With no put-back, an empty box needs nothing, and filling it could wipe
+  // what the person has started typing.
+  if (!isPutBack && !due.text) return
+  await $.prompt.fill({ text: due.text, mode: 'replace' })
+  await update($, promptAtom, () => due.text)
+}
+
 // ── actions ─────────────────────────────────────────────────────────────
 
 /** Moves to question `i` (the queue's length is the summary). */
@@ -764,7 +796,7 @@ async function toggleOriginal($: EngineInterface, one: Question): Promise<string
 
 /** Puts the reply citing the earlier decision in the prompt box, to edit or send. */
 async function cite($: EngineInterface, one: Question): Promise<string> {
-  if (one.answered) await $.prompt.fill({ text: one.answered.cite, mode: 'replace' })
+  if (one.answered) await putInBox($, one.answered.cite)
   return 'The citing reply is in the prompt box: Enter relays it'
 }
 
@@ -839,7 +871,7 @@ async function draftAsk($: EngineInterface, one: Question): Promise<string> {
     // The draft lands only in an empty box: what Adam started typing is his.
     const still = (await read($, askingAtom))[one.id]
     if (still && !(await $.prompt.read()).text.trim()) {
-      await $.prompt.fill({ text: r.text.replace(/^["“]|["”]$/g, '').trim(), mode: 'replace' })
+      await putInBox($, r.text.replace(/^["“]|["”]$/g, '').trim())
     }
   })()
   return `Drafting a question for ${one.asker.name}`
@@ -998,7 +1030,8 @@ export const register: Register = on => {
   })
   on('prompt.change', async ($, e, next) => {
     const changed = await next(e)
-    if (await read($, immersiveAtom)) await update($, promptAtom, () => e.text)
+    if (afterDrop && e.origin.kind === 'engine' && e.text === afterDrop.dropped) await settleBox($, true)
+    else if (await read($, immersiveAtom)) await update($, promptAtom, () => e.text)
     return changed
   })
 
@@ -1011,8 +1044,10 @@ export const register: Register = on => {
     if (e.command || e.isMeta || !(await read($, immersiveAtom))) return next(e)
     const panes = await $.ui.panes()
     if (!panes.some(pane => pane.id === PANE && pane.isPlaced)) return next(e)
+    afterDrop = { dropped: e.text, text: '' }
     const done = await enter($, e.text)
     await update($, promptAtom, () => '')
+    $.clock.after(PUT_BACK_MS, () => void settleBox($, false))
     return { drop: done }
   }).catch(($, e, next) => (next.called ? next(e) : { drop: 'The answer session could not check this prompt, so it was not sent.' }))
 
@@ -1529,7 +1564,7 @@ export const register: Register = on => {
           <Box flexDirection="column" flexGrow={1}>
             <Box gap={3}>
               {/* A click types the option's number, as the person would. */}
-              <Button key={`opt:${q.id}:${i}`} plain onPress={() => run($.prompt.fill({ text: String(i + 1), mode: 'replace' }))}>
+              <Button key={`opt:${q.id}:${i}`} plain onPress={() => run(putInBox($, String(i + 1)))}>
                 <Text>
                   <Text color={ACCENT}>{i + 1}</Text>
                   <Text dimColor>: </Text>
