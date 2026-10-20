@@ -38,7 +38,9 @@ UI is **not specified**. Iterate on the prototype until Adam approves it by usin
 ## Known limits
 
 - Unverified in a live session: whether the engine clears the prompt box after a dropped prompt, and where the drop reason shows.
-- Resizing by dragging the window misbehaves (Adam, 2026-10-20); not yet diagnosed.
+- The top bar's right end shows the build (`BUILD`, `v0.1-N`, N the commit count once committed: bump it with every commit) and the layout (fullscreen or main screen, docked or not).
+- Claude Code 2.1.305 docks the pane at about 45% of the terminal's width (62 of 140 columns) whatever `columns` asks, also on `/answer`; nothing in `~/.claude.json` stores a width. Under 110 columns in fullscreen the pane is capped at half the height. Both caps reapply on every resize; asking again after a resize changed nothing (tested in tmux).
+- Resizing the main screen in JetBrains' 2025 terminal leaves overlapping frames on the left (Adam, 2026-10-20). tmux redraws cleanly, so it is most likely how that terminal re-wraps lines; untested against a plain session without the mod.
 - Tests can't raise `prompt.edit`, `prompt.change` or the engine's close (`ui.close`), and a test hook can't call `$`: the live preview and the close hook are untested. Tests drive Enter through `$.prompt.submit`.
 - The host's scan refuses `$` passed through a value (`cmd.run($)`) or to a function whose name is reused: commands are data, and `runCommand` dispatches them.
 - A mod's own calls skip its own hooks.

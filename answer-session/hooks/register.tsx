@@ -234,6 +234,10 @@ const LATER = 'warning'
 const RULE = 'subtle'
 
 const PANE = 'answer-session'
+// Prototype only: shown in the top bar, so a tester can tell which build is
+// loaded. v0.1-N, N the number of commits in the prototype repository once
+// this build is committed.
+const BUILD = 'v0.1-4'
 const PREFIX = 'User says: '
 const SPEAKER = 9
 // Lines k or j moves the discussion by.
@@ -1075,15 +1079,24 @@ export const register: Register = on => {
       </Text>
     )
     const tally = [`${fresh} new`, `${relayed} relayed`, `${deferred} deferred`, ...(waiting ? [`${waiting} waiting`] : [])].join(' · ')
+    const layout = `${e.viewport?.isFullscreen === true ? 'fullscreen' : e.viewport?.isFullscreen === false ? 'main screen' : ''}${
+      e.props.placement === 'dock' ? ', docked' : ''
+    }`
     const bar = (
-      <Box gap={3}>
-        <Text bold wrap="truncate-end">
-          Answer session
-        </Text>
-        {dots}
+      <Box justifyContent="space-between">
+        <Box gap={3}>
+          <Text bold wrap="truncate-end">
+            Answer session
+          </Text>
+          {dots}
+          <Text dimColor wrap="truncate-end">
+            {base ? `${at + 1} of ${N}` : 'summary'}
+            {isTalking ? '  ·  talking it through' : inner >= 100 ? `  ·  ${tally}` : ''}
+          </Text>
+        </Box>
         <Text dimColor wrap="truncate-end">
-          {base ? `${at + 1} of ${N}` : 'summary'}
-          {isTalking ? '  ·  talking it through' : inner >= 100 ? `  ·  ${tally}` : ''}
+          {BUILD}
+          {layout ? ` · ${layout}` : ''}
         </Text>
       </Box>
     )
