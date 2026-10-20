@@ -15,15 +15,22 @@ judged well.
    four filters, runs filter 1's search on each question and prints the hits,
    and issues a token. The token is bound to the set of questions, and holds
    their hashes, never their text. The agent may give a question a category
-   (`vulnerability`, `secret` or `personal`) in this call. Filter 1 then
+   (`vulnerability`, `secret` or `personal`) in this call. It then passes
+   every question of that picker call, not only the categorized one, on
+   standard input instead of in `q.json`, so the text is never written to
+   a file that could be committed. Filter 1 then
    searches only files on the machine for it, the repository and the lore
    clones, and skips GitHub's issues.
 2. `inquisitor.py vet --pass <token> --verdicts v.json` takes one verdict per
    question, with the field each verdict needs (a citation for `answered`,
-   where the question is listed or filed for `deferred`, where the choice is
+   where the question will be listed for `deferred`, where the choice is
    recorded for `decided`, and the recommended option and what changes under
-   the others for `ask`), and appends one record per question: the SHA-256 of the question's text (as the spec defines it), the
-   verdict, its field, and the time. The record of a question given a
+   the others for `ask`), and appends one record per question: the SHA-256
+   of the question's text (as the spec defines it), the verdict, its field,
+   and the time. For an `ask` on a picker question, the record keeps the
+   field's account of what changes under the other options, and drops the
+   recommended option's label: the recommendation is always the first
+   option, as the second call checks. The record of a question given a
    category holds the category in place of the field, so it holds no text at
    all.
 
@@ -33,21 +40,36 @@ repositories, and the hook's working directory can differ from the one `vet`
 ran in (prose's DECISIONS.md, *The gate*). These records are the hooks'
 state, not a question log: they hold no question's text, and whichever
 call or hook next reads them deletes each one more than 2 hours old, with a
-category or without one. Nothing else keeps a record of a question with a
+category or without one, except a `deferred` record without a category.
+That one is kept until
+a later verdict on the same text replaces it, because the post hook accepts
+a deferral of any age: the post that lists it may be written days later. Nothing else keeps a record of a question with a
 category; a vulnerability's lasting record is the repository's private
 security advisory. Concurrent Igor workers (the AI teammates the igor
 project runs) that share one HOME also share records, so one worker's
 verdict on a question's text can let another worker ask the same text.
-Whether one worker or several wrote the records, the hook allows a question
-only while the latest verdict on its text is `ask`.
+That is intended: a verdict is about the question's text, not the worker.
+Per-clone records, as prose keeps its tokens, were rejected. Whether one
+worker or several wrote the records, the picker hook allows a question only
+while the latest verdict on its text is `ask`. The hash is plain SHA-256. A
+short sensitive question could be guessed from its hash, but such a
+question has a category, and every record with a category is deleted after
+2 hours; only an uncategorized `deferred` record lives longer. So an HMAC
+with a per-HOME key was rejected.
+
+When a hook can't read these records, the picker hook lets the question
+through and the post hook blocks a post that holds one. A picker question
+publishes nothing, so at worst one unfiltered question reaches the person.
+The post hook can't tell whether a question had a category, and a
+published vulnerability can't be taken back.
 
 The hook hashes each question in the tool's input the same way, reads the
 most recent record for each hash, and allows the call when each is `ask` and
-less than 2 hours old, and when each question's first option is the
-recommendation its record holds. A record with a category holds no
-recommendation, so the hook does not check that question's first option. A record is not spent
-by the call: when the hook
-blocks a call because of one question in it, the other questions need no
+less than 2 hours old. The second call checks that a picker question's
+first option is its recommendation. The hook doesn't need to: a question's
+text includes its options in order, so reordering them after vetting gives
+a different hash, which the hook already blocks as unvetted. A record is not spent by the call: when
+the hook blocks a call because of one question in it, the other questions need no
 vetting again.
 
 **Rejected:**
@@ -78,20 +100,37 @@ holds.
 prose's posting hook already reads the body of a `gh` post from a short
 allow-list of command forms, and the body fields of GitHub MCP tools
 (`.agents/skills/prose/DECISIONS.md`, *The posting hook reads an allow-list*).
-That reader moves to `.agents/lib/gh-post/`, unchanged, and both hooks call
-it. prose's tests must pass unchanged after the move.
+That reader moves to `.agents/lib/gh-post/`, and both hooks call it. Its
+rules are stated once, in this change's `gh-post` capability spec.
+prose's tests must pass unchanged after the move, except where the reader
+learns two more forms. A post sent through the github-app skill's script,
+`python3 <github-app script> gh pr|issue …`, which that skill tells agents
+to use instead of plain `gh`, is blocked as unreadable by prose's reader
+today, so every post an agent sends as a GitHub App is refused. A comment
+sent with `gh api`, whose body is given by `-f`, `--raw-field`, `-F` or
+`--field` `body=`, or by `--input`, passes prose's reader unread today, so
+it skips the hook. The shared reader reads both.
 
 The inquisitor's post hook finds the body's questions by the spec's rule
 (*Questions in posts pass the same filters*), hashes each, and applies the
-picker hook's rule. A post with no question passes without a lookup.
+picker hook's rule, except that it also allows a `deferred` question listed
+as an item of an open-questions section and tagging no one:
+filter 2 has the agent list a deferred question in the work's description,
+or file it as an issue, and both are posts. A post with no question passes without a lookup.
 
 **The order with prose:** do prose's pass, vet the rewritten body, then sign
 it with prose. The footer prose appends holds no question, so signing leaves
 the body vetted. An edit after vetting means vetting again; an edit after
 signing means signing again too.
 
+A subagent returns its question to whoever started it, rather than opening
+the picker itself: the session's person is talking to the agent that
+started the subagent, which can batch the subagent's questions with its own.
+
 A rhetorical question is found too. Nobody needs to choose an answer to it,
-so filter 3 stops it, and the agent rewrites it as a statement.
+so filter 3 stops it, and the agent rewrites it as a statement. Its
+`decided` verdict names the post as where the choice is recorded, since a
+statement in the post is the whole of the choice.
 
 ## Where the logs live
 
@@ -103,24 +142,83 @@ beside it.
 - **A question about one repository:**
   `.inquisitor/questions/<yyyy-mm-dd>-<slug>-<6 hex>.md` in that repository,
   committed with the work, so every agent on the team finds it, as
-  spec-check's `openspec/spec-check.yaml` is found.
+  spec-check's `openspec/spec-check.yaml` is found. When the question is
+  about a repository other than the one holding the current work, the file
+  goes to it by a pull request instead. The file is not kept on a branch of
+  its own, because a question about a change belongs in that change's
+  history and merges with it. A file on a branch or a pull request that has
+  not merged is invisible to filter 1 elsewhere, so parallel work can ask
+  the same question again; this change accepts that cost.
 - **A question about an organization or project:**
-  `questions/<yyyy-mm-dd>-<slug>-<6 hex>.md` at the root of the team's lore
-  repository, added by a pull request. Its files hold no `conditions`, so
-  neither the search nor Igor reads one as a lore entry. An answer worth
-  giving agents as lore moves from there into a lore entry by another pull
-  request in the same repository.
+  `questions/<yyyy-mm-dd>-<slug>-<6 hex>.md` on an orphan branch named
+  `questions` in the team's lore repository, apart from igor's
+  `igor-state` branch, where igor keeps its runtime state (defined in
+  igor's `src/state.ts`). The agent pushes each file
+  there directly, with no pull request; when the push is rejected because
+  the branch moved, it fetches and pushes again, and the random suffix
+  means two pushes never write the same file. No review is needed, since a
+  question's authority comes from who answered it, and the default branch
+  stays readable, holding only the lore entries Igor gives agents. The
+  files hold no `conditions`, so neither the search nor Igor reads one as a
+  lore entry. Anyone who can push may write any `answered_by`, and GitHub's
+  commit author login comes from the author email, which the committer
+  sets. So a `decision` file there counts only when the file
+  links the GitHub comment or review holding the answer, written by
+  `answered_by`, or when the commit that added it carries a signature
+  GitHub verifies for `answered_by`'s account. The agent commits from the
+  person's session, so after a one-time signing setup the person never
+  signs an answer by hand. An answer worth giving agents as lore is promoted by a pull
+  request to main adding a `provisional` entry; the question's file stays
+  on its branch. Before pushing or promoting, the script checks
+  visibility: nothing goes to a lore repository more visible than the
+  repository the question concerns (for an organization question, the
+  repository whose work raised it, by the spec's definition), ranking
+  private, then internal, then public.
 - **A question about one person's way of working:** no log. Its answer goes
   into that person's memory or `CLAUDE.md`, which agents already read.
 - **A question in one of the three categories** (`vulnerability`, `secret`,
   `personal`): no log. Only the hooks' record above holds it, as a hash.
 
 Each log file has YAML frontmatter (`repository`, `asked`, `answered_by`,
-`authority`: `decision` or `input`, `recorded_in`) and the question and
-answer as its body. The hex is random, so two branches logging the same
-question on the same day still write different files. Misses, the questions
-a person said need not have been asked, go in `misses/` beside `questions/`, in the same form, with `filter` and `said` in
-place of the answer fields.
+`authority`: `decision`, `input` or `agent`, `recorded_in`, and
+`answer_link`, the GitHub comment or review holding the answer, when there
+is one) and the
+question and answer as its body. An agent's choice has `answered_by: agent`.
+
+When filter 1 stops a question with a lore entry, the citation goes to that
+lore repository's `questions` branch, as a file under `citations/` holding
+only the entry's id and the date, so it is written for a private question
+too; a question with a category gets none (decision 104). During an Igor's run the worker
+reports each citation in its output, and the Igor pushes it when it
+publishes the run, since a worker holds only the token of the seat it runs
+on, which cannot push to the lore repository. The
+inquisitor's commits to the `questions` branch are machine records with a
+fixed message, `inquisitor: log <file>`, exempt from prose's and
+bug-hunter's trailers; the branch is never checked out, so their checks
+never see these commits. igor's planned review, which would prune
+and promote lore entries, could count an entry's citations there, in one
+place, beside its fire count, the number of times igor injected the entry
+into a worker. That count is a lower bound, since no
+citation is sent to a lore repository more visible than the question's,
+and the review says so beside it. A citation's commit has the fixed author
+and committer `inquisitor <noreply>` and a date reduced to the day, so it
+says nothing about who asked.
+
+The 6 random hex digits in a question file's name mean two branches logging
+the same question on the same day still write different files. Misses, the questions
+a person said need not have been asked, go where their questions went, in
+`misses/` in place of `questions/`, in the same form, with `filter` and
+`said` in place of the answer fields.
+
+Every log file and miss file is scanned for secrets before it is written,
+and so is every question in a post at the first call. The patterns are the
+common shapes of a credential: a private key's `-----BEGIN` line, GitHub
+tokens (`ghp_`, `gho_`, `ghs_`, `github_pat_`), AWS access key IDs
+(`AKIA`), and Slack tokens (`xox`); the list is closed. A match refuses the write
+or the post. The scan is a backstop: a secret under an arbitrary name, such
+as a password in `DB_PASSWORD=…`, passes it. The files the agent passes to
+`vet`, such as `q.json` and `v.json`, go outside any repository, in the
+system's temporary directory, so they can't be committed.
 
 **Rejected:**
 
@@ -143,16 +241,29 @@ the GitHub login of the person running the session:
 {
   "login": "adamstallard",
   "lore": [
-    {"path": "/Users/me/src/team-lore", "owners": ["adamstallard"]}
+    {"path": "/Users/me/src/team-lore", "owners": ["adamstallard"]},
+    {"path": "/Users/me/src/api-lore", "repos": ["adamstallard/api"]}
   ]
 }
 ```
 
-`path` is a local clone, searched as it is on disk; the skill never fetches
-it, and reports when the clone was last fetched (the time of its
-`FETCH_HEAD`, or "unknown" for a clone with none, such as a fresh one).
-`owners` lists the GitHub owners whose repositories the lore
-repository serves. A missing file means no lore repository, and filter 1's
+`path` is a local clone. The search reads the clone's remote-tracking default branch, such as
+`origin/main`, with `git show`, never the working tree or a local branch, which could be on another branch or hold an
+unreviewed edit. The skill fetches only the `questions` branch, and reads
+it with `git show` too, without checking it out. For the date, the search
+reads the reflog of the remote-tracking default branch, not `FETCH_HEAD`,
+which the `questions` fetch rewrites. It reports when that default branch
+was last updated by a fetch in this clone, so the date and the content
+searched come from the same ref, or "unknown" for a clone with no such entry, such as a fresh one. It
+is not when the branch last moved on GitHub, and a fetch that brings
+nothing new writes no entry.
+`owners` lists the GitHub owners whose repositories the lore repository
+serves, and `repos` lists single repositories it serves; several lore
+repositories may serve one owner. When an organization or project question
+matches more than one, the most specific match (a named repository beats
+an owner) wins, then the first listed, and the agent's report says which.
+Inside an Igor whose role can't be read, the search shows only `global`
+entries. A missing file means no lore repository, and filter 1's
 search says lore was not searched.
 
 Reviewers live in the repository the question concerns, in
@@ -162,38 +273,65 @@ proposed "a reviewer or expert named in the team's configuration"; a
 repository's own file is that configuration for questions about it.
 
 Visibility, of a lore repository or the repository a question concerns, is
-read with `gh repo view --json visibility` on the clone's `origin`. Write
+read with `gh repo view --json visibility` on the clone's `origin`, which
+gives `PRIVATE`, `INTERNAL` or `PUBLIC`, ranked in that order. Write
 access is read with `gh api repos/<owner>/<repo>/collaborators/<login>/permission`,
 from `user.permissions.push`. Whether that call works for a caller without
 push access is unmeasured (task 0.4). Each check fails closed:
 - an unread visibility of the repository the question concerns counts as
-  private when deciding whether its answer may go to a public lore
-  repository;
-- an unread visibility of a lore repository counts as public;
+  private;
+- an unread visibility of a lore repository, or of a post's target, counts
+  as public;
 - an unread permission counts as no write access, so a question never tags
   a person who might be unable to decide it.
 
 When none of decision 17's candidates (the approver of the related
 decision, a listed reviewer, the last committer) has write access, the
 script considers the person running the session, identified by the `login`
-in the configuration. `gh api user` can't identify them: an agent posting
-as a GitHub App gets no user from it, and one posting as the person gets the
-post's own author, whom a tag would not notify. The script uses
-`gh api user` only to learn which login the post goes out as. It reads the
-configured login's write access with the same permission call:
+in the configuration. The script uses that login only when it equals the
+account `gh` is logged in as, which it reads running as the person, so that
+nobody can claim a maintainer's login by typing it into their own file.
+The login itself comes from the configuration, not from `gh api user`
+(decision 41): run with an App's token, `gh api user` gives no user. The
+script's own `gh api user` runs with the person's own `gh` login, so it
+returns the person; that is why it can confirm the configured login, and
+also why it can't tell which login a post sent with the github-app
+skill's token goes out as (task 0.7).
+
+A headless session, such as an Igor worker, never uses the picker: it tags
+the login only when the login has write access and the post goes out as
+someone else, and otherwise tags no one. In a session with a person in it,
+the script reads the configured login's write access with the same
+permission call, and then:
 - no login configured: the agent asks the question through the picker;
-- write access, and `gh api user` returns that same login, so the post
-  would go out as them: the agent asks through the picker, because a
-  self-tag sends no notification;
-- write access, and the post goes out as anyone else, including an App for
-  which `gh api user` fails: the question tags the login;
+- write access, and the post would go out as that login, or the script
+  can't tell which login it goes out as: the agent asks through the picker,
+  because a self-tag sends no notification;
+- write access, and the post goes out as anyone else, such as a GitHub App:
+  the question tags the login;
 - no write access: the question tags no one.
 
-The search reads each markdown file under a clone whose frontmatter holds
-`conditions`, and matches the question's terms against `claim`,
+The search runs the same way in an Igor worker. igor injects every active
+in-scope entry into a worker only while they fit its token budget, so an
+entry holding a person's answer can be missing from the worker's context;
+the search finds it. Inside an Igor it uses igor's own scope, the running
+role's, from `scopeMatches`: `global`, `role:<role>`, and `project:`
+matching any repository the role works. An entry out of scope is hidden,
+never shown, since scope decides who may see an entry. Status is labelled,
+not filtered: an in-scope entry that is not `active` is shown as input. igor's lore-firing spec, which bans offering a worker a
+search tool, is amended by igor PR #216 (decisions in igor issue #215) to
+allow a search that applies firing's scope rule and labels status.
+
+The search reads each markdown file under the clone's `entries/` whose
+frontmatter holds `conditions`, never one under `rejected/`, and matches the question's terms against `claim`,
 `conditions.prose`, the `conditions.paths` globs and the body. It also reads
-each file under the clone's `questions/`, as it reads a repository's
-`.inquisitor/questions/`. The igor project's own
+each file on the clone's `questions` branch, as it reads a repository's
+`.inquisitor/questions/`. Outside an Igor, a `project:<name>` scope
+matches the short name of the repository the question concerns. A
+project whose repositories have other names would need a mapping, kept in
+one file in the lore repository that igor and the inquisitor both read;
+this change does not build it.
+The igor project's own
 configuration has a `destination` setting naming the directory of a lore
 repository that holds its entries; the search does not use it, since a plain
 session has no Igor configuration.
