@@ -237,11 +237,62 @@ class Check(Repo):
         code, out = self.run_cmd("check")
         self.assertEqual(code, 0, out)
 
-    def test_no_openspec_specs_is_an_error(self):
+    def test_no_openspec_directory_is_an_error(self):
         shutil.rmtree(os.path.join(self.root, "openspec"))
         with self.assertRaises(SystemExit) as raised:
             self.run_cmd("check")
-        self.assertIn("no openspec/specs", str(raised.exception))
+        self.assertEqual(f"spec-trace: no openspec/ under {self.root}", str(raised.exception))
+
+
+class NoSpecsYet(Repo):
+    """A repository that has just adopted OpenSpec: openspec/ holds an open change, and
+    there is no openspec/specs/ until the change is archived."""
+
+    def setUp(self):
+        super().setUp()
+        shutil.rmtree(os.path.join(self.root, "openspec", "specs"))
+        self.write("openspec/changes/add-x/specs/work-claiming/spec.md", """\
+            ## ADDED Requirements
+            ### Requirement: New
+            #### Scenario: Not built yet
+            """)
+
+    def test_check_passes_with_no_scenarios(self):
+        code, out = self.run_cmd("check")
+        self.assertEqual(code, 0, out)
+        self.assertIn("spec-trace: ok. 0 of 0 scenarios are tagged", out)
+
+    def test_a_tag_naming_the_change_s_scenario_is_accepted(self):
+        self.write("test/x.test.ts", f"// {AT} work-claiming: Not built yet\n")
+        code, out = self.run_cmd("check")
+        self.assertEqual(code, 0, out)
+
+    def test_a_tag_naming_nothing_fails(self):
+        self.write("test/x.test.ts", f"// {AT} work-claiming: Nothing\n// {AT} nope: Nothing\n")
+        code, out = self.run_cmd("check")
+        self.assertEqual(code, 1, out)
+        self.assertIn("test/x.test.ts:1: tag '@scenario work-claiming: Nothing' names no capability "
+                      "under openspec/specs. It holds no scenario yet", out)
+        self.assertIn("test/x.test.ts:2: tag '@scenario nope: Nothing' names no capability", out)
+        self.assertIn("2 problem(s)", out)
+
+    def test_baseline_writes_only_its_header(self):
+        code, out = self.run_cmd("baseline")
+        self.assertEqual(code, 0, out)
+        self.assertIn("wrote 0 untagged scenario(s) of 0", out)
+        text = self.read(st.DEFAULT_BASELINE)
+        self.assertTrue(text)
+        self.assertTrue(all(l.startswith("#") for l in text.splitlines()), text)
+        self.assertEqual(self.run_cmd("check")[0], 0)
+
+    def test_report_runs_and_lists_the_change_when_asked(self):
+        self.write("test/x.test.ts", f"// {AT} work-claiming: Not built yet\n")
+        code, out = self.run_cmd("report")
+        self.assertEqual(code, 0, out)
+        self.assertIn("0 of 0 scenarios are tagged by a test.", out)
+        code, out = self.run_cmd("report", "--include-changes")
+        self.assertEqual(code, 0, out)
+        self.assertIn("| Not built yet (change: add-x) | test/x.test.ts:1 |", out)
 
 
 class Search(Repo):
