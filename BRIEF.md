@@ -37,7 +37,9 @@ UI is **not specified**. Iterate on the prototype until Adam approves it by usin
 
 ## Known limits
 
-- Unverified in a live session: whether the engine clears the prompt box after a dropped prompt, and where the drop reason shows.
+- The hint line under the prompt says what Enter would do (`⏎ relay to GitHub`, a refusal's reason, or what to type); the pane's key row lists the commands. It rewrites the line's `hint` only, so usage-hint's `tail` still draws; usage-hint shows nothing on API billing. The engine keeps its permission pill (`⏵⏵ auto mode on`) in that line; the separate `SessionMode` label draws nothing while the pane is up.
+- Clicks reach a mod only in the fullscreen layout; on the main screen, Buttons don't respond. A `Link` is a terminal hyperlink, which the terminal itself may open.
+- Unverified in a live session: whether the engine clears the prompt box after a dropped prompt, and where the drop reason shows. The live preview from the prompt box works (tmux, main screen).
 - The top bar's right end shows the build (`BUILD`, `v0.1-N`, N the commit count once committed: bump it with every commit) and the layout (fullscreen or main screen, docked or not).
 - Claude Code 2.1.305 docks the pane at about 45% of the terminal's width (62 of 140 columns) whatever `columns` asks, also on `/answer`; nothing in `~/.claude.json` stores a width. Under 110 columns in fullscreen the pane is capped at half the height. Both caps reapply on every resize; asking again after a resize changed nothing (tested in tmux).
 - Resizing the main screen in JetBrains' 2025 terminal leaves overlapping frames on the left (Adam, 2026-10-20). tmux redraws cleanly, so it is most likely how that terminal re-wraps lines; untested against a plain session without the mod.

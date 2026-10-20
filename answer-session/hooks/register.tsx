@@ -237,7 +237,7 @@ const PANE = 'answer-session'
 // Prototype only: shown in the top bar, so a tester can tell which build is
 // loaded. v0.1-N, N the number of commits in the prototype repository once
 // this build is committed.
-const BUILD = 'v0.1-4'
+const BUILD = 'v0.1-5'
 const PREFIX = 'User says: '
 const SPEAKER = 9
 // Lines k or j moves the discussion by.
@@ -640,6 +640,26 @@ function intent(c: Ctx, draft: string): Intent {
   return { kind: 'relay', text }
 }
 
+/** What Enter would do, in a few words for the hint line; undefined when nothing. */
+function enterHint(c: Ctx, it: Intent): string | undefined {
+  const q = c.q
+  switch (it.kind) {
+    case 'option':
+    case 'relay':
+      return q ? `⏎ relay to ${SURFACE_NAME[q.surface]}` : undefined
+    case 'command':
+      return `⏎ ${it.command.what}`
+    case 'say':
+      return '⏎ send to Claude'
+    case 'ask':
+      return q ? `⏎ send to ${q.asker.name}` : undefined
+    case 'refused':
+      return it.why
+    case 'none':
+      return undefined
+  }
+}
+
 /** Does what Enter does with `draft`, and says what it did. */
 async function enter($: EngineInterface, draft: string): Promise<string> {
   const c = await snapshot($)
@@ -932,7 +952,6 @@ export const register: Register = on => {
         'Spinner',
         'TurnDuration',
         'InfoNotice',
-        'SessionMode',
         'AbovePrompt',
       ],
     },
@@ -945,14 +964,28 @@ export const register: Register = on => {
     },
   )
 
-  // The prompt box itself stays (no hook draws it); its hint line says the
-  // two things worth knowing there: what typing does, and how to get back.
+  // The permission mode's label means nothing while every prompt is an
+  // answer: on either layout it draws nothing while the pane is up. It sits
+  // by the prompt and redraws, so the main screen's scrollback is no reason
+  // to keep it.
+  on('ui.render', { component: 'SessionMode' }, async ($, e, next) => {
+    if (!(await read($, immersiveAtom))) return next(e)
+    const panes = await $.ui.panes()
+    if (!panes.some(pane => pane.id === PANE && pane.isShown && pane.isPlaced)) return next(e)
+    const { Box } = $.ui.resolve(e)
+    return <Box />
+  })
+
+  // The hint line under the prompt says what Enter would do with what is
+  // typed, where the eyes are while typing. It rewrites only the line's
+  // text: another plugin's `tail` (usage-hint's figures) still draws after it.
   on('ui.render', { component: 'PromptHint' }, async ($, e, next) => {
     if (!(await read($, immersiveAtom))) return next(e)
     const panes = await $.ui.panes()
     if (!panes.some(pane => pane.id === PANE && pane.isShown && pane.isPlaced)) return next(e)
-    const { Text } = $.ui.resolve(e)
-    return <Text dimColor>answer session · type here, Enter does it · only /commands go to Claude</Text>
+    const c = await snapshot($)
+    const hint = enterHint(c, intent(c, await read($, promptAtom))) ?? (c.q?.options && c.open ? 'a number, a key or your answer, then ⏎' : 'a key or your answer, then ⏎')
+    return next({ ...e, props: { ...e.props, hint } })
   })
 
   // The pane previews what Enter would do with the prompt box's text, so it
@@ -1027,16 +1060,6 @@ export const register: Register = on => {
     const it = intent(c, draft)
     const cmds = commands(c)
     const run = (doing: Promise<unknown>) => void doing.catch(() => undefined)
-    const enterDoes =
-      it.kind === 'option' || it.kind === 'relay'
-        ? 'relay'
-        : it.kind === 'command'
-          ? it.command.what
-          : it.kind === 'say'
-            ? 'send to Claude'
-            : it.kind === 'ask' && base
-              ? `send to ${base.asker.name}`
-              : undefined
 
     // ── pieces ────────────────────────────────────────────────────────────
 
@@ -1136,7 +1159,6 @@ export const register: Register = on => {
         <Box columnGap={4} flexWrap="wrap">
           {keys.map(hint)}
           {buttons}
-          {enterDoes ? hint(['Enter', enterDoes]) : null}
         </Box>
       </Box>
     )
