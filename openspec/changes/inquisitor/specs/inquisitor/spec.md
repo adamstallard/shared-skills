@@ -36,6 +36,10 @@ Terms used throughout this spec:
 
 - **The current work** is what the agent was asked to do: an OpenSpec change,
   a pull request, or the task in hand.
+- **A question within the current work** is one the agent meets while
+  doing the current work and that concerns the repository holding it. A
+  question about another repository, an organization or project, or one
+  person's way of working is not within it.
 - **The repository the question concerns** is the git repository whose code,
   docs or decisions the question is about. When the agent cannot tell, it is
   the repository holding the current work. When the agent works in no git
@@ -256,13 +260,16 @@ which lore repository that is, it SHALL search no lore repository, and its
 output SHALL say that lore was not searched.
 
 The search SHALL run the same way in an Igor worker as in any other
-session. It SHALL hide every lore entry whose scope is not in the
+session, except for the lore, which a worker searches as the paragraph on
+Igor workers below says. It SHALL hide every lore entry whose scope is not in the
 question's scope, and never show, count or mention it, even as input.
 Inside an Igor it SHALL follow the rule for a search during a run that
 igor PR #216 adds to igor's lore-firing requirement *Lore reaches the
 worker unbidden*: it shows only entries whose scope covers the run's role
 by firing's scope rule, which includes `project:` entries for every
-repository the role works. Outside an
+repository the role works, and only those question and miss files on the
+questions branch whose `repository` key names a repository the role
+works. Outside an
 Igor, an
 entry is in scope when its `scope` is `global`, or `project:<name>` where
 `<name>` is the short name of the repository the question concerns, the
@@ -274,6 +281,16 @@ The search SHALL report each source it could not search, and each lore
 clone's remote-tracking default branch's last update by a fetch in that
 clone, or that the time is unknown. Outside an Igor's run, it needs no
 Igor role, no Igor configuration and no Igor service.
+
+In an Igor worker, filter 1 SHALL search lore only by calling the
+read-only search command igor provides, `<igor's lore search command>`, which igor PR #216
+is to specify. igor runs that search on its own lore checkout and questions
+branch, with the role's scope, and returns labelled results; filter 1
+shows them as the rules above say, and reads no lore clone itself.
+Besides the command's results, the search SHALL cover only the worker's
+working tree, and SHALL report every other source as not searched,
+GitHub's issues included. When the
+command is missing or fails, the search SHALL search no lore and say so.
 
 #### Scenario: During an Igor's run, only the Igor's lore repository is searched
 
@@ -287,6 +304,20 @@ Igor role, no Igor configuration and no Igor service.
   repository the Igor injects lore from
 - **THEN** the search covers no lore repository, and its output says lore
   was not searched
+
+#### Scenario: An Igor worker searches lore through igor's command
+
+- **WHEN** an Igor worker runs filter 1 on a question
+- **THEN** the search calls `<igor's lore search command>` for lore and the questions branch,
+  shows the labelled results it returns, reads no lore clone, covers
+  otherwise only the decision documents and question log in its working
+  tree, and reports GitHub's issues as not searched
+
+#### Scenario: An Igor worker without igor's search command searches no lore
+
+- **WHEN** an Igor worker runs filter 1, and `<igor's lore search command>` is missing or fails
+- **THEN** the search covers no lore, and its output says lore was not
+  searched
 
 #### Scenario: Two lore repositories serving one owner are both searched
 
@@ -380,19 +411,28 @@ these:
   is on the default branch of its repository, on the current work's own
   branch for a question within that work under the same write-access
   condition as a decision document there, or, for `decision` only, on a
-  lore repository's questions branch with a proven writer; and, for
-  `decision`, its
-  `answered_by` has write access to what the question concerns when the
-  search reads it. An `agent` entry is shown labelled as the agent's
-  choice, which a person can overrule. On a questions branch, an entry's
-  writer is proven only when the file's `answer_link` field holds the
+  lore repository's questions branch, unchanged since it was added and
+  with a proven writer. Wherever it is, a `decision` entry also needs its
+  `answered_by` to have write access to what the logged question concerns
+  when the search reads it. An `agent` entry is shown labelled as the
+  agent's choice, which a person can overrule. On a questions branch, a
+  file is unchanged since it was added when no commit after the one that
+  added it changed it. Its writer is proven only when the file's
+  `answer_link` field holds the
   github.com URL of a comment or review on an issue or pull request of the
-  repository the question concerns or of that lore repository, the
+  repository its `repository` key names or of that lore repository, the
   comment's text holds the answer the file records, and GitHub gives that
   comment's author as `answered_by`, or
   when the commit that added the file carries a
   signature GitHub verifies for `answered_by`'s account;
 - an in-scope lore entry whose `status` is `active`.
+
+A logged question concerns what its log file names, whatever the agent's
+current question concerns. For a file in a repository, that is the
+repository its `repository` key names. For a file on a lore repository's
+questions branch, it is the organization or project that lore repository
+serves, and write access to it is write access to that lore repository;
+the file's `repository` key still names where a linked comment may be.
 
 An answer given on another surface, such as a Discord thread, a Slack
 message or a Linear comment, SHALL be input until a decision document that
@@ -504,6 +544,31 @@ agent. The search SHALL never show a rejected candidate.
   of the repository the question concerns
 - **THEN** filter 1 treats the record as an answer, and the agent cites it
 
+#### Scenario: A questions-branch decision changed after it was added is input
+
+- **WHEN** a `decision` file on a lore questions branch, whose adding
+  commit carries a signature GitHub verifies for its `answered_by`,
+  `alice`, was changed by a later commit, even one signed by `alice`
+- **THEN** the search shows it labelled as unconfirmed, and the question
+  is not treated as answered
+
+#### Scenario: A linked answer is checked against the logged question's repository
+
+- **WHEN** an agent working in `o/web` reads a `decision` file on a lore
+  questions branch whose `repository` key is `o/api`, and whose
+  `answer_link` is a comment by its `answered_by` on a pull request of
+  `o/api`
+- **THEN** the link can prove the writer, and the write access checked is
+  `answered_by`'s write access to the lore repository
+
+#### Scenario: A decision on the work's branch does not answer a question about another repository
+
+- **WHEN** the agent working on a change in `o/api` has a question about
+  `o/web`, and only a `DECISIONS.md` on the change's own branch in `o/api`
+  answers it
+- **THEN** the search shows that file as input, and the question is not
+  treated as answered
+
 #### Scenario: A questions-branch decision with a verified signature is an answer
 
 - **WHEN** a `decision` file on a lore questions branch names `alice` as
@@ -563,6 +628,13 @@ agent. The search SHALL never show a rejected candidate.
   question about `o/web`, and an `active` entry scoped `project:api` matches
   it
 - **THEN** the search shows the entry, and filter 1 treats it as an answer
+
+#### Scenario: Inside an Igor, another project's question file is hidden
+
+- **WHEN** during an Igor's run whose role works only `o/api`, a question
+  file on the questions branch whose `repository` key is `o/web` matches
+  the question
+- **THEN** the search does not show, count or mention it
 
 #### Scenario: A project entry matches the repository's short name
 
@@ -680,7 +752,8 @@ private security advisory; never in the text of its reply. A subagent of
 such a session SHALL return each surviving question, prepared, to whoever
 started it. A session with no person in it SHALL never use the picker.
 An Igor worker SHALL ask only in its handback comment, which its Igor
-posts. A session with no person in it that can post, such
+posts, and SHALL ask no question with a category: it raises the bare
+flag instead, as *Some questions are recorded by hash only* says. A session with no person in it that can post, such
 as a scheduled agent, SHALL ask the question in a post, tagged as *A
 question in a post tags one person who can decide* says. A session
 with no person in it that can neither post nor hand back SHALL ask nowhere: it stops only if the work
@@ -691,7 +764,12 @@ person's way of working SHALL NOT be asked: the session stops only if the
 work needs the answer, and reports that the question waits for the
 person. Under filter 2, a question about one person's way of working SHALL
 be deferred only into the agent's report, and never listed in a post or
-filed as an issue.
+filed as an issue. A question that filter 2 deferred and that the agent's
+report lists as not done is not asked there: the report asks the person
+nothing, and the person may answer it later or not at all. A session with
+no person in it can post when its `gh` is logged in to an account that
+can comment where the question would go; when the script cannot tell,
+the session counts as unable to post (task 0.9).
 
 #### Scenario: A headless session that can post posts its question
 
@@ -726,6 +804,21 @@ filed as an issue.
   working, and the work can go on without the answer
 - **THEN** it goes on with the work, lists the question in no post, files
   no issue for it, and reports that the question waits for the person
+
+#### Scenario: A headless session that cannot tell whether it can post asks nowhere
+
+- **WHEN** a `claude -p` job that is not an Igor worker has a question
+  that survives the filters, the work needs the answer, and the script
+  cannot tell whether its `gh` can comment where the question would go
+- **THEN** it opens no post and calls no picker, stops, and reports the
+  question in its output
+
+#### Scenario: A deferred question listed in the reply is not asked there
+
+- **WHEN** an agent in a session with a person in it defers a question
+  under filter 2
+- **THEN** its reply lists the question as not done, asks nothing about
+  it, and opens no picker for it
 
 #### Scenario: A question goes through the picker
 
@@ -1224,8 +1317,8 @@ who can read that repository or that team's lore repository, or, for a
 question about one person's way of working, by that person. Context from
 anything more private SHALL be generalised or left out; when the question
 cannot be understood without that context, the agent SHALL NOT ask it. A
-question's log file SHALL never go to a more private place than what the
-question concerns, to keep that context. A question SHALL be put only
+question's log file SHALL go where everyone who can read what the
+question concerns can read it, never to a more private place. A question SHALL be put only
 where its audience is no wider than what the question concerns: a post or
 issue no more visible, by the order *More visible* gives, and a message on
 another service, such as Linear or Discord, to an audience no wider. Where
@@ -1290,8 +1383,12 @@ a person without write access to what the question concerns SHALL be
 logged with `authority: input`, and the question SHALL stay unanswered.
 
 Each question asked SHALL be logged as one file, with what it concerns,
-when it is asked; the agent SHALL add the answer to that file when the
-answer comes:
+when it is asked. In a repository's `.inquisitor/questions/`, the agent
+SHALL add the answer to that file when the answer comes. On a lore repository's questions branch, it
+SHALL never change a file once pushed: it SHALL push the answer as a new
+log file, holding the question and the answer, in a commit of its own, and
+any proof of that file's writer is checked against that commit. The file is logged in one
+of two places:
 
 - a question about one repository: under `.inquisitor/questions/` at the
   root of that repository. When that repository holds the current work, the
@@ -1325,7 +1422,13 @@ itself. igor's lore-firing requirement
 in igor PR #216, sets every rule for a run's citations: how a worker
 reports them, and when and which the Igor pushes, whether from a worker or
 from an inquisitor run the Igor starts itself with no worker. This spec
-does not restate them. A citation file
+does not restate them. An Igor worker SHALL push nothing to a lore
+repository either: each question file, miss file and `authority: agent`
+file it would push to a questions branch SHALL go in its report, and its
+Igor pushes it under the same rules as the run's citations. The Igor pushes such a file only when it holds
+no answer, when its `authority` is `agent` and its `answered_by` is
+`agent`, or when it is a miss file, and only at a path not already on the
+branch. It pushes no other file, such as one with `authority: decision`. A citation file
 is never an answer. Every commit
 the script makes to a lore repository's questions branch SHALL have the
 message `inquisitor: log <file>`, and SHALL carry no prose or bug-hunter
@@ -1341,7 +1444,8 @@ No log file SHALL be written outside a repository, such as under
 `~/.config/`.
 
 A log file for a question that was asked SHALL hold the question as asked and the day it was
-asked, and gains, when the answer comes, who answered (its
+asked, and gains, when the answer comes, or holds from the start when it
+is a questions-branch file pushed with its answer, who answered (its
 `answered_by`), the answer's `authority`, the answer in one sentence, and
 where the question's answer is recorded, in the format *A log file and a
 miss file have one format* states. The answer reaches a file in another
@@ -1468,6 +1572,26 @@ why.
   `o/api` belongs to is logged
 - **THEN** it goes to the lore repository that names `o/api`, and the
   agent's report says so
+
+#### Scenario: A later answer on the questions branch is a new file
+
+- **WHEN** a person answers, in the session, a question already logged
+  without an answer on the lore repository's questions branch
+- **THEN** the agent pushes a new log file holding the question and the
+  answer, in a commit of its own, and the earlier file is unchanged
+
+#### Scenario: An Igor worker's organization question is pushed by its Igor
+
+- **WHEN** an Igor worker asks, in its handback comment, a question about
+  the organization, and later logs a miss about another such question
+- **THEN** the worker pushes nothing to the lore repository, and its
+  report holds the question file and the miss file for its Igor to push
+
+#### Scenario: An Igor does not push a worker's answered decision file
+
+- **WHEN** an Igor worker's report holds a question file with
+  `authority: decision`
+- **THEN** its Igor pushes no such file to the questions branch
 
 #### Scenario: A rejected push to the questions branch is retried
 
@@ -1621,7 +1745,8 @@ written.
 - **A log file's keys:** `repository`, the repository the question
   concerns, as `owner/repo`; `asked`, the day the question was asked, or,
   for a question never asked, the day the agent decided it, as
-  `yyyy-mm-dd`; and, once the answer comes, `answered_by`, a GitHub login
+  `yyyy-mm-dd`; and, once the answer comes, or from the start in a
+  questions-branch file pushed with its answer, `answered_by`, a GitHub login
   or `agent`; `authority`, `decision`, `input` or `agent`; `recorded_in`,
   where the question's answer is recorded, as a path from that
   repository's root or a URL, never a lore entry; and `answer_link`, only when there is one,
@@ -1723,15 +1848,17 @@ The filters SHALL still run on such a question, and the agent may still ask
 it, but only through the picker, or, for a `vulnerability` question, in the
 repository's private security advisory. The post hook SHALL block a post
 holding a question whose most recent record has a category. Under filter 2,
-the agent SHALL defer such a question only into its reply to the person in
-the session, or, for a `vulnerability` question, into the repository's
-private security advisory; a session with no person in it SHALL not defer
-it, and stops as below. The agent SHALL never list such a question in a
-post or file it as an issue. A session with no person in it SHALL neither ask nor post a
+the agent SHALL defer such a question only by listing it as not done in
+its report to the person in the session, or, for a `vulnerability`
+question, in the repository's private security advisory; a session with no person in it SHALL list
+it as deferred nowhere: it goes on with work that does not need the answer, and stops as
+below only if the work needs it. The agent SHALL never list such a
+question in a post or file it as an issue. A session with no person in it SHALL neither ask nor post a
 `secret` or `personal` question, and SHALL ask a `vulnerability` question
 only in the repository's private security advisory. In each case it SHALL
 stop the work that needs the answer, and report only that a question of
-that category is blocking, with no text, except during an Igor's run, as
+that category is blocking, with no text, or, when the work can go on
+without it, that such a question waits, except during an Igor's run, as
 below. When the agent cannot open or
 write in the repository's private security advisory, it SHALL record a
 `vulnerability` question and its answer nowhere: the answer is used only
@@ -1741,7 +1868,8 @@ weakness is not described in public text before its advisory is
 published*. The host's own transcripts, such as Claude Code's under
 `~/.claude/projects/`, are outside this requirement.
 
-During an Igor's run, whenever a worker gives a question a category,
+In this requirement an Igor's run means the whole execution on the item,
+not only one worker's part of it. During an Igor's run, whenever a worker gives a question a category,
 whatever the question's verdict, the worker SHALL raise in its report the
 bare flag igor PR #216 defines: that the run met a question with a
 category, with no category, question or answer. A worker that such a
@@ -1793,12 +1921,28 @@ and use it in the code of the fix.
   as outside the advisory), and reports only that a
   `vulnerability` question is blocking
 
+#### Scenario: A headless session goes on past a deferrable personal question
+
+- **WHEN** a `claude -p` job that is not an Igor worker has a question with
+  the category `personal`, and the work can go on without the answer
+- **THEN** it asks and posts nothing, goes on with the work, and reports
+  only that a `personal` question waits
+
 #### Scenario: A headless session stops on a personal question
 
 - **WHEN** a `claude -p` job that is not an Igor worker has a question with
   the category `personal`, and the work needs the answer
 - **THEN** it asks and posts nothing, stops the work that needs the answer,
   and reports only that a `personal` question is blocking
+
+#### Scenario: An Igor worker's vulnerability question is asked nowhere
+
+- **WHEN** an Igor worker, holding no credential that can write the
+  repository's private security advisory, has a question with the
+  category `vulnerability`, and the work needs the answer
+- **THEN** it asks the question nowhere, not even in its handback comment,
+  stops the work that needs the answer, and its report holds igor's bare
+  flag and no category, question or answer
 
 #### Scenario: An Igor worker stopped by a personal question reports only the flag
 
@@ -2092,7 +2236,8 @@ could have waited, had one sensible answer, or was cheap to reverse), the
 agent SHALL log a **miss**: one file, in the format *A log file and a miss
 file have one format* states, written where the question's file went and
 in the same way, under `misses/` in place of `questions/`; on a lore
-repository's questions branch it is pushed directly. The file holds the
+repository's questions branch it is pushed directly, except that an Igor
+worker reports it for its Igor to push. The file holds the
 question, the filter that should have stopped it, and what the person
 said, written at the privacy of what the question concerns, as a logged
 answer is. A miss is logged whatever words the person uses; "that

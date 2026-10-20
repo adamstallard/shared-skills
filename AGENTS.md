@@ -5,6 +5,12 @@
   specification. Build it on the same branch once the repository's owner
   approves that pull request's specification. Run the spec-check skill
   before committing anything under `openspec/`.
+- **UI is the exception: it is prototyped, not specified.** Build a
+  prototype for the owner to use. Once they approve it, build the UI
+  directly in an implementation pull request, with no specification pull
+  request for it. The rest of the same feature (data flow, integrations,
+  setup, rules) still goes through its own specification pull request
+  first.
 - **A skill's `DECISIONS.md` is its current reasoning in one place, not a
   log.** While a change is open, its reasoning lives in its proposal and
   `design.md`. When the change is archived, fold its lasting reasoning into

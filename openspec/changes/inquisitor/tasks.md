@@ -28,14 +28,22 @@ contradicts what design.md assumed.
       commit and its pull request's reviews
 - [ ] 0.9 How the script tells a session with a person in it from a
       headless run, such as an Igor worker or `claude -p`, which Igor
-      role a worker runs, and which lore repository its Igor injects from
+      role a worker runs, which lore repository its Igor injects from, and
+      whether a headless session that is not an Igor worker can post
 - [ ] 0.10 Whether the agent can open, and write in, a repository's private
       security advisory, and what access that needs
 - [ ] 0.11 GitHub's API gives a comment's or review's author, and whether a
       commit's signature is verified and for which account, as decision 78
       needs
-- [ ] 0.12 Whether an Igor's worker can run this skill, with a lore clone and
-      `inquisitor.json` in reach, as igor PR #216's task 4.1 measures
+- [x] 0.12 Whether an Igor's worker can run this skill, with a lore clone and
+      `inquisitor.json` in reach, as the spec assumed before decision
+      144 moved a worker's lore search into igor, measured before this pull request or
+      igor PR #216 lands (decision 141). It can't today, measured from
+      igor's code, nor once igor PRs #174 and #175 land, read from their
+      specs; design.md, *What task 0.12
+      measured*, gives the evidence. Gate two builds
+      everything except Igor-worker mode, which waits for igor to give the
+      worker what proposal.md's *Still open* names
 - [ ] 0.13 Whether GitHub lets a security advisory's private-fork pull
       request be merged before the advisory is published, as decision 108
       needs. Until this shows the merge waits for publication, fork commit

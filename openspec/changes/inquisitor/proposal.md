@@ -11,13 +11,13 @@ are written down:
 - 11 to 15 and 31;
 - 32 to 35, 38 to 49 and 51 to 63, on 2026-10-19;
 - 64 to 78, 80 to 85, 87 to 98, 100 to 106, 108 to 110, 112 to 124,
-  126 to 129, and 131 to 139, on 2026-10-20.
+  126 to 129, 131 to 142, and 144 to 147, on 2026-10-20.
 
 He gave those of 2026-10-19 and 2026-10-20 while reviewing this pull
 request, [#25](https://github.com/adamstallard/shared-skills/pull/25), whose
 own thread holds none of them. In the same sessions he also ruled on the
 decisions this change proposed itself: 16 to 30, 36, 37, 50, 79, 86, 99,
-107, 111, 125 and 130. Those stay listed under *Proposed by this change* below, each marked
+107, 111, 125, 130 and 143. Those stay listed under *Proposed by this change* below, each marked
 with what he did. He changed 26, replaced 36 with his decision 42,
 confirmed 79 only in part, replaced 107's item 6 with his decision 108,
 and added his decision 109 to 107's item 5. He confirmed the rest, so no
@@ -404,9 +404,12 @@ seventh consistency read:
     visibility keeps the fail-safe directions: the repository the question
     concerns counts as private, and a lore repository or a post's target
     counts as public. This amends decisions 45 and 71.
-78. **A `decision` file on a lore `questions` branch counts only when its
+78. **Amended by Adam's decision 140.** **A `decision` file on a lore
+    `questions` branch counts only when its
     writer is proven** (an `agent` file there is always input, by decision
-    100), in one of two ways:
+    100). By decision 140 it also counts only when no commit after the
+    one that added it changed it. The writer is proven in one of two
+    ways:
     1. the file links the GitHub comment or review holding the answer, and
        GitHub gives that comment's author as `answered_by`, who has write
        access to what the question concerns; or
@@ -544,9 +547,12 @@ tenth consistency read:
 Adam gave 100 to 106 on 2026-10-20, answering questions from spec-check's
 eleventh consistency read:
 
-100. **An agent's choice pushed to a lore `questions` branch is always
+100. **Amended by Adam's decision 140.** **An agent's choice pushed to a
+     lore `questions` branch is always
      labelled input.** It is still pushed, so later agents see the context,
-     but it never stops a question. This amends decision 55.
+     but it never stops a question. This amends decision 55. By decision
+     140 the file is never changed once pushed: a person's later answer to
+     the same question is a new file.
 101. **A headless session with a question about one person's way of
      working doesn't ask it.** It stops only if the work needs the answer,
      and reports that the question waits for the person.
@@ -760,11 +766,9 @@ recording decisions 112 to 125:
      applies only to a session with no person in it that can post, such as
      a scheduled agent. This amends decisions 58 and 65.
 
-     One rule beside 126 is this change's, not Adam's: a session with no
-     person in it that can neither post nor hand back has nowhere to ask,
-     so it asks nowhere. It stops only if the work needs the answer, and
-     reports the question in its output. That is the only option with
-     merit, so this change took it under filter 3, which needs no ruling.
+     Decision 143, which this change proposed and Adam confirmed, covers
+     the session left over: one with no person in it that can neither
+     post nor hand back.
 127. **Until task 0.13 shows that a private fork's pull request can't be
      merged before the advisory is published, the fork's commit messages
      follow the rule for public text:** they describe neither the weakness
@@ -859,6 +863,62 @@ recording decisions 131 to 135:
      such a command. This amends
      decision 114, which kept prose's data commands as they stood.
 
+Adam gave 140 to 142 on 2026-10-20, answering findings of spec-check's
+consistency read of the change before commit d93f48b:
+
+140. **A file on a lore `questions` branch is never changed once
+     pushed.** It counts as `decision` only when no commit after the one
+     that added it changed it, and decision 78's proof is made on that
+     adding commit: the signature it carries, or the comment the file
+     links. A later answer to a question already logged there is pushed
+     as a new file, holding the question and the answer, and proven on
+     its own adding commit. A file changed after it was added is input,
+     so a proof always covers what the file now says. This amends
+     decisions 78 and 100.
+141. **Task 0.12 is measured now, before this pull request or igor PR
+     #216 lands,** so that gate two can build everything at once. Task
+     0.12 measures whether an Igor worker can run this skill, with a lore
+     clone and `inquisitor.json` in reach. It no longer waits on #216's
+     task 4.1, which could not run until this pull request had landed.
+     Measured on 2026-10-20: a worker can't run the skill (design.md
+     gives the evidence), so gate two builds everything except
+     Igor-worker mode.
+142. **An Igor worker pushes nothing to a lore repository,** since it
+     holds no credential for one. Each question file, miss file and
+     `authority: agent` file it would push to a `questions` branch goes in
+     its report instead, and its Igor pushes it under the same rules as the
+     run's citations. igor PR #216 is to record the Igor's side. Decision 145
+     says which of these files the Igor pushes.
+
+Adam gave 144 to 146 on 2026-10-20, while task 0.12's result was being
+recorded, and 147 the same day, on how UI work goes through pull
+requests. He gave 145 and 146 for igor PR #216; they are recorded here
+where this change touches them:
+
+144. **In an Igor worker, igor runs filter 1's lore search.** The worker
+     calls a read-only search command igor provides, `<igor's lore search command>`, which igor
+     PR #216 is specifying. igor searches its own lore checkout and
+     `questions` branch with the role's scope, and returns its hits
+     labelled as answers or as input, as filter 1 labels them. So in Igor-worker mode filter 1 calls that command instead
+     of reading lore itself, and needs no lore clone, `inquisitor.json`
+     or `gh`.
+145. **An Igor pushes a question file its worker reports only when the
+     file holds no answer, has `authority: agent` and `answered_by:
+     agent`, or is a miss file,** and only at a path not already on the
+     branch. It pushes no other file, such as one with `authority:
+     decision`. This narrows decision 142.
+146. **In the rules for a question with a category, an Igor's run is the
+     whole execution on the item,** not only one worker's part of it.
+     This applies to decision 136's flag.
+147. **UI is prototyped, not specified.** Once Adam has used a UI's
+     prototype and approved it, the UI goes straight to an implementation
+     pull request: whether a UI works is easier to see than to read in a
+     spec. The other parts of the same feature, such as its data flow,
+     integrations, setup and rules, still go through the two pull request
+     steps, spec then implementation. A spec names a UI only as an
+     interface that the feature's other parts use, and does not describe
+     the UI itself. `AGENTS.md` states the rule. This amends decision 30.
+
 ### Proposed by this change
 
 Decisions 16 to 18 are #211's proposals that apply to the skill; #211's
@@ -866,7 +926,7 @@ other proposals concern the role. Decisions 19 to 30, 36, 37 and 50 were
 needed to write the requirements. Reviewing #25, Adam confirmed 16
 to 30, 37 and 50, except 26, which he changed; his decision 42 replaced 36.
 His decision 32 replaced part of 19, and his decision 35 part of 18. The
-later decisions 79, 86, 99, 107, 111, 125 and 130 came from this change too,
+later decisions 79, 86, 99, 107, 111, 125, 130 and 143 came from this change too,
 and each says what Adam did with it.
 
 16. **Confirmed by Adam (2026-10-19).** **A prepared question** states the recommended answer, what changes under
@@ -966,7 +1026,7 @@ and each says what Adam did with it.
     once the change is archived. *Rejected:* exempting those scenarios in
     spec-trace's baseline (`openspec/spec-trace-baseline.txt`), which takes
     no new lines.
-30. **Confirmed by Adam (2026-10-19).** **OpenSpec is used for new work in shared-skills.** A skill's spec holds
+30. **Confirmed by Adam (2026-10-19), and amended by his decision 147.** **OpenSpec is used for new work in shared-skills,** except UI, which by decision 147 is prototyped and then built directly. A skill's spec holds
     what must be true of it, and its `DECISIONS.md` holds why. Existing skills
     get no spec until a change touches them. This pull request adopts OpenSpec,
     spec-check's decisions-first rule and spec-trace for the repository.
@@ -1150,6 +1210,14 @@ all three:
         the agent recommended, so nobody can check later from the records
         whether the person took the recommendation.
 
+Decision 143 came from recording Adam's decision 126. It had one option
+with merit, so this change took it under filter 3, which takes the only
+option with merit without asking, and listed it; Adam confirmed it:
+
+143. **Confirmed by Adam (2026-10-20).** **A session with no person in it
+     that can neither post nor hand back asks nowhere.** It stops only if
+     the work needs the answer, and reports the question in its output.
+
 **Still open:**
 
 No decision waits for Adam now. One is his to make later: whether a
@@ -1159,9 +1227,9 @@ outside prose's, and neither hook sees it. The other items below are
 facts to measure, changes elsewhere, and one extension this change does
 not plan.
 
-Twelve of the items below are unmeasured facts, measured by tasks 0.1 to
-0.14 before anything is built; the first fact takes three tasks, 0.1 to
-0.3. The other items are changes elsewhere that this change depends on:
+Most items below are facts that tasks 0.1 to 0.14 measure before
+anything is built. Task 0.12 is already measured: its result is the item
+below on Igor-worker mode. The other items are changes elsewhere that this change depends on:
 - igor PR [#216](https://github.com/adamstallard/igor/pull/216), with igor
   issue [#215](https://github.com/adamstallard/igor/issues/215), which
   amends igor's lore-firing spec (decision 60) and holds every rule for
@@ -1186,11 +1254,15 @@ The last item is a possible extension that this change does not plan.
   person, and, in a session with a person in it, asks through the picker
   where it would have tagged them.
 - **Can the script tell whether a person is in the session, which Igor
-  role it runs in, and which lore repository that Igor injects from?** If
+  role it runs in, which lore repository the Igor it runs in injects
+  from, and whether a headless session can post?** If
   it can't tell the first, the session counts as having no person in it,
   so a picker is never opened with nobody to answer it. If it can't tell
   the role, every `role:` lore entry is hidden. If it can't tell the lore
-  repository, filter 1 searches no lore during the run (decision 133).
+  repository, filter 1 searches no lore during the run (decision 133). If
+  it can't tell whether a headless session that is not an Igor worker can
+  post, the session counts as unable to post, and asks nowhere (decision
+  143).
 - **Can the script find the approver of the pull request that added a
   decision?** A section of a `DECISIONS.md` leads through blame and a
   commit to a pull request and its reviews. If not, the first candidate in
@@ -1235,7 +1307,10 @@ The last item is a possible extension that this change does not plan.
   - its task-execution requirement *Transcripts and outcomes are captured
     to the state branch* defines the bare flag a worker raises when its
     run meets a question with a category, and what the Igor does with it
-    (decision 136 here).
+    (decision 136 here);
+  - the Igor pushes the question, miss and `authority: agent` files its
+    worker reports, under the same rules as the run's citations (decision
+    142 here).
 - **igor PR #153, signed publishing,** would have an Igor whose role
   lists prose or bug-hunter push only commits that went through those
   skills and carry their trailers. Citation commits
@@ -1249,10 +1324,17 @@ The last item is a possible extension that this change does not plan.
   If a worker can post, it still asks only in its handback comment
   (decision 126), and the credential within its reach is reported to igor
   as a breach of that requirement.
-- **Can an Igor's worker run the inquisitor skill at all,** with a lore
-  clone and `inquisitor.json` in reach? igor PR #216's task 4.1 measures it,
-  and task 0.12 here waits on it. If not, nothing in this change runs inside
-  an Igor worker, and its Igor-worker rules wait until one can.
+- **Igor-worker mode waits for igor's search command.** Task 0.12
+  measured that an Igor worker can't run this skill, today or once igor
+  PRs #174 and #175 land as specified (decision 141; design.md gives the
+  evidence). The worker has no `inquisitor.json`, no `gh` login, no
+  picker and no hooks, and can't read the lore checkout. By decision 144,
+  filter 1 in a worker calls igor's read-only search command instead,
+  which igor PR #216 is specifying; this change names it `<igor's lore search command>`
+  until #216 gives its name. The skill's script must also be one the
+  worker can run, which today means a role's `commands` lists it. Until
+  igor provides both, a worker searches no lore, as the spec's fallback
+  says, and gate two builds everything else.
 - **Can the post hook tell an Igor's handback comment from other posts?**
   Igor's own code might post it outside any tool call, where no hook sees
   it, or an agent might post it with `gh`. If the hook can't tell, it would

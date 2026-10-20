@@ -103,6 +103,44 @@ covered by the skill's instructions alone, and the README says so. If the
 input's shape differs, the question's text is redefined from what the input
 holds.
 
+### What task 0.12 measured
+
+**An Igor worker can't run this skill** (measured 2026-10-20), read
+against igor's main branch and the branches of igor PRs #174 (pinned
+skills), #175 (a worker as its own Unix user) and #216. The first bullet
+below is measured from igor's code; the second is read from #174's and
+#175's specs, since neither is built yet.
+- **Today:** a worker's Bash permission is only its role's `commands`
+  (igor's `src/execute.ts`, line 1607), so the skill's script runs only if a
+  role lists it, and Read is refused outside the working tree. HOME is
+  the home directory of the user the Igor runs as, so `inquisitor.json`
+  and a `gh` login are there only if a developer set them up, as under
+  `igor run` on their own machine, where `gh` would act as the person. Under `serve`, igor's deployment guide tells the
+  operator not to log `gh` in as the service user, since a worker allowed
+  to run `gh` could use that login (igor's `docs/deployment.md`, lines
+  112 to 115); task 0.14 measures whether a worker can.
+- **After #174 and #175:** skills load only from `/opt/igor/skills`, and
+  #174's task 5.1 installs only prose, bug-hunter and spec-trace. The
+  lore checkout is mode 0750, which the worker can't read (#175's
+  `design.md`, line 189). The worker's home has no `inquisitor.json` and no
+  `gh` login. Its settings come only from the user settings file igor
+  writes for it (`--setting-sources user`), which is empty, so no hooks
+  load. The run is headless, so there is no `AskUserQuestion`.
+- **Either way,** igor passes the worker no marker that it runs inside an
+  Igor, and no lore repository; it passes only the role's name (igor's
+  `src/execute.ts`, line 163).
+
+So the spec's Igor-worker rules assume a worker with no inquisitor
+configuration, no `gh` login or other GitHub credential, no picker and no
+hooks, which can read only its working tree, its outbox and what its Igor
+passes it. Adam then chose how the worker searches lore (proposal
+decision 144): it calls a read-only search command igor provides, which
+igor PR #216 is specifying and this change calls `<igor's lore search command>` until #216
+names it. igor runs the search on its own lore checkout and `questions`
+branch with the role's scope, so the worker needs no lore clone,
+`inquisitor.json` or `gh`, and igor, not the worker, applies the scope
+rules to lore entries and to question and miss files alike.
+
 ## Questions in posts
 
 prose's posting hook already reads the body of a `gh` post from a short
@@ -198,7 +236,18 @@ beside it.
   `answered_by`, or when the commit that added it carries a signature
   GitHub verifies for `answered_by`'s account. The agent commits from the
   person's session, so after a one-time signing setup the person never
-  signs an answer by hand. An answer worth giving agents as lore is promoted by a pull
+  signs an answer by hand. A file there is never changed once pushed: an
+  answer that comes later is a new file holding the question and the
+  answer, and a file some later commit changed is input (proposal decision
+  140). A proof made on the commit that added a file then covers
+  everything the file says, which it would not if a later commit could
+  rewrite the answer. An Igor worker holds no credential for the lore
+  repository, so it pushes nothing there: the question, miss and
+  `authority: agent` files it would push go in its report, and its Igor
+  pushes them under the rules for the run's citations, which igor PR #216
+  is to record (proposal decision 142). The Igor pushes only files that
+  hold no answer, agent choices and misses, and only at paths not already
+  on the branch (proposal decision 145). An answer worth giving agents as lore is promoted by a pull
   request to main adding a `provisional` entry; the question's file stays
   on its branch. Before pushing or promoting, the script checks
   visibility: nothing goes to a lore repository more visible than the
