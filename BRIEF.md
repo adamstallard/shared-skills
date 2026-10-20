@@ -60,6 +60,17 @@ UI is **not specified**. Iterate on the prototype until Adam approves it by usin
 - Not hideable: the prompt box, toasts, permission and AskUserQuestion dialogs, a status line, the drop rows.
 - Desktop and mobile surfaces are out of scope for now.
 
+## Decided for the non-UI spec (Adam, 2026-10-20)
+
+Not built here; these go into the answer session's OpenSpec change, which Adam will have an agent write once the open points below are settled.
+
+- **Configuration:** an answer-session section in the inquisitor's config, `~/.config/shared-skills/inquisitor.json` (PR #25 puts the GitHub login and lore repositories there): subscriptions (GitHub repositories or organisations, Linear teams, Discord channels) and, per surface, a reference to the relay identity. Tokens stay with the github-app and linear-app skills.
+- **Setup is a view in the answer session** (UI, so it is prototyped here): shown instead of the queue when that section is missing or incomplete; lists candidates (repositories from `gh`, Linear teams) to toggle, checks each relay identity can post, writes the JSON, which stays hand-editable; `/answer setup` reopens it.
+- **State:** an answer's durable record is the relay account's reply in the question's thread. Answered and waiting-for-the-asker (the relay's last message is the clarifying question) both come from the threads, updated by polling. When a question comes on screen and its channel's last poll is over about a minute old, the session fetches the thread's replies since the question and shows them all; the relay's own reply marks it answered, other replies are left to Adam. Relaying checks the thread once more. Local state lives in `${XDG_STATE_HOME:-~/.local/state}/inquisitor/answer-session/`: deferrals, discussion records and poll positions, all per machine (a deferral on one machine shows as new on another; personal working state, not records).
+- **One answer session per machine:** a lock in the state folder naming its holder (session name, background or not, start time), refreshed by it so a crashed holder's lock goes stale. A second `/answer` says which session holds it and offers to attach to it or take over. No TLA+ model: one person, one writer per machine.
+- **A rephrased question** is logged with its rephrasing and the discussion's one-line summary in the question's log file, in PR #25's single log-file format (new fields, if needed, go into that format's requirement).
+- **Still open:** polling (cadence, credentials, rate limits); Discord's relay identity (no Discord app skill exists); what counts as a question asked of Adam on each surface; what setup does when a relay check fails; the `INQUISITOR_ANSWER_SESSION` auto-open.
+
 ## Next
 
 1. Have Adam try it in his JetBrains background session (fullscreen) and ask what to change; iterate (the sim helps you check spacing before he looks).
