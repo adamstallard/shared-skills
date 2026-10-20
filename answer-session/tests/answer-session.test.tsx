@@ -392,24 +392,22 @@ test('a discussion message reaches the model with the question attached; its rep
 
   await s.reply($, 'It is a branch of question files about any project.')
   await ui.redraw()
-  expect(await ui.find({ type: 'Text', text: /1 message so far/ })).toBeDefined()
+  // With a reply in, the question can be reworded from the talk.
+  expect(await ui.find({ key: 'cmd:r' })).toBeDefined()
   expect(s.sent).toEqual(['What is the questions branch?'])
   await ui.unmount()
 })
 
-test('in a discussion, commands and digits act in the session and never reach the model', async ($, on) => {
+test('in a discussion, commands act in the session, digits send you back, and nothing reaches the model', async ($, on) => {
   const s = answerSession(on)
   await s.open($)
   await s.enter($, 't')
   expect(await s.enter($, 'x')).toContain('x is not a command here')
-  expect(await s.enter($, '3')).toBe('There is no answer 3.')
+  // The choices are on the question: a digit here says to go back.
+  expect(await s.enter($, '2')).toContain('go (b)ack to the question')
+  expect(await s.enter($, 't')).toContain('Keep typing')
   expect(await s.enter($, 'b')).toBe('Back to the question')
-  await s.enter($, 't')
-  // A digit chooses that answer and relays it, as on the question.
   expect(await s.enter($, '2')).toContain('Relayed to GitHub')
-  // On a person's question a digit chooses nothing.
-  await s.enter($, 't')
-  expect(await s.enter($, '1')).toContain('this question has none to choose')
   expect(await s.enter($, 'q')).toContain('Answer session closed')
   expect(s.sent).toEqual([])
 })
@@ -465,7 +463,7 @@ test('back to the question keeps the question and its discussion', async ($, on)
   // Reopening continues where it was.
   await s.enter($, 't')
   await ui.redraw()
-  expect(await ui.find({ type: 'Text', text: /1 message so far/ })).toBeDefined()
+  expect(await ui.find({ key: 'cmd:r' })).toBeDefined()
   await ui.unmount()
 })
 

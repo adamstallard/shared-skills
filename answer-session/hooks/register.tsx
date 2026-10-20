@@ -236,7 +236,7 @@ const RULE = 'subtle'
 // Prototype only: shown in the top bar, so a tester can tell which build is
 // loaded. v0.1-N, N the number of commits in the prototype repository once
 // this build is committed.
-const BUILD = 'v0.1-16'
+const BUILD = 'v0.1-17'
 const PREFIX = 'User says: '
 const SPEAKER = 8
 const cursorAtom = atom({ plugin: 'answer-session', key: 'cursor' } as const, 0)
@@ -638,12 +638,14 @@ function commands(c: Ctx): Command[] {
     { key: 'n', what: 'next' },
   ]
   if (!q) return [...(c.deferredAt >= 0 ? [{ key: 'r', what: 'back to those for later' }] : []), ...nav, close]
-  if (c.composing) return [{ key: 'b', what: 'back to the discussion' }, close]
+  if (c.composing) return [{ key: 'b', what: 'go (b)ack to the discussion' }, close]
+  // In a discussion the key sits inside the words, as Adam wrote them.
   if (c.talking) {
     return [
-      ...(c.hasReply && !c.busy ? [{ key: 'r', what: 'reword the question from this talk' }] : []),
-      ...(!c.busy ? [{ key: 'a', what: `ask the asker (${q.asker.name}) in the thread` }] : []),
-      { key: 'b', what: 'back to the question' },
+      { key: 't', what: 'keep (t)alking it through' },
+      ...(c.hasReply && !c.busy ? [{ key: 'r', what: '(r)eword the question' }] : []),
+      ...(!c.busy ? [{ key: 'a', what: '(a)sk the asker' }] : []),
+      { key: 'b', what: 'go (b)ack' },
       close,
     ]
   }
@@ -671,6 +673,8 @@ async function runCommand($: EngineInterface, c: Ctx, key: string): Promise<stri
   if (c.composing) return key === 'b' ? backToTalk($, q) : ''
   if (c.talking) {
     switch (key) {
+      case 't':
+        return 'Keep typing: Claude answers above.'
       case 'r':
         return rephrase($, q)
       case 'a':
@@ -712,12 +716,8 @@ function intent(c: Ctx, draft: string): Intent {
   if (!q) return { kind: 'refused', why: 'Nothing to answer here: p or n moves to a question.' }
   if (c.composing) return { kind: 'ask', text }
   if (c.talking) {
-    // A digit chooses, as on the question; one character is never a message.
-    if (/^[1-9]$/.test(text)) {
-      const option = q.options?.[Number(text) - 1]
-      if (option && c.open) return { kind: 'option', index: Number(text) - 1, text: option.label }
-      return { kind: 'refused', why: q.options ? `There is no answer ${text}.` : 'A digit chooses an answer: this question has none to choose.' }
-    }
+    // The choices are on the question, not here: go back to answer.
+    if (/^[1-9]$/.test(text)) return { kind: 'refused', why: 'To answer, go (b)ack to the question and choose there.' }
     if (text.length === 1) return { kind: 'refused', why: `${text} is not a command here: the key row lists them.` }
     return c.busy ? { kind: 'refused', why: 'Claude is still answering above: wait for it, or Esc to stop it.' } : { kind: 'say', text }
   }
@@ -740,7 +740,7 @@ function enterHint(c: Ctx, it: Intent): string | undefined {
     case 'relay':
       return q ? `⏎ relay to ${SURFACE_NAME[q.surface]}` : undefined
     case 'command':
-      return it.command.key === 'l' ? '⏎ ask me later, after the new ones' : `⏎ ${it.command.what}`
+      return it.command.key === 'l' ? '⏎ ask me later, after the new ones' : `⏎ ${it.command.what.replace(/[()]/g, '')}`
     case 'say':
       return '⏎ to Claude, with the question'
     case 'ask':
@@ -1305,12 +1305,22 @@ export const register: Register = on => {
 
     // ── the keys: what one letter and Enter does, each a click away ──────
 
-    const keyText = (key: string, what: string) => (
-      <Text>
-        <Text color={ACCENT}>{key}</Text>
-        <Text dimColor>: {what}</Text>
-      </Text>
-    )
+    // `t: talk it through`, or, where the words hold the key, `keep (t)alking`.
+    const keyText = (key: string, what: string) => {
+      const at = what.indexOf(`(${key})`)
+      return at < 0 ? (
+        <Text>
+          <Text color={ACCENT}>{key}</Text>
+          <Text dimColor>: {what}</Text>
+        </Text>
+      ) : (
+        <Text>
+          <Text dimColor>{what.slice(0, at)}</Text>
+          <Text color={ACCENT}>({key})</Text>
+          <Text dimColor>{what.slice(at + 3)}</Text>
+        </Text>
+      )
+    }
     const keyButton = (cmd: Command) => (
       <Button key={`cmd:${cmd.key}`} plain onPress={() => run(pressKey($, cmd.key))}>
         {keyText(cmd.key, cmd.what)}
@@ -1697,8 +1707,8 @@ export const register: Register = on => {
     // The question stays in view, close packed so the band stays short:
     // where, the question, its options in a line each.
     const pinned = (width: number, budget: number): Row[] => {
-      const optionRows = (q.options ?? []).map((o, i) => plain(`${i + 1}  ${o.label}${i === 0 ? '  ★' : ''}`, { dim: true }))
-      const tight = stack([provenance(1), questionRows(width), optionRows], 0)
+      // The choices stay on the question: going back is how to answer.
+      const tight = stack([provenance(1), questionRows(width)], 0)
       if (tight.length <= budget) return tight
       const lines = wrap(q.text, width)
       const room = Math.max(1, budget - 1)
@@ -1731,9 +1741,7 @@ export const register: Register = on => {
       // the key row.
       const spaced = (rows: Row[]): Row[] => [blank(), head, blank(), ...rows, blank()]
       if (composing) return spaced(compose(width))
-      // A number chooses an answer here too: what it would post.
-      if (it.kind === 'option') return spaced(postRows(it.text, width, 2))
-      const said = turns.filter(turn => turn.who === 'you').length
+      const said = turns.some(turn => turn.who === 'you')
       const last = turns[turns.length - 1]
       const state: Row[] =
         busy === 'reply'
@@ -1743,10 +1751,7 @@ export const register: Register = on => {
             : last?.who === 'error'
               ? wrap(last.text, width).map(line => plain(line, { color: LATER }))
               : said
-                ? wrap(
-                    `${said} message${said === 1 ? '' : 's'} so far. Keep typing to ask more${q.options ? `, or type 1–${q.options.length} to answer` : ''}.`,
-                    width,
-                  ).map(line => plain(line, { dim: true }))
+                ? []
                 : wrap(
                     `Type what you want to understand. Claude gets the question with it and may read the thread and the code before it answers; the reply shows above. The rest of the queue waits.`,
                     width,
