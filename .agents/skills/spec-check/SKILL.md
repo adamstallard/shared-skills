@@ -190,12 +190,14 @@ Then:
    ```yaml
    # spec-check checks the start of a proposal against the rule below: its first
    # heading after the title must start with "Decisions", and that section must
-   # list at least one decision. This repository's openspec/spec-check.yaml says
-   # `decisions-first: enforce`, so the check is on; `off`, or no spec-check.yaml,
-   # turns it off. `spec-check check` fails a proposal that breaks it, and the
-   # spec-check skill tells an agent to run that check before committing a change
-   # under openspec/. The rule repeats what is checked, because the agent drafting
-   # a proposal sees the rule but not this comment.
+   # list at least one decision. The check runs only while
+   # openspec/spec-check.yaml sets `decisions-first: enforce`, as this
+   # repository's does. With `decisions-first: off`, or with no spec-check.yaml,
+   # no proposal is checked against the rule. The spec-check skill tells an agent
+   # to run its check command, `spec_check.py check`, before committing a change
+   # under openspec/, and that command fails a proposal that breaks the rule. The
+   # rule repeats what is checked, because the agent drafting a proposal sees the
+   # rule but not this comment.
    rules:
      proposal:
        - |
@@ -205,7 +207,7 @@ Then:
          2. <another decision> *Rejected:* <an alternative you actually considered>, because <why it lost>.
          **Still open:** <the questions this change leaves for later, or 'none'>
          Then the rest of OpenSpec's proposal template (Why, What Changes, and so on).
-         List at least one decision. When the change's requirements are the only thing it decides, its one decision is to adopt them. Add *Rejected:* only where you really considered an alternative; never invent one. Always write the **Still open:** line, with 'none' when nothing is open. spec-check fails the proposal if its first heading after the title does not start with 'Decisions', or if that section lists no decision as a numbered or bulleted item. It does not check the rest, including the **Still open:** line; the reviewer does.
+         List at least one decision. When the change makes no choice beyond its requirements, such as a mechanism picked or an alternative turned down, its one decision is to adopt them, written as an item such as "1. Adopt this change's requirements." Add *Rejected:* only where you really considered an alternative; never invent one. Always write the **Still open:** line, with 'none' when nothing is open. spec-check fails the proposal if its first heading after the title does not start with 'Decisions', or if that section lists no decision as a numbered or bulleted item. It does not check the rest, including the **Still open:** line; the reviewer does.
    ```
 4. **If the user turned the rule off,** look at OpenSpec's config. Only if
    the rule is there, tell the user, and ask whether to remove it.
