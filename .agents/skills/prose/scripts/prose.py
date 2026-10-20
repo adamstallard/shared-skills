@@ -5,8 +5,9 @@ Signing takes two calls. The first, with --goals, prints the rules and a pass
 token, signs nothing and exits 4. The second, with --pass <token>, signs.
 Both calls of `check` run the repository's pre-commit hook first, if it has one.
 
-    prose.py start --goals <goals>
-        Before writing. Prints the rules and opens the gate; issues no token.
+    prose.py start --goals <goals> | --goals-file <file>
+        Before writing. Prints the rules and opens the first-write gate (see
+        hook-gate below); issues no token.
     prose.py check -F <message file, or - for stdin> --goals <goals> [--amend]
             [--goals-for <pattern> <goals>]... [--goals-file <file>]
         Before a commit, first call. Lists the prose, each file under its own
@@ -18,8 +19,10 @@ Both calls of `check` run the repository's pre-commit hook first, if it has one.
         When it lists a changed comment or doc passage and no --cold-read is
         given, it prints a cold-read brief instead, signs nothing and exits 5.
         A report with findings needs --dispositions, answering each one.
-    prose.py sign --goals <goals>
+    prose.py sign --goals <goals> | --goals-file <file>
         Before posting, first call. Prints the rules and a token; reads no stdin.
+        start's and sign's goals file holds the goals --goals would, one or
+        more per line, naming no file, since neither command lists files.
     prose.py sign --pass <token> [--cold-read <report> [--dispositions <file>]] < text > signed
         Second call. Prints stdin's text with a signed footer, or, as check
         does, a cold-read brief on stderr, exiting 5.
@@ -2462,11 +2465,9 @@ def goal_rule(pattern, goals_text, where):
 GOALS_LINE = re.compile(r"^((?:\\.|[^\\])+?):[ \t]+(\S.*)$")
 
 
-def read_goals_file(path):
-    """The GoalRules in a goals file: one `pattern: goal; goal` line each,
-    the pattern ending at the first colon followed by a blank, unless a
-    backslash escapes the colon. Blank lines and lines starting with `#` are
-    skipped."""
+def goals_file_lines(path):
+    """(line number, line) for each line of a goals file that holds goals,
+    stripped. Blank lines and lines starting with `#` are skipped."""
     try:
         # utf-8-sig: an editor's byte order mark is not part of the first line.
         text = pathlib.Path(path).read_bytes().decode("utf-8-sig")
@@ -2474,17 +2475,45 @@ def read_goals_file(path):
         raise Refused(f"could not read the goals file {path}: {error.strerror or error}")
     except UnicodeDecodeError as error:
         raise Refused(f"the goals file {path} is not valid UTF-8: {error}")
-    rules = []
     for number, line in enumerate(text.splitlines(), start=1):
         line = line.strip()
-        if not line or line.startswith("#"):
-            continue
+        if line and not line.startswith("#"):
+            yield number, line
+
+
+def read_goals_file(path):
+    """The GoalRules in a goals file: one `pattern: goal; goal` line each,
+    the pattern ending at the first colon followed by a space or tab, unless
+    a backslash escapes the colon. Blank lines and lines starting with `#` are
+    skipped."""
+    rules = []
+    for number, line in goals_file_lines(path):
         where = f"{path}:{number}"
         found = GOALS_LINE.match(line)
         if not found:
             raise Refused(f"{where}: expected 'pattern: goal; goal', got: {line}")
         rules.append(goal_rule(found.group(1), found.group(2), where))
     return rules
+
+
+def text_goals(goals, goals_file):
+    """The reader goals of the one text `start` or `sign` is for: from
+    --goals, or from a goals file holding what --goals would, one or more
+    goals per line, separated by ';'. A line names no file, since neither
+    command lists files; blank and `#` lines are skipped, as in check's goals
+    file. Refused when both are given: goals are ordered, most probable
+    first, and joining two lists would choose an order nobody gave."""
+    if not goals_file:
+        return parse_goals(goals)
+    if goals.strip():
+        raise Refused("reader goals were given twice, with --goals and --goals-file. Pass them "
+                      "once, most probable first, with one of the two")
+    found = parse_goals("\n".join(line for _, line in goals_file_lines(goals_file)))
+    if not found:
+        raise Refused(f"the goals file {goals_file} holds no reader goals. List the most probable "
+                      f"reasons a reader opens this text, most probable first, one or more per line, "
+                      f"separated by ';'")
+    return found
 
 
 def file_rules(goals_for, goals_file):
@@ -2620,7 +2649,14 @@ def main(argv=None):
     passing.add_argument("--dispositions", default="",
                          help="with --cold-read: the file answering each of the report's "
                               "findings, fixed or kept with a reason")
-    sub.add_parser("start", parents=[goal_args],
+    # check's --goals-file holds per-file goals. start's and sign's holds the
+    # goals of the one text each is for, so those goals can stay off the
+    # command line as well.
+    text_goals_file = argparse.ArgumentParser(add_help=False)
+    text_goals_file.add_argument("--goals-file", default="",
+                                 help="a file holding the goals --goals would, one or more per "
+                                      "line, separated by ';'; blank and '#' lines are skipped")
+    sub.add_parser("start", parents=[goal_args, text_goals_file],
                    help="before writing: print the goals and the rules; signs nothing")
     p_check = sub.add_parser("check", parents=[passing],
                              help="list the staged prose; first call: the rules and a pass token; "
@@ -2642,7 +2678,7 @@ def main(argv=None):
     p_verify = sub.add_parser("verify-commit", help="recompute a landed commit's Prose trailer")
     p_verify.add_argument("sha")
     p_verify.add_argument("--repo", default=".")
-    sub.add_parser("sign", parents=[passing],
+    sub.add_parser("sign", parents=[passing, text_goals_file],
                    help="first call: the rules and a pass token; with --pass: stdin with a signed footer")
     sub.add_parser("verify-post", help="exit 0 when stdin's footer matches its text")
     p_hook = sub.add_parser("hook-post", help="the posting hook: payload on stdin")
@@ -2659,7 +2695,7 @@ def main(argv=None):
             # A warm-up before writing: the goals and the rules, and the
             # session mark that opens the gate. No token: each text still
             # gets its own first call, with its own reader's goals.
-            goals = parse_goals(args.goals)
+            goals = text_goals(args.goals, args.goals_file)
             require_goals(goals, "first call")
             read_rules()
             print_goals(goals)
@@ -2737,7 +2773,7 @@ def main(argv=None):
         if args.command == "sign":
             # stdout carries only the signed text, so a first call, which
             # signs nothing, prints to stderr and leaves stdout empty.
-            goals = parse_goals(args.goals)
+            goals = text_goals(args.goals, args.goals_file)
             if not args.token:
                 require_goals(goals, "pass token")
                 read_rules()

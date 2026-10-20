@@ -819,6 +819,44 @@ from that data.
 
 ---
 
+## `start` and `sign` take their goals from a file too
+
+**Decision (Adam, 2026-10-19).** `start` and `sign` take `--goals-file <file>`
+in place of `--goals`, as `check` takes per-file goals. The file holds the
+goals `--goals` would: one or more per line, separated by `;`. Blank lines and
+lines starting with `#` are skipped, as in `check`'s goals file. `sign`'s
+signing call, the one with `--pass <token>`, accepts the same goals from a file
+or from `--goals`, or none, and refuses other goals: the token is bound to the
+goals, not to where they came from.
+
+**Why.** Goals can hold the text of the item being worked: Igor's model step
+writes them per item, from an issue that may be private. On Linux any user can
+read any process's arguments, in `/proc/<pid>/cmdline`, so goals on the command
+line are visible to every other user of the machine, including another role's
+worker. A file readable only by its owner keeps them private.
+
+**The format.** A line names no file, because neither command lists files:
+`start` reads no change, and a post is one text. The file is `--goals` written
+down. `check`'s `pattern: goal; goal` form would need a pattern that names the
+text itself, which is new syntax for no gain.
+
+**Both given is refused.** Goals are ordered, most probable first, and joining
+`--goals` with a file would choose an order nobody gave.
+
+**Not changed.** `check`'s goals for the commit message still come only from
+`--goals`; its goals file holds per-file goals.
+
+**Rejected.** Reading goals from stdin. `sign`'s signing call reads the post
+on stdin, so its goals would need another way in, and the two calls would take
+goals differently.
+
+**Where this stops applying.** Where no other user can read a process's
+arguments, as under systemd's `ProtectProc=invisible`, the file only saves
+quoting, as `check`'s does. The stdin rejection holds while `sign` reads the
+post on stdin.
+
+---
+
 ## The agent names the reader's goals before it gets proof
 
 **Decision.** `prose check` prints no `Prose:` line, and `prose sign` prints no
