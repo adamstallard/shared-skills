@@ -201,13 +201,13 @@ Then:
    rules:
      proposal:
        - |
-         Open the proposal, right after its title, like this:
+         Open the proposal, right after its title (its `#` heading), like this:
          ## Decisions
          1. <a decision you ask the reviewer to approve>
          2. <another decision> *Rejected:* <an alternative you actually considered>, because <why it lost>.
          **Still open:** <the questions this change leaves for later, or 'none'>
          Then the rest of OpenSpec's proposal template (Why, What Changes, and so on).
-         List at least one decision. When the change makes no choice beyond its requirements, such as a mechanism picked or an alternative turned down, its one decision is to adopt them, written as an item such as "1. Adopt this change's requirements." Add *Rejected:* only where you really considered an alternative; never invent one. Always write the **Still open:** line, with 'none' when nothing is open. spec-check fails the proposal if its first heading after the title does not start with 'Decisions', or if that section lists no decision as a numbered or bulleted item. It does not check the rest, including the **Still open:** line; the reviewer does.
+         List at least one decision. When the change makes no choice beyond its requirements (no mechanism picked, no alternative turned down), its one decision is to adopt those requirements, written as an item such as "1. Adopt this change's requirements." Add *Rejected:* only where you really considered an alternative; never invent one. Always write the **Still open:** line, with 'none' when nothing is open. In this repository, spec-check fails the proposal in only two cases: its first heading after the title does not start with 'Decisions' (a heading such as '## Decisions made' passes), or that section has no numbered or bulleted item, since a decision written as a plain paragraph does not count. The reviewer judges everything else in the proposal, including the **Still open:** line.
    ```
 4. **If the user turned the rule off,** look at OpenSpec's config. Only if
    the rule is there, tell the user, and ask whether to remove it.
