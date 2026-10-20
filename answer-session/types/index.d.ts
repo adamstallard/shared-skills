@@ -14,7 +14,7 @@ export type Answer = {
 
 /** One message in a question's discussion. */
 export type Turn = {
-  /** `you` is the person; `model` the session's model; `error` a call that gave no reply. */
+  /** `you` is the person; `model` the reply its turn ended with; `error` what failed: a turn with no reply, a rephrasing or a draft. */
   who: 'you' | 'model' | 'error'
   text: string
 }
@@ -48,7 +48,7 @@ declare module 'claude-code' {
       /** Answers, deferrals and questions sent back, by question id. */
       answers: Record<string, Answer>
       /**
-       * The prompt box's text while the pane is open, kept so the pane can
+       * The prompt box's text while the session is open, kept so the band can
        * preview what Enter would do with it.
        */
       prompt: string
@@ -56,28 +56,38 @@ declare module 'claude-code' {
       flash: string | null
       /** The question whose discussion is open, or null on the question view. */
       talking: string | null
-      /** Each question's discussion, kept so reopening it continues it. */
+      /**
+       * Each question's discussion: the messages Adam sent the session's model
+       * and the replies its turns ended with, read by a rephrasing and a draft.
+       */
       talks: Record<string, Turn[]>
-      /** A model call under way, by question id: a reply, a rephrasing, a draft. */
+      /**
+       * Work under way, by question id: `reply`, a discussion message's turn
+       * in the session; `rephrase` and `draft`, a model call of the band's own.
+       */
       thinking: Record<string, 'reply' | 'rephrase' | 'draft'>
       /** Questions rephrased after a discussion, by id. */
       rephrased: Record<string, Revision>
       /** True for a changed question while its original is shown instead. */
       original: Record<string, boolean>
-      /** How many lines the discussion is scrolled up from its newest. */
-      talkScroll: number
+      /**
+       * Discussion messages that reached the model and whose turn has not
+       * started, oldest first: the question each is about, and its text.
+       */
+      awaiting: { id: string; text: string }[]
+      /** The question each running discussion turn answers, by turn id. */
+      replyTurns: Record<string, string>
       /** Questions whose clarifying question to the asker is being written in the prompt box. */
       asking: Record<string, true>
       /** Askers' replies to clarifying questions, by question id. */
       returned: Record<string, Returned>
       /**
-       * True from an open of the pane until its close: the conversation and
-       * the prompt's chrome draw nothing while it is up, so the pane is all
-       * there is to see. Checked against the open panes before hiding.
+       * True while the answer session is open: the band above the prompt
+       * shows it, and Enter in the prompt box acts in it (only a discussion
+       * message reaches the model, its question attached). /answer, q and the
+       * band's close button flip it.
        */
-      immersive: boolean
-      /** True while a launch-time open waits for room and the status line says so. */
-      placing: boolean
+      isOpen: boolean
     }
   }
 }

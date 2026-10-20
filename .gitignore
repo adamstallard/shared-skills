@@ -5,3 +5,4 @@ answer-session/hooks/*.js
 answer-session/tests/*.js
 # Laid by the engine when it loads the mod.
 answer-session/.claude-plugin/types/
+.worktrees/

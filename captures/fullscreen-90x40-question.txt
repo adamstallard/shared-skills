@@ -1,0 +1,40 @@
+
+ ▐▛███▛█   Claude Code v2.1.305
+▝▜██████▀  Opus 5.5 · Claude Max
+ ▝▝   ▝▝   ~/shared-skills
+
+⚠ Ask rule Advisor matches no tool · check for typos
+
+❯ /answer
+  ⎿  answer-session: Answer session open: type in the prompt box, Enter answers.
+
+
+
+
+
+
+
+
+
+
+
+Answer session  ◉ ○ ○ ○ ○ ○ ○ ○  summary  1 of 8                  v0.1-7 · fullscreen [-]
+─────────────────────────────────────────────────────────────────────────────────────
+GitHub  adamstallard/igor #216  12m ago
+claude asks, an agent via the inquisitor
+During a run, should the inquisitor's first filter hide questions-branch files about
+projects the role doesn't work on, as it hides lore entries outside the role's scope?
+The scope filter covers lore entries only. Question files on the lore repository's q…
+Related #216 decision 3: scope is a hard filter
+  1: Yes, filter them by the role's scope  ★ recommended
+     → A worker never sees another project's questions.
+  2: No, show them as input
+     → Workers may read other projects' questions.
+POSTS ON GITHUB AS adam-relay[bot]
+│ User says: …
+1–2: choose   t: talk it through   d: defer   p: previous   n: next          q: close
+                                                                      ◐ medium · /effort
+─────────────────────────────────────────────────────────────── answer-session-prototype ─
+❯ 
+──────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on · a number, a key or your answer, then ⏎

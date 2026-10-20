@@ -1,5 +1,5 @@
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, ModelCompleteResult, Register } from 'claude-code'
+import type { EngineInterface, ModelCompleteResult, Register, RenderElement } from 'claude-code'
 
 import type { Answer, Returned, Revision, Turn } from '../types'
 
@@ -233,15 +233,12 @@ const DONE = 'success'
 const LATER = 'warning'
 const RULE = 'subtle'
 
-const PANE = 'answer-session'
 // Prototype only: shown in the top bar, so a tester can tell which build is
 // loaded. v0.1-N, N the number of commits in the prototype repository once
 // this build is committed.
-const BUILD = 'v0.1-6'
+const BUILD = 'v0.1-7'
 const PREFIX = 'User says: '
-const SPEAKER = 9
-// Lines k or j moves the discussion by.
-const TALK_SCROLL_STEP = 8
+const SPEAKER = 8
 const cursorAtom = atom({ plugin: 'answer-session', key: 'cursor' } as const, 0)
 const answersAtom = atom({ plugin: 'answer-session', key: 'answers' } as const, {} as Record<string, Answer>)
 const promptAtom = atom({ plugin: 'answer-session', key: 'prompt' } as const, '')
@@ -254,11 +251,86 @@ const thinkingAtom = atom(
 )
 const rephrasedAtom = atom({ plugin: 'answer-session', key: 'rephrased' } as const, {} as Record<string, Revision>)
 const originalAtom = atom({ plugin: 'answer-session', key: 'original' } as const, {} as Record<string, boolean>)
-const talkScrollAtom = atom({ plugin: 'answer-session', key: 'talkScroll' } as const, 0)
+const awaitingAtom = atom({ plugin: 'answer-session', key: 'awaiting' } as const, [] as { id: string; text: string }[])
+const replyTurnsAtom = atom({ plugin: 'answer-session', key: 'replyTurns' } as const, {} as Record<string, string>)
 const askingAtom = atom({ plugin: 'answer-session', key: 'asking' } as const, {} as Record<string, true>)
 const returnedAtom = atom({ plugin: 'answer-session', key: 'returned' } as const, {} as Record<string, Returned>)
-const immersiveAtom = atom({ plugin: 'answer-session', key: 'immersive' } as const, false)
-const placingAtom = atom({ plugin: 'answer-session', key: 'placing' } as const, false)
+const openAtom = atom({ plugin: 'answer-session', key: 'isOpen' } as const, false)
+
+/** `text` cut to `width` cells, an ellipsis marking the cut. */
+function cut(text: string, width: number): string {
+  if (text.length <= width) return text
+  return width <= 1 ? '…' : `${text.slice(0, width - 1).trimEnd()}…`
+}
+
+/**
+ * What a view of the band may give up to fit its height, one step at a time
+ * in `TRIMS`' order: space first, then labels and repetition, then detail.
+ * The question itself, the options' labels and the post's first line stay.
+ */
+type Trim = {
+  /** Blank rows between a column's groups. */
+  gap: number
+  /** The "Choose an answer" label. */
+  label: boolean
+  /** A blank row between options. */
+  optionGap: boolean
+  /** What the real skill logs beside an answer to a changed question. */
+  logNote: boolean
+  /** Each option's effect: all of it, one line, or none. */
+  effects: 'full' | 'line' | 'none'
+  /** The asker's context: all of it, one line, or none. */
+  context: 'full' | 'line' | 'none'
+  /** The "Or type your own answer" row (the hint line under the prompt says it too). */
+  ownWords: boolean
+  /** The related decision, and the cite button under "possibly answered". */
+  related: boolean
+  /** Where and who: two rows, one, or none (the question alone, on the smallest band). */
+  provenance: 0 | 1 | 2
+  /** The asker's reply to a clarifying question: with what was asked, or the reply alone. */
+  reply: 'full' | 'short'
+  /** Most lines of the post's preview. */
+  bubble: number
+  /** The preview under its label, or the post alone in one row. */
+  preview: 'full' | 'line'
+}
+const TRIMS: Trim[] = (() => {
+  let t: Trim = {
+    gap: 2,
+    label: true,
+    optionGap: true,
+    logNote: true,
+    effects: 'full',
+    context: 'full',
+    ownWords: true,
+    related: true,
+    provenance: 2,
+    reply: 'full',
+    bubble: 6,
+    preview: 'full',
+  }
+  const steps: Partial<Trim>[] = [
+    {},
+    { gap: 1 },
+    { label: false },
+    { optionGap: false },
+    { gap: 0 },
+    { logNote: false },
+    { effects: 'line' },
+    { context: 'line' },
+    { ownWords: false },
+    { related: false },
+    { provenance: 1 },
+    { reply: 'short' },
+    { bubble: 2 },
+    { effects: 'none' },
+    { context: 'none' },
+    { bubble: 1 },
+    { preview: 'line' },
+    { provenance: 0 },
+  ]
+  return steps.map(step => (t = { ...t, ...step }))
+})()
 
 /** Breaks `text` into lines of at most `width` cells, at spaces where it can. */
 function wrap(text: string, width: number): string[] {
@@ -283,21 +355,6 @@ function wrap(text: string, width: number): string[] {
   return lines
 }
 
-/** Wraps a message paragraph by paragraph; a "- " item hangs under its dash. */
-function wrapMessage(text: string, width: number): string[] {
-  const out: string[] = []
-  let wasItem = false
-  for (const para of text.split(/\n+/).map(p => p.trim()).filter(Boolean)) {
-    const item = /^[-*•] /.test(para)
-    // A blank line between paragraphs; a list's items stay together.
-    if (out.length && !(item && wasItem)) out.push('')
-    wasItem = item
-    const lines = wrap(item ? para.slice(2) : para, item ? width - 2 : width)
-    out.push(...lines.map((line, i) => (item ? (i === 0 ? '- ' : '  ') + line : line)))
-  }
-  return out.length ? out : ['']
-}
-
 /** A question as it now stands: rephrased after a discussion, revised by its asker, or as asked. */
 function view(base: Question, rephrased?: Revision, returned?: Returned, showOriginal?: boolean): Question {
   const revision = rephrased ?? returned?.revised
@@ -319,7 +376,7 @@ function nextFresh(from: number, answers: Record<string, Answer>): number {
   return QUESTIONS.length
 }
 
-/** Everything the model is told about the question it helps with. */
+/** Everything the model is told about the question it helps with: the system prompt of a rephrasing or a draft. */
 function systemPrompt(q: Question, returned?: Returned): string {
   const who =
     q.asker.kind === 'agent'
@@ -350,9 +407,24 @@ function systemPrompt(q: Question, returned?: Returned): string {
     '- When what Adam wants is unclear, ask him one short question back.',
     '- Do not choose for him. If he asks which you would pick, say which way the trade-offs lean and why, and leave the choice to him.',
     "- Say when you do not know something (the code, the asker's intent) rather than guess.",
-    'Write plain text for a terminal: short paragraphs, under about 120 words, no headings, no bold or italics. A simple "- " list is fine.',
+    'Write plain text for a terminal: short paragraphs, under about 120 words unless he asks for more, no headings, no bold or italics. A simple "- " list is fine.',
   )
   return lines.join('\n')
+}
+
+/**
+ * What rides beside each discussion message, unseen by Adam: the question and
+ * how to help. The message goes to the session's own model, which may read
+ * the thread, the code and the specs with its tools before it answers.
+ */
+function discussionContext(q: Question, returned?: Returned): string {
+  return [
+    `[Answer session] Adam's message is about a question relayed to him (${q.link}). He is talking it through before he answers it.`,
+    '',
+    systemPrompt(q, returned),
+    '- You may read the thread, the code and the specs with your tools to check a fact; say what you checked.',
+    '- Do not post, comment, push or change anything: Adam answers through his answer session, not through you.',
+  ].join('\n')
 }
 
 /** The discussion so far, as the one user message a completion takes. */
@@ -495,8 +567,9 @@ async function takeRestart($: EngineInterface, cwd: string): Promise<ResumeRecor
 // The keyboard stays in the prompt box for the whole session. What the box
 // holds is read against the screen on show: a digit chooses an option, one
 // letter names a command, anything longer is an answer (or, in a
-// discussion, a message to the model). The pane previews it as it is typed;
-// Enter does it, and the prompt never reaches the model.
+// discussion, a message to the model). The band previews it as it is typed;
+// Enter does it. Only a discussion message reaches the model; everything
+// else Enter does is dropped once done.
 
 /** The answer session's state, as the screen and Enter both read it. */
 type Ctx = {
@@ -547,19 +620,19 @@ type Command = { key: string; what: string }
 /** The commands the screen offers now, in the order the key row shows them. */
 function commands(c: Ctx): Command[] {
   const q = c.q
+  const close: Command = { key: 'q', what: 'close' }
   const nav: Command[] = [
     { key: 'p', what: 'previous' },
     { key: 'n', what: 'next' },
   ]
-  if (!q) return [...(c.deferredAt >= 0 ? [{ key: 'r', what: 'review the deferred' }] : []), ...nav]
-  if (c.composing) return [{ key: 'b', what: 'back to the discussion' }]
+  if (!q) return [...(c.deferredAt >= 0 ? [{ key: 'r', what: 'review the deferred' }] : []), ...nav, close]
+  if (c.composing) return [{ key: 'b', what: 'back to the discussion' }, close]
   if (c.talking) {
     return [
       ...(c.hasReply && !c.busy ? [{ key: 'r', what: 'rephrase and ask again' }] : []),
       ...(!c.busy ? [{ key: 'a', what: `ask ${q.asker.name}` }] : []),
-      { key: 'k', what: 'earlier' },
-      { key: 'j', what: 'later' },
       { key: 'b', what: 'back without changes' },
+      close,
     ]
   }
   return [
@@ -572,12 +645,14 @@ function commands(c: Ctx): Command[] {
       : []),
     ...(c.changed ? [{ key: 'o', what: 'original' }] : []),
     ...nav,
+    close,
   ]
 }
 
 /** Does command `key` on the screen `c` describes, and says what it did. */
 async function runCommand($: EngineInterface, c: Ctx, key: string): Promise<string> {
   const q = c.q
+  if (key === 'q') return closeSession($)
   if (key === 'p') return stepBy($, c.at, -1)
   if (key === 'n') return stepBy($, c.at, 1)
   if (!q) return key === 'r' ? go($, c.deferredAt, 'Back to a deferred question') : ''
@@ -588,10 +663,6 @@ async function runCommand($: EngineInterface, c: Ctx, key: string): Promise<stri
         return rephrase($, q)
       case 'a':
         return draftAsk($, q)
-      case 'k':
-        return scrollTalk($, 1)
-      case 'j':
-        return scrollTalk($, -1)
       case 'b':
         return backToQuestion($, q)
     }
@@ -628,7 +699,16 @@ function intent(c: Ctx, draft: string): Intent {
   const q = c.q
   if (!q) return { kind: 'refused', why: 'Nothing to answer here: p or n moves to a question.' }
   if (c.composing) return { kind: 'ask', text }
-  if (c.talking) return c.busy ? { kind: 'refused', why: 'Claude is still replying.' } : { kind: 'say', text }
+  if (c.talking) {
+    // A digit chooses, as on the question; one character is never a message.
+    if (/^[1-9]$/.test(text)) {
+      const option = q.options?.[Number(text) - 1]
+      if (option && c.open) return { kind: 'option', index: Number(text) - 1, text: option.label }
+      return { kind: 'refused', why: q.options ? `There is no answer ${text}.` : 'A digit chooses an answer: this question has none to choose.' }
+    }
+    if (text.length === 1) return { kind: 'refused', why: `${text} is not a command here: the key row lists them.` }
+    return c.busy ? { kind: 'refused', why: 'Claude is still answering above: wait for it, or Esc to stop it.' } : { kind: 'say', text }
+  }
   if (!c.open) {
     return { kind: 'refused', why: c.answer?.kind === 'wait' ? `This question waits for ${q.asker.name}'s reply.` : 'This question is already relayed.' }
   }
@@ -650,7 +730,7 @@ function enterHint(c: Ctx, it: Intent): string | undefined {
     case 'command':
       return `⏎ ${it.command.what}`
     case 'say':
-      return '⏎ send to Claude'
+      return '⏎ to Claude, with the question'
     case 'ask':
       return q ? `⏎ send to ${q.asker.name}` : undefined
     case 'refused':
@@ -660,10 +740,11 @@ function enterHint(c: Ctx, it: Intent): string | undefined {
   }
 }
 
-/** Does what Enter does with `draft`, and says what it did. */
-async function enter($: EngineInterface, draft: string): Promise<string> {
-  const c = await snapshot($)
-  const it = intent(c, draft)
+/**
+ * Does what Enter does on the screen `c` describes, and says what it did: all
+ * but a discussion message, which the submit hook sends on to the model.
+ */
+async function enter($: EngineInterface, c: Ctx, it: Exclude<Intent, { kind: 'say' }>): Promise<string> {
   const q = c.q
   switch (it.kind) {
     case 'none':
@@ -675,8 +756,6 @@ async function enter($: EngineInterface, draft: string): Promise<string> {
     case 'option':
     case 'relay':
       return q ? relay($, q, it.text) : ''
-    case 'say':
-      return q ? say($, q, it.text) : ''
     case 'ask':
       return q ? sendAsk($, q, it.text) : ''
   }
@@ -690,6 +769,9 @@ async function enter($: EngineInterface, draft: string): Promise<string> {
 // arrives, or PUT_BACK_MS passes without one.
 let afterDrop: { dropped: string; text: string } | undefined
 const PUT_BACK_MS = 500
+// True while a survey holds the band (the band's drawing says so): Enter then
+// answers nothing, since no question is on screen.
+let surveyUp = false
 
 /** Puts `text` in the prompt box, after any put-back still due. */
 async function putInBox($: EngineInterface, text: string): Promise<void> {
@@ -723,10 +805,27 @@ async function go($: EngineInterface, i: number, note: string): Promise<string> 
   return note
 }
 
+/** Moves to question `i`, or the summary past the last, and says where. */
+function goTo($: EngineInterface, i: number): Promise<string> {
+  const N = QUESTIONS.length
+  return go($, i, i === N ? 'The summary' : `Question ${i + 1} of ${N}`)
+}
+
 function stepBy($: EngineInterface, at: number, by: number): Promise<string> {
   const N = QUESTIONS.length
-  const i = (at + by + N + 1) % (N + 1)
-  return go($, i, i === N ? 'The summary' : `Question ${i + 1} of ${N}`)
+  return goTo($, (at + by + N + 1) % (N + 1))
+}
+
+/** A command pressed in the band: done on the screen as it is now, as typing its key and Enter would. */
+async function pressKey($: EngineInterface, key: string): Promise<string> {
+  return runCommand($, await snapshot($), key)
+}
+
+/** Closes the band; the queue and everything done stay for the next /answer. */
+async function closeSession($: EngineInterface): Promise<string> {
+  await update($, openAtom, () => false)
+  await update($, flashAtom, () => null)
+  return 'Answer session closed. /answer opens it again where you left off.'
 }
 
 /** Records what was done with a question and moves to the next new one. */
@@ -765,7 +864,6 @@ const addTurn = ($: EngineInterface, id: string, turn: Turn) =>
   update($, talksAtom, t => ({ ...t, [id]: [...(t[id] ?? []), turn] }))
 
 async function openTalk($: EngineInterface, one: Question): Promise<string> {
-  await update($, talkScrollAtom, () => 0)
   await update($, flashAtom, () => null)
   await update($, talkingAtom, () => one.id)
   return 'Talking it through'
@@ -782,12 +880,6 @@ async function backToTalk($: EngineInterface, one: Question): Promise<string> {
   return 'Back to the discussion'
 }
 
-async function scrollTalk($: EngineInterface, by: number): Promise<string> {
-  // The screen clamps the scroll to the discussion's length.
-  await update($, talkScrollAtom, s => Math.max(0, s + by * TALK_SCROLL_STEP))
-  return by > 0 ? 'Earlier in the discussion' : 'Later in the discussion'
-}
-
 async function toggleOriginal($: EngineInterface, one: Question): Promise<string> {
   let isOriginal = false
   await update($, originalAtom, o => ({ ...o, [one.id]: (isOriginal = !o[one.id]) }))
@@ -800,22 +892,14 @@ async function cite($: EngineInterface, one: Question): Promise<string> {
   return 'The citing reply is in the prompt box: Enter relays it'
 }
 
-/** Adam's message, then the model's reply, both kept with the question. */
-async function say($: EngineInterface, one: Question, text: string): Promise<string> {
-  let turns: Turn[] = []
-  await update($, talksAtom, t => {
-    turns = [...(t[one.id] ?? []), { who: 'you', text }]
-    return { ...t, [one.id]: turns }
-  })
-  await update($, talkScrollAtom, () => 0)
-  void (async () => {
-    await think($, one.id, 'reply')
-    const returned = (await read($, returnedAtom))[one.id]
-    const r = await complete($, systemPrompt(one, returned), `${transcript(turns)}\n\nReply to Adam's last message.`, 1024)
-    await addTurn($, one.id, r.ok ? { who: 'model', text: r.text } : { who: 'error', text: `No reply: ${r.error}. Send again to retry.` })
-    await think($, one.id, undefined)
-  })()
-  return 'Sent to Claude'
+/**
+ * Adam's message, kept with the question, as it goes to the session's model.
+ * Its reply is kept when the turn that answers it ends (the turn hooks).
+ */
+async function recordSay($: EngineInterface, one: Question, text: string): Promise<void> {
+  await addTurn($, one.id, { who: 'you', text })
+  await think($, one.id, 'reply')
+  await update($, awaitingAtom, w => [...w, { id: one.id, text: text.trim() }])
 }
 
 /** The question rewritten in light of the discussion, then asked again. */
@@ -877,6 +961,20 @@ async function draftAsk($: EngineInterface, one: Question): Promise<string> {
   return `Drafting a question for ${one.asker.name}`
 }
 
+/** The Relay button: relays what the prompt box holds, then empties the box, as Enter would. */
+async function relayPressed($: EngineInterface, one: Question, text: string): Promise<string> {
+  const note = await relay($, one, text)
+  await putInBox($, '')
+  return note
+}
+
+/** The Send button under a question for the asker: sends it, then empties the box, as Enter would. */
+async function askPressed($: EngineInterface, one: Question, text: string): Promise<string> {
+  const note = await sendAsk($, one, text)
+  await putInBox($, '')
+  return note
+}
+
 async function sendAsk($: EngineInterface, one: Question, text: string): Promise<string> {
   await update($, askingAtom, a => without(a, one.id))
   const note = await settle($, one, { kind: 'wait', text }, `Asked ${one.asker.name} on ${SURFACE_NAME[one.surface]}. Their question waits for the reply; nothing else does.`)
@@ -887,17 +985,16 @@ async function sendAsk($: EngineInterface, one: Question, text: string): Promise
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
-    // Immediate: /answer opens the pane at once, even mid-turn. Its hook only
-    // opens or focuses the pane, which needs nothing of the turn.
+    // Immediate: /answer opens or closes the band at once, even mid-turn. Its
+    // hook only flips a value, which needs nothing of the turn.
     await $.command.register({
       name: 'answer',
-      description: 'Open the answer session (prototype, example questions)',
+      description: 'Open or close the answer session (prototype, example questions)',
       immediate: true,
     })
     const started = await next(e)
     // Back from `/tui fullscreen`: the answer session reopens as it was. The
-    // switch is the person's own act (the f in the notice, or /tui typed), so
-    // the pane counts as asked for.
+    // switch is the person's own act, so the session counts as asked for.
     const restored = e.isInteractive ? await takeRestart($, e.cwd).catch(() => undefined) : undefined
     if (restored) {
       await update($, flashAtom, () => 'Back after the restart, where you left off.')
@@ -907,103 +1004,37 @@ export const register: Register = on => {
       }
     }
     // A session launched as an answer session opens it by itself:
-    //   CLAUDE_CODE_NO_FLICKER=1 INQUISITOR_ANSWER_SESSION=1 claude
+    //   INQUISITOR_ANSWER_SESSION=1 claude
     const flag = await $.env.get('INQUISITOR_ANSWER_SESSION')
     const isAnswerSession = !!flag && flag !== '0' && flag !== 'false'
-    if (e.isInteractive && (isAnswerSession || restored)) {
-      // The answer session is the whole screen: the pane asks for every row
-      // and column, and the conversation beside it draws nothing.
-      void update($, immersiveAtom, () => true)
-      void $.ui.open({ id: PANE, title: 'Answer session', rows: 500, columns: 500 }).then(opened => {
-        // Unasked, the engine seats a pane only on a wide terminal (144
-        // columns, or 110 once the person has opened this id). Otherwise it
-        // waits, seating itself if the terminal widens, and /answer seats it.
-        if (opened.isPlaced) return
-        $.ui.status(`Answer session waiting for room (${opened.reason}). Run /answer to open it.`)
-        void update($, placingAtom, () => true)
-      })
-    }
+    if (e.isInteractive && (isAnswerSession || restored)) await update($, openAtom, () => true)
     return started
   })
 
+  // /answer opens the band, or closes it when it is open. The band needs no
+  // room of its own: it is the strip above the prompt, as wide as the
+  // terminal, in both layouts.
   on('command.run', { command: 'answer' }, async $ => {
-    // An answer session is the whole session: ask for every row and column the
-    // screen can give (inline above the prompt, or docked floor to ceiling in
-    // fullscreen). The engine caps both at what the layout spares.
-    // Under the fullscreen layout the pane docks beside the transcript, floor
-    // to ceiling, as wide as the engine allows (the terminal less the 24
-    // columns it keeps for the transcript); on the main screen it sits inline
-    // above the prompt, as tall as the layout spares.
-    await update($, immersiveAtom, () => true)
-    // Opened without the keyboard: it stays in the prompt box, where every
-    // answer and command is typed.
-    await $.ui.open({ id: PANE, title: 'Answer session', rows: 500, columns: 500 })
-    if (await read($, placingAtom)) {
-      $.ui.status(undefined)
-      await update($, placingAtom, () => false)
-    }
-    return { text: 'Answer session opened.' }
+    let isOpen = false
+    await update($, openAtom, v => (isOpen = !v))
+    if (!isOpen) return { text: 'Answer session closed. /answer opens it again where you left off.' }
+    // The preview reads a copy of the prompt box: start it from what is there.
+    const box = await $.prompt.read().catch(() => ({ text: '' }))
+    await update($, promptAtom, () => box.text)
+    return { text: 'Answer session open: type in the prompt box, Enter answers.' }
   })
 
-  // Closing the pane, by the engine's close mark, ctrl+x x or an unload, brings
-  // the conversation back.
-  on('ui.close', { id: PANE }, async ($, e, next) => {
-    const closed = await next(e)
-    await update($, immersiveAtom, () => false)
-    // Closed by hand, it must not come back after a restart. An unload (the
-    // restart itself) leaves the record for the next start.
-    if (e.origin.kind !== 'unload') await $.store.delete(RESUME_KEY)
-    return closed
-  })
-
-  // `/tui fullscreen`, run from the notice or typed by the person, restarts
-  // the session: while the pane is open, keep it for the restarted process.
+  // `/tui fullscreen` restarts the session: while the band is open, keep the
+  // answer session for the restarted process.
   on('command.run', { command: 'tui' }, async ($, e, next) => {
-    if (/\bfullscreen\b/.test(e.args) && (await $.ui.panes()).some(pane => pane.id === PANE)) await saveForRestart($)
+    if (/\bfullscreen\b/.test(e.args) && (await read($, openAtom))) await saveForRestart($)
     return next(e)
   })
 
-  // While the pane is up, everything else the engine draws in the transcript
-  // and around the prompt draws nothing: the pane is all there is to see. The
-  // flag says when to look; the open panes say whether it really is up, so a
-  // closed pane never leaves the conversation hidden. Only under the
-  // fullscreen layout, which draws the transcript again when it changes: the
-  // main screen prints finished rows into the terminal's scrollback once, so a
-  // row hidden there would stay blank after the pane closed.
-  on(
-    'ui.render',
-    {
-      component: [
-        'UserMessage',
-        'AssistantMessage',
-        'ToolUse',
-        'ToolResult',
-        'ToolGroup',
-        'ToolProgress',
-        'CommandOutput',
-        'Spinner',
-        'TurnDuration',
-        'InfoNotice',
-        'AbovePrompt',
-      ],
-    },
-    async ($, e, next) => {
-      if (e.viewport?.isFullscreen !== true || !(await read($, immersiveAtom))) return next(e)
-      const panes = await $.ui.panes()
-      if (!panes.some(pane => pane.id === PANE && pane.isShown && pane.isPlaced)) return next(e)
-      const { Box } = $.ui.resolve(e)
-      return <Box />
-    },
-  )
-
-  // The permission mode's label means nothing while every prompt is an
-  // answer: on either layout it draws nothing while the pane is up. It sits
-  // by the prompt and redraws, so the main screen's scrollback is no reason
-  // to keep it.
+  // The permission mode's labels mean nothing while every prompt is an
+  // answer: they draw nothing while the band is open.
   on('ui.render', { component: 'SessionMode' }, async ($, e, next) => {
-    if (!(await read($, immersiveAtom))) return next(e)
-    const panes = await $.ui.panes()
-    if (!panes.some(pane => pane.id === PANE && pane.isShown && pane.isPlaced)) return next(e)
+    if (!(await read($, openAtom))) return next(e)
     const { Box } = $.ui.resolve(e)
     return <Box />
   })
@@ -1012,50 +1043,108 @@ export const register: Register = on => {
   // typed, where the eyes are while typing. It rewrites only the line's
   // text: another plugin's `tail` (usage-hint's figures) still draws after it.
   on('ui.render', { component: 'PromptHint' }, async ($, e, next) => {
-    if (!(await read($, immersiveAtom))) return next(e)
-    const panes = await $.ui.panes()
-    if (!panes.some(pane => pane.id === PANE && pane.isShown && pane.isPlaced)) return next(e)
+    if (surveyUp || !(await read($, openAtom))) return next(e)
     const c = await snapshot($)
-    const hint = enterHint(c, intent(c, await read($, promptAtom))) ?? (c.q?.options && c.open ? 'a number, a key or your answer, then ⏎' : 'a key or your answer, then ⏎')
+    const idle = c.composing
+      ? `your question for ${c.q?.asker.name ?? 'the asker'}, then ⏎`
+      : c.talking
+        ? 'a message to Claude or a key, then ⏎'
+        : c.q?.options && c.open
+          ? 'a number, a key or your answer, then ⏎'
+          : 'a key or your answer, then ⏎'
+    const hint = enterHint(c, intent(c, await read($, promptAtom))) ?? idle
     return next({ ...e, props: { ...e.props, hint } })
   })
 
-  // The pane previews what Enter would do with the prompt box's text, so it
+  // The band previews what Enter would do with the prompt box's text, so it
   // keeps a copy: every edit, and every change no edit carried (a fill, a
   // recalled history entry, a clear).
   on('prompt.edit', async ($, e, next) => {
     const box = await next(e)
-    if (await read($, immersiveAtom)) await update($, promptAtom, () => box.text)
+    if (await read($, openAtom)) await update($, promptAtom, () => box.text)
     return box
   })
   on('prompt.change', async ($, e, next) => {
     const changed = await next(e)
     if (afterDrop && e.origin.kind === 'engine' && e.text === afterDrop.dropped) await settleBox($, true)
-    else if (await read($, immersiveAtom)) await update($, promptAtom, () => e.text)
+    else if (await read($, openAtom)) await update($, promptAtom, () => e.text)
     return changed
   })
 
-  // While the pane is open, Enter in the prompt box answers or acts in the
+  // While the band is open, Enter in the prompt box answers or acts in the
   // answer session, and the prompt never reaches the model: slash commands
   // run, and prompts the engine sends itself pass. The drop's reason is what
-  // the person sees, so it says what was done. A failure here drops the
-  // prompt rather than letting it through.
+  // the person sees (a row in the transcript), so it says what was done. A
+  // failure here drops the prompt rather than letting it through.
   on('prompt.submit', async ($, e, next) => {
-    if (e.command || e.isMeta || !(await read($, immersiveAtom))) return next(e)
-    const panes = await $.ui.panes()
-    if (!panes.some(pane => pane.id === PANE && pane.isPlaced)) return next(e)
+    if (e.command || e.isMeta || e.origin.kind !== 'composer' || !(await read($, openAtom))) return next(e)
+    // A survey holds the band: nothing typed answers a question not on screen.
+    if (surveyUp) return { drop: 'A survey is above the prompt: answer it first, and the answer session is back.' }
+    const c = await snapshot($)
+    const it = intent(c, e.text)
+    // In a discussion a message goes on to the session's own model, as any
+    // prompt does, with the question beside it: the model can read the thread
+    // and the code before it answers, and the reply shows in the conversation
+    // above the band. The message and the reply are kept with the question.
+    if (it.kind === 'say') {
+      if (!c.q) return { drop: 'Nothing to discuss here.' }
+      await recordSay($, c.q, it.text)
+      await update($, promptAtom, () => '')
+      const returned = (await read($, returnedAtom))[c.q.id]
+      return next({ ...e, context: [...(e.context ?? []), discussionContext(c.q, returned)] })
+    }
     afterDrop = { dropped: e.text, text: '' }
-    const done = await enter($, e.text)
+    const done = await enter($, c, it)
     await update($, promptAtom, () => '')
     $.clock.after(PUT_BACK_MS, () => void settleBox($, false))
     return { drop: done }
   }).catch(($, e, next) => (next.called ? next(e) : { drop: 'The answer session could not check this prompt, so it was not sent.' }))
 
-  on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
+  // A discussion message's turn: the turn that starts with its text answers
+  // it. (Should the text not match, as when the engine expands it, the oldest
+  // message still waiting takes the turn, so a reply is never lost.)
+  on('turn.start', async ($, e, next) => {
+    const waiting = e.agentId ? [] : await read($, awaitingAtom)
+    if (waiting.length && e.text.trim()) {
+      const exact = waiting.findIndex(w => w.text === e.text.trim())
+      const i = exact >= 0 ? exact : 0
+      const id = waiting[i]!.id
+      await update($, awaitingAtom, w => w.filter((_, j) => j !== i))
+      await update($, replyTurnsAtom, m => ({ ...m, [e.turnId]: id }))
+    }
+    return next(e)
+  }).catch(($, e, next) => next(e))
+
+  // The turn's final text is the reply, kept with its question so a
+  // rephrasing or a question for the asker reads the whole discussion.
+  on('turn.complete', async ($, e, next) => {
+    const done = await next(e)
+    const id = e.agentId ? undefined : (await read($, replyTurnsAtom))[e.turnId]
+    if (id) {
+      await update($, replyTurnsAtom, m => without(m, e.turnId))
+      const text = e.answer.trim()
+      await addTurn(
+        $,
+        id,
+        e.reason === 'answer' && text
+          ? { who: 'model', text }
+          : { who: 'error', text: e.reason === 'aborted' ? 'Stopped before it answered.' : `No answer (${e.reason}). Send again to retry.` },
+      )
+      await think($, id, undefined)
+    }
+    return done
+  }).catch(($, e, next) => next(e))
+
+  // The answer session is the band above the prompt: as wide as the terminal,
+  // as tall as the engine lets it be (in fullscreen, what half the screen
+  // leaves above the prompt; on the main screen, the screen less the prompt).
+  // Every row is fitted to that height, so nothing scrolls out of sight.
+  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+    // A drawing never writes state; the module's own flag is not state, and
+    // Enter and the hint line read it.
+    surveyUp = e.props.hasSurvey
+    if (e.props.hasSurvey || !(await read($, openAtom))) return next(e)
     const { Box, Text, Button, Link } = $.ui.resolve(e)
-    // Drawn at last after a launch-time open waited: the hint has done its job.
-    // (A drawing never writes state; /answer clears the flag.)
-    if (await read($, placingAtom)) $.ui.status(undefined)
     const cursor = await read($, cursorAtom)
     const answers = await read($, answersAtom)
     const draft = await read($, promptAtom)
@@ -1065,20 +1154,30 @@ export const register: Register = on => {
     const thinking = await read($, thinkingAtom)
     const rephrasedAll = await read($, rephrasedAtom)
     const originals = await read($, originalAtom)
-    const talkScroll = await read($, talkScrollAtom)
     const askingAll = await read($, askingAtom)
     const returnedAll = await read($, returnedAtom)
 
-    // The pane's own body, not the terminal: what the screen fills.
-    const cols = e.props.bodyColumns
-    const rows = Math.max(16, e.props.scroll.bodyRows)
-    const padX = cols >= 100 ? 3 : cols >= 70 ? 2 : 1
-    const inner = cols - 2 * padX
-    // A reading measure: long lines are hard to read, however wide the dock.
-    const measure = Math.min(inner, 88)
-    // Vertical rhythm: the summary's gaps grow with the pane; a question's
-    // are fitted to it below, once its lines are counted.
-    const gap = rows >= 40 ? 2 : 1
+    // ── the room ─────────────────────────────────────────────────────────
+    //
+    // Fullscreen hands the band what half the screen leaves above the prompt.
+    // The main screen hands it the terminal's height, which would push the
+    // band's top off the screen: there it takes the screen less the prompt
+    // box, its rules and the footer.
+    const cols = Math.max(30, e.props.bodyColumns)
+    const vp = e.viewport
+    const isFullscreen = vp?.isFullscreen === true
+    const promptRows = vp ? wrap(draft, Math.max(10, vp.columns - 4)).length : 1
+    const H = Math.max(5, isFullscreen || !vp ? e.props.maxRows : Math.min(e.props.maxRows, vp.rows - 5 - promptRows))
+    // Two columns on a wide strip: the question on the left stays put, the
+    // right is where the work happens (the answers, the discussion, the
+    // question for the asker). One column on a narrow one.
+    const isWide = cols >= 100
+    const GUTTER = 3
+    const LW = isWide ? Math.min(96, Math.floor((cols - GUTTER) * 0.47)) : cols
+    const RW = isWide ? Math.min(110, cols - GUTTER - LW) : cols
+    const hasRule = H >= 14
+    // Rows for the body: the bar on top, the keys at the bottom.
+    const B = H - 2 - (hasRule ? 1 : 0)
 
     const N = QUESTIONS.length
     const at = Math.min(Math.max(cursor, 0), N)
@@ -1095,113 +1194,177 @@ export const register: Register = on => {
     const it = intent(c, draft)
     const cmds = commands(c)
     const run = (doing: Promise<unknown>) => void doing.catch(() => undefined)
+    const isTalking = !!base && talking === base.id
 
-    // ── pieces ────────────────────────────────────────────────────────────
-
-    const rule = <Text color={RULE}>{'─'.repeat(inner)}</Text>
-    // A section's label: small capitals, dim; a name in it keeps its case.
-    const label = (words: string, name?: string) => (
-      <Text>
+    // ── rows ─────────────────────────────────────────────────────────────
+    //
+    // Everything below the bar is built as rows, each exactly one terminal
+    // row tall, so a view can count what it draws and give things up, in a
+    // fixed order, until it fits.
+    type Row = RenderElement
+    const blank = (): Row => <Text> </Text>
+    const plain = (text: string, style: { dim?: boolean; bold?: boolean; color?: string } = {}): Row => (
+      <Text wrap="truncate-end" dimColor={style.dim} bold={style.bold} color={style.color}>
+        {text || ' '}
+      </Text>
+    )
+    // A section's label: small capitals, dim; a name after it keeps its case.
+    const label = (words: string, name?: string): Row => (
+      <Text wrap="truncate-end">
         <Text dimColor>{words.toUpperCase()}</Text>
         {name ? <Text> {name}</Text> : ''}
       </Text>
     )
-    // Key hints read as the Buttons beside them draw: the key in the accent,
-    // a colon, the words.
-    const hint = ([key, what]: [string, string]) => (
+    /** Groups of rows, `gaps[i]` blank rows before group i + 1 (one number: everywhere); an empty group vanishes with its gap. */
+    const stack = (groups: Row[][], gaps: number | number[]): Row[] => {
+      const out: Row[] = []
+      groups.forEach((group, i) => {
+        if (!group.length) return
+        const g = typeof gaps === 'number' ? gaps : (gaps[Math.min(i - 1, gaps.length - 1)] ?? 0)
+        if (out.length) for (let k = 0; k < g; k++) out.push(blank())
+        out.push(...group)
+      })
+      return out
+    }
+    /** The first trim whose rows fit `budget`; the last, cut to it, when none does. */
+    const fit = (build: (t: Trim) => Row[], budget: number): Row[] => {
+      for (const t of TRIMS) {
+        const rows = build(t)
+        if (rows.length <= budget) return rows
+      }
+      const rows = build(TRIMS[TRIMS.length - 1]!)
+      return [...rows.slice(0, Math.max(0, budget - 1)), plain('⋯', { dim: true })]
+    }
+    // What the relay account posts, exactly: "User says: …" behind a bar, at
+    // most `max` lines, the last cut with an ellipsis.
+    const bubble = (text: string | undefined, color: string, width: number, max: number): Row[] => {
+      let lines = wrap(PREFIX + (text ?? '…'), Math.max(10, width - 2))
+      if (lines.length > max) lines = [...lines.slice(0, Math.max(1, max) - 1), cut(lines.slice(Math.max(1, max) - 1).join(' '), width - 3)]
+      return lines.map((line, i) => (
+        <Text wrap="truncate-end">
+          <Text color={color}>│ </Text>
+          {i === 0 ? <Text dimColor>{PREFIX}</Text> : ''}
+          <Text dimColor={!text}>{i === 0 ? line.slice(PREFIX.length) : line}</Text>
+        </Text>
+      ))
+    }
+
+    // ── the bar: the session, the queue as dots, where this is ──────────
+
+    const dots = QUESTIONS.map((one, i) => {
+      const a = answers[one.id]
+      const glyph = i === at && !a ? (isTalking ? '◇' : '◉') : !a ? '○' : a.kind === 'answer' ? '●' : a.kind === 'defer' ? '◐' : '◌'
+      const color = i === at ? ACCENT : !a ? RULE : a.kind === 'answer' ? DONE : a.kind === 'defer' ? LATER : ACCENT
+      // A click on a dot opens that question.
+      return (
+        <Button key={`dot:${i}`} plain onPress={() => run(goTo($, i))}>
+          <Text color={color} bold={i === at} dimColor={a?.kind === 'wait' && i !== at}>
+            {glyph}
+          </Text>
+        </Button>
+      )
+    })
+    const toSummary = (
+      <Button key="dot:summary" plain onPress={() => run(goTo($, N))}>
+        <Text color={at === N ? ACCENT : undefined} bold={at === N} dimColor={at !== N}>
+          summary
+        </Text>
+      </Button>
+    )
+    const tally = [`${fresh} new`, `${relayed} relayed`, `${deferred} deferred`, ...(waiting ? [`${waiting} waiting`] : [])].join(' · ')
+    const where = [...(base ? [`${at + 1} of ${N}`] : []), ...(isTalking ? (cols >= 120 ? ['talking it through'] : []) : cols >= 120 || !base ? [tally] : [])].join(' · ')
+    const layout = isFullscreen ? ' · fullscreen' : vp?.isFullscreen === false ? ' · main screen' : ''
+    const bar = (
+      <Box height={1} overflow="hidden" justifyContent="space-between" width={cols} gap={2}>
+        <Box gap={2} flexShrink={0}>
+          <Text bold>Answer session</Text>
+          <Box gap={1}>{dots}</Box>
+          {toSummary}
+          <Text dimColor>{where}</Text>
+        </Box>
+        <Text dimColor wrap="truncate-end">
+          {BUILD}
+          {layout}
+        </Text>
+      </Box>
+    )
+
+    // ── the keys: what one letter and Enter does, each a click away ──────
+
+    const keyText = (key: string, what: string) => (
       <Text>
         <Text color={ACCENT}>{key}</Text>
         <Text dimColor>: {what}</Text>
       </Text>
     )
     const keyButton = (cmd: Command) => (
-      <Button key={`cmd:${cmd.key}`} plain onPress={() => run(runCommand($, c, cmd.key))}>
-        {hint([cmd.key, cmd.what])}
+      <Button key={`cmd:${cmd.key}`} plain onPress={() => run(pressKey($, cmd.key))}>
+        {keyText(cmd.key, cmd.what)}
       </Button>
     )
-    const isTalking = !!base && talking === base.id
-
-    const dots = (
-      <Text>
-        {QUESTIONS.map((one, i) => {
-          const a = answers[one.id]
-          const glyph = !a ? '○' : a.kind === 'answer' ? '●' : a.kind === 'defer' ? '◐' : '◌'
-          const color = i === at ? ACCENT : !a ? RULE : a.kind === 'answer' ? DONE : a.kind === 'defer' ? LATER : ACCENT
-          return (
-            <Text color={color} bold={i === at} dimColor={a?.kind === 'wait' && i !== at}>
-              {i > 0 ? ' ' : ''}
-              {i === at && !a ? (isTalking ? '◇' : '◉') : glyph}
-            </Text>
-          )
-        })}
-      </Text>
-    )
-    const tally = [`${fresh} new`, `${relayed} relayed`, `${deferred} deferred`, ...(waiting ? [`${waiting} waiting`] : [])].join(' · ')
-    const layout = `${e.viewport?.isFullscreen === true ? 'fullscreen' : e.viewport?.isFullscreen === false ? 'main screen' : ''}${
-      e.props.placement === 'dock' ? ', docked' : ''
-    }`
-    const bar = (
-      <Box justifyContent="space-between">
-        <Box gap={3}>
-          <Text bold wrap="truncate-end">
-            Answer session
-          </Text>
-          {dots}
-          <Text dimColor wrap="truncate-end">
-            {base ? `${at + 1} of ${N}` : 'summary'}
-            {isTalking ? '  ·  talking it through' : inner >= 100 ? `  ·  ${tally}` : ''}
-          </Text>
-        </Box>
-        <Text dimColor wrap="truncate-end">
-          {BUILD}
-          {layout ? ` · ${layout}` : ''}
-        </Text>
-      </Box>
-    )
-    // On the main screen the pane takes the terminal's height at any width.
-    // Fullscreen under 110 columns seats it above the prompt too, but caps it
-    // at half the rows: say so, where the relay confirmation goes.
-    const isSqueezed = e.props.placement === 'inline' && e.viewport?.isFullscreen === true
-    const flashLine =
+    // The last thing done, or why Enter would refuse what is typed.
+    const status =
       it.kind === 'refused' ? (
-        <Text color={LATER} wrap="truncate-end">{it.why}</Text>
+        <Text color={LATER} wrap="truncate-end">
+          {it.why}
+        </Text>
       ) : flash ? (
-      <Text color={DONE} wrap="truncate-end">✓ {flash}</Text>
-    ) : isSqueezed ? (
-      <Text color={LATER} wrap="truncate-end">
-        Half the screen: fullscreen needs 110 columns. Widen the terminal, or start Claude Code with CLAUDE_CODE_NO_FLICKER=0.
-      </Text>
-    ) : (
-      <Text> </Text>
-    )
-
-    // The screen: the session bar on top, the body on a reading measure in
-    // the space between (two fifths of the slack above it, three below), and
-    // the keys pinned to the bottom row: hints, then the Buttons they name.
-    const frame = (body: ReturnType<typeof Box>, keys: [string, string][], buttons: ReturnType<typeof Button>[]) => (
-      <Box flexDirection="column" width={cols} minHeight={rows} paddingX={padX}>
-        {bar}
-        {rule}
-        {flashLine}
-        <Box flexDirection="column" flexGrow={1} alignItems="center">
-          <Box flexGrow={2} />
-          <Box flexDirection="column" width={measure}>
-            {body}
-          </Box>
-          <Box flexGrow={3} minHeight={1} />
+        <Text color={DONE} wrap="truncate-end">
+          ✓ {flash}
+        </Text>
+      ) : null
+    const keys = (hints: [string, string][], shown: Command[]) => (
+      <Box height={1} overflow="hidden" justifyContent="space-between" width={cols} gap={3}>
+        <Box columnGap={3} flexShrink={0}>
+          {hints.map(([key, what]) => keyText(key, what))}
+          {shown.filter(cmd => cmd.key !== 'q').map(keyButton)}
         </Box>
-        {rule}
-        <Box columnGap={4} flexWrap="wrap">
-          {keys.map(hint)}
-          {buttons}
+        <Box gap={3} flexShrink={1} justifyContent="flex-end">
+          {status}
+          {keyButton({ key: 'q', what: 'close' })}
         </Box>
       </Box>
     )
+
+    // The band at its full height; a body of fewer `rows` makes it shorter,
+    // with no rule, and gives the conversation above the rest.
+    const frame = (body: Row, hints: [string, string][], shown: Command[], rows = B) => (
+      <Box flexDirection="column" width={cols} height={rows === B ? H : rows + 2}>
+        {bar}
+        {rows === B && hasRule && <Text color={RULE}>{'─'.repeat(cols)}</Text>}
+        <Box flexDirection="column" height={rows} overflow="hidden">
+          {body}
+        </Box>
+        {keys(hints, shown)}
+      </Box>
+    )
+    const column = (rows: Row[], width: number) => (
+      <Box flexDirection="column" width={width} flexShrink={0}>
+        {rows}
+      </Box>
+    )
+    // Rows left over sit two fifths above the content, three below, so a
+    // tall band (the main screen's) holds it near the middle, not at the top.
+    const lift = (rows: number) => Array.from({ length: Math.floor((B - Math.min(B, rows)) * 0.4) }, blank)
+    // Wide: the question, a thin rule, the work beside it, tops aligned.
+    const columns = (left: Row[], right: Row[], LW: number, RW: number, centred = true, rows = B) => {
+      const pad = centred ? lift(Math.max(left.length, right.length)) : []
+      return (
+      <Box flexDirection="row" height={rows}>
+        {column([...pad, ...left], LW)}
+        <Box flexDirection="column" width={GUTTER} flexShrink={0} alignItems="center">
+          {Array.from({ length: rows }, () => (
+            <Text color={RULE}>│</Text>
+          ))}
+        </Box>
+        {column([...(centred ? lift(Math.max(left.length, right.length)) : []), ...right], RW)}
+      </Box>
+      )
+    }
 
     // ── the summary: every question handled, or the end of the queue ──────
 
     if (!base) {
-      const done = QUESTIONS.filter(one => answers[one.id]?.kind === 'answer')
       const settled = fresh === 0 && deferred === 0 && waiting === 0
       const head =
         fresh > 0
@@ -1211,44 +1374,40 @@ export const register: Register = on => {
             : waiting > 0
               ? `Nothing new. ${waiting} waiting for a reply.`
               : 'All caught up.'
-      return frame(
-        <Box flexDirection="column" gap={gap}>
-          <Box flexDirection="column" alignItems="center">
-            <Text bold color={settled ? DONE : undefined}>
-              {settled ? '✓  ' : ''}
-              {head}
-            </Text>
-            <Text dimColor>
-              {relayed} of {N} relayed this session{waiting ? ` · ${waiting} back with their askers` : ''}
-            </Text>
+      // Each handled question, in queue order; a click opens it.
+      const handled = QUESTIONS.map((one, i) => ({ one, i, a: answers[one.id] })).filter(x => x.a)
+      const W = Math.min(cols, 160)
+      // Who and where in columns of their own, so the answers line up.
+      const whoWidth = Math.min(20, Math.max(...handled.map(x => x.one.asker.name.length), 0) + 2)
+      const placeWidth = Math.min(36, Math.max(...handled.map(x => x.one.where.length), 0) + 2)
+      const itemRow = ({ one, i, a }: (typeof handled)[number]): Row => {
+        const glyph = a!.kind === 'answer' ? '●' : a!.kind === 'defer' ? '◐' : '◌'
+        const color = a!.kind === 'answer' ? DONE : a!.kind === 'defer' ? LATER : ACCENT
+        const who = cut(one.asker.name, whoWidth - 2).padEnd(whoWidth)
+        const place = cut(one.where, placeWidth - 2).padEnd(placeWidth)
+        const what = a!.kind === 'answer' ? `│ ${PREFIX}${a!.text}` : a!.kind === 'defer' ? '│ deferred' : `│ asked: ${a!.text}`
+        const room = Math.max(0, W - 2 - who.length - place.length)
+        return (
+          <Box height={1} overflow="hidden">
+            <Button key={`sum:${one.id}`} plain onPress={() => run(goTo($, i))}>
+              <Text color={color}>{glyph} </Text>
+              <Text bold>{who}</Text>
+              <Text dimColor>{place}</Text>
+              <Text>{cut(what, room)}</Text>
+            </Button>
           </Box>
-          {done.length > 0 && (
-            <Box flexDirection="column">
-              {label('Relayed')}
-              <Box height={1} />
-              {done.map(one => (
-                <Box gap={2}>
-                  <Box width={Math.min(34, Math.floor(measure / 3))} flexShrink={0}>
-                    <Text wrap="truncate-end">
-                      <Text bold>{one.asker.name}</Text>
-                      <Text dimColor> {one.where}</Text>
-                    </Text>
-                  </Box>
-                  <Box flexGrow={1} flexShrink={1}>
-                    <Text wrap="truncate-end">
-                      <Text color={DONE}>│ </Text>
-                      <Text dimColor>{PREFIX}</Text>
-                      {answers[one.id]!.text}
-                    </Text>
-                  </Box>
-                </Box>
-              ))}
-            </Box>
-          )}
-        </Box>,
-        [],
-        cmds.map(keyButton),
-      )
+        )
+      }
+      const top: Row[] = [
+        plain(`${settled ? '✓  ' : ''}${head}`, { bold: true, color: settled ? DONE : undefined }),
+        plain(`${relayed} of ${N} relayed this session${waiting ? ` · ${waiting} back with their askers` : ''}`, { dim: true }),
+      ]
+      const room = Math.max(0, B - top.length - 1)
+      const list: Row[] =
+        handled.length > room
+          ? [...handled.slice(0, Math.max(0, room - 1)).map(itemRow), plain(`and ${handled.length - Math.max(0, room - 1)} more: the dots above open each`, { dim: true })]
+          : handled.map(itemRow)
+      return frame(<Box flexDirection="column">{stack([top, list], 1)}</Box>, [], cmds)
     }
 
     // ── one question, as it now stands ───────────────────────────────────
@@ -1261,487 +1420,359 @@ export const register: Register = on => {
     const answer = answers[base.id]
     const isRelayed = answer?.kind === 'answer'
     const isWaiting = answer?.kind === 'wait'
+    const open = !isRelayed && !isWaiting
     const message = it.kind === 'option' || it.kind === 'relay' ? it.text : undefined
     const isHuman = !q.options
     const turns = talks[q.id] ?? []
     const busy = thinking[q.id]
     const postsAs = `on ${SURFACE_NAME[q.surface]} as`
 
+    // Where it was asked (a link to it) and by whom: two rows, or one.
     const asked =
       q.asker.replyTo !== undefined
         ? `replied to ${q.asker.replyTo}`
         : q.asker.kind === 'agent'
           ? `asks, an agent via ${q.asker.via ?? 'the inquisitor'}`
           : 'asks'
-    const provenance = (
-      <Box flexDirection="column">
-        <Box justifyContent="space-between">
-          <Box gap={2}>
-            <Text bold>{SURFACE_NAME[q.surface]}</Text>
-            <Link href={q.link}>{q.where}</Link>
-          </Box>
-          <Text dimColor>
-            {answer?.kind === 'defer' ? <Text color={LATER}>deferred · </Text> : ''}
-            {isWaiting ? <Text color={ACCENT}>waiting for {q.asker.name} · </Text> : ''}
-            {q.age} ago
-          </Text>
-        </Box>
-        <Text>
-          <Text color={ACCENT} bold>
-            {q.asker.name}
-          </Text>
-          <Text dimColor> {asked}</Text>
-        </Text>
-      </Box>
-    )
-    const questionLines = wrap(q.text, measure).map(line => <Text bold>{line}</Text>)
-
-    // What the relay account posts, exactly: "User says: …" behind a bar.
-    const bubbleWidth = Math.max(20, measure - 2)
-    const bubble = (text: string | undefined, color: string) => (
-      <Box flexDirection="column">
-        {wrap(PREFIX + (text ?? '…'), bubbleWidth).map((line, i) => (
-          <Text>
-            <Text color={color}>│ </Text>
-            {i === 0 ? (
-              <Text>
-                <Text dimColor>{PREFIX}</Text>
-                <Text dimColor={!text}>{line.slice(PREFIX.length)}</Text>
-              </Text>
-            ) : (
-              <Text>{line}</Text>
-            )}
-          </Text>
-        ))}
-      </Box>
-    )
-
-    // ── talking it through: this question only, the queue waits ──────────
-
-    if (isTalking) {
-      const composing = !!askingAll[q.id]
-      const hasReply = turns.some(t => t.who === 'model')
-      const textWidth = Math.max(20, measure - SPEAKER)
-
-      // The exchange as lines: a speaker column, then the words; newest last.
-      type Line = { who?: Turn['who'] | 'thinking'; text: string }
-      const all: Line[] = []
-      turns.forEach((turn, i) => {
-        if (i > 0) all.push({ text: '' })
-        wrapMessage(turn.text, textWidth).forEach((text, j) => all.push({ who: j === 0 ? turn.who : undefined, text }))
-      })
-      if (busy) {
-        if (all.length) all.push({ text: '' })
-        all.push({
-          who: 'thinking',
-          text: busy === 'rephrase' ? 'rephrasing the question…' : busy === 'draft' ? `drafting a question for ${q.asker.name}…` : 'thinking…',
-        })
-      }
-      if (!all.length) {
-        for (const text of wrap(
-          `Type anything about this question in the prompt box: what it means, what each answer would change, what you are unsure of. The rest of the queue waits where it was. When it is clear, r rephrases the question and asks it again, or a asks ${q.asker.name} a question of your own, through the relay.`,
-          textWidth,
-        ))
-          all.push({ text })
-      }
-
-      const optionLines = q.options?.length ?? 0
-      const head = 5 + 2 + 1 + wrap(q.text, measure).length + (optionLines ? 1 + optionLines : 0) + 1 + 2
-      const askText = it.kind === 'ask' ? it.text : ''
-      const lower = composing ? 1 + 1 + 1 + wrap(PREFIX + (askText || '…'), bubbleWidth).length + 1 : 1 + 1
-      const window = Math.max(3, rows - head - lower - 1) // less the spacer under the body
-      const scroll = Math.min(talkScroll, Math.max(0, all.length - window))
-      let shown = all.slice(Math.max(0, all.length - window - scroll), all.length - scroll)
-      const hiddenAbove = all.length - scroll - shown.length
-      if (hiddenAbove > 0) shown = shown.slice(1)
-      if (scroll > 0) shown = shown.slice(0, -1)
-      const speaker = (who: Line['who']) =>
-        who === 'you' ? (
-          <Text color={ACCENT} bold>
-            you
-          </Text>
-        ) : who === 'model' || who === 'thinking' ? (
-          <Text dimColor bold>
-            claude
-          </Text>
-        ) : who === 'error' ? (
-          <Text color={LATER} bold>
-            claude
-          </Text>
-        ) : (
-          <Text> </Text>
-        )
-      const lineOf = (line: Line, kind: Line['who']) => (
-        <Box>
-          <Box width={SPEAKER} flexShrink={0}>
-            {speaker(line.who)}
-          </Box>
-          <Text dimColor={kind === 'thinking' || kind === undefined} italic={kind === 'thinking'} color={kind === 'error' ? LATER : undefined}>
-            {line.text || ' '}
-          </Text>
+    const state =
+      answer?.kind === 'defer' ? <Text color={LATER}>deferred · </Text> : isWaiting ? <Text color={ACCENT}>waiting for {q.asker.name} · </Text> : ''
+    const provenance = (lines: 0 | 1 | 2): Row[] => {
+      if (lines === 0) return []
+      const source = (
+        <Box gap={2} flexShrink={0}>
+          <Text bold>{SURFACE_NAME[q.surface]}</Text>
+          <Link href={q.link}>{q.where}</Link>
         </Box>
       )
-      // A wrapped line keeps the style of the message it belongs to.
-      let current: Line['who'] = undefined
-      const kinds = all.map(line => {
-        if (line.who) current = line.who
-        return turns.length || busy ? current : undefined
-      })
-      const firstShown = Math.max(0, all.length - scroll - shown.length)
-
-      const exchange = (
-        <Box flexDirection="column" height={window} justifyContent="flex-end">
-          {hiddenAbove > 0 && (
-            <Text dimColor>
-              {' '.repeat(SPEAKER)}↑ {hiddenAbove} earlier line{hiddenAbove === 1 ? '' : 's'}
+      if (lines === 2) {
+        return [
+          <Box height={1} overflow="hidden" gap={2}>
+            {source}
+            <Text dimColor wrap="truncate-end">
+              {state}
+              {q.age} ago
             </Text>
-          )}
-          {shown.map((line, i) => lineOf(line, kinds[firstShown + i]))}
-          {scroll > 0 && (
-            <Text dimColor>
-              {' '.repeat(SPEAKER)}↓ {scroll} newer line{scroll === 1 ? '' : 's'}
+          </Box>,
+          <Text wrap="truncate-end">
+            <Text color={ACCENT} bold>
+              {q.asker.name}
             </Text>
-          )}
-        </Box>
-      )
-
-      // What Enter would send, from the prompt box, beneath the exchange.
-      const pending = (
-        <Box>
-          <Box width={SPEAKER} flexShrink={0}>
-            {it.kind === 'say' ? (
-              <Text color={ACCENT} bold>
-                you
-              </Text>
-            ) : (
-              <Text> </Text>
-            )}
-          </Box>
-          <Text dimColor wrap="truncate-end">
-            {it.kind === 'say'
-              ? `${it.text}  ⏎`
-              : busy
-                ? 'Claude is replying…'
-                : turns.length
-                  ? 'Reply in the prompt box, or ask more.'
-                  : 'Type a question about this in the prompt box.'}
+            <Text dimColor> {asked}</Text>
+          </Text>,
+        ]
+      }
+      return [
+        <Box height={1} overflow="hidden" gap={2}>
+          {source}
+          <Text wrap="truncate-end">
+            <Text color={ACCENT} bold>
+              {q.asker.name}
+            </Text>
+            <Text dimColor>
+              {' '}
+              · {state}
+              {q.age} ago
+            </Text>
           </Text>
-        </Box>
-      )
-
-      const compose = composing ? (
-        <Box flexDirection="column">
-          {label(`Ask ${q.asker.name}, in the thread`)}
-          {label(askText ? `Will post ${postsAs}` : `Posts ${postsAs}`, `${q.relayAs}, replying in ${q.where}`)}
-          {bubble(askText || undefined, askText ? ACCENT : RULE)}
-          <Text dimColor>
-            {busy === 'draft'
-              ? 'Drafting a question into the prompt box…'
-              : askText
-                ? 'Enter sends exactly this. The question waits for their reply; the queue moves on.'
-                : `Type your question for ${q.asker.name} in the prompt box.`}
-          </Text>
-        </Box>
-      ) : null
-
-      return frame(
-        <Box flexDirection="column">
-          {provenance}
-          <Box height={1} />
-          {questionLines}
-          {q.options && (
-            <Box flexDirection="column" marginTop={1}>
-              {q.options.map((o, i) => (
-                <Text dimColor wrap="truncate-end">
-                  {i + 1}  {o.label}
-                  {i === 0 ? '  ★' : ''}
-                </Text>
-              ))}
-            </Box>
-          )}
-          <Box height={1} />
-          <Text>
-            <Text color={ACCENT}>◇ </Text>
-            {label('Talking it through', '')}
-            <Text dimColor> · this question only</Text>
-          </Text>
-          <Box height={1} />
-          {exchange}
-          <Box height={1} />
-          {composing ? compose : pending}
         </Box>,
-        [],
-        cmds.filter(cmd => (cmd.key === 'k' ? hiddenAbove > 0 : cmd.key === 'j' ? scroll > 0 : true)).map(keyButton),
-      )
+      ]
     }
+    const questionRows = (width: number): Row[] => wrap(q.text, width).map(line => plain(line, { bold: true }))
+    const changeMark: Row[] = changed
+      ? [
+          <Box height={1} overflow="hidden" gap={3}>
+            <Text dimColor wrap="truncate-end">
+              {showOriginal
+                ? 'The original question, as asked'
+                : rephrased
+                  ? '↻ Rephrased after your discussion'
+                  : `↻ Revised by ${q.asker.name} after your question`}
+            </Text>
+            <Button key="original" plain dimColor onPress={() => run(pressKey($, 'o'))}>
+              {showOriginal ? 'o: show it as asked now' : 'o: show the original'}
+            </Button>
+          </Box>,
+        ]
+      : []
+
     // ── the question view ────────────────────────────────────────────────
 
-    const contextBlock = q.context ? (
-      q.asker.replyTo !== undefined ? (
-        <Box flexDirection="column">
-          <Text dimColor>Their reply is to:</Text>
-          {wrap(q.context, measure - 2).map(line => (
-            <Text dimColor>│ {line}</Text>
-          ))}
-        </Box>
-      ) : (
-        <Box flexDirection="column">
-          {wrap(q.context, measure).map(line => (
-            <Text>{line}</Text>
-          ))}
-        </Box>
-      )
-    ) : null
-
-    // The asker's reply to a clarifying question, quoted and attributed.
-    const replyBlock = returned ? (
-      <Box flexDirection="column">
-        <Text>
-          <Text color={ACCENT}>↩ </Text>
-          <Text bold>{q.asker.name}</Text>
-          <Text dimColor> replied to your question</Text>
-        </Text>
-        {wrap(`You asked: ${returned.asked}`, measure - 2).map(line => (
-          <Text dimColor>{'  '}{line}</Text>
-        ))}
-        {wrap(returned.reply, measure - 2).map(line => (
-          <Text>
-            <Text dimColor>│ </Text>
-            {line}
-          </Text>
-        ))}
-      </Box>
-    ) : null
-
-    const changeMark = changed ? (
-      <Box gap={3}>
-        <Text dimColor>
-          {showOriginal
-            ? 'The original question, as asked'
-            : rephrased
-              ? '↻ Rephrased after your discussion'
-              : `↻ Revised by ${q.asker.name} after your question`}
-        </Text>
-        <Text dimColor>{showOriginal ? 'o: show it as asked now' : 'o: show the original'}</Text>
-      </Box>
-    ) : null
-
-    const relatedBlock =
-      q.related || q.answered ? (
-        <Box flexDirection="column">
-          {q.related && (
-            <Text>
-              <Text dimColor>Related </Text>
-              {q.related}
-            </Text>
-          )}
-          {q.answered && (
-            <Box flexDirection="column">
-              <Text>
+    // The left column: where it came from, the question, what it rests on.
+    const questionColumn = (t: Trim, width: number): Row[] => {
+      // Beside an asker's reply the context matters less than the reply: it
+      // gives way a step sooner, and the reply is never cut.
+      const contextFit = returned ? (t.context === 'full' ? 'line' : 'none') : t.context
+      const context: Row[] =
+        !q.context || contextFit === 'none'
+          ? []
+          : q.asker.replyTo !== undefined
+            ? contextFit === 'line'
+              ? [plain(`Their reply is to: ${q.context}`, { dim: true })]
+              : [plain('Their reply is to:', { dim: true }), ...wrap(q.context, width - 2).map(line => plain(`│ ${line}`, { dim: true }))]
+            : contextFit === 'line'
+              ? [plain(q.context)]
+              : wrap(q.context, width).map(line => plain(line))
+      // The asker's reply to a clarifying question, quoted and attributed.
+      const reply: Row[] = returned
+        ? [
+            <Text wrap="truncate-end">
+              <Text color={ACCENT}>↩ </Text>
+              <Text bold>{q.asker.name}</Text>
+              <Text dimColor> replied to your question</Text>
+            </Text>,
+            ...(t.reply === 'full' ? wrap(`You asked: ${returned.asked}`, width - 2).map(line => plain(`  ${line}`, { dim: true })) : []),
+            ...wrap(returned.reply, width - 2).map(line => (
+              <Text wrap="truncate-end">
+                <Text dimColor>│ </Text>
+                {line}
+              </Text>
+            )),
+          ]
+        : []
+      const related: Row[] = [
+        ...(q.related && t.related
+          ? [
+              <Text wrap="truncate-end">
+                <Text dimColor>Related </Text>
+                {q.related}
+              </Text>,
+            ]
+          : []),
+        ...(q.answered
+          ? [
+              <Text wrap="truncate-end">
                 <Text color={LATER}>Possibly answered already </Text>
                 {q.answered.decision}
-              </Text>
-              {!isRelayed && !isWaiting && <Text dimColor>c: reply by citing it</Text>}
-            </Box>
-          )}
-        </Box>
-      ) : null
+              </Text>,
+              ...(open && t.related
+                ? [
+                    <Box height={1} overflow="hidden">
+                      <Button key="cite" plain dimColor onPress={() => run(pressKey($, 'c'))}>
+                        c: reply by citing it
+                      </Button>
+                    </Box>,
+                  ]
+                : []),
+            ]
+          : []),
+      ]
+      const near = Math.min(1, t.gap)
+      return stack([provenance(t.provenance), [...changeMark, ...questionRows(width)], context, reply, related], [t.gap, near, near, near])
+    }
 
-    // Each option: a gutter that marks the chosen one, the number key and the
-    // label on the first row, what changes beneath it, dim and indented.
-    const effectWidth = Math.max(20, measure - 7)
-    const optionRows = (q.options ?? []).map((o, i) => {
-      const isChosen = it.kind === 'option' && it.index === i
-      const effect = wrap(o.effect, effectWidth - 2).map((line, j) => (j === 0 ? '→ ' : '  ') + line)
-      const mark = isChosen ? '▌' : ' '
-      return (
-        <Box flexDirection="row">
-          <Box flexDirection="column" width={2}>
-            {[0, ...effect.map((_, j) => j + 1)].map(() => (
-              <Text color={ACCENT}>{mark}</Text>
-            ))}
+    // The right column: the answers to choose from, then what will post.
+    const answerColumn = (t: Trim, width: number): Row[] => {
+      if (isRelayed || isWaiting) {
+        const head: Row = isRelayed ? (
+          <Text wrap="truncate-end">
+            <Text color={DONE}>✓ </Text>
+            <Text dimColor>{`Relayed ${postsAs}`.toUpperCase()}</Text> {q.relayAs}
+          </Text>
+        ) : (
+          <Text wrap="truncate-end">
+            <Text color={ACCENT}>◌ </Text>
+            <Text dimColor>{`Waiting for ${q.asker.name}. Asked ${postsAs}`.toUpperCase()}</Text> {q.relayAs}
+          </Text>
+        )
+        return [head, ...bubble(answer.text, isRelayed ? DONE : ACCENT, width, t.bubble), ...(isRelayed && t.logNote ? logNote(width) : [])]
+      }
+      // Each option: a gutter that marks the chosen one, the number and the
+      // label (a click puts the number in the prompt box, as typing it
+      // would), what it changes beneath, dim.
+      const options: Row[] = (q.options ?? []).flatMap((o, i) => {
+        const isChosen = it.kind === 'option' && it.index === i
+        const mark = <Text color={ACCENT}>{isChosen ? '▌ ' : '  '}</Text>
+        const head = (
+          <Box height={1} overflow="hidden">
+            {mark}
+            <Button key={`opt:${q.id}:${i}`} plain onPress={() => run(putInBox($, String(i + 1)))}>
+              <Text color={ACCENT}>{i + 1}</Text>
+              <Text dimColor>: </Text>
+              <Text bold color={isChosen ? ACCENT : undefined}>
+                {cut(o.label, width - 5 - (i === 0 ? 15 : 0))}
+              </Text>
+            </Button>
+            {i === 0 ? <Text color={ACCENT}>{'  ★ recommended'}</Text> : null}
           </Box>
-          <Box flexDirection="column" flexGrow={1}>
-            <Box gap={3}>
-              {/* A click types the option's number, as the person would. */}
-              <Button key={`opt:${q.id}:${i}`} plain onPress={() => run(putInBox($, String(i + 1)))}>
-                <Text>
-                  <Text color={ACCENT}>{i + 1}</Text>
-                  <Text dimColor>: </Text>
-                  <Text bold color={isChosen ? ACCENT : undefined}>
-                    {o.label}
-                  </Text>
-                </Text>
-              </Button>
-              {i === 0 && <Text color={ACCENT}>★ recommended</Text>}
-            </Box>
-            {effect.map(line => (
+        )
+        const effect =
+          t.effects === 'none' ? [] : t.effects === 'line' ? [cut(`→ ${o.effect}`, width - 5)] : wrap(o.effect, width - 7).map((line, j) => (j ? '  ' : '→ ') + line)
+        return [
+          ...(i > 0 && t.optionGap ? [blank()] : []),
+          head,
+          ...effect.map(line => (
+            <Text wrap="truncate-end">
+              {mark}
               <Text dimColor>
                 {'   '}
                 {line}
               </Text>
-            ))}
-          </Box>
-        </Box>
+            </Text>
+          )),
+        ]
+      })
+      // Typing in the prompt box is the own words: this row says so, and marks
+      // it chosen while the box holds an answer.
+      const isWriting = it.kind === 'relay'
+      const ownWords = (
+        <Text wrap="truncate-end">
+          <Text color={ACCENT}>{isWriting ? '▌ ' : '  '}</Text>
+          <Text bold={isWriting} color={isWriting ? ACCENT : undefined} dimColor={!isWriting}>
+            {isHuman ? `Reply to ${q.asker.name}: type it in the prompt box` : 'Or type your own answer in the prompt box'}
+          </Text>
+        </Text>
       )
-    })
-
+      const choose: Row[] = isHuman
+        ? [ownWords]
+        : [...options, ...(t.ownWords || isWriting ? [...(t.optionGap ? [blank()] : []), ownWords] : [])]
+      // What will post, exactly, and the Relay button once there is something to relay.
+      const relayButton = message ? (
+        <Button key={`send:${q.id}`} variant="primary" onPress={() => run(relayPressed($, q, message))}>
+          Relay
+        </Button>
+      ) : null
+      const preview: Row[] =
+        t.preview === 'line'
+          ? [
+              <Box height={1} overflow="hidden" gap={2}>
+                <Box flexShrink={1}>{bubble(message, message ? ACCENT : RULE, width - 12, 1)}</Box>
+                {relayButton}
+              </Box>,
+            ]
+          : [
+        <Box height={1} overflow="hidden" gap={2}>
+          <Box flexShrink={1}>{label(message ? `Will post ${postsAs}` : `Posts ${postsAs}`, q.relayAs)}</Box>
+          {relayButton}
+        </Box>,
+        ...bubble(message, message ? ACCENT : RULE, width, t.bubble),
+        ...(message && t.logNote ? logNote(width) : []),
+      ]
+      return stack([t.label && !isHuman ? [label('Choose an answer')] : [], choose, preview], [0, t.gap])
+    }
     // What the real skill logs beside an answer to a changed question.
-    const logNote =
-      changed && !showOriginal && (isRelayed || message) ? (
-        <Box flexDirection="column" marginTop={1}>
-          {wrap(
-            `Logged with the answer in the real skill, not posted: the question as ${rephrased ? 'rephrased' : 'revised'}${
-              rephrased?.summary ? `, and the discussion in a line: “${rephrased.summary.replace(/[.\s]+$/, '')}.”` : '.'
-            }`,
-            measure - 2,
-          ).map(line => (
-            <Text dimColor>{'  '}{line}</Text>
-          ))}
-        </Box>
-      ) : null
-    const logLines = logNote ? 1 + wrap(`Logged with the answer in the real skill, not posted: the question as rephrased, and the discussion in a line: “${rephrased?.summary ?? ''}”.`, measure - 2).length : 0
+    function logNote(width: number): Row[] {
+      if (!changed || showOriginal) return []
+      const summary = rephrased?.summary ? `, and the discussion in a line: “${rephrased.summary.replace(/[.\s]+$/, '')}.”` : '.'
+      return wrap(`Logged with the answer in the real skill, not posted: the question as ${rephrased ? 'rephrased' : 'revised'}${summary}`, width - 2).map(line =>
+        plain(`  ${line}`, { dim: true }),
+      )
+    }
 
-    // Count the screen's lines, then give what is left to the three gaps
-    // (where it came from | the question | the answers | what will post), a
-    // field a little taller when there is room, and the rest above and below.
-    const lines = (text: string, width: number) => wrap(text, width).length
-    const sent = isRelayed || isWaiting ? answer.text : message
-    const open = !isRelayed && !isWaiting
-    type Trim = { label: boolean; reserve: boolean; context: 'full' | 'line' | 'none'; related: boolean }
-    const contextLines = (t: Trim) =>
-      !q.context || t.context === 'none'
-        ? 0
-        : 1 +
-          (t.context === 'line'
-            ? 1 + (q.asker.replyTo !== undefined ? 1 : 0)
-            : q.asker.replyTo !== undefined
-              ? 1 + lines(q.context, measure - 2)
-              : lines(q.context, measure))
-    const measureWith = (t: Trim) =>
-      6 + // session bar, its rule, the line under it; the spacer, the keys' rule and row
-      2 + // where and who
-      (changed ? 1 : 0) +
-      lines(q.text, measure) +
-      contextLines(t) +
-      (returned ? 2 + lines(`You asked: ${returned.asked}`, measure - 2) + lines(returned.reply, measure - 2) : 0) +
-      (t.related && (q.related || q.answered)
-        ? 1 + (q.related ? lines(`Related ${q.related}`, measure) : 0) + (q.answered ? 2 : 0)
-        : 0) +
-      (open
-        ? (isHuman || !t.label ? 0 : 2) + // the label and its gap
-          (q.options ?? []).reduce((sum, o) => sum + 2 + lines(o.effect, effectWidth - 2), 0) +
-          1 // the own-words row
-        : 0) +
-      1 + lines(PREFIX + (sent ?? '…'), bubbleWidth) + (open && t.reserve ? 2 : 0) + logLines
-    const gaps = open ? 3 : 2
-    // In order: the options' label, then the empty Relay row, each before a
-    // gap closes; then the gaps; then the context, cut to a line, then dropped.
-    const steps: [Trim, number][] = [
-      [{ label: true, reserve: true, context: 'full', related: true }, gaps],
-      [{ label: false, reserve: true, context: 'full', related: true }, gaps],
-      [{ label: false, reserve: !!message, context: 'full', related: true }, gaps],
-      [{ label: false, reserve: !!message, context: 'full', related: true }, 0],
-      [{ label: false, reserve: !!message, context: 'line', related: true }, 0],
-      [{ label: false, reserve: !!message, context: 'line', related: false }, 0],
-      [{ label: false, reserve: !!message, context: 'none', related: false }, 0],
+    if (!isTalking) {
+      const options = q.options ?? []
+      const hints: [string, string][] = !open || isHuman ? [] : [[`1–${options.length}`, 'choose']]
+      const one = isWide ? [] : fit(t => stack([questionColumn(t, cols), answerColumn(t, cols)], Math.min(1, t.gap)), B)
+      const body = isWide ? (
+        columns(fit(t => questionColumn(t, LW), B), fit(t => answerColumn(t, RW), B), LW, RW)
+      ) : (
+        <Box flexDirection="column">{[...lift(one.length), ...one]}</Box>
+      )
+      return frame(body, hints, cmds)
+    }
+
+    // ── talking it through: this question only, the queue waits ──────────
+    //
+    // The discussion is the conversation above the band: each message goes to
+    // the session's model with the question attached, and the reply shows
+    // there, the model free to read the thread and the code first. The band
+    // keeps the question in view and says what Enter will do, and shrinks to
+    // that, so the conversation gets the rest of the screen.
+
+    const composing = !!askingAll[q.id]
+    const askText = it.kind === 'ask' ? it.text : ''
+    // The question stays in view, close packed so the band stays short:
+    // where, the question, its options in a line each.
+    const pinned = (width: number, budget: number): Row[] => {
+      const optionRows = (q.options ?? []).map((o, i) => plain(`${i + 1}  ${o.label}${i === 0 ? '  ★' : ''}`, { dim: true }))
+      const tight = stack([provenance(1), questionRows(width), optionRows], 0)
+      if (tight.length <= budget) return tight
+      const lines = wrap(q.text, width)
+      const room = Math.max(1, budget - 1)
+      return [...provenance(1), ...lines.slice(0, room - 1).map(line => plain(line, { bold: true })), plain(cut(lines.slice(room - 1).join(' '), width), { bold: true })]
+    }
+    // The question for the asker, previewed as it will post in their thread.
+    const compose = (width: number): Row[] => [
+      <Box height={1} overflow="hidden" gap={2}>
+        <Box flexShrink={1}>{label(`Ask ${q.asker.name}, in the thread`)}</Box>
+        {askText && !busy ? (
+          <Button key={`ask:${q.id}`} variant="primary" onPress={() => run(askPressed($, q, askText))}>
+            Send
+          </Button>
+        ) : null}
+      </Box>,
+      ...bubble(askText || undefined, askText ? ACCENT : RULE, width, Math.max(2, B - 5)),
+      ...wrap(
+        busy === 'draft'
+          ? 'Drafting a question into the prompt box…'
+          : askText
+            ? `Will post ${postsAs} ${q.relayAs}. Enter sends exactly this; the question waits for the reply, the queue moves on.`
+            : `Type your question for ${q.asker.name} in the prompt box.`,
+        width,
+      ).map(line => plain(line, { dim: true })),
     ]
-    const trim = (steps.find(([t, room]) => measureWith(t) + room <= rows) ?? steps[steps.length - 1]!)[0]
-    const free = rows - measureWith(trim)
-    const fit = Math.min(3, Math.max(0, Math.floor(free / (gaps + 1))))
-    // Too short for a row in every gap: what rows there are go first above the
-    // answers, then above the preview, then under where it came from.
-    const gapAt = (place: 'top' | 'answers' | 'preview') =>
-      fit > 0 ? fit : Math.max(0, Math.min(1, free - (place === 'answers' ? 0 : place === 'preview' ? 1 : 2)))
-    const shortContext =
-      q.context && trim.context === 'line' ? (
-        q.asker.replyTo !== undefined ? (
-          <Box flexDirection="column">
-            <Text dimColor>Their reply is to:</Text>
-            <Text dimColor wrap="truncate-end">│ {q.context}</Text>
-          </Box>
-        ) : (
-          <Text wrap="truncate-end">{q.context}</Text>
-        )
-      ) : null
-
-    // Typing in the prompt box is the own words; this row says so, and marks
-    // it chosen while the box holds an answer.
-    const isWriting = it.kind === 'relay'
-    const ownWords = (
-      <Box flexDirection="row">
-        <Box flexDirection="column" width={2}>
-          <Text color={ACCENT}>{isWriting ? '▌' : ' '}</Text>
-        </Box>
-        <Text bold={isWriting} color={isWriting ? ACCENT : undefined} dimColor={!isWriting}>
-          {isHuman ? `Reply to ${q.asker.name}: type it in the prompt box` : 'Or type your own answer in the prompt box'}
+    // Where the discussion stands, and what Enter would do with the box.
+    const talkState = (width: number): Row[] => {
+      const head: Row = (
+        <Text wrap="truncate-end">
+          <Text color={ACCENT}>◇ </Text>
+          <Text dimColor>TALKING IT THROUGH</Text>
+          <Text dimColor> · in the conversation above</Text>
         </Text>
-      </Box>
-    )
-
-    const preview = isRelayed ? (
-      <Box flexDirection="column">
-        <Text>
-          <Text color={DONE}>✓ </Text>
-          {label(`Relayed ${postsAs}`, q.relayAs)}
-        </Text>
-        {bubble(answer.text, DONE)}
-        {logNote}
-      </Box>
-    ) : isWaiting ? (
-      <Box flexDirection="column">
-        <Text>
-          <Text color={ACCENT}>◌ </Text>
-          {label(`Waiting for ${q.asker.name}. Asked ${postsAs}`, q.relayAs)}
-        </Text>
-        {bubble(answer.text, ACCENT)}
-      </Box>
-    ) : (
-      <Box flexDirection="column">
-        {label(message ? `Will post ${postsAs}` : `Posts ${postsAs}`, q.relayAs)}
-        {bubble(message, message ? ACCENT : RULE)}
-        {logNote}
-        {/* The Relay row is held even while empty, so choosing moves nothing,
-            unless the pane is too short to spare it. */}
-        <Box marginTop={1} gap={2} display={message || trim.reserve ? 'flex' : 'none'}>
-          {message ? (
-            <Button key={`send:${q.id}`} variant="primary" onPress={() => run(relay($, q, message))}>
+      )
+      if (composing) return [head, ...compose(width)]
+      // A number chooses an answer here too: what it would post, and Relay.
+      if (it.kind === 'option') {
+        return [
+          head,
+          <Box height={1} overflow="hidden" gap={2}>
+            <Box flexShrink={1}>{label(`Will post ${postsAs}`, q.relayAs)}</Box>
+            <Button key={`send:${q.id}`} variant="primary" onPress={() => run(relayPressed($, q, it.text))}>
               Relay
             </Button>
-          ) : (
-            <Text> </Text>
-          )}
-          {message ? <Text dimColor>Enter relays exactly this</Text> : ''}
-        </Box>
-      </Box>
-    )
+          </Box>,
+          ...bubble(it.text, ACCENT, width, 2),
+        ]
+      }
+      const said = turns.filter(turn => turn.who === 'you').length
+      const last = turns[turns.length - 1]
+      const state: Row[] =
+        busy === 'reply'
+          ? [plain('◌ Claude is answering above…', { color: ACCENT })]
+          : busy === 'rephrase'
+            ? [plain('◌ Rephrasing the question from your discussion…', { color: ACCENT })]
+            : last?.who === 'error'
+              ? wrap(last.text, width).map(line => plain(line, { color: LATER }))
+              : said
+                ? wrap(
+                    `${said} message${said === 1 ? '' : 's'} so far. Ask more, or: r rephrases the question and asks it again; a asks ${q.asker.name} in the thread${q.options ? '; a number chooses an answer' : ''}.`,
+                    width,
+                  ).map(line => plain(line, { dim: true }))
+                : wrap(
+                    `Type what you want to understand. Claude gets the question with it and may read the thread and the code before it answers; the reply shows above. The rest of the queue waits.`,
+                    width,
+                  ).map(line => plain(line, { dim: true }))
+      const pending: Row[] =
+        it.kind === 'say'
+          ? [
+              <Text wrap="truncate-end">
+                <Text color={ACCENT} bold>
+                  {'you'.padEnd(SPEAKER)}
+                </Text>
+                <Text dimColor>{it.text} ⏎</Text>
+              </Text>,
+            ]
+          : []
+      return [head, ...state, ...pending]
+    }
 
-    const options = q.options ?? []
-    const keys: [string, string][] = !open ? [] : isHuman ? [['type', 'your reply']] : [[`1–${options.length}`, 'choose']]
-
-    return frame(
-      <Box flexDirection="column">
-        {provenance}
-        <Box height={gapAt('top')} />
-        {changeMark}
-        {questionLines}
-        {contextBlock && trim.context === 'full' && <Box marginTop={1}>{contextBlock}</Box>}
-        {shortContext && <Box marginTop={1}>{shortContext}</Box>}
-        {replyBlock && <Box marginTop={1}>{replyBlock}</Box>}
-        {relatedBlock && trim.related && <Box marginTop={1}>{relatedBlock}</Box>}
-        <Box height={gapAt('answers')} />
-        {open && (
-          <Box flexDirection="column" gap={1}>
-            {!isHuman && trim.label && label('Choose an answer')}
-            {optionRows}
-            {ownWords}
-          </Box>
-        )}
-        {open && <Box height={gapAt('preview')} />}
-        {preview}
-      </Box>,
-      keys,
-      cmds.map(keyButton),
-    )
+    if (isWide) {
+      const right = talkState(RW)
+      const left = pinned(LW, Math.max(B, right.length))
+      const rows = Math.min(B, Math.max(left.length, right.length))
+      return frame(columns(left.slice(0, rows), right.slice(0, rows), LW, RW, false, rows), [], cmds, rows)
+    }
+    // One column: the question cut to two lines, where the discussion stands under it.
+    const rows1 = [...pinned(cols, 3), ...talkState(cols)].slice(0, B)
+    return frame(<Box flexDirection="column">{rows1}</Box>, [], cmds, rows1.length)
   })
 }

@@ -7,10 +7,13 @@ import { EventEmitter } from 'node:events'
 
 const hooks: Record<string, any> = {}
 register(((ev: string, a: any, b?: any) => { hooks[ev + (typeof a === 'function' ? '' : ':' + JSON.stringify(a))] = b ?? a; return { catch() {} } }) as any, {} as any)
-const renderHook = Object.entries(hooks).find(([k]) => k.startsWith('ui.render') && k.includes('"Pane"'))![1]
+const renderHook = Object.entries(hooks).find(([k]) => k.startsWith('ui.render') && k.includes('"AbovePrompt"'))![1]
 const submitHook = hooks['prompt.submit']
-// The pane is open and placed, as after /answer; the prompt box is the store's copy.
-__store.set('immersive', true)
+// The session is open, as after /answer; the prompt box is the store's copy.
+__store.set('isOpen', true)
+// MAIN=1 draws the main screen, where the band may take the terminal's height;
+// otherwise fullscreen, where it gets what half the screen leaves above the prompt.
+const isMain = !!process.env.MAIN
 
 const mk = (type: string) => (props: any) => ({ type, props })
 const comps = { Box: mk('Box'), Text: mk('Text'), Button: mk('Button'), Input: mk('Input'), Link: mk('Link'), Select: mk('Select') }
@@ -21,6 +24,7 @@ const REPLIES = [
   "Then the first answer fits what you described: hide them, the same way lore is hidden. One thing to settle first: the question doesn't say whether hidden files stay on the branch. If you're unsure, asking claude is cheap.",
 ]
 let replyN = 0
+let lastSent = ''
 const $: any = {
   session: { model: async () => 'claude-opus-5-5' },
   model: {
@@ -37,7 +41,7 @@ const $: any = {
     read: async () => ({ text: (__store.get('prompt') as string) ?? '', cursor: 0 }),
     fill: async (a: any) => { __store.set('prompt', a.text); log.push('fill ' + a.text); return { isFilled: true } },
   },
-  ui: { panes: async () => [{ id: 'answer-session', isShown: true, isPlaced: true }], toast: (t: string) => log.push('toast ' + t), resolve: () => comps, status: (t: any) => log.push('status ' + t), focus: async (a: any) => { log.push('focus ' + a.key); return {} }, close: async () => log.push('close') },
+  ui: { toast: (t: string) => log.push('toast ' + t), resolve: () => comps, status: (t: any) => log.push('status ' + t), focus: async (a: any) => { log.push('focus ' + a.key); return {} }, close: async () => log.push('close') },
 }
 let buttons: Record<string, any> = {}
 let inputs: Record<string, any> = {}
@@ -70,10 +74,14 @@ const toInk = (n: any, i = 0): any => {
   return React.createElement(IText, { key: i }, `<${n.type}>`)
 }
 
+// The terminal is cols × rows; the band's body is five columns narrower (the
+// engine's [-] mark) and as tall as Claude Code 2.1.305 lets it be.
 async function frame(cols: number, rows: number) {
   buttons = {}; inputs = {}
-  const tree = await renderHook($, { props: { bodyColumns: cols, scroll: { bodyRows: rows, offset: 0 }, isFocused: false, placement: process.env.PLACEMENT ?? 'dock' } })
-  const out: any = new EventEmitter(); out.columns = cols; out.rows = rows + 5
+  const maxRows = isMain ? rows : Math.floor(rows / 2) - 5
+  const band = cols - 5
+  const tree = await renderHook($, { surface: 'terminal', viewport: { columns: cols, rows, isFullscreen: !isMain }, props: { bodyColumns: band, maxRows, scroll: { bodyRows: maxRows - 1, offset: 0 }, hasSurvey: false, isWorking: false, view: {} } }, async () => null)
+  const out: any = new EventEmitter(); out.columns = band; out.rows = rows + 5
   let last = ''; out.write = (s: string) => { last = s }
   const inst = render(toInk(tree), { stdout: out, debug: true, patchConsole: false, exitOnCtrlC: false } as any)
   inst.unmount()
@@ -87,23 +95,35 @@ const script = (process.argv[3] ?? '').split('|').filter(Boolean)
   await frame(cols!, rows!)
   for (const act of script) {
     if (act === 'tick') { for (const fn of timers.splice(0)) fn() }
+    // reply ends the model's turn for the last prompt that reached it, with the next canned reply.
+    else if (act === 'reply') {
+      const turnId = 'turn-' + Math.random()
+      await hooks['turn.start']($, { text: lastSent, turnId }, async () => ({ turnId }))
+      const answer = REPLIES[replyN++ % REPLIES.length]
+      await hooks['turn.complete']($, { answer, durationMs: 1, isAborted: false, turnId, reason: 'answer' }, async () => ({ text: answer }))
+      log.push('reply')
+    }
+    // click:<key> presses the Button drawn under that key, as a click would.
+    else if (act.startsWith('click:')) { const b = buttons[act.slice(6)]; if (!b) throw new Error('no button ' + act.slice(6) + ' in ' + Object.keys(buttons).join(' ')); b.onPress({ surface: 'terminal' }); log.push('click ' + act.slice(6)) }
     else if (act.startsWith('say@')) { const [pre, ...rest] = act.slice(4).split(':'); const k = Object.keys(inputs).find(x => x.startsWith(pre!))!; inputs[k].onSubmit(rest.join(':')) }
     else if (act.startsWith('edit@')) { const [pre, ...rest] = act.slice(5).split(':'); const k = Object.keys(inputs).find(x => x.startsWith(pre!))!; inputs[k].onInput(rest.join(':')) }
     // type:<text> puts text in the prompt box; enter:<text>, or bare text, presses Enter on it.
     else if (act.startsWith('type:')) { __store.set('prompt', act.slice(5)) }
     else {
       const text = act.startsWith('enter:') ? act.slice(6) : act
-      const r = await submitHook($, { text, origin: { kind: 'composer' } }, async () => ({ text }))
-      log.push('⏎ ' + (r?.drop ?? 'REACHED THE MODEL'))
+      const r = await submitHook($, { text, origin: { kind: 'composer' } }, async (e: any) => ({ text: e.text, context: e.context }))
+      if (!r?.drop) lastSent = text
+      log.push('⏎ ' + (r?.drop ?? `REACHED THE MODEL${r?.context ? ' with ' + r.context.length + ' context block' : ''}`))
       __store.set('prompt', '')
     }
     await settle(); await frame(cols!, rows!)
   }
   const f = await frame(cols!, rows!)
   const lines = f.split('\n')
-  console.log('┌' + '─'.repeat(cols!) + '┐')
-  for (const l of lines) console.log('│' + l.padEnd(cols!) + '│')
-  console.log('└' + '─'.repeat(cols!) + '┘')
+  const band = cols! - 5
+  console.log('┌' + '─'.repeat(band) + '┐')
+  for (const l of lines) console.log('│' + l.padEnd(band) + '│')
+  console.log('└' + '─'.repeat(band) + '┘')
   console.log('> ' + ((__store.get('prompt') as string) || ''))
   console.log(lines.length, 'rows;', log.join(' | '))
 })()

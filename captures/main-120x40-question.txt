@@ -1,0 +1,40 @@
+Answer session  ◉ ○ ○ ○ ○ ○ ○ ○  summary  1 of 8                                               v0.1-7 · main screen [-]
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                     │
+                                                     │
+                                                     │
+                                                     │
+                                                     │
+                                                     │
+GitHub  adamstallard/igor #216  12m ago              │ CHOOSE AN ANSWER
+claude asks, an agent via the inquisitor             │   1: Yes, filter them by the role's scope  ★ recommended
+                                                     │      → A worker never sees another project's questions.
+                                                     │
+During a run, should the inquisitor's first filter   │   2: No, show them as input
+hide questions-branch files about projects the role  │      → Workers may read other projects' questions.
+doesn't work on, as it hides lore entries outside    │
+the role's scope?                                    │   Or type your own answer in the prompt box
+                                                     │
+The scope filter covers lore entries only. Question  │
+files on the lore repository's questions branch can  │ POSTS ON GITHUB AS adam-relay[bot]
+be about any project.                                │ │ User says: …
+                                                     │
+Related #216 decision 3: scope is a hard filter      │
+                                                     │
+                                                     │
+                                                     │
+                                                     │
+                                                     │
+                                                     │
+                                                     │
+                                                     │
+                                                     │
+                                                     │
+                                                     │
+1–2: choose   t: talk it through   d: defer   p: previous   n: next                                        q: close
+
+───────────────────────────────────────────────────────────────────────────────────────────── answer-session-prototype ─
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on · a number, a key or your answer, then ⏎                                          ◐ medium · /effort
+

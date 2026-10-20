@@ -1,0 +1,40 @@
+
+ ▐▛███▛█   Claude Code v2.1.305
+▝▜██████▀  Opus 5.5 · Claude Max
+ ▝▝   ▝▝   ~/shared-skills
+
+⚠ Ask rule Advisor matches no tool · check for typos
+
+❯ /answer
+  ⎿  answer-session: Answer session open: type in the prompt box, Enter answers.
+
+
+
+
+
+
+
+
+
+
+
+Answer session  ○ ○ ○ ◉ ○ ○ ○ ○  summary  4 of 8 · 8 new · 0 relayed · 0 deferred                                   v0.1-7 · fullscreen [-]
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Discord  #igor-dev  1h ago                                     │   1: Keep exponential, retire fixed  ★ recommended
+Igor (scribe) asks, an agent via its inquisitor role           │      → retry-fixed-5s is deprecated in one lore pull request.
+                                                               │ ▌ 2: Keep both, narrow the fixed one
+                                                               │ ▌    → retry-fixed-5s fires only for the payments client.
+Two lore entries disagree on retry backoff. Keep "exponential, │   3: Retire both
+capped at 30s" and retire "fixed 5s"?                          │      → Workers get no retry guidance.
+                                                               │   Or type your own answer in the prompt box
+retry-backoff-exponential (active, 4 supports) and             │
+retry-fixed-5s (active, 1 support) both fire on HTTP client    │ WILL POST ON DISCORD AS adam-relay#4127  [ Relay ]
+changes.                                                       │ │ User says: Keep both, narrow the fixed one
+                                                               │
+                                                               │
+1–3: choose   t: talk it through   d: defer   p: previous   n: next                                                            q: close
+                                                                                                                        ◐ medium · /effort
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────── answer-session-prototype ─
+❯ 2
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on · ⏎ relay to Discord

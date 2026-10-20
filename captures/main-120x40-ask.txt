@@ -1,0 +1,40 @@
+▝▜██████▀  Opus 5.5 · Claude Max
+ ▝▝   ▝▝   ~/shared-skills
+
+⚠ Ask rule Advisor matches no tool · check for typos
+
+❯ /answer
+  ⎿  answer-session: Answer session open: type in the prompt box, Enter answers.
+
+⏺ Prompt dropped by a hook: Talking it through
+
+❯ In two sentences, what is this question really asking?
+
+⏺ It's asking whether the scope rule you already made hard for lore entries (decision 3 on #216) should also apply to
+  the question files on the questions branch, which right now aren't filtered and can be about any project. Put simply:
+  during a run, can a worker see open questions from projects its role doesn't cover, or does it only see questions
+  about its own projects?
+
+✻ Churned for 2s · done 3:50 PM
+
+⏺ Prompt dropped by a hook: Drafting a question for claude
+Answer session  ◇ ○ ○ ○ ○ ○ ○ ○  summary  1 of 8                                               v0.1-7 · main screen [-]
+GitHub  adamstallard/igor #216  claude · 12m ago     │ ◇ TALKING IT THROUGH · in the conversation above
+During a run, should the inquisitor's first filter   │ ASK CLAUDE, IN THE THREAD  [ Send ]
+hide questions-branch files about projects the role  │ │ User says: How would the filter tell which project a
+doesn't work on, as it hides lore entries outside    │ │ question file is about: do question files carry the same
+the role's scope?                                    │ │ scope metadata as lore entries, or would we have to add
+1  Yes, filter them by the role's scope  ★           │ │ it? And if we added it, what happens to a question that
+2  No, show them as input                            │ │ touches more than one project?
+                                                     │ Will post on GitHub as adam-relay[bot]. Enter sends exactly
+                                                     │ this; the question waits for the reply, the queue moves on.
+b: back to the discussion                                                                                  q: close
+
+───────────────────────────────────────────────────────────────────────────────────────────── answer-session-prototype ─
+❯ How would the filter tell which project a question file is about: do question files carry the same scope metadata as
+  lore entries, or would we have to add it? And if we added it, what happens to a question that touches more than one
+  project?
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on · ⏎ send to claude
+                  tmux focus-events off · add 'set -g focus-events on' to ~/.tmux.conf and reattach for focus tracking
+

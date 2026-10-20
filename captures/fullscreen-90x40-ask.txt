@@ -1,0 +1,40 @@
+▝▜██████▀  Opus 5.5 · Claude Max
+ ▝▝   ▝▝   ~/shared-skills
+
+⚠ Ask rule Advisor matches no tool · check for typos
+
+❯ /answer
+  ⎿  answer-session: Answer session open: type in the prompt box, Enter answers.
+
+⏺ Prompt dropped by a hook: Talking it through
+
+❯ In two sentences, what is this question really asking?
+
+⏺ It asks whether a worker should see the lore repository's question files at all when
+  they concern projects outside its role. Decision 3 already hides lore entries from other
+  projects, but question files on the questions branch slip past that filter, so you're
+  choosing between extending the same hard filter to them or letting workers read other
+  projects' questions as input.
+
+✻ Worked for 2s · done 3:47 PM
+
+⏺ Prompt dropped by a hook: Drafting a question for claude
+Answer session  ◇ ○ ○ ○ ○ ○ ○ ○  summary  1 of 8                  v0.1-7 · fullscreen [-]
+GitHub  adamstallard/igor #216  claude · 12m ago
+During a run, should the inquisitor's first filter hide questions-branch files about
+projects the role doesn't work on, as it hides lore entries outside the role's scope?
+◇ TALKING IT THROUGH · in the conversation above
+ASK CLAUDE, IN THE THREAD  [ Send ]
+│ User says: Do question files on the questions branch record which project they're
+│ about, the way lore entries do, or would the filter have to infer it? And what
+│ should happen to a question that touches more than one project?
+Will post on GitHub as adam-relay[bot]. Enter sends exactly this; the question waits
+for the reply, the queue moves on.
+b: back to the discussion                                                    q: close
+  tmux focus-events off · add 'set -g focus-events on' to ~/.tmux.conf and reattach for…
+─────────────────────────────────────────────────────────────── answer-session-prototype ─
+❯ Do question files on the questions branch record which project they're about, the way
+  lore entries do, or would the filter have to infer it? And what should happen to a
+  question that touches more than one project?
+──────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on · ⏎ send to claude

@@ -1,0 +1,40 @@
+
+ ▐▛███▛█   Claude Code v2.1.305
+▝▜██████▀  Opus 5.5 · Claude Max
+ ▝▝   ▝▝   ~/shared-skills
+
+⚠ Ask rule Advisor matches no tool · check for typos
+
+❯ /answer
+  ⎿  answer-session: Answer session open: type in the prompt box, Enter answers.
+
+
+
+
+
+
+
+
+
+
+
+Answer session  ◉ ○ ○ ○ ○ ○ ○ ○  summary  1 of 8 · 8 new · 0 relayed · 0 deferred                                   v0.1-7 · fullscreen [-]
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+GitHub  adamstallard/igor #216  12m ago                        │ CHOOSE AN ANSWER
+claude asks, an agent via the inquisitor                       │   1: Yes, filter them by the role's scope  ★ recommended
+                                                               │      → A worker never sees another project's questions.
+During a run, should the inquisitor's first filter hide        │
+questions-branch files about projects the role doesn't work    │   2: No, show them as input
+on, as it hides lore entries outside the role's scope?         │      → Workers may read other projects' questions.
+                                                               │
+The scope filter covers lore entries only. Question files on   │   Or type your own answer in the prompt box
+the lore repository's questions branch can be about any        │
+project.                                                       │
+                                                               │ POSTS ON GITHUB AS adam-relay[bot]
+Related #216 decision 3: scope is a hard filter                │ │ User says: …
+1–2: choose   t: talk it through   d: defer   p: previous   n: next                                                            q: close
+                                                                                                                        ◐ medium · /effort
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────── answer-session-prototype ─
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on · a number, a key or your answer, then ⏎
