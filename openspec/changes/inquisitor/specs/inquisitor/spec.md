@@ -239,6 +239,12 @@ Filter 1 SHALL search:
   questions branch with `git fetch` and `git show`, without checking it
   out.
 
+During an Igor's run, a worker's or an inquisitor run the Igor starts
+itself, the search SHALL cover only the lore repository the Igor injects
+lore from, and no other configured lore repository. When the script cannot tell
+which lore repository that is, it SHALL search no lore repository, and its
+output SHALL say that lore was not searched.
+
 The search SHALL run the same way in an Igor worker as in any other
 session. It SHALL hide every lore entry whose scope is not in the
 question's scope, and never show, count or mention it, even as input.
@@ -256,13 +262,27 @@ entries.
 
 The search SHALL report each source it could not search, and each lore
 clone's remote-tracking default branch's last update by a fetch in that
-clone, or that the time is unknown. It
-needs no Igor role, no Igor configuration and no Igor service.
+clone, or that the time is unknown. Outside an Igor's run, it needs no
+Igor role, no Igor configuration and no Igor service.
+
+#### Scenario: During an Igor's run, only the Igor's lore repository is searched
+
+- **WHEN** two configured lore repositories serve the repository of the
+  item an Igor's run works, and the Igor injects lore from one of them
+- **THEN** the search covers only that one
+
+#### Scenario: An Igor's run whose lore repository is unknown searches no lore
+
+- **WHEN** during an Igor's run the script cannot tell which lore
+  repository the Igor injects lore from
+- **THEN** the search covers no lore repository, and its output says lore
+  was not searched
 
 #### Scenario: Two lore repositories serving one owner are both searched
 
-- **WHEN** the configuration names two lore repositories that both serve the
-  owner `o`, and the question concerns `o/api`
+- **WHEN** outside an Igor's run, the configuration names two lore
+  repositories that both serve the owner `o`, and the question concerns
+  `o/api`
 - **THEN** the search covers the entries of both
 
 #### Scenario: Outside any repository, every lore repository is searched
@@ -1213,7 +1233,9 @@ question and report that it did not.
 ### Requirement: Every answer is recorded and every asked question logged
 
 When a person answers a question, the agent SHALL record the answer where
-the question's answer is recorded. An answer the person running the session gave in the
+the question's answer is recorded. An answer logged with `authority:
+input` SHALL be recorded only in the question's log file, and never in a
+decision document. An answer the person running the session gave in the
 session, in the picker or in their own message in the conversation, SHALL
 be logged with `authority: decision` only when that person's login has
 write access to what the question concerns; otherwise with
@@ -1511,6 +1533,13 @@ why.
 - **THEN** the log records the answer with `authority: input`, and filter 1
   does not treat it as an answer
 
+#### Scenario: An answer without authority stays out of the change's spec
+
+- **WHEN** a person without write access answers, in a post, a question
+  about the current change's spec
+- **THEN** the agent records the answer only in the question's log file,
+  with `authority: input`, and does not write it into the spec
+
 ### Requirement: A log file and a miss file have one format
 
 Every log file and miss file SHALL take this format, wherever it is
@@ -1754,7 +1783,9 @@ not the agent asked a `vulnerability` question about it.
 
 People outside the advisory are everyone who cannot read the advisory. A
 public branch is a branch any of them can read, in a private or internal
-repository as in a public one; the advisory's private fork is not one.
+repository as in a public one. The advisory's private fork is not one.
+That fork is the temporary private fork GitHub creates for a security
+advisory, whose commits become public when the advisory is published.
 
 The rule covers text, not the fix's code: the code may land on a public
 branch before the advisory is published. A fix's regression test that fails before the fix, such as the one
@@ -1766,11 +1797,11 @@ it is published, the agent SHALL treat it as unpublished.
 
 A fix committed after the advisory is published is described as any other
 fix is. A commit in the advisory's private fork SHALL follow the rule
-above, describing neither the weakness nor how to exploit it, until
-task 0.13 shows that GitHub merges the fork's pull request only when the
-advisory is published; the full description goes in the advisory's text.
-Once task 0.13 shows that, a fork commit is described as any other fix
-is. If it shows instead that the pull request can be merged before
+above, describing neither the weakness nor how to exploit it, until it is
+measured (task 0.13) that GitHub merges the fork's pull request only when
+the advisory is published; the full description goes in the advisory's
+text. Once it is measured that the merge waits for publication, a fork
+commit is described as any other fix is. If it is measured instead that the pull request can be merged before
 publication, a fork commit SHALL follow the rule above unless, when the
 agent writes it, the agent knows the pull request will be merged only at
 the moment of publication, because the person who will publish the
@@ -1887,9 +1918,7 @@ propose the entry at all when a rejection holds it. During
 an Igor's run, a collision with an entry or rejection outside the run's
 scope is reported as igor PR #216's lore-review requirement *An entry
 already in the store is never overwritten by proposing* says: only as "id
-taken", naming nothing. That report does not say whether an entry holds
-the id, which would allow another id, or a rejection, which forbids
-proposing the entry. So on that report the agent SHALL NOT propose the
+taken", naming nothing. On that report the agent SHALL NOT propose the
 entry during the run, and its report SHALL say so. A person can propose it
 outside a run.
 

@@ -107,7 +107,8 @@ holds.
 
 prose's posting hook already reads the body of a `gh` post from a short
 allow-list of command forms, and the body fields of GitHub MCP tools
-(`.agents/skills/prose/DECISIONS.md`, *The posting hook reads an allow-list*).
+(`.agents/skills/prose/DECISIONS.md`, *The posting hook reads an allow-list*
+and *The posting hook's reach*).
 That reader moves to `.agents/lib/gh-post/`, and both hooks call it. Its
 rules are stated once, in this change's `gh-post` capability spec.
 prose's tests must pass unchanged after the move, except where the reader
@@ -210,6 +211,16 @@ default branch of the repository the question concerns. One such document is the
 igor's scribe, the Igor role that writes a discussion's decisions down
 (proposal decision 109). An agent's choice has `answered_by: agent`.
 
+An answer logged as `input` goes only into the question's log file, never
+into a decision document: on the current work's branch, a decision
+document counts as an answer, so writing there an answer logged as input,
+such as one from a person without write access, would turn input into a
+decision (proposal decision 131). Log and miss files quote a question as
+asked and a person's words exactly, so prose's pass skips files under
+`.inquisitor/` (proposal decision 134). The files on a lore repository's
+`questions` branch need no such rule: that branch is never checked out,
+so prose never sees them.
+
 When filter 1 stops a question with a lore entry, the citation goes to that
 lore repository's `questions` branch, as a file under `citations/` holding
 the entry's id and the date. When an Igor pushes a citation from a run, it
@@ -223,9 +234,11 @@ citation files, and igor's review reads them all, so the spec states their
 format once, in the requirement *A citation file has one format*, and igor
 PR #216 is to point to it rather than state a format of its own (decisions
 110 and 111). During an Igor's run the agent pushes no citation itself.
-A worker, the agent an Igor starts on a work item, holds only the token
+A worker, the agent an Igor starts on a work item, is given only the token
 of the seat its work is charged to, a credential for the model, which
-cannot push to the lore repository. igor PR #216's requirement *An Igor
+cannot push to the lore repository. Task 0.14 measures whether a `gh`
+login stored in the home directory the worker is given is usable by the
+worker anyway. igor PR #216's requirement *An Igor
 publishes the citations its worker reports* says how a worker reports its
 citations, and which citations the Igor pushes, and when (proposal
 decisions 123 and 129). The same rules cover the citations of an
@@ -341,9 +354,10 @@ skill's token goes out as (task 0.7).
 
 These are rules for the agent, which SKILL.md states; the script only
 chooses whom a post tags. A headless session never uses the picker. An
-Igor worker holds no
+Igor worker is given no
 credential that can post, so it asks only in its handback comment, which
-its Igor posts (proposal decision 126). A headless session that can post,
+its Igor posts (proposal decision 126). It asks there even if task 0.14
+finds a `gh` login within its reach. A headless session that can post,
 such as a scheduled agent, tags the login only when the login has write
 access and the post goes out as someone else, and otherwise tags no one. In a session with a person in it,
 the script reads the configured login's write access with the same
@@ -366,6 +380,20 @@ never shown, since scope decides who may see an entry. Status is labelled,
 not filtered: an in-scope entry that is not `active` is shown as input. igor's lore-firing spec, which bans offering a worker a
 search tool, is amended by igor PR #216 (decisions in igor issue #215) to
 allow a search that applies firing's scope rule and labels status.
+A worker reports a cited entry by its id alone, and the Igor checks that
+id against the lore repository it injects from. If the search covered
+another lore repository, an entry found there could be refused, or
+counted as a different entry with the same id. So during a run the search
+covers only the lore repository the Igor injects from (proposal decision
+133). When the script can't tell which lore
+repository the Igor injects from, it searches none.
+
+During a run, when the agent picks an id for a lore entry it would
+propose, igor reports a clash with an id held outside the run's scope
+only as "id taken". The report doesn't say what holds the id: an entry,
+after which another id would do, or a rejection, which forbids proposing
+the entry. So the agent proposes no lore entry during the run (proposal
+decision 128).
 
 The search reads each markdown file under the clone's `entries/` whose
 frontmatter holds `conditions`, never one under `rejected/`, and matches the question's terms against `claim`,
@@ -378,8 +406,9 @@ one file in the lore repository that igor and the inquisitor both read;
 this change does not build it.
 The igor project's own
 configuration has a `destination` setting naming the directory of a lore
-repository that holds its entries; the search does not use it, since a plain
-session has no Igor configuration.
+repository that holds its entries. Outside an Igor's run the search does
+not use it, since a plain session has no Igor configuration; during a run,
+that lore repository is the one the search covers.
 
 ## Tracing scenarios to tests
 

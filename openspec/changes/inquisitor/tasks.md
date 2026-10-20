@@ -27,8 +27,8 @@ contradicts what design.md assumed.
       added a decision, from a `DECISIONS.md` section through blame, the
       commit and its pull request's reviews
 - [ ] 0.9 How the script tells a session with a person in it from a
-      headless run, such as an Igor worker or `claude -p`, and which Igor
-      role a worker runs
+      headless run, such as an Igor worker or `claude -p`, which Igor
+      role a worker runs, and which lore repository its Igor injects from
 - [ ] 0.10 Whether the agent can open, and write in, a repository's private
       security advisory, and what access that needs
 - [ ] 0.11 GitHub's API gives a comment's or review's author, and whether a
@@ -61,10 +61,13 @@ contradicts what design.md assumed.
         without `@<file>`), or by `--input`, and a review's
         `comments[][body]` fields.
       - It reports whether a post creates an issue.
+      - It reads every `body` argument of the GraphQL mutations that post
+        text to an issue or pull request (decision 132), and reports any
+        other mutation as no post, or as unreadable when it has a `body`.
       - It blocks as unreadable a `gh api` call that writes (its method
         `POST`, `PATCH` or `PUT`, given or implied by fields, or a GraphQL
-        mutation) whose body it can't read, and a review whose comments it
-        can't read.
+        mutation) whose body it can't read, a GraphQL query it can't parse,
+        and a review whose comments it can't read.
       - It applies the closed list of gh post verbs, and blocks as
         unreadable, as prose's reader does today, a command that names
         `gh` in another command's arguments, such as `sh -c`, or that
@@ -83,7 +86,9 @@ contradicts what design.md assumed.
       more than 2 hours old except a `deferred` record without a category
 - [ ] 2.3 Filter 1's search over decision documents, issues through `gh`, the
       repository's question log, and configured lore clones' entries and
-      `questions` branch, fetched and read with `git show`; the authority
+      `questions` branch, fetched and read with `git show`, and during an
+      Igor's run only the lore repository the Igor injects from, or none
+      when the script can't tell which (decision 133); the authority
       rules, with scope as igor's `scopeMatches` gives it inside an Igor
       and by the short name outside one, and a decision record counted
       only when `accepted`, a change's own decisions within that change, and
@@ -171,6 +176,9 @@ contradicts what design.md assumed.
       skills that turn on a hook
 - [ ] 5.4 `manage-skills` installs it and wires its hooks: check with
       `skills.py install inquisitor` and `skills.py doctor`
+- [ ] 5.5 github-app's `SKILL.md`: every example that runs `python3 $G`
+      sets `G` in the same command, or writes the script's full path, so
+      the post hooks don't block it (decision 135)
 
 ## 6. Archive
 
@@ -185,7 +193,11 @@ contradicts what design.md assumed.
       reports* at igor's `openspec/specs/lore-firing/spec.md` on main
 - [ ] 6.1 Say in prose's and bug-hunter's `DECISIONS.md` that the
       inquisitor's commits to a lore `questions` branch are machine records,
-      exempt from their trailers
+      exempt from their trailers. Make prose's file filter skip files under
+      `.inquisitor/`, and say why in prose's `DECISIONS.md`: they are
+      records quoted word for word (decision 134). This waits for archive
+      because no `.inquisitor/` file is committed until the skill ships;
+      tests write theirs in temporary repositories
 - [ ] 6.2 Fold this change's lasting reasoning, from proposal.md and
       design.md, into a new `.agents/skills/inquisitor/DECISIONS.md`, and
       fold the reasoning for moving the post reader into prose's

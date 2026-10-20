@@ -11,17 +11,17 @@ are written down:
 - 11 to 15 and 31;
 - 32 to 35, 38 to 49 and 51 to 63, on 2026-10-19;
 - 64 to 78, 80 to 85, 87 to 98, 100 to 106, 108 to 110, 112 to 124 and
-  126 to 129, on 2026-10-20.
+  126 to 129 and 131 to 135, on 2026-10-20.
 
 He gave those of 2026-10-19 and 2026-10-20 while reviewing this pull
 request, [#25](https://github.com/adamstallard/shared-skills/pull/25), whose
 own thread holds none of them. In the same sessions he also ruled on the
 decisions this change proposed itself: 16 to 30, 36, 37, 50, 79, 86, 99,
-107, 111 and 125. Those stay listed under *Proposed by this change* below, each marked
+107, 111, 125 and 130. Those stay listed under *Proposed by this change* below, each marked
 with what he did. He changed 26, replaced 36 with his decision 42,
 confirmed 79 only in part, replaced 107's item 6 with his decision 108,
-and added his decision 109 to 107's item 5. He confirmed the rest. The
-one decision of this change he has not yet ruled on is 130.
+and added his decision 109 to 107's item 5. He confirmed the rest, so no
+decision of this change waits for him.
 
 1. **Four filters run before any question reaches a person.**
    1. **Already answered:** the agent finds the earlier answer, cites where it
@@ -375,7 +375,9 @@ sixth consistency read:
 74. **A question another installed skill requires a person to decide is
     exempt from filters 3 and 4:** bug-hunter's root causes and its other
     questions it always asks, prose's `kept (asked)` findings, and whether
-    to adopt spec-check or spec-trace. Filters 1 and 2 still apply, and its
+    to adopt spec-check or spec-trace. For spec-check, the exempt question
+    is whether to enforce its decisions-first rule, as the spec's first
+    requirement says. Filters 1 and 2 still apply, and its
     `ask` verdict names the skill that requires it.
 75. **Verdict records are shared by everything using the same HOME,** Igor
     workers included: a verdict is about the question's text, not the
@@ -451,7 +453,9 @@ eighth consistency read:
     same owner. Filter 1 searches every lore repository that serves the
     repository the question concerns. An organization or project question
     goes to the lore repository that serves the project it concerns.
-    Decision 86 says which one when more than one matches.
+    Decision 86 says which one when more than one matches. During an
+    Igor's run, decision 133 limits the search to the lore repository the
+    Igor injects from.
 
 Adam gave 87 to 92 on 2026-10-20, answering questions from spec-check's
 ninth consistency read:
@@ -468,7 +472,9 @@ ninth consistency read:
     worker holds only its seat's token. Adam decided this for igor #216.
     His later decision 110 sets the format the Igor pushes them in, and
     his decisions 123 and 129 leave the rest, including how the worker
-    reports them, to #216.
+    reports them, to #216. So the channel is no longer settled as the
+    worker's output: #216 leaves it, the output or an outbox, to igor
+    PR #175, which runs a worker as a separate Unix user.
 89. **An answer carrying context more private than what the question
     concerns is generalised first,** with the question (decisions 33 and
     68). If the agent can't generalise it, nothing is logged: the answer is
@@ -515,6 +521,7 @@ tenth consistency read:
 96. **The shared post reader blocks as unreadable any `gh api` call with
     `-X POST`, `PATCH` or `PUT`, or a GraphQL mutation, whose body it can't
     read,** and prose's hook changes the same way. This extends decision 57.
+    Decision 132 says how the reader reads a GraphQL mutation's body.
 97. **A subagent returns its question to whoever started it instead of
     opening the picker,** because the starting agent is the one talking to
     the person, and can batch the subagent's questions with its own.
@@ -632,8 +639,9 @@ format:
        repository's `questions` branch (decision 83).
      - **Contents:** the cited entry's id and the date (decision 87), and,
        only when an Igor pushes the citation from a run, the run's id. The
-       run's id is opaque, and the Igor records it with the run's
-       transcript on its `igor-state` branch. A session outside an Igor's run has
+       run's id is opaque, and the Igor records it on its `igor-state`
+       branch, where igor PR #216 says (in the run's row of its execution
+       ledger, not with the transcript). A session outside an Igor's run has
        no run, and its citation holds no run id.
      - **Commit:** the message `inquisitor: log <file>` (decision 90), the
        author and committer `inquisitor <noreply>`, and a date reduced to
@@ -722,6 +730,8 @@ against everything it must agree with:
      cannot know what any other script posts, and prose's reader blocks a
      `gh` word passed to one today. `--identity <name>`, the github-app
      skill's way to choose an identity, may come before `gh` or `run`.
+     His decision 135 has the github-app skill's SKILL.md set `G` in the
+     same command as each use.
 123. **The rules for an Igor's push of its worker's citations live in igor
      #216,** in its lore-firing requirement *An Igor publishes the
      citations its worker reports*: when it pushes, which citations, and
@@ -758,8 +768,8 @@ recording decisions 112 to 125:
      entry.** When the id the agent would give a lore entry is reported
      only as "id taken" (decision 92), the agent does not propose the
      entry, and its report says so. A person can propose the entry outside
-     a run. Adam decided the same for igor #216's id gate, which #216 is
-     to record.
+     a run. Adam decided the same for igor #216's id gate, which #216
+     records.
 129. **An inquisitor run an Igor starts itself, with no worker, has its
      citations pushed by the Igor under igor #216's rules,** as Adam
      decided for #216. This change points to #216's requirement *An Igor
@@ -767,6 +777,45 @@ recording decisions 112 to 125:
      Igor's run, including how a worker reports its citations, and keeps
      its own rules only for a session outside a run. This extends decision
      123.
+
+Adam gave 131 to 135 on 2026-10-20, answering findings of spec-check's
+consistency read of the change before commit 4f90389:
+
+131. **An answer without authority is recorded only in the question's log
+     file,** as `authority: input`, and never in a decision document.
+     Written into a decision document on the current work's branch, it
+     would count as an answer there (decision 70), and the agent's own
+     write would turn input into a decision.
+132. **The shared post reader reads the body of a GraphQL mutation that
+     posts text.** The mutations that post text to an issue or pull
+     request are a closed list: `addComment`, `addPullRequestReview`,
+     `addPullRequestReviewComment`, `addPullRequestReviewThread`,
+     `addPullRequestReviewThreadReply`, `submitPullRequestReview`,
+     `createIssue`, `createPullRequest`, `updateIssue`,
+     `updateIssueComment`, `updatePullRequest`, `updatePullRequestReview`
+     and `updatePullRequestReviewComment`. For each of them the reader
+     returns every `body` argument, as a REST write's `body` field is
+     returned. Any other mutation sends no post, unless it has a `body`
+     argument, which makes it unreadable, as a REST write with a `body` to
+     an endpoint the reader does not read is. A mutation the reader cannot
+     parse, or whose `body` it cannot read, is unreadable. The spec had
+     reported every mutation as unreadable. Decision 132 brings it back to
+     decisions 96 and 107's item 2: a mutation is a write, it is blocked
+     only when its body can't be read, and one with no `body` sends no
+     post. A `createIssue` post creates an issue, as a `POST` to
+     `repos/<owner>/<repo>/issues` does.
+133. **Inside an Igor's run, filter 1 searches only the lore repository the
+     Igor injects lore from,** so an entry id a worker cites names one
+     entry, in the repository the Igor pushes the citation to. igor #216
+     records the same. This narrows decision 85 during a run.
+134. **prose's pass skips files under `.inquisitor/`.** A log or miss file
+     is a record that quotes a question as asked and what a person said,
+     word for word, and prose's rewrite would change it. At archive,
+     prose's file filter and its `DECISIONS.md` say so (task 6.1).
+135. **The github-app skill's SKILL.md sets `G` in the same command as each
+     use of it,** or writes the script's full path. Otherwise a post copied
+     from one of its examples would be blocked once by decision 122, until
+     the agent rewrote the command.
 
 ### Proposed by this change
 
@@ -776,7 +825,7 @@ needed to write the requirements. Reviewing #25, Adam confirmed 16
 to 30, 37 and 50, except 26, which he changed; his decision 42 replaced 36.
 His decision 32 replaced part of 19, and his decision 35 part of 18. The
 later decisions 79, 86, 99, 107, 111, 125 and 130 came from this change too,
-and each says what Adam did with it, or, for 130, that it waits for him.
+and each says what Adam did with it.
 
 16. **Confirmed by Adam (2026-10-19).** **A prepared question** states the recommended answer, what changes under
     the other answer, and a link to any related earlier decision, so that most
@@ -958,6 +1007,7 @@ cheap to reverse, so this change made them under filter 4:
         implied by fields or `--input` with no `-X GET`, or when its GraphQL query is a mutation. A write whose
         fields carry no `body` sends no post. This narrows how decision 96
         is read, so that reads such as GraphQL queries and label edits pass.
+        His decision 132 lists the mutations whose body the reader reads.
      3. **Confirmed by Adam (2026-10-20).** A rhetorical question is
         rewritten as a statement, and its `decided` verdict names the post.
      4. **Confirmed by Adam (2026-10-20).** A proposed lore entry whose id
@@ -1033,15 +1083,18 @@ chose it under filter 4 and put it to Adam, who confirmed it as written:
 
 Decision 130 came from spec-check's consistency read of the change after
 decisions 112 to 125. The design accepts three costs that no decision
-recorded, so this change records them and puts them to Adam to confirm or
-overrule:
+recorded, so this change recorded them and put them to Adam, who confirmed
+all three:
 
-130. **Waiting for Adam.** **Three costs this change accepts:**
-     1. **A log file not yet merged is invisible to parallel work.** A
-        question's file in a repository is committed with the work
-        (decision 43), so until that work merges, an agent on another
-        branch, or in another pull request, does not find it, and may ask
-        the same question again.
+130. **Confirmed by Adam (2026-10-20).** **Three costs this change accepts:**
+     1. **A repository's own question log is invisible to parallel work
+        until it merges.** A question about one repository is logged in
+        that repository's `.inquisitor/questions/`, committed on the work's
+        branch (decision 43). Until that work merges, an agent on another
+        branch, or in another pull request, does not find the file, and may
+        ask the same question again. This cost does not apply to the lore
+        repository's orphan `questions` branch, where a file is pushed
+        directly and is found by the next fetch.
      2. **Lore is only as fresh as the person's fetches.** Filter 1 reads
         each lore clone's remote-tracking default branch as the clone last
         fetched it, and fetches only the `questions` branch, so an entry
@@ -1056,8 +1109,8 @@ overrule:
 
 **Still open:**
 
-Decision 130 waits for Adam. The other items below are facts to measure,
-changes elsewhere, and one extension this change does not plan.
+No decision waits for Adam. The items below are facts to measure, changes
+elsewhere, and one extension this change does not plan.
 
 Twelve of the items below are unmeasured facts, measured by tasks 0.1 to
 0.14 before anything is built; the first fact takes three tasks, 0.1 to
@@ -1085,10 +1138,12 @@ The last item is a possible extension that this change does not plan.
   the script can't learn it, it treats every post as going out as the
   person, and, in a session with a person in it, asks through the picker
   where it would have tagged them.
-- **Can the script tell whether a person is in the session, and which Igor
-  role it runs in?** If it can't tell the first, the session counts as
-  having no person in it, so a picker is never opened with nobody to answer
-  it. If it can't tell the role, every `role:` lore entry is hidden.
+- **Can the script tell whether a person is in the session, which Igor
+  role it runs in, and which lore repository that Igor injects from?** If
+  it can't tell the first, the session counts as having no person in it,
+  so a picker is never opened with nobody to answer it. If it can't tell
+  the role, every `role:` lore entry is hidden. If it can't tell the lore
+  repository, filter 1 searches no lore during the run (decision 133).
 - **Can the script find the approver of the pull request that added a
   decision?** A section of a `DECISIONS.md` leads through blame and a
   commit to a pull request and its reviews. If not, the first candidate in
@@ -1126,9 +1181,10 @@ The last item is a possible extension that this change does not plan.
   - igor's review counts citations on the lore repository's `questions`
     branch (its decision 8; decision 83 here);
   - its id check reports an out-of-scope collision during a run only as
-    "id taken" (its decision 6; decision 92 here). #216 is still to
-    record that such an entry is not proposed during the run, as decision
-    128 says here.
+    "id taken" (its decision 6; decision 92 here), and such an entry is
+    not proposed during the run (decision 128 here);
+  - a search during a run reads only the lore repository the Igor injects
+    from (decision 133 here).
 - **igor PR #153, signed publishing,** would have an Igor whose role
   lists prose or bug-hunter push only commits that went through those
   skills and carry their trailers. Citation commits
@@ -1230,6 +1286,10 @@ None.
   (decision 57), which changes prose's hook in the same way.
 - In each repository where it runs, the skill writes `.inquisitor/`. In a
   team's lore repository, it pushes to an orphan branch named `questions`.
+- prose: its pass skips files under `.inquisitor/`, and its `DECISIONS.md`
+  says why (decision 134).
+- github-app: its SKILL.md sets `G` in the same command as each use, or
+  writes the script's full path (decision 135).
 - The README's skills table, and its list of skills that turn on a hook.
 - This pull request's first commit adds `openspec/`, `AGENTS.md` and
   spec-trace's CI workflow to shared-skills.

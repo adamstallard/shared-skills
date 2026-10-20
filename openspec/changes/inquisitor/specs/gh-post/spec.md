@@ -49,7 +49,8 @@ makes the command line unreadable. Its command is its first word
 after any leading `if`, `then`, `elif`, `else`, `do`, `while`, `until`, `!`,
 `{` or `time`. The finer points of this reading, such as heredocs, comments
 and line continuations, are those prose's reader follows today, as prose's
-`DECISIONS.md` records under *The posting hook reads an allow-list*.
+`DECISIONS.md` records under *A command that runs no gh post is not a
+post*.
 
 In a command that mentions a gh post verb, the reader SHALL judge each
 simple command:
@@ -156,16 +157,31 @@ Beyond the forms above, the reader SHALL read:
   the github-app skill sets, when the same command first assigns `G` such
   a path, as `G=<path>;` or `G=<path> &&`, and nothing else comes before
   the `python3`. A script at any other path is not this form;
-- a `gh api` call that writes to an endpoint under
-  `repos/<owner>/<repo>/issues` or `repos/<owner>/<repo>/pulls`, such as
-  an issue, a pull request, a comment or a review, whose text is given by a `body` field through `-f`,
+- a `gh api` call that writes an issue, a pull request, a comment or a
+  review, at an endpoint under `repos/<owner>/<repo>/issues` or
+  `repos/<owner>/<repo>/pulls`, with or without a leading `/`, and with
+  `{owner}` and `{repo}`, the placeholders `gh` fills in, counting as an
+  owner and a repository, whose text is given by a `body` field through `-f`,
   `--raw-field`, `-F` or `--field` (`-F` and `--field` also read
   `@<file>`), or by `--input` naming a JSON file with a `body` key. For a
   write to a pull request's reviews, `repos/<owner>/<repo>/pulls/<n>/reviews`,
   it SHALL also return each `comments[][body]` field, given the same ways,
   and each `body` in the `comments` array of an `--input` file. It SHALL
   say that the post creates an issue when the call is a `POST` to
-  `repos/<owner>/<repo>/issues`.
+  `repos/<owner>/<repo>/issues`;
+- a `gh api graphql` call whose query holds a mutation that posts text to
+  an issue or pull request: `addComment`, `addPullRequestReview`,
+  `addPullRequestReviewComment`, `addPullRequestReviewThread`,
+  `addPullRequestReviewThreadReply`, `submitPullRequestReview`,
+  `createIssue`, `createPullRequest`, `updateIssue`, `updateIssueComment`,
+  `updatePullRequest`, `updatePullRequestReview` or
+  `updatePullRequestReviewComment`. The reader SHALL return every `body`
+  argument in that mutation's input, at any depth, such as each thread's
+  `body` in an `addPullRequestReview`, whether it is a string literal in
+  the query or a variable whose value the call gives through `-f`,
+  `--raw-field`, `-F` or `--field` (`-F` and `--field` also read
+  `@<file>`), or in the `variables` of an `--input` file. It SHALL say that
+  the post creates an issue when the mutation is `createIssue`.
 
 A command that runs `python3 $G` or `python3 "$G"`, mentions a gh post
 verb, and assigns `G` nowhere earlier in the same command SHALL be reported as
@@ -175,13 +191,14 @@ command or to write the script's path out.
 A `gh api` call writes when its method is `POST`, `PATCH` or `PUT`, given
 by `-X` or `--method`, or implied by fields or `--input` with no `-X GET`;
 a GraphQL call writes when its query is a mutation. The reader SHALL
-report as unreadable every GraphQL mutation, with a body or without one,
-since any text it sends sits inside its query, so a label edit sent
-through GraphQL is unreadable while one sent through REST is no post;
-a write to any other endpoint whose fields include `body`; a review whose
-comment bodies it cannot read; and a write whose fields it cannot read. It
-SHALL report as sending no post any other write whose fields carry no
-`body`.
+report as unreadable a write to any other endpoint whose fields include
+`body`; any other GraphQL mutation that has a `body` argument; a listed
+mutation one of whose `body` arguments it cannot read; a GraphQL query it
+cannot parse; a review whose comment bodies it cannot read; and a write
+whose fields it cannot read. It SHALL report as sending no post any other
+write whose fields carry no `body`, and any mutation, listed or not, with
+no `body` argument. The reader returns no title: a question in an issue's
+or pull request's title is out of its reach, as it is out of prose's.
 
 #### Scenario: A post sent through the github-app skill is read
 
@@ -215,10 +232,33 @@ SHALL report as sending no post any other write whose fields carry no
 - **THEN** the reader returns `b` as the body, and says that the post
   creates an issue
 
-#### Scenario: A gh api write whose body can't be read is unreadable
+#### Scenario: A GraphQL comment's body is read
 
-- **WHEN** a hook asks about `gh api graphql -f query='mutation { … }'`
-- **THEN** the reader reports the command as unreadable
+- **WHEN** a hook asks about `gh api graphql -f query='mutation($b:
+  String!) { addComment(input: {subjectId: "I_1", body: $b}) { clientMutationId } }'
+  -f b=hello`
+- **THEN** the reader returns `hello` as the body
+
+#### Scenario: A GraphQL issue is reported as a new issue
+
+- **WHEN** a hook asks about `gh api graphql` with a `createIssue` mutation
+  whose `body` is the literal `"b"`
+- **THEN** the reader returns `b` as the body, and says that the post
+  creates an issue
+
+#### Scenario: A GraphQL mutation with no body sends no post
+
+- **WHEN** a hook asks about `gh api graphql` with an `addLabelsToLabelable`
+  mutation
+- **THEN** the reader reports that the command sends no post
+
+#### Scenario: A GraphQL mutation that can't be read is unreadable
+
+- **WHEN** a hook asks about `gh api graphql -f query='mutation { … }'`,
+  which the reader cannot parse, or about an `addDiscussionComment`
+  mutation with a `body`, or about an `addComment` mutation whose `body`
+  is a variable the call does not give
+- **THEN** the reader reports each command as unreadable
 
 #### Scenario: A gh api write with a body it does not read is unreadable
 
