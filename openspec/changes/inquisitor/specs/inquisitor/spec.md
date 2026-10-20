@@ -150,7 +150,7 @@ Terms used throughout this spec:
   **citation file** records that filter 1 stopped a question with a lore
   entry; *A question that should not have been asked is logged as a miss*
   and *Every answer is recorded and every asked question logged* define
-  them.
+  them, and *A citation file has one format* gives a citation file's form.
 - **The credential patterns** are a private key's `-----BEGIN` line, GitHub
   tokens (`ghp_`, `gho_`, `ghs_`, `github_pat_`), AWS access key IDs
   (`AKIA`), and Slack tokens (`xox`).
@@ -1148,13 +1148,10 @@ user-level `CLAUDE.md`, such as `~/.claude/CLAUDE.md`, and never in a
 committed one.
 When filter 1 stops a question because a lore entry answers it, the agent
 SHALL push a **citation file** to the questions branch of the lore
-repository holding that entry, under `citations/`, named by the date and
-6 random hex digits. It holds only the entry's id and the date, nothing
-about the question. No citation is sent for a question with a category,
+repository holding that entry, in the format that *A citation file has one
+format* states. No citation is sent for a question with a category,
 or when the lore repository is more visible than the repository the
-question concerns. Its commit SHALL
-have a fixed author and committer, `inquisitor <noreply>`, and a date
-reduced to the day. During an Igor's run, the worker SHALL report each
+question concerns. During an Igor's run, the worker SHALL report each
 citation in its output instead, and the Igor pushes the citations of
 existing `active` entries in the run's role's scope only when the run
 publishes, a handback comment counting as publishing, as bookkeeping
@@ -1354,13 +1351,6 @@ why.
   and the question stays open; the agent uses the answer in the work, and
   its report says the answer could not be recorded at this privacy
 
-#### Scenario: A question filter 1 stopped with a lore entry is cited on the questions branch
-
-- **WHEN** filter 1 stops a question because an `active` lore entry answers
-  it
-- **THEN** the agent pushes a citation file holding only the entry's id and
-  the date to `citations/` on that lore repository's questions branch
-
 #### Scenario: A questions-branch commit is a machine record
 
 - **WHEN** the script pushes a question's file to a lore repository's
@@ -1373,12 +1363,6 @@ why.
 - **WHEN** an Igor hands an item back after its worker reported a citation
 - **THEN** the Igor pushes that citation file, as it would when the run
   publishes
-
-#### Scenario: A citation's commit names no person
-
-- **WHEN** the agent pushes a citation file
-- **THEN** its commit's author and committer are `inquisitor <noreply>`,
-  and its date holds only the day
 
 #### Scenario: No citation goes to a more visible lore repository
 
@@ -1435,6 +1419,56 @@ why.
 - **WHEN** a question's text holds `../`, a `---` line and a colon
 - **THEN** the log file's name holds none of them, and its frontmatter still
   parses to the same text
+
+### Requirement: A citation file has one format
+
+Every citation file SHALL take this format, whether the agent pushes it or
+an Igor pushes it for its worker.
+
+- **Path:** `citations/<date>-<6 random hex digits>` on the lore
+  repository's questions branch, with no extension. `<date>` is the day
+  the file is pushed, as `yyyy-mm-dd` in UTC, and the hex digits are
+  lowercase.
+- **Contents:** YAML holding the key `entry`, the cited lore entry's id,
+  and the key `date`, the same `yyyy-mm-dd` as the file's name, each as a
+  quoted string, and nothing about the question. A citation that an Igor
+  pushes from a run SHALL also hold the key `run`, the run's id: an opaque
+  id that the Igor adds when it pushes, and records with the run's
+  transcript on its `igor-state` branch. A worker's report of a citation
+  holds no run id. A citation pushed outside an Igor's run has no run, and
+  SHALL hold no `run` key. The file SHALL hold no other key.
+- **Commit:** the message `inquisitor: log <file>` and nothing else, with
+  no trailer, where `<file>` is the file's path from the branch's root,
+  such as `citations/2026-10-20-3f9a1c`; the author and committer
+  `inquisitor <noreply>`; and a date of midnight UTC on the file's day.
+
+#### Scenario: A citation an Igor pushes from a run holds the run's id
+
+- **WHEN** an Igor publishes a run whose worker reported a citation of an
+  `active` entry in the run's role's scope, for a question with no category,
+  and the lore repository is no more visible than the repository the
+  question concerns
+- **THEN** the Igor pushes a citation file under `citations/`, named by the
+  date and 6 random hex digits, holding `entry`, `date` and `run`, where
+  `run` is the id the Igor records with the run's transcript on its
+  `igor-state` branch
+
+#### Scenario: A citation from a session outside an Igor's run holds no run id
+
+- **WHEN**, in a Claude Code session in a git repository and outside an
+  Igor's run, filter 1 stops a question that has no category with an
+  `active` entry from a lore repository no more visible than the repository
+  the question concerns
+- **THEN** the agent pushes a citation file to `citations/` on that lore
+  repository's questions branch, named by the date and 6 random hex digits
+  and holding only `entry` and `date`
+
+#### Scenario: A citation's commit names no person
+
+- **WHEN** the agent or an Igor pushes a citation file
+- **THEN** the commit's message is `inquisitor: log <that file's path>`
+  with no trailer, its author and committer are `inquisitor <noreply>`, and
+  its date is midnight UTC on the file's day
 
 ### Requirement: Some questions are recorded by hash only
 

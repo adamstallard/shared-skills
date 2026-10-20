@@ -193,8 +193,17 @@ igor's scribe, the Igor role that writes a discussion's decisions down
 
 When filter 1 stops a question with a lore entry, the citation goes to that
 lore repository's `questions` branch, as a file under `citations/` holding
-only the entry's id and the date, so it is written for a private question
-too; a question with a category gets none (decision 104). During an Igor's run the worker
+the entry's id and the date. When an Igor pushes a citation from a run, it
+adds the run's id, so that igor's review can show each citation's run and
+item. With nothing about the question in it, a citation is written for a
+private question too. A question in one of the categories, vulnerability,
+secret or personal, gets none (decision 104), since the cited entry would
+show what the question was about. Nor does a question about a repository
+less visible than the lore repository (decision 93). Both the inquisitor and an Igor write
+citation files, and igor's review reads them all, so the spec states their
+format once, in the requirement *A citation file has one format*, and igor
+PR #216 is to point to it rather than state a format of its own (decisions
+110 and 111). During an Igor's run the worker
 reports each citation in its output, and the Igor pushes it when it
 publishes the run, since a worker holds only the token of the seat it runs
 on, which cannot push to the lore repository. The
@@ -206,9 +215,8 @@ and promote lore entries, could count an entry's citations there, in one
 place, beside its fire count, the number of times igor injected the entry
 into a worker. That count is a lower bound, since no
 citation is sent to a lore repository more visible than the question's,
-and the review says so beside it. A citation's commit has the fixed author
-and committer `inquisitor <noreply>` and a date reduced to the day, so it
-says nothing about who asked.
+and the review says so beside it. A citation's commit names no person and
+holds only the day, so it says nothing about who asked.
 
 The 6 random hex digits in a question file's name mean two branches logging
 the same question on the same day still write different files. Misses, the questions

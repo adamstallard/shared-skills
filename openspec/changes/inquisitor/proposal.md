@@ -10,7 +10,7 @@ others in Claude Code sessions, and this proposal is the first place they
 are written down:
 - 11 to 15 and 31;
 - 32 to 35, 38 to 49 and 51 to 63, on 2026-10-19;
-- 64 to 78, 80 to 85, 87 to 98, 100 to 106, 108 and 109, on 2026-10-20.
+- 64 to 78, 80 to 85, 87 to 98, 100 to 106 and 108 to 110, on 2026-10-20.
 
 He gave those of 2026-10-19 and 2026-10-20 while reviewing this pull
 request, [#25](https://github.com/adamstallard/shared-skills/pull/25), whose
@@ -20,6 +20,8 @@ decision this change proposed itself: 16 to 30, 36, 37, 50, 79, 86, 99 and
 with what he did. He changed 26, replaced 36 with his decision 42,
 confirmed 79 only in part, replaced 107's item 6 with his decision 108,
 and added his decision 109 to 107's item 5. He confirmed the rest.
+Decision 111, which this change made while writing his decision 110,
+waits for him to confirm or overrule.
 
 1. **Four filters run before any question reaches a person.**
    1. **Already answered:** the agent finds the earlier answer, cites where it
@@ -434,8 +436,8 @@ eighth consistency read:
     repository's `questions` branch, as a citation-only file.** igor's
     review counts citations there, in one place, with no privacy risk. A
     question's own log file may still say where its answer came from, at
-    its privacy. This replaces the `cites` field of decision 69. Decision 87
-    says what the file holds.
+    its privacy. This replaces the `cites` field of decision 69. Decisions
+    87 and 110 say what the file holds.
 84. **The secret scan is only a backstop:** it catches known token shapes,
     and a `DB_PASSWORD=…` passes it. The agent never puts a credential into
     a question, an answer or a verdict field; a question that needs one gets
@@ -454,11 +456,13 @@ ninth consistency read:
     no hash of the question: igor's review counts citations per entry and
     needs nothing about the question. With nothing about the question in
     it, a citation is written for a private question too. This amends
-    decision 83. Decision 104 sends none for a categorized question.
+    decision 83. Decision 104 sends none for a categorized question, and
+    decision 110 adds a run id to a citation an Igor pushes from a run.
 88. **During an Igor's run, the worker reports its citations in its
     output, and the Igor pushes them to the `questions` branch when it
     publishes the run,** as igor has a worker edit and its Igor publish; a
     worker holds only its seat's token. Adam decided this for igor #216.
+    His later decision 110 sets the format the Igor pushes them in.
 89. **An answer carrying context more private than what the question
     concerns is generalised first,** with the question (decisions 33 and
     68). If the agent can't generalise it, nothing is logged: the answer is
@@ -489,7 +493,8 @@ tenth consistency read:
     repository the question concerns. GitHub's events API still records
     each push's pusher and time, visible to anyone who can see the lore
     repository; by this decision, that repository is no more visible than
-    the question's.
+    the question's. Adam's later decision 110 restates this commit's form
+    as part of the citation format.
 94. **A commit signature made in the person's session (decision 78's
     second proof) proves a `decision` only for an answer the person gave in
     that session,** through the picker or in their own message in
@@ -511,7 +516,8 @@ tenth consistency read:
     - During an Igor's run, the Igor pushes the citations its worker
       reported only when the run publishes, as bookkeeping outside the
       actions the role's `allow` list permits, and only citations of existing `active` entries
-      in the run's role's scope.
+      in the run's role's scope. Adam's later decision 110 sets their
+      format, with the run's id.
     - During a run, the repository the question concerns is the repository
       of the item the run works, never one the worker names.
     - igor's review count of an entry's citations is a lower bound, and says
@@ -600,6 +606,29 @@ decision 107:
      default branch of the repository the question concerns, counts too, by
      decision 20, whoever writes it.
 
+Adam gave 110 on 2026-10-20, so that this change and igor PR #216, in
+which an Igor pushes the citations its workers report, use one citation
+format:
+
+110. **This change defines the one citation-file format, which igor PR
+     #216 points to instead of stating its own.** The spec states it once,
+     as the requirement *A citation file has one format*:
+     - **Path:** `citations/<date>-<6 random hex digits>` on the lore
+       repository's `questions` branch (decision 83).
+     - **Contents:** the cited entry's id and the date (decision 87), and,
+       only when an Igor pushes the citation from a run, the run's id. The
+       run's id is opaque, and the Igor records it with the run's
+       transcript on its `igor-state` branch. A session outside an Igor's run has
+       no run, and its citation holds no run id.
+     - **Commit:** the message `inquisitor: log <file>` (decision 90), the
+       author and committer `inquisitor <noreply>`, and a date reduced to
+       the day (decision 93).
+
+     igor #216's decision 10 gives the run's id its purpose: igor's review
+     shows each citation's run and item. This amends decision 87, under
+     which a citation held only the entry's id and the date. Decision 111
+     fills in how the file is written.
+
 ### Proposed by this change
 
 Decisions 16 to 18 are #211's proposals that apply to the skill; #211's
@@ -607,8 +636,8 @@ other proposals concern the role. Decisions 19 to 30, 36, 37 and 50 were
 needed to write the requirements. Reviewing #25, Adam confirmed 16
 to 30, 37 and 50, except 26, which he changed; his decision 42 replaced 36.
 His decision 32 replaced part of 19, and his decision 35 part of 18. The
-later decisions 79, 86, 99 and 107 came from this change too, and each
-says what Adam confirmed.
+later decisions 79, 86, 99, 107 and 111 came from this change too, and
+each but 111 says what Adam confirmed.
 
 16. **Confirmed by Adam (2026-10-19).** **A prepared question** states the recommended answer, what changes under
     the other answer, and a link to any related earlier decision, so that most
@@ -807,16 +836,35 @@ cheap to reverse, so this change made them under filter 4:
         is when the clone's remote-tracking default branch was last updated
         by a fetch in that clone.
 
+Decision 111 came from writing Adam's decision 110. igor's review reads
+citation files from two writers, the inquisitor and an Igor, so the format
+needs its encoding fixed. Nothing writes a citation yet, so the encoding is
+cheap to change, and this change chose it under filter 4:
+
+111. **How a citation file is written:**
+     1. `<date>`, in the file's name and in the file, is `yyyy-mm-dd` in
+        UTC, as in a question file's name. The commit's date is midnight
+        UTC of that day.
+     2. The 6 random hex digits are lowercase, and the file has no
+        extension, as decision 110's path has none.
+     3. The file is YAML holding `entry`, `date` and, from an Igor's run,
+        `run`, each a quoted string, as a log file's frontmatter values
+        are, and no other key.
+     4. The `<file>` in the commit message `inquisitor: log <file>` is the
+        file's path from the branch's root, such as
+        `citations/2026-10-20-3f9a1c`.
+
 **Still open:**
 
-Nothing waits for Adam.
+Decision 111 waits for Adam to confirm or overrule; nothing else does.
 
 Eleven of the items below are unmeasured facts, measured by tasks 0.1 to
 0.13 before anything is built; the first fact takes three tasks, 0.1 to
 0.3. The other items are changes elsewhere that this change depends on: in
 igor, PR [#216](https://github.com/adamstallard/igor/pull/216), with igor
 issue [#215](https://github.com/adamstallard/igor/issues/215), amending
-igor's lore-firing spec (decision 60), and PR #202, the scribe's records
+igor's lore-firing spec (decision 60) and using this change's citation
+format (decision 110), and PR #202, the scribe's records
 (decision 63); and in bug-hunter, a rule for a vulnerability fix's
 regression test (decision 108). The last item is a possible extension that
 this change does not plan.
@@ -860,20 +908,21 @@ this change does not plan.
 - **Does GitHub's API give a comment's author and a commit's verified
   signer as decision 78 needs?** If not, every `questions`-branch `decision`
   or `agent` file counts as input.
-- **igor rules this change relies on that igor #216 does not yet hold:**
-  that a worker reports its citations and its Igor pushes them only when
-  the run publishes (decisions 88 and 98), and that igor's check that a
-  proposed entry's id is not already used covers
-  every entry and rejection store-wide and reports an out-of-scope
-  collision during a run only as "id taken" (decision 92). Adam decided
-  both for igor; #216's follow-up carries them, replacing its rule that a
-  duplicate check during a run "MUST NOT compare" against an entry outside
-  the run's scope.
-- **igor #216's wording on citations.** Its §3.4.1 should say igor's
-  review counts citations on the lore repository's `questions` branch, as
-  decision 83 has them. It has been raised with igor.
+- **igor PR #216's citation format.** #216 holds the igor rules this
+  change relies on: a worker reports its citations and its Igor pushes
+  them only when the run publishes (#216's decision 9; decisions 88 and 98
+  here), igor's review counts them on the lore repository's `questions`
+  branch (its decision 8; decision 83 here), and its id check reports an
+  out-of-scope collision during a run only as "id taken" (its decision 6;
+  decision 92 here). But its decision 10 and its requirement *An Igor
+  publishes the citations its worker reports* still state a citation format
+  of their own. That format allows nothing in the file's name, its path or
+  the commit's message but the entry's id, the date and the run's id. This
+  change's format puts more there: the `citations/` directory, a random
+  suffix and the words `inquisitor: log`. By decision 110, #216 should
+  point to this change's *A citation file has one format* instead.
 - **Can an Igor's worker run the inquisitor skill at all,** with a lore
-  clone and `inquisitor.json` in reach? igor PR #216's task 3.1 measures it,
+  clone and `inquisitor.json` in reach? igor PR #216's task 4.1 measures it,
   and task 0.12 here waits on it. If not, nothing in this change runs inside
   an Igor worker, and its Igor-worker rules wait until one can.
 - **Can the post hook tell an Igor's handback comment from other posts?**

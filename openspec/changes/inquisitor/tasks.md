@@ -35,7 +35,7 @@ contradicts what design.md assumed.
       commit's signature is verified and for which account, as decision 78
       needs
 - [ ] 0.12 Whether an Igor's worker can run this skill, with a lore clone and
-      `inquisitor.json` in reach, as igor PR #216's task 3.1 measures
+      `inquisitor.json` in reach, as igor PR #216's task 4.1 measures
 - [ ] 0.13 Whether GitHub lets a security advisory's private-fork pull
       request be merged before the advisory is published, as decision 108
       needs
@@ -86,12 +86,13 @@ contradicts what design.md assumed.
       `questions` branch for a question about the organization or project,
       fetching and pushing again when rejected; the secret scan and the
       visibility refusal; `misses`, listing the misses by filter for a review
-- [ ] 2.4b `cite`, pushing a citation file (entry id and date only) to the
+- [ ] 2.4b `cite`, pushing a citation file in the format of *A citation
+      file has one format* (`entry` and `date`, no `run`) to the
       lore repository's `questions` branch when filter 1 stops a question
-      with a lore entry, with author and committer `inquisitor <noreply>`
-      and a day-only date, and none to a more visible lore repository; or,
-      during an Igor's run, printing it for the Igor to push; commits to that branch use the fixed message
-      `inquisitor: log <file>`
+      with a lore entry. It sends none for a question with a category, and
+      none to a more visible lore repository. During an Igor's run it
+      prints the citation, without a run id, for the Igor to push; the
+      Igor adds the run id
 - [ ] 2.5 The question finder for posts, as one function the post hook also
       calls
 - [ ] 2.6 `tag`, choosing whom a post's question tags. It takes the first
