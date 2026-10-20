@@ -271,7 +271,7 @@ test('a click on a key-row command does what its letter and Enter do', async ($,
   await ui.unmount()
 })
 
-test('a click on an option puts its number in the box; the Relay button relays it', async ($, on) => {
+test('a click on an option puts its number in the box; Enter relays it', async ($, on) => {
   const s = answerSession(on)
   await s.open($)
   const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
@@ -279,10 +279,10 @@ test('a click on an option puts its number in the box; the Relay button relays i
   await ui.press({ key: 'opt:igor-216-scope:0' })
   expect(s.filled).toEqual(['1'])
   await ui.redraw()
-  expect(await ui.find({ type: 'Text', text: /WILL POST ON GITHUB AS/ })).toBeDefined()
-  await ui.press({ key: 'send:igor-216-scope' })
-  // Relayed, the number leaves the box, as after Enter.
-  expect(s.filled).toEqual(['1', ''])
+  // The number is in the box: the post previews on one line; no Relay button, Enter relays.
+  expect(await ui.find({ type: 'Text', text: /POST ON GITHUB AS/ })).toBeDefined()
+  expect(await ui.find({ key: 'send:igor-216-scope' })).toBeUndefined()
+  expect(await s.enter($, '1')).toContain('Relayed to GitHub')
   await ui.redraw()
   expect(await ui.find({ type: 'Text', text: /Reply to Maya Ortiz/ })).toBeDefined()
   expect(await s.enter($, 'p')).toBe('Question 1 of 8')

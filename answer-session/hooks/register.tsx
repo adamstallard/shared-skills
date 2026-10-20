@@ -236,7 +236,7 @@ const RULE = 'subtle'
 // Prototype only: shown in the top bar, so a tester can tell which build is
 // loaded. v0.1-N, N the number of commits in the prototype repository once
 // this build is committed.
-const BUILD = 'v0.1-14'
+const BUILD = 'v0.1-15'
 const PREFIX = 'User says: '
 const SPEAKER = 8
 const cursorAtom = atom({ plugin: 'answer-session', key: 'cursor' } as const, 0)
@@ -268,9 +268,17 @@ function cut(text: string, width: number): string {
  * in `TRIMS`' order: space first, then labels and repetition, then detail.
  * The question itself, the options' labels and the post's first line stay.
  */
+/**
+ * The blank rows a view can hold, the longest kept first (Adam's order):
+ * above the question, above its explanation, above the choices; then above
+ * the post, an asker's reply and the related decision.
+ */
+type Gap = 'question' | 'context' | 'choices' | 'preview' | 'reply' | 'related'
+const GAP_ORDER: Gap[] = ['question', 'context', 'choices', 'preview', 'reply', 'related']
+
 type Trim = {
-  /** Blank rows between a column's groups. */
-  gap: number
+  /** How many of GAP_ORDER's gaps get a blank row before rows left over fill the rest. */
+  gaps: number
   /** The "Choose an answer" label. */
   label: boolean
   /** A blank row between options. */
@@ -296,7 +304,7 @@ type Trim = {
 }
 const TRIMS: Trim[] = (() => {
   let t: Trim = {
-    gap: 2,
+    gaps: GAP_ORDER.length,
     label: true,
     optionGap: true,
     logNote: true,
@@ -311,15 +319,19 @@ const TRIMS: Trim[] = (() => {
   }
   const steps: Partial<Trim>[] = [
     {},
-    { gap: 1 },
+    { gaps: 3 },
     { label: false },
     { optionGap: false },
-    { gap: 0 },
     { logNote: false },
+    // Adam's three gaps (question, context, choices) outlast the row the
+    // hint line repeats, the context's second line and the related decision.
+    { ownWords: false },
     { effects: 'line' },
     { context: 'line' },
-    { ownWords: false },
     { related: false },
+    { gaps: 2 },
+    { gaps: 1 },
+    { gaps: 0 },
     { provenance: 1 },
     { reply: 'short' },
     { bubble: 2 },
@@ -961,20 +973,6 @@ async function draftAsk($: EngineInterface, one: Question): Promise<string> {
   return `Drafting a question for ${one.asker.name}`
 }
 
-/** The Relay button: relays what the prompt box holds, then empties the box, as Enter would. */
-async function relayPressed($: EngineInterface, one: Question, text: string): Promise<string> {
-  const note = await relay($, one, text)
-  await putInBox($, '')
-  return note
-}
-
-/** The Send button under a question for the asker: sends it, then empties the box, as Enter would. */
-async function askPressed($: EngineInterface, one: Question, text: string): Promise<string> {
-  const note = await sendAsk($, one, text)
-  await putInBox($, '')
-  return note
-}
-
 async function sendAsk($: EngineInterface, one: Question, text: string): Promise<string> {
   await update($, askingAtom, a => without(a, one.id))
   const note = await settle($, one, { kind: 'wait', text }, `Asked ${one.asker.name} on ${SURFACE_NAME[one.surface]}. Their question waits for the reply; nothing else does.`)
@@ -1226,13 +1224,31 @@ export const register: Register = on => {
       })
       return out
     }
-    /** The first trim whose rows fit `budget`; the last, cut to it, when none does. */
-    const fit = (build: (t: Trim) => Row[], budget: number): Row[] => {
+    /**
+     * The first trim whose rows fit `budget`, with the gaps it keeps; rows
+     * left over then go to the other gaps in GAP_ORDER, a row each, then a
+     * second each, so spare height spaces the view out instead of pooling at
+     * its foot. The last trim, cut to `budget`, when none fits.
+     */
+    const fit = (build: (t: Trim, g: (gap: Gap) => number) => Row[], budget: number): Row[] => {
       for (const t of TRIMS) {
-        const rows = build(t)
-        if (rows.length <= budget) return rows
+        const given = new Map<Gap, number>(GAP_ORDER.slice(0, t.gaps).map(gap => [gap, 1]))
+        let rows = build(t, gap => given.get(gap) ?? 0)
+        if (rows.length > budget) continue
+        for (const round of [1, 2]) {
+          for (const gap of GAP_ORDER) {
+            if ((given.get(gap) ?? 0) >= round) continue
+            const more = new Map(given).set(gap, round)
+            const tried = build(t, g => more.get(g) ?? 0)
+            if (tried.length <= budget && tried.length > rows.length) {
+              given.set(gap, round)
+              rows = tried
+            }
+          }
+        }
+        return rows
       }
-      const rows = build(TRIMS[TRIMS.length - 1]!)
+      const rows = build(TRIMS[TRIMS.length - 1]!, () => 0)
       return [...rows.slice(0, Math.max(0, budget - 1)), plain('⋯', { dim: true })]
     }
     // What the relay account posts, exactly: "User says: …" behind a bar, at
@@ -1497,7 +1513,27 @@ export const register: Register = on => {
     // ── the question view ────────────────────────────────────────────────
 
     // The left column: where it came from, the question, what it rests on.
-    const questionColumn = (t: Trim, width: number): Row[] => {
+    // The post in one run, wrapping when long: where and as whom, then
+    // exactly what it says, at most `max` lines.
+    const postRows = (text: string, width: number, max: number): Row[] => {
+      const where = `Post ${postsAs}`.toUpperCase()
+      const head = `${where} ${q.relayAs}: `
+      let lines = wrap(head + PREFIX + text, Math.max(10, width))
+      if (lines.length > max) lines = [...lines.slice(0, Math.max(1, max) - 1), cut(lines.slice(Math.max(1, max) - 1).join(' '), width)]
+      return lines.map((line, i) =>
+        i === 0 && line.startsWith(head) ? (
+          <Text wrap="truncate-end">
+            <Text dimColor>{where}</Text>
+            {` ${q.relayAs}: `}
+            <Text dimColor>{PREFIX}</Text>
+            {line.slice(head.length + PREFIX.length)}
+          </Text>
+        ) : (
+          plain(line)
+        ),
+      )
+    }
+    const questionColumn = (t: Trim, width: number, g: (gap: Gap) => number): Row[] => {
       // Beside an asker's reply the context matters less than the reply: it
       // gives way a step sooner, and the reply is never cut.
       const contextFit = returned ? (t.context === 'full' ? 'line' : 'none') : t.context
@@ -1555,12 +1591,11 @@ export const register: Register = on => {
             ]
           : []),
       ]
-      const near = Math.min(1, t.gap)
-      return stack([provenance(t.provenance), [...changeMark, ...questionRows(width)], context, reply, related], [t.gap, near, near, near])
+      return stack([provenance(t.provenance), [...changeMark, ...questionRows(width)], context, reply, related], [g('question'), g('context'), g('reply'), g('related')])
     }
 
     // The right column: the answers to choose from, then what will post.
-    const answerColumn = (t: Trim, width: number): Row[] => {
+    const answerColumn = (t: Trim, width: number, g: (gap: Gap) => number): Row[] => {
       if (isRelayed || isWaiting) {
         const head: Row = isRelayed ? (
           <Text wrap="truncate-end">
@@ -1624,29 +1659,9 @@ export const register: Register = on => {
       const choose: Row[] = isHuman
         ? [ownWords]
         : [...options, ...(t.ownWords || isWriting ? [...(t.optionGap ? [blank()] : []), ownWords] : [])]
-      // What will post, exactly, and the Relay button once there is something to relay.
-      const relayButton = message ? (
-        <Button key={`send:${q.id}`} variant="primary" onPress={() => run(relayPressed($, q, message))}>
-          Relay
-        </Button>
-      ) : null
-      const preview: Row[] =
-        t.preview === 'line'
-          ? [
-              <Box height={1} overflow="hidden" gap={2}>
-                <Box flexShrink={1}>{bubble(message, message ? ACCENT : RULE, width - 12, 1)}</Box>
-                {relayButton}
-              </Box>,
-            ]
-          : [
-        <Box height={1} overflow="hidden" gap={2}>
-          <Box flexShrink={1}>{label(message ? `Will post ${postsAs}` : `Posts ${postsAs}`, q.relayAs)}</Box>
-          {relayButton}
-        </Box>,
-        ...bubble(message, message ? ACCENT : RULE, width, t.bubble),
-        ...(message && t.logNote ? logNote(width) : []),
-      ]
-      return stack([t.label && !isHuman ? [label('Choose an answer')] : [], choose, preview], [0, t.gap])
+      // What will post, exactly, once there is something to post.
+      const preview: Row[] = message ? [...postRows(message, width, t.preview === 'line' ? 1 : t.bubble), ...(t.logNote ? logNote(width) : [])] : []
+      return stack([t.label && !isHuman ? [label('Choose an answer')] : [], choose, preview], [0, g('preview')])
     }
     // What the real skill logs beside an answer to a changed question.
     function logNote(width: number): Row[] {
@@ -1660,9 +1675,9 @@ export const register: Register = on => {
     if (!isTalking) {
       const options = q.options ?? []
       const hints: [string, string][] = !open || isHuman ? [] : [[`1–${options.length}`, 'choose']]
-      const one = isWide ? [] : fit(t => stack([questionColumn(t, cols), answerColumn(t, cols)], Math.min(1, t.gap)), B)
+      const one = isWide ? [] : fit((t, g) => stack([questionColumn(t, cols, g), answerColumn(t, cols, g)], g('choices')), B)
       const body = isWide ? (
-        columns(fit(t => questionColumn(t, LW), B), fit(t => answerColumn(t, RW), B), LW, RW)
+        columns(fit((t, g) => questionColumn(t, LW, g), B), fit((t, g) => answerColumn(t, RW, g), B), LW, RW)
       ) : (
         <Box flexDirection="column">{[...lift(one.length), ...one]}</Box>
       )
@@ -1691,20 +1706,13 @@ export const register: Register = on => {
     }
     // The question for the asker, previewed as it will post in their thread.
     const compose = (width: number): Row[] => [
-      <Box height={1} overflow="hidden" gap={2}>
-        <Box flexShrink={1}>{label(`Ask ${q.asker.name}, in the thread`)}</Box>
-        {askText && !busy ? (
-          <Button key={`ask:${q.id}`} variant="primary" onPress={() => run(askPressed($, q, askText))}>
-            Send
-          </Button>
-        ) : null}
-      </Box>,
+      label(`Ask ${q.asker.name}, in the thread`),
       ...bubble(askText || undefined, askText ? ACCENT : RULE, width, Math.max(2, B - 5)),
       ...wrap(
         busy === 'draft'
           ? 'Drafting a question into the prompt box…'
           : askText
-            ? `Will post ${postsAs} ${q.relayAs}. Enter sends exactly this; the question waits for the reply, the queue moves on.`
+            ? `Posts ${postsAs} ${q.relayAs}. Enter sends exactly this; the question waits for the reply, the queue moves on.`
             : `Type your question for ${q.asker.name} in the prompt box.`,
         width,
       ).map(line => plain(line, { dim: true })),
@@ -1719,17 +1727,11 @@ export const register: Register = on => {
         </Text>
       )
       if (composing) return [head, ...compose(width)]
-      // A number chooses an answer here too: what it would post, and Relay.
+      // A number chooses an answer here too: what it would post.
       if (it.kind === 'option') {
         return [
           head,
-          <Box height={1} overflow="hidden" gap={2}>
-            <Box flexShrink={1}>{label(`Will post ${postsAs}`, q.relayAs)}</Box>
-            <Button key={`send:${q.id}`} variant="primary" onPress={() => run(relayPressed($, q, it.text))}>
-              Relay
-            </Button>
-          </Box>,
-          ...bubble(it.text, ACCENT, width, 2),
+          ...postRows(it.text, width, 2),
         ]
       }
       const said = turns.filter(turn => turn.who === 'you').length
