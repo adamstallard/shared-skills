@@ -236,7 +236,7 @@ const RULE = 'subtle'
 // Prototype only: shown in the top bar, so a tester can tell which build is
 // loaded. v0.1-N, N the number of commits in the prototype repository once
 // this build is committed.
-const BUILD = 'v0.1-13'
+const BUILD = 'v0.1-14'
 const PREFIX = 'User says: '
 const SPEAKER = 8
 const cursorAtom = atom({ plugin: 'answer-session', key: 'cursor' } as const, 0)
@@ -625,7 +625,7 @@ function commands(c: Ctx): Command[] {
     { key: 'p', what: 'previous' },
     { key: 'n', what: 'next' },
   ]
-  if (!q) return [...(c.deferredAt >= 0 ? [{ key: 'r', what: 'review the deferred' }] : []), ...nav, close]
+  if (!q) return [...(c.deferredAt >= 0 ? [{ key: 'r', what: 'back to those for later' }] : []), ...nav, close]
   if (c.composing) return [{ key: 'b', what: 'back to the discussion' }, close]
   if (c.talking) {
     return [
@@ -640,7 +640,7 @@ function commands(c: Ctx): Command[] {
       ? [
           { key: 't', what: 'talk it through' },
           ...(q.answered ? [{ key: 'c', what: 'cite the decision' }] : []),
-          { key: 'd', what: 'defer' },
+          { key: 'l', what: 'later' },
         ]
       : []),
     ...(c.changed ? [{ key: 'o', what: 'original' }] : []),
@@ -673,8 +673,8 @@ async function runCommand($: EngineInterface, c: Ctx, key: string): Promise<stri
       return openTalk($, q)
     case 'c':
       return cite($, q)
-    case 'd':
-      return settle($, q, { kind: 'defer', text: '' }, `Deferred: ${q.asker.name}'s question waits until the new ones are done`)
+    case 'l':
+      return settle($, q, { kind: 'defer', text: '' }, `Later: ${q.asker.name}'s question comes back after the new ones`)
     case 'o':
       return toggleOriginal($, q)
   }
@@ -728,7 +728,7 @@ function enterHint(c: Ctx, it: Intent): string | undefined {
     case 'relay':
       return q ? `⏎ relay to ${SURFACE_NAME[q.surface]}` : undefined
     case 'command':
-      return `⏎ ${it.command.what}`
+      return it.command.key === 'l' ? '⏎ ask me later, after the new ones' : `⏎ ${it.command.what}`
     case 'say':
       return '⏎ to Claude, with the question'
     case 'ask':
@@ -1271,7 +1271,7 @@ export const register: Register = on => {
         </Text>
       </Button>
     )
-    const tally = [`${fresh} new`, `${relayed} relayed`, `${deferred} deferred`, ...(waiting ? [`${waiting} waiting`] : [])].join(' · ')
+    const tally = [`${fresh} new`, `${relayed} relayed`, `${deferred} for later`, ...(waiting ? [`${waiting} waiting`] : [])].join(' · ')
     const where = [...(base ? [`${at + 1} of ${N}`] : []), ...(isTalking ? (cols >= 120 ? ['talking it through'] : []) : cols >= 120 || !base ? [tally] : [])].join(' · ')
     const bar = (
       <Box height={1} overflow="hidden" justifyContent="space-between" width={cols} gap={2}>
@@ -1369,7 +1369,7 @@ export const register: Register = on => {
         fresh > 0
           ? `${fresh} question${fresh === 1 ? '' : 's'} still new`
           : deferred > 0
-            ? `Nothing new. ${deferred} deferred.`
+            ? `Nothing new. ${deferred} for later.`
             : waiting > 0
               ? `Nothing new. ${waiting} waiting for a reply.`
               : 'All caught up.'
@@ -1384,7 +1384,7 @@ export const register: Register = on => {
         const color = a!.kind === 'answer' ? DONE : a!.kind === 'defer' ? LATER : ACCENT
         const who = cut(one.asker.name, whoWidth - 2).padEnd(whoWidth)
         const place = cut(one.where, placeWidth - 2).padEnd(placeWidth)
-        const what = a!.kind === 'answer' ? `│ ${PREFIX}${a!.text}` : a!.kind === 'defer' ? '│ deferred' : `│ asked: ${a!.text}`
+        const what = a!.kind === 'answer' ? `│ ${PREFIX}${a!.text}` : a!.kind === 'defer' ? '│ for later' : `│ asked: ${a!.text}`
         const room = Math.max(0, W - 2 - who.length - place.length)
         return (
           <Box height={1} overflow="hidden">
@@ -1434,7 +1434,7 @@ export const register: Register = on => {
           ? `asks, an agent via ${q.asker.via ?? 'the inquisitor'}`
           : 'asks'
     const state =
-      answer?.kind === 'defer' ? <Text color={LATER}>deferred · </Text> : isWaiting ? <Text color={ACCENT}>waiting for {q.asker.name} · </Text> : ''
+      answer?.kind === 'defer' ? <Text color={LATER}>for later · </Text> : isWaiting ? <Text color={ACCENT}>waiting for {q.asker.name} · </Text> : ''
     const provenance = (lines: 0 | 1 | 2): Row[] => {
       if (lines === 0) return []
       const source = (

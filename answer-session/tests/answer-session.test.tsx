@@ -151,15 +151,15 @@ test("a person's question is answered by typing; Enter relays the text", async (
   await ui.unmount()
 })
 
-test('deferring and relaying everything ends on the summary', async ($, on) => {
+test('putting one off for later and relaying the rest ends on the summary', async ($, on) => {
   const s = answerSession(on)
   await s.open($)
   const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
-  expect(await s.enter($, 'd')).toContain('Deferred')
+  expect(await s.enter($, 'l')).toContain('comes back after the new ones')
   // The rest in queue order: a person's gets words, an agent's its first option.
   for (const text of ['ok', '1', '1', 'ok', '1', 'ok', '1']) expect(await s.enter($, text)).toContain('Relayed')
   await ui.redraw()
-  expect(await ui.find({ type: 'Text', text: /Nothing new\. 1 deferred\./ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /Nothing new\. 1 for later\./ })).toBeDefined()
   await s.enter($, 'r')
   await ui.redraw()
   expect(await ui.find({ key: 'opt:igor-216-scope:0' })).toBeDefined()
@@ -169,7 +169,7 @@ test('deferring and relaying everything ends on the summary', async ($, on) => {
 test("after Enter the box is left to the engine's put-back, and a citation lands once it is due", async ($, on) => {
   const s = answerSession(on)
   await s.open($)
-  await s.enter($, 'd')
+  await s.enter($, 'l')
   await s.clock.advance(1_000)
   // No put-back came: an empty box is left alone.
   expect(s.filled).toEqual([])
@@ -263,10 +263,10 @@ test('a click on a key-row command does what its letter and Enter do', async ($,
   await ui.press({ key: 'cmd:b' })
   await ui.redraw()
   expect(await ui.find({ type: 'Text', text: /TALKING IT THROUGH/ })).toBeUndefined()
-  await ui.press({ key: 'cmd:d' })
+  await ui.press({ key: 'cmd:l' })
   await ui.redraw()
   expect(await ui.find({ type: 'Text', text: /Reply to Maya Ortiz/ })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /1 deferred/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /1 for later/ })).toBeDefined()
   expect(s.sent).toEqual([])
   await ui.unmount()
 })
