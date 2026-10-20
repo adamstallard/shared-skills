@@ -10,8 +10,8 @@ others in Claude Code sessions, and this proposal is the first place they
 are written down:
 - 11 to 15 and 31;
 - 32 to 35, 38 to 49 and 51 to 63, on 2026-10-19;
-- 64 to 78, 80 to 85, 87 to 98, 100 to 106, 108 to 110, 112 to 124 and
-  126 to 129 and 131 to 135, on 2026-10-20.
+- 64 to 78, 80 to 85, 87 to 98, 100 to 106, 108 to 110, 112 to 124,
+  126 to 129, and 131 to 139, on 2026-10-20.
 
 He gave those of 2026-10-19 and 2026-10-20 while reviewing this pull
 request, [#25](https://github.com/adamstallard/shared-skills/pull/25), whose
@@ -339,7 +339,9 @@ fifth consistency read:
     question.** It stops the work that needs it, and reports only that a
     question of that category is blocking, with no text. A vulnerability
     question it asks only in the repository's private security advisory,
-    and it stops the work and reports the same way.
+    and it stops the work and reports the same way. Adam's decision 136
+    has an Igor worker report only a bare flag, a mark defined by igor PR
+    #216 that its run met such a question, with no category.
 68. **A logged answer, and a miss's record of what the person said, are
     written at the privacy of what the question concerns,** by decision
     33's rule: private context generalised or left out. Decision 89 says
@@ -372,12 +374,14 @@ sixth consistency read:
     exposed to guessing only briefly. *Rejected:* an HMAC with a
     per-HOME key, which would stop guessing short sensitive questions from
     their hash.
-74. **A question another installed skill requires a person to decide is
-    exempt from filters 3 and 4:** bug-hunter's root causes and its other
+74. **Amended by Adam's decision 137, which added filter 2 to the
+    exemption.** **A question another installed
+    skill requires a person to decide is exempt from filters 2, 3 and 4,**
+    so it is asked now: bug-hunter's root causes and its other
     questions it always asks, prose's `kept (asked)` findings, and whether
     to adopt spec-check or spec-trace. For spec-check, the exempt question
     is whether to enforce its decisions-first rule, as the spec's first
-    requirement says. Filters 1 and 2 still apply, and its
+    requirement says. Only filter 1 still applies, and its
     `ask` verdict names the skill that requires it.
 75. **Verdict records are shared by everything using the same HOME,** Igor
     workers included: a verdict is about the question's text, not the
@@ -685,7 +689,9 @@ against everything it must agree with:
      now also states prose's other rules: how a command splits into simple
      commands, how pipes and input are judged, and that a command running
      only prose's own script, `prose.py`, is no post, since its arguments
-     may name a gh post as text.
+     may name a gh post as text. Adam's decision 139 makes a data command
+     that runs code given in the command, such as `python3 -c`, unreadable
+     when that code names `gh`.
 115. **The reader reads a review's nested comments.** For a review sent
      with `gh api`, it reads each `comments[][body]` field, and each `body`
      in the `comments` of an `--input` file. A review whose comment bodies
@@ -816,6 +822,42 @@ consistency read of the change before commit 4f90389:
      use of it,** or writes the script's full path. Otherwise a post copied
      from one of its examples would be blocked once by decision 122, until
      the agent rewrote the command.
+
+Adam gave 136 to 139 on 2026-10-20, answering findings raised while
+recording decisions 131 to 135:
+
+136. **During an Igor's run, a question with a category raises igor's
+     bare flag in the worker's report.** Whenever the skill gives a
+     question a category (`vulnerability`, `secret` or `personal`) during
+     a run, whatever its verdict, the worker's report carries the flag
+     igor PR #216 defines: that the run met a question with a category,
+     with no category, question or answer. #216's task-execution
+     requirement *Transcripts and outcomes are captured to the state
+     branch* says what the Igor does with the flag, and applies the same
+     rules when the Igor runs the skill itself. A worker that such a
+     question stops reports only that flag, never the question's
+     category. This amends decision 67 for an Igor worker.
+137. **A question another installed skill requires a person to decide is
+     exempt from filter 2 as well as filters 3 and 4.** It is asked now,
+     and only filter 1 still applies. This amends decision 74.
+138. **The closed credential list adds `sk-ant-`, Anthropic API keys, and
+     `ghu_` and `ghr_`, GitHub's user-to-server and refresh tokens.** This
+     amends decision 99's item 2.
+139. **A command that runs code given inline, and whose code names `gh`,
+     is unreadable.** The reader already reports `sh -c`, `bash -c`,
+     `ruby -e` and `perl -e` that way, since none of them is one of
+     prose's data commands. Three data commands can also run code given
+     on the command line: `python` or `python3` with `-c`; `node` with
+     `-e`, `--eval`, `-p` or `--print`; and `git` with `-c`, which can set
+     an alias that runs a shell command. Run that way on code that names
+     `gh`, each is now unreadable too. `python`, `python3` or `node`
+     reading its program from standard input, such as a heredoc or a
+     pipe, no longer counts as a data command under the reader's rule for
+     pipes and input, so a command line that mentions a gh post verb and
+     feeds one of them its program is unreadable. Both post hooks,
+     prose's and the inquisitor's, use the shared reader, so both block
+     such a command. This amends
+     decision 114, which kept prose's data commands as they stood.
 
 ### Proposed by this change
 
@@ -987,9 +1029,10 @@ cheap to reverse, so this change made them under filter 4:
        78) only when the comment's text holds the answer the file records,
        so a bare "LGTM" proves nothing.
     2. The credential patterns are a closed list: a private key's
-       `-----BEGIN` line, GitHub tokens (`ghp_`, `gho_`, `ghs_`,
-       `github_pat_`), AWS access key IDs (`AKIA`) and Slack tokens
-       (`xox`).
+       `-----BEGIN` line, GitHub tokens (`ghp_`, `gho_`, `ghs_`, `ghu_`,
+       `ghr_`, `github_pat_`), Anthropic API keys (`sk-ant-`), AWS access
+       key IDs (`AKIA`) and Slack tokens (`xox`). Adam's decision 138
+       added `ghu_`, `ghr_` and `sk-ant-`.
     3. A login that is not GitHub's login syntax is never passed to a
        GitHub API call, so an answer whose author has one is input.
 
@@ -1109,8 +1152,12 @@ all three:
 
 **Still open:**
 
-No decision waits for Adam. The items below are facts to measure, changes
-elsewhere, and one extension this change does not plan.
+No decision waits for Adam now. One is his to make later: whether a
+question in a post's title should be vetted. The shared post reader
+returns no title, so such a question is outside its reach, as it is
+outside prose's, and neither hook sees it. The other items below are
+facts to measure, changes elsewhere, and one extension this change does
+not plan.
 
 Twelve of the items below are unmeasured facts, measured by tasks 0.1 to
 0.14 before anything is built; the first fact takes three tasks, 0.1 to
@@ -1184,7 +1231,11 @@ The last item is a possible extension that this change does not plan.
     "id taken" (its decision 6; decision 92 here), and such an entry is
     not proposed during the run (decision 128 here);
   - a search during a run reads only the lore repository the Igor injects
-    from (decision 133 here).
+    from (decision 133 here);
+  - its task-execution requirement *Transcripts and outcomes are captured
+    to the state branch* defines the bare flag a worker raises when its
+    run meets a question with a category, and what the Igor does with it
+    (decision 136 here).
 - **igor PR #153, signed publishing,** would have an Igor whose role
   lists prose or bug-hunter push only commits that went through those
   skills and carry their trailers. Citation commits
@@ -1283,7 +1334,9 @@ None.
 - prose: its posting hook's command reader moves to `.agents/lib/gh-post/`,
   so the inquisitor's post hook reads posts the same way. The reader also
   reads posts sent through the github-app skill and `gh api` comments
-  (decision 57), which changes prose's hook in the same way.
+  (decision 57), and blocks a data command such as `python3 -c` that runs
+  code naming `gh` (decision 139). prose's hook, which calls the reader,
+  gains both of these changes.
 - In each repository where it runs, the skill writes `.inquisitor/`. In a
   team's lore repository, it pushes to an orphan branch named `questions`.
 - prose: its pass skips files under `.inquisitor/`, and its `DECISIONS.md`

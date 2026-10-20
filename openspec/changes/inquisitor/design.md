@@ -112,13 +112,27 @@ and *The posting hook's reach*).
 That reader moves to `.agents/lib/gh-post/`, and both hooks call it. Its
 rules are stated once, in this change's `gh-post` capability spec.
 prose's tests must pass unchanged after the move, except where the reader
-learns two more forms. A post sent through the github-app skill's script,
+learns two more forms, and where it blocks inline code, as below. A post sent through the github-app skill's script,
 `python3 <github-app script> gh pr|issue …`, which that skill tells agents
 to use instead of plain `gh`, is blocked as unreadable by prose's reader
 today, so every post an agent sends as a GitHub App is refused. A comment
 sent with `gh api`, whose body is given by `-f`, `--raw-field`, `-F` or
 `--field` `body=`, or by `--input`, passes prose's reader unread today, so
 it skips the hook. The shared reader reads both.
+
+prose's reader treats `python3`, `node` and `git` as data commands, which
+may name `gh` in a quoted argument, but each can run code given in the
+command: `python3 -c`, `node -e`, and `git -c`, which can set an alias
+that runs a shell command. So can `python3` reading its program from a
+heredoc or a pipe. The shared reader reports such a command as unreadable when its
+code names `gh`, as it reports `sh -c`. prose's hook calls the shared
+reader, so it blocks such a command too, and a prose test that expects one
+to pass changes with it (proposal decision 139).
+
+The reader returns no title, so a question in an issue's or pull request's
+title is outside its reach, as it is outside prose's. Whether such a
+question should be vetted is Adam's to decide later, and the proposal's
+*Still open* lists it.
 
 The inquisitor's post hook finds the body's questions by the spec's rule
 (*Questions in posts pass the same filters*), hashes each, and applies the
@@ -195,6 +209,13 @@ beside it.
   into that person's memory or `CLAUDE.md`, which agents already read.
 - **A question in one of the three categories** (`vulnerability`, `secret`,
   `personal`): no log. Only the hooks' record above holds it, as a hash.
+  During an Igor's run, the worker, the agent an Igor starts on a work
+  item, raises a bare flag in its report: a mark, defined by igor PR #216,
+  that the run met such a question, holding nothing else about it, not
+  even the category. When the Igor reads that flag, #216's task-execution
+  requirement *Transcripts and outcomes are captured to the state branch*
+  has it write no transcript of the run, since a transcript would hold the
+  question (proposal decision 136).
 
 A log file's and a miss file's path, name, keys and encoding are stated
 once, in the spec's requirement *A log file and a miss file have one
@@ -264,9 +285,8 @@ a person said need not have been asked, go where their questions went, in
 
 Every log file and miss file is scanned for secrets before it is written,
 and so is every question in a post at the first call. The patterns are the
-common shapes of a credential: a private key's `-----BEGIN` line, GitHub
-tokens (`ghp_`, `gho_`, `ghs_`, `github_pat_`), AWS access key IDs
-(`AKIA`), and Slack tokens (`xox`); the list is closed. A match refuses the write
+common shapes of a credential, a closed list the spec states once as *the
+credential patterns* (proposal decisions 99 and 138). A match refuses the write
 or the post. The scan is a backstop: a secret under an arbitrary name, such
 as a password in `DB_PASSWORD=…`, passes it. The files the agent passes to
 `vet`, such as `q.json` and `v.json`, go outside any repository, in the

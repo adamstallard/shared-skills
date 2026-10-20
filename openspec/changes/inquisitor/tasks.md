@@ -52,8 +52,9 @@ contradicts what design.md assumed.
       each tagged `@scenario gh-post: <Scenario name>` for the `gh-post`
       spec's scenario it checks
 - [ ] 1.3 The library also handles the following. prose's existing tests
-      still pass unchanged; add tests for each to prose's and the
-      library's tests.
+      still pass unchanged, except a test that expects an inline-code
+      command naming `gh` to pass, which now expects it blocked; add tests
+      for each to prose's and the library's tests.
       - It reads `python3 <github-app script> gh pr|issue …` posts,
         including `python3 $G …` only when the same command assigns `G`.
       - It reads `gh api` comments whose body is given by `-f body=`,
@@ -72,8 +73,18 @@ contradicts what design.md assumed.
         unreadable, as prose's reader does today, a command that names
         `gh` in another command's arguments, such as `sh -c`, or that
         pipes into a command other than a data command.
-      - prose's `DECISIONS.md` section on the allow-list then points at
-        the library's list instead of restating it
+      - It blocks as unreadable a data command given code to run, such
+        as `python3 -c`, `node -e` or `git -c`, whose arguments name
+        `gh`, and treats `python3` or `node` reading its program from a
+        pipe or heredoc as no data command (decision 139). prose's hook
+        blocks these too, so a prose test that expects one of them to
+        pass is changed to expect it blocked
+      - As part of this task, once the reader has moved, prose's
+        `DECISIONS.md` section on the allow-list points at
+        the library's list instead of restating it, and its section *A
+        command that runs no gh post is not a post* no longer says that
+        `python3 - <<'EOF'`, `node -e` and `git -c` are outside the
+        hook's reach (decision 139)
 
 ## 2. The script
 
@@ -166,7 +177,8 @@ contradicts what design.md assumed.
       with prose, logging answers and misses, the three categories recorded
       by hash only, what a headless session does (no picker, an Igor
       worker asking only in its handback comment, stopping on a
-      categorized question), describing no
+      categorized question, and an Igor worker raising igor's bare flag
+      for a categorized question, with no category), describing no
       weakness in public text before its advisory is published, reviewing
       misses, and lessons by scope
 - [ ] 5.2 `README.md`: what the skill is for, `inquisitor.json` and
@@ -190,7 +202,9 @@ contradicts what design.md assumed.
       searches `docs/decisions/` in the repository a question concerns,
       and no lore repository's decision records. Once #216 has merged,
       point the spec's link to *An Igor publishes the citations its worker
-      reports* at igor's `openspec/specs/lore-firing/spec.md` on main
+      reports* at igor's `openspec/specs/lore-firing/spec.md` on main, and
+      its link to *Transcripts and outcomes are captured to the state
+      branch* at igor's `openspec/specs/task-execution/spec.md` on main
 - [ ] 6.1 Say in prose's and bug-hunter's `DECISIONS.md` that the
       inquisitor's commits to a lore `questions` branch are machine records,
       exempt from their trailers. Make prose's file filter skip files under

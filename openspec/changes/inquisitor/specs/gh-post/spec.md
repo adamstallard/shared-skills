@@ -66,20 +66,29 @@ simple command:
   quoted argument, is no post only when its command is one of prose's data
   commands: `echo`, `cat`, `tee`, `grep`, `egrep`, `fgrep`, `rg`, `git`,
   `python`, `python3`, `node`, `jq`, `head`, `tail`, `wc`, `sort`, `uniq`,
-  `cut`, `tr`, `ls`, `cd`, `true` or `false`. Any other, such as
-  `sh -c '…'`, `bash -c '…'` or `eval '…'` around a `gh` post, is
-  unreadable. The list is prose's as it stands, though `python3 -c`,
-  `node -e` and `git -c` could run a quoted `gh` post as `sh -c` does;
+  `cut`, `tr`, `ls`, `cd`, `true` or `false`, and it is given no code to
+  run. Any other, such as `sh -c '…'`, `bash -c '…'`, `eval '…'`,
+  `ruby -e '…'` or `perl -e '…'` around a `gh` post, is unreadable;
+- a data command **is given code to run** when, among the options before
+  its script or subcommand, it is `python` or `python3` with `-c`, alone
+  or after other single-letter options, as in `-Ic`; `node` with `-e`,
+  `--eval`, `-p` or `--print`; or `git` with `-c`. Such a command
+  that names `gh` in any of its arguments is unreadable, as `sh -c` is;
 - a simple command that names no `gh` at all is no post.
 
 A pipe or an input redirection (`|`, `|&`, `<`, `<>`, `<&`, a heredoc or
-`<<<`) matters for the simple command that reads it. That command SHALL be
-a data command or a `gh` command that sends no text and is not a gh post
-verb, or the command is unreadable, so `echo 'gh pr comment 5 -b x' | sh`
-and `cat c.md | gh pr comment 5 -F -` are unreadable. When the input can
-reach more than one simple command, such as a pipe into `(`, `$(`, `{` or
-`while`, every one of them SHALL be a data command, or the whole command
-line is unreadable.
+`<<<`) matters for the simple command that reads it. When the input
+reaches one simple command, that command SHALL be a data command or a `gh`
+command that sends no text and is not a gh post verb, or the command is
+unreadable, so `echo 'gh pr comment 5 -b x' | sh` and
+`cat c.md | gh pr comment 5 -F -` are unreadable. When the input can reach
+more than one simple command, such as a pipe into `(`, `$(`, `{` or
+`while`, every one of them SHALL be a data command, so a `gh` command that
+sends no text is not allowed there, or the whole command line is
+unreadable. Under both rules, `python`, `python3` or `node` reading its
+program from that input, with `-` as its script or with no script and no
+`-c`, `-e`, `--eval`, `-p` or `--print`, is not a data command, so
+`python3 - <<'EOF'` holding a `gh` post is unreadable.
 
 A command line sends no post when every simple command in it is no post.
 The reader SHALL report as unreadable every other command line that
@@ -113,6 +122,36 @@ exactly, such as one with a backtick, `$'…'` or an unterminated quote.
 
 - **WHEN** a hook asks about `echo 'gh pr comment 5 -b x' | sh`
 - **THEN** the reader reports the command as unreadable
+
+#### Scenario: A gh post run as inline code is unreadable
+
+- **WHEN** a hook asks about
+  `python3 -c 'import os; os.system("gh pr comment 5 -b x")'`,
+  `node -e 'require("child_process").execSync("gh pr comment 5 -b x")'`,
+  `ruby -e 'system("gh pr comment 5 -b x")'`,
+  `perl -e 'system("gh pr comment 5 -b x")'` or
+  `git -c 'alias.p=!gh pr comment 5 -b x' p`
+- **THEN** the reader reports each command as unreadable
+
+#### Scenario: Inline code after grouped options is unreadable
+
+- **WHEN** a hook asks about
+  `python3 -Ic 'import os; os.system("gh pr comment 5 -b x")'`
+- **THEN** the reader reports the command as unreadable
+
+#### Scenario: A gh post fed to an interpreter's input is unreadable
+
+- **WHEN** a hook asks about `echo 'gh pr comment 5 -b x' | python3`, or
+  about `python3 -` reading a heredoc that holds
+  `os.system("gh pr comment 5 -b x")`
+- **THEN** the reader reports each command as unreadable
+
+#### Scenario: Input that reaches several commands needs data commands only
+
+- **WHEN** a hook asks about `echo 'gh pr comment 5 -b x' | { cat; gh pr
+  view 5; }`, and about `echo 'gh pr comment 5 -b x' | { cat; wc -l; }`
+- **THEN** the reader reports the first as unreadable, since `gh pr view`
+  is not a data command, and the second as sending no post
 
 #### Scenario: A command the reader can't read exactly is unreadable
 
@@ -197,8 +236,7 @@ mutation one of whose `body` arguments it cannot read; a GraphQL query it
 cannot parse; a review whose comment bodies it cannot read; and a write
 whose fields it cannot read. It SHALL report as sending no post any other
 write whose fields carry no `body`, and any mutation, listed or not, with
-no `body` argument. The reader returns no title: a question in an issue's
-or pull request's title is out of its reach, as it is out of prose's.
+no `body` argument. The reader returns no title.
 
 #### Scenario: A post sent through the github-app skill is read
 

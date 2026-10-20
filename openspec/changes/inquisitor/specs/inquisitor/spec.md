@@ -22,12 +22,14 @@ stops it:
 A rhetorical question, which nobody needs to answer, is stopped by filter
 3: the agent rewrites it as a statement, and its `decided` verdict names the
 post as where the choice is recorded. A question that another installed skill requires a person to decide, such
-as bug-hunter's root causes and its other questions it always asks, a
+as bug-hunter's root causes and the other questions bug-hunter always
+asks, a
 finding of prose's cold read that prose requires a person to decide (one it
 would mark `kept (asked)`), whether to enforce
-spec-check's decisions-first rule, or whether to adopt spec-trace, SHALL be exempt from filters 3 and 4. Filters 1
-and 2 still apply, and its `ask` verdict SHALL name the skill that requires
-it. Except for a rhetorical question, under filters 3 and 4 the agent SHALL
+spec-check's decisions-first rule, or whether to adopt spec-trace, SHALL be
+exempt from filters 2, 3 and 4, so it is asked now. Only filter 1 still
+applies, and its `ask` verdict SHALL name the skill that requires it.
+Except for a rhetorical question, under filters 3 and 4 the agent SHALL
 record what it chose, and why, where the question's answer is recorded.
 
 Terms used throughout this spec:
@@ -152,8 +154,9 @@ Terms used throughout this spec:
   and *Every answer is recorded and every asked question logged* define
   them, and *A citation file has one format* gives a citation file's form.
 - **The credential patterns** are a private key's `-----BEGIN` line, GitHub
-  tokens (`ghp_`, `gho_`, `ghs_`, `github_pat_`), AWS access key IDs
-  (`AKIA`), and Slack tokens (`xox`).
+  tokens (`ghp_`, `gho_`, `ghs_`, `ghu_`, `ghr_`, `github_pat_`),
+  Anthropic API keys (`sk-ant-`), AWS access key IDs (`AKIA`), and Slack
+  tokens (`xox`).
 
 #### Scenario: An answered question is not asked
 
@@ -216,6 +219,13 @@ Terms used throughout this spec:
   cause, and the choice is cheap to reverse
 - **THEN** filter 4 does not stop it, and the agent asks it with an `ask`
   verdict naming bug-hunter
+
+#### Scenario: A question another skill requires is not deferred
+
+- **WHEN** prose's cold read leaves a finding that prose requires a person
+  to decide, and the work could go on without the answer
+- **THEN** filter 2 does not stop it, and the agent asks it now with an
+  `ask` verdict naming prose
 
 #### Scenario: A question that passes every filter is asked
 
@@ -579,7 +589,12 @@ recommends, what would change under each other answer, and a link to any
 related earlier decision. The link SHALL be on a line of its own, any
 line after the question's first, the question's **related-decision
 line**: `Related: ` followed by one URL,
-with no spaces, and nothing else. The agent SHALL link only a decision
+with no spaces, and nothing else. For a picker question or a list item,
+that line is one of its own lines. For a question in a post that is a
+sentence, it is the line directly after the line on which the sentence
+ends, and when more than one question sentence ends on that line, it
+belongs to the last of them. A related-decision line is never part of a
+sentence, and holds no question. The agent SHALL link only a decision
 that everyone who can read the question can read, by *A question is
 written at the privacy of what it concerns*. The picker hook and the post
 hook SHALL block a question whose related-decision line holds a string
@@ -605,6 +620,21 @@ SHALL be the first option.
   question without answering it
 - **THEN** the question the agent asks links that decision on its
   related-decision line
+
+#### Scenario: A decision the question's readers can't see is not linked
+
+- **WHEN** the related earlier decision is in a private repository's
+  `DECISIONS.md`, and the question, about a public repository, is to be
+  asked in that public repository's pull request
+- **THEN** the question has no related-decision line linking that decision
+
+#### Scenario: A sentence question's related-decision line is the next line
+
+- **WHEN** a post's running text has a line ending in "Should retries back
+  off? Should they cap at a minute?", and the next line is
+  `Related: https://github.com/o/r/pull/3`
+- **THEN** that line is the related-decision line of "Should they cap at a
+  minute?", and is part of neither question's text
 
 #### Scenario: A `Related:` line holding more than a URL is part of the question
 
@@ -741,15 +771,31 @@ more than 2 hours old, by the next call or hook that reads the records,
 except a `deferred` record without a category. Such a record SHALL be kept
 until a later verdict on the same text is recorded.
 
-**A question's text** is, for a picker question, its `question` field and
-each option's `label`, in order; for a question in a post, the list item or
-sentence that holds it, without its list marker, with inline markup such as
-emphasis and links reduced to their text, and with wrapped lines joined.
-Runs of whitespace count as one space. Before anything else, every line of
-the `question` field or the list item, other than its first, whose text,
-with the whitespace at either end removed, is a related-decision line
-(*A question that is asked is prepared for a quick answer*) is left out of
-the question's text.
+**A question's text** is built in four steps:
+
+1. Related-decision lines (*A question that is asked is prepared for a
+   quick answer*) are left out. In a picker question's `question` field
+   or a list item, a line other than the first is left out when its text,
+   with the whitespace at either end removed, is a related-decision line.
+   A sentence's related-decision line is never part of the sentence.
+2. The text has parts: for a picker question, its `question` field, then
+   each option's `label`, in order; for a question in a post, one part,
+   the list item or sentence that holds it, without its list marker, with
+   inline markup such as emphasis and links reduced to their text.
+3. In each part, every run of whitespace, line breaks included, becomes
+   one space, and the whitespace at either end is removed, so wrapped
+   lines are joined by one space.
+4. The parts are joined in order, with one LF between each two.
+
+**A question's hash** is the SHA-256 of its text encoded as UTF-8, written
+as 64 lowercase hex digits. The verdict records and both hooks use it.
+
+#### Scenario: A picker question's text joins its parts with line feeds
+
+- **WHEN** a picker question's `question` field is "Should retries  back
+  off?", wrapped over two lines, and its options' labels are "Yes" and "No"
+- **THEN** its text is "Should retries back off?", an LF, "Yes", an LF and
+  "No", and its hash is the SHA-256 of that text as UTF-8, in lowercase hex
 
 #### Scenario: A verdict without its field is refused
 
@@ -1386,6 +1432,20 @@ why.
 - **WHEN** a log file would hold a string shaped like a GitHub access token
 - **THEN** the script refuses to write it
 
+#### Scenario: A log file holding a newly listed credential is not written
+
+- **WHEN** a log file would hold a string starting `sk-ant-`, or a GitHub
+  token starting `ghu_` or `ghr_`
+- **THEN** the script refuses to write it
+
+#### Scenario: Only the citation file names the lore entry
+
+- **WHEN** filter 1 stops a question about a repository because a lore
+  entry answers it
+- **THEN** the agent pushes a citation file holding the entry's id to the
+  lore repository's questions branch, and no log file, in that repository
+  or on the questions branch, holds the entry's id
+
 #### Scenario: A question about another repository is logged by a pull request
 
 - **WHEN** an agent working in one repository asks a question about a
@@ -1671,7 +1731,8 @@ post or file it as an issue. A session with no person in it SHALL neither ask no
 `secret` or `personal` question, and SHALL ask a `vulnerability` question
 only in the repository's private security advisory. In each case it SHALL
 stop the work that needs the answer, and report only that a question of
-that category is blocking, with no text. When the agent cannot open or
+that category is blocking, with no text, except during an Igor's run, as
+below. When the agent cannot open or
 write in the repository's private security advisory, it SHALL record a
 `vulnerability` question and its answer nowhere: the answer is used only
 in the code of the fix, and the agent reports only that such a question is
@@ -1679,6 +1740,16 @@ blocking. What the agent may write about the weakness is set by *A
 weakness is not described in public text before its advisory is
 published*. The host's own transcripts, such as Claude Code's under
 `~/.claude/projects/`, are outside this requirement.
+
+During an Igor's run, whenever a worker gives a question a category,
+whatever the question's verdict, the worker SHALL raise in its report the
+bare flag igor PR #216 defines: that the run met a question with a
+category, with no category, question or answer. A worker that such a
+question stops SHALL report only that flag, never the question's category.
+igor's task-execution requirement
+[*Transcripts and outcomes are captured to the state branch*](https://github.com/adamstallard/igor/blob/spec-lore-search/openspec/changes/lore-search/specs/task-execution/spec.md),
+in #216, says what the Igor does with the flag, and applies the same rules
+when the Igor runs the skill itself, with no worker.
 
 The agent gives the question's category in the first call, and SHALL pass
 such a question and its verdict, with every other question of the same
@@ -1724,9 +1795,24 @@ and use it in the code of the fix.
 
 #### Scenario: A headless session stops on a personal question
 
-- **WHEN** an Igor worker has a question with the category `personal`
+- **WHEN** a `claude -p` job that is not an Igor worker has a question with
+  the category `personal`, and the work needs the answer
 - **THEN** it asks and posts nothing, stops the work that needs the answer,
   and reports only that a `personal` question is blocking
+
+#### Scenario: An Igor worker stopped by a personal question reports only the flag
+
+- **WHEN** an Igor worker has a question with the category `personal`, and
+  the work needs the answer
+- **THEN** it asks and posts nothing, stops the work that needs the answer,
+  and its report holds igor's bare flag and no category, question or answer
+
+#### Scenario: A categorized question raises the flag whatever its verdict
+
+- **WHEN** during an Igor's run the worker gives a question the category
+  `secret`, and decides it under filter 4
+- **THEN** the worker's report holds igor's bare flag that the run met a
+  question with a category, and no category, question or answer
 
 #### Scenario: A deferred vulnerability goes to the advisory
 
@@ -2019,6 +2105,13 @@ log file gets no miss file either.
   spec"
 - **THEN** the agent logs a miss against filter 1, citing the spec the person
   named
+
+#### Scenario: A miss's record of what was said is written at the question's privacy
+
+- **WHEN** a person says a question about a public repository did not need
+  asking, because a private repository's `DECISIONS.md` already decides it
+- **THEN** the miss file's `said` gives the reason as an earlier decision
+  elsewhere, and names neither the private repository nor its file
 
 #### Scenario: A miss on an organization's question goes to the questions branch
 
