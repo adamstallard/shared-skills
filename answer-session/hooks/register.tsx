@@ -236,7 +236,7 @@ const RULE = 'subtle'
 // Prototype only: shown in the top bar, so a tester can tell which build is
 // loaded. v0.1-N, N the number of commits in the prototype repository once
 // this build is committed.
-const BUILD = 'v0.1-12'
+const BUILD = 'v0.1-13'
 const PREFIX = 'User says: '
 const SPEAKER = 8
 const cursorAtom = atom({ plugin: 'answer-session', key: 'cursor' } as const, 0)
@@ -1051,7 +1051,9 @@ export const register: Register = on => {
           ? 'a number, a key or your answer, then ⏎'
           : 'a key or your answer, then ⏎'
     const hint = enterHint(c, intent(c, await read($, promptAtom))) ?? idle
-    return next({ ...e, props: { ...e.props, hint } })
+    // Added after the engine's own line, never in place of it: a rewritten
+    // `hint` drops every plugin's `tail`, usage-hint's figures among them.
+    return next({ ...e, props: { ...e.props, tail: hint + (e.props.tail ? `  ·  ${e.props.tail}` : '') } })
   })
 
   // The band previews what Enter would do with the prompt box's text, so it
@@ -1271,7 +1273,6 @@ export const register: Register = on => {
     )
     const tally = [`${fresh} new`, `${relayed} relayed`, `${deferred} deferred`, ...(waiting ? [`${waiting} waiting`] : [])].join(' · ')
     const where = [...(base ? [`${at + 1} of ${N}`] : []), ...(isTalking ? (cols >= 120 ? ['talking it through'] : []) : cols >= 120 || !base ? [tally] : [])].join(' · ')
-    const layout = isFullscreen ? ' · fullscreen' : vp?.isFullscreen === false ? ' · main screen' : ''
     const bar = (
       <Box height={1} overflow="hidden" justifyContent="space-between" width={cols} gap={2}>
         <Box gap={2} flexShrink={0}>
@@ -1282,7 +1283,6 @@ export const register: Register = on => {
         </Box>
         <Text dimColor wrap="truncate-end">
           {BUILD}
-          {layout}
         </Text>
       </Box>
     )
@@ -1324,12 +1324,13 @@ export const register: Register = on => {
       </Box>
     )
 
-    // The band at its full height; a body of fewer `rows` makes it shorter,
-    // with no rule, and gives the conversation above the rest.
+    // The band at its full height; a body of fewer `rows` makes it shorter
+    // and gives the conversation above the rest. The rule on top parts the
+    // band from the conversation, and is the first row a short band gives up.
     const frame = (body: Row, hints: [string, string][], shown: Command[], rows = B) => (
-      <Box flexDirection="column" width={cols} height={rows === B ? H : rows + 2}>
+      <Box flexDirection="column" width={cols} height={rows === B ? H : rows + 2 + (hasRule ? 1 : 0)}>
+        {hasRule && <Text color={RULE}>{'─'.repeat(cols)}</Text>}
         {bar}
-        {rows === B && hasRule && <Text color={RULE}>{'─'.repeat(cols)}</Text>}
         <Box flexDirection="column" height={rows} overflow="hidden">
           {body}
         </Box>
