@@ -76,7 +76,8 @@ Not built here; these go into the answer session's OpenSpec change, which Adam w
 - **Polling runs only while an answer session is open:** about every 60 s, with a catch-up poll on opening; nothing runs in the background.
 - **A question asked of Adam** is any of: an @-mention of him in a subscribed channel (agents running the inquisitor included), a reply to or mention of his relay account, a pull request requesting his review or an issue assigned to him, and a question file on a lore repository's questions branch addressed to him.
 - **Two ways in:** `/answer` in any session, and a setup-installed `answer` terminal command that starts a session with `/answer` as its first prompt. The `INQUISITOR_ANSWER_SESSION` auto-open variable is dropped (Adam, 2026-10-20): neither way in needs it, and a session from the picker can't set it.
-- **Still open:** what the `answer` terminal command starts (fullscreen in place, or a background session to attach from the picker), and whether the main screen is supported only when a person's own session runs on it (never launched into or designed for).
+- **The `answer` terminal command** runs `CLAUDE_CODE_NO_FLICKER=1 claude --name Answers '/answer'`: fullscreen, in place, clickable.
+- **Fullscreen is the layout designed for and launched into.** The main screen works (a person whose own session runs on it can type `/answer` and gets the same band, taller and without clicks) but gets no work of its own.
 
 ## Next
 

@@ -236,7 +236,7 @@ const RULE = 'subtle'
 // Prototype only: shown in the top bar, so a tester can tell which build is
 // loaded. v0.1-N, N the number of commits in the prototype repository once
 // this build is committed.
-const BUILD = 'v0.1-11'
+const BUILD = 'v0.1-12'
 const PREFIX = 'User says: '
 const SPEAKER = 8
 const cursorAtom = atom({ plugin: 'answer-session', key: 'cursor' } as const, 0)
