@@ -66,9 +66,14 @@ published vulnerability can't be taken back.
 The hook hashes each question in the tool's input the same way, reads the
 most recent record for each hash, and allows the call when each is `ask` and
 less than 2 hours old. The second call checks that a picker question's
-first option is its recommendation. The hook doesn't need to: a question's
+first option is its recommendation. The hook doesn't need to check the
+order of the options: a question's
 text includes its options in order, so reordering them after vetting gives
-a different hash, which the hook already blocks as unvetted. A record is not spent by the call: when
+a different hash, which the hook already blocks as unvetted. One line is
+left out of the hash: the question's related-decision line, `Related: `
+and a URL (proposal decision 112). The agent finds the related decision
+in the first call's search, so it adds that line after the first call, and
+adding it needs no second vetting. A record is not spent by the call: when
 the hook blocks a call because of one question in it, the other questions need no
 vetting again.
 
@@ -113,10 +118,18 @@ it skips the hook. The shared reader reads both.
 
 The inquisitor's post hook finds the body's questions by the spec's rule
 (*Questions in posts pass the same filters*), hashes each, and applies the
-picker hook's rule, except that it also allows a `deferred` question listed
-as an item of an open-questions section and tagging no one:
-filter 2 has the agent list a deferred question in the work's description,
-or file it as an issue, and both are posts. A post with no question passes without a lookup.
+picker hook's rule, with one addition: it also allows a `deferred`
+question that tags no one, meaning it holds no `@login` mention. Such a
+question passes in two places:
+- as an item of an open-questions section, which includes a deferral
+  section such as "Not in this change";
+- anywhere in a new issue, which the shared post reader reports with the
+  body.
+
+Filter 2 has the agent list a deferred question in the work's description,
+or file it as an issue, and both are posts (proposal decision 113). A
+question that tags someone asks that person for an answer, so it needs an
+`ask` verdict, however it was deferred. A post with no question passes without a lookup.
 
 **The order with prose:** do prose's pass, vet the rewritten body, then sign
 it with prose. The footer prose appends holds no question, so signing leaves
@@ -139,9 +152,8 @@ The question is written for that privacy before it is asked (the spec's *A
 question is written at the privacy of what it concerns*), so its log can sit
 beside it.
 
-- **A question about one repository:**
-  `.inquisitor/questions/<yyyy-mm-dd>-<slug>-<6 hex>.md` in that repository,
-  committed with the work, so every agent on the team finds it, as
+- **A question about one repository:** a file under
+  `.inquisitor/questions/` in that repository, committed with the work, so every agent on the team finds it, as
   spec-check's `openspec/spec-check.yaml` is found. When the question is
   about a repository other than the one holding the current work, the file
   goes to it by a pull request instead. The file is not kept on a branch of
@@ -149,9 +161,9 @@ beside it.
   history and merges with it. A file on a branch or a pull request that has
   not merged is invisible to filter 1 elsewhere, so parallel work can ask
   the same question again; this change accepts that cost.
-- **A question about an organization or project:**
-  `questions/<yyyy-mm-dd>-<slug>-<6 hex>.md` on an orphan branch named
-  `questions` in the team's lore repository, apart from igor's
+- **A question about an organization or project:** a file under
+  `questions/` on an orphan branch named `questions` in the team's lore
+  repository, separate from igor's
   `igor-state` branch, where igor keeps its runtime state (defined in
   igor's `src/state.ts`). The agent pushes each file
   there directly, with no pull request; when the push is rejected because
@@ -179,10 +191,12 @@ beside it.
 - **A question in one of the three categories** (`vulnerability`, `secret`,
   `personal`): no log. Only the hooks' record above holds it, as a hash.
 
-Each log file has YAML frontmatter (`repository`, `asked`, `answered_by`,
-`authority`: `decision`, `input` or `agent`, `recorded_in`, and
-`answer_link`, the GitHub comment or review holding the answer, when there
-is one) and the
+A log file's and a miss file's path, name, keys and encoding are stated
+once, in the spec's requirement *A log file and a miss file have one
+format* (proposal decisions 118 and 125). In short, a log file has YAML
+frontmatter (`repository`, `asked`, `answered_by`, `authority`:
+`decision`, `input` or `agent`, `recorded_in`, and `answer_link`, the
+GitHub comment or review holding the answer, when there is one) and the
 question and answer as its body. An `answer_link` is only ever a
 github.com comment or review. An answer given on Discord, Slack or Linear
 is logged as `input`. Filter 1 counts it as an answer only once a decision
@@ -203,10 +217,12 @@ less visible than the lore repository (decision 93). Both the inquisitor and an 
 citation files, and igor's review reads them all, so the spec states their
 format once, in the requirement *A citation file has one format*, and igor
 PR #216 is to point to it rather than state a format of its own (decisions
-110 and 111). During an Igor's run the worker
-reports each citation in its output, and the Igor pushes it when it
-publishes the run, since a worker holds only the token of the seat it runs
-on, which cannot push to the lore repository. The
+110 and 111). During an Igor's run the worker, the agent the Igor starts
+on the item, reports each citation in its output instead of pushing it, since a worker
+holds only the token of the seat it runs on, which cannot push to the lore
+repository. When and which of them the Igor pushes is igor's to say, in
+igor PR #216's requirement *An Igor publishes the citations its worker
+reports* (proposal decision 123). The
 inquisitor's commits to the `questions` branch are machine records with a
 fixed message, `inquisitor: log <file>`, exempt from prose's and
 bug-hunter's trailers; the branch is never checked out, so their checks
@@ -221,8 +237,9 @@ holds only the day, so it says nothing about who asked.
 The 6 random hex digits in a question file's name mean two branches logging
 the same question on the same day still write different files. Misses, the questions
 a person said need not have been asked, go where their questions went, in
-`misses/` in place of `questions/`, in the same form, with `filter` and
-`said` in place of the answer fields.
+`misses/` in place of `questions/`, in the same format, with `filter` and
+`said` in place of the answer keys (`answered_by`, `authority`,
+`recorded_in` and `answer_link`).
 
 Every log file and miss file is scanned for secrets before it is written,
 and so is every question in a post at the first call. The patterns are the

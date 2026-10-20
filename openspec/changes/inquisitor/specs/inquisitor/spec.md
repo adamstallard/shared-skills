@@ -28,8 +28,7 @@ would mark `kept (asked)`), whether to enforce
 spec-check's decisions-first rule, or whether to adopt spec-trace, SHALL be exempt from filters 3 and 4. Filters 1
 and 2 still apply, and its `ask` verdict SHALL name the skill that requires
 it. Except for a rhetorical question, under filters 3 and 4 the agent SHALL
-record what it chose, and why, in the decision document the question
-concerns.
+record what it chose, and why, where the question's answer is recorded.
 
 Terms used throughout this spec:
 
@@ -50,7 +49,7 @@ Terms used throughout this spec:
   person's way of working. The agent judges which.
 - **A decision document** is a `DECISIONS.md` file, an OpenSpec spec or
   change, a decision record under `docs/decisions/`, an issue's decision
-  block, or a lore entry.
+  block, or a lore entry, and nothing else.
 - **An issue's decision block** is the start of the issue's body, before its
   first heading, or the first of its sections whose heading starts with
   "Decision". It states what is decided.
@@ -64,12 +63,12 @@ Terms used throughout this spec:
   **rejected candidate**.
 - **A lore repository's questions branch** is an orphan branch named
   `questions` in that repository, holding its question and miss files.
-- **The decision document the question concerns** is the one in the
-  repository the question concerns whose subject the question is about,
+- **Where the question's answer is recorded** is the decision document in
+  the repository the question concerns whose subject the question is about,
   such as the current change's spec. Where none fits, it is the question's
   log file, written where *Every answer is recorded and every asked question
   logged* puts one. For a choice the agent makes under filter 3 or 4, the
-  file records
+  log file records
   the choice with `authority: agent`, and the agent SHALL write it only in
   the repository holding the current work or push it to the team's lore
   repository's questions branch, never by a pull request to another
@@ -77,9 +76,10 @@ Terms used throughout this spec:
   person's memory or user-level `CLAUDE.md`. A question that
   gets no log file for another reason, such as a question with a category
   (*Some questions are recorded by hash only*) or a question about an
-  organization with no lore repository configured, has no such document:
+  organization with no lore repository configured, has no such place:
   for it, the agent states its choice and reason in its report to the
-  person.
+  person, except that for a question with a category its report says only
+  what *Some questions are recorded by hash only* allows.
 - **A session with a person in it** is one a person started and is reading,
   such as an interactive Claude Code session. A headless run, such as an
   Igor worker or a `claude -p` job, has no person in it. The agent and the
@@ -108,6 +108,8 @@ Terms used throughout this spec:
   inquisitor's configuration names, when it equals the login of the account
   `gh` is logged in as, read by the script running as the person. When they
   differ, or no login is named, the session has no login configured.
+- **A question tags** a person when its list item or sentence mentions the
+  person's login as `@login`.
 - **The related earlier decision** is the decision the agent names, from
   filter 1's hits, as related to the question when it runs the first call.
 - **The inquisitor's configuration** is the file
@@ -144,8 +146,6 @@ Terms used throughout this spec:
   works for an Igor under that Igor's role: a worker on an item, or an Igor
   itself running the inquisitor's filters on a question that stopped its
   work, as igor PR #216 defines "during a run".
-  **The Igor publishes the run** when it pushes the run's results, as igor
-  does after its worker finishes.
 - **A miss** is a question a person said need not have been asked, and a
   **citation file** records that filter 1 stopped a question with a lore
   entry; *A question that should not have been asked is logged as a miss*
@@ -201,8 +201,8 @@ Terms used throughout this spec:
 #### Scenario: A question with one good option is decided
 
 - **WHEN** only one of a question's options has merit
-- **THEN** the agent takes that option, records it with its reason in the
-  decision document the question concerns, and asks nobody
+- **THEN** the agent takes that option, records it with its reason where
+  the question's answer is recorded, and asks nobody
 
 #### Scenario: A cheap-to-reverse question is decided
 
@@ -550,8 +550,15 @@ agent. The search SHALL never show a rejected candidate.
 
 A question that passes the filters SHALL state the answer the agent
 recommends, what would change under each other answer, and a link to any
-related earlier decision. In the picker, the recommended answer SHALL be the
-first option.
+related earlier decision. The link SHALL be on a line of its own, any
+line after the question's first, the question's **related-decision
+line**: `Related: ` followed by one URL,
+with no spaces, and nothing else. The agent SHALL link only a decision
+that everyone who can read the question can read, by *A question is
+written at the privacy of what it concerns*. The picker hook and the post
+hook SHALL block a question whose related-decision line holds a string
+matching the credential patterns. In the picker, the recommended answer
+SHALL be the first option.
 
 #### Scenario: The recommended answer comes first
 
@@ -570,7 +577,20 @@ first option.
 
 - **WHEN** the search shows an earlier decision that is related to the
   question without answering it
-- **THEN** the question the agent asks links that decision
+- **THEN** the question the agent asks links that decision on its
+  related-decision line
+
+#### Scenario: A `Related:` line holding more than a URL is part of the question
+
+- **WHEN** a question's last line is `Related: [the retry decision](https://github.com/o/r/pull/3)`
+- **THEN** that line is not a related-decision line, and the hooks match it
+  as part of the question's text
+
+#### Scenario: A related-decision line holding a secret is blocked
+
+- **WHEN** a vetted question's related-decision line is a URL holding a
+  string shaped like a GitHub access token
+- **THEN** the hook blocks the call
 
 ### Requirement: Related questions are asked together
 
@@ -603,11 +623,14 @@ Linear or Discord, or, for a `vulnerability` question, in the repository's
 private security advisory; never in the text of its reply. A subagent of
 such a session SHALL return each surviving question, prepared, to whoever
 started it. A session with no person in it SHALL never use the picker: it
-SHALL ask the question in a post, unless the question has a category,
+SHALL ask the question in a post, tagged as *A question in a post tags one
+person who can decide* says, unless the question has a category,
 which *Some questions are recorded by hash only* governs, or is about one
 person's way of working, which it SHALL NOT ask: it stops only if the work
-needs the answer, and reports that the question waits for the person. The
-post is tagged as *A question in a post tags one person who can decide* says. An
+needs the answer, and reports that the question waits for the person.
+Under filter 2, a question about one person's way of working SHALL be
+deferred only into the agent's report, and never listed in a post or filed
+as an issue. An
 Igor worker that is handing an item back SHALL instead ask in its handback
 comment.
 
@@ -630,6 +653,13 @@ comment.
   and the work needs the answer
 - **THEN** it asks it nowhere, stops, and reports that the question waits
   for the person
+
+#### Scenario: A headless session doesn't defer a way-of-working question into a post
+
+- **WHEN** a `claude -p` job has a question about the person's way of
+  working, and the work can go on without the answer
+- **THEN** it goes on with the work, lists the question in no post, files
+  no issue for it, and reports that the question waits for the person
 
 #### Scenario: A question goes through the picker
 
@@ -679,7 +709,11 @@ until a later verdict on the same text is recorded.
 each option's `label`, in order; for a question in a post, the list item or
 sentence that holds it, without its list marker, with inline markup such as
 emphasis and links reduced to their text, and with wrapped lines joined.
-Runs of whitespace count as one space.
+Runs of whitespace count as one space. Before anything else, every line of
+the `question` field or the list item, other than its first, whose text,
+with the whitespace at either end removed, is a related-decision line
+(*A question that is asked is prepared for a quick answer*) is left out of
+the question's text.
 
 #### Scenario: A verdict without its field is refused
 
@@ -765,6 +799,14 @@ verdict records.
   within 2 hours
 - **THEN** the hook lets the call through
 
+#### Scenario: Adding the related-decision line needs no second vetting
+
+- **WHEN** a question was recorded as `ask` without a related-decision
+  line, and the agent then adds `Related: ` and a link to the decision the
+  first call's search found, as the question's last line
+- **THEN** the hook matches the question's text as recorded, and lets the
+  call through
+
 #### Scenario: A question edited after vetting is blocked
 
 - **WHEN** a question's text differs from the text that was recorded as `ask`,
@@ -788,8 +830,10 @@ A **question in a post** is:
 
 - each item of a list in an open-questions section. The section starts at a
   heading, a bold label or a line ending in a colon whose own text starts
-  with the word "Open" or the words "Still open", and ends at the next
-  heading or bold label. A **bold label** is a line whose whole text, apart
+  with the word "Open", or with the words "Still open", "Not in this
+  change", "Deferred" or "Not done", and ends at the next heading or bold
+  label. A deferral section, such as "Not in this change", is an
+  open-questions section. A **bold label** is a line whose whole text, apart
   from a trailing colon, is bold; a list item that starts with bold text is
   not one;
 - each sentence elsewhere in the body that ends in a question mark.
@@ -802,8 +846,9 @@ A `PreToolUse` hook SHALL block a post that holds a question with no
 verdict, a question whose most recent verdict is neither `ask` nor
 `deferred`, or one whose most recent verdict is an `ask` more than 2 hours
 old. A `deferred` verdict, whatever its age, SHALL pass only a question that
-appears as an item of an open-questions section and tags no one; anywhere
-else, the question needs an `ask` verdict. When the hook cannot read its
+tags no one and either appears as an item of an open-questions section or
+is in a post that creates an issue, as the shared post reader reports it;
+anywhere else, the question needs an `ask` verdict. When the hook cannot read its
 verdict records, it SHALL block a post that holds a question. The hook
 SHALL learn a post's body from the shared post reader (the *gh-post*
 capability): it SHALL vet the body the reader returns, let through a call
@@ -850,6 +895,35 @@ as a private key or a GitHub access token.
 - **WHEN** a post lists, under "Still open", a question whose most recent
   verdict is `deferred`, recorded three days earlier
 - **THEN** the hook lets the post through
+
+#### Scenario: A deferred question that tags a person is blocked
+
+- **WHEN** a post lists, under "Still open", a question whose most recent
+  verdict is `deferred`, and the item tags `@alice`
+- **THEN** the hook blocks the post, and says the question needs an `ask`
+  verdict
+
+#### Scenario: A deferred question may be listed under "Not in this change"
+
+- **WHEN** a pull request description lists, under a heading "Not in this
+  change", a question whose most recent verdict is `deferred`, tagging no
+  one
+- **THEN** the hook lets the post through
+
+#### Scenario: An issue filed for a deferred question passes
+
+- **WHEN** an agent runs `gh issue create --body-file body.md`, and the
+  body asks, in its running text and tagging no one, a question whose most
+  recent verdict is `deferred`
+- **THEN** the hook lets the post through
+
+#### Scenario: A comment asking a deferred question outside a section is blocked
+
+- **WHEN** an agent runs `gh issue comment 7 --body-file body.md`, and the
+  body asks, in its running text, a question whose most recent verdict is
+  `deferred`
+- **THEN** the hook blocks the post, and says the question needs an `ask`
+  verdict
 
 #### Scenario: A post whose body cannot be read is blocked
 
@@ -905,8 +979,9 @@ as a private key or a GitHub access token.
 ### Requirement: A question in a post tags one person who can decide, if there is one
 
 Where a post asks a question and a person who can decide it is found, the
-question SHALL tag one such person. A question listed in an open-questions
-section with a `deferred` verdict is not tagged. A
+question SHALL tag one such person. A question with a `deferred` verdict,
+listed in an open-questions section or in a new issue, is not
+tagged. A
 person who can decide is a person with write access to what the
 question concerns. Among the candidates with write access,
 the script SHALL pick the first it finds of:
@@ -988,6 +1063,13 @@ author has one is input.
 - **WHEN** `.inquisitor/reviewers` lists `../orgs/x`
 - **THEN** the script skips it, and calls no API with it
 
+#### Scenario: An answer whose author's login is malformed is input
+
+- **WHEN** a log file's `answered_by` is `alice/../admin`, and the file
+  would otherwise answer the question
+- **THEN** filter 1 calls no API with that login, and shows the file as
+  input, labelled as unconfirmed
+
 #### Scenario: A committer with no known login is skipped
 
 - **WHEN** the script cannot find the GitHub login of the last person to
@@ -1003,29 +1085,31 @@ author has one is input.
 
 #### Scenario: A post by the configured login asks through the picker
 
-- **WHEN** no candidate in the order has write access, the configured login
-  has write access, and the post would go out as that same login
+- **WHEN**, in a session with a person in it, no candidate in the order has
+  write access, the configured login has write access, and the post would
+  go out as that same login
 - **THEN** the agent asks the question through the picker, and the post
   does not tag that login
 
 #### Scenario: An unknown posting login counts as the configured login
 
-- **WHEN** no candidate in the order has write access, the configured login
-  has write access, and the script cannot learn which login the post goes
-  out as
+- **WHEN**, in a session with a person in it, no candidate in the order has
+  write access, the configured login has write access, and the script
+  cannot learn which login the post goes out as
 - **THEN** the agent asks the question through the picker
 
 #### Scenario: A configured login that is not the person's own is ignored
 
-- **WHEN** the configured login is `maintainer`, and `gh` is logged in as
-  `contributor`
+- **WHEN**, in a session with a person in it, no candidate in the order has
+  write access, the configured login is `maintainer`, and `gh` is logged in
+  as `contributor`
 - **THEN** the script treats the session as having no login configured, and
   the agent asks through the picker
 
 #### Scenario: No configured login means asking through the picker
 
-- **WHEN** no candidate in the order has write access, and the inquisitor's
-  configuration names no login
+- **WHEN**, in a session with a person in it, no candidate in the order has
+  write access, and the inquisitor's configuration names no login
 - **THEN** the agent asks the question through the picker
 
 #### Scenario: A headless session does not tag its own login
@@ -1111,9 +1195,8 @@ question and report that it did not.
 
 ### Requirement: Every answer is recorded and every asked question logged
 
-When a person answers a question, the agent SHALL record the answer in the
-decision document the question concerns, or, where none fits, in the log
-file itself. An answer the person running the session gave in the
+When a person answers a question, the agent SHALL record the answer where
+the question's answer is recorded. An answer the person running the session gave in the
 session, in the picker or in their own message in the conversation, SHALL
 be logged with `authority: decision` only when that person's login has
 write access to what the question concerns; otherwise with
@@ -1151,12 +1234,12 @@ SHALL push a **citation file** to the questions branch of the lore
 repository holding that entry, in the format that *A citation file has one
 format* states. No citation is sent for a question with a category,
 or when the lore repository is more visible than the repository the
-question concerns. During an Igor's run, the worker SHALL report each
-citation in its output instead, and the Igor pushes the citations of
-existing `active` entries in the run's role's scope only when the run
-publishes, a handback comment counting as publishing, as bookkeeping
-outside the actions the Igor's role allows (its `allow` list in igor's
-role configuration). A citation file
+question concerns. During an Igor's run, the worker SHALL push no
+citation, and SHALL instead report in its output each citation it would
+otherwise push. When and which of those citations the Igor pushes is set
+by igor's lore-firing requirement
+[*An Igor publishes the citations its worker reports*](https://github.com/adamstallard/igor/blob/spec-lore-search/openspec/changes/lore-search/specs/lore-firing/spec.md),
+in igor PR #216; this spec does not restate it. A citation file
 is never an answer. Every commit
 the script makes to a lore repository's questions branch SHALL have the
 message `inquisitor: log <file>`, and SHALL carry no prose or bug-hunter
@@ -1171,20 +1254,17 @@ has `answered_by: agent`.
 No log file SHALL be written outside a repository, such as under
 `~/.config/`.
 
-A log file for a question that was asked SHALL hold the question as asked and the date when it is
-written, and gains, when the answer comes, who answered (its
+A log file for a question that was asked SHALL hold the question as asked and the day it was
+asked, and gains, when the answer comes, who answered (its
 `answered_by`), the answer's `authority`, the answer in one sentence, and
-where the answer is recorded. The answer reaches a file in another
-repository by a further pull request, as the file did. Every log file
-SHALL hold no `conditions`. The answer, like the question, SHALL be written
+where the question's answer is recorded, in the format *A log file and a
+miss file have one format* states. The answer reaches a file in another
+repository by a further pull request, as the file did. The answer, like the question, SHALL be written
 at the privacy of what the question concerns: private context generalised
 or left out. When the agent cannot generalise the question and answer that
 way, it SHALL add no answer to the question's file, which stays as it was
 written, and the question stays open; it uses the answer in the work, and
-its report says the answer could not be recorded at this privacy. A log
-file's name SHALL be the date, a slug of at most 40 characters from
-`a` to `z`, `0` to `9` and `-`, and 6 random hex digits. Every value in its
-frontmatter SHALL be written as a quoted YAML string.
+its report says the answer could not be recorded at this privacy.
 
 The agent SHALL write `authority: decision` only for an answer the person
 gave in the session, through the picker or in their own message in the
@@ -1336,6 +1416,14 @@ why.
   public
 - **THEN** the script refuses to push it, and the agent tells the person why
 
+#### Scenario: Working in no git repository logs nothing
+
+- **WHEN** an agent working in no git repository asks a question about an
+  organization, so that no team's lore repository can be found for it, and
+  the person answers it
+- **THEN** no log file is written anywhere, and the agent tells the person
+  the question was not logged
+
 #### Scenario: An organization's question with no lore repository is not logged
 
 - **WHEN** a person answers a question about an organization, and no
@@ -1358,12 +1446,6 @@ why.
 - **THEN** the commit's message is `inquisitor: log <that file>`, and it
   has no `Prose:` or `Bug-hunter:` trailer
 
-#### Scenario: A handback comment publishes a run's citations
-
-- **WHEN** an Igor hands an item back after its worker reported a citation
-- **THEN** the Igor pushes that citation file, as it would when the run
-  publishes
-
 #### Scenario: No citation goes to a more visible lore repository
 
 - **WHEN** filter 1 stops a question about a private repository with an
@@ -1378,9 +1460,10 @@ why.
 
 #### Scenario: An Igor's worker reports citations for the Igor to push
 
-- **WHEN** filter 1 stops a question with a lore entry during an Igor's run
+- **WHEN** filter 1 stops a question that has no category with an `active`
+  lore entry during an Igor's run
 - **THEN** the worker reports the citation in its output and pushes
-  nothing, and the Igor pushes the citation file when it publishes the run
+  nothing
 
 #### Scenario: A question filter 1 stopped about another repository is not logged
 
@@ -1408,6 +1491,57 @@ why.
 - **WHEN** a person without write access answers a question in a post
 - **THEN** the log records the answer with `authority: input`, and filter 1
   does not treat it as an answer
+
+### Requirement: A log file and a miss file have one format
+
+Every log file and miss file SHALL take this format, wherever it is
+written.
+
+- **Path:** in a repository, `.inquisitor/questions/<name>` for a question
+  and `.inquisitor/misses/<name>` for a miss, at the root of the repository
+  the question concerns; on a lore repository's questions branch,
+  `questions/<name>` and `misses/<name>`. `<name>` is
+  `<date>-<slug>-<6 random hex digits>.md`, where `<date>` is the day the
+  file is first written, as `yyyy-mm-dd` in UTC, and the hex digits are
+  lowercase.
+- **Slug:** the question's text in lower case, with each run of characters
+  other than `a` to `z` and `0` to `9` made one `-`, cut to at most 40
+  characters, with no `-` at either end; `question` when nothing is left.
+- **Encoding:** UTF-8 with LF line ends: YAML frontmatter between two `---`
+  lines, every value a double-quoted YAML string, then a markdown body. The
+  frontmatter SHALL hold no key but those below, so never `conditions`.
+- **A log file's keys:** `repository`, the repository the question
+  concerns, as `owner/repo`; `asked`, the day the question was asked, or,
+  for a question never asked, the day the agent decided it, as
+  `yyyy-mm-dd`; and, once the answer comes, `answered_by`, a GitHub login
+  or `agent`; `authority`, `decision`, `input` or `agent`; `recorded_in`,
+  where the question's answer is recorded, as a path from that
+  repository's root or a URL, never a lore entry; and `answer_link`, only when there is one,
+  the github.com URL of the comment or review holding the answer. Its body
+  is the question under `## Question`, and, once the answer comes, the
+  answer in one sentence under `## Answer`.
+- **A miss file's keys:** `repository` and `asked`, as in its question's
+  log file; `filter`, `"1"` to `"4"`, the filter that should have stopped
+  the question; and `said`, what the person said, in their words or in one
+  sentence, with any place they named, such as a spec's path. Its body is
+  the question
+  under `## Question`.
+
+#### Scenario: A log file's name and keys
+
+- **WHEN** on 2026-10-20 the agent logs the question "Should retries back
+  off?" about `o/api`, asked that day, and it is not yet answered
+- **THEN** the file is
+  `.inquisitor/questions/2026-10-20-should-retries-back-off-<hex>.md`,
+  where `<hex>` is 6 lowercase hex digits, and its frontmatter holds only
+  `repository: "o/api"` and `asked: "2026-10-20"`
+
+#### Scenario: A miss file's keys
+
+- **WHEN** the agent logs a miss against filter 1 for a question logged in
+  a repository
+- **THEN** the miss file is under `.inquisitor/misses/`, and its
+  frontmatter holds only `repository`, `asked`, `filter: "1"` and `said`
 
 #### Scenario: A log file holds no conditions
 
@@ -1444,11 +1578,9 @@ an Igor pushes it for its worker.
 
 #### Scenario: A citation an Igor pushes from a run holds the run's id
 
-- **WHEN** an Igor publishes a run whose worker reported a citation of an
-  `active` entry in the run's role's scope, for a question with no category,
-  and the lore repository is no more visible than the repository the
-  question concerns
-- **THEN** the Igor pushes a citation file under `citations/`, named by the
+- **WHEN** an Igor pushes a citation its worker reported, under igor's
+  requirement *An Igor publishes the citations its worker reports*
+- **THEN** the citation file is under `citations/`, named by the
   date and 6 random hex digits, holding `entry`, `date` and `run`, where
   `run` is the id the Igor records with the run's transcript on its
   `igor-state` branch
@@ -1699,7 +1831,12 @@ repository the question concerns, the agent SHALL tell the person the
 lesson instead.
 
 A lore entry the agent proposes SHALL go in the lore repository's
-`entries/`, named by its id plus `.md`. It SHALL carry every
+`entries/`, named by its id plus `.md`. Its id SHALL be a kebab-case slug
+derived from its claim, as igor's lore-store requirement *Ids are derived
+from the claim and then immutable* says, and SHALL match the pattern
+igor's validator checks, `^[a-z0-9][a-z0-9-]*$` (`ID_PATTERN` in igor's
+`src/entry.ts`); the script SHALL refuse to propose an entry with any
+other id. It SHALL carry every
 frontmatter field igor's lore store requires, and SHALL NOT reuse an id
 that an entry or a rejection in that lore repository already holds. It
 SHALL give the entry another id when an entry holds it, and SHALL NOT
@@ -1739,6 +1876,12 @@ scope SHALL be reported only as "id taken", without naming it.
 - **WHEN** a lesson for a team draws on misses logged in a private
   repository, and the team's lore repository is public
 - **THEN** the agent opens no pull request, and tells the person why
+
+#### Scenario: An id outside igor's id rule is refused
+
+- **WHEN** the agent would propose a lore entry with the id `Retry_Policy`
+  or `../x`
+- **THEN** the script refuses, and no pull request is opened
 
 #### Scenario: An id an entry already holds is not reused
 
@@ -1781,13 +1924,13 @@ scope SHALL be reported only as "id taken", without naming it.
 
 When a person says a question did not need asking (it was already answered,
 could have waited, had one sensible answer, or was cheap to reverse), the
-agent SHALL log a **miss**: one file named and written like a question log
-file, where the question's file went and in the same way, under `misses/`
-in place of `questions/`. In a repository that is `.inquisitor/misses/`; on
-a lore repository's questions branch it is `misses/`, pushed directly. The
-file holds the question, the filter that should have stopped it, and what
-the person said, written at the privacy of what the question concerns, as a
-logged answer is. A miss is logged whatever words the person uses; "that
+agent SHALL log a **miss**: one file, in the format *A log file and a miss
+file have one format* states, written where the question's file went and
+in the same way, under `misses/` in place of `questions/`; on a lore
+repository's questions branch it is pushed directly. The file holds the
+question, the filter that should have stopped it, and what the person
+said, written at the privacy of what the question concerns, as a logged
+answer is. A miss is logged whatever words the person uses; "that
 was obvious" is one way to say it. A question that got no
 log file gets no miss file either.
 

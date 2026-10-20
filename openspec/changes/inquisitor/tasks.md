@@ -47,15 +47,26 @@ contradicts what design.md assumed.
 - [ ] 1.2 prose's tests pass unchanged; add the library's own tests beside it,
       each tagged `@scenario gh-post: <Scenario name>` for the `gh-post`
       spec's scenario it checks
-- [ ] 1.3 The library also reads `python3 <github-app script> gh pr|issue …`
-      posts, and `gh api` comments whose body is given by `-f body=`,
-      `--raw-field body=`, `-F body=` or `--field body=` (with or without
-      `@<file>`), or by `--input`, and blocks as unreadable any `gh api`
-      call that writes (its method `POST`, `PATCH` or `PUT`, given or implied by
-      fields, or a GraphQL mutation), whose
-      body it can't read; add tests for these to prose's and the
-      library's tests. prose's `DECISIONS.md` section on the allow-list then
-      points at the library's list instead of restating it
+- [ ] 1.3 The library also handles the following. prose's existing tests
+      still pass unchanged; add tests for each to prose's and the
+      library's tests.
+      - It reads `python3 <github-app script> gh pr|issue …` posts,
+        including `python3 $G …` only when the same command assigns `G`.
+      - It reads `gh api` comments whose body is given by `-f body=`,
+        `--raw-field body=`, `-F body=` or `--field body=` (with or
+        without `@<file>`), or by `--input`, and a review's
+        `comments[][body]` fields.
+      - It reports whether a post creates an issue.
+      - It blocks as unreadable a `gh api` call that writes (its method
+        `POST`, `PATCH` or `PUT`, given or implied by fields, or a GraphQL
+        mutation) whose body it can't read, and a review whose comments it
+        can't read.
+      - It applies the closed list of gh post verbs, and blocks as
+        unreadable, as prose's reader does today, a command that names
+        `gh` in another command's arguments, such as `sh -c`, or that
+        pipes into a command other than a data command.
+      - prose's `DECISIONS.md` section on the allow-list then points at
+        the library's list instead of restating it
 
 ## 2. The script
 
@@ -77,9 +88,9 @@ contradicts what design.md assumed.
       `agent` file there is always input; each source not searched; when
       each clone's remote-tracking default branch was last updated by a
       fetch
-- [ ] 2.4 `log` and `miss`, writing one file per question or miss with a safe
-      name, quoted frontmatter, an `authority` of `decision`, `input` or
-      `agent`, and `answered_by: agent` for an agent's choice: in the
+- [ ] 2.4 `log` and `miss`, writing one file per question or miss in the
+      format of *A log file and a miss file have one format*, with an
+      `authority` of `decision`, `input` or `agent`, and `answered_by: agent` for an agent's choice: in the
       repository's `.inquisitor/` for a
       question about it (by a pull request when it is not the repository
       holding the current work), or pushed to the team's lore repository's
@@ -110,7 +121,8 @@ contradicts what design.md assumed.
       - the login has write access and the post goes out as anyone else:
         tag it
 - [ ] 2.7 `lore`, opening a lore pull request, or a promotion from the
-      `questions` branch, or refusing it by visibility
+      `questions` branch, or refusing it by visibility, or by an id outside
+      igor's id rule
 
 ## 3. Hooks
 
@@ -119,8 +131,10 @@ contradicts what design.md assumed.
       including when it can't read its records
 - [ ] 3.2 `scripts/check-post.sh`: `PreToolUse` on Bash and the GitHub MCP tools,
       through `.agents/lib/gh-post/`, blocking a post that holds a question
-      with a category, blocking a post with a question when it can't read
-      its records, and letting an Igor's handback comment through as
+      with a category (by the spec's *Some questions are recorded by hash
+      only*), blocking a post with a question when it can't read
+      its records, passing a `deferred` question that tags no one in an
+      open-questions section or a new issue, and letting an Igor's handback comment through as
       far as task 0.6 finds the hook can tell that comment apart from other
       posts
 - [ ] 3.3 `hook.json` with both hooks, `"default": "enabled"`
@@ -160,7 +174,9 @@ contradicts what design.md assumed.
       question concerns and in the lore repository, make filter 1 search
       those places (decisions 63, 66 and 109). Until #202 says so, filter 1
       searches `docs/decisions/` in the repository a question concerns,
-      and no lore repository's decision records
+      and no lore repository's decision records. Once #216 has merged,
+      point the spec's link to *An Igor publishes the citations its worker
+      reports* at igor's `openspec/specs/lore-firing/spec.md` on main
 - [ ] 6.1 Say in prose's and bug-hunter's `DECISIONS.md` that the
       inquisitor's commits to a lore `questions` branch are machine records,
       exempt from their trailers

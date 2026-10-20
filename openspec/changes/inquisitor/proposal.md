@@ -10,16 +10,18 @@ others in Claude Code sessions, and this proposal is the first place they
 are written down:
 - 11 to 15 and 31;
 - 32 to 35, 38 to 49 and 51 to 63, on 2026-10-19;
-- 64 to 78, 80 to 85, 87 to 98, 100 to 106 and 108 to 110, on 2026-10-20.
+- 64 to 78, 80 to 85, 87 to 98, 100 to 106, 108 to 110 and 112 to 124, on
+  2026-10-20.
 
 He gave those of 2026-10-19 and 2026-10-20 while reviewing this pull
 request, [#25](https://github.com/adamstallard/shared-skills/pull/25), whose
-own thread holds none of them. In the same sessions he also ruled on every
-decision this change proposed itself: 16 to 30, 36, 37, 50, 79, 86, 99,
+own thread holds none of them. In the same sessions he also ruled on the
+decisions this change proposed itself: 16 to 30, 36, 37, 50, 79, 86, 99,
 107 and 111. Those stay listed under *Proposed by this change* below, each marked
 with what he did. He changed 26, replaced 36 with his decision 42,
 confirmed 79 only in part, replaced 107's item 6 with his decision 108,
-and added his decision 109 to 107's item 5. He confirmed the rest.
+and added his decision 109 to 107's item 5. He confirmed the rest. The
+one decision of this change he has not yet ruled on is 125.
 
 1. **Four filters run before any question reaches a person.**
    1. **Already answered:** the agent finds the earlier answer, cites where it
@@ -275,7 +277,8 @@ consistency read:
     when it can't tell, the session counts as having no person in it.
 59. **A `deferred` verdict passes the post hook only for a question listed
     in an open-questions section and tagging no one.** Anywhere else the
-    question needs an `ask` verdict.
+    question needs an `ask` verdict. Decision 113 adds a deferral section
+    and a new issue that tags no one.
 60. **Filter 1 searches lore entries everywhere, Igor workers included,**
     applying igor's exact scope filter, with status labelled as decision 64
     says. igor injects every active
@@ -627,6 +630,94 @@ format:
      which a citation held only the entry's id and the date. Decision 111
      fills in how the file is written.
 
+Adam gave 112 to 124 on 2026-10-20, answering the findings of spec-check's
+consistency read of commit b6ca0dd, in which a fresh agent read the change
+against everything it must agree with:
+
+112. **The hooks match a question's text without its related-decision
+     line.** A prepared question links its related earlier decision
+     (decision 16) on a line of its own, `Related: <URL>`, and the hash
+     the hooks match leaves that line out. The agent finds the related
+     decision in the first call's search, so it can add the link after
+     that call without vetting the question again. The spec defines the
+     line exactly: `Related: ` and one URL with no spaces. No vetting
+     sees that line, so the hooks block a related-decision line holding a
+     credential pattern. The agent links only a decision that everyone who
+     can read the question can read; no hook checks that.
+113. **A deferral section counts as an open-questions section, and an issue
+     filed for a deferred question passes the post hook.** A section whose
+     heading starts with "Not in this change", "Deferred" or "Not done"
+     lists deferred questions, as one starting with "Open" or "Still open"
+     does. A new issue that tags no one passes on its questions' `deferred`
+     verdicts. Filter 2's two places for a deferred question, the work's
+     description and an issue, then both pass. This amends decision 59.
+114. **The shared post reader blocks a command that mentions `gh` and that
+     it can't read.** In a command that mentions a gh post verb (decision
+     119), each simple command that names `gh` is unreadable, with two
+     exceptions: a `gh` command the reader reads, and one of prose's data
+     commands, such as `echo`, that names `gh` only inside a quoted
+     argument. So `sh -c '…'`, `bash -c '…'` and `eval '…'` around a `gh`
+     post are unreadable, and so is a pipe into a shell. That is prose's
+     rule today. The earlier spec let a command through when `gh` appeared
+     in it only inside quotes, as in `sh -c 'gh pr comment …'`. The spec
+     now also states prose's other rules: how a command splits into simple
+     commands, how pipes and input are judged, and that a command running
+     only prose's own script, `prose.py`, is no post, since its arguments
+     may name a gh post as text.
+115. **The reader reads a review's nested comments.** For a review sent
+     with `gh api`, it reads each `comments[][body]` field, and each `body`
+     in the `comments` of an `--input` file. A review whose comment bodies
+     it can't read is unreadable.
+116. **A proposed lore entry's id passes igor's id rule,** from igor's
+     lore-store requirement *Ids are derived from the claim and then
+     immutable*: a kebab-case slug, which igor's validator checks against
+     `^[a-z0-9][a-z0-9-]*$` (`ID_PATTERN` in igor's `src/entry.ts`). The
+     script refuses any other id.
+117. **"A decision document" stays the closed list the spec defines.** The
+     wider set of places an answer goes, a decision document, a question's
+     log file, or a person's memory or `CLAUDE.md`, is **where the
+     question's answer is recorded**.
+118. **A log file and a miss file have one format, stated once,** in the
+     spec's requirement *A log file and a miss file have one format*, as
+     decision 110 does for a citation file. Decision 125 sets the format,
+     and design.md points to the requirement.
+119. **"A gh post verb" is a closed list,** the one prose's reader handles:
+     `gh pr` with `create`, `new`, `edit`, `comment`, `review`, `revert`,
+     `close` or `reopen`; `gh issue` with `create`, `new`, `edit`,
+     `comment`, `review`, `close` or `reopen`; and a `gh api` write, as
+     decision 107's item 2 defines one.
+120. **Each tagging scenario that ends in the picker says that the session
+     has a person in it,** since a session with no person in it never uses
+     the picker (decision 58).
+121. **Four rules get scenarios of their own:** a `gh api` write whose body
+     the reader can't read, or that carries a body to an endpoint it doesn't
+     read, is unreadable; an answer whose author's login is not GitHub's
+     login syntax is input (decision 99's item 3); an agent working in no
+     git repository logs nothing; and a session with no person in it lists
+     a question about one person's way of working in no post or issue.
+122. **`python3 $G …` is read only when the same command sets `G`.** A
+     command that runs `python3 $G`, mentions `gh` and assigns `G` nowhere
+     earlier in the same command is unreadable. The block message says to
+     set `G` in that command or write the script's path. In Claude Code
+     each command starts a fresh shell, so an unset `$G` makes the command
+     fail and post nothing; only a host whose shell keeps variables from
+     one command to the next, such as Cursor, could post through it.
+     Blocking it there costs a rewrite of the command, so nothing needs
+     measuring. This narrows decision 107's item 1. Decision 122 also
+     requires the script's path to end in `/github_app.py`: the reader
+     cannot know what any other script posts, and prose's reader blocks a
+     `gh` word passed to one today. `--identity <name>`, the github-app
+     skill's way to choose an identity, may come before `gh` or `run`.
+123. **The rules for an Igor's push of its worker's citations live in igor
+     #216,** in its lore-firing requirement *An Igor publishes the
+     citations its worker reports*: when it pushes, which citations, and
+     where. This change points to that requirement instead of restating
+     it, and keeps its own rules for a session outside an Igor's run.
+124. **Citation commits stay machine records with no trailer** (decision
+     90). igor's signed-publishing change, igor #153, should exempt them
+     from the trailers it requires on an Igor's commits; that is #153's to
+     settle, and *Still open* lists it. Decisions 90 and 110 are unchanged.
+
 ### Proposed by this change
 
 Decisions 16 to 18 are #211's proposals that apply to the skill; #211's
@@ -634,8 +725,8 @@ other proposals concern the role. Decisions 19 to 30, 36, 37 and 50 were
 needed to write the requirements. Reviewing #25, Adam confirmed 16
 to 30, 37 and 50, except 26, which he changed; his decision 42 replaced 36.
 His decision 32 replaced part of 19, and his decision 35 part of 18. The
-later decisions 79, 86, 99, 107 and 111 came from this change too, and
-each says what Adam did with it.
+later decisions 79, 86, 99, 107, 111 and 125 came from this change too,
+and each says what Adam did with it.
 
 16. **Confirmed by Adam (2026-10-19).** **A prepared question** states the recommended answer, what changes under
     the other answer, and a link to any related earlier decision, so that most
@@ -810,7 +901,8 @@ cheap to reverse, so this change made them under filter 4:
      1. **Confirmed by Adam (2026-10-20).** The shared post reader also
         reads `python3 <github-app script> run -- gh …`, including when the
         script's path is written as `$G`, the variable the github-app skill
-        uses for it.
+        uses for it. His decision 122 reads `$G` only when the same command
+        sets it.
      2. **Confirmed by Adam (2026-10-20).** A `gh api` call writes when its
         method is `POST`, `PATCH` or `PUT`, given by `-X` or `--method` or
         implied by fields or `--input` with no `-X GET`, or when its GraphQL query is a mutation. A write whose
@@ -820,7 +912,8 @@ cheap to reverse, so this change made them under filter 4:
         rewritten as a statement, and its `decided` verdict names the post.
      4. **Confirmed by Adam (2026-10-20).** A proposed lore entry whose id
         an existing entry already uses gets another id; one whose id a
-        rejected candidate uses is not proposed.
+        rejected candidate uses is not proposed. His decision 116 adds that
+        the id must pass igor's id rule.
      5. **Confirmed by Adam (2026-10-20), with his decision 109 added.** A
         linked answer (decision 78) must be a github.com comment or review
         on the repository the question concerns or on the lore repository.
@@ -854,21 +947,58 @@ decisions, put it to Adam, who confirmed it:
         file's path from the branch's root, such as
         `citations/2026-10-20-3f9a1c`.
 
+Decision 125 came from writing Adam's decision 118. Nothing writes a log
+file or a miss file yet, so their format is cheap to change. This change
+chose it under filter 4, and puts it to Adam to confirm or overrule:
+
+125. **Waiting for Adam.** **How a log file and a miss file are
+     written:**
+     1. **Path:** in a repository, `.inquisitor/questions/<name>` for a
+        question and `.inquisitor/misses/<name>` for a miss, at the root of
+        the repository the question concerns; on a lore repository's
+        `questions` branch, `questions/<name>` and `misses/<name>`.
+        `<name>` is `<date>-<slug>-<6 random hex digits>.md`, where
+        `<date>` is the day the file is first written, as `yyyy-mm-dd` in
+        UTC, and the hex digits are lowercase, as in a citation's name.
+     2. **Slug:** the question's text in lower case, with each run of
+        characters other than `a` to `z` and `0` to `9` made one `-`, cut
+        to at most 40 characters, with no `-` at either end; `question`
+        when nothing is left.
+     3. **Encoding:** UTF-8 with LF line ends: YAML frontmatter between two
+        `---` lines, every value a double-quoted YAML string, then a
+        markdown body.
+     4. **A log file's keys:** `repository`, the repository the question
+        concerns as `owner/repo`; `asked`, the day the question was asked,
+        or, for a question never asked, the day the agent decided it; and,
+        once it is answered, `answered_by`,
+        `authority`, `recorded_in` (where the question's answer is
+        recorded), and `answer_link` when there is one. No other key. Its
+        body is the question under `## Question`, and, once answered, the
+        answer in one sentence under `## Answer`.
+     5. **A miss file's keys:** `repository`, `asked`, `filter` (`"1"` to
+        `"4"`, the filter that should have stopped the question) and
+        `said` (what the person said, with any place they named, such as a
+        spec's path). No other key. Its body is the
+        question under `## Question`.
+
 **Still open:**
 
-Nothing waits for Adam: the items below are facts to measure and changes
-elsewhere.
+Decision 125 waits for Adam. The other items below are facts to measure
+and changes elsewhere.
 
 Eleven of the items below are unmeasured facts, measured by tasks 0.1 to
 0.13 before anything is built; the first fact takes three tasks, 0.1 to
-0.3. The other items are changes elsewhere that this change depends on: in
-igor, PR [#216](https://github.com/adamstallard/igor/pull/216), with igor
-issue [#215](https://github.com/adamstallard/igor/issues/215), amending
-igor's lore-firing spec (decision 60) and using this change's citation
-format (decision 110), and PR #202, the scribe's records
-(decision 63); and in bug-hunter, a rule for a vulnerability fix's
-regression test (decision 108). The last item is a possible extension that
-this change does not plan.
+0.3. The other items are changes elsewhere that this change depends on:
+- igor PR [#216](https://github.com/adamstallard/igor/pull/216), with igor
+  issue [#215](https://github.com/adamstallard/igor/issues/215), which
+  amends igor's lore-firing spec (decision 60) and holds an Igor's citation
+  push (decision 123);
+- igor PR #202, the scribe's records (decision 63);
+- igor issue #153, signed publishing (decision 124);
+- in bug-hunter, a rule for a vulnerability fix's regression test (decision
+  108).
+
+The last item is a possible extension that this change does not plan.
 
 - **Can a `PreToolUse` hook block `AskUserQuestion`?** If not, the picker is
   covered by the skill's instructions alone, and the README says so.
@@ -909,19 +1039,24 @@ this change does not plan.
 - **Does GitHub's API give a comment's author and a commit's verified
   signer as decision 78 needs?** If not, every `questions`-branch `decision`
   or `agent` file counts as input.
-- **igor PR #216's citation format.** #216 holds the igor rules this
-  change relies on: a worker reports its citations and its Igor pushes
-  them only when the run publishes (#216's decision 9; decisions 88 and 98
-  here), igor's review counts them on the lore repository's `questions`
-  branch (its decision 8; decision 83 here), and its id check reports an
-  out-of-scope collision during a run only as "id taken" (its decision 6;
-  decision 92 here). But its decision 10 and its requirement *An Igor
-  publishes the citations its worker reports* still state a citation format
-  of their own. That format allows nothing in the file's name, its path or
-  the commit's message but the entry's id, the date and the run's id. This
-  change's format puts more there: the `citations/` directory, a random
-  suffix and the words `inquisitor: log`. By decision 110, #216 should
-  point to this change's *A citation file has one format* instead.
+- **igor PR #216's citation report** is still open. #216's worker reports
+  each citation "with the category it gave the question, if any", and
+  #216 is to drop the category from that report, since a worker here
+  reports no citation for a question with a category. The rest of what
+  this change relies on, #216 already holds:
+  - its requirement *An Igor publishes the citations its worker reports*
+    says when and which citations an Igor pushes (decision 123), in this
+    change's format (decision 110);
+  - igor's review counts citations on the lore repository's `questions`
+    branch (its decision 8; decision 83 here);
+  - its id check reports an out-of-scope collision during a run only as
+    "id taken" (its decision 6; decision 92 here).
+- **igor issue #153, signed publishing,** would have an Igor whose role
+  lists prose or bug-hunter push only commits that went through those
+  skills and carry their trailers. Citation commits
+  carry none (decisions 90 and 110), so #153 should exempt an Igor's
+  commits to a lore repository's `questions` branch. That is #153's to
+  settle (decision 124).
 - **Can an Igor's worker run the inquisitor skill at all,** with a lore
   clone and `inquisitor.json` in reach? igor PR #216's task 4.1 measures it,
   and task 0.12 here waits on it. If not, nothing in this change runs inside
