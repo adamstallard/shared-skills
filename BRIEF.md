@@ -73,7 +73,9 @@ Not built here; these go into the answer session's OpenSpec change, which Adam w
 - **A relay check that fails keeps that surface off:** setup shows the failure and how to fix it, saves the rest, and leaves that surface's channels off until a recheck passes.
 - **Discord is in the first version,** through PR #1's `discord-bot` skill (a named bot identity per role, no service to run), which Adam will merge first. The Discord relay is a `discord-bot` identity.
 - **Polling, not webhooks:** webhooks need a public HTTPS server and Discord's push a permanent connection, both services to run; GitHub's notifications endpoint answers conditional requests that don't count against the rate limit and sets the interval (usually 60 s).
-- **Still open:** when polling runs (only while a session is open, or also in the background); what counts as a question asked of Adam on each surface; the `INQUISITOR_ANSWER_SESSION` auto-open.
+- **Polling runs only while an answer session is open:** about every 60 s, with a catch-up poll on opening; nothing runs in the background.
+- **A question asked of Adam** is any of: an @-mention of him in a subscribed channel (agents running the inquisitor included), a reply to or mention of his relay account, a pull request requesting his review or an issue assigned to him, and a question file on a lore repository's questions branch addressed to him.
+- **Still open:** what the setup-installed `answer` terminal command starts (fullscreen in the terminal, or a background session to attach from the picker), and dropping the `INQUISITOR_ANSWER_SESSION` auto-open, which neither entry point needs.
 
 ## Next
 
