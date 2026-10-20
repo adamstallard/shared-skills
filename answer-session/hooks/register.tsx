@@ -559,8 +559,8 @@ export const register: Register = on => {
     return { text: 'Answer session opened.' }
   })
 
-  // Closing the pane, by x, the engine's close mark or an unload, brings the
-  // conversation back.
+  // Closing the pane, by the engine's close mark, ctrl+x x or an unload, brings
+  // the conversation back.
   on('ui.close', { id: PANE }, async ($, e, next) => {
     const closed = await next(e)
     await update($, immersiveAtom, () => false)
@@ -612,14 +612,24 @@ export const register: Register = on => {
   )
 
   // The prompt box itself stays (no hook draws it); its hint line says the
-  // one thing worth knowing there: how to get back to the answers.
+  // two things worth knowing there: what typing does, and how to get back.
   on('ui.render', { component: 'PromptHint' }, async ($, e, next) => {
-    if (e.viewport?.isFullscreen !== true || !(await read($, immersiveAtom))) return next(e)
+    if (!(await read($, immersiveAtom))) return next(e)
     const panes = await $.ui.panes()
     if (!panes.some(pane => pane.id === PANE && pane.isShown && pane.isPlaced)) return next(e)
     const { Text } = $.ui.resolve(e)
-    return <Text dimColor>answer session · ctrl+x tab returns to it</Text>
+    return <Text dimColor>answer session · only /commands go to Claude · ctrl+x tab returns to it</Text>
   })
+
+  // While the pane is open nothing typed in the prompt box reaches the model:
+  // slash commands run, and prompts the engine sends itself pass. A failure
+  // here drops the prompt rather than letting it through.
+  on('prompt.submit', async ($, e, next) => {
+    if (e.command || e.isMeta || !(await read($, immersiveAtom))) return next(e)
+    const panes = await $.ui.panes()
+    if (!panes.some(pane => pane.id === PANE && pane.isPlaced)) return next(e)
+    return { drop: 'The answer session is open, so this was not sent to Claude. Close the pane to chat.' }
+  }).catch(($, e, next) => (next.called ? next(e) : { drop: 'The answer session could not check this prompt, so it was not sent.' }))
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const ui = $.ui.resolve(e)
@@ -716,18 +726,6 @@ export const register: Register = on => {
         if (next) focus(landingKey(next))
       })()
     }
-    // For our tests only: the real answer session has no close control, since
-    // it is the whole session; this one closes the pane to read the transcript.
-    // A plugin's own call does not pass through its own hooks, so the close
-    // does here what the ui.close hook does for the person's close.
-    const close = () => {
-      void (async () => {
-        await $.store.delete(RESUME_KEY)
-        await update($, immersiveAtom, () => false)
-        await $.ui.close({ id: PANE })
-      })()
-    }
-
     // One completion on the session's own model; an error in words, never a throw.
     const complete = async (
       system: string,
@@ -875,54 +873,27 @@ export const register: Register = on => {
     )
     const tally = [`${fresh} new`, `${relayed} relayed`, `${deferred} deferred`, ...(waiting ? [`${waiting} waiting`] : [])].join(' · ')
     const bar = (
-      <Box justifyContent="space-between">
-        <Box gap={3}>
-          <Text bold wrap="truncate-end">
-            Answer session
-          </Text>
-          {dots}
-          <Text dimColor wrap="truncate-end">
-            {base ? `${at + 1} of ${N}` : 'summary'}
-            {isTalking ? '  ·  talking it through' : inner >= 100 ? `  ·  ${tally}` : ''}
-          </Text>
-        </Box>
-        <Button key="close" hotkey="x" plain dimColor onPress={close}>
-          close
-        </Button>
+      <Box gap={3}>
+        <Text bold wrap="truncate-end">
+          Answer session
+        </Text>
+        {dots}
+        <Text dimColor wrap="truncate-end">
+          {base ? `${at + 1} of ${N}` : 'summary'}
+          {isTalking ? '  ·  talking it through' : inner >= 100 ? `  ·  ${tally}` : ''}
+        </Text>
       </Box>
     )
-    // On the main screen the pane cannot have the whole screen: say so, once,
-    // where the relay confirmation goes, with the way to the immersive layout.
-    const notFullscreen = e.props.placement === 'inline'
-    // Runs `/tui fullscreen` as if typed; the `tui` hook above keeps the
-    // session for the restart. Where the command is missing, says what to type.
-    const switchToFullscreen = () => {
-      void (async () => {
-        const hasTui = (await $.command.list()).some(command => command.name === 'tui')
-        try {
-          if (!hasTui) throw new Error('no /tui command')
-          await update($, flashAtom, () => 'Switching to fullscreen: the session restarts, then this pane reopens where you were.')
-          // Kept here as well as in the tui hook, which this call skips.
-          await saveForRestart($)
-          await $.command.run({ command: 'tui', args: 'fullscreen' })
-        } catch {
-          await $.store.delete(RESUME_KEY)
-          await update($, flashAtom, () => null)
-          $.ui.toast('Could not switch from here: press Esc, type /tui fullscreen, and the answer session reopens after the restart.', { timeoutMs: 10_000 })
-        }
-      })()
-    }
+    // On the main screen the pane takes the terminal's height at any width.
+    // Fullscreen under 110 columns seats it above the prompt too, but caps it
+    // at half the rows: say so, where the relay confirmation goes.
+    const isSqueezed = e.props.placement === 'inline' && e.viewport?.isFullscreen === true
     const flashLine = flash ? (
       <Text color={DONE} wrap="truncate-end">✓ {flash}</Text>
-    ) : notFullscreen ? (
-      <Box gap={3}>
-        <Text color={LATER} wrap="truncate-end">
-          Not fullscreen: this pane shares the screen with the conversation.
-        </Text>
-        <Button key="fullscreen" hotkey="f" plain onPress={switchToFullscreen}>
-          switch to fullscreen (restarts, then reopens here)
-        </Button>
-      </Box>
+    ) : isSqueezed ? (
+      <Text color={LATER} wrap="truncate-end">
+        Half the screen: fullscreen needs 110 columns. Widen the terminal, or start Claude Code with CLAUDE_CODE_NO_FLICKER=0.
+      </Text>
     ) : (
       <Text> </Text>
     )

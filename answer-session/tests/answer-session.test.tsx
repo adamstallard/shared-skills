@@ -88,16 +88,10 @@ test('deferring and relaying everything ends on the summary', async $ => {
   await ui.unmount()
 })
 
-test('x closes the pane (test builds only)', async ($, on) => {
+test('the pane has no close control of its own: the engine draws one', async ($, on) => {
   memoryStore(on)
-  const closed: string[] = []
-  on('ui.close', (_, e) => {
-    closed.push(e.id)
-    return { value: undefined }
-  })
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
-  await ui.press({ key: 'close' })
-  expect(closed).toEqual(['answer-session'])
+  expect(await ui.find({ key: 'close' })).toBeUndefined()
   await ui.unmount()
 })
 
@@ -241,7 +235,7 @@ test('asking the asker: send, wait, the reply arrives, back in the queue', async
   await ui.unmount()
 })
 
-test('while the pane is up the conversation draws nothing; after x it draws again', async ($, on) => {
+test('while the pane is up the conversation draws nothing', async ($, on) => {
   memoryStore(on)
   let isUp = false
   on('command.register', () => ({ value: { command: 'answer' } }))
@@ -300,65 +294,54 @@ test('while the pane is up the conversation draws nothing; after x it draws agai
   expect(await mainScreen.find({ type: 'Text', text: /engine/ })).toBeDefined()
   await mainScreen.unmount()
 
-  const pane = await $.ui.mount({ ...PANE, surface: 'terminal' })
-  await pane.press({ key: 'close' })
-  await notice.redraw()
-  await turn.redraw()
-  expect(await notice.find({ type: 'Text', text: /engine/ })).toBeDefined()
-  expect(await turn.find({ type: 'Text', text: /engine/ })).toBeDefined()
-  await pane.unmount()
   await notice.unmount()
   await turn.unmount()
 })
 
-test('the pane says when the layout is not fullscreen', async $ => {
-  const ui = await $.ui.mount({ ...PANE, props: { ...PANE.props, placement: 'inline' }, surface: 'terminal' })
-  expect(await ui.find({ type: 'Text', text: /Not fullscreen/ })).toBeDefined()
-  await ui.unmount()
-  const docked = await $.ui.mount({ ...PANE, surface: 'terminal' })
-  expect(await docked.find({ type: 'Text', text: /Not fullscreen/ })).toBeUndefined()
-  await docked.unmount()
+test('while the pane is open, typed prompts stay out of the model; slash commands run', async ($, on) => {
+  memoryStore(on)
+  const typed = { origin: { kind: 'composer' }, wait: false } as const
+  let isUp = false
+  const entered: string[] = []
+  on('command.register', () => ({ value: { command: 'answer' } }))
+  on('ui.open', () => {
+    isUp = true
+    return { value: { isPlaced: true } }
+  })
+  on('ui.panes', () => ({
+    value: isUp ? [{ id: 'answer-session', title: 'Answer session', isShown: true, isFocused: true, isPlaced: true }] : [],
+  }))
+  on('prompt.submit', (_, e) => {
+    entered.push(e.text)
+    return { text: e.text }
+  })
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+
+  expect((await $.prompt.submit({ ...typed, text: 'before' })).drop).toBeUndefined()
+  await $.command.run({ command: 'answer', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 90 } })
+  expect((await $.prompt.submit({ ...typed, text: 'stray typing' })).drop).toContain('not sent to Claude')
+  expect((await $.prompt.submit({ ...typed, text: '/model', command: { name: 'model', args: '' } })).drop).toBeUndefined()
+  expect(entered).toEqual(['before', '/model'])
 })
 
 const INLINE = { ...PANE, props: { ...PANE.props, placement: 'inline' } } as const
 const SHOWN = [{ id: 'answer-session', title: 'Answer session', isShown: true, isFocused: true, isPlaced: true }]
 
-test('f on the main screen runs /tui fullscreen and keeps the session for the restart', async ($, on) => {
-  const store = memoryStore(on)
-  mock.clock(on, { now: 1_000_000 })
-  const ran: string[] = []
-  on('command.list', () => ({ value: [{ name: 'tui', description: 'Switch the TUI', source: 'builtin' }] }))
-  on('command.run', { command: 'tui' }, (_, e) => {
-    ran.push(e.args)
-    return { text: '' }
-  })
-  on('ui.panes', () => ({ value: SHOWN }))
-  on('session.id', () => ({ value: 'S1' }))
-  on('session.cwd', () => ({ value: '/work' }))
-  const ui = await $.ui.mount({ ...INLINE, surface: 'terminal' })
-  await ui.press({ key: 'next' })
-  await ui.press({ key: 'next' })
-  await ui.press({ key: 'fullscreen' })
-  expect(ran).toEqual(['fullscreen'])
-  const kept = store.get('reopen-after-restart') as { sessionId: string; cwd: string; cursor: number }
-  expect(kept.sessionId).toBe('S1')
-  expect(kept.cwd).toBe('/work')
-  expect(kept.cursor).toBe(2)
+test('on the main screen the pane shows no notice and offers no switch', async $ => {
+  const ui = await $.ui.mount({ ...INLINE, viewport: { columns: 90, rows: 40, isFullscreen: false }, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: /Half the screen/ })).toBeUndefined()
+  expect(await ui.find({ key: 'fullscreen' })).toBeUndefined()
   await ui.unmount()
 })
 
-test('without a /tui command, f says what to type instead', async ($, on) => {
-  memoryStore(on)
-  const toasts: string[] = []
-  on('command.list', () => ({ value: [] }))
-  on('ui.toast', (_, e) => {
-    toasts.push(e.text)
-    return { value: undefined }
-  })
-  const ui = await $.ui.mount({ ...INLINE, surface: 'terminal' })
-  await ui.press({ key: 'fullscreen' })
-  expect(toasts[0]).toContain('type /tui fullscreen')
+test('fullscreen under 110 columns says the pane has half the screen', async $ => {
+  const ui = await $.ui.mount({ ...INLINE, viewport: { columns: 90, rows: 40, isFullscreen: true }, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: /Half the screen/ })).toBeDefined()
   await ui.unmount()
+  const docked = await $.ui.mount({ ...PANE, viewport: { columns: 200, rows: 50, isFullscreen: true }, surface: 'terminal' })
+  expect(await docked.find({ type: 'Text', text: /Half the screen/ })).toBeUndefined()
+  await docked.unmount()
 })
 
 test('after the restart the pane reopens by itself where it was', async ($, on) => {
@@ -411,15 +394,6 @@ test("another session never reopens the pane from a stale record", async ($, on)
   await $.session.start({ cwd: '/work', surface: 'terminal', isInteractive: true })
   expect(opened).toEqual([])
   expect(store.has('reopen-after-restart')).toBe(false)
-})
-
-test('closing the pane with x drops the record, so nothing reopens', async ($, on) => {
-  const store = memoryStore(on, { 'reopen-after-restart': { sessionId: 'S1' } })
-  on('ui.close', () => ({ value: undefined }))
-  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
-  await ui.press({ key: 'close' })
-  expect(store.has('reopen-after-restart')).toBe(false)
-  await ui.unmount()
 })
 
 test('typing /tui fullscreen with the pane open keeps the session too; with it closed, nothing', async ($, on) => {
