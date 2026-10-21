@@ -368,13 +368,12 @@ const TONE: Record<Answer['kind'], string> = { answer: DONE, defer: LATER, wait:
 // Prototype only: shown in the top bar, so a tester can tell which build is
 // loaded. v0.1-N, N the number of commits in the prototype repository once
 // this build is committed.
-const BUILD = 'v0.1-29'
+const BUILD = 'v0.1-30'
 const PREFIX = 'User says: '
 // The tool the session's model calls to put a drafted reply in the prompt box.
 const PROPOSE_TOOL = 'mcp__answer-session__propose_reply'
 // The key row's right end: the same place on every screen.
 const AT_RIGHT = ['b', 'n', 'q']
-const SPEAKER = 8
 const cursorAtom = atom({ plugin: 'answer-session', key: 'cursor' } as const, 0)
 const answersAtom = atom({ plugin: 'answer-session', key: 'answers' } as const, ARRIVED as Record<string, Answer>)
 const promptAtom = atom({ plugin: 'answer-session', key: 'prompt' } as const, '')
@@ -829,7 +828,6 @@ function commands(c: Ctx): Command[] {
     // edit, nor while finding where an answer is recorded.
     const asking = c.open && !c.editing && !c.declining && !c.busy
     return [
-      { key: 't', what: 'keep (t)alking' },
       ...(asking && c.hasReply ? [{ key: 'r', what: '(r)eword the question' }] : []),
       ...(asking ? [{ key: 'a', what: '(a)sk the asker' }] : []),
       { key: 'b', what: 'go (b)ack' },
@@ -888,8 +886,6 @@ async function runCommand($: EngineInterface, c: Ctx, key: string): Promise<stri
   if (c.composing) return key === 'b' ? backToTalk($, q) : ''
   if (c.talking) {
     switch (key) {
-      case 't':
-        return 'Keep typing: Claude answers above.'
       case 'r':
         return rephrase($, q)
       case 'a':
@@ -1866,7 +1862,7 @@ export const register: Register = on => {
 
     // ── the keys: what one letter and Enter does, each a click away ──────
 
-    // `t: talk it through`, or, where the words hold the key, `keep (t)alking`.
+    // `t: talk it through`, or, where the words hold the key, `(t)alk to Claude`.
     const keyText = (key: string, what: string) => {
       const at = what.indexOf(`(${key})`)
       return at < 0 ? (
@@ -2599,18 +2595,9 @@ export const register: Register = on => {
                       : `Ask anything about the question, or tell Claude what to say and it drafts your reply for you to check. It gets the question with your message and may read the thread and the code first; its reply shows above. The rest of the queue waits.`,
                     width,
                   ).map(line => plain(line, { dim: true }))
-      const pending: Row[] =
-        it.kind === 'say'
-          ? [
-              <Text wrap="truncate-end">
-                <Text color={ACCENT} bold>
-                  {'you'.padEnd(SPEAKER)}
-                </Text>
-                <Text dimColor>{it.text} ⏎</Text>
-              </Text>,
-            ]
-          : []
-      return spaced([...state, ...pending])
+      // What is typed shows in the prompt box and the hint line says what
+      // Enter does, so the band doesn't repeat it.
+      return spaced(state)
     }
 
     if (isWide) {

@@ -478,7 +478,8 @@ test('in a discussion, commands act in the session, digits send you back, and no
   expect(await s.enter($, 'x')).toContain('x is not a command here')
   // The choices are on the question: a digit here says to go back.
   expect(await s.enter($, '2')).toContain('go (b)ack to the question')
-  expect(await s.enter($, 't')).toContain('Keep typing')
+  // Typing keeps the conversation going: no key for it.
+  expect(await s.enter($, 't')).toContain('t is not a command here')
   expect(await s.enter($, 'b')).toBe('Back to the question')
   expect(await s.enter($, '2')).toContain('Relayed to GitHub')
   expect(await s.enter($, 'q')).toContain('Answer session closed')
