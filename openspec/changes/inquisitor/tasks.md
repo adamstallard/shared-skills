@@ -88,11 +88,14 @@ contradicts what design.md assumed.
       Linear and Discord, record whether the skill's own check reads a
       team's or channel's permission, or setup must read it itself. Where
       no check can, setup runs the skill's own check only, and a post a
-      channel refuses later turns that channel off
+      channel refuses later turns that channel off (decision 211)
 - [ ] 0.21 That GitHub's API reports, for a comment, the GitHub App that
       wrote it and the account that owns that App, as decision 184 needs.
       Until it does, no comment counts as a relayed answer, and a
-      relayed answer is input
+      relayed answer is input; an agent treats an `Inquisitor: ` reply
+      as input; and a post starting `User says: ` or
+      `User asks: ` from any GitHub App counts as a relayed question,
+      which gets no automatic post
 
 ## 1. Shared post reader
 
@@ -102,9 +105,20 @@ contradicts what design.md assumed.
       each tagged `@scenario gh-post: <Scenario name>` for the `gh-post`
       spec's scenario it checks
 - [ ] 1.3 The library also handles the following. prose's existing tests
-      still pass unchanged, except a test that expects an inline-code
-      command naming `gh` to pass, which now expects it blocked; add tests
-      for each to prose's and the library's tests.
+      still pass unchanged, except a test that expects one of these to
+      pass, which now expects it blocked: an inline-code command naming
+      `gh`, a title built by the shell, or a title edit chained to another
+      command; add tests for each to prose's and the
+      library's tests.
+      - It reads a post's title, as a literal word, from `--title` or
+        `-t`, a `gh api` `title` field under `issues` or `pulls`, the
+        `title` argument of the GraphQL mutations that create or update
+        an issue or pull request, and a GitHub MCP `title` key, and
+        reports a call whose title it can't read as unreadable (decision
+        206), and a title edit chained to another command as unreadable.
+        prose's hook lets a call with a title and no body through, and
+        prose's `DECISIONS.md` section *`--title` is not prose here* says
+        that a title is now read
       - It reads `python3 <github-app script> gh pr|issue …` posts,
         including `python3 $G …` only when the same command assigns `G`.
       - It reads `gh api` comments whose body is given by `-f body=`,
@@ -139,7 +153,7 @@ contradicts what design.md assumed.
 ## 2. The script
 
 - [ ] 2.1 `.agents/skills/inquisitor/scripts/inquisitor.py vet` (first call):
-      `--questions` and `--post`, printing the filters and filter 1's search
+      `--questions` and `--post`, which takes a post's body and title, printing the filters and filter 1's search
       results, issuing a token
 - [ ] 2.2 `vet --pass <token> --verdicts <file>` (second call): the four
       verdicts and their fields, the three categories recorded by hash only,
@@ -154,7 +168,10 @@ contradicts what design.md assumed.
       and by the short name outside one, and a decision record counted
       only when `accepted`, a change's own decisions within that change, and
       a questions-branch `decision` file only with its writer proven by a
-      linked comment or a verified signature (decision 78), while an
+      linked comment or a verified signature (decision 78), the comment
+      holding the file's answer by normalized containment (decision 213),
+      and, during an Igor's run, a file about a repository other than the
+      item's shown as input (decision 214), while an
       `agent` file there is always input; each source not searched; when
       each clone's remote-tracking default branch was last updated by a
       fetch
@@ -177,7 +194,9 @@ contradicts what design.md assumed.
       nothing, and the citation is handled as igor PR #216's *An
       Igor publishes the citations its worker reports* says
 - [ ] 2.5 The question finder for posts, as one function the post hook also
-      calls
+      calls, finding questions in a post's title and body, with an
+      open-questions section begun only by a label that names questions
+      or a deferral label (decision 204)
 - [ ] 2.6 `tag`, choosing whom a post's question tags. It takes the first
       candidate with write access. When there is none, it turns to the login
       configured for the person running the session, if it equals the
@@ -290,15 +309,25 @@ contradicts what design.md assumed.
       and the README's section on the answer session: setup, the `answer`
       command, what to do when a relay check fails, and that no post but
       the answer session's starts with a reserved prefix
-- [ ] 6.9 Prototype declining a question, with its three reasons, and the
+- [ ] 6.9 Prototype declining a question, with its three reasons, and
+      reason 3's choice of filter and the exact post shown before it goes
+      out (decision 209), and the
       list of questions answered and handled for the person, in
       `~/answer-session-prototype`, until Adam approves them by using it
-      (decision 147). 6.1 builds from the tag of that approval
+      (decision 147). Do this before 6.1 builds these screens. 6.1 builds
+      the rest of the mod from `ui-approved`, and these screens from the
+      tag of this approval
 - [ ] 6.10 Filter 1 on every incoming question and the `Recorded answer: `
       post; filters 2 to 4 and the three fixed `Inquisitor: ` texts;
-      declining with its three reasons; the misses on the questions
-      branch, with `filter: "source <n>"` for the second reason, and no
-      second miss for the same question; the post hook's block of a
+      declining with its three reasons, and reason 3's posts; the misses
+      on the questions branch, with `filter: "source <n>"` and
+      `said: "not a question"` for the second reason, a miss against
+      filter 1 for an agent's question it answers by itself, and no
+      second miss for the same question; no automatic post on a relayed
+      question, and none that repeats the post a reply answers; a
+      questions-branch question asked in a post answered in its thread
+      and by a log file; a refused post turning off a channel no check
+      can read; the post hook's block of a
       tool-call post that starts with a reserved prefix (decision 203). SKILL.md tells an agent how to
       act on a `Recorded answer: ` or `Inquisitor: ` reply
 

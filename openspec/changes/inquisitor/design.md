@@ -153,7 +153,8 @@ and *The posting hook's reach*).
 That reader moves to `.agents/lib/gh-post/`, and both hooks call it. Its
 rules are stated once, in this change's `gh-post` capability spec.
 prose's tests must pass unchanged after the move, except where the reader
-learns two more forms, and where it blocks inline code, as below. A post sent through the github-app skill's script,
+learns two more forms, where it blocks a data command given code to run,
+such as `python3 -c`, and where it reads a title, as below. A post sent through the github-app skill's script,
 `python3 <github-app script> gh pr|issue …`, which that skill tells agents
 to use instead of plain `gh`, is blocked as unreadable by prose's reader
 today, so every post an agent sends as a GitHub App is refused. A comment
@@ -170,21 +171,31 @@ code names `gh`, as it reports `sh -c`. prose's hook calls the shared
 reader, so it blocks such a command too, and a prose test that expects one
 to pass changes with it (proposal decision 139).
 
-The reader returns no title, so a question in an issue's or pull request's
-title is outside its reach, as it is outside prose's. Whether such a
-question should be vetted is Adam's to decide later, and the proposal's
-*Still open* lists it.
+The reader also returns a post's title, an issue's or a pull request's,
+so a question in a title is vetted as one in the body is (proposal
+decision 206). It reads a title only as a literal word, so a title built
+by the shell, such as `--title "$(git log -1 --format=%s)"`, makes the
+call unreadable, and prose's hook blocks it too. A title is now text a
+command sends, and the reader reads a command that sends text only when
+`gh` is the whole command line. So a title edit chained to another
+command, such as `cd x && gh pr edit 3 --title 'Rename?'`, is unreadable
+too, where prose's
+`DECISIONS.md` (*`--title` is not prose here*) has it pass; task 1.3
+updates that section. Those are the changes prose's hook sees. A footer
+can't go on a one-line title, so prose's hook checks no footer there, and
+lets a call with a title and no body through. `--fill` and its variants,
+which take a title from commits, were already unreadable to prose's
+reader, and stay so.
 
-A line ending in a colon whose text starts with "Open" begins an
-open-questions section, as a heading does (proposal decision 176). Agents
-often list their open questions under a plain "Open questions:" line, and
-a deferred question listed there passes on its `deferred` verdict, as it
-would under a heading. The cost: a line such as "Open a terminal and
-run:" makes each list item after it a question that needs a verdict, and
-Adam accepted that. Such a section, like any other, runs until the next
-heading or bold label, so every list in between counts; whether a section
-a colon line begins should end with its own list is in the proposal's
-*Still open*.
+A plain or bold line ending in a colon begins an open-questions section,
+as a heading does, but only when its label names questions, such as
+"Open questions:" or "Questions:" (proposal decisions 176 and 204).
+Agents often list their open questions under such a line, and a deferred
+question listed there passes on its `deferred` verdict, as it would under
+a heading. A line such as "Open a terminal and run:" names no questions,
+so the commands listed after it need no verdicts. Only a heading or a
+bold label ends a section, whatever began it, so every list up to the next
+one counts, and a plain colon line inside a section ends nothing.
 
 The inquisitor's post hook finds the body's questions by the spec's rule
 (*Questions in posts pass the same filters*), hashes each, and applies the
@@ -268,8 +279,8 @@ beside it.
   decision 179). Adam also decided that the Igor checks every file it
   pushes with igor PR #217's credential matcher, which also matches the
   values of known secrets such as the worker's seat token (proposal
-  decision 178). igor PR #216 has yet to write these two rules, the
-  question match and the matcher, into its spec.
+  decision 178). igor PR #216 records both, the question match and the
+  matcher, as its decisions 30 and 28.
   Filter 1, the search for an earlier answer, counts such a file as a
   decision only when GitHub gives that comment's author as the file's
   `answered_by` and the author has write access; otherwise it is input.
@@ -543,7 +554,7 @@ Its interface is a Claude Code mod that Adam approved by using its
 prototype (proposal decision 152). By decision 147, a UI approved that way
 is not specified, so nothing here describes how it looks.
 The rules are in the `answer-session` spec, the decisions in proposal
-decisions 152 to 175 and 184 to 203.
+decisions 152 to 175, 184 to 203 and 207 to 211.
 
 ### Polling while open, with the person's credentials
 
@@ -590,9 +601,12 @@ starts with `User asks: ` instead of `User says: ` (decision 171), so
 of the posts the answer session makes by itself, `Recorded answer: ` and
 `Inquisitor: `, mark a question answered or handled for the person, the
 same way, on every machine (decisions 195 and 196). A question the person
-declines is closed in the state folder only (decision 194): nothing is
-posted, so nothing in the thread can say so, and another machine shows it
-as open. The thread is read
+declines with nothing posted is closed in the state folder only (decision
+194): nothing in the thread can say so, and another machine shows it as
+open. A question declined because the inquisitor should have handled it,
+reason 3, gets a post, which the thread records like any other (decision
+209). It gets none only when it has no thread, has a category, or has a
+filter 1 record more private than its thread. The thread is read
 again before a question is shown, when its poll is over a minute old, and
 before each post, so an answer relayed from another machine is never posted
 twice.
@@ -658,7 +672,10 @@ A question from a lore repository's questions branch has no thread to
 relay to, so the answer session answers it by pushing a new log file to
 that branch, as any session does for an answer the person gave in it
 (decision 173). Asking the asker and editing are not offered for such a
-question.
+question. When the same question was also asked in a post, the answer
+session shows it from the thread, relays the answer there, and pushes the
+log file too (decision 210), so neither the asker reading the thread nor
+an agent searching the branch misses the answer.
 
 A relayed answer counts as the person's own for filter 1 (decision 184).
 Decision 78 proves a logged answer's writer only when GitHub gives the
@@ -686,12 +703,20 @@ the spec answers each:
   no word of an automatic post: an `Inquisitor: ` post is one of three
   fixed texts, and a recorded answer quotes a log file's answer line or
   points to filter 1's hit (decision 200). So a crafted question can at
-  worst choose which canned reply or which record is posted, and a reply
-  to an automatic post always goes to the person (decision 202), so no
-  exchange runs on without them. Only an agent's
-  question gets an `Inquisitor: ` reply, and a question counts as an
-  agent's only when its author is a bot account (decision 199), so a
-  person never gets a reply nobody wrote.
+  worst choose which canned reply or which record is posted. When an
+  agent replies to an automatic post, the answer session judges the reply
+  again. If the automatic post it would make has the same text as the one
+  the agent replied to, it posts nothing and shows the reply to the
+  person (decision 202's item 6). A recorded answer is posted by itself
+  for a person's question as for an agent's (decision 195). Only an
+  agent's question gets an `Inquisitor: ` reply by itself, and a question
+  counts as an agent's only when its author is a bot account (decision
+  199), so a person never gets a reply nobody wrote. A `User says: ` or
+  `User asks: ` post from another person's relay is that person's
+  question, and gets no automatic post. When the person declines a
+  question because the inquisitor should have handled it, decline reason
+  3, they can choose an `Inquisitor: ` or `Recorded answer: ` post for any
+  question, and see the exact post before it goes out (decision 209).
 - **A record can be more private than the thread.** A recorded answer is
   posted by itself only when its record is no more private than the
   thread; otherwise the person sees it and decides (decision 200).
@@ -700,13 +725,16 @@ Every automatic post can be edited, and an edit makes it the person's
 words, starting `User says: ` (decision 201).
 
 The misses the answer session logs, when the person declines a question
-that didn't need them or when filters 2 to 4 handle an agent's question,
-go to the questions branch of the team's lore repository (decision 197).
+the inquisitor should have handled or when a filter handles an agent's
+question by itself, go to the questions branch of the team's lore
+repository (decisions 197, 207 and 209).
 The answer session can't see where the asker logged the question, which
 is often an unmerged branch, and the questions branch takes a direct push,
-so no miss needs a pull request. A miss against how the answer session
-found a message that asks nothing has `filter: "source <n>"` (decision
-198), so the review of misses finds it with the rest.
+so no miss needs a pull request. When the person declines a message
+picked up by mistake, the miss is against the source of questions that
+found it: `filter: "source <n>"`, where `<n>` is that source's number, and
+`said: "not a question"` (decisions 198 and 208). The review of misses
+finds it with the rest.
 
 ### The session's model
 
@@ -723,7 +751,7 @@ context tells it, and the post hooks still vet any post it tries. The
 model's tools can reach what the person's own commands can, the keychain
 holding the Linear key included, as in any session. The answer session
 adds no guard against that: it is the same exposure as the person's `gh`
-login. The prototype has
+login, and Adam accepted it (decision 211). The prototype has
 shown that a mod can fill the prompt box and register a tool the model
 calls by name.
 

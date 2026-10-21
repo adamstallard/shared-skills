@@ -11,8 +11,8 @@ are written down:
 - 11 to 15 and 31;
 - 32 to 35, 38 to 49 and 51 to 63, on 2026-10-19;
 - 64 to 78, 80 to 85, 87 to 98, 100 to 106, 108 to 110, 112 to 124,
-  126 to 129, 131 to 142, 144 to 151, 152 to 169, 176 to 180 and 184 to
-  196, on 2026-10-20.
+  126 to 129, 131 to 142, 144 to 151, 152 to 169, 176 to 180, 184 to
+  196 and 204 to 214, on 2026-10-20.
 
 He gave those of 2026-10-19 and 2026-10-20 while reviewing this pull
 request, [#25](https://github.com/adamstallard/shared-skills/pull/25), whose
@@ -24,8 +24,9 @@ confirmed 79 only in part, replaced 107's item 6 with his decision 108,
 and added his decision 109 to 107's item 5. He confirmed the rest.
 He confirmed 170 to 174, which this change proposed while writing the
 answer session's requirements, and confirmed 175 item by item, changing
-items 2 and 16 (decisions 185 and 193). Decisions 181 to 183 and 197 to
-203 wait for him.
+items 2 and 16 by his decisions 185 and 193. He confirmed 181 to 183 and 197
+to 203 too, amending 199 and changing four items of 202. Decision 215
+waits for him.
 
 1. **Four filters run before any question reaches a person.**
    1. **Already answered:** the agent finds the earlier answer, cites where it
@@ -605,6 +606,10 @@ day are its items 1 to 6:
      4. A fix's regression test, such as bug-hunter's test that fails before
         the fix, is a working exploit. It lands only in the advisory's
         private fork, or publicly after the advisory is published.
+        *Amended by Adam's decision 205:* until task 0.13 shows that the
+        fork's pull request merges only at publication, the test goes in
+        the fork only on the word of the person who will publish the
+        advisory; without that word, it waits for publication.
      5. When no advisory exists for the weakness, or the agent can't read
         whether it is published, the agent treats it as unpublished.
      6. **Amended by Adam's decision 127.** Task 0.13 measures whether
@@ -871,7 +876,8 @@ recording decisions 131 to 135:
      feeds one of them its program is unreadable. Both post hooks,
      prose's and the inquisitor's, use the shared reader, so both block
      such a command. This amends
-     decision 114, which kept prose's data commands as they stood.
+     decision 114, which kept prose's data commands as they stood. Adam
+     kept every one of these forms on 2026-10-20.
 
 Adam gave 140 to 142 on 2026-10-20, answering findings of spec-check's
 consistency read of the change before commit d93f48b:
@@ -1069,12 +1075,12 @@ specified, by decision 147:
 Adam gave 176 and 177 on 2026-10-20, answering two questions this change
 had left for him:
 
-176. **A line ending in a colon whose text starts with "Open" begins an
-     open-questions section,** plain or bold, such as "Open questions:", as
-     a heading starting with "Open" or "Still open" does. The spec's rule
-     stands as written, so a line such as "Open a terminal and run:" begins
-     one too, and each list item after it needs a verdict before the post
-     goes out.
+176. *Narrowed by Adam's decision 204.* **A plain or bold line ending in a
+     colon can begin an open-questions section,** as a heading can, so
+     that an agent's "Open questions:" line counts. Decision 204 lets only
+     a label that names questions begin one. This decision first let any
+     colon line starting with "Open" begin a section, "Open a terminal and
+     run:" included.
 177. **A session with a person in it, on a host with no picker, asks in the
      text of its reply,** once the script's two calls have vetted the
      question. No hook checks a question there, as decision 21 says. The
@@ -1082,7 +1088,8 @@ had left for him:
      has a picker. Wherever the spec has a session with a person in it ask
      through the picker, such a host's session asks in its reply instead.
 
-Adam gave 178 to 180 on 2026-10-20 for igor PR #216 to record. They are
+Adam gave 178 to 180 on 2026-10-20 for igor PR #216, which records them
+as its decisions 28, 30 and 32. They are
 recorded here where this change touches them:
 
 178. **An Igor checks each questions-branch file it pushes for a worker
@@ -1151,23 +1158,32 @@ it:
      confirmation. Decisions 195 and 196 reserve `Recorded answer: ` and
      `Inquisitor: ` the same way, for the posts the answer session makes
      by itself. This replaces decision 175's item 16.
-194. **The person can decline to answer.** On any open question they can
-     choose not to answer. Nothing is posted. They give one of three
-     reasons:
-     1. **The conversation is over.** The question closes, and later
-        replies in its thread stop counting as questions unless they
-        mention the person or the relay.
-     2. **Not a real question.** The question closes, and a lesson
-        candidate is logged against how the answer session found it,
-        meaning its sources of questions, for the review of misses.
-     3. **It doesn't need a human:** one of filters 1 to 4 should have
-        stopped it. The question closes and is logged as a miss in this
-        change's miss format. The session's model then asks the person
-        which filter should have stopped it, and why, and their answer is
-        the miss's record of what they said.
+194. *Reason 1 changed by Adam with decision 202's item 2, and reasons 2
+     and 3 by his decisions 208 and 209.* **The person can decline to
+     answer.** On any open question they can choose not to answer. They
+     give one of three reasons:
+     1. **The conversation is over.** Nothing is posted, and the question
+        closes. The asker's later comments in its thread that reply to no
+        relay post, such as an unthreaded follow-up in a GitHub
+        conversation, stop counting as questions. A threaded reply to a
+        relay post, such as a Discord reply to it, still counts, and
+        reopens the question.
+     2. **Not a question:** the message was picked up by mistake. Nothing
+        is posted, the question closes, and a lesson candidate is logged
+        against the way the answer session found the message, meaning the
+        source of questions that picked it up, for the review of
+        misses.
+     3. **The inquisitor should have handled it:** one of filters 1 to 4
+        should have stopped it. The answer session answers for the
+        inquisitor with the reply of the filter the person picks, and logs
+        a miss against that filter, as decision 209 says.
 
-     Declining is kept per machine, as setting a question aside for later
-     is: it does not reach the person's other machines.
+     A question declined with nothing posted is closed per machine, as
+     setting a question aside for later is: it does not reach the
+     person's other machines. Before decision 208, reason 2 was named "not
+     a real question", filter 3's name. Before decision 209, reason 3 had
+     the session's model ask the person which filter should have stopped
+     the question, and why.
 195. **The answer session runs filter 1 on every incoming question,**
      whether a person or an agent asked it, before showing it. When an
      answer with authority is recorded, the answer session answers by
@@ -1194,6 +1210,107 @@ it:
      `Recorded answer: ` and `Inquisitor: ` are reserved as `User says: `
      is (decision 193).
 
+Adam gave 204 to 212 on 2026-10-20, answering the questions this change
+had left him and the findings of the previous review round of this pull
+request. The same day he
+confirmed 181 to 183 and 197 to 203, amended 199, changed four items of
+202, and kept every form decision 139 makes unreadable:
+
+204. **An open-questions section begins only at a label that names
+     questions,** such as "Open questions:", "Open question:", "Still
+     open:" or "Questions:", as a plain line, a bold label or a heading.
+     It runs to the next heading or bold label. A line such as "Open a
+     terminal and run:" begins nothing. The spec reads a label as naming
+     questions when its first words, apart from a trailing colon, are
+     "Open question", "Open questions", "Still open", "Question" or
+     "Questions". Decision 113's deferral labels, such as "Not in this
+     change", still begin a section; *Still open* asks whether they
+     should. This narrows decision 176.
+205. **Until task 0.13 shows that GitHub merges an advisory's private-fork
+     pull request only at publication, a security fix's regression test
+     goes in that fork only when the person who will publish the advisory
+     has said the pull request merges at the moment of publication.**
+     Otherwise the test waits, and lands publicly once the advisory is
+     published. A regression test is a working exploit, and a fork pull
+     request merged before publication would put it on a public branch
+     early. Decision 127 holds a fork commit's message to the public rule
+     until the same measurement. This amends decision 108's item 4.
+206. **A question in a post's title is vetted.** The shared post reader
+     reads a post's title, an issue's or a pull request's, as well as its
+     body, and both post hooks, prose's and the inquisitor's, check it.
+     The inquisitor's post hook finds a question in a title as it finds
+     one in a body's running text, a sentence ending in a question mark,
+     and blocks it until it is vetted. A title the reader can't read
+     exactly, such as one built with `$(…)`, makes the call unreadable,
+     and both hooks block an unreadable call. What else prose's hook
+     checks in a title is in *Still open*.
+207. **When filter 1 answers an agent's question by itself, the answer
+     session logs a miss against filter 1,** since the agent's own filter
+     1 should have found the record. A person's question logs none. This
+     replaces decision 202's item 7.
+208. **Decline reason 2 is called "not a question":** the message was
+     picked up by mistake. It no longer shares filter 3's name, "not a
+     real question". A miss logged for it has `said: "not a question"`.
+     This renames the reason in decisions 194 and 198 and in the spec.
+209. **Decline reason 3 is called "the inquisitor should have handled
+     it", and the answer session then answers for the inquisitor.** The
+     person picks the filter that should have stopped the question: 1,
+     already answered; 2, can wait; 3, one option has merit; or 4, cheap
+     to reverse. The answer session posts that filter's reply. For
+     filters 2 to 4 it is the fixed `Inquisitor: ` text decision 200
+     defines. For filter 1 it is a `Recorded answer: ` post naming the
+     place the person gave or the model found, under decision 200's
+     privacy rule: when the record is more private than the thread,
+     nothing is posted, and the recorded answer is shown to the person
+     instead. The person sees the exact post first, and it goes out only
+     once they confirm it; Adam described that as pressing Enter, and how
+     it looks is prototyped (task 6.9). The miss is logged against that
+     filter, with any note the person typed. This holds for people's and
+     agents' questions alike, since the person chose it, and these posts
+     start with the reserved prefixes, as the automatic ones do. The
+     person can still answer on the surface by hand. This replaces the
+     model's follow-up question, which asked which filter and why: it
+     supersedes decision 202's item 4, and decision 174's exception no
+     longer needs to cover it.
+210. **A questions-branch question that was also asked in a post is
+     answered in its thread too.** The answer session shows it once, from
+     the thread (decision 175's item 11), relays the person's answer there
+     as usual, and pushes the log file that records the answer to the
+     questions branch. With no thread, the file alone answers it. This
+     amends decision 173.
+211. **Three costs Adam accepts:**
+     1. The discussion's model runs with the person's tools, so it could
+        reach the keychain entry that holds the person's Linear key.
+     2. Only a question's latest relay post can be edited.
+     3. Where no check can read whether a relay identity may post in a
+        channel (task 0.20), a post the surface refuses turns that channel
+        off until a recheck passes. That comes on top of decision 202's
+        item 9: nothing is posted, the person is told why, and the
+        question keeps its state.
+212. **igor's search applies this change's authority checks.** This
+     change states its authority checks once, in the spec's requirement
+     *Only an answer with authority stops a question*. igor's
+     `lore-search` applies them before it labels a questions-branch file
+     as an answer, and shows the file as input, labelled unconfirmed,
+     whenever a check can't run or fails. igor PR #216 records igor's side
+     as its decision 34.
+
+Adam gave 213 and 214 on 2026-10-20 too, answering questions igor PR
+#216 raised about those checks:
+
+213. **A linked comment holds a log file's recorded answer by normalized
+     containment.** Both texts are reduced as a question is reduced for
+     its hash, with no list marker or inline markup and with whitespace
+     joined, and a leading `User says: ` is dropped from the comment. The
+     comment must then contain the file's answer line. No model call
+     judges it. The spec defines it once, beside the writer proof, so
+     igor and every other reader apply the same rule.
+214. **During an Igor's run, a questions-branch file whose `repository`
+     key names a repository other than the item's always shows as
+     input.** That is intended: the file informs, and decides nothing
+     until it is proven where it belongs. The spec says so where it
+     states the proofs.
+
 ### Proposed by this change
 
 Decisions 16 to 18 are #211's proposals that apply to the skill; #211's
@@ -1204,8 +1321,9 @@ His decision 32 replaced part of 19, and his decision 35 part of 18. The
 later decisions 79, 86, 99, 107, 111, 125, 130 and 143 came from this change too,
 and each says what Adam did with it. Decisions 170 to 175 also came from
 this change, and Adam confirmed them, with the changes 175 notes.
-Decisions 181 to 183 and 197 to 203 came from this change too, and wait
-for him.
+Decisions 181 to 183 and 197 to 203 came from this change too, and Adam
+confirmed them, with the changes 199 and 202 note. Decision 215 came from
+this change too, and waits for him.
 
 16. **Confirmed by Adam (2026-10-19).** **A prepared question** states the recommended answer, what changes under
     the other answer, and a link to any related earlier decision, so that most
@@ -1528,7 +1646,7 @@ from Adam's decisions 152 to 169. Adam confirmed each on 2026-10-20:
      *Rejected:* new frontmatter keys, since every frontmatter value is one
      quoted line and a question's text is not. This change took it under
      filter 4.
-173. **Confirmed by Adam (2026-10-20).** **A question from a lore repository's questions branch is answered
+173. **Confirmed by Adam (2026-10-20), and amended by his decision 210.** **A question from a lore repository's questions branch is answered
      by pushing a new log file there,** holding the question and the
      answer, under the rules for an answer the person gave in the session
      (decisions 94 and 140). Such a file has no thread to relay to, and
@@ -1575,8 +1693,12 @@ from Adam's decisions 152 to 169. Adam confirmed each on 2026-10-20:
      10. Every reply to any relay post is a new question, whether that
          relay post was an answer or a question to the asker. So is the
          asker's next comment after a relay post in a GitHub
-         conversation. Adam confirmed it together with decision 194's
-         first reason, which ends a thread's new questions.
+         conversation, an unthreaded follow-up. Under decision 194's
+         first reason, as Adam changed it with decision 202's item 2, a
+         question closed as over stops counting only that unthreaded
+         follow-up. A threaded reply to a relay post, meaning a Discord
+         reply to it, a Linear comment in its comment thread or a GitHub
+         review-thread reply, still counts, and reopens the question.
      11. A questions-branch file whose question has the same hash as one
          shown from a thread is not shown again.
      12. Until task 0.15 shows that GitHub's notifications endpoint reports
@@ -1601,14 +1723,14 @@ from Adam's decisions 152 to 169. Adam confirmed each on 2026-10-20:
 
 Decisions 181 to 183 came from spec-check's consistency read of commit
 041822a, which found rules that design.md applied and no decision recorded.
-Each is this change's own, and waits for Adam:
+Each is this change's own, and Adam confirmed each on 2026-10-20:
 
-181. **A verdict record stays valid after a hook blocks a call for another
+181. **Confirmed by Adam (2026-10-20).** **A verdict record stays valid after a hook blocks a call for another
      question in it.** The picker hook and the post hook spend no record,
      so when a call is blocked because of one question, the agent vets that
      question alone and calls again. Each record still expires as
      decisions 38 and 51 say. This change took it under filter 4.
-182. **The files an agent passes to `vet` go in a private directory
+182. **Confirmed by Adam (2026-10-20).** **The files an agent passes to `vet` go in a private directory
      outside any repository:** a directory made with `mktemp -d`, which
      only the agent's user can read, holding each file with mode 0600. The
      script refuses a file that its group or others can read. Every user
@@ -1618,7 +1740,7 @@ Each is this change's own, and waits for Adam:
      instead, never in a file. *Rejected:* the system's temporary
      directory, as design.md first had it. This change took it under
      filter 3.
-183. **Details the spec fixes,** each cheap to reverse, taken under
+183. **Confirmed by Adam (2026-10-20).** **Details the spec fixes,** each cheap to reverse, taken under
      filter 4:
      1. Filter 1 searches a repository's `.inquisitor/misses/` too, and
         labels an unanswered log file as unanswered and a miss file as a
@@ -1649,10 +1771,11 @@ Each is this change's own, and waits for Adam:
         once a person has given one.
 
 Decisions 197 to 203 came from writing Adam's decisions 184 to 196 into
-the answer session's requirements. Each is this change's own, and waits
-for Adam:
+the answer session's requirements. Each is this change's own. Adam
+confirmed each on 2026-10-20, amending 199 and changing items 2, 4, 6 and
+7 of 202:
 
-197. **A miss the answer session logs goes to the questions branch of the
+197. **Confirmed by Adam (2026-10-20).** **A miss the answer session logs goes to the questions branch of the
      team's lore repository,** pushed directly by the script, as decision
      173's answers are. Its `repository` is the repository the question
      concerns, which the session's model judges as the inquisitor's spec
@@ -1673,26 +1796,33 @@ for Adam:
      for each miss. *Rejected:* the state folder, which would be the
      personal question log decision 32 rules out. This change took it
      under filter 3.
-198. **A lesson candidate about how the answer session found a message is
-     a miss file whose `filter` is `"source <n>"`,** where `<n>` is the
-     number, 1 to 4, of the source that found it, and whose `said` is
-     `not a real question`. It goes where decision 197 sends any miss of
+198. **Confirmed by Adam (2026-10-20), with `said` renamed by his decision
+     208.** **A lesson candidate about how the answer session found a
+     message is a miss file whose `filter` is `"source <n>"`,** where `<n>`
+     is the number, 1 to 4, of the source that found it, and whose `said`
+     is `not a question`. It goes where decision 197 sends any miss of
      the answer session's, so the review of misses reads it with the
      rest, and the format gains no key. A pattern among such misses is a
      lesson about the answer session's sources, sent by the scope rules
      every lesson follows. A miss the answer session logs by itself, under
-     decision 196, has `said` set to `answer session: clearly filter <n>`,
+     decisions 196 and 207, has `said` set to `answer session: clearly filter <n>`,
      so a review can tell the session's judgement from a person's word.
      This change took it under filter 4.
-199. **An agent's question is one whose author is a bot account,** such as
-     a GitHub App, a Linear app user, or a Discord bot or webhook, or a
-     log file from a questions branch, which only the inquisitor's script
-     writes. Every other question counts as a person's, including an
+199. **Confirmed by Adam (2026-10-20), with the exception he added.** **An
+     agent's question is one whose author is a bot account,** such as a
+     GitHub App, a Linear app user, or a Discord bot or webhook, or a log
+     file from a questions branch, which only the inquisitor's script
+     writes. Adam's exception: a post starting `User says: ` or
+     `User asks: ` from a GitHub App that GitHub reports as owned by a
+     person, by decision 184's rule, is that person's, and never gets an
+     automatic reply. On Linear and Discord, where an app's owner can't be
+     proved, those two prefixes from any bot account make the post a
+     person's too. Every other question counts as a person's, including an
      agent's posted with a person's own credentials, which the answer
      session can't tell apart. Erring that way keeps the posts decision
      196 makes by itself off people's questions. This change took it
      under filter 3.
-200. **What the answer session posts by itself:**
+200. **Confirmed by Adam (2026-10-20).** **What the answer session posts by itself:**
      1. A recorded answer is posted as `Recorded answer: <the log file's
         answer line>`, or `Recorded answer: see the record below.` when
         the record is not a log file, then a line `Recorded in: <URL>`
@@ -1721,38 +1851,49 @@ for Adam:
         file, as any session's filter 1 does.
 
      This change took it under filter 3.
-201. **Editing a post the answer session made by itself makes it the
+201. **Confirmed by Adam (2026-10-20).** **Editing a post the answer session made by itself makes it the
      person's words:** the edited post starts with `User says: ` in place
      of `Recorded answer: ` or `Inquisitor: `, since the person confirmed
      its new text. This change took it under filter 4.
-202. **Details the spec fixes,** each cheap to reverse, taken under
-     filter 4:
+202. **Confirmed by Adam (2026-10-20) item by item, except items 2, 4, 6
+     and 7, which he changed as noted.** **Details the spec fixes,** each
+     cheap to reverse, taken under filter 4:
      1. A declined question, and a rhetorical question the answer session
         handled with no reply, are kept closed in the state folder, per
-        machine.
-     2. Under decision 194's first reason, a mention means an explicit
-        @-mention in a reply's text. A Discord reply to the relay's
-        message without one counts as no mention. A review request or an
-        assignment made after the question closed is still a question.
+        machine. The spec lists the rhetorical one as handled for the
+        person, as item 10 has it, and keeps it out of the queue.
+     2. *Changed by Adam.* Under decision 194's first reason, any
+        threaded reply to a relay post, such as a Discord reply to it,
+        reopens the closed question. The reason stops
+        counting only the asker's other later comments, such as an
+        unthreaded follow-up in a GitHub conversation; a message that
+        @-mentions the person or a relay identity still counts, by its
+        mention. A review request or an assignment made after the question
+        closed is still a question. This item first counted no reply that
+        lacked an explicit @-mention, a Discord reply to the relay's
+        message included.
      3. A question's discussion record is deleted once it is closed, as
         decision 190 has it for an answered question.
-     4. The model's question after the third reason is asked in its
-        reply, under decision 174's exception, and needs no vetting.
+     4. *Superseded by Adam's decision 209,* under which the person picks
+        the filter. This item had the model ask which filter, in its
+        reply, under decision 174's exception.
      5. An agent that reads a reply starting `Recorded answer: ` checks
         the place it names through filter 1, and does not log the reply
         as the person's answer. An agent that reads a reply starting
         `Inquisitor: ` takes that filter's action, and records its choice
         as its own filter would have.
-     6. A reply to a post the answer session made by itself is a new
-        question, as a reply to any relay post is (decision 175's item
-        10), and is judged by the filters again, but the answer session
-        never answers it by itself: it goes to the person. That bounds an
-        exchange between an agent and the answer session to one automatic
-        post. When an asker's filter 1 can't count the place a recorded
-        answer names, the asker treats it as input, and its question
-        stands.
-     7. A question filter 1 answers by itself logs no miss. *Still open*
-        asks Adam whether an agent's should.
+     6. *Changed by Adam.* A reply to a post the answer session made by
+        itself is a new question, as a reply to any relay post is
+        (decision 175's item 10). It is judged by the filters again and
+        may be answered by itself again, but the answer session never
+        makes the same automatic post twice in a row on one question: a
+        repeat goes to the person. When an asker's filter 1 can't count
+        the place a recorded answer names, the asker treats it as input,
+        and its question stands. This item first sent every such reply to
+        the person.
+     7. *Replaced by Adam's decision 207,* which logs a miss against
+        filter 1 for an agent's question that filter 1 answers by itself.
+        This item logged none.
      8. A log file's question is reduced as a post's question is, without
         list marker or inline markup and with its whitespace joined,
         before it is hashed, so decision 175's item 11 finds a question
@@ -1765,7 +1906,7 @@ for Adam:
      10. A rhetorical question handled with no reply is recorded in the
          state folder as handled for the person, on that machine.
 
-203. **The inquisitor's post hook blocks a tool-call post on GitHub that
+203. **Confirmed by Adam (2026-10-20).** **The inquisitor's post hook blocks a tool-call post on GitHub that
      starts with a reserved prefix.** The answer session posts through a
      host command that no tool hook sees (decision 170), so a tool-call
      post starting with `User says: `, `User asks: `, `Recorded answer: `
@@ -1776,40 +1917,110 @@ for Adam:
      `gh`. Nothing checks Linear or Discord, where a relayed answer proves
      nothing. This change took it under filter 3.
 
+Decision 215 came from spec-check's consistency read of this round's
+edits. It is this change's own, and waits for Adam:
+
+215. **Details the spec fixes,** each cheap to reverse, taken under
+     filter 4 unless noted:
+     1. An agent acts on an `Inquisitor: ` reply only when a GitHub App
+        that GitHub reports as owned by someone with write access to what
+        the question concerns posted it, whether or not that is the
+        person the question asked, and never on a question that another
+        skill requires a person to decide, which filters 2 to 4 don't
+        apply to. Otherwise the reply is input, and the question stands.
+        So on Linear and Discord, and on GitHub until task 0.21 shows
+        that GitHub reports an App's owner, every `Inquisitor: ` reply is
+        input. Anyone who can comment could otherwise post
+        `Inquisitor: filter 4` and have an agent decide a maintainer's
+        question. Taken under filter 3.
+     2. The answer session judges whether an incoming question has a
+        category before filter 1 runs, passes such a question to the
+        script on standard input so the search reaches no source outside
+        the machine, and posts nothing by itself on it. Other questions
+        reach the script in private files, as an agent's do (decision
+        182). Under decline reason 3 too, nothing is posted on such a
+        question, and it closes. Taken under filter 3.
+     3. An asker that reads a `Recorded answer: ` post naming a lore entry
+        pushes no citation, since the answer session pushed one, so one
+        question gives one citation (decision 98).
+     4. The log file decision 210 pushes links the relay post as its
+        `answer_link`, so decision 184 can prove its writer.
+     5. Under decline reason 3, a miss with no note from the person has
+        `said: "the inquisitor should have handled it"`. When the person
+        picks filter 1 there, a question with no thread, or whose record
+        is more private than its thread, closes once the recorded answer
+        is shown.
+     6. On GitHub, a `User says: ` or `User asks: ` post from an App
+        whose owner the answer session can't read counts as a relayed
+        question, a person's, and gets no automatic post. Taken under
+        filter 3, erring as decision 199 does.
+     7. A title is text a command sends, so a title edit chained to
+        another command, such as `cd x && gh pr edit 3 --title 'Rename?'`,
+        is unreadable, and `--fill` and its variants, which take a title
+        from commits, stay unreadable. Otherwise a title's question could
+        go out unvetted, against decision 206.
+
 **Still open:**
 
-Decisions 181 to 183 and 197 to 203 wait for Adam, and so do four
-questions:
-- **A regression test in the advisory's private fork, if task 0.13 shows
-  that the fork's pull request can be merged before publication.**
-  Decision 108's item 4 lands the test in the fork. If that pull request
-  can merge first, the test, a working exploit, would reach the public
-  branch before the advisory is published. Decision 127 settles the same
-  case for the fork's commit messages, and nothing settles it for the
-  test. *Recommended:* treat the test as decision 108's item 6, as 127
-  amends it, treats a fork commit's message once task 0.13 shows the
-  merge can come first. The test goes in the fork only when the person who
-  will publish the advisory has told the agent that the pull request will
-  be merged at the moment of publication; otherwise it waits for
-  publication.
-- **Where a section begun by a colon line ends.** Under decision 176, a
-  line such as "Open a terminal and run:" begins an open-questions
-  section, and a section ends only at the next heading or bold label. So
-  every list up to that heading counts as questions, not only the list
-  right after the line. *Recommended:* end a section begun by a colon line
-  at the end of its first list.
-- **Whether an agent's question that filter 1 answers by itself is also a
-  miss.** Decision 196 logs a miss for each agent's question that filters
-  2 to 4 handle by themselves, and decision 195 says nothing of one for
-  filter 1. An agent that asks what is already recorded has missed filter
-  1 as surely. *Recommended:* log a miss against filter 1 for an agent's
-  question that filter 1 answers by itself, and none for a person's.
-- **Decision 194's second reason shares its name with filter 3.** "Not a
-  real question" is filter 3's name, for a question with fewer than two
-  options with merit, which the third reason covers. The second reason
-  means a message that asks the person nothing. *Recommended:* call the
-  second reason "not a question" in the spec and in the answer session's
-  wording, and leave filter 3's name as it is.
+Decision 215 waits for Adam, and seven questions remain, each with a
+recommendation:
+- **What prose's hook checks in a title.** Decision 206 has both post
+  hooks check a post's title. The inquisitor's hook vets the title's
+  questions. prose's hook can't check a footer there, since a footer
+  can't go on a one-line title (prose's `DECISIONS.md`, *`--title` is not
+  prose here*). *Recommended:* prose's hook blocks only a title the
+  reader can't read, and the prose pass covers a title's wording as text
+  a person reviews, with no hook check. The spec is written that way.
+- **Whether decision 204's "only" also drops decision 113's deferral
+  labels.** "Not in this change", "Deferred" and "Not done" label
+  deferred questions but don't name questions. *Recommended:* keep them,
+  so that a deferred question listed under one passes on its `deferred`
+  verdict, as filter 2 needs. The spec keeps them.
+- **An exchange of automatic posts can alternate.** Decision 202's item
+  6, as Adam changed it, stops the same automatic post twice in a row. An
+  agent that kept replying could still get filter 2's text, then filter
+  4's, then filter 2's again, with no person seeing the exchange.
+  *Recommended:* send a reply to the person when the post it would get
+  was already made in that chain of replies. That bounds an exchange at
+  four automatic posts, one per filter. The spec stops only an immediate
+  repeat, as decision 202's item 6 says.
+- **An edited answer that decision 210 also logged.** Under decision 210,
+  an answer relayed in a thread is also pushed as a log file, and a file
+  on the questions branch never changes (decision 140). An edit of the
+  relay post would leave the file holding the first answer.
+  *Recommended:* an edit also pushes a new log file holding the edited
+  answer, which supersedes the earlier one, as decision 140 has a later
+  answer do. The spec pushes no new file for an edit.
+- **Which Apps' `User says: ` comments count as a person's answer.**
+  Decision 184 counts a comment from any App that GitHub reports as owned
+  by the person, not only their answer session's relay. An Igor's App
+  owned by the same person publishes its worker's text with igor's own
+  code, which no post hook sees, so a worker steered by an item's text
+  could start a comment `User says: ` and prove a questions-branch
+  `decision` file. *Recommended:* count only an App named as a relay in a
+  file on the default branch of the team's lore repository, which a
+  person reviews like lore; an answer from any other App is input.
+- **How igor PR #216 matches an answer to the question its Igor asked.**
+  #216's decision 30 holds two details Adam has not confirmed. The Igor
+  takes the questions it asked from its handback comment, which anyone
+  with write access can edit. Two questions match when their texts are
+  equal with whitespace joined. A question posted as a list item with
+  markup, such as `- **Retry?**`, would then not match a worker's log
+  file holding `Retry?`, and its answer would be refused.
+  *Recommended, for #216 to decide:* take the asked questions from the
+  Igor's own record of what it posted, as igor #140 does, and match them
+  as this change's spec defines *the same question*, by the hash of the
+  reduced text.
+- **A worker writes a questions-branch file's `repository` key.** A
+  worker on private repository X could report a file holding X's details
+  keyed to public repository P. The push would pass, and `igor
+  lore-search` would return the file to a worker on a public item. This
+  change's spec gives an organization question's `repository` as the
+  repository whose work raised it, which for a worker is the item's
+  repository. *Recommended, for #216 to decide:* the Igor refuses a
+  worker's file whose `repository` key names a repository more visible
+  than the item's. That refuses no file a worker writes by this change's
+  rules.
 
 Tasks 0.15 to 0.21 measure facts the answer session relies on: what
 GitHub's notifications endpoint reports, how Linear and Discord show
@@ -1819,35 +2030,33 @@ background, how setup checks a relay's access to each channel, and
 whether GitHub reports who owns the App that wrote a comment. Each task
 says what the spec does until it is measured.
 
-Declining to answer (decision 194), and the questions the answer session
-answered or handled for the person (decisions 195 and 196), need screens
+Declining to answer, including reason 3's choice of filter and the exact
+post shown before it goes out (decisions 194 and 209), and the questions
+the answer session answered or handled for the person (decisions 195 and
+196), need screens
 the prototype tagged `ui-approved` does not have. By decision 147 they are
 prototyped, not specified: task 6.9 has Adam approve them by using the
 prototype before gate two builds them.
 
-One more is his to make later: whether a
-question in a post's title should be vetted. The shared post reader
-returns no title, so such a question is outside its reach, as it is
-outside prose's, and neither hook sees it. The other items below are
-facts to measure, changes elsewhere, and one extension this change does
-not plan.
-
-Most items below are facts that tasks 0.1 to 0.14 measure before
-anything is built. Task 0.12 is already measured: its result is the item
-below on Igor-worker mode. The other items are changes elsewhere that this change depends on:
+The rest of this section has two lists. The first is the changes
+elsewhere that this change depends on:
 - igor PR [#216](https://github.com/adamstallard/igor/pull/216), with igor
   issue [#215](https://github.com/adamstallard/igor/issues/215), which
   amends igor's lore-firing spec (decision 60) and holds every rule for
   an Igor's citations (decisions 123 and 129);
 - igor PR #202, the scribe's records (decision 63);
 - igor PR #153, signed publishing (decision 124);
-- in bug-hunter, a rule for a vulnerability fix's regression test (decision
-  108);
+- in bug-hunter, a rule for a vulnerability fix's regression test
+  (decisions 108 and 205);
 - shared-skills PR #1, whose `discord-bot` README tells the person to
   leave every privileged intent off, while the Discord relay needs the
   Message Content intent (decision 191).
 
-The last item is a possible extension that this change does not plan.
+The second list holds the facts that tasks 0.1 to 0.14 measure before
+anything is built, each with what the spec does if it turns out false,
+then what igor PRs #216, #153 and #202 hold, and last one extension this
+change does not plan. Task 0.12 is already measured: its result is the
+item on Igor-worker mode.
 
 - **Can a `PreToolUse` hook block `AskUserQuestion`?** If not, the picker is
   covered by the skill's instructions alone, and the README says so.
@@ -1890,10 +2099,15 @@ The last item is a possible extension that this change does not plan.
   merge can come first, a fork commit is described normally only when the
   agent knows, as it writes the commit, that the pull request will be
   merged as the advisory is published, because the person
-  publishing it said so (decision 108).
+  publishing it said so (decision 108). Until it shows the merge waits,
+  a regression test goes in the fork only on that person's word
+  (decision 205).
 - **bug-hunter needs a matching note:** a vulnerability fix's regression
   test lands only in the advisory's private fork, or publicly after the
-  advisory is published (decision 108). A separate change to bug-hunter
+  advisory is published (decision 108). Until task 0.13 shows the fork's
+  pull request merges only at publication, it goes in the fork only when
+  the person who will publish the advisory has said the pull request
+  merges at that moment (decision 205). A separate change to bug-hunter
   carries it.
 - **Does GitHub's API give a comment's author and a commit's verified
   signer as decision 78 needs?** If not, every `questions`-branch `decision`
@@ -1906,7 +2120,9 @@ The last item is a possible extension that this change does not plan.
     inquisitor run the Igor starts itself (decisions 123 and 129), in
     this change's format (decision 110);
   - igor's review counts citations on the lore repository's `questions`
-    branch (its decision 8; decision 83 here);
+    branch (its decision 8; decision 83 here), and shows them as "not
+    checked" when every Igor push of them failed (its decision 32;
+    decision 180 here);
   - its id check reports an out-of-scope collision during a run only as
     "id taken" (its decision 6; decision 92 here), and such an entry is
     not proposed during the run (decision 128 here);
@@ -1921,11 +2137,19 @@ The last item is a possible extension that this change does not plan.
     `authority: agent` files the Igor pushes, including the answer to a
     handback when a worker re-works the item, and that a flagged run
     pushes none (its decisions 20, 21, 24 and 26; decisions 142, 145, 149
-    and 150 here);
+    and 150 here). The same requirement checks each file with igor PR
+    #217's credential matcher and pushes a person's answer only beside a
+    question the Igor asked (its decisions 28 and 30; decisions 178 and
+    179 here), and lets a file's `repository` key name any repository,
+    whether or not the run's role works it (its decision 33, which amends
+    its 20);
   - its requirement *An Igor runs its worker's lore searches* defines
     `igor lore-search`, the search command a worker calls, which labels
-    each question file it returns as an answer or as input (its decision
-    23; decision 144 here);
+    each question file it returns as an answer, as input, as unanswered
+    or as a miss (its decision 23; decisions 144 and 183 here). It runs
+    this change's authority checks before it labels a file an answer, and
+    shows the file as input, labelled unconfirmed, whenever a check can't
+    run or fails (its decision 34; decisions 212 to 214 here);
   - a questions-branch file is in scope for every role whose Igor uses
     that lore repository, and is returned only to a run whose item's
     repository is no more visible than the one the file names (its
@@ -2055,8 +2279,9 @@ None.
   so the inquisitor's post hook reads posts the same way. The reader also
   reads posts sent through the github-app skill and `gh api` comments
   (decision 57), and blocks a data command such as `python3 -c` that runs
-  code naming `gh` (decision 139). prose's hook, which calls the reader,
-  gains both of these changes.
+  code naming `gh` (decision 139). It also reads a post's title, and a
+  title it can't read makes the call unreadable (decision 206). prose's
+  hook, which calls the reader, gains all of these changes.
 - In each repository where it runs, the skill writes `.inquisitor/`. In a
   team's lore repository, it pushes to an orphan branch named `questions`.
 - prose: its pass skips files under `.inquisitor/`, and its `DECISIONS.md`

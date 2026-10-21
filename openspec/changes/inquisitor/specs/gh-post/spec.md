@@ -3,10 +3,16 @@
 ### Requirement: The shared post reader reads a post's body from an allow-list
 
 The shared post reader, `.agents/lib/gh-post/`, SHALL tell a hook, for a
-tool call, one of three things: the post's body, with whether the post
-creates an issue; that the call sends no post; or that the call is
-unreadable. prose's posting hook and the inquisitor's post hook both SHALL
-use it, and neither SHALL read a post another way.
+tool call, one of three things:
+
+- the post: its body; its title, when the call sets an issue's or a pull
+  request's title; and whether the post creates an issue;
+- that the call sends no post;
+- or that the call is unreadable.
+
+prose's posting hook and the inquisitor's post hook both SHALL use it, and neither SHALL read a post another way. prose's hook SHALL
+check a returned body's footer, and SHALL let through a call the reader
+returns a title for and no body.
 
 **A gh post verb** is one of a closed list, the one prose's reader
 handles: `gh pr` with `create`, `new`, `edit`, `comment`, `review`,
@@ -17,23 +23,35 @@ text, inside quotes or not, holds the word `gh` followed later by `pr` or
 `issue` and later by one of their verbs, or `gh` followed by `api`.
 
 For a Bash command, apart from the forms the next requirement adds, the
-reader SHALL return a body only when the whole command line is one `gh`
-command, with no pipe, `&&`, `;` or other command around it; that command
-is `gh pr` or `gh issue` with a verb that posts text (`create`, `new`,
-`edit`, `comment` or `review`; `revert`, for a pull request only; or
-`close` or `reopen` with a comment); and the body is one of:
+reader SHALL return a body or a title only when the whole command line is
+one `gh` command, with no pipe, `&&`, `;` or other command around it; that
+command is `gh pr` or `gh issue` with a verb that posts text (`create`,
+`new`, `edit`, `comment` or `review`; `revert`, for a pull request only; or
+`close` or `reopen` with a comment); and any body it gives is one of:
 
 - a literal `--body` or `-b`, or `--comment` or `-c` for `close` and
   `reopen`, in single quotes, or in double quotes with no `$`, backtick or
   backslash;
 - `--body-file` or `-F` naming a file that exists.
 
+A title is given by `--title` or `-t`, and the reader SHALL read it only
+when the whole word that gives it is a literal word, as the next
+requirement defines one. So `--title T` and `--title 'Retry?'` are read,
+and a title built by the shell, such as `--title "$(git log -1
+--format=%s)"`, makes the command unreadable. A `gh pr edit` or
+`gh issue edit` that sets a title and no body returns the title alone. A
+title is text the command sends, so a `gh` command that sets one is read
+only when it is the whole command line, as one that sends a body is:
+`cd x && gh pr edit 3 --title 'Rename?'` is unreadable. `--fill`, `--fill-first` and `--fill-verbose`, which take a pull
+request's title, and with `--fill` its body, from its commits, make the
+command unreadable.
+
 With the body, it SHALL say that the post creates an issue when the command
 is `gh issue create` or `gh issue new`.
 
 For a GitHub MCP tool, it SHALL return every string under a key named
-`body` or `comment`, at any depth, such as each comment of a review. It
-SHALL say that the post creates an issue when the tool creates one, such
+`body` or `comment`, at any depth, such as each comment of a review, and
+a string under a key named `title` as the title. It SHALL say that the post creates an issue when the tool creates one, such
 as `create_issue`, or `issue_write` with the `method` `create`.
 
 A command that mentions no gh post verb sends no post. Nor does a command
@@ -100,7 +118,39 @@ exactly, such as one with a backtick, `$'…'` or an unterminated quote.
 
 - **WHEN** a hook asks about `gh pr create --title t --body-file body.md`,
   and `body.md` exists
-- **THEN** the reader returns the file's text as the body
+- **THEN** the reader returns the file's text as the body, and `t` as the
+  title
+
+#### Scenario: A post's title holding a question is read
+
+- **WHEN** a hook asks about `gh pr create --title 'Retry with backoff?'
+  --body-file body.md`, and `body.md` exists
+- **THEN** the reader returns the file's text as the body, and
+  `Retry with backoff?` as the title
+
+#### Scenario: A title built by the shell is unreadable
+
+- **WHEN** a hook asks about `gh pr create --title "$(git log -1
+  --format=%s)" --body-file body.md`, and `body.md` exists
+- **THEN** the reader reports the command as unreadable, and prose's hook
+  and the inquisitor's post hook both block it
+
+#### Scenario: A chained title edit is unreadable
+
+- **WHEN** a hook asks about `cd x && gh pr edit 3 --title 'Rename?'`
+- **THEN** the reader reports the command as unreadable
+
+#### Scenario: A title taken from commits is unreadable
+
+- **WHEN** a hook asks about `gh pr create --fill-first --body-file
+  body.md`, and `body.md` exists
+- **THEN** the reader reports the command as unreadable
+
+#### Scenario: A title-only edit returns its title
+
+- **WHEN** a hook asks about `gh issue edit 5 --title 'Rename it?'`
+- **THEN** the reader returns `Rename it?` as the title and no body, and
+  prose's hook lets the command through
 
 #### Scenario: A command that sends no body is no post
 
@@ -205,7 +255,10 @@ Beyond the forms above, the reader SHALL read:
   `{owner}` and `{repo}`, the placeholders `gh` fills in, counting as an
   owner and a repository, whose text is given by a `body` field through `-f`,
   `--raw-field`, `-F` or `--field` (`-F` and `--field` also read
-  `@<file>`), or by `--input` naming a JSON file with a `body` key. For a
+  `@<file>`), or by `--input` naming a JSON file with a `body` key. A
+  `title` field at such an endpoint, given the same ways, is the post's
+  title, and a call that gives a title and no body returns the title
+  alone. For a
   write to a pull request's reviews, `repos/<owner>/<repo>/pulls/<n>/reviews`,
   it SHALL also return each `comments[][body]` field, given the same ways,
   and each `body` in the `comments` array of an `--input` file. It SHALL
@@ -222,8 +275,10 @@ Beyond the forms above, the reader SHALL read:
   `body` in an `addPullRequestReview`, whether it is a string literal in
   the query or a variable whose value the call gives through `-f`,
   `--raw-field`, `-F` or `--field` (`-F` and `--field` also read
-  `@<file>`), or in the `variables` of an `--input` file. It SHALL say that
-  the post creates an issue when the mutation is `createIssue`.
+  `@<file>`), or in the `variables` of an `--input` file. It SHALL return
+  the `title` argument of `createIssue`, `createPullRequest`, `updateIssue`
+  or `updatePullRequest`, given the same ways, as the title. It SHALL say
+  that the post creates an issue when the mutation is `createIssue`.
 
 A **literal word** is one the shell passes on unchanged apart from
 removing its quotes: it holds no `$`, backtick or backslash outside single
@@ -247,10 +302,15 @@ a GraphQL call writes when its query is a mutation. The reader SHALL
 report as unreadable a write to any other endpoint whose fields include
 `body`; any other GraphQL mutation that has a `body` argument; a listed
 mutation one of whose `body` arguments it cannot read; a GraphQL query it
-cannot parse; a review whose comment bodies it cannot read; and a write
-whose fields it cannot read. It SHALL report as sending no post any other
-write whose fields carry no `body`, and any mutation, listed or not, with
-no `body` argument. The reader returns no title.
+cannot parse; a review whose comment bodies it cannot read; a listed
+mutation, or a write under `issues` or `pulls`, whose title it cannot
+read; and a write whose fields it cannot read. It SHALL report as sending
+no post:
+
+- any other write whose fields carry no `body`, and, at an endpoint under
+  `issues` or `pulls`, no `title` either;
+- any mutation not listed that has no `body` argument;
+- any listed mutation with neither a `body` nor a `title` argument.
 
 #### Scenario: A post sent through the github-app skill is read
 
@@ -280,9 +340,10 @@ no `body` argument. The reader returns no title.
 #### Scenario: A new issue sent through gh api or MCP is reported as one
 
 - **WHEN** a hook asks about `gh api repos/o/r/issues -f title=t -f
-  body=b`, or about a GitHub MCP `create_issue` call with the `body` `b`
-- **THEN** the reader returns `b` as the body, and says that the post
-  creates an issue
+  body=b`, or about a GitHub MCP `create_issue` call with the `title` `t`
+  and the `body` `b`
+- **THEN** the reader returns `b` as the body and `t` as the title, and
+  says that the post creates an issue
 
 #### Scenario: A GraphQL comment's body is read
 
@@ -297,6 +358,12 @@ no `body` argument. The reader returns no title.
   whose `body` is the literal `"b"`
 - **THEN** the reader returns `b` as the body, and says that the post
   creates an issue
+
+#### Scenario: A GraphQL title the reader can't read is unreadable
+
+- **WHEN** a hook asks about `gh api graphql` with a `createPullRequest`
+  mutation whose `title` is a variable the call does not give
+- **THEN** the reader reports the command as unreadable
 
 #### Scenario: A GraphQL mutation with no body sends no post
 

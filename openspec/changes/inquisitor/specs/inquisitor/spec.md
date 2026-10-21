@@ -174,7 +174,7 @@ Terms used throughout this spec:
   them, on their confirmation. It counts as that person's own comment
   wherever this spec reads who wrote a comment. A comment from such an App
   that starts with `Recorded answer: ` or `Inquisitor: ` is the answer
-  session's own, posted without the person, and is no one's answer. Until
+  session's automatic post, and is no one's answer. Until
   task 0.21 shows that GitHub reports which account owns the App that
   wrote a comment, no comment is a relayed answer.
 - **The credential patterns** are a private key's `-----BEGIN` line, GitHub
@@ -318,7 +318,11 @@ question's text or search terms on standard input. The Igor tells which
 run and role a request is for by the channel it arrives on, which only
 that run's worker can reach. igor runs that search on
 its own lore checkout and questions branch, under the rules for a search
-during a run, and labels what it returns as that requirement says. Filter
+during a run, and labels what it returns as that requirement says. Before
+igor labels a questions-branch file as an answer, it applies the
+authority checks this spec states once, in *Only an answer with authority
+stops a question*, and it shows the file as input, labelled unconfirmed,
+whenever a check can't run or fails. Filter
 1 shows a question file igor returns with no answer as unanswered, and a
 lore entry by its status, with the labels that *Only an answer with
 authority stops a question* gives. Filter 1 reads no lore clone
@@ -463,12 +467,24 @@ these:
   `answer_link` field holds the
   github.com URL of a comment or review on an issue or pull request of the
   repository its `repository` key names or of that lore repository, the
-  comment's text holds the answer the file records, and GitHub gives that
+  comment holds the answer the file records, as defined below, and GitHub gives that
   comment's author as `answered_by`, or the comment is a relayed answer
   of `answered_by`'s, or
   when the commit that added the file carries a
   signature GitHub verifies for `answered_by`'s account;
 - an in-scope lore entry whose `status` is `active`.
+
+A linked comment **holds the answer** a log file records when the
+comment's text contains the file's answer line, once both texts are
+reduced as a question in a post is reduced for its hash (no list marker,
+inline markup reduced to its text, each run of whitespace made one space)
+and a leading `User says: ` is dropped from the comment. No model judges
+it. This is the one rule for it, and igor's search applies the same rule.
+
+During an Igor's run, a questions-branch file whose `repository` key names
+a repository other than that of the item the run works SHALL be shown as
+input, labelled unconfirmed, whatever its proofs: they show who
+answered, not that the answer belongs to the item's repository.
 
 A logged question concerns what its log file names, whatever the agent's
 current question concerns. For a file in a repository, that is the
@@ -587,6 +603,21 @@ agent. The search SHALL never show a rejected candidate.
   access to what the question concerns, and no commit after the one that
   added the file changed it
 - **THEN** filter 1 treats it as an answer
+
+#### Scenario: A relayed comment holds the answer once both texts are reduced
+
+- **WHEN** a `decision` file on a lore questions branch records the answer
+  `Back off, capped at a minute.`, and links a relayed answer of its
+  `answered_by`'s whose text is `User says: **Back off**, capped at a
+  minute.`
+- **THEN** the comment holds the answer the file records
+
+#### Scenario: A file about another repository is input during a run
+
+- **WHEN** during an Igor's run on an item in `o/web`, a `decision` file on
+  the lore questions branch whose `repository` key names `o/api` matches
+  the question, and every proof of its writer holds
+- **THEN** the search shows the file as input, labelled unconfirmed
 
 #### Scenario: A linked comment that does not hold the answer proves nothing
 
@@ -830,11 +861,9 @@ Where the host has a picker and a person is in the session, an agent SHALL
 put a question to a person only through the picker, in a post, in a message on another service such as
 Linear or Discord, or, for a `vulnerability` question, in the repository's
 private security advisory; never in the text of its reply. The
-exceptions are in an answer session: in a discussion, and after the
-person declines a question because it didn't need a human, the session's
-model may ask the person in its reply, as the `answer-session` spec's *A
-discussion runs in the session's own conversation* and *The person can
-decline to answer* say.
+exception is an answer session's discussion, where the session's model
+may ask the person in its reply, as the `answer-session` spec's *A
+discussion runs in the session's own conversation* says.
 
 Where the host has no picker and a person is in the session, the agent
 SHALL ask in the text of its reply, once the script's two calls have
@@ -1122,15 +1151,20 @@ verdict records.
 
 A **question in a post** is:
 
-- each item of a list in an open-questions section. The section starts at a
-  heading, a bold label or a line ending in a colon whose own text starts
-  with the word "Open", or with the words "Still open", "Not in this
-  change", "Deferred" or "Not done", and ends at the next heading or bold
-  label, whatever began it, so every list up to there is in it. A deferral section, such as "Not in this change", is an
-  open-questions section. A **bold label** is a line whose whole text, apart
-  from a trailing colon, is bold; a list item that starts with bold text is
-  not one;
-- each sentence elsewhere in the body that ends in a question mark.
+- each item of a list in an open-questions section. The section starts at
+  a heading, a bold label or a plain line ending in a colon, whose own
+  text, apart from that colon, begins with a label that names questions:
+  the words "Open question", "Open questions", "Still open", "Question" or
+  "Questions". A deferral label, whose text begins with the words "Not in
+  this change", "Deferred" or "Not done", starts one too. The section ends
+  at the next heading or bold label, whatever began it, so every list up
+  to there is in it. A line such as "Open a terminal and run:" names no
+  questions and starts nothing. A **bold label** is a line whose whole
+  text, apart from a trailing colon, is bold; a list item that starts with
+  bold text is not one;
+- each sentence elsewhere in the body, or in the post's title, that ends
+  in a question mark. The title is the one the shared post reader
+  returns.
 
 Text in fenced code blocks, inline code, lines starting with `>`, and the
 signed footer the prose skill appends as a post's last line (such as
@@ -1144,15 +1178,15 @@ tags no one and either appears as an item of an open-questions section or
 is in a post that creates an issue, as the shared post reader reports it;
 anywhere else, the question needs an `ask` verdict. When the hook cannot read its
 verdict records, it SHALL block a post that holds a question. The hook
-SHALL learn a post's body from the shared post reader (the *gh-post*
-capability): it SHALL vet the body the reader returns, let through a call
+SHALL learn a post's body and title from the shared post reader (the
+*gh-post* capability): it SHALL vet the body and the title the reader
+returns, let through a call
 the reader reports as sending no post, and block one the reader reports as
 unreadable. It SHALL let through a payload that is not JSON. It SHALL
-block a post whose body starts with `User says: `, `User asks: `,
-`Recorded answer: ` or `Inquisitor: `, the prefixes the `answer-session`
-spec reserves for its own posts, which no tool call makes. The first call
-SHALL take a post's body and
-find its questions the same way the hook does, and SHALL refuse a post with
+block a post whose body starts with one of the four reserved prefixes
+the `answer-session` spec defines. The first call
+SHALL take a post's body and title and
+find their questions the same way the hook does, and SHALL refuse a post with
 a question that holds a string matching the credential patterns, such
 as a private key or a GitHub access token.
 
@@ -1161,6 +1195,13 @@ as a private key or a GitHub access token.
 - **WHEN** an agent runs `gh pr create --body-file body.md` and the body asks
   a question that no second call recorded as `ask`
 - **THEN** the hook blocks the command and names the question
+
+#### Scenario: A question in a post's title is vetted
+
+- **WHEN** an agent runs `gh pr create --title 'Retry with backoff?'
+  --body-file body.md`, and no second call recorded `Retry with backoff?`
+  as `ask`
+- **THEN** the hook blocks the command and names the title's question
 
 #### Scenario: A tool-call post with a reserved prefix is blocked
 
@@ -1256,16 +1297,15 @@ as a private key or a GitHub access token.
 
 #### Scenario: A plain line ending in a colon begins an open-questions section
 
-- **WHEN** a post has the plain line "Open questions:", or the bold line
-  "**Open questions:**", followed by a list
+- **WHEN** a post has the plain line "Open questions:", the bold line
+  "**Open questions:**" or the plain line "Questions:", followed by a list
 - **THEN** each item of that list is a question in the post
 
-#### Scenario: A colon line that starts with "Open" but asks nothing still begins a section
+#### Scenario: A colon line that names no questions begins nothing
 
 - **WHEN** a post has the line "Open a terminal and run:" followed by a
-  list of commands
-- **THEN** each item of that list is a question in the post, and the hook
-  blocks the post until each has a verdict
+  list of commands, none ending in a question mark
+- **THEN** the post holds no question
 
 #### Scenario: A heading that starts with another word is not an open-questions section
 
@@ -1944,11 +1984,14 @@ written.
   SHALL write the answer, the discussion's sentence and the rephrased
   question each on one line, with each run of whitespace made one space.
 - **A miss file's keys:** `repository` and `asked`, as in its question's
-  log file; `filter`, `"1"` to `"4"`, the filter that should have stopped
+  log file, or, for a miss an answer session logs, the repository the
+  question concerns and the day the question was asked; `filter`, `"1"` to `"4"`, the filter that should have stopped
   the question, or, for a miss an answer session logs against how it
-  found a message that asks nothing, `"source 1"` to `"source 4"`, the
+  found a message picked up by mistake, `"source 1"` to `"source 4"`, the
   `answer-session` spec's source that found it; and `said`, what the person said, in their words or in one
-  sentence, with any place they named, such as a spec's path. Its body is
+  sentence, with any place they named, such as a spec's path, or, for a
+  miss an answer session logs by itself or with no note from the person,
+  the fixed text the `answer-session` spec gives. Its body is
   the question
   under `## Question`.
 - **Reading a log file:** it is answered when its frontmatter holds
@@ -2272,7 +2315,11 @@ advisory, whose commits become public when the advisory is published.
 The rule covers text, not the fix's code: the code may land on a public
 branch before the advisory is published. A fix's regression test that fails before the fix, such as the one
 the bug-hunter skill writes, SHALL land only in the advisory's private
-fork, or on a public branch after the advisory is published.
+fork, or on a public branch after the advisory is published. Until task
+0.13 has measured that GitHub merges the fork's pull request only when the
+advisory is published, the test SHALL also wait for publication, unless
+the person who will publish the advisory has said the pull request will
+be merged at the moment of publication; then it goes in the fork.
 
 When no advisory exists for the weakness, or the agent cannot read whether
 it is published, the agent SHALL treat it as unpublished.
@@ -2312,12 +2359,23 @@ advisory has said so.
 - **THEN** its commit message describes neither the weakness nor how to
   exploit it
 
-#### Scenario: The regression test waits for the private fork or publication
+#### Scenario: The regression test waits for publication without the publisher's word
 
-- **WHEN** the agent has a regression test that fails before the fix of a
-  weakness whose advisory is unpublished
-- **THEN** it commits the test only in the advisory's private fork, and not
-  on a public branch until the advisory is published
+- **WHEN** task 0.13 has not shown that the fork's pull request merges only
+  at publication, the agent has a regression test that fails before the
+  fix of a weakness whose advisory is unpublished, and nobody who will
+  publish the advisory has said the pull request merges at the moment of
+  publication
+- **THEN** it commits the test neither in the fork nor on a public branch
+  until the advisory is published
+
+#### Scenario: The regression test goes in the fork on the publisher's word
+
+- **WHEN** task 0.13 has not shown that the fork's pull request merges only
+  at publication, and the person who will publish the advisory has told
+  the agent the pull request will be merged at the moment of publication
+- **THEN** the agent commits the regression test in the advisory's private
+  fork, and on no public branch
 
 #### Scenario: With no advisory, the weakness counts as unpublished
 
@@ -2486,12 +2544,24 @@ outside a run.
 When an agent reads, in reply to its question, a post from a person's
 answer session that starts with `Recorded answer: `, it SHALL check the
 place the post's `Recorded in: ` line names through filter 1, and act on
-it only as filter 1 counts it. It SHALL NOT log the post as a person's
-answer. When the post starts with `Inquisitor: ` and names filter 2, 3 or
-4, the agent SHALL take that filter's action, as if its own filter had
-stopped the question, and record its choice where that filter says.
-Neither post is a person's answer. The agent logs no miss for an
-`Inquisitor: ` post, since the answer session logged one. When filter 1
+it only as filter 1 counts it. It SHALL push no citation for a lore entry
+that post names, since the answer session pushed one. It SHALL NOT log
+the post as a person's answer. When the post starts with `Inquisitor: `
+and names filter 2, 3 or 4, the agent SHALL take that filter's action, as
+if its own filter had stopped the question, and record its choice where
+that filter says, but only when both of these hold: the post's author is
+a GitHub App that GitHub reports as owned by someone with write access to
+what the question concerns, whether or not that is the person the
+question asked, and the question is not one that *Every
+question passes four filters before a person sees it* exempts from
+filters 2, 3 and 4 because another skill requires a person to decide it.
+Otherwise the agent treats the post as input, and its question stands.
+So an `Inquisitor: ` reply on Linear or Discord is always input, and so
+is every such reply on GitHub until task 0.21 shows that GitHub reports
+an App's owner.
+Neither post is a person's answer. The agent logs no miss for either
+post: the answer session logs any miss due, as the `answer-session` spec
+says. When filter 1
 does not count the place a `Recorded answer: ` post names, the agent
 treats the post as input, and its question stands.
 
@@ -2510,10 +2580,32 @@ treats the post as input, and its question stands.
   agent's configuration does not name
 - **THEN** the agent treats the reply as input, and its question stands
 
+#### Scenario: An Inquisitor reply from an outsider is input
+
+- **WHEN** an agent's question in a public repository gets a reply
+  starting `Inquisitor: filter 4` from an account with no write access to
+  that repository
+- **THEN** the agent treats the reply as input, and its question stands
+
+#### Scenario: An Inquisitor reply does not settle a question another skill reserves
+
+- **WHEN** an agent's question about a bug's root cause, which bug-hunter
+  requires a person to decide, gets a reply starting
+  `Inquisitor: filter 4` from the relay App of the person asked
+- **THEN** the agent treats the reply as input, and its question stands
+
+#### Scenario: A recorded answer naming a lore entry sends no second citation
+
+- **WHEN** an agent's question gets a reply starting `Recorded answer: `
+  whose `Recorded in: ` line names an active lore entry, and filter 1
+  counts it
+- **THEN** the agent acts on the entry and pushes no citation file
+
 #### Scenario: An Inquisitor reply is acted on as its filter
 
 - **WHEN** an agent's question gets a reply starting
-  `Inquisitor: filter 4`
+  `Inquisitor: filter 4` from a GitHub App that GitHub reports as owned by
+  a person with write access to what the question concerns
 - **THEN** the agent chooses one option, and records what it chose and
   why, as filter 4 says
 
@@ -2530,8 +2622,9 @@ question, the filter that should have stopped it, and what the person
 said, written at the privacy of what the question concerns, as a logged
 answer is. A miss is logged whatever words the person uses; "that
 was obvious" is one way to say it. A question that got no
-log file gets no miss file either. An answer session logs its own misses
-as the `answer-session` spec's *The answer session logs its misses on the
+log file gets no miss file either, except a miss an answer session logs:
+an answer session logs its own misses, whether or not the asker logged
+the question, as the `answer-session` spec's *The answer session logs its misses on the
 team's lore repository's questions branch* says.
 
 #### Scenario: "That was obvious" is logged against a filter
