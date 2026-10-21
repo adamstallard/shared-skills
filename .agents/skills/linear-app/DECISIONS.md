@@ -132,15 +132,40 @@ interpreter) needed fixes in three review iterations in a row: venvs, relative
 PATH entries, Homebrew's versioned Cellar folders. Re-running `wire` after an
 upgrade is one command, so `check` saying when it is needed is enough.
 
-## `store-credentials` passes the secret to `security` as an argument
+## `store-credentials` gives `security` each value on standard input, twice, and reads it back
 
-**Decision.** On macOS the secret is stored with
-`security add-generic-password -w <secret>`.
+**Decision.** On macOS, `store-credentials` stores the client ID and the
+client secret by running `security add-generic-password` with `-w` as its last
+option and no value. It writes the value to `security`'s standard input twice,
+one line each. It starts `security` in a new process session, which leaves it
+no controlling terminal. Then it reads the entry back, and fails if that read
+fails or returns anything but the value. No value appears on a command line,
+in an error or in the output.
 
-**Why.** `security` can't read a secret from standard input, so the secret is
-visible to this user's other processes for the instant the command runs. Linux
-`secret-tool` reads it from standard input. Anyone who can't accept that can
-add the entries in Keychain Access; the script only reads them.
+**Why.** Passing the secret as `-w <secret>` would make it visible to this
+user's other processes while `security` runs. Tested 2026-10-20 on macOS with
+a throwaway keychain entry, since deleted: given `-w` with no value,
+`security` asks for the password twice, the second time to confirm it.
+
+- **Twice:** given only one copy, `security` reports that the passwords don't
+  match, stores an empty password and still exits 0.
+- **No terminal:** `security` reads the answers from standard input only when
+  it has no terminal. Run from a terminal, it prompts there and ignores
+  standard input.
+- **Read back:** the exit status can't be trusted, as the first point shows,
+  so only reading the entry proves it holds the value.
+
+**A read-back that fails or doesn't match leaves the entry as it is.** The
+read-back searches every keychain in the user's search list, so a mismatch may
+mean it found an entry with the same service and account in another keychain.
+Deleting by service and account could remove that entry, which
+`store-credentials` did not write. Deleting the entry it did write would gain little: the one-copy
+case above leaves it empty, and the script reads an empty entry as missing
+credentials and says to run `store-credentials`.
+
+On Linux, `secret-tool` asks once and stores all of its standard input as
+the secret, so the one-copy case can't arise there, and `store-credentials`
+doesn't read the value back.
 
 ## On Linux, `forget` trusts a lookup, not `secret-tool clear`'s exit code
 

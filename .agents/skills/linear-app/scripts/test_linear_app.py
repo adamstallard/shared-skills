@@ -122,6 +122,91 @@ class Credentials(unittest.TestCase):
         self.assertEqual(run.call_args[0][0][:2], ["secret-tool", "lookup"])
 
 
+class WriteKeychainOnMacOS(unittest.TestCase):
+    """write_keychain against a fake `security`: the value goes on standard input and is read back."""
+
+    def write(self, readback="s3cret\n", add_rc=0, find_rc=0, add_stderr=""):
+        def run(cmd, **kwargs):
+            if cmd[1] == "add-generic-password":
+                return types.SimpleNamespace(returncode=add_rc, stdout="", stderr=add_stderr)
+            return types.SimpleNamespace(returncode=find_rc, stdout=readback, stderr="not found")
+        run = mock.Mock(side_effect=run)
+        try:
+            result = la.write_keychain("linear-app", "acme:client-secret", "s3cret", "Linear client secret (acme)",
+                                       run=run, which=lambda t: t == "security")
+        except la.Failure as e:
+            result = e
+        return result, run.call_args_list
+
+    def test_security_gets_the_value_twice_on_standard_input_never_as_an_argument(self):
+        result, calls = self.write()
+        self.assertIsNone(result)
+        add = calls[0]
+        self.assertEqual(add.args[0],
+                         ["security", "add-generic-password", "-U", "-s", "linear-app", "-a", "acme:client-secret", "-w"])
+        self.assertEqual(add.kwargs["input"], "s3cret\ns3cret\n")
+        for call in calls:
+            self.assertNotIn("s3cret", " ".join(call.args[0]))
+
+    def test_security_runs_with_no_terminal_to_prompt_on(self):
+        # With a controlling terminal, `security` prompts there and ignores standard input.
+        _, calls = self.write()
+        self.assertIs(calls[0].kwargs.get("start_new_session"), True)
+
+    def test_the_stored_value_is_read_back(self):
+        _, calls = self.write()
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(calls[1].args[0],
+                         ["security", "find-generic-password", "-s", "linear-app", "-a", "acme:client-secret", "-w"])
+
+    def test_an_empty_read_back_fails(self):
+        # `security` exits 0 after storing an empty password when the second copy is missing.
+        result, _ = self.write(readback="\n")
+        self.assertIsInstance(result, la.Failure)
+        self.assertIn("does not hold the value entered", str(result))
+
+    def test_a_different_read_back_fails_without_echoing_either_value(self):
+        result, _ = self.write(readback="other-secret\n")
+        self.assertIsInstance(result, la.Failure)
+        self.assertNotIn("s3cret", str(result))
+        self.assertNotIn("other-secret", str(result))
+
+    def test_a_failed_read_back_fails(self):
+        result, _ = self.write(find_rc=44)
+        self.assertIsInstance(result, la.Failure)
+        self.assertIn("could not read back", str(result))
+        self.assertNotIn("s3cret", str(result))
+
+    def test_a_failed_store_skips_the_read_back_and_drops_the_prompts(self):
+        result, calls = self.write(
+            add_rc=1, add_stderr="password data for new item: retype password for new item: security: denied\n")
+        self.assertIsInstance(result, la.Failure)
+        self.assertEqual(str(result), "storing acme:client-secret failed: security: denied")
+        self.assertEqual(len(calls), 1)
+
+    def test_store_credentials_stores_both_values_this_way(self):
+        calls = []
+
+        def run(cmd, **kwargs):
+            calls.append((cmd, kwargs))
+            if cmd[1] == "add-generic-password":
+                return types.SimpleNamespace(returncode=0, stdout="", stderr="")
+            return types.SimpleNamespace(returncode=0, stdout={"acme:client-id": "cid", "acme:client-secret": "sec"}[
+                cmd[cmd.index("-a") + 1]] + "\n", stderr="")
+        real = la.write_keychain
+        write = lambda s, a, v, label: real(s, a, v, label, run=run, which=lambda t: t == "security")
+        with mock.patch("builtins.input", return_value="cid"), mock.patch.object(la.getpass, "getpass", return_value="sec"), \
+                mock.patch.object(la, "write_keychain", side_effect=write), \
+                mock.patch.object(la, "env_overrides_keychain", return_value=False), redirect_stderr(io.StringIO()):
+            result = la.cmd_store_credentials(types.SimpleNamespace(identity="acme"), {})
+        self.assertTrue(result["stored"])
+        adds = [(cmd, kw) for cmd, kw in calls if cmd[1] == "add-generic-password"]
+        self.assertEqual([kw["input"] for _, kw in adds], ["cid\ncid\n", "sec\nsec\n"])
+        for cmd, _ in calls:
+            self.assertNotIn("sec", cmd[cmd.index("-a") + 2:])
+            self.assertNotIn("cid", cmd[cmd.index("-a") + 2:])
+
+
 class Http(unittest.TestCase):
     def test_mint_sends_client_credentials_and_scopes(self):
         opener = mock.Mock(return_value=response({"access_token": "t", "expires_in": 100}))
