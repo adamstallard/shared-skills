@@ -1,2 +1,2 @@
 { "compilerOptions": { "target": "es2023", "lib": ["es2023"], "types": [], "module": "esnext", "moduleResolution": "bundler", "strict": true, "noUncheckedIndexedAccess": true, "noEmit": true, "skipLibCheck": true, "jsx": "react", "jsxFactory": "h", "jsxFragmentFactory": "Fragment" },
-  "files": ["/private/tmp/claude-502/bundled-skills/2.1.304/cd7d6ce3d026ce071a0313c75642c0c5/plugin-authoring/types/claude-code.d.ts", "/Users/adam/answer-session-prototype/answer-session/hooks/register.tsx", "/Users/adam/answer-session-prototype/answer-session/types/index.d.ts"] }
+  "files": ["../answer-session/.claude-plugin/types/claude-code/index.d.ts", "../answer-session/hooks/register.tsx", "../answer-session/types/index.d.ts"] }
