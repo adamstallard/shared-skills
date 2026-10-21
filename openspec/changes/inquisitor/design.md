@@ -126,9 +126,16 @@ below is measured from igor's code; the second is read from #174's and
   `gh` login. Its settings come only from the user settings file igor
   writes for it (`--setting-sources user`), which is empty, so no hooks
   load. The run is headless, so there is no `AskUserQuestion`.
-- **Either way,** igor passes the worker no marker that it runs inside an
-  Igor, and no lore repository; it passes only the role's name (igor's
-  `src/execute.ts`, line 163).
+- **Either way,** igor passes the worker no lore repository. On igor's
+  main branch it passes no marker that it runs inside an Igor either;
+  igor PR #216 adds `IGOR_RUN` (proposal decision 235). What the worker
+  is told comes from its system prompt, `workerSystemPrompt` (igor's
+  `src/execute.ts`, line 161, at 8478aec): the role's name, the actions
+  its run may take, the commands it may run, the role's standing
+  instructions and the active lore entries the Igor injects. The Igor
+  injects only the entries that fit the worker's token budget, so filter
+  1 in a worker cannot rely on injected lore alone, and also calls
+  `igor lore-search`.
 
 So the spec's Igor-worker rules assume a worker with no inquisitor
 configuration, no `gh` login or other GitHub credential, no picker and no
@@ -326,12 +333,13 @@ beside it.
   the question, described in the bullet before last, holds it, as a hash.
   During an Igor's run, the worker, the agent an Igor starts on a work
   item, raises a flag in its report: a mark, defined by igor PR #216,
-  that the run met such a question. A worker that such a question stops
-  adds its category, one word, and nothing else (proposal decision 244).
-  igor then counts the run as flagged. It writes the category word, never
-  the question's text, into an operator-only file on its host, and moves
-  the run's session log, which holds the text, beside that file (igor PR
-  #216's decisions 88 and 89). When the Igor reads that flag, #216's task-execution
+  that the run met such a question. The flag lists each category met in
+  that worker run once, one word each, and marks the categories of the
+  questions that stopped the worker (proposal decisions 244 and 245). igor then
+  counts the run as flagged. It writes the category words, never a
+  categorized question's text, into an operator-only file on its host,
+  and moves the session logs, which hold the text, beside that file
+  (igor PR #216's decisions 88, 89, 97 and 98). When the Igor reads that flag, #216's task-execution
   requirement *Transcripts and outcomes are captured to the state branch*
   has it write no transcript of the run, since a transcript would hold the
   question (proposal decision 136).
@@ -530,10 +538,10 @@ its Igor posts (proposal decision 126). The worker asks there even if
 task 0.14 finds a `gh` login within its reach. When igor counts the run
 as flagged, because its worker reported the flag described above or ended without a
 completed report, the Igor posts a handoff that asks nothing. The Igor
-keeps the question the run stopped on in a file on its own host: its
-category where it has one, or else its text. What that file holds in
-other cases, such as a run with no completed report, is igor PR #216's
-(proposal decisions 243 and 244). A headless session that can post,
+keeps a record of the questions the run stopped on in a file on its own
+host: the categories the flag marks, and the text of a stopped question
+that has no category. The file's rules are igor PR #216's (its decision
+97; proposal decisions 243 to 245). A headless session that can post,
 such as a scheduled agent, tags the login only when the login has write
 access and the post goes out as someone else, and otherwise tags no one. In a session with a person in it,
 the script reads the configured login's write access with the same
@@ -611,7 +619,7 @@ prototype, build v0.1-30, tagged `answer-session-ui-approved-v0.1-30`
 is not specified, so nothing here describes how it looks.
 The rules are in the `answer-session` spec, the decisions in proposal
 decisions 152 to 175, 184 to 203, 207 to 211, 215, 216, 219, 220,
-222 to 230, 234, 236 and 238.
+222 to 230, 234, 236, 238 and 246.
 
 ### Polling while open, with the person's credentials
 
@@ -643,11 +651,13 @@ person turn that intent on for the bot (commit 369ae16), and its `check` command
 flags (f83b167). Setup's check of message content passes only when
 `check` reports true (decision 238); false fails, and so does null,
 which means `check` could not read the flags (decision 239's item 7).
-Even when `check` reports true, every Discord channel stays off. discord-bot turns each `@name` in a post into
-a mention that notifies that member, and a relay post quoting the
-person's words must not ping anyone; until discord-bot can post with
-that rewriting off, setup counts the relay's check as failed (decision
-230's item 1).
+discord-bot turns each `@name` in a post into a mention that notifies
+that member, and the relay keeps that on: an `@name` in the person's
+own answer pings that person, as it would in a comment of their own
+(decision 246). Rewriting was once to be turned off because a relay post
+quoted a recorded answer, whose @-mentions would have notified people a
+second time. A relay post no longer quotes a recorded answer: it links
+to the record instead (decision 239's item 5).
 
 A relay identity may do other work, but only the answer session starts a
 post with one of the four reserved prefixes (decision 193). Anything that

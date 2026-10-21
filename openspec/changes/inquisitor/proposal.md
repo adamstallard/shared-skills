@@ -15,7 +15,7 @@ are written down:
   196, 204 to 214, 216 to 221, 223 to 226, 229 and 231, on 2026-10-20;
 - 232 to 237, on 2026-10-21, and 238 in two parts: Message Content
   turned on, on 2026-10-20, and how `check` reads it, on 2026-10-21.
-- 240 to 244, on 2026-10-21.
+- 240 to 246, on 2026-10-21.
 
 Apart from 229 and 241 to 244, which he gave in the session reviewing
 igor PR #216, and 238, which he gave in shared-skills PR #1, he gave those of 2026-10-19 to 2026-10-21 while reviewing this pull
@@ -37,7 +37,8 @@ confirmed 230 item by item, except items 4 and 5, which his decisions 232
 and 235 replace. He confirmed 239 item by item too, except item 2,
 which his decision 240 changes. 239's item 5 changes his earlier
 decision 200's item 1: a `Recorded answer: ` post no longer quotes the
-answer.
+answer. His decision 245 replaces the rule this change had proposed under
+that number, and his decision 246 settles 230's item 1.
 
 1. **Four filters run before any question reaches a person.**
    1. **Already answered:** the agent finds the earlier answer, cites where it
@@ -357,8 +358,8 @@ fifth consistency read:
     question it asks only in the repository's private security advisory,
     and it stops the work and reports the same way. Adam's decision 136
     has an Igor worker report only a bare flag, a mark defined by igor PR
-    #216 that its run met such a question, with no category; his decision
-    244 adds the category of a question that stops the worker.
+    #216 that its run met such a question, with no category; his decisions
+    244 and 245 have the flag list every category met in the run.
 68. *Amended by Adam's decision 240: a person's answer is recorded in
     their words or not at all, never generalised; a miss's `said` is
     still generalised.* **A logged answer, and a miss's record of what the person said, are
@@ -873,8 +874,8 @@ recording decisions 131 to 135:
      rules when the Igor runs the skill itself. A worker that such a
      question stops reports only that flag, never the question's
      category. This amends decision 67 for an Igor worker. *Amended by
-     Adam's decision 244: a worker that such a question stops reports
-     its category with the flag.*
+     Adam's decisions 244 and 245: the flag lists every category met in
+     the run, marking those of the questions the run stopped on.*
 137. **A question another installed skill requires a person to decide is
      exempt from filter 2 as well as filters 3 and 4.** It is asked now,
      and only filter 1 still applies. This amends decision 74.
@@ -1574,14 +1575,18 @@ igor PR #216. He gave 238 in shared-skills PR #1, on 2026-10-20 and
      from the repository holding the Igor's configuration (igor PR #216's
      decision 66). This change's lore repository is the one holding the
      entries, so that is where it reads both.
-238. **shared-skills PR #1 turns Discord's Message Content intent on**
+238. *Its last sentence amended by Adam's decision 246, which ended the
+     wait for an option that kept Discord off.*
+     **shared-skills PR #1 turns Discord's Message Content intent on**
      (Adam, 2026-10-20, PR #1's commit 369ae16), and its `check` reports
      `messageContent` as true, false or null, read from the bot's
      application flags (f83b167, decided by Adam on 2026-10-21). This
-     amends decision 191, which had PR #1 leave it off. discord-bot still
+     amends decision 191, which had PR #1 leave it off. discord-bot
      turns an `@name` in a post into a mention that notifies that member,
-     with no option to send the text as typed, so decision 230's item 1
-     keeps every Discord channel off whatever `check` reports.
+     and decision 246 keeps that for relay posts. So whether Discord is
+     on depends only on `check`'s report and setup's other checks, and
+     no longer on discord-bot gaining an option to post with mention
+     rewriting off.
 
 Adam gave 240 on 2026-10-21, ruling on decision 239. He gave 241 to 243
 the same day in the session reviewing igor PR #216, which records them
@@ -1624,7 +1629,7 @@ points to #216 for igor's mechanics:
 243. **A flagged run asks nothing on the item, and its question stays on
      the Igor's host.** A flagged run is one igor counts as having met a
      sensitive question: its worker reported the flag (decision 136, with
-     the category decision 244 adds), or it ended without the worker's
+     the categories decisions 244 and 245 add), or it ended without the worker's
      completed report (decision 221). Its handoff, the Igor's comment
      handing the item back, posts no question (#216's decision 73), gets
      no `igor:question` label, and reaches nothing in igor #211's
@@ -1632,11 +1637,13 @@ points to #216 for igor's mechanics:
      an operator-only file on its own host, never pushed, and the item
      stays held: a reply does not rerun it. What that file holds, and how
      a held item is released, are #216's, which this change points to
-     rather than restates (#216's decisions 76, 79 to 85, 88 and 89 at
-     8600ffe). In brief, the file holds the question's category where it
-     has one, otherwise its text, and the path of the run's session log,
-     moved beside it. The operator can always release the item on the
-     host with `igor release` (#216's decision 84), and an attributable
+     rather than restates (#216's decisions 73, 75, 76, 79 to 85, 88, 89,
+     97 and 98 at 82550ea). In brief, the file holds the categories the
+     worker's flag lists, the text of each stopped question that has no
+     category,
+     and the paths of the execution's session logs, moved beside it. The operator can always release the item on the
+     host with `igor release <tracker>/<repo>/<item>` (#216's decision 84,
+     whose form its decision 95 confirmed), and an attributable
      edit or label by someone with write access to the item's repository
      releases it too (#216's decisions 79 and 84).
      In this change, an Igor worker still asks only in its handback
@@ -1662,9 +1669,59 @@ answering its question on how the Igor learns a question's category
      the host that keeps the question (#216's decision 89), never into
      the execution ledger, the state branch, a comment or a label. This
      amends decision 136, which had the worker report a bare flag.
-     Decision 245 proposes the rule for two cases this leaves open: a
-     question with a category that does not stop the worker, and several
-     questions stopping it.
+     Decision 245 settles the two cases this leaves open: a question with
+     a category that does not stop the worker, and several questions
+     stopping it.
+
+Adam gave 245 and 246 on 2026-10-21. 245 rules on the decision this
+change had proposed under that number, and replaces it; 246 settles
+decision 230's item 1:
+
+245. **A flagged worker's flag lists every category met in the run, and
+     marks those of the questions it stopped on.** The flag lists each
+     category met in the run, `vulnerability`, `secret` or `personal`,
+     each at most once, and marks which belong to the question or
+     questions the run stopped on. The run here is one worker run: #216
+     has each worker run, a model step after the worker included, report
+     its own flag (its task-execution requirement). A category met on a question that did
+     not stop the worker, such as one decided under filter 4, is listed
+     too. The two lists are unpaired: the flag does not say which stopped
+     question had which category, and there is no per-question format. A
+     stopped question with no category adds nothing to the flag. The Igor
+     accepts a word only when it is exactly one of the three. How the
+     Igor stores what the flag carries, the case of several stopped
+     questions included, is igor PR #216's. #216's decision 92 has the
+     flag carry a category, and its decision 97 widens that to this
+     rule. Decision 97 also fitted three details of the host file: it
+     keeps the marked categories and the texts of stopped questions with
+     none as two unpaired lists; a word outside the three counts as no
+     category; and the Igor never follows a link in the directory that
+     holds the file. Adam confirmed those details on 2026-10-21; #216 at
+     82550ea still marks them for him to check. This
+     amends decision 244, which left both cases open.
+     As this change proposed it, 245 had a question that did not stop the
+     worker add no category, and listed only the stopped questions'
+     categories, in a fixed order. Adam reversed the first, and his
+     decision sets no order.
+     *Rejected:* one word per question, which tells the Igor how many
+     questions of each category stopped the run. This change rejected it
+     when it proposed 245, and Adam's decision, which has no
+     per-question format, rejects it too.
+246. **An @-mention in the person's own relayed answer pings that
+     person.** The answer session's relay posts through discord-bot with
+     its normal mention rewriting on, so an `@name` in the person's answer
+     notifies that member. No option to post with mention rewriting off
+     is needed. That option was wanted so that a quoted record's
+     @-mentions would not notify people a second time, and since decision
+     239's item 5 a `Recorded answer: ` post quotes nothing. Decision
+     230's item 1 asked two things of a Discord relay post: no header
+     line, and mention rewriting off. This decision drops the second.
+     The first is met by shared-skills PR #1, merged. discord-bot's `post` adds a header only
+     when `--agent`, `--session` or `--project` is given, and `header()`
+     returns an empty string otherwise (`.agents/skills/discord-bot/scripts/discord_bot.py`
+     on main at 90a0237). This amends decision 230's item 1, and the
+     last sentence of decision 238, which had kept every Discord channel
+     off until discord-bot gained the option.
 
 ### Proposed by this change
 
@@ -1684,7 +1741,8 @@ as written. Decision 230 came from this change too, and Adam confirmed
 it item by item, except items 4 and 5, which his decisions 232 and 235
 replace. Decision 239 came from this change too, and Adam confirmed it
 item by item, except item 2, which his decision 240 changes. Decision
-245 came from this change too, and waits for Adam.
+245 came from this change too, and Adam replaced it with his own decision
+245, recorded above.
 
 16. **Confirmed by Adam (2026-10-19).** **A prepared question** states the recommended answer, what changes under
     the other answer, and a link to any related earlier decision, so that most
@@ -2067,8 +2125,11 @@ from Adam's decisions 152 to 169. Adam confirmed each on 2026-10-20:
      11. A questions-branch file whose question has the same hash as one
          shown from a thread is not shown again.
      12. Until task 0.15 shows that GitHub's notifications endpoint reports
-         all four sources, the answer session also reads each subscribed
-         repository's comments. That costs a rate-limited request per
+         every GitHub message of the first three sources, the answer
+         session also reads each subscribed repository's comments. (This
+         item first said all four sources; the fourth, a questions-branch
+         log file, never appears in notifications, and is read by fetching
+         that branch at each poll.) That costs a rate-limited request per
          repository per poll, and a subscription to an owner costs one per
          repository of that owner.
      13. When `gh` does not confirm the configured login, GitHub is off.
@@ -2466,15 +2527,17 @@ confirmed it item by item on 2026-10-21, except items 4 and 5, which his
 decisions 232 and 235 replace:
 
 230. **Confirmed by Adam (2026-10-21) item by item, except items 4 and 5,
-     replaced by his decisions 232 and 235.** **Details the spec fixes,** each cheap to reverse, taken under
+     replaced by his decisions 232 and 235; his decision 246 amends item
+     1.** **Details the spec fixes,** each cheap to reverse, taken under
      filter 3 unless noted:
-     1. On Discord the answer session posts through discord-bot with none
-        of its header options, which put a line above the message, so a
-        relay post starts with its prefix, and with mention rewriting off,
-        so an `@name` in the person's words or a quoted record pings no
-        one. discord-bot is to gain that option in shared-skills PR #1;
-        until it does, every Discord channel stays off, so the answer
-        session neither reads nor posts on Discord.
+     1. *Amended by Adam's decision 246, which keeps mention rewriting
+        on and settles this item.* On Discord the answer session posts
+        through discord-bot with none of its header options, which put a
+        line above the message, so a relay post starts with its prefix.
+        As first written, it also posted with mention rewriting off, so
+        an `@name` in the person's words or a quoted record pinged no
+        one, and kept every Discord channel off until discord-bot gained
+        that option.
      2. The post reader treats `git rebase -x`/`--exec`, `git submodule
         foreach`, `git bisect run` and any other git form that runs a
         command it is given as code to run, so one that names `gh` is
@@ -2605,57 +2668,47 @@ this change's own:
         raises when it meets a question with a category and which says
         nothing more, is raised by the model steps igor PR #153 runs after
         the worker as by the worker itself (#216's decisions
-        60 and 64; decision 244 later adds the category of a question
-        that stops the worker); the Igor's handling of a handback answer
+        60 and 64; decisions 244 and 245 later add the categories the
+        flag lists); the Igor's handling of a handback answer
         (`authority`, `answered_by`, the relay files it reads, and the
         answer it records) is pointed to, not restated. #216's decisions
         58 and 59,
         on fetching under `igor run` and the hashed record of handback
         questions, contradict nothing here.
 
-Decision 245 came from writing Adam's decision 244 into the
-requirements, which left the worker's report undefined in two cases. It
-is this change's own and waits for Adam:
-
-245. **Proposed, for Adam to confirm.** **The flag carries the
-     categories of the questions that stop the worker, each once.**
-     Decision 244 names the category of the question that stops the
-     worker, and two cases need a rule:
-     1. A question with a category that does not stop the worker, such
-        as one it decides under filter 4, raises the flag with no
-        category. The host file keeps only the question the run stopped
-        on, so a question that did not stop it has no place there.
-     2. When several questions stop the worker, the flag carries each
-        category among them once, in the order `vulnerability`,
-        `secret`, `personal`, each one word with no other text. A
-        stopping question with no category adds no word to the flag;
-        what the host file keeps for it is #216's.
-        *Rejected:* one word per question, which tells the Igor how many
-        questions of each category stopped the run, more than the host
-        file needs.
-
 **Still open:**
 
-Decision 245 waits for Adam. Decision 230's item 1 still waits
-on shared-skills PR #1 for an option that sends with mention rewriting
-off; until it has one, Discord stays off.
+Three questions for Adam, which spec-check's consistency read found on
+2026-10-21 while decisions 245 and 246 were being recorded:
+- **A Discord `@name` that discord-bot cannot resolve stays plain text,**
+  with a warning in discord-bot's output, when member search is refused
+  (`check`'s `memberSearch: false`) or no member's name matches exactly.
+  Decision 246 means the person expects a ping. Options: the answer
+  session shows discord-bot's warnings to the person after the post
+  (recommended: the person learns at once, and nothing else changes);
+  setup also fails the Discord relay when `memberSearch` is false; or
+  neither.
+- **A questions-branch answer relayed on Linear or Discord** cannot have
+  that relay post as its `answer_link`, which the log format allows only
+  as a github.com URL, and the `log` command reads through GitHub, so
+  as written such an answer is never logged. Options: off GitHub, the
+  file has no `answer_link` and records the confirmed answer as the
+  person's words under decision 240, as for an answer not relayed
+  (recommended: it matches how a picker answer is recorded); or the
+  format gains a non-GitHub link that the `log` command records without
+  reading.
+- **spec-trace counts a skipped test's `@scenario` tag as coverage,** so
+  the Igor-worker scenarios task 4.3 tags on skipped tests pass CI with
+  nothing built behind them. Options: a list of scenarios spec-trace
+  reports as not built (recommended: CI stays honest without failing);
+  leave those scenarios untagged until igor builds what they need; or
+  accept it, as task 4.3 does now.
 
-For igor PR #216, at 8600ffe, which records Adam's decisions up to 90
-in #216's own numbering:
-- **#216 should record decision 244 as its own,** and amend its
-  decisions 13 and 89 and its `task-execution` requirement, which still
-  have a worker report a bare flag with no category and leave open how
-  the Igor learns one.
-- **A handback can stop on more than one question.** #216's host file
-  keeps "the question" of a flagged run, and decision 244 has a worker
-  report one category word. Which category, or which text, the file
-  keeps when several questions stopped the run is #216's to settle;
-  decision 245 proposes what the worker reports.
-- **The category word comes from the worker,** which a steered worker
-  controls. #216 should have the Igor write it into the host file only
-  when it is exactly one of the three words, and otherwise treat the flag
-  as carrying no category, so no free text reaches the file in place of
-  a categorized question's category.
+Open on igor PR #216's side, at 82550ea, which records Adam's decisions
+up to 99 in #216's own numbering, decisions 244 and 245 among them as
+its decisions 92 and 97:
+- **#216 should record Adam's confirmation of decision 97's three fitted
+  details** (2026-10-21), which it still marks for him to check.
 - **How an Igor runs the inquisitor skill itself** has no mechanism yet in
   #216 or igor #211. Settled: igor marks that run with `IGOR_RUN=igor`,
   and the script then searches lore only through `igor lore-search` and
@@ -2685,10 +2738,9 @@ elsewhere that this change depends on:
 - igor PR #153, signed publishing (decision 124);
 - in bug-hunter, a rule for a vulnerability fix's regression test
   (decisions 108 and 205);
-- shared-skills PR #1, which turns Discord's Message Content intent on
-  and reports it in `check` (decision 238), and which should give
-  discord-bot an option that sends text with mention rewriting off
-  (decision 230); at f83b167 it has none;
+- shared-skills PR #1, merged, which turns Discord's Message Content
+  intent on and reports it in `check` (decision 238), and posts with no
+  header line unless a header option is given (decision 246);
 - a change to the github-app skill, not yet open, under which its `token`
   command refuses an identity marked as a relay (decision 233);
 
@@ -2772,8 +2824,8 @@ item on Igor-worker mode.
   - its task-execution requirement *Transcripts and outcomes are captured
     to the state branch* defines the flag a worker raises when its
     run meets a question with a category, and what the Igor does with it
-    (decision 136 here), and should carry the category a stopped worker
-    adds (decision 244 here);
+    (decision 136 here), with the categories the flag lists (its
+    decisions 92 and 97; decisions 244 and 245 here);
   - its requirement *An Igor publishes the questions-branch files its
     worker reports* says when and which of a worker's question, miss and
     `authority: agent` files the Igor pushes, including the answer to a
@@ -2811,12 +2863,10 @@ item on Igor-worker mode.
     repository is no more visible than the file, judged by the more
     private of its `repository` and `asked_from` (its decisions 25, 27
     and 42; decisions 148, 151 and 221 here);
-  - its `graceful-handoff` and `work-triage` deltas have a flagged run's
-    handback ask nothing, add no `igor:question` label, keep the question
-    on the Igor's host, its category where it has one, and hold the item
-    until `igor release` or an attributable edit or label by someone with
-    write access releases it (its decisions 73, 75, 76, 79 to 85, 88 and
-    89; decisions 243 and 244 here).
+  - its `graceful-handoff` and `work-triage` deltas hold igor's side of
+    decision 243: the flagged run's handoff, its host file and the
+    release of a held item (its decisions 73, 75, 76, 79 to 85, 88, 89,
+    95, 97 and 98; decisions 243 to 245 here).
 - **igor PR #153, signed publishing,** would have an Igor whose role
   lists prose or bug-hunter push only commits that went through those
   skills and carry their trailers. Citation commits

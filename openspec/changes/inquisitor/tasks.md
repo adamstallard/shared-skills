@@ -68,7 +68,7 @@ contradicts what design.md assumed.
 - [ ] 0.17 That a `discord-bot` identity can read a subscribed channel's
       history and threads, see a mention of the person's user id and a
       reply to the relay's message, and that the relay can edit its own
-      message, once shared-skills PR #1 has merged. Reading the content
+      message, with discord-bot as merged in shared-skills PR #1. Reading the content
       of a message that doesn't mention the bot needs Discord's privileged
       Message Content intent, which PR #1 turns on for reading and its
       `check` reports as `messageContent` (decision 238); record that a
@@ -299,8 +299,8 @@ contradicts what design.md assumed.
       by hash only, what a headless session does (no picker, an Igor
       worker asking only in its handback comment, stopping on a
       categorized question, and an Igor worker raising igor's flag
-      for a categorized question, with the category only when that
-      question stops it), describing no
+      for a categorized question, listing once each category its worker run met
+      and marking those of the questions it stopped on), describing no
       weakness in public text before its advisory is published, reviewing
       misses, and lessons by scope
 - [ ] 5.2 `README.md`: what the skill is for, `inquisitor.json` and
@@ -323,11 +323,10 @@ contradicts what design.md assumed.
 
 ## 6. The answer session
 
-- [ ] 6.0 Start only after shared-skills PR #1, which adds discord-bot,
-      has merged (decision 165). The Discord relay posts with no header
-      option and with mention rewriting off; if discord-bot has no option
-      for that, every Discord channel stays off (decision 230). At
-      PR #1's f83b167 it has none
+- [ ] 6.0 Build on discord-bot as shared-skills PR #1 merged it
+      (decision 165). The Discord relay posts with no header option and
+      with mention rewriting on, as discord-bot always posts (decisions
+      230 and 246)
 - [ ] 6.1 The mod, built into the inquisitor skill from the tag
       `answer-session-ui-approved-v0.1-30` on shared-skills (build v0.1-30,
       commit c9c6eb5; `ui-approved-v0.1-30` in Adam's local prototype

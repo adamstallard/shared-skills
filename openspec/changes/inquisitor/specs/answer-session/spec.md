@@ -231,13 +231,6 @@ never ran.
   Content intent, or why the check could not read it, and every Discord
   channel stays off
 
-#### Scenario: Discord stays off while discord-bot cannot turn mention rewriting off
-
-- **WHEN** discord-bot's `check` reports `messageContent` as `true`, and
-  discord-bot has no option to post with mention rewriting off
-- **THEN** setup counts the Discord relay's check as failed, saying why,
-  and every Discord channel stays off
-
 #### Scenario: A refused post turns a channel no check can read off
 
 - **WHEN** no check can read whether the Linear relay may post in a
@@ -463,10 +456,12 @@ On GitHub it SHALL read the notifications endpoint with a conditional
 request, sending the `Last-Modified` time of the previous response, and
 SHALL wait at least the `X-Poll-Interval` that GitHub's last response set
 before polling it again. Until task 0.15 shows that the notifications
-endpoint reports all four sources, the answer session SHALL also read each
-subscribed repository's issue and pull request comments since its poll
-position. It SHALL fetch the questions branch of each configured lore
-repository at each poll.
+endpoint reports every GitHub message of the first three sources in *A
+question asked of the person comes from one of four sources*, the answer
+session SHALL also read each subscribed repository's issue and pull
+request comments since its poll position. The fourth source never
+appears in notifications: the answer session SHALL fetch the questions
+branch of each configured lore repository at each poll.
 
 #### Scenario: Opening catches up
 
@@ -495,7 +490,8 @@ repository at each poll.
 #### Scenario: Comments are read until the notifications endpoint is measured
 
 - **WHEN** task 0.15 has not shown that the notifications endpoint reports
-  all four sources, and the answer session polls a subscribed repository
+  every GitHub message of the first three sources, and the answer session
+  polls a subscribed repository
 - **THEN** it also reads that repository's issue and pull request comments
   since its poll position
 
@@ -557,13 +553,12 @@ patterns, and SHALL post nothing that matches.
 On Discord the answer session SHALL post through discord-bot with none of
 its header options (`--agent`, `--session`, `--project`, which put a line
 above the message), so the message starts with its reserved prefix, and
-with discord-bot's mention rewriting off. discord-bot rewrites an `@name`
-into a mention that notifies that member, and a `#channel` into a link;
-with it off, both are sent as typed. discord-bot is to gain that option in
-shared-skills PR #1, which at f83b167 still has none. Until it has one,
-setup SHALL count the Discord relay's own check as failed, with that
-reason, whatever `messageContent` says, so every Discord channel stays
-off and the answer session reads and posts nothing on Discord.
+with discord-bot's mention rewriting on, as discord-bot always posts. The
+text it passes is the answer as the person confirmed it; discord-bot
+then rewrites an `@name` into a mention that notifies that member, and a
+`#channel` into a link, so an `@name` in the person's answer pings that
+member (proposal decision 246). An `@name` that discord-bot cannot match
+to one member of the server stays plain text and pings no one.
 
 When a post fails, because the surface refuses it, such as a Discord
 message over 2,000 characters, or because its command fails, the answer
@@ -583,12 +578,13 @@ used* says.
   holding the question comment's URL, and the comment's id is saved in the
   state folder
 
-#### Scenario: A Discord relay post has no header and pings no one
+#### Scenario: A Discord relay post has no header and pings whom the person names
 
-- **WHEN** the person confirms the Discord answer "ask @maya, see #ops"
-- **THEN** the relay posts through discord-bot with no header option and
-  with mention rewriting off, so the message starts `User says: ask @maya,
-  see #ops` and notifies no one
+- **WHEN** the person confirms the Discord answer "ask @maya, see #ops",
+  and the channel's server has a member maya and a channel ops
+- **THEN** the relay posts through discord-bot with no header option, so
+  the message starts `User says: ask `, followed by a mention of maya
+  that notifies her, and `#ops` is a link to that channel
 
 #### Scenario: A Discord answer replies to the question
 
