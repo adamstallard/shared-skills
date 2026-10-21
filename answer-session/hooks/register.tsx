@@ -241,7 +241,7 @@ const RULE = 'subtle'
 // Prototype only: shown in the top bar, so a tester can tell which build is
 // loaded. v0.1-N, N the number of commits in the prototype repository once
 // this build is committed.
-const BUILD = 'v0.1-24'
+const BUILD = 'v0.1-25'
 const PREFIX = 'User says: '
 // The tool the session's model calls to put a drafted reply in the prompt box.
 const PROPOSE_TOOL = 'mcp__answer-session__propose_reply'
@@ -442,7 +442,7 @@ function systemPrompt(q: Question, returned?: Returned): string {
 function discussionContext(q: Question, returned?: Returned, editing?: string): string {
   return [
     editing === undefined
-      ? `[Answer session] Adam's message is about a question relayed to him (${q.link}). He is talking it through before he answers it.`
+      ? `[Answer session] Adam's message is about a question relayed to him (${q.link}). He is talking to you about it before he answers: to understand it, to have you draft his reply, or both.`
       : `[Answer session] Adam's message is about a question relayed to him (${q.link}). He already posted in its thread and is editing that post, which now says: "${editing}". If he asks you to draft the new version, call the tool with the full replacement text.`,
     '',
     systemPrompt(q, returned),
@@ -669,13 +669,16 @@ function commands(c: Ctx): Command[] {
   return [
     ...(c.open
       ? [
-          { key: 't', what: '(t)alk it through' },
+          // One conversation with Claude either way: to understand the
+          // question, to have a reply drafted, or both. Named for what a
+          // question without suggested answers needs most.
+          q.options ? { key: 't', what: '(t)alk to Claude' } : { key: 'h', what: '(h)elp me answer' },
           ...(q.answered ? [{ key: 'c', what: '(c)ite the decision' }] : []),
           { key: 'l', what: '(l)ater' },
         ]
       : c.editing
         ? [
-            { key: 't', what: '(t)alk it through' },
+            { key: 'h', what: '(h)elp me edit' },
             { key: 'k', what: '(k)eep it as posted' },
           ]
         : [{ key: 'e', what: '(e)dit your post' }]),
@@ -711,6 +714,7 @@ async function runCommand($: EngineInterface, c: Ctx, key: string): Promise<stri
   }
   switch (key) {
     case 't':
+    case 'h':
       return openTalk($, q)
     case 'c':
       return cite($, q)
@@ -763,6 +767,8 @@ function intent(c: Ctx, draft: string): Intent {
     const option = q.options[index]
     return option ? { kind: 'option', index, text: option.label } : { kind: 'refused', why: `There is no answer ${text}.` }
   }
+  // One letter is never an answer: it is a command, or a slip.
+  if (text.length === 1) return { kind: 'refused', why: `${text} is not a command here: the key row lists them.` }
   return { kind: 'relay', text }
 }
 
@@ -968,7 +974,7 @@ const addTurn = ($: EngineInterface, id: string, turn: Turn) =>
 async function openTalk($: EngineInterface, one: Question): Promise<string> {
   await update($, flashAtom, () => null)
   await update($, talkingAtom, () => one.id)
-  return 'Talking it through'
+  return 'Talking to Claude'
 }
 
 async function backToQuestion($: EngineInterface, one: Question): Promise<string> {
@@ -1395,7 +1401,7 @@ export const register: Register = on => {
       </Button>
     )
     const tally = [`${fresh} new`, `${relayed} relayed`, `${deferred} for later`, ...(waiting ? [`${waiting} waiting`] : [])].join(' · ')
-    const where = [...(base ? [`${at + 1} of ${N}`] : []), ...(isTalking ? (cols >= 120 ? ['talking it through'] : []) : cols >= 120 || !base ? [tally] : [])].join(' · ')
+    const where = [...(base ? [`${at + 1} of ${N}`] : []), ...(isTalking ? (cols >= 120 ? ['talking to Claude'] : []) : cols >= 120 || !base ? [tally] : [])].join(' · ')
     const bar = (
       <Box height={1} overflow="hidden" justifyContent="space-between" width={cols} gap={2}>
         <Box gap={2} flexShrink={0}>
@@ -1822,7 +1828,7 @@ export const register: Register = on => {
       return frame(body, hints, cmds)
     }
 
-    // ── talking it through: this question only, the queue waits ──────────
+    // ── talking to Claude: this question only, the queue waits ───────────
     //
     // The discussion is the conversation above the band: each message goes to
     // the session's model with the question attached, and the reply shows
@@ -1860,7 +1866,7 @@ export const register: Register = on => {
       const head: Row = (
         <Text wrap="truncate-end">
           <Text color={ACCENT}>◇ </Text>
-          <Text dimColor>TALKING IT THROUGH</Text>
+          <Text dimColor>TALKING TO CLAUDE</Text>
           <Text dimColor>{c.editing ? ' · for your edit, in the conversation above' : ' · in the conversation above'}</Text>
         </Text>
       )
@@ -1881,7 +1887,7 @@ export const register: Register = on => {
               : said
                 ? []
                 : wrap(
-                    `Type what you want to understand. Claude gets the question with it and may read the thread and the code before it answers; the reply shows above. The rest of the queue waits.`,
+                    `Ask anything about the question, or tell Claude what to say and it drafts your reply for you to check. It gets the question with your message and may read the thread and the code first; its reply shows above. The rest of the queue waits.`,
                     width,
                   ).map(line => plain(line, { dim: true }))
       const pending: Row[] =
