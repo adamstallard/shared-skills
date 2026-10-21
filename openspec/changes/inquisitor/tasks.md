@@ -27,8 +27,9 @@ contradicts what design.md assumed.
       added a decision, from a `DECISIONS.md` section through blame, the
       commit and its pull request's reviews
 - [ ] 0.9 How the script tells a session with a person in it from a
-      headless run, such as an Igor worker or `claude -p`, which Igor
-      role a worker runs, which lore repository its Igor injects from, and
+      headless run, such as an Igor worker or `claude -p`, whether it
+      runs in an Igor's run, a worker's or the Igor's own inquisitor run
+      (decision 229), and
       whether a headless session that is not an Igor worker can post
 - [ ] 0.10 Whether the agent can open, and write in, a repository's private
       security advisory, and what access that needs
@@ -97,11 +98,19 @@ contradicts what design.md assumed.
       comment counts as a relayed answer, and an agent treats an
       `Inquisitor: ` reply as input. If GitHub does not, both stay so for
       good, record that, and stop for Adam
-- [ ] 0.22 Whether setup, through the person's `gh` login, can read
-      whether a lore repository's default branch requires a review
-      before a pull request merges, so that it can warn when
-      `relays.yaml` could change unreviewed (proposal *Still open*). If it
-      can't, setup says it could not check
+- [ ] 0.22 What a reader needs to tie a relay file to its person
+      (decision 225): that GitHub's API gives, for the newest commit that
+      changed `relays/<login>.yaml`, the merged pull request it came from
+      and that pull request's author, after a merge commit, a squash and a
+      rebase alike, such as through `commits/<sha>/pulls`; and whether a
+      commit GitHub signs itself, from its web editor or its contents API,
+      is verified for an account other than its author's, which would let
+      anyone with push access make a commit verified for another person.
+      This applies to decision 78's signature proof as well. Task 0.11
+      measures the rest of reading a signature. If the pull request can't
+      be read, only a signature proves the file. Until this task shows
+      GitHub never verifies such a commit for someone who didn't make it,
+      a signature GitHub made itself proves nothing
 
 ## 1. Shared post reader
 
@@ -167,23 +176,25 @@ contradicts what design.md assumed.
       more than 2 hours old except a `deferred` record without a category
 - [ ] 2.3 Filter 1's search over decision documents, issues through `gh`, the
       repository's question log and misses, and configured lore clones' entries and
-      `questions` branch, fetched and read with `git show`, and during an
-      Igor's run only the lore repository the Igor injects from, or none
-      when the script can't tell which (decision 133); the authority
+      `questions` branch, fetched and read with `git show`, matched as
+      plain text and ranked by terms matched, with a cap it reports
+      (decision 229), and during an Igor's run lore only through `igor
+      lore-search` (decisions 133 and 229); the authority
       rules, with scope as igor's `scopeMatches` gives it inside an Igor
       and by the short name outside one, and a decision record counted
       only when `accepted`, a change's own decisions within that change, and
       a questions-branch `decision` file only with its writer proven by a
       linked comment or a verified signature (decision 78), the comment
       holding the file's answer by normalized containment (decision 213),
-      a relayed answer only from an App the lore repository's
-      `relays.yaml` lists as the person's relay (decision 216), only the
+      a relayed answer only from an App the person's `relays/<login>.yaml`
+      lists, counted only when its last change came from that person
+      (decisions 216, 224 and 225), only the
       newest answer counting among a question's files there (decision
       220), a file's visibility taken from the more private of its
       `repository` and `asked_from` (decision 221), and, during an Igor's
       run, a file about a repository other than the
       item's shown as input (decision 214), while an
-      `agent` file there is always input; each source not searched; when
+      `agent` file on a questions branch is always input; each source not searched; when
       each clone's remote-tracking default branch was last updated by a
       fetch
 - [ ] 2.4 `log` and `miss`, writing one file per question or miss in the
@@ -226,6 +237,9 @@ contradicts what design.md assumed.
       `questions` branch, or refusing it by visibility, by an id outside
       igor's id rule, or, during an Igor's run, by an id reported only as
       "id taken"
+- [ ] 2.8 `relay-notice.yml`, the workflow template a lore repository
+      carries to mention a relay file's person, modelled on igor PR #171's
+      `templates/seat-notice.yml` (decision 228)
 
 ## 3. Hooks
 
@@ -297,11 +311,12 @@ contradicts what design.md assumed.
       the candidates, each relay check, saving the file with the person's
       own keys kept, a failed identity's surface or a failed channel left
       off and checked again at each opening, the Linear key in the
-      keychain, `~/.local/bin/answer`, and the pull request adding the
-      person's relay identities to each serving lore repository's
-      `relays.yaml` (decision 216). Filter 1, and every check that reads a
-      comment's author, reads that file from the lore clone's default
-      branch
+      keychain, `~/.local/bin/answer`, the pull request writing the
+      person's `relays/<login>.yaml` in each serving lore repository
+      (decision 224), and the one adding `relay-notice.yml` where it is
+      missing. Filter 1, and every check that reads a comment's author,
+      reads that file from the lore clone's default branch, and counts it
+      only when its last change came from its person (decision 225)
 - [ ] 6.3 Polling: the four sources, only while open, the catch-up on
       opening, 60 seconds or GitHub's `X-Poll-Interval`, conditional
       requests, poll positions, and the lore questions branches
@@ -325,22 +340,25 @@ contradicts what design.md assumed.
       and the README's section on the answer session: setup, the `answer`
       command, what to do when a relay check fails, and that no post but
       the answer session's starts with a reserved prefix
-- [ ] 6.9 Prototype declining a question, with its three reasons, and
-      reason 3's choice of filter and the exact post shown before it goes
-      out (decision 209), and the
-      list of questions answered and handled for the person, in
-      `~/answer-session-prototype`, until Adam approves them by using it
-      (decision 147). Do this before 6.1 builds these screens. 6.1 builds
-      the rest of the mod from `ui-approved`, and these screens from the
-      tag of this approval
+- [ ] 6.9 Adam's approval, by use, of the screens prototyped after
+      `ui-approved` (decisions 147 and 226): declining a question, with
+      its three reasons, reason 3's choice of filter and the exact post
+      shown before it goes out (decision 209), and the list of questions
+      answered and handled for the person. They are builds v0.1-28 to
+      v0.1-30 of Adam's local prototype repository,
+      `~/answer-session-prototype`, whose `main` pushes to shared-skills'
+      branch `prototype/answer-session-ui`. Once Adam approves them, tag
+      that build in that repository; 6.1 builds the rest of the mod from
+      `ui-approved` and these screens from that tag
 - [ ] 6.10 Filter 1 on every incoming question and the `Recorded answer: `
       post; filters 2 to 4 and the three fixed `Inquisitor: ` texts;
       declining with its three reasons, and reason 3's posts; the misses
       on the questions branch, with `filter: "source <n>"` and
       `said: "not a question"` for the second reason, a miss against
       filter 1 for an agent's question it answers by itself, and no
-      second miss for the same question; no automatic post on a relayed
-      question, and none that repeats an automatic post made earlier in
+      second miss for the same question; a recorded answer by itself on a
+      relayed question, and no `Inquisitor: ` post on one (decision 223),
+      and no automatic post that repeats an automatic post made earlier in
       its chain of replies (decision 219); a
       questions-branch question asked in a post answered in its thread
       and by a log file; a refused post turning off a channel no check

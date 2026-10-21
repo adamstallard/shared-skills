@@ -125,43 +125,51 @@ Terms used throughout this spec:
   clone, and `owners` or `repos`, what it serves; and its key
   `answer_session` holds the answer session's configuration, which the
   `answer-session` spec defines.
-- **An Igor's App** is the GitHub App an Igor posts and pushes as.
-- **A lore repository's relay file** is the file `relays.yaml` at the root
-  of that lore repository's default branch, as the clone's remote-tracking
-  branch last fetched it, beside igor's `igor.config.yaml` and `roles/`. It names
-  each person's relay identities, the bots their answer session posts
-  through. It is YAML: a mapping whose keys are GitHub logins, each
-  holding a mapping with any of the keys `github`, `linear` and
-  `discord`, each a list of quoted strings. Under `github` each string is
-  the slug of a GitHub App, which GitHub shows as a comment's author
-  `<slug>[bot]`; under `linear`, a Linear app user's id; under `discord`, a
-  Discord bot's user id. For example:
+- **An Igor's App** is the GitHub App an Igor posts and pushes as. How a
+  reader tells that an App is an Igor's is still open (proposal *Still
+  open*).
+- **A person's relay file** is the file `relays/<login>.yaml` in a lore
+  repository, where `<login>` is the person's GitHub login, compared without regard
+  to case, read from that
+  lore repository's default branch as the clone's remote-tracking branch
+  last fetched it, beside igor's `igor.config.yaml`, `roles/` and `seats/`.
+  It names the person's relay identities, the bots their answer session
+  posts through. It is YAML: a mapping with any of the keys `github`,
+  `linear` and `discord`, each a list of quoted strings. Under `github`
+  each string is the slug of a GitHub App, which GitHub shows as a
+  comment's author `<slug>[bot]`; under `linear`, a Linear app user's id;
+  under `discord`, a Discord bot's user id. For example, in
+  `relays/adamstallard.yaml`:
 
   ```yaml
-  adamstallard:
-    github: ["adam-relay"]
-    discord: ["123456789012345678"]
+  github: ["adam-relay"]
+  discord: ["123456789012345678"]
   ```
 
-  The file SHALL change only through a pull request that a person with
-  write access to the lore repository reviews, as a lore entry does; the
-  answer session's setup proposes one, and nothing pushes the file
-  directly. A person SHALL list only an App that posts nothing a post hook
-  cannot see apart from the answer session's own posts, and never an
-  Igor's App. A reader SHALL read the file only from the default branch. A
-  file that is missing or does not parse lists no relay; a key that is not
-  GitHub's login syntax, or a value that is not a list of strings, lists
-  none for that key, and the rest of the file still counts. Only the
-  `github` lists prove anything: an answer on Linear or Discord is input
-  whoever posted it. Nothing in this spec reads the `linear` and
-  `discord` lists; they record which identities post for the person
-  there.
-- **A person's relay App** is a GitHub App whose slug a relay file lists
-  under that person's login and `github`: the relay file of the team's
-  lore repository, or, for a file on a lore repository's questions
-  branch, that lore repository's relay file. An App the person owns that
-  the file does not list is not their relay App, and an Igor's App never
-  is, even where a relay file lists it.
+  The person adds or changes their file with their own pull request, or
+  with a commit of theirs that GitHub verifies as signed by them; the answer session's setup proposes the pull
+  request, and never pushes the file. No review is required. A reader SHALL count a relay file only when its
+  last change came from its person: the newest commit on the default
+  branch that changed the file, by git's default history, belongs to a
+  merged pull request that GitHub associates with that commit and that
+  the person authored, or carries a signature GitHub verifies for the
+  person's account, as the writer proof of *Only an answer with authority
+  stops a question* reads a signature. Otherwise, and whenever the check
+  cannot run, the file lists no relay. A file that is missing, does not
+  parse, or whose name is not GitHub's login syntax lists no relay; a
+  value that is not a list of strings lists none for that key, and the
+  rest of the file still counts. A person SHALL list only an App that
+  posts nothing a post hook cannot see apart from the answer session's
+  own posts, and never an Igor's App. Only the `github` list proves
+  anything: an answer on Linear or Discord is input whoever posted it.
+  Nothing in this spec reads the `linear` and `discord` lists; they
+  record which identities post for the person there.
+- **A person's relay App** is a GitHub App whose slug is in the `github`
+  list of that person's relay file, counted as above: the relay file in
+  the lore repository that serves the question's repository, or, for a file on a lore repository's
+  questions branch, the one in that lore repository. An App the person
+  owns that their file does not list is not their relay App, and an
+  Igor's App never is, even where a relay file lists it.
 - **More visible**: visibility is ranked private, then internal (GitHub's
   `INTERNAL`), then public. A repository
   the question concerns whose visibility cannot be read counts as private;
@@ -321,11 +329,10 @@ Filter 1 SHALL search:
 
 During an Igor's run, the search SHALL cover only the lore repository the
 Igor injects lore from, and no other configured lore repository. In a
-worker, igor's command searches it, as the paragraph on Igor workers
-below says. In an inquisitor run the Igor starts itself, with no worker,
-the script searches it, and when the script cannot tell which lore
-repository that is, it SHALL search no lore repository, and its output
-SHALL say that lore was not searched.
+worker, and in an inquisitor run the Igor starts itself with no worker,
+igor's command searches it, as the paragraph on Igor workers below says,
+as Adam settled on igor PR #216; the script reads no lore clone during a
+run.
 
 The search SHALL run the same way in an Igor worker as in any other
 session, except for its sources, which the paragraph on Igor workers below
@@ -335,7 +342,8 @@ Inside an Igor it SHALL follow the rule for a search during a run that
 igor PR #216 adds to igor's lore-firing requirement *Lore reaches the
 worker unbidden*: it shows only entries whose scope covers the run's role
 by firing's scope rule, which includes `project:` entries for every
-repository the role works. That requirement and igor's
+repository the role works. #216 applies its visibility rule for
+questions-branch files to `project:` entries too. That requirement and igor's
 [*An Igor runs its worker's lore searches*](https://github.com/adamstallard/igor/blob/spec-lore-search/openspec/changes/lore-search/specs/lore-firing/spec.md),
 in #216, set which question and miss files on the questions branch a
 search during a run may show. In short, it may show any such file of the
@@ -345,16 +353,24 @@ does not restate the rules. Outside an
 Igor, an
 entry is in scope when its `scope` is `global`, or `project:<name>` where
 `<name>` is the short name of the repository the question concerns, the
-part after the `/`. When the
-script cannot tell which Igor role it runs in, it SHALL show only `global`
-entries.
+part after the `/`.
+
+The search SHALL match plain text, with no embedding and no model call:
+the question's terms against a lore entry's `claim`, `conditions` and
+body, and against a questions-branch or log file's question. It SHALL
+rank hits by the number of terms each matches, show at most a fixed
+number of them, the number `igor lore-search` shows, which igor PR #216
+is to state, and say when it left hits out. `igor lore-search` matches
+and ranks the same way, as Adam settled on igor PR #216, so a question
+gets the same hits inside an Igor's run as outside one.
 
 The search SHALL report each source it could not search, and each lore
 clone's remote-tracking default branch's last update by a fetch in that
 clone, or that the time is unknown. Outside an Igor's run, it needs no
 Igor role, no Igor configuration and no Igor service.
 
-In an Igor worker, filter 1 SHALL search lore only by calling `igor
+In an Igor worker, and in an inquisitor run the Igor starts itself with
+no worker, filter 1 SHALL search lore only by calling `igor
 lore-search`, the read-only search command that igor's lore-firing
 requirement
 [*An Igor runs its worker's lore searches*](https://github.com/adamstallard/igor/blob/spec-lore-search/openspec/changes/lore-search/specs/lore-firing/spec.md),
@@ -372,9 +388,9 @@ whenever a check can't run or fails. Filter
 lore entry by its status, with the labels that *Only an answer with
 authority stops a question* gives. Filter 1 reads no lore clone
 itself.
-Besides the command's results, the search SHALL cover only the worker's
-working tree, and SHALL report every other source as not searched,
-GitHub's issues included. When the
+In a worker, besides the command's results, the search SHALL cover only
+the worker's working tree, and SHALL report every other source as not
+searched, GitHub's issues included. When the
 command is missing, fails, or exits with an error because it got no
 question on standard input, the search SHALL search no lore and say so.
 
@@ -384,12 +400,18 @@ question on standard input, the search SHALL search no lore and say so.
   item an Igor's run works, and the Igor injects lore from one of them
 - **THEN** the search covers only that one
 
-#### Scenario: An Igor's run whose lore repository is unknown searches no lore
+#### Scenario: An Igor's own inquisitor run searches lore through igor's command
 
-- **WHEN** during an Igor's run the script cannot tell which lore
-  repository the Igor injects lore from
-- **THEN** the search covers no lore repository, and its output says lore
-  was not searched
+- **WHEN** an Igor starts an inquisitor run itself, with no worker, and
+  the question's filter 1 runs
+- **THEN** the search reads lore only through `igor lore-search`, and
+  reads no lore clone itself
+
+#### Scenario: Hits are ranked by terms matched and capped
+
+- **WHEN** more lore entries match a question than the search shows
+- **THEN** it shows those matching the most of the question's terms, and
+  says that it left hits out
 
 #### Scenario: An Igor worker searches lore through igor's command
 
@@ -420,12 +442,6 @@ question on standard input, the search SHALL search no lore and say so.
 - **WHEN** an agent working in no git repository runs filter 1, and two
   lore repositories are configured
 - **THEN** the search covers the entries of both
-
-#### Scenario: An Igor with an unknown role sees only global entries
-
-- **WHEN** the script cannot tell which Igor role it runs in, and an
-  `active` entry scoped `project:api` matches the question
-- **THEN** the search does not show it, and shows only `global` entries
 
 #### Scenario: A lore entry answers a question in a plain session
 
@@ -516,7 +532,10 @@ these:
   comment's author as `answered_by`, or the comment is a relayed answer
   of `answered_by`'s, or
   when the commit that added the file carries a
-  signature GitHub verifies for `answered_by`'s account;
+  signature GitHub verifies for `answered_by`'s account. A signature
+  GitHub made itself, as for a commit from its web editor or contents
+  API, SHALL count only once task 0.22 shows that GitHub never verifies
+  such a commit for an account that did not make it;
 - an in-scope lore entry whose `status` is `active`.
 
 A linked comment **holds the answer** a log file records when the
@@ -642,48 +661,74 @@ agent. The search SHALL never show a rejected candidate.
 - **WHEN** a `decision` file on a lore questions branch names `alice` as
   `answered_by` and links a comment that starts with `User says: `, holds
   the answer the file records, and was written by the GitHub App
-  `alice-relay`, which that lore repository's relay file lists under
-  `alice` and `github`, `alice` has write access to what the question
-  concerns, no commit after the one that added the file changed it, and
-  task 0.21 has shown that GitHub reports which App wrote a comment
+  `alice-relay`, which `relays/alice.yaml` in that lore repository lists
+  under `github`, the last change to `relays/alice.yaml` came from a
+  merged pull request `alice` authored, `alice` has write access to what the question
+  concerns, no commit after the one that added the `decision` file changed
+  it, and task 0.21 has shown that GitHub reports which App wrote a
+  comment
 - **THEN** filter 1 treats it as an answer
+
+#### Scenario: A relay file last changed by a signed commit of its person counts
+
+- **WHEN** the newest commit on the lore repository's default branch that
+  changed `relays/alice.yaml` was pushed directly, with no pull request,
+  and carries a signature GitHub verifies for `alice`'s account
+- **THEN** the Apps that file lists under `github` are `alice`'s relay
+  Apps
+
+#### Scenario: A relay file someone else last changed lists no relay
+
+- **WHEN** `relays/alice.yaml` lists `alice-relay`, and the newest commit
+  that changed it came from a pull request `bob` authored and merged, or
+  was pushed directly with no signature GitHub verifies for `alice`,
+  though its author email is hers
+- **THEN** `alice` has no relay App there, and a `decision` file linking a
+  `User says: ` comment by `alice-relay` is shown labelled as unconfirmed
+
+#### Scenario: A relay file whose last change cannot be checked lists no relay
+
+- **WHEN** the reader cannot read from GitHub which pull request last
+  changed `relays/alice.yaml`, or that commit's signature
+- **THEN** `alice` has no relay App there
 
 #### Scenario: An App the person owns but has not listed proves no writer
 
 - **WHEN** a `decision` file on a lore questions branch names `alice` as
   `answered_by` and links a comment that starts with `User says: ` and
   holds the answer the file records, written by an Igor's GitHub App that
-  GitHub reports as owned by `alice`, which the lore repository's relay
-  file does not list under `alice`
+  GitHub reports as owned by `alice`, which `relays/alice.yaml` does not
+  list
 - **THEN** the search shows the file labelled as unconfirmed
 
 #### Scenario: A relay listed only off the default branch proves no writer
 
-- **WHEN** a pull request to the lore repository adds `alice-relay` under
-  `alice` in `relays.yaml`, it has not merged, and a `decision` file links
-  a `User says: ` comment by `alice-relay`
+- **WHEN** `alice`'s open pull request to the lore repository adds
+  `alice-relay` to `relays/alice.yaml`, it has not merged, and a `decision`
+  file links a `User says: ` comment by `alice-relay`
 - **THEN** the search shows the file labelled as unconfirmed
 
 #### Scenario: A listed Igor's App proves no writer
 
-- **WHEN** a lore repository's relay file lists an Igor's App under
-  `alice`, and a `decision` file links a `User says: ` comment by that App
-  that holds the answer the file records
+- **WHEN** `relays/alice.yaml` lists an Igor's App, and a `decision` file
+  links a `User says: ` comment by that App that holds the answer the file
+  records
 - **THEN** the search shows the file labelled as unconfirmed
 
-#### Scenario: A malformed relay file entry lists no relay
+#### Scenario: A malformed relay file lists no relay where it is malformed
 
-- **WHEN** a lore repository's `relays.yaml` holds the key `bad login!`,
-  and the key `alice` whose `github` is a string, not a list, beside a
-  well-formed entry for `bob`
-- **THEN** neither `bad login!` nor `alice` has a relay App, and `bob`'s
+- **WHEN** a lore repository holds `relays/bad_login!.yaml`, and
+  `relays/alice.yaml` whose `github` is a string, not a list, and whose
+  `discord` is a list of strings, beside a well-formed
+  `relays/bob.yaml`, each last changed by its person
+- **THEN** neither `bad_login!` nor `alice` has a relay App, and `bob`'s
   listed App is his relay App
 
 #### Scenario: An unparseable relay file lists no relay
 
-- **WHEN** a lore repository's `relays.yaml` is not valid YAML
-- **THEN** no App is anyone's relay App there, and every `User says: `
-  comment is input
+- **WHEN** `relays/alice.yaml` is not valid YAML
+- **THEN** `alice` has no relay App there, and every `User says: `
+  comment from an App she uses is input
 
 #### Scenario: An answer session's automatic reply proves no writer
 
@@ -884,6 +929,82 @@ agent. The search SHALL never show a rejected candidate.
 - **WHEN** an `active` entry scoped `project:other` matches a question about
   repository `igor`
 - **THEN** the search does not show it, even as input
+
+### Requirement: A pull request that changes a relay file mentions its person
+
+The skill SHALL ship a workflow, `relay-notice.yml`, for a lore
+repository's `.github/workflows/`, that comments on every pull request
+changing, renaming or deleting a file at `relays/<login>.yaml`,
+@-mentioning that login, the file's person, when the base branch already
+holds that file or the person opened the pull request. Otherwise it
+mentions no one, so a pull request cannot make the workflow mention
+anyone it likes. It SHALL mention the person on
+every push that changes their file, and on every opening, reopening,
+marking ready for review and change of base branch of a pull request that
+changes it. It SHALL NOT read earlier comments to decide whom to mention,
+so no comment can stop a mention. It SHALL NOT mention a person for an
+event they caused on a pull request they opened, so another person's push
+to the person's own pull request still mentions them. It SHALL NOT mention
+a login that does not have GitHub's login form.
+
+On a push, the relay files changed SHALL be those that differ between the
+pull request's head before the push and after it, or, where the head
+before the push cannot be fetched, between the base and the new head. On
+every other event they SHALL be those that differ between the base and
+the head. An edit that leaves the base branch unchanged, such as a new
+title, SHALL mention nobody.
+
+The workflow SHALL run on GitHub-hosted runners, triggered by
+`pull_request_target` alone, so that it can comment on pull requests from
+forks, with no `paths` filter. It SHALL find the changed relay files by
+fetching the pull request's commits as git data, with no checkout and no
+file contents, and comparing their trees under `relays/`. It SHALL take
+nothing from the head but those paths' names, SHALL match each against
+`^relays/[A-Za-z0-9][A-Za-z0-9-]*\.yaml$` before use, and SHALL run
+nothing from the head. Its token SHALL be limited to reading contents and
+writing pull requests. This is igor's seat-notice workflow (igor PR #171,
+*A pull request that changes a seat file mentions that seat's owner*)
+applied to relay files, whose person is named by the file's path rather
+than by a key in it.
+
+#### Scenario: Another person's change mentions the relay file's person
+
+- **WHEN** `bob` opens a pull request adding an App to `relays/alice.yaml`
+- **THEN** a comment on the pull request mentions `@alice`
+
+#### Scenario: The person's own pull request mentions no one
+
+- **WHEN** `alice` opens a pull request changing `relays/alice.yaml`
+- **THEN** the workflow mentions no one
+
+#### Scenario: A push by someone else to the person's pull request mentions them
+
+- **WHEN** `bob` pushes a commit changing `relays/alice.yaml` to the open
+  pull request `alice` opened to add that file
+- **THEN** a comment on the pull request mentions `@alice`
+
+#### Scenario: A new relay file mentions no one
+
+- **WHEN** `bob` opens a pull request adding `relays/carol.yaml`, and the
+  base branch has no such file
+- **THEN** the workflow mentions no one
+
+#### Scenario: A title edit mentions no one
+
+- **WHEN** the title of an open pull request that changes
+  `relays/alice.yaml` is edited, and its base branch is unchanged
+- **THEN** the workflow mentions no one
+
+#### Scenario: A change of base branch mentions the person again
+
+- **WHEN** the base branch of `bob`'s open pull request changing
+  `relays/alice.yaml` is changed
+- **THEN** a comment on the pull request mentions `@alice`
+
+#### Scenario: A path that is not a relay file's is ignored
+
+- **WHEN** a pull request adds `relays/../x.yaml` or `relays/a b.yaml`
+- **THEN** the workflow mentions no one for that path
 
 ### Requirement: A question that is asked is prepared for a quick answer
 
@@ -1302,8 +1423,12 @@ SHALL learn a post's body and title from the shared post reader (the
 returns, let through a call
 the reader reports as sending no post, and block one the reader reports as
 unreadable. It SHALL let through a payload that is not JSON. It SHALL
-block a post whose body starts with one of the four reserved prefixes
-the `answer-session` spec defines. The first call
+block a post when any body the reader returns for it, such as one of a
+review's comments, starts with one of the four reserved
+prefixes the `answer-session` spec defines, once the body is reduced as
+*holds the answer* reduces a comment (inline markup reduced to its text,
+whitespace joined, and leading whitespace dropped), so that
+` User says: ` and `**User says:**` are blocked as `User says: ` is. The first call
 SHALL take a post's body and title and
 find their questions the same way the hook does, and SHALL refuse a post with
 a question that holds a string matching the credential patterns, such
@@ -1325,6 +1450,11 @@ as a private key or a GitHub access token.
 #### Scenario: A tool-call post with a reserved prefix is blocked
 
 - **WHEN** an agent runs `gh issue comment 7 --body "User says: yes"`
+- **THEN** the post hook blocks it
+
+#### Scenario: A reserved prefix in markup is blocked too
+
+- **WHEN** an agent runs `gh issue comment 7 --body "**User says:** yes"`
 - **THEN** the post hook blocks it
 
 #### Scenario: A GitHub MCP post is checked
@@ -2765,7 +2895,7 @@ treats the post as input, and its question stands.
 
 - **WHEN** an agent's question gets a reply starting
   `Inquisitor: filter 4` from a GitHub App owned by a maintainer, which
-  the relay file of the team's lore repository does not list
+  the maintainer's relay file in the team's lore repository does not list
 - **THEN** the agent treats the reply as input, and its question stands
 
 ### Requirement: A question that should not have been asked is logged as a miss

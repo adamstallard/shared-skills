@@ -282,7 +282,7 @@ beside it.
   pushes with igor PR #217's credential matcher, which also matches the
   values of known secrets such as the worker's seat token (proposal
   decision 178). igor PR #216 records both, the question match and the
-  matcher, as its decisions 30 and 28.
+  matcher, as its decisions 41 and 28.
   Filter 1, the search for an earlier answer, counts such a file as a
   decision only when GitHub gives that comment's author as the file's
   `answered_by`, or the comment is a relayed answer from `answered_by`'s
@@ -443,8 +443,7 @@ serves, and `repos` lists single repositories it serves; several lore
 repositories may serve one owner. When an organization or project question
 matches more than one, the most specific match (a named repository beats
 an owner) wins, then the first listed, and the agent's report says which.
-Inside an Igor whose role can't be read, the search shows only `global`
-entries. A missing file means no lore repository, and filter 1's
+A missing `inquisitor.json` means no lore repository, and filter 1's
 search says lore was not searched.
 
 Reviewers live in the repository the question concerns, in
@@ -533,10 +532,11 @@ id against the lore repository it injects from. If the search covered
 another lore repository, an entry found there could be refused, or
 counted as a different entry with the same id. So during a run the search
 covers only the lore repository the Igor injects from (proposal decision
-133). In an inquisitor run the Igor starts itself, with no worker, the
-script runs that search; when it can't tell which lore repository the
-Igor injects from, it searches none. In a worker, igor's command searches
-that lore repository instead.
+133). In a worker, and in an inquisitor run the Igor starts itself with
+no worker, igor's command `igor lore-search` runs that search, as Adam
+settled on igor PR #216 (decision 229). So the script never needs to
+know which lore repository the Igor injects from. It matches plain text
+and ranks hits as filter 1 does outside a run.
 
 During a run, when the agent picks an id for a lore entry it would
 propose, igor reports a clash with an id held outside the run's scope
@@ -698,19 +698,34 @@ Decision 78 proves a logged answer's writer only when GitHub gives the
 linked comment's author as `answered_by`, and a relay post's author is
 the relay identity, so without this a relayed answer would only be input,
 and an Igor could never log a handback's relayed answer as a decision
-(decision 149). Only an App listed as the person's relay in the lore
-repository's relay file, `relays.yaml` on its default branch, ties a
-`User says: ` comment to them (decision 216). Owning the App is not
+(decision 149). Only an App listed in the person's own relay file,
+`relays/<login>.yaml` on the default branch of the lore repository that
+serves the question's repository, ties a
+`User says: ` comment to them (decisions 216 and 224). Owning the App is not
 enough: an Igor's App owned by the same person posts its worker's text
 through igor's own code, which no post hook sees. A worker steered by its
 item could start such a comment `User says: `, and a `decision` file
 linking it would then pass the writer proof and count as the person's
 answer.
-The spec has the relay file change only by a reviewed pull request, as
-lore does, and the answer session's setup proposes the person's entry, so
-a reviewer decides which Apps speak for whom. No reader checks how the
-file reached the default branch; *Still open* asks whether one should. The tie still holds only because the
-prefix is reserved (decisions 193 and 203): an agent holding a listed App
+
+The file is tied to its person by who last changed it, not by review
+(decision 225). A reader counts it only when the newest commit that
+changed it came from a merged pull request the person authored, or carries
+a signature GitHub verifies for them; otherwise it lists no relay. So
+anyone who can push to the lore repository can stop a person's relayed
+answers from counting, but cannot make another App speak for them. A
+notice workflow, `relay-notice.yml`, which this skill ships for the lore
+repository and which is modelled on igor's seat-notice workflow (igor PR
+#171), @-mentions the person on any pull request that changes their file, when
+the base branch holds it or the person opened the pull request, so a
+pull request adding a file for someone else can't make it mention them. No reader depends on it. It tells the person when their file is about to
+stop counting. It also tells them when someone else pushes to their own
+open pull request: that push would count as the person's once the pull
+request merges, a cost decision 227 accepts. One file per person follows igor's `seats/<id>.yaml`:
+the person's own pull request adds it, and a path, unlike a key in a shared
+file, names whose it is.
+
+The tie still holds only because the prefix is reserved (decisions 193 and 203): an agent holding a listed App
 that posted `User says: ` by some way the post hook does not see would
 forge the person's answer, so a person lists only an App nothing else
 posts through unseen. Task 0.21 measures whether GitHub reports which App
@@ -720,22 +735,21 @@ answer. A relay post on
 Linear or Discord stays input, as any answer given off GitHub does
 (decision 109).
 
-The file is YAML at the lore repository's root, beside igor's
-`igor.config.yaml` and `roles/`, keyed by GitHub login, with one list per
-surface. Only the `github` lists prove anything; nothing in this change
-reads the `linear` and `discord` lists, which record in the same reviewed
-place which identities post for the person there. YAML matches the lore repository's other configuration. It is not
-a key of `igor.config.yaml`, which refuses any key igor does not read, and
-the inquisitor's own `inquisitor.json` is per person, so a reviewer would
-never see it.
+The file is YAML under `relays/` in the lore repository, beside igor's
+`igor.config.yaml`, `roles/` and `seats/`, with one list per surface.
+Only the `github` list proves anything; nothing in this change reads the
+`linear` and `discord` lists, which record in the same place which
+identities post for the person there. YAML matches the lore repository's
+other configuration. It is not a key of `igor.config.yaml`, which refuses
+any key igor does not read, and the inquisitor's own `inquisitor.json` is
+per person and on their machine, where no other reader sees it.
 
 When the person edits a relayed answer that decision 210 also logged on a
 questions branch, the answer session pushes a new log file with the edited
 answer, since a file there never changes (decision 140), and the newest
-answered file for a question counts (decision 220): the one whose
-proof is newest: for a comment link, the comment's last edit; for a
-signature, the signed commit's date (decision 222's reading, which waits
-for Adam). Ordering by proof, not by branch history, keeps anyone with
+answered file for a question counts (decision 220). Newest means newest
+by proof, which for a comment link is the comment's last edit, and for a
+signature the signed commit's date (decision 222's item 1). Ordering by proof, not by branch history, keeps anyone with
 push access from re-pushing an older proven file to revert a newer
 answer.
 
@@ -764,10 +778,11 @@ the spec answers each:
   agent's question gets an `Inquisitor: ` reply by itself, and a question
   counts as an agent's only when its author is a bot account (decision
   199), so a person never gets a reply nobody wrote. A `User says: ` or
-  `User asks: ` post from any bot is a relayed question, which gets no
-  automatic post: filter 1's automatic post skips a relayed question, and
-  filters 2 to 4 post only on an agent's question. Decision 222, which
-  waits for Adam, proposes that reading for every bot. When the person declines a
+  `User asks: ` post from any bot is a relayed question: the words of
+  the person whose answer session posted it, such as another person
+  asking this one something through their own relay, so it counts as a
+  person's question (decisions 222 and 223): filter 1 can answer it by itself from
+  a record, and filters 2 to 4 only suggest a verdict to the person. When the person declines a
   question because the inquisitor should have handled it, decline reason
   3, they can choose an `Inquisitor: ` or `Recorded answer: ` post for any
   question, and see the exact post before it goes out (decision 209).

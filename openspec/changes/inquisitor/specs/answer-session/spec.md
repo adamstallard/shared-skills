@@ -43,10 +43,13 @@ Terms used throughout this spec:
 - **A relayed question** is a message that starts with `User says: ` or
   `User asks: `, posted by any bot account, on any surface. One posted on
   GitHub by a person's relay App, as the inquisitor's spec defines it, is
-  that person's; one from any other bot is a relayed question too,
-  whoever posted it. No automatic post answers a relayed question: *Filter
-  1 runs on every incoming question* skips one, and *Filters 2 to 4 judge
-  every incoming question* posts only on an agent's question.
+  that person's; one from any other bot is a relayed question too, the
+  words of a person whose relay it is, though which person can't be
+  proved. A relayed question is a person's question, so filter
+  1 can answer it by itself from a record, as *Filter 1 runs on every
+  incoming question* says, and filters 2 to 4 only suggest a verdict to
+  the person: *Filters 2 to 4 judge every incoming question* posts
+  `Inquisitor: ` only on an agent's question.
 - **An agent's question** is one whose message's author is a bot account,
   such as a GitHub App, a Linear app user, or a Discord bot or webhook, or
   a log file of the fourth source in *A question asked of the person comes
@@ -66,10 +69,9 @@ Terms used throughout this spec:
   `Last-Modified` time of its last response.
 - **The same question**, for two questions, means the same hash, as the
   inquisitor's spec defines *a question's text* and *a question's hash*
-  for a question in a post. A log file's question is the text under its
-  `## Question`, taken whole as one part, not split into its list items
-  or sentences, and reduced as that spec reduces a question in a post. So
-  a question logged from a thread has the same hash as the thread's.
+  for a question in a post, and a log file's question as its *Only an
+  answer with authority stops a question* reads it. So a question logged
+  from a thread has the same hash as the thread's.
 - **A Claude Code background session** is one with no terminal attached,
   such as a session picker starts.
 - **The state folder** is
@@ -149,20 +151,32 @@ types `/answer setup`. Setup SHALL:
   failed;
 - install the `answer` command, as *Two commands open an answer session*
   says;
-- read the relay file, as the inquisitor's spec defines it, of each
-  configured lore repository that serves a subscribed GitHub channel, and,
-  where that file does not list each of the person's relay identities,
-  on every surface the configuration names, under their login, open a
-  pull request to that lore repository adding the missing ones, through
-  the person's `gh` login, and report its link. When such a pull request
-  from the person is already open, setup SHALL open no other, and SHALL
-  report that one's link. Setup SHALL open the pull request as a host
-  command, as a relay post is posted, with a fixed title and body that the
-  script writes, holding no word from the session's model, so no post
-  hook sees it and it gets no prose pass. Setup SHALL never push the
+- read the person's relay file, as the inquisitor's spec defines it, in
+  each configured lore repository that serves a subscribed GitHub
+  channel, and, where that file is missing, does not count because its
+  last change was not the person's, as that spec says, or does not
+  list each of the person's relay identities on every surface the
+  configuration names, open a pull request to that lore repository,
+  through the person's `gh` login, that writes
+  `relays/<their login>.yaml` listing them, and report its link. When
+  such a pull request from the person is already open, setup SHALL open
+  no other, and SHALL report that one's link. Setup SHALL never push the
   file to the default branch. Setup SHALL say that the person's relayed
   answers on GitHub count only as input there until the pull request
-  merges and the lore clone has fetched its default branch.
+  merges and the lore clone has fetched its default branch, and that a
+  later change to the file by anyone else makes them input again;
+- where that lore repository's default branch has no
+  `.github/workflows/relay-notice.yml`, open a separate pull request
+  adding the inquisitor's `relay-notice.yml` there, unless one from the
+  person is open, and report its link. When GitHub refuses it, such as
+  for a `gh` login without the `workflow` scope, setup SHALL say so and
+  that the person will not be told of changes to their relay file, and
+  SHALL carry on.
+
+Setup SHALL open each of these pull requests as a host command, as a relay
+post is posted, with a fixed title and body that the script writes,
+holding no word from the session's model, so no post hook sees it and it
+gets no prose pass.
 
 When a check fails, setup SHALL show the failure and what the person must
 do to fix it, as the identity's skill reports it, and SHALL save the rest.
@@ -227,27 +241,52 @@ never ran.
 #### Scenario: Setup proposes the person's relays to the lore repository
 
 - **WHEN** setup runs for a person subscribed to `o/api`, a configured lore
-  repository serves `o`, and its `relays.yaml` on the default branch does
-  not list the person's GitHub relay
-- **THEN** setup opens a pull request to that lore repository adding the
-  relay's App slug under the person's login and `github`, and any Linear
-  or Discord relay's id under `linear` or `discord`, reports its link,
+  repository serves `o`, and its default branch has no
+  `relays/<the person's login>.yaml`
+- **THEN** setup opens a pull request to that lore repository writing that
+  file, with the relay's App slug under `github` and any Linear or Discord
+  relay's id under `linear` or `discord`, reports its link,
   pushes nothing to the default branch, and says that the person's
   relayed answers there count only as input until it merges and the lore
   clone has fetched it
 
 #### Scenario: Setup opens no second relay pull request
 
-- **WHEN** setup runs again while the person's earlier pull request to the
-  lore repository's `relays.yaml` is still open
+- **WHEN** setup runs again while the person's earlier pull request to
+  their relay file in the lore repository is still open
 - **THEN** setup opens no other pull request, and reports the open one's
   link
 
 #### Scenario: Setup proposes nothing when the relays are listed
 
-- **WHEN** setup runs, and the lore repository's `relays.yaml` already
-  lists each of the person's relay identities under their login
+- **WHEN** setup runs, and the person's relay file on the lore
+  repository's default branch, last changed by a pull request they
+  authored, lists each of their relay identities, and the default branch
+  holds `.github/workflows/relay-notice.yml`
 - **THEN** setup opens no pull request to it
+
+#### Scenario: Setup proposes the file again after someone else changed it
+
+- **WHEN** setup runs, and the person's relay file lists each of their
+  relay identities, but its last change came from a pull request another
+  person authored
+- **THEN** setup opens a pull request from the person rewriting the file,
+  and says that their relayed answers there count only as input until it
+  merges
+
+#### Scenario: Setup proposes the notice workflow
+
+- **WHEN** setup runs, and the lore repository's default branch has no
+  `.github/workflows/relay-notice.yml`
+- **THEN** setup opens a separate pull request adding the inquisitor's
+  `relay-notice.yml`, and reports its link
+
+#### Scenario: A refused notice pull request does not stop setup
+
+- **WHEN** GitHub refuses setup's pull request adding `relay-notice.yml`,
+  because the person's `gh` login lacks the `workflow` scope
+- **THEN** setup says so, says the person will not be told of changes to
+  their relay file there, and carries on
 
 #### Scenario: Setup runs again on request
 
@@ -1187,8 +1226,9 @@ calls prove the filters ran* has an agent pass its files. The session's model ju
 hit with authority answers the question; a hit that is only input is
 shown with the question, and stops nothing.
 
-When an answer with authority is recorded, and the question has a thread
-and is not a relayed question, the answer session SHALL answer by itself:
+When an answer with authority is recorded, and the question has a thread,
+the answer session SHALL answer by itself, whether an agent or a person
+asked, a relayed question included:
 it posts through the relay
 
 ```
@@ -1245,22 +1285,22 @@ once, and so does each recorded answer.
   thread, starting with `Recorded answer: `, never with `User says: `, and
   no miss is logged
 
-#### Scenario: A relayed question gets no automatic post
+#### Scenario: A relayed question gets a recorded answer by itself
 
 - **WHEN** a GitHub comment that starts with `User asks: `, from the
-  relay App of Maya, another person whom the relay file lists, tags the
-  person, and the repository's `DECISIONS.md` on its
-  default branch decides it
-- **THEN** the answer session posts nothing by itself, and shows the
-  question as a person's, with the recorded answer beside it
+  relay App of Maya, another person, tags the person, and the
+  repository's `DECISIONS.md` on its default branch decides it
+- **THEN** the relay posts, naming the question, a reply that starts with
+  `Recorded answer: `, the question is listed as answered for the person,
+  and no miss is logged
 
-#### Scenario: A relayed question from an App no relay file lists gets no automatic post
+#### Scenario: A relayed question from an App no relay file lists is a person's
 
 - **WHEN** a GitHub comment that starts with `User asks: ` comes from a
-  GitHub App that no relay file lists, tags the person, and the
-  repository's `DECISIONS.md` on its default branch decides it
+  GitHub App that no relay file lists, tags the person, and clearly fails
+  filter 4
 - **THEN** the answer session posts nothing by itself, and shows the
-  question as a person's
+  question as a person's, with filter 4's verdict suggested
 
 #### Scenario: A lore entry's recorded answer sends a citation
 
@@ -1356,8 +1396,9 @@ or not, the answer session SHALL log a miss against that filter, as *The
 answer session logs its misses on the team's lore repository's questions
 branch* says, and list the question for the person as handled for them.
 
-For a person's question, and for an agent's question from a questions
-branch, the answer session SHALL post nothing by itself: it shows the
+For a person's question, a relayed question included, and for an agent's
+question from a questions branch, the answer session SHALL post nothing by
+itself: it shows the
 question with its suggested verdict, and the person decides.
 
 #### Scenario: A deferrable agent's question is handled for the person
