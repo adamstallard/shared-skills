@@ -566,10 +566,12 @@ The answer session gives a person one place to answer the questions asked
 of them on GitHub, Linear and Discord. A relay identity, a bot of the
 person's own on each surface, posts each answer in the question's thread.
 Its interface is a Claude Code mod that Adam approved by using its
-prototype (proposal decision 152). By decision 147, a UI approved that way
+prototype, build v0.1-30, tagged `answer-session-ui-approved-v0.1-30`
+(proposal decisions 152 and 231). By decision 147, a UI approved that way
 is not specified, so nothing here describes how it looks.
 The rules are in the `answer-session` spec, the decisions in proposal
-decisions 152 to 175, 184 to 203 and 207 to 211.
+decisions 152 to 175, 184 to 203, 207 to 211, 215, 216, 219, 220 and
+222 to 230.
 
 ### Polling while open, with the person's credentials
 
@@ -577,14 +579,16 @@ A webhook needs a public HTTPS server, and Discord's push a permanent
 connection: either is a service to run, which nothing else in this skill
 needs. So the answer session polls, and only while it is open, about every
 60 seconds, with a catch-up poll when it opens (decisions 157 and 158).
-GitHub's notifications endpoint suits this: a conditional request that
-finds nothing new is answered `304` without counting against the rate
-limit, and the endpoint's `X-Poll-Interval` says how long to wait. A
-mention subscribes the person to its thread, so a later reply there,
-including a reply to the relay, arrives as a notification too. A mention of
+GitHub's documentation says its notifications endpoint suits this, and
+task 0.15 checks that the endpoint behaves as documented: a conditional
+request that finds nothing new is answered `304` without counting against
+the rate limit, the endpoint's `X-Poll-Interval` says how long to wait,
+and a mention subscribes the person to its thread, so a later reply
+there, including a reply to the relay, arrives as a notification too. A mention of
 the relay in a thread the person was never subscribed to would be missed;
-task 0.15 measures what the endpoint reports, and until then the answer
-session also reads each subscribed repository's comments.
+until task 0.15 shows the endpoint reports such a mention, the answer
+session also reads the comments of each repository in its
+subscriptions.
 
 Reading uses the person's own credentials on GitHub and Linear, and there a
 relay identity only posts (decision 159). A relay's token then needs only
@@ -699,8 +703,8 @@ linked comment's author as `answered_by`, and a relay post's author is
 the relay identity, so without this a relayed answer would only be input,
 and an Igor could never log a handback's relayed answer as a decision
 (decision 149). Only an App listed in the person's own relay file,
-`relays/<login>.yaml` on the default branch of the lore repository that
-serves the question's repository, ties a
+`relays/<login>.yaml` on the default branch of the team's lore
+repository, ties a
 `User says: ` comment to them (decisions 216 and 224). Owning the App is not
 enough: an Igor's App owned by the same person posts its worker's text
 through igor's own code, which no post hook sees. A worker steered by its

@@ -153,12 +153,13 @@ types `/answer setup`. Setup SHALL:
   says;
 - read the person's relay file, as the inquisitor's spec defines it, in
   each configured lore repository that serves a subscribed GitHub
-  channel, and, where that file is missing, does not count because its
-  last change was not the person's, as that spec says, or does not
-  list each of the person's relay identities on every surface the
-  configuration names, open a pull request to that lore repository,
-  through the person's `gh` login, that writes
-  `relays/<their login>.yaml` listing them, and report its link. When
+  channel, and open a pull request to that lore repository when the file
+  is missing, does not list each of the person's relay identities on
+  every surface the configuration names, or does not count because its
+  last change was not the person's. Setup opens it
+  through the person's `gh` login, and it writes
+  `relays/<their login>.yaml` listing them, its first line the comment
+  `# confirmed by <their login> on <the date>`, and report its link. When
   such a pull request from the person is already open, setup SHALL open
   no other, and SHALL report that one's link. Setup SHALL never push the
   file to the default branch. Setup SHALL say that the person's relayed
@@ -270,7 +271,9 @@ never ran.
 - **WHEN** setup runs, and the person's relay file lists each of their
   relay identities, but its last change came from a pull request another
   person authored
-- **THEN** setup opens a pull request from the person rewriting the file,
+- **THEN** setup opens a pull request from the person rewriting the file
+  with a new first line, `# confirmed by <login> on <date>`, so the pull
+  request changes it even when the relays listed are the same,
   and says that their relayed answers there count only as input until it
   merges
 
@@ -353,6 +356,12 @@ on that pull request or issue. An Igor worker's handback comment tags no
 one, so its question is shown only through the third source, when its
 item is assigned to the person.
 
+A GitHub comment from `github-actions[bot]` whose first line is the relay
+notice's fixed first line, as the inquisitor's *A pull request that
+changes a relay file mentions its person* gives it, is not a question: the
+answer session SHALL show it to the person as a notice, post nothing on
+it, and log no miss for it.
+
 In a thread where the person closed a question as over, under *The
 person can decline to answer*, the asker's next comment after a relay post
 in a GitHub issue or pull request conversation is not a question under the
@@ -362,6 +371,13 @@ in that thread, meaning a Discord reply to it, a Linear comment after it
 in its comment thread, or a GitHub reply to it in a review thread,
 reopens the closed question: it is open again on this machine, and the
 reply is shown with it.
+
+#### Scenario: A relay notice is shown, never answered
+
+- **WHEN** the relay-notice workflow comments on a pull request in the
+  lore repository, mentioning the person, with its fixed first line
+- **THEN** the answer session shows the comment to the person as a
+  notice, posts nothing on it, and logs no miss
 
 #### Scenario: An agent's mention is a question
 
@@ -524,6 +540,16 @@ pass nor the inquisitor's filters SHALL be applied to a relay post. The
 answer session SHALL scan every relay post for the inquisitor's credential
 patterns, and SHALL post nothing that matches.
 
+On Discord the answer session SHALL post through discord-bot with none of
+its header options (`--agent`, `--session`, `--project`, which put a line
+above the message), so the message starts with its reserved prefix, and
+with discord-bot's mention rewriting off. discord-bot rewrites an `@name`
+into a mention that notifies that member, and a `#channel` into a link;
+with it off, both are sent as typed. This follows the proposal's decision
+230, which waits for Adam. discord-bot is to gain that option in
+shared-skills PR #1; until it has one, the answer session posts
+nothing on Discord, and every Discord channel stays off with that reason.
+
 When a post fails, because the surface refuses it, such as a Discord
 message over 2,000 characters, or because its command fails, the answer
 session SHALL tell the person that nothing was posted and why, as the
@@ -541,6 +567,13 @@ used* says.
   `User says: Back off, capped at a minute.`, ending with a `Re: ` line
   holding the question comment's URL, and the comment's id is saved in the
   state folder
+
+#### Scenario: A Discord relay post has no header and pings no one
+
+- **WHEN** the person confirms the Discord answer "ask @maya, see #ops"
+- **THEN** the relay posts through discord-bot with no header option and
+  with mention rewriting off, so the message starts `User says: ask @maya,
+  see #ops` and notifies no one
 
 #### Scenario: A Discord answer replies to the question
 

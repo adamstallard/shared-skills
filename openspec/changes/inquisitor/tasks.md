@@ -29,7 +29,9 @@ contradicts what design.md assumed.
 - [ ] 0.9 How the script tells a session with a person in it from a
       headless run, such as an Igor worker or `claude -p`, whether it
       runs in an Igor's run, a worker's or the Igor's own inquisitor run
-      (decision 229), and
+      (decision 229), which needs a signal from igor; until there is one,
+      a session with no person in it reads no lore clone and pushes no
+      citation (decision 230, which waits for Adam), and
       whether a headless session that is not an Igor worker can post
 - [ ] 0.10 Whether the agent can open, and write in, a repository's private
       security advisory, and what access that needs
@@ -40,8 +42,8 @@ contradicts what design.md assumed.
       `inquisitor.json` in reach, as the spec assumed before decision
       144 moved a worker's lore search into igor, measured before this pull request or
       igor PR #216 lands (decision 141). It can't today, measured from
-      igor's code, nor once igor PRs #174 and #175 land, read from their
-      specs; design.md, *What task 0.12
+      igor's code; read from igor PRs #174's and #175's specs, not checked
+      since neither is built, it can't once they land either; design.md, *What task 0.12
       measured*, gives the evidence. Gate two builds
       everything except Igor-worker mode, which waits for igor to give the
       worker what proposal.md's *Still open* names
@@ -106,7 +108,10 @@ contradicts what design.md assumed.
       commit GitHub signs itself, from its web editor or its contents API,
       is verified for an account other than its author's, which would let
       anyone with push access make a commit verified for another person.
-      This applies to decision 78's signature proof as well. Task 0.11
+      This applies to decision 78's signature proof as well. Also record
+      how a reader tells a signature GitHub made from the person's own,
+      such as GraphQL's `wasSignedByGitHub`; if it can't, no signature
+      counts. Task 0.11
       measures the rest of reading a signature. If the pull request can't
       be read, only a signature proves the file. Until this task shows
       GitHub never verifies such a commit for someone who didn't make it,
@@ -197,7 +202,7 @@ contradicts what design.md assumed.
       `agent` file on a questions branch is always input; each source not searched; when
       each clone's remote-tracking default branch was last updated by a
       fetch
-- [ ] 2.4 `log` and `miss`, writing one file per question or miss in the
+- [ ] 2.4 The `log` command, writing one file per question or miss in the
       format of *A log file and a miss file have one format*, with an
       `authority` of `decision`, `input` or `agent`, and `answered_by: agent` for an agent's choice: in the
       repository's `.inquisitor/` for a
@@ -240,6 +245,11 @@ contradicts what design.md assumed.
 - [ ] 2.8 `relay-notice.yml`, the workflow template a lore repository
       carries to mention a relay file's person, modelled on igor PR #171's
       `templates/seat-notice.yml` (decision 228)
+- [ ] 2.9 The `log` command's input file, refused unless it has mode 0600
+      in a private directory (decision 230); the post reader's git forms
+      that run a command (`rebase -x`, `submodule foreach`, `bisect run`)
+      as code to run, and a `gh` alias or extension as unreadable
+      (decision 230)
 
 ## 3. Hooks
 
@@ -302,10 +312,16 @@ contradicts what design.md assumed.
 ## 6. The answer session
 
 - [ ] 6.0 Start only after shared-skills PR #1, which adds discord-bot,
-      has merged (decision 165)
+      has merged (decision 165). The Discord relay posts with no header
+      option and with mention rewriting off; if discord-bot has no option
+      for that, every Discord channel stays off (decision 230, which waits
+      for Adam)
 - [ ] 6.1 The mod, built into the inquisitor skill from the tag
-      `ui-approved` of Adam's local prototype repository,
-      `~/answer-session-prototype`, with its questions taken from the polls below
+      `answer-session-ui-approved-v0.1-30` on shared-skills (build v0.1-30,
+      commit c9c6eb5; `ui-approved-v0.1-30` in Adam's local prototype
+      repository, `~/answer-session-prototype`). The tag includes
+      declining and the list of questions answered or handled for the
+      person. The mod takes its questions from the polls of task 6.3
       instead of the prototype's made-up ones
 - [ ] 6.2 The `answer_session` section of `inquisitor.json`, and setup:
       the candidates, each relay check, saving the file with the person's
@@ -340,16 +356,13 @@ contradicts what design.md assumed.
       and the README's section on the answer session: setup, the `answer`
       command, what to do when a relay check fails, and that no post but
       the answer session's starts with a reserved prefix
-- [ ] 6.9 Adam's approval, by use, of the screens prototyped after
-      `ui-approved` (decisions 147 and 226): declining a question, with
-      its three reasons, reason 3's choice of filter and the exact post
-      shown before it goes out (decision 209), and the list of questions
-      answered and handled for the person. They are builds v0.1-28 to
-      v0.1-30 of Adam's local prototype repository,
-      `~/answer-session-prototype`, whose `main` pushes to shared-skills'
-      branch `prototype/answer-session-ui`. Once Adam approves them, tag
-      that build in that repository; 6.1 builds the rest of the mod from
-      `ui-approved` and these screens from that tag
+- [x] 6.9 Adam's approval, by use, of the screens prototyped after the
+      first approved build (decisions 147 and 226): declining a question,
+      with its three reasons, reason 3's choice of filter and the exact
+      post shown before it goes out (decision 209), and the list of
+      questions answered and handled for the person. Adam approved build
+      v0.1-30 by use on 2026-10-20 (decision 231), tagged
+      `answer-session-ui-approved-v0.1-30` on shared-skills
 - [ ] 6.10 Filter 1 on every incoming question and the `Recorded answer: `
       post; filters 2 to 4 and the three fixed `Inquisitor: ` texts;
       declining with its three reasons, and reason 3's posts; the misses

@@ -57,7 +57,11 @@ For a GitHub MCP tool, it SHALL return every string under a key named
 a string under a key named `title` as the title. It SHALL say that the post creates an issue when the tool creates one, such
 as `create_issue`, or `issue_write` with the `method` `create`.
 
-A command that mentions no gh post verb sends no post. Nor does a command
+A `gh` command whose first word after `gh` is not on gh's own list of
+top-level commands, fixed in the reader, such as an alias or an
+extension, is unreadable wherever it appears in a command line. Apart
+from that, a command that mentions no gh post verb sends no post. Nor
+does a command
 that runs prose's script and nothing else, whatever its arguments say: a
 single simple command whose command is `prose.py` or a path ending in
 `/prose.py`, or `python3` or `python` followed directly by such a path,
@@ -93,7 +97,10 @@ simple command:
 - a data command **is given code to run** when, among the options before
   its script or subcommand, it is `python` or `python3` with `-c`, alone
   or after other single-letter options, as in `-Ic`; `node` with `-e`,
-  `--eval`, `-p` or `--print`; or `git` with `-c`. Such a command
+  `--eval`, `-p` or `--print`; or `git` with `-c` among those options,
+  or with one of these after its subcommand: `rebase` with `-x` or
+  `--exec`, `submodule foreach`, or `bisect run`. The reader keeps that
+  list fixed. Such a command
   that names `gh` in any of its arguments is unreadable, as `sh -c` is;
 - a simple command that names no `gh` at all is no post.
 
@@ -191,6 +198,19 @@ exactly, such as one with a backtick, `$'…'` or an unterminated quote.
   `ruby -e 'system("gh pr comment 5 -b x")'`,
   `perl -e 'system("gh pr comment 5 -b x")'` or
   `git -c 'alias.p=!gh pr comment 5 -b x' p`
+- **THEN** the reader reports each command as unreadable
+
+#### Scenario: A gh alias or extension is unreadable
+
+- **WHEN** a hook asks about `gh c 5 -b 'User says: yes'`, where `c` is
+  not one of gh's own commands
+- **THEN** the reader reports the command as unreadable
+
+#### Scenario: A git subcommand that runs a gh post is unreadable
+
+- **WHEN** a hook asks about `git rebase -x 'gh pr comment 5 -b x' main`,
+  `git submodule foreach 'gh issue create -t x -b y'` or
+  `git bisect run gh pr comment 5 -b x`
 - **THEN** the reader reports each command as unreadable
 
 #### Scenario: Inline code after grouped options is unreadable
