@@ -144,6 +144,30 @@ branch with the role's scope, so the worker needs no lore clone,
 `inquisitor.json` or `gh`, and igor, not the worker, applies the scope
 rules to lore entries and to question and miss files alike.
 
+The script knows it runs in an Igor's run by the environment variable
+`IGOR_RUN` (decision 235). igor PR #216's `task-execution` spec has igor
+set it, holding no secret: to `worker` in a worker's environment, and to
+`igor` when an Igor runs the inquisitor skill itself. igor does not set
+it yet; task 0.9 checks it once igor builds it. In both runs the script
+reads no lore clone and pushes nothing to a lore repository. Under
+`worker`, filter 1's other sources, its decision documents, question log
+and misses, are read only from the worker's working tree, and GitHub's
+issues are reported as not searched, since a worker can read nothing
+else.
+
+The script matches the variable's exact name: igor PR #171 adds
+`IGOR_RUN_TOKEN`, the token of a seat, the account igor lends a worker,
+and a match on the prefix would take that for a run marker. It matches
+the exact value too, so that any other value marks no run and leaves
+the search as it is.
+
+A repository could set `IGOR_RUN` in a person's session, through its
+committed Claude Code settings or an `.envrc`. The script would then
+search no lore and log nothing to a lore repository. Decision 239, which
+waits for Adam, has the script's output say each time that it acts on
+`IGOR_RUN`, so the person sees why. A plain headless session, such as
+`claude -p`, has no such variable and searches lore as usual.
+
 ## Questions in posts
 
 prose's posting hook already reads the body of a `gh` post from a short
@@ -465,9 +489,11 @@ push access is unmeasured (task 0.4). Each check fails closed:
 - an unread permission counts as no write access, so a question never tags
   a person who might be unable to decide it.
 
-A log or miss file an Igor pushes for its worker also names, in
-`asked_from`, the repository of the item the run worked (decision 221).
-The worker writes `repository` and the Igor writes `asked_from`. A
+A log or miss file an Igor pushes also names, in `asked_from`, the
+repository of the item the run worked (decision 221), whether its worker
+reported the file or the Igor's own inquisitor run wrote it (decision
+239). The worker, or the script in the Igor's own run, writes
+`repository`, and the Igor writes `asked_from`. A
 worker steered by its item's text could put a private repository's
 details in a file whose `repository` names a public one, but
 `asked_from` would still name the private one. Every reader judges the file by the more private of its two
@@ -558,7 +584,10 @@ The igor project's own
 configuration has a `destination` setting naming the directory of a lore
 repository that holds its entries. Outside an Igor's run the search does
 not use it, since a plain session has no Igor configuration; during a run,
-that lore repository is the one the search covers.
+igor's `lore-search` covers that lore repository. That repository also
+holds the `questions` branch and the people's relay files (*What the
+answer session posts, and what it logs* defines them), even when it is not
+the repository holding the Igor's configuration (decision 237).
 
 ## The answer session
 
@@ -570,8 +599,8 @@ prototype, build v0.1-30, tagged `answer-session-ui-approved-v0.1-30`
 (proposal decisions 152 and 231). By decision 147, a UI approved that way
 is not specified, so nothing here describes how it looks.
 The rules are in the `answer-session` spec, the decisions in proposal
-decisions 152 to 175, 184 to 203, 207 to 211, 215, 216, 219, 220 and
-222 to 230.
+decisions 152 to 175, 184 to 203, 207 to 211, 215, 216, 219, 220,
+222 to 230, 234, 236 and 238.
 
 ### Polling while open, with the person's credentials
 
@@ -597,7 +626,17 @@ name. On Discord a user account can't be automated within Discord's terms,
 so one `discord-bot` identity, the relay, both reads and posts, in the
 channels it has been added to (decision 185). Reading a message that
 doesn't mention it needs Discord's privileged Message Content intent
-(decision 191), which shared-skills PR #1's setup leaves off.
+(decision 191). discord-bot's setup, in shared-skills PR #1, has the
+person turn that intent on for the bot (commit 369ae16), and its `check` command reports
+`messageContent` as true, false or null, read from the bot's application
+flags (f83b167). Setup's check of message content passes only when
+`check` reports true (decision 238); false fails, and so does null,
+under decision 239's item 7, which waits for Adam. Even then every
+Discord channel stays off. discord-bot turns each `@name` in a post into
+a mention that notifies that member, and a relay post quoting the
+person's words must not ping anyone; until discord-bot can post with
+that rewriting off, setup counts the relay's check as failed (decision
+230's item 1).
 
 A relay identity may do other work, but only the answer session starts a
 post with one of the four reserved prefixes (decision 193). Anything that
@@ -710,7 +749,13 @@ enough: an Igor's App owned by the same person posts its worker's text
 through igor's own code, which no post hook sees. A worker steered by its
 item could start such a comment `User says: `, and a `decision` file
 linking it would then pass the writer proof and count as the person's
-answer.
+answer. A reader recognises an Igor's App by its slug: igor requires
+every Igor's App slug to start with `igor-`, and an Igor whose slug lacks
+it refuses to start (igor PR #216's decision 62), so no relay-file entry
+whose slug starts with `igor-` counts (decision 232). A reader of a
+relay file cannot look the App up in igor's configuration instead: that
+configuration names no App (decision 230's item 4), so the slug is the
+only mark left.
 
 The file is tied to its person by who last changed it, not by review
 (decision 225). A reader counts it only when the newest commit that
@@ -732,15 +777,25 @@ file, names whose it is.
 The tie still holds only because the prefix is reserved (decisions 193 and 203): an agent holding a listed App
 that posted `User says: ` by some way the post hook does not see would
 forge the person's answer, so a person lists only an App nothing else
-posts through unseen. Task 0.21 measures whether GitHub reports which App
+posts through unseen. github-app's `token` command prints an App's token
+to any agent on the machine, which could then post with a plain HTTP call
+no hook sees. Adam decided that github-app is to let a person mark an
+identity as a relay and then refuse `token` for it, so that only its own
+posting command, which the post hook reads, can use it (decision 233).
+That is a separate change to github-app, not yet written; until it ships,
+the cost is accepted and the README says so. Task 0.21 measures whether GitHub reports which App
 wrote a comment. Until that measurement shows it does, a relayed answer
 is input, and if it shows GitHub does not, no comment is ever a relayed
 answer. A relay post on
 Linear or Discord stays input, as any answer given off GitHub does
 (decision 109).
 
-The file is YAML under `relays/` in the lore repository, beside igor's
-`igor.config.yaml`, `roles/` and `seats/`, with one list per surface.
+The file is YAML under `relays/` in the lore repository, the one holding
+the entries, with one list per surface. Where igor PR #208's
+`destination` points away from the repository holding igor's
+configuration, the relay files and the `questions` branch are in the
+destination repository, beside the entries (decision 237, igor PR #216's
+decision 66).
 Only the `github` list proves anything; nothing in this change reads the
 `linear` and `discord` lists, which record in the same place which
 identities post for the person there. YAML matches the lore repository's
@@ -766,9 +821,17 @@ the spec answers each:
 
 - **A thread's text reaches the model that judges it.** The model writes
   no word of an automatic post: an `Inquisitor: ` post is one of three
-  fixed texts, and a recorded answer quotes a log file's answer line or
-  points to filter 1's hit (decision 200). So a crafted question can at
-  worst choose which canned reply or which record is posted. When an
+  fixed texts, and a recorded answer only points to filter 1's hit. The
+  spec is written that way under decision 239's item 5, which waits for
+  Adam; decision 200 as he confirmed it quoted a log file's answer. So a crafted question can at
+  worst choose which canned reply or which record is posted. Filter 3's
+  and 4's replies tell the asking agent to decide the question, and
+  filter 2's only to defer it, so that choice would still decide a
+  question if the asking agent acted on any reply. The asking agent
+  therefore acts by itself only on filter 2's reply. It acts on filter
+  3's or 4's only when the person chose that reply under decline reason 3,
+  which the reply's last line says, and which the answer session never
+  posts by itself (decision 234). When an
   agent replies to an automatic post, the answer session judges the reply
   again. A chain of replies runs from a reply back through the relay post
   it replies to, the question that relay post names (on GitHub, by its

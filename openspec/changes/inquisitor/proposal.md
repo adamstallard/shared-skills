@@ -2,7 +2,7 @@
 
 ## Decisions
 
-### Decided by Adam (2026-10-19 and 2026-10-20)
+### Decided by Adam (2026-10-19 to 2026-10-21)
 
 Decisions 1 to 10 are recorded in the body of
 [igor #211](https://github.com/adamstallard/igor/issues/211). Adam gave the
@@ -12,9 +12,11 @@ are written down:
 - 32 to 35, 38 to 49 and 51 to 63, on 2026-10-19;
 - 64 to 78, 80 to 85, 87 to 98, 100 to 106, 108 to 110, 112 to 124,
   126 to 129, 131 to 142, 144 to 151, 152 to 169, 176 to 180, 184 to
-  196, 204 to 214, 216 to 221, 223 to 226, 229 and 231, on 2026-10-20.
+  196, 204 to 214, 216 to 221, 223 to 226, 229 and 231, on 2026-10-20;
+- 232 to 237, on 2026-10-21, and 238 in two parts: Message Content
+  turned on, on 2026-10-20, and how `check` reads it, on 2026-10-21.
 
-He gave those of 2026-10-19 and 2026-10-20 while reviewing this pull
+He gave those of 2026-10-19 to 2026-10-21 while reviewing this pull
 request, [#25](https://github.com/adamstallard/shared-skills/pull/25), whose
 own thread holds none of them. In the same sessions he also ruled on the
 decisions this change proposed itself: 16 to 30, 36, 37, 50, 79, 86, 99,
@@ -28,8 +30,9 @@ items 2 and 16 by his decisions 185 and 193. He confirmed 181 to 183 and 197
 to 203 too, amending 199 and changing four items of 202. He confirmed 215
 item by item. He confirmed 222 item by item too, except that his decision
 223 reconciles its item 2 with decision 195 and his decision 224 replaces
-its item 6. He confirmed 227 and 228 as written. Decision 230 waits for
-him.
+its item 6. He confirmed 227 and 228 as written. On 2026-10-21 he
+confirmed 230 item by item, except items 4 and 5, which his decisions 232
+and 235 replace. Decision 239 waits for him.
 
 1. **Four filters run before any question reaches a person.**
    1. **Already answered:** the agent finds the earlier answer, cites where it
@@ -1162,7 +1165,9 @@ it:
 190. **A question's discussion record is deleted once the question is
      answered,** so decision 161 does not amend decision 32: the state
      folder holds a discussion only while its question is open.
-191. **The Discord relay needs Discord's Message Content intent,** as
+191. *Amended by Adam's decision 238: PR #1 has added the step this
+     decision asked for; its setup has the person turn the intent on.*
+     **The Discord relay needs Discord's Message Content intent,** as
      decision 175's item 17 says, and shared-skills PR #1's README, the
      `discord-bot` skill's, should say how to turn it on. That is PR #1's
      to add.
@@ -1209,8 +1214,11 @@ it:
      giving where the answer is recorded, never starting `User says: `.
      The question is listed for the person as answered for them, and they
      can edit that post as any relay post.
-196. **The answer session judges every incoming question by filters 2 to
-     4 too.** When a question clearly fails one of them:
+196. *Amended by Adam's decision 234: the asking agent acts on an
+     automatic `Inquisitor: ` reply only when it names filter 2, and on
+     filter 3's or 4's reply only when the person chose it under decline
+     reason 3.* **The answer
+     session judges every incoming question by filters 2 to 4 too.** When a question clearly fails one of them:
      - for an agent's question, the answer session replies by itself
        through the relay, starting `Inquisitor: ` and naming the filter,
        with that filter's action: under filter 2, carry on without an
@@ -1317,7 +1325,8 @@ confirmed 181 to 183 and 197 to 203, amended 199, changed four items of
 Adam gave 213 and 214 on 2026-10-20 too, answering questions igor PR
 #216 raised about those checks:
 
-213. **A linked comment holds a log file's recorded answer by normalized
+213. *Replaced by Adam's decision 236: equality, not containment.*
+     **A linked comment holds a log file's recorded answer by normalized
      containment.** Both texts are reduced as a question is reduced for
      its hash, with no list marker or inline markup and with whitespace
      joined, and a leading `User says: ` is dropped from the comment. The
@@ -1493,6 +1502,75 @@ Adam gave 231 on 2026-10-20 too, after testing the prototype:
      the earlier `answer-session-ui-approved` (f964903), which lacked
      those screens. Task 6.9 is done.
 
+Adam gave 232 to 237 on 2026-10-21, answering the three questions this
+change had left him (how a reader recognises an Igor's App, the relay
+token any agent can reach, and agents acting on an automatic
+`Inquisitor: ` reply), ruling on decision 230, and settling the answer rule with
+igor PR #216. He gave 238 in shared-skills PR #1, on 2026-10-20 and
+2026-10-21:
+
+232. **An Igor's App is recognised by its slug prefix.** igor requires
+     every Igor's App slug to start with `igor-`: an Igor whose App's slug
+     lacks it refuses to start (igor PR #216's decision 62). A reader
+     never counts a relay-file entry whose slug starts with `igor-` as a
+     relay. This replaces decision 230's withdrawn item 4 and this
+     change's recommendation of a `relays/_igor.yaml` listing the Igors'
+     Apps, and answers the question decision 222's item 7 left open.
+233. **github-app refuses its `token` command for an identity marked as a
+     relay,** so only the answer session's own posting command can post
+     with it. That is a change to the github-app skill, which this change
+     depends on and does not make. Until it ships, the cost is accepted:
+     any agent on the person's machine can print a relay App's token and
+     post `User says: ` with a plain HTTP call no post hook sees, and the
+     inquisitor's README says so.
+234. **An agent acts only on an automatic `Inquisitor: ` reply naming
+     filter 2,** which only defers. An automatic reply naming filter 3 or
+     4 is input, since a crafted thread can choose which fixed reply the
+     answer session posts by itself, and those two decide a question. A
+     reply naming filter 3 or 4 counts when the person chose it under
+     decline reason 3, which the reply then says. Decision 215's item 1
+     still applies to every reply an agent acts on. This amends decisions
+     196 and 215's item 1.
+235. **The script detects an Igor's run by `IGOR_RUN`.** igor sets it to
+     `worker` in a worker's environment and to `igor` in the Igor's own
+     inquisitor run, and it holds no secret (igor PR #216 at ba154a0). The
+     script matches it by exact name, since igor also has
+     `IGOR_RUN_TOKEN`, a seat's token, and by exact value, so that any
+     other value marks no run. In either run it reads no lore clone and
+     pushes nothing to a lore repository, a citation included; under
+     `worker`, filter 1's other sources are read only from the worker's
+     working tree, as a worker's search already is. The earlier rule for
+     a session with no person in it is gone: a plain headless session,
+     such as `claude -p`, keeps its normal lore search. This replaces decision 230's item 5.
+236. **One answer rule for writers and readers.** Whoever logs an answer
+     from a comment (the Igor, the script, the answer session) records
+     the comment's own text word for word as the answer, never a
+     worker's or model's paraphrase, even when it has several sentences or
+     quotes the question. A reader confirms a logged answer only when the
+     linked comment and the recorded answer are equal once both are
+     reduced: no list markers or inline markup, whitespace joined, and a
+     leading `User says: ` and a trailing `Re: <URL>` line ignored.
+     Containment is gone, since it let "merge it." match "Do not merge
+     it."; a worker's line only identifies which comment holds the
+     answer. The log file's format must hold a multi-sentence answer, and
+     frontmatter `authority`, not body text, still decides whether a file
+     is answered. This replaces decision 213. igor PR #216 records the
+     writer side as its decisions 67 and 70 and the reader side as its
+     decision 72, which points here.
+237. **Relay files and the questions branch live in igor PR #208's
+     `destination` repository,** beside the lore entries, when it differs
+     from the repository holding the Igor's configuration (igor PR #216's
+     decision 66). This change's lore repository is the one holding the
+     entries, so that is where it reads both.
+238. **shared-skills PR #1 turns Discord's Message Content intent on**
+     (Adam, 2026-10-20, PR #1's commit 369ae16), and its `check` reports
+     `messageContent` as true, false or null, read from the bot's
+     application flags (f83b167, decided by Adam on 2026-10-21). This
+     amends decision 191, which had PR #1 leave it off. discord-bot still
+     turns an `@name` in a post into a mention that notifies that member,
+     with no option to send the text as typed, so decision 230's item 1
+     keeps every Discord channel off whatever `check` reports.
+
 ### Proposed by this change
 
 Decisions 16 to 18 are #211's proposals that apply to the skill; #211's
@@ -1507,7 +1585,9 @@ Decisions 181 to 183, 197 to 203 and 215 came from this change too, and
 Adam confirmed them, with the changes 199 and 202 note. Decision 222 came
 from this change too, and Adam confirmed it, with the changes 222 notes.
 Decisions 227 and 228 came from this change too, and Adam confirmed them
-as written. Decision 230 came from this change too, and waits for him.
+as written. Decision 230 came from this change too, and Adam confirmed
+it item by item, except items 4 and 5, which his decisions 232 and 235
+replace. Decision 239 came from this change too, and waits for him.
 
 16. **Confirmed by Adam (2026-10-19).** **A prepared question** states the recommended answer, what changes under
     the other answer, and a link to any related earlier decision, so that most
@@ -1736,7 +1816,9 @@ file or a miss file yet, so their format is cheap to change. This change
 chose it under filter 4 and put it to Adam, who confirmed it as written:
 
 125. **Confirmed by Adam (2026-10-20), and extended by his decision 221,
-     which adds the key `asked_from` to items 4 and 5.** **How a log file
+     which adds the key `asked_from` to items 4 and 5; his decision 236
+     requires a whole comment in item 4's answer, and decision 239's items
+     1 and 2 propose how it is written.** **How a log file
      and a miss file are written:**
      1. **Path:** in a repository, `.inquisitor/questions/<name>` for a
         question and `.inquisitor/misses/<name>` for a miss, at the root of
@@ -1925,7 +2007,9 @@ Each is this change's own, and Adam confirmed each on 2026-10-20:
      instead, never in a file. *Rejected:* the system's temporary
      directory, as design.md first had it. This change took it under
      filter 3.
-183. **Confirmed by Adam (2026-10-20).** **Details the spec fixes,** each cheap to reverse, taken under
+183. **Confirmed by Adam (2026-10-20); his decision 236 requires a whole
+     comment in item 2's one-line answer, and decision 239's item 1
+     proposes how it is written.** **Details the spec fixes,** each cheap to reverse, taken under
      filter 4:
      1. Filter 1 searches a repository's `.inquisitor/misses/` too, and
         labels an unanswered log file as unanswered and a miss file as a
@@ -2013,7 +2097,8 @@ confirmed each on 2026-10-20, amending 199 and changing items 2, 4, 6 and
      session can't tell apart. Erring that way keeps the posts decision
      196 makes by itself off people's questions. This change took it
      under filter 3.
-200. **Confirmed by Adam (2026-10-20).** **What the answer session posts by itself:**
+200. **Confirmed by Adam (2026-10-20); decision 239's item 5 proposes
+     that item 1 quote no answer.** **What the answer session posts by itself:**
      1. A recorded answer is posted as `Recorded answer: <the log file's
         answer line>`, or `Recorded answer: see the record below.` when
         the record is not a log file, then a line `Recorded in: <URL>`
@@ -2047,7 +2132,9 @@ confirmed each on 2026-10-20, amending 199 and changing items 2, 4, 6 and
      of `Recorded answer: ` or `Inquisitor: `, since the person confirmed
      its new text. This change took it under filter 4.
 202. **Confirmed by Adam (2026-10-20) item by item, except items 2, 4, 6
-     and 7, which he changed as noted.** **Details the spec fixes,** each
+     and 7, which he changed as noted; his decision 234 narrows item 5's
+     `Inquisitor: ` replies to filter 2's, or filter 3's or 4's the person
+     chose.** **Details the spec fixes,** each
      cheap to reverse, taken under filter 4:
      1. A declined question, and a rhetorical question the answer session
         handled with no reply, are kept closed in the state folder, per
@@ -2115,8 +2202,9 @@ recorded decisions 204 to 214. It is this change's own, and Adam
 confirmed all seven items on 2026-10-20:
 
 215. **Confirmed by Adam (2026-10-20), item by item; item 1 now reads
-     the relay file of decision 216, decision 222's item 2 widens item 6,
-     and Adam's decision 223 corrects it.** **Details the spec fixes,**
+     the relay file of decision 216, and Adam's decision 234 narrows it to
+     filter 2's reply, or filter 3's or 4's the person chose; decision
+     222's item 2 widens item 6, and Adam's decision 223 corrects it.** **Details the spec fixes,**
      each cheap to reverse, taken under filter 4 unless noted:
      1. An agent acts on an `Inquisitor: ` reply only when the relay App
         of someone with write access to what the question concerns, as
@@ -2207,7 +2295,8 @@ requirements. It is this change's own:
         file was `relays.yaml` at the lore repository's root, one mapping
         keyed by login.
      7. An Igor's App is never a relay App, even where a relay file lists
-        it, as igor PR #216's decision 45 has it, and a person lists only
+        it, as igor PR #216's decision 45 has it, and Adam's decision 232
+        says how a reader recognises one, and a person lists only
         an App that posts nothing a post hook can't see apart from the
         answer session's own posts. Decision 193 lets a relay App do other
         work, but only through tool calls the post hook sees.
@@ -2271,10 +2360,12 @@ as written on 2026-10-20:
 
 Decision 230 came from findings of spec-check's consistency reads, the
 fresh reviews of the whole change made before each commit, of the commits
-that recorded decisions 223 to 229. It is this change's own, and
-waits for Adam:
+that recorded decisions 223 to 229. It is this change's own. Adam
+confirmed it item by item on 2026-10-21, except items 4 and 5, which his
+decisions 232 and 235 replace:
 
-230. **Details the spec fixes,** each cheap to reverse, taken under
+230. **Confirmed by Adam (2026-10-21) item by item, except items 4 and 5,
+     replaced by his decisions 232 and 235.** **Details the spec fixes,** each cheap to reverse, taken under
      filter 3 unless noted:
      1. On Discord the answer session posts through discord-bot with none
         of its header options, which put a line above the message, so a
@@ -2291,21 +2382,18 @@ waits for Adam:
         0600 in a private directory, never as arguments, as decision 182
         has the two calls take theirs, since a question's text and its
         answer as arguments are readable by every user of a shared host.
-     4. *Withdrawn.* It had a reader recognise an Igor's App from the lore
+     4. *Withdrawn, and replaced by Adam's decision 232.* It had a reader recognise an Igor's App from the lore
         repository's Igor configuration, and count no relay App where it
         couldn't read that configuration. But igor's role-config spec
         forbids any configuration key that names an App identity, and a
         lore repository with no Igor configuration would then have no
-        relay App at all. How a reader
-        recognises an Igor's App is a question for Adam, under *Still
-        open*.
-     5. Until igor gives the script a way to tell that it runs in an
-        Igor's run, a session with no person in it counts as possibly in
-        one: it reads no lore clone and pushes no citation. The answer
-        session counts as a session with a person in it. Erring the
-        other way would have an undetected run read the wrong lore and
-        push citations itself, against decision 229. A plain headless
-        session, such as `claude -p`, loses its lore search until then.
+        relay App at all. How a reader recognises an Igor's App was left
+        to Adam, who answered it with decision 232.
+     5. *Replaced by Adam's decision 235, which reads `IGOR_RUN`.* It had
+        a session with no person in it count as possibly in an Igor's
+        run, reading no lore clone and pushing no citation, until igor
+        gave the script a way to tell, so a plain headless session, such
+        as `claude -p`, lost its lore search until then.
      6. For a relay App's comment on a handback, the Igor sets
         `answered_by` as well as `authority`: the person whose relay file
         lists that App. The worker can't read the relay files, so without
@@ -2332,60 +2420,137 @@ waits for Adam:
          it is reduced as decision 213 reduces a comment, with leading
          whitespace dropped, so ` User says: ` and `**User says:**` are
          blocked as `User says: ` is.
+
+Decision 239 came from writing Adam's decisions 232 to 238 into the
+requirements and checking them against igor PR #216 at d9a4724. It is
+this change's own, and waits for Adam:
+
+239. **Details the spec fixes,** each cheap to reverse, taken under
+     filter 3 unless noted:
+     1. A log file's answer is written as quote lines, each line `> `
+        followed by the answer's line, or `>` alone for a blank one, with
+        line ends made LF and blank lines at its start and end dropped. A
+        reader takes the longest run of quote lines at the body's end as
+        the answer, and the line before it must be `## Answer`. Since
+        every answer line starts with `>`, a whole comment fits, even one
+        holding a `## Answer` line of its own. The rest of decision 183's item 2 holds: a rephrasing's
+        `## Rephrased question` and `## Discussion` sections, one line
+        each, sit just before `## Answer`, and the question is everything
+        above them. *Rejected:* joining the comment onto one
+        line, which breaks the equality of decision 236 for a comment
+        with list items; and a frontmatter key counting the answer's
+        lines, which adds a key the quote marks make needless. Taken under
+        filter 4.
+     2. An answer that is not taken from a comment, such as a picker
+        answer, is still written in one sentence.
+     3. The `log` command reads an `answer_link`'s comment itself, with
+        the person's credentials, and records its text, whatever answer
+        the agent passed; when it cannot read the comment it writes
+        nothing and says why. In Igor-worker mode it can't read GitHub,
+        so the answer text the worker passed, which only identifies the
+        comment, stands until the Igor replaces it with the comment's
+        text.
+     4. An answer from a comment is recorded word for word or not at all:
+        when its words hold context more private than what the question
+        concerns, the file gets no answer, as for an answer that cannot
+        be generalised.
+     5. A `Recorded answer: ` post quotes no answer, a log file's
+        included: it reads `Recorded answer: see the record below.` and
+        gives the record's URL, as decision 200's item 1 already has it for
+        any other record. A log file's answer is now a whole comment,
+        which could hold @-mentions that would notify people again on
+        GitHub, or a `Recorded in: ` line of its own. This amends decision
+        200's item 1, which Adam had already confirmed, so accepting it
+        reopens that confirmation.
+        *Rejected:* quoting the answer with its mentions neutralised,
+        which needs a rule per surface.
+     6. A post made under decline reason 3 for filter 2, 3 or 4 is the
+        filter's fixed text followed by the line `The person chose this
+        filter.`, which no automatic post holds; that line is how decision
+        234's agent tells the two apart. Taken under filter 4.
+     7. Setup passes the Discord relay only when discord-bot's `check`
+        reports `messageContent` as `true`; `null`, a check that could
+        not read the flags, fails as `false` does.
+     8. When the relayed answer gives a rephrasing, the log file's answer
+        is the relay post's whole text, its `Rephrased question: ` and
+        `Discussion: ` lines included, as decision 236 has a writer
+        record a comment; the file's own rephrasing sections hold those
+        lines too. Recording the answer alone would fail decision 236's
+        equality, and every rephrased answer would be unconfirmed.
+     9. Whenever the script acts on `IGOR_RUN`, its output says so. A
+        repository can set the variable in a person's session, through
+        its committed Claude Code settings or an `.envrc`, and the
+        script would then search no lore and log nothing to a lore
+        repository without the person seeing why.
+     10. This change's *lore repository* is always the one holding the
+        entries, which igor PR #216 calls the *destination repository*;
+        igor's specs keep *lore repository* for the one holding the
+        Igor's configuration, as #208 names it. The spec says so where it
+        defines the term.
+     11. The script also runs in Igor-worker mode under `IGOR_RUN=igor`,
+        though only `worker` limits the search to a working tree:
+        it pushes nothing to a lore repository and leaves its files for
+        the Igor, which sets `asked_from` on them as on a worker's, as
+        igor PR #216's *An Igor publishes the questions-branch files its
+        worker reports* has it. Before, the format allowed `asked_from`
+        only in a file an Igor pushed for its worker, which #216 flagged.
+     12. Aligned with igor PR #216: the spec states that a `project:X`
+        entry is neither shown nor fired when the item's repository is
+        more visible than X (#216's decisions 53 and 54), and its
+        scenario of a `project:` entry inside an Igor says the item's
+        repository is no more visible; igor's bare flag, which a run
+        raises when it meets a question with a category and which says
+        nothing more, is raised by the model steps igor PR #153 runs after
+        the worker as by the worker itself (#216's decisions
+        60 and 64); the Igor's handling of a handback answer
+        (`authority`, `answered_by`, the relay files it reads, and the
+        answer it records) is pointed to, not restated. #216's decisions
+        58 and 59,
+        on fetching under `igor run` and the hashed record of handback
+        questions, contradict nothing here.
+
 **Still open:**
 
-Decision 230 waits for Adam, and the spec is written as it proposes
-until he answers. Its item 1 waits on shared-skills PR #1 for
-discord-bot's option to turn mention rewriting off, and its item 5 on igor
-for a way to tell the script it is in a run.
+Decision 239 waits for Adam, and the spec is written as it proposes
+until he answers. Decision 230's item 1 still waits on shared-skills PR
+#1 for an option that sends with mention rewriting off; until it has one,
+Discord stays off.
 
-Three questions wait for Adam too:
-- **A relay App's token is reachable by any agent on the person's
-  machine.** The github-app skill's `token` command prints one, so an
-  agent could post `User says: …` with a plain HTTP call no post hook
-  sees, and decision 216 would count it as the person's answer. A person
-  is to list only an App that posts nothing a post hook can't see, but
-  that rule therefore rests on agents' instructions alone. *Recommended:* the github-app skill
-  refuses `token` for an identity marked as a relay, so only its own
-  posting command, which the post hook reads, can use it; until it does,
-  accept the cost and say so in the README.
-- **How a reader recognises an Igor's App,** which decision 222's item 7
-  needs. igor's role-config spec forbids a configuration key that names an
-  App identity, so igor's configuration can't say. Until this is settled,
-  nothing recognises one, and the rule rests on the person not listing an
-  Igor's App in their relay file. *Recommended:* igor's `init` writes the
-  slugs of its Igors' Apps to one file in the lore repository, such as
-  `relays/_igor.yaml`, whose name no login can take, and a reader counts
-  no App listed there as a relay App.
-- **An automatic `Inquisitor: ` reply goes out under the person's relay
-  App, and an agent acts on it as that person's authority** (decision
-  215's item 1). A crafted thread can at most choose which fixed reply is
-  posted, but that choice then decides an agent's question under filter 3
-  or 4 with no person seeing it. *Recommended:* an agent acts on an
-  `Inquisitor: ` reply that names filter 2, which only defers, and treats
-  one naming filter 3 or 4 as input unless the person chose it under
-  decline reason 3, which the reply then says.
-
-For igor PR #216, at 6d5df39, which records Adam's decisions 46 to 53 in
+For igor PR #216, at d9a4724, which records Adam's decisions 54 to 72 in
 #216's own numbering:
-- #216 has the Igor set `authority` itself on the files it pushes, under
-  this change's checks (decision 229's item 4). Its spec waits on this
-  commit of #25 for the relay file's form, now `relays/<login>.yaml`, counted
-  only as decision 225 says: last changed by its person's own merged pull
-  request or by a commit verified for them. #216 points to this change's
-  rule rather than restating it.
-- The Igor also sets `answered_by` for a relay App's comment on its
-  handback (decision 230's item 6), which #216 left to this change.
-- #216 should give the script a way to tell that it runs in an Igor's
-  run; until it does, a session with no person in it reads no lore clone
-  and pushes no citation (decision 230's item 5).
-- Filter 1's ranking and cap of 20 are written out here and in #216's
-  lore-firing spec. One should state them and the other point to it;
-  this change recommends #216 points here, where filter 1 is defined.
+- **#216's log files would read as unreadable here.** #216's lore-firing
+  requirement *An Igor publishes the questions-branch files its worker
+  reports* has the Igor write the comment's text under `## Answer` with
+  each line break made one space, so it fits on one line, and its
+  decision 67 says the same. This change's format now holds a whole
+  comment as quote lines (decision 239's item 1), which answers the
+  question #216's decision 70 left here, and a reader shows a file whose
+  body does not end in quote lines as unreadable. #216 should write the
+  answer in this change's format and point to it.
+- **Which ref the Igor reads relay files from under igor PR #208** is open
+  in #216: #208's `igor serve` fetches into a ref of its own, so the
+  remote-tracking default branch #216's decision 57 names could be stale,
+  and that ref can hold a commit whose lore #208 refused. Whether a refused
+  commit's relay files count is for Adam on #216. This change only needs
+  the ref to be the destination repository's default branch, never a
+  working tree.
+- **How an Igor runs the inquisitor skill itself** has no mechanism yet in
+  #216 or igor #211. Settled: igor marks that run with `IGOR_RUN=igor`,
+  and the script then searches lore only through `igor lore-search` and
+  pushes nothing (decisions 229 and 235). Open: which other sources that
+  run's filter 1 covers, how the run hands its files to the Igor, and
+  whether it can read GitHub.
+- #216's decision 72 points here for the reader's rule; decision 236
+  states it, and this spec cites #216's 72.
+- #216's note that #25's task 0.9 waits for igor's signal can now say
+  that this change reads `IGOR_RUN` (decision 235). Task 0.9 still checks
+  that igor sets it, once igor builds it.
+- #216 flagged that this change allowed `asked_from` only in a file from
+  a worker; decision 239's item 11 now allows it in a file from the Igor's
+  own inquisitor run too, as #216 has it.
 - #216's task 4.8, like task 0.21 here, measures whether GitHub reports
   which App wrote a comment; until a measurement shows GitHub does, every
   `User says: ` comment is input.
-- #216's decision 45 can now point to decisions 216 and 224.
 
 Tasks 0.15 to 0.22 measure facts the answer session relies on: what
 GitHub's notifications endpoint reports, how Linear and Discord show
@@ -2406,10 +2571,12 @@ elsewhere that this change depends on:
 - igor PR #153, signed publishing (decision 124);
 - in bug-hunter, a rule for a vulnerability fix's regression test
   (decisions 108 and 205);
-- shared-skills PR #1, whose `discord-bot` README tells the person to
-  leave every privileged intent off, while the Discord relay needs the
-  Message Content intent (decision 191), and which should give discord-bot
-  an option that sends text with mention rewriting off (decision 230);
+- shared-skills PR #1, which turns Discord's Message Content intent on
+  and reports it in `check` (decision 238), and which should give
+  discord-bot an option that sends text with mention rewriting off
+  (decision 230); at f83b167 it has none;
+- a change to the github-app skill, not yet open, under which its `token`
+  command refuses an identity marked as a relay (decision 233);
 
 The second list holds the facts that tasks 0.1 to 0.14 measure before
 anything is built, each with what the spec does if it turns out false,
@@ -2429,16 +2596,14 @@ item on Igor-worker mode.
   the script can't learn it, it treats every post as going out as the
   person, and, in a session with a person in it, asks through the picker
   where it would have tagged them.
-- **Can the script tell whether a person is in the session, whether it
-  runs in an Igor's run, a worker's or the Igor's own, and whether a
-  headless session can post?** If
+- **Can the script tell whether a person is in the session, and whether
+  a headless session can post?** If
   it can't tell the first, the session counts as having no person in it,
-  so a picker is never opened with nobody to answer it. During an Igor's
-  run the script reads no lore clone, since `igor lore-search` searches
-  lore (decision 229); until igor gives the script a way to tell it is in
-  a run, a session with no person in it reads no lore clone and pushes no
-  citation (decision 230's item 5), and the answer session counts as a
-  session with a person in it. If
+  so a picker is never opened with nobody to answer it. Whether it runs in
+  an Igor's run, and whether that is a worker's run or the Igor's own, it
+  reads from `IGOR_RUN` (decision 235), and
+  then it reads no lore clone, since `igor lore-search` searches lore
+  (decision 229). If
   it can't tell whether a headless session that is not an Igor worker can
   post, the session counts as unable to post, and asks nowhere (decision
   143).
@@ -2667,7 +2832,9 @@ None.
 - prose: its pass skips files under `.inquisitor/`, and its `DECISIONS.md`
   says why (decision 134).
 - github-app: its SKILL.md sets `G` in the same command as each use, or
-  writes the script's full path (decision 135).
+  writes the script's full path (decision 135). A separate change to it,
+  not made here, has its `token` command refuse an identity marked as a
+  relay (decision 233).
 - The README's skills table, and its list of skills that turn on a hook.
 - This pull request's first commit adds `openspec/`, `AGENTS.md` and
   spec-trace's CI workflow to shared-skills.

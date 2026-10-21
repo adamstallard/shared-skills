@@ -27,12 +27,12 @@ contradicts what design.md assumed.
       added a decision, from a `DECISIONS.md` section through blame, the
       commit and its pull request's reviews
 - [ ] 0.9 How the script tells a session with a person in it from a
-      headless run, such as an Igor worker or `claude -p`, whether it
-      runs in an Igor's run, a worker's or the Igor's own inquisitor run
-      (decision 229), which needs a signal from igor; until there is one,
-      a session with no person in it reads no lore clone and pushes no
-      citation (decision 230, which waits for Adam), and
-      whether a headless session that is not an Igor worker can post
+      headless run, such as an Igor worker or `claude -p`, and
+      whether a headless session that is not an Igor worker can post.
+      Whether it runs in an Igor's run, and whether that is a worker's
+      run or the Igor's own, it reads from
+      `IGOR_RUN` (decision 235); once igor builds it, check that igor
+      sets it as igor PR #216 specifies
 - [ ] 0.10 Whether the agent can open, and write in, a repository's private
       security advisory, and what access that needs
 - [ ] 0.11 GitHub's API gives a comment's or review's author, and whether a
@@ -70,9 +70,10 @@ contradicts what design.md assumed.
       reply to the relay's message, and that the relay can edit its own
       message, once shared-skills PR #1 has merged. Reading the content
       of a message that doesn't mention the bot needs Discord's privileged
-      Message Content intent, which PR #1's setup leaves off; record how
-      the relay identity turns it on. If it can't read them, Discord
-      stays off and the README says so
+      Message Content intent, which PR #1 turns on for reading and its
+      `check` reports as `messageContent` (decision 238); record that a
+      relay whose `check` reports `true` reads such a message. If it
+      can't read them, Discord stays off and the README says so
 - [ ] 0.18 That a command the mod runs with `$.process.run`, the mod API's
       call that runs a host command, reaches no
       `PreToolUse` hook, so neither post hook sees a relay post (decision
@@ -190,10 +191,12 @@ contradicts what design.md assumed.
       only when `accepted`, a change's own decisions within that change, and
       a questions-branch `decision` file only with its writer proven by a
       linked comment or a verified signature (decision 78), the comment
-      holding the file's answer by normalized containment (decision 213),
+      holding the file's answer when its text equals the file's answer
+      once both are reduced (decision 236),
       a relayed answer only from an App the person's `relays/<login>.yaml`
       lists, counted only when its last change came from that person
-      (decisions 216, 224 and 225), only the
+      (decisions 216, 224 and 225), never from a slug starting with
+      `igor-` (decision 232), only the
       newest answer counting among a question's files there (decision
       220), a file's visibility taken from the more private of its
       `repository` and `asked_from` (decision 221), and, during an Igor's
@@ -204,7 +207,10 @@ contradicts what design.md assumed.
       fetch
 - [ ] 2.4 The `log` command, writing one file per question or miss in the
       format of *A log file and a miss file have one format*, with an
-      `authority` of `decision`, `input` or `agent`, and `answered_by: agent` for an agent's choice: in the
+      `authority` of `decision`, `input` or `agent`, and `answered_by: agent` for an agent's choice,
+      an answer with an `answer_link` read from the linked comment and
+      recorded word for word (decision 236) in quote lines (decision
+      239's item 1, which waits for Adam): in the
       repository's `.inquisitor/` for a
       question about it (by a pull request when it is not the repository
       holding the current work), or pushed to the team's lore repository's
@@ -296,7 +302,10 @@ contradicts what design.md assumed.
       misses, and lessons by scope
 - [ ] 5.2 `README.md`: what the skill is for, `inquisitor.json` and
       `.inquisitor/reviewers`, what to say to the agent, and troubleshooting a
-      blocked picker or post
+      blocked picker or post. Until github-app refuses `token` for an
+      identity marked as a relay, it says that any agent on the person's
+      machine can print a relay App's token and post `User says: ` unseen
+      (decision 233)
 - [ ] 5.3 A row in the README's skills table, and `inquisitor` in its list of
       skills that turn on a hook
 - [ ] 5.4 `manage-skills` installs it and wires its hooks: check with
@@ -314,8 +323,8 @@ contradicts what design.md assumed.
 - [ ] 6.0 Start only after shared-skills PR #1, which adds discord-bot,
       has merged (decision 165). The Discord relay posts with no header
       option and with mention rewriting off; if discord-bot has no option
-      for that, every Discord channel stays off (decision 230, which waits
-      for Adam)
+      for that, every Discord channel stays off (decision 230). At
+      PR #1's f83b167 it has none
 - [ ] 6.1 The mod, built into the inquisitor skill from the tag
       `answer-session-ui-approved-v0.1-30` on shared-skills (build v0.1-30,
       commit c9c6eb5; `ui-approved-v0.1-30` in Adam's local prototype
@@ -350,7 +359,7 @@ contradicts what design.md assumed.
       relay post to log its rephrasing and summary
 - [ ] 6.7 prose's SKILL.md and `DECISIONS.md` say that a relay post is
       the person's words and gets no prose pass (decision 170), and that an
-      automatic post, whose text is fixed or quoted from a record, gets
+      automatic post, whose text is fixed, gets
       none either (decision 200)
 - [ ] 6.8 Tests, each tagged `@scenario answer-session: <Scenario name>`,
       and the README's section on the answer session: setup, the `answer`
@@ -377,7 +386,12 @@ contradicts what design.md assumed.
       and by a log file; a refused post turning off a channel no check
       can read; the post hook's block of a
       tool-call post that starts with a reserved prefix (decision 203). SKILL.md tells an agent how to
-      act on a `Recorded answer: ` or `Inquisitor: ` reply
+      act on a `Recorded answer: ` or `Inquisitor: ` reply: a recorded
+      answer only once filter 1 counts its record, and an `Inquisitor: `
+      reply only when it names filter 2, or names filter 3 or 4 and its
+      last line apart from a `Re: ` line says the person chose it, which
+      reason 3's posts add (decision 234; the line is decision 239's
+      item 6, which waits for Adam)
 
 ## 7. Archive
 

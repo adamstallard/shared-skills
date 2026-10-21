@@ -66,7 +66,12 @@ Terms used throughout this spec:
   **lore entry**. Its `status` is `active`,
   `provisional` or `deprecated`, and its `scope` is `global`,
   `role:<name>` or `project:<name>`. A file under `rejected/` is a
-  **rejected candidate**.
+  **rejected candidate**. Throughout this spec, *lore repository* means
+  the repository that holds the entries, with its questions branch and
+  relay files beside them (igor PR #216's decision 66). igor's specs use
+  the term differently: there it is the repository holding the Igor's
+  configuration, and the one holding the entries, which igor PR #208's
+  `destination` can point to, is the *destination repository*.
 - **A lore repository's questions branch** is an orphan branch named
   `questions` in that repository, holding its question and miss files.
 - **Where the question's answer is recorded** is the decision document in
@@ -125,13 +130,16 @@ Terms used throughout this spec:
   clone, and `owners` or `repos`, what it serves; and its key
   `answer_session` holds the answer session's configuration, which the
   `answer-session` spec defines.
-- **An Igor's App** is the GitHub App an Igor posts and pushes as. How a
-  reader recognises one is still open (proposal *Still open*).
+- **An Igor's App** is the GitHub App an Igor posts and pushes as. igor
+  requires its slug to start with `igor-`: an Igor whose App's slug lacks
+  that prefix refuses to start, as igor PR #216 has it (its decision 62).
+  So a reader SHALL take every App whose slug starts with `igor-` as an
+  Igor's App.
 - **A person's relay file** is the file `relays/<login>.yaml` in a lore
   repository, where `<login>` is the person's GitHub login, compared without regard
   to case, read from that
   lore repository's default branch as the clone's remote-tracking branch
-  last fetched it, beside igor's `igor.config.yaml`, `roles/` and `seats/`.
+  last fetched it.
   It names the person's relay identities, the bots their answer session
   posts through. It is YAML: a mapping with any of the keys `github`,
   `linear` and `discord`, each a list of quoted strings. Under `github`
@@ -168,7 +176,8 @@ Terms used throughout this spec:
   the team's lore repository, as defined below, or, for a file on a lore repository's
   questions branch, the one in that lore repository. An App the person
   owns that their file does not list is not their relay App, and an
-  Igor's App never is, even where a relay file lists it.
+  Igor's App never is, even where a relay file lists it: a reader SHALL
+  count no `github` entry whose slug starts with `igor-`.
 - **More visible**: visibility is ranked private, then internal (GitHub's
   `INTERNAL`), then public. A repository
   the question concerns whose visibility cannot be read counts as private;
@@ -207,12 +216,15 @@ Terms used throughout this spec:
   works for an Igor under that Igor's role: a worker on an item, or an Igor
   itself running the inquisitor's filters on a question that stopped its
   work, as igor PR #216 defines "during a run".
-- **Igor-worker mode** is how the skill's script runs in an Igor worker:
-  filter 1 searches lore only through `igor lore-search`, and the script
-  pushes nothing to a lore repository, putting each file it would push in
-  the worker's report instead. The rules for what an Igor worker does as
-  an agent, such as asking only in its handback comment, are not part of
-  it.
+- **Igor-worker mode** is how the skill's script runs in an Igor worker,
+  which `IGOR_RUN=worker` marks, and in an inquisitor run the Igor starts
+  itself, which `IGOR_RUN=igor` marks (*Filter 1 searches every place an
+  answer is recorded*): filter 1 searches lore only through `igor
+  lore-search`, and the script pushes nothing to a lore repository,
+  putting each file it would push in the run's report instead, for the
+  Igor to push as igor PR #216 says. The rules for what an Igor worker
+  does as an agent, such as asking only in its handback comment, are not
+  part of it.
 - **A miss** is a question a person said need not have been asked, or
   that an answer session judged clearly need not have been, and a
   **citation file** records that filter 1 stopped a question with a lore
@@ -331,10 +343,22 @@ Igor injects lore from, and no other configured lore repository. In a
 worker, and in an inquisitor run the Igor starts itself with no worker,
 igor's command searches it, as the paragraph on Igor workers below says,
 as Adam settled on igor PR #216 (its decision 49); the script reads no lore clone during a
-run. Until the Igor gives the script a way to tell that it runs in an
-Igor's run (task 0.9), a session with no person in it SHALL count as
-possibly in one: it SHALL read no lore clone and push no citation. An
-answer session counts as a session with a person in it.
+run. The script SHALL tell that it runs in an Igor's run by the
+environment variable `IGOR_RUN`, which igor sets to `worker` in a
+worker's environment and to `igor` in the environment of an inquisitor
+run the Igor starts itself, and which holds no secret (igor PR #216's
+`task-execution` spec). The script SHALL match the
+variable by its exact name, so never `IGOR_RUN_TOKEN` or any other name
+that starts with it, and by its exact value: `worker` marks a worker's
+run, where the rest of the search covers only the worker's working tree,
+as the paragraph on Igor workers below says; `igor` marks the Igor's own
+run; and any other value, or no variable, marks no run. In either run the
+script SHALL read no lore clone and push nothing to a lore repository
+itself, and its output SHALL say each time that it runs as in an Igor's
+run because `IGOR_RUN` is set (proposal decision 239's item 9, which
+waits for Adam). Outside a run, a session with no
+person in it, such as `claude -p`, searches lore as any other session
+does.
 
 The search SHALL run the same way in an Igor worker as in any other
 session, except for its sources, which the paragraph on Igor workers below
@@ -345,7 +369,10 @@ igor PR #216 adds to igor's lore-firing requirement *Lore reaches the
 worker unbidden*: it shows only entries whose scope covers the run's role
 by firing's scope rule, which includes `project:` entries for every
 repository the role works. #216 applies its visibility rule for
-questions-branch files to `project:` entries too (its decision 53). That requirement and igor's
+questions-branch files to `project:` entries too, in a search (its
+decision 53) and in firing (its decision 54): a `project:X` entry is
+neither shown nor injected when the item's repository is more visible
+than the role's repository whose short name is X (#216's decision 55). That requirement and igor's
 [*An Igor runs its worker's lore searches*](https://github.com/adamstallard/igor/blob/spec-lore-search/openspec/changes/lore-search/specs/lore-firing/spec.md),
 in #216, set which question and miss files on the questions branch a
 search during a run may show. In short, it may show any such file of the
@@ -409,12 +436,26 @@ question on standard input, the search SHALL search no lore and say so.
 - **THEN** the search reads lore only through `igor lore-search`, and
   reads no lore clone itself
 
-#### Scenario: A headless session that can't tell it is outside a run reads no lore
+#### Scenario: A run is told by IGOR_RUN
 
-- **WHEN** a session with no person in it can't tell whether it runs in
-  an Igor's run, and filter 1 runs
-- **THEN** the search reads no lore clone, and the session pushes no
-  citation
+- **WHEN** filter 1 runs in a session whose environment holds
+  `IGOR_RUN=igor`
+- **THEN** the search reads no lore clone, searches lore through `igor
+  lore-search`, the script pushes nothing to a lore repository, and its
+  output says it runs as in an Igor's run because `IGOR_RUN` is set
+
+#### Scenario: A headless session outside a run searches lore
+
+- **WHEN** a `claude -p` session with no person in it, whose environment
+  holds no `IGOR_RUN`, runs filter 1
+- **THEN** the search reads the configured lore clones, as in any other
+  session
+
+#### Scenario: Only the exact name and value of IGOR_RUN mark a run
+
+- **WHEN** a session's environment holds `IGOR_RUN_TOKEN` and no
+  `IGOR_RUN`, or holds `IGOR_RUN=yes`
+- **THEN** the script counts the session as outside any Igor's run
 
 #### Scenario: Hits are ranked by terms matched and capped
 
@@ -549,12 +590,22 @@ these:
   all, the person's own included;
 - an in-scope lore entry whose `status` is `active`.
 
+Whoever logs an answer from a comment, whether the skill's script, an
+answer session or an Igor, SHALL record the comment's own text word for
+word as the file's answer, never a paraphrase by an agent, a worker or a
+model, even when the comment has several sentences or quotes the
+question. The answer text a worker or agent passes with a link only
+identifies which comment holds the answer.
+
 A linked comment **holds the answer** a log file records when the
-comment's text contains the file's answer line, once both texts are
-reduced as a question in a post is reduced for its hash (no list marker,
-inline markup reduced to its text, each run of whitespace made one space)
-and a leading `User says: ` is dropped from the comment. No model judges
-it. This is the one rule for it, and igor's search applies the same rule.
+comment's text equals the file's answer, once both are reduced: as a
+question in a post is reduced for its hash (no list marker, inline markup
+reduced to its text, each run of whitespace made one space), and with a
+leading `User says: ` and a last line `Re: <URL>` ignored in each. Equal
+means the whole text: a comment that only contains the answer, such as
+`Do not merge it.` for the answer `merge it.`, does not hold it. No model
+judges it. This is the one rule for it, and igor's search applies the
+same rule (igor PR #216's decision 72).
 
 When a lore repository's questions branch holds more than one log file
 with the same question, meaning the same hash of the text under its
@@ -721,12 +772,12 @@ agent. The search SHALL never show a rejected candidate.
 
 #### Scenario: A listed Igor's App proves no writer
 
-- **WHEN** `relays/alice.yaml` lists an App that the reader recognises as
-  an Igor's App, by the rule the proposal's *Still open* asks Adam for,
-  and a `decision` file links a
+- **WHEN** `relays/alice.yaml`, last changed by `alice`, lists the App
+  `igor-alice` under `github`, and a `decision` file links a
   `User says: ` comment by that App that holds the answer the file
   records
-- **THEN** the search shows the file labelled as unconfirmed
+- **THEN** `igor-alice` is not `alice`'s relay App, and the search shows
+  the file labelled as unconfirmed
 
 #### Scenario: A malformed relay file lists no relay where it is malformed
 
@@ -788,6 +839,44 @@ agent. The search SHALL never show a rejected candidate.
   `answered_by`'s whose text is `User says: **Back off**, capped at a
   minute.`
 - **THEN** the comment holds the answer the file records
+
+#### Scenario: A comment that only contains the recorded answer does not hold it
+
+- **WHEN** a `decision` file on a lore questions branch records the answer
+  `merge it.`, and links a comment of its `answered_by`'s whose text is
+  `Do not merge it.`
+- **THEN** the comment does not hold the answer, and the search shows the
+  file labelled as unconfirmed
+
+#### Scenario: A relayed comment's Re line is ignored
+
+- **WHEN** a `decision` file records the answer `Back off, capped at a
+  minute.`, and links a relayed answer whose text is `User says: Back off,
+  capped at a minute.` followed by the line
+  `Re: https://github.com/o/api/issues/7#issuecomment-1`
+- **THEN** the comment holds the answer the file records
+
+#### Scenario: A comment's whole text is recorded as the answer
+
+- **WHEN** the skill's script logs an answer whose `answer_link` is a
+  comment reading `Yes, back off.` and, on a second line, `Cap it at a
+  minute, as the question suggests.`
+- **THEN** the file's answer is those two lines, word for word, whatever
+  answer text the agent passed
+
+#### Scenario: A linked comment the script cannot read is not logged
+
+- **WHEN** the `log` command is given an answer whose `answer_link` names
+  a comment GitHub does not return
+- **THEN** the command writes nothing and says why
+
+#### Scenario: In Igor-worker mode the log command reads no comment
+
+- **WHEN** the `log` command runs under `IGOR_RUN=worker` with an answer
+  whose `answer_link` names a comment
+- **THEN** it makes no GitHub call, and the file it reports holds the
+  answer it was given, which only identifies the comment until the Igor
+  replaces it with the comment's text
 
 #### Scenario: A file about another repository is input during a run
 
@@ -907,7 +996,15 @@ agent. The search SHALL never show a rejected candidate.
 - **WHEN** an Igor worker whose role works `o/api` and `o/web` has a
   question about `o/web`, and an `active` entry scoped `project:api` matches
   it
+- **AND** `o/web` is no more visible than `o/api`
 - **THEN** the search shows the entry, and filter 1 treats it as an answer
+
+#### Scenario: Inside an Igor, a project entry about a more private repository is hidden
+
+- **WHEN** an Igor worker on an item in public `o/web`, whose role also
+  works private `o/api`, has a question that an `active` entry scoped
+  `project:api` matches
+- **THEN** the search does not show the entry
 
 #### Scenario: Inside an Igor, a question file about another repository is in scope
 
@@ -1463,8 +1560,8 @@ unreadable. It SHALL let through a payload that is not JSON. It SHALL
 block a post when any body the reader returns for it, such as one of a
 review's comments, starts with one of the four reserved
 prefixes the `answer-session` spec defines, once the body is reduced as
-*holds the answer* reduces a comment (inline markup reduced to its text,
-whitespace joined, and leading whitespace dropped), so that
+a question in a post is reduced for its hash (inline markup reduced to
+its text, whitespace joined), with leading whitespace dropped, so that
 ` User says: ` and `**User says:**` are blocked as `User says: ` is. The first call
 SHALL take a post's body and title and
 find their questions the same way the hook does, and SHALL refuse a post with
@@ -1893,20 +1990,16 @@ in igor PR #216, sets every rule for a run's citations: how a worker
 reports them, and when and which the Igor pushes, whether from a worker or
 from an inquisitor run the Igor starts itself with no worker. This spec
 does not restate them. An Igor worker SHALL push nothing to a lore
-repository either. Each question file, miss file and `authority: agent`
+repository either, and neither SHALL an inquisitor run the Igor starts
+itself. Each question file, miss file and `authority: agent`
 file it would push to a questions branch SHALL go in its report. So SHALL
 a log file recording a person's answer to its handback question, when a
 worker re-works the item after that answer: the file holds the question
 and the answer, with an `answer_link` to the person's comment on the
 item, and it is a new file, beside the unanswered one. The worker reports
-the file and the Igor decides its `authority`, as igor PR #216 has it: the
-Igor sets `authority` itself on each file it pushes, `decision` only when
-the answer passes this spec's checks in *Only an answer with authority
-stops a question*, and `input` otherwise. For a relay App's comment the
-Igor also sets `answered_by` to the person whose relay file lists that
-App, and those checks read
-the person's relay file from the Igor's lore checkout's fetched default branch, never
-its working tree. igor's lore-firing requirement
+the file, and the Igor decides its `authority`, its `answered_by` for a
+relay App's comment, and its answer, under this spec's checks in *Only an
+answer with authority stops a question*, as igor PR #216 has it. igor's lore-firing requirement
 [*An Igor publishes the questions-branch files its worker reports*](https://github.com/adamstallard/igor/blob/spec-lore-search/openspec/changes/lore-search/specs/lore-firing/spec.md),
 in igor PR #216, sets which of these files the Igor pushes, and when.
 This spec does not restate those rules either. An Igor worker writes a
@@ -1932,7 +2025,12 @@ repository, in a directory only the agent's user can read, with mode
 its group or others can read, or one whose own directory they can read,
 and write nothing. It writes the file in the format *A log file and a miss file have
 one format* states, and, for a questions branch, pushes it as this
-requirement says.
+requirement says. For an answer with an `answer_link`, the command SHALL
+read the linked comment through GitHub, with the person's credentials, and
+record its text word for word as the answer, whatever answer the agent passed;
+when it cannot read the comment, it SHALL write nothing and say why. In
+Igor-worker mode it SHALL read no comment: it writes the answer it was
+given, which only identifies the comment, and the Igor replaces it.
 
 A log file for a question that was never asked, such as an agent's choice
 under filter 3 or 4, SHALL follow the same privacy rules as any other: its
@@ -1944,14 +2042,16 @@ No log file SHALL be written outside a repository, such as under
 
 A log file for a question that was asked SHALL hold the question as asked and the day it was
 asked. When the answer comes, it gains who answered (its `answered_by`),
-the answer's `authority`, the answer in one sentence, and where the
+the answer's `authority`, the answer, and where the
 question's answer is recorded, in the format *A log file and a miss file
 have one format* states. A questions-branch file pushed with its answer,
 and a file a later Igor run logs with its answer, hold these from the
 start. The answer reaches a file in another
 repository by a further pull request, as the file did. The answer, like the question, SHALL be written
 at the privacy of what the question concerns: private context generalised
-or left out. When the agent cannot generalise the question and answer that
+or left out. An answer taken from a comment is recorded word for word or
+not at all, so when its words hold such context the file gets no answer.
+When the agent cannot generalise the question and answer that
 way, it SHALL add no answer to the question's file, which stays as it was
 written, and the question stays open; it uses the answer in the work, and
 its report says the answer could not be recorded at this privacy.
@@ -2281,14 +2381,20 @@ written.
   where the question's answer is recorded, as a path from that
   repository's root or a URL, never a lore entry; `answer_link`, only when there is one,
   the github.com URL of the comment or review holding the answer; and
-  `asked_from`, only in a questions-branch file an Igor pushes for its
-  worker. Its body
+  `asked_from`, only in a questions-branch file an Igor pushes, whether
+  its worker reported it or the Igor's own inquisitor run wrote it. Its body
   is the question under `## Question`, and, once the answer comes, the
-  answer in one sentence under `## Answer`. When the person answered the
+  answer under `## Answer`: for an answer with an `answer_link`, the
+  comment's own text word for word, as *Only an answer with authority
+  stops a question* says, in as many lines as it has; otherwise the answer
+  in one sentence. Each line of the answer is written as a quote line: `> `
+  followed by the line, or `>` alone for a blank line, with line ends made
+  LF and blank lines at the answer's start and end dropped (proposal
+  decision 239's items 1 and 2, which wait for Adam). When the person answered the
   question as rephrased in an answer session, the body also holds, between
   those two sections, the rephrased question under `## Rephrased question`
   and the discussion in one sentence under `## Discussion`. The script
-  SHALL write the answer, the discussion's sentence and the rephrased
+  SHALL write the discussion's sentence and the rephrased
   question each on one line, with each run of whitespace made one space.
 - **A miss file's keys:** `repository` and `asked`, as in its question's
   log file, or, for a miss an answer session logs, the repository the
@@ -2303,22 +2409,25 @@ written.
   the question
   under `## Question`.
 - **`asked_from`:** the repository of the item the Igor's run works, as
-  `owner/repo`. The Igor sets it on every log and miss file it pushes for
-  its worker, after refusing any worker's file that already holds one, as
+  `owner/repo`. The Igor sets it on every log and miss file it pushes,
+  from its worker or from an inquisitor run it starts itself, after
+  refusing any such file that already holds one, as
   igor PR #216's *An Igor publishes the questions-branch files its worker
   reports* says. A citation file never holds it.
   The skill's script never writes it. A file holding it is as private as
   the more private of its two repositories, as *More visible* says.
 - **Reading a log file:** it is answered when its frontmatter holds
   `authority`, and only then; nothing in its body decides it. Its body is
-  read from the end, skipping blank lines: in an answered file the last line is the answer and
-  the line before it is `## Answer`, and in a file holding a rephrasing
-  the four lines before those are `## Rephrased question`, the rephrased
+  read from the end, skipping blank lines after the last line that is not
+  blank: in an answered file the answer is the longest run of quote lines
+  at the end, each line starting with `>`, read with its `> ` or `>`
+  dropped, and the line before that run is `## Answer`; in a file holding
+  a rephrasing the four lines before those are `## Rephrased question`, the rephrased
   question, `## Discussion` and the discussion's sentence. Everything
   between the body's first line, `## Question`, and those last lines is
   the question, whatever lines it holds. A file that does not read this
-  way, such as one whose frontmatter holds `authority` while its last two
-  lines are not an answer section, is shown as input, labelled as
+  way, such as one whose frontmatter holds `authority` while its body
+  does not end in an answer section, is shown as input, labelled as
   unreadable.
 - **Checked before use:** filter 1 SHALL pass a file's `repository` or
   `asked_from` to no GitHub API call, and SHALL treat the file as input
@@ -2366,9 +2475,17 @@ written.
 
 #### Scenario: A log file that does not read as the format says is unreadable
 
-- **WHEN** a log file's frontmatter holds `authority`, and its last two
-  lines are not `## Answer` and an answer
+- **WHEN** a log file's frontmatter holds `authority`, and its body does
+  not end in a `## Answer` line followed by quote lines
 - **THEN** the search shows it as input, labelled as unreadable
+
+#### Scenario: A whole comment fits as the answer
+
+- **WHEN** the script logs, as an answer, a comment whose text is
+  `Yes.`, a blank line, and `## Answer: quoted from the question`
+- **THEN** the body ends with `## Answer`, then `> Yes.`, `>` and
+  `> ## Answer: quoted from the question`, and filter 1 reads those three
+  lines, with their quote marks dropped, as the answer
 
 #### Scenario: A malformed repository key is never sent to GitHub
 
@@ -2383,6 +2500,14 @@ written.
   whose `repository` key is `o/api`
 - **THEN** its frontmatter also holds `asked_from: "o/web"`, and a file
   the script writes outside an Igor holds no `asked_from`
+
+#### Scenario: A file from the Igor's own inquisitor run names where it was asked from
+
+- **WHEN** the Igor runs the inquisitor skill itself, on an item in
+  `o/web`, and the script, under `IGOR_RUN=igor`, writes a log file for a
+  question about the project
+- **THEN** the script writes the file with no `asked_from` and pushes
+  nothing, and the file the Igor pushes holds `asked_from: "o/web"`
 
 #### Scenario: A malformed asked_from is never sent to GitHub
 
@@ -2500,7 +2625,9 @@ published*. The host's own transcripts, such as Claude Code's under
 `~/.claude/projects/`, are outside this requirement.
 
 In this requirement an Igor's run means the whole execution on the item,
-not only one worker's part of it. During an Igor's run, whenever a worker gives a question a category,
+not only one worker's part of it, and each model step igor PR #153 runs
+after the worker, such as writing the pull request body, counts as a
+worker (igor PR #216's decisions 60 and 64). During an Igor's run, whenever a worker gives a question a category,
 whatever the question's verdict, the worker SHALL raise in its report the
 bare flag igor PR #216 defines: that the run met a question with a
 category, with no category, question or answer. A worker that such a
@@ -2884,9 +3011,14 @@ place the post's `Recorded in: ` line names through filter 1, and act on
 it only as filter 1 counts it. It SHALL push no citation for a lore entry
 that post names, since the answer session pushed one. It SHALL NOT log
 the post as a person's answer. When the post starts with `Inquisitor: `
-and names filter 2, 3 or 4, the agent SHALL take that filter's action, as
-if its own filter had stopped the question, and record its choice where
-that filter says, but only when both of these hold: the post's author is
+and names filter 2, or names filter 3 or 4 and holds, as its last line
+apart from a `Re: ` line, the line the `answer-session` spec adds when
+the person chose that filter under decline reason 3,
+`The person chose this filter.` (proposal decision 239's item 6, which
+waits for Adam), the agent SHALL take
+that filter's action, as if its own filter had stopped the question, and
+record its choice where that filter says, but only when both of these
+hold: the post's author is
 the relay App of someone with write access to what the question
 concerns, whether or not that is the person the question asked, and the
 question is not one that *Every
@@ -2941,9 +3073,28 @@ treats the post as input, and its question stands.
 #### Scenario: An Inquisitor reply is acted on as its filter
 
 - **WHEN** an agent's question gets a reply starting
-  `Inquisitor: filter 4` from the relay App of a person with write access
+  `Inquisitor: filter 2` from the relay App of a person with write access
   to what the question concerns, and task 0.21 has shown that GitHub
   reports which App wrote a comment
+- **THEN** the agent carries on without an answer, and lists the question
+  as not done, as filter 2 says
+
+#### Scenario: An automatic filter 4 reply is input
+
+- **WHEN** an agent's question gets a reply starting
+  `Inquisitor: filter 4` from the relay App of a person with write access
+  to what the question concerns, with no last line saying the person
+  chose it, and task 0.21 has shown that GitHub reports which App wrote a
+  comment
+- **THEN** the agent treats the reply as input, and its question stands
+
+#### Scenario: A filter 4 reply the person chose is acted on
+
+- **WHEN** an agent's question gets a reply starting
+  `Inquisitor: filter 4` whose last line before its `Re: ` line is
+  `The person chose this filter.`, from the relay App of a person with
+  write access to what the question concerns, and task 0.21 has shown
+  that GitHub reports which App wrote a comment
 - **THEN** the agent chooses one option, and records what it chose and
   why, as filter 4 says
 

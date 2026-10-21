@@ -144,7 +144,13 @@ types `/answer setup`. Setup SHALL:
   to;
 - check each relay identity itself: its skill's own check, and, on
   Discord, that it can read the content of messages that do not mention
-  it, which needs Discord's Message Content intent;
+  it, which needs Discord's Message Content intent. discord-bot's setup
+  has the person turn that intent on for the bot, and its `check` command
+  reports `messageContent` as
+  `true`, `false` or `null`, read from the bot's application flags; only
+  `true` passes, and `null`, meaning the check could not read the flags,
+  fails as `false` does (proposal decision 239's item 7, which waits for
+  Adam);
 - check that each relay identity can post in each of its surface's
   subscribed channels;
 - save the configuration, with every channel, whether its check passed or
@@ -219,10 +225,18 @@ never ran.
 
 #### Scenario: A relay that cannot read message content keeps Discord off
 
-- **WHEN** the Discord relay receives no content for a message that does
-  not mention it
+- **WHEN** discord-bot's `check` reports `messageContent` as `false` or
+  `null` for the Discord relay
 - **THEN** setup shows that failure and says to turn on the bot's Message
-  Content intent, and every Discord channel stays off
+  Content intent, or why the check could not read it, and every Discord
+  channel stays off
+
+#### Scenario: Discord stays off while discord-bot cannot turn mention rewriting off
+
+- **WHEN** discord-bot's `check` reports `messageContent` as `true`, and
+  discord-bot has no option to post with mention rewriting off
+- **THEN** setup counts the Discord relay's check as failed, saying why,
+  and every Discord channel stays off
 
 #### Scenario: A refused post turns a channel no check can read off
 
@@ -545,10 +559,11 @@ its header options (`--agent`, `--session`, `--project`, which put a line
 above the message), so the message starts with its reserved prefix, and
 with discord-bot's mention rewriting off. discord-bot rewrites an `@name`
 into a mention that notifies that member, and a `#channel` into a link;
-with it off, both are sent as typed. This follows the proposal's decision
-230, which waits for Adam. discord-bot is to gain that option in
-shared-skills PR #1; until it has one, the answer session posts
-nothing on Discord, and every Discord channel stays off with that reason.
+with it off, both are sent as typed. discord-bot is to gain that option in
+shared-skills PR #1, which at f83b167 still has none. Until it has one,
+setup SHALL count the Discord relay's own check as failed, with that
+reason, whatever `messageContent` says, so every Discord channel stays
+off and the answer session reads and posts nothing on Discord.
 
 When a post fails, because the surface refuses it, such as a Discord
 message over 2,000 characters, or because its command fails, the answer
@@ -1021,12 +1036,16 @@ relayed as the person's words* says, and also push the log file. It SHALL
 answer such a question by writing a new log file through the
 inquisitor script's `log` command, which pushes it to that same questions
 branch under the rules of the inquisitor's *Every answer is recorded and
-every asked question logged*. The file holds the question,
-the person's confirmed answer as its answer, its `authority` by the rules
-the inquisitor's *Every answer is recorded and every asked question
-logged* sets for an answer the person gave in the session, and any
-rephrasing and summary. When the answer was also relayed in a thread, the
-file's `answer_link` SHALL be the URL of that relay post. The answer session SHALL offer no question to the asker and no
+every asked question logged*. When the answer was also relayed in a
+thread, the file's `answer_link` SHALL be the URL of that relay post, and
+its answer SHALL be that post's own text word for word, as the
+inquisitor's *Only an answer with authority stops a question* has every
+writer record an answer from a comment, its rephrasing and summary lines
+included (proposal decision 239's item 8, which waits for Adam).
+Otherwise its answer is the person's confirmed answer. The file also
+holds the question, its `authority` by the rules the inquisitor's *Every
+answer is recorded and every asked question logged* sets for an answer
+the person gave in the session, and any rephrasing and summary. The answer session SHALL offer no question to the asker and no
 edit for a question of the fourth source.
 
 #### Scenario: A rephrased answer carries the rephrasing
@@ -1064,8 +1083,8 @@ edit for a question of the fourth source.
   unanswered log file on the lore repository's questions branch also holds
 - **THEN** the relay posts the answer in the thread, starting
   `User says: `, and the script pushes a new log file holding the question
-  and the answer to that branch, whose `answer_link` is that relay post's
-  URL
+  and, as its answer, that relay post's text word for word, to that
+  branch, whose `answer_link` is that relay post's URL
 
 #### Scenario: A questions-branch question offers no ask-back or edit
 
@@ -1090,7 +1109,7 @@ An automatic post SHALL be posted as *An answer is relayed as the
 person's words* has a relay post posted: through the relay identity's
 skill as a host command with no shell, naming its question the same way,
 with its id kept in the state folder, and scanned for the credential
-patterns first. Its text is fixed, or quoted from a record, so neither
+patterns first. Its text is fixed apart from a record's URL, so neither
 prose's pass nor the inquisitor's filters SHALL be applied to it. The
 answer session SHALL never show an automatic post as the person's words.
 
@@ -1143,7 +1162,10 @@ giving one of three reasons:
    and SHALL post it, naming the question, only once the person confirms
    it:
    - for filter 2, 3 or 4, that filter's fixed `Inquisitor: ` text, as
-     *Filters 2 to 4 judge every incoming question* gives it;
+     *Filters 2 to 4 judge every incoming question* gives it, followed by
+     the line `The person chose this filter.`, which no post the answer
+     session makes by itself holds (proposal decision 239's item 6, which
+     waits for Adam);
    - for filter 1, a recorded answer in the form *Filter 1 runs on every
      incoming question* gives, whose `Recorded in: ` line holds the URL of
      the place the person gave, or of a place filter 1 found that the
@@ -1207,10 +1229,11 @@ post takes its state from its thread, as any question does.
 - **WHEN** the person declines an agent's question on GitHub as one the
   inquisitor should have handled, picks filter 4, and types the note "a
   config flag, easy to flip"
-- **THEN** the answer session shows the filter 4 `Inquisitor: ` text as it
-  will be posted, posts it naming the question only once the person
-  confirms it, and logs a miss file whose `filter` is `"4"` and whose
-  `said` is that note
+- **THEN** the answer session shows the filter 4 `Inquisitor: ` text,
+  followed by the line `The person chose this filter.`, as it will be
+  posted, posts it naming the question only once the person confirms it,
+  and logs a miss file whose `filter` is `"4"` and whose `said` is that
+  note
 
 #### Scenario: A filter 1 reply names the place the person gave
 
@@ -1265,12 +1288,13 @@ asked, a relayed question included:
 it posts through the relay
 
 ```
-Recorded answer: <the log file's answer line>
+Recorded answer: see the record below.
 Recorded in: <the URL of where the answer is recorded>
 ```
 
-followed by its `Re: ` line on GitHub. When the record is not a log file,
-the first line is `Recorded answer: see the record below.` The session's
+followed by its `Re: ` line on GitHub, whatever the record is, a log
+file included: the post quotes no answer (proposal decision 239's item
+5, which waits for Adam). The session's
 model writes none of the post: the URL is that of filter 1's hit. The answer session SHALL post it by itself only when the
 record is no more private than the question's thread: on GitHub, when the
 record's repository is no more visible than the thread's repository; on
@@ -1306,8 +1330,8 @@ once, and so does each recorded answer.
   back off, and that repository's `DECISIONS.md` on its default branch
   decides it
 - **THEN** the relay posts, naming the question, a reply that starts with
-  `Recorded answer: `, gives a `Recorded in: ` line with that file's URL,
-  the question is listed as answered for the person, and a miss against
+  `Recorded answer: see the record below.`, gives a `Recorded in: ` line
+  with that file's URL and quotes no answer, the question is listed as answered for the person, and a miss against
   filter 1 whose `said` is `answer session: clearly filter 1` is logged
 
 #### Scenario: A person's question is answered by itself too
