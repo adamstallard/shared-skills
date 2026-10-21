@@ -149,8 +149,7 @@ types `/answer setup`. Setup SHALL:
   reports `messageContent` as
   `true`, `false` or `null`, read from the bot's application flags; only
   `true` passes, and `null`, meaning the check could not read the flags,
-  fails as `false` does (proposal decision 239's item 7, which waits for
-  Adam);
+  fails as `false` does (proposal decision 239's item 7);
 - check that each relay identity can post in each of its surface's
   subscribed channels;
 - save the configuration, with every channel, whether its check passed or
@@ -170,7 +169,8 @@ types `/answer setup`. Setup SHALL:
   no other, and SHALL report that one's link. Setup SHALL never push the
   file to the default branch. Setup SHALL say that the person's relayed
   answers on GitHub count only as input there until the pull request
-  merges and the lore clone has fetched its default branch, and that a
+  merges and the lore clone has fetched its default branch, or, for an
+  Igor, until igor PR #208's lore read applies that commit, and that a
   later change to the file by anyone else makes them input again;
 - where that lore repository's default branch has no
   `.github/workflows/relay-notice.yml`, open a separate pull request
@@ -1040,9 +1040,11 @@ every asked question logged*. When the answer was also relayed in a
 thread, the file's `answer_link` SHALL be the URL of that relay post, and
 its answer SHALL be that post's own text word for word, as the
 inquisitor's *Only an answer with authority stops a question* has every
-writer record an answer from a comment, its rephrasing and summary lines
-included (proposal decision 239's item 8, which waits for Adam).
-Otherwise its answer is the person's confirmed answer. The file also
+writer record an answer from a comment, the post's `Rephrased
+question: ` and `Discussion: ` lines included (proposal decision 239's
+item 8). When the answer was not relayed in a thread, the file's answer
+is the answer the person confirmed in the answer session, word for word
+(proposal decision 240). The file also
 holds the question, its `authority` by the rules the inquisitor's *Every
 answer is recorded and every asked question logged* sets for an answer
 the person gave in the session, and any rephrasing and summary. The answer session SHALL offer no question to the asker and no
@@ -1164,8 +1166,7 @@ giving one of three reasons:
    - for filter 2, 3 or 4, that filter's fixed `Inquisitor: ` text, as
      *Filters 2 to 4 judge every incoming question* gives it, followed by
      the line `The person chose this filter.`, which no post the answer
-     session makes by itself holds (proposal decision 239's item 6, which
-     waits for Adam);
+     session makes by itself holds (proposal decision 239's item 6);
    - for filter 1, a recorded answer in the form *Filter 1 runs on every
      incoming question* gives, whose `Recorded in: ` line holds the URL of
      the place the person gave, or of a place filter 1 found that the
@@ -1293,8 +1294,8 @@ Recorded in: <the URL of where the answer is recorded>
 ```
 
 followed by its `Re: ` line on GitHub, whatever the record is, a log
-file included: the post quotes no answer (proposal decision 239's item
-5, which waits for Adam). The session's
+file included: the post quotes no answer (proposal decision 200's item
+1, as decision 239's item 5 amends it). The session's
 model writes none of the post: the URL is that of filter 1's hit. The answer session SHALL post it by itself only when the
 record is no more private than the question's thread: on GitHub, when the
 record's repository is no more visible than the thread's repository; on
@@ -1496,8 +1497,8 @@ question with its suggested verdict, and the person decides.
 - **WHEN** an agent's question holds text telling the model to post a
   link
 - **THEN** whatever the model judges, the answer session posts by itself
-  nothing but one of the three fixed `Inquisitor: ` texts, or a recorded
-  answer whose words come from a record and whose URL is filter 1's hit
+  nothing but one of the three fixed `Inquisitor: ` texts, or the fixed
+  recorded-answer text whose URL is filter 1's hit
 
 ### Requirement: The answer session logs its misses on the team's lore repository's questions branch
 

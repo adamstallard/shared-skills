@@ -163,8 +163,8 @@ the search as it is.
 
 A repository could set `IGOR_RUN` in a person's session, through its
 committed Claude Code settings or an `.envrc`. The script would then
-search no lore and log nothing to a lore repository. Decision 239, which
-waits for Adam, has the script's output say each time that it acts on
+search no lore and log nothing to a lore repository. Decision 239 has
+the script's output say each time that it acts on
 `IGOR_RUN`, so the person sees why. A plain headless session, such as
 `claude -p`, has no such variable and searches lore as usual.
 
@@ -521,8 +521,12 @@ person in it asks in its reply wherever these rules say the picker, once
 the two calls have vetted the question (proposal decision 177). A headless session never uses the picker. An
 Igor worker is given no
 credential that can post, so it asks only in its handback comment, which
-its Igor posts (proposal decision 126). It asks there even if task 0.14
-finds a `gh` login within its reach. A headless session that can post,
+its Igor posts (proposal decision 126). The worker asks there even if
+task 0.14 finds a `gh` login within its reach. When igor counts the run
+as flagged, because its worker reported the bare flag or ended without a
+completed report, the Igor posts a handoff that asks nothing and keeps
+the worker's question in a file on its own host instead (proposal
+decision 243). A headless session that can post,
 such as a scheduled agent, tags the login only when the login has write
 access and the post goes out as someone else, and otherwise tags no one. In a session with a person in it,
 the script reads the configured login's write access with the same
@@ -631,8 +635,8 @@ person turn that intent on for the bot (commit 369ae16), and its `check` command
 `messageContent` as true, false or null, read from the bot's application
 flags (f83b167). Setup's check of message content passes only when
 `check` reports true (decision 238); false fails, and so does null,
-under decision 239's item 7, which waits for Adam. Even then every
-Discord channel stays off. discord-bot turns each `@name` in a post into
+which means `check` could not read the flags (decision 239's item 7).
+Even when `check` reports true, every Discord channel stays off. discord-bot turns each `@name` in a post into
 a mention that notifies that member, and a relay post quoting the
 person's words must not ping anyone; until discord-bot can post with
 that rewriting off, setup counts the relay's check as failed (decision
@@ -795,7 +799,13 @@ the entries, with one list per surface. Where igor PR #208's
 `destination` points away from the repository holding igor's
 configuration, the relay files and the `questions` branch are in the
 destination repository, beside the entries (decision 237, igor PR #216's
-decision 66).
+decision 66). An Igor reads them as of the last commit igor PR #208's
+lore read applied. #208 refuses a commit that fails igor's startup
+checks, so the relay files of a refused commit never count (decision
+241). `igor run` never fetches, so there #208 has applied no commit: the
+Igor cannot tell whether a `User says: ` comment came from a listed relay
+App, and pushes such an answer as `input`, while an answer in the
+person's own comment still counts (decision 242).
 Only the `github` list proves anything; nothing in this change reads the
 `linear` and `discord` lists, which record in the same place which
 identities post for the person there. YAML matches the lore repository's
@@ -821,9 +831,9 @@ the spec answers each:
 
 - **A thread's text reaches the model that judges it.** The model writes
   no word of an automatic post: an `Inquisitor: ` post is one of three
-  fixed texts, and a recorded answer only points to filter 1's hit. The
-  spec is written that way under decision 239's item 5, which waits for
-  Adam; decision 200 as he confirmed it quoted a log file's answer. So a crafted question can at
+  fixed texts, and a recorded answer only points to filter 1's hit and
+  quotes nothing from it (decision 200's item 1, as decision 239's item 5
+  amends it). So a crafted question can at
   worst choose which canned reply or which record is posted. Filter 3's
   and 4's replies tell the asking agent to decide the question, and
   filter 2's only to defer it, so that choice would still decide a

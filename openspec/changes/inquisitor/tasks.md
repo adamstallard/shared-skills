@@ -209,8 +209,10 @@ contradicts what design.md assumed.
       format of *A log file and a miss file have one format*, with an
       `authority` of `decision`, `input` or `agent`, and `answered_by: agent` for an agent's choice,
       an answer with an `answer_link` read from the linked comment and
-      recorded word for word (decision 236) in quote lines (decision
-      239's item 1, which waits for Adam): in the
+      recorded word for word (decision 236), and any answer a person
+      gave without an `answer_link` in their own words as given
+      (decision 240), each in quote lines
+      (decision 239's item 1): in the
       repository's `.inquisitor/` for a
       question about it (by a pull request when it is not the repository
       holding the current work), or pushed to the team's lore repository's
@@ -391,7 +393,7 @@ contradicts what design.md assumed.
       reply only when it names filter 2, or names filter 3 or 4 and its
       last line apart from a `Re: ` line says the person chose it, which
       reason 3's posts add (decision 234; the line is decision 239's
-      item 6, which waits for Adam)
+      item 6)
 
 ## 7. Archive
 

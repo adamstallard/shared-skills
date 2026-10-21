@@ -135,11 +135,21 @@ Terms used throughout this spec:
   that prefix refuses to start, as igor PR #216 has it (its decision 62).
   So a reader SHALL take every App whose slug starts with `igor-` as an
   Igor's App.
+- **A flagged run** is an Igor's run that igor counts as flagged: its
+  worker reported the bare flag of *Some questions are recorded by hash
+  only*, or the run ended without the worker's completed report, as igor
+  PR #216 defines it. Its **handoff**, the Igor's comment handing the
+  item back, asks no question.
 - **A person's relay file** is the file `relays/<login>.yaml` in a lore
   repository, where `<login>` is the person's GitHub login, compared without regard
-  to case, read from that
-  lore repository's default branch as the clone's remote-tracking branch
-  last fetched it.
+  to case. Outside an Igor, it is read from that lore repository's
+  default branch as the clone's remote-tracking branch last fetched it.
+  An Igor reads it as of the last commit igor PR #208's lore read
+  applied, so the relay files of a commit #208 refused never count
+  (igor PR #216's decision 77). `igor run` never fetches, so there #208
+  has applied no commit; an Igor then cannot tell whether a
+  `User says: ` comment came from a person's relay App, and pushes such
+  an answer as `input` (igor PR #216's decision 78).
   It names the person's relay identities, the bots their answer session
   posts through. It is YAML: a mapping with any of the keys `github`,
   `linear` and `discord`, each a list of quoted strings. Under `github`
@@ -156,8 +166,10 @@ Terms used throughout this spec:
   The person adds or changes their file with their own pull request, or
   with a commit of theirs that GitHub verifies as signed by them; the answer session's setup proposes the pull
   request, and never pushes the file. No review is required. A reader SHALL count a relay file only when its
-  last change came from its person: the newest commit on the default
-  branch that changed the file, by git's default history, belongs to a
+  last change came from its person: the newest commit that changed the
+  file, as git's default history walk finds it from the commit the file
+  is read from (the fetched default branch, or, in an Igor, the commit
+  #208 last applied), belongs to a
   merged pull request that GitHub associates with that commit and that
   the person authored, or carries a signature GitHub verifies for the
   person's account, as the writer proof of *Only an answer with authority
@@ -355,8 +367,8 @@ as the paragraph on Igor workers below says; `igor` marks the Igor's own
 run; and any other value, or no variable, marks no run. In either run the
 script SHALL read no lore clone and push nothing to a lore repository
 itself, and its output SHALL say each time that it runs as in an Igor's
-run because `IGOR_RUN` is set (proposal decision 239's item 9, which
-waits for Adam). Outside a run, a session with no
+run because `IGOR_RUN` is set (proposal decision 239's item 9).
+Outside a run, a session with no
 person in it, such as `claude -p`, searches lore as any other session
 does.
 
@@ -769,6 +781,24 @@ agent. The search SHALL never show a rejected candidate.
   `alice-relay` to `relays/alice.yaml`, it has not merged, and a `decision`
   file links a `User says: ` comment by `alice-relay`
 - **THEN** the search shows the file labelled as unconfirmed
+
+#### Scenario: An Igor counts no relay from a commit igor refused
+
+- **WHEN** during an Igor's run, the newest commit on the lore
+  repository's default branch adds `alice-relay` to `relays/alice.yaml`
+  from a merged pull request `alice` authored, and igor PR #208's lore
+  read refused that commit
+- **THEN** the Igor reads `relays/alice.yaml` as of the commit #208 last
+  applied, where `alice-relay` is not listed, and `alice-relay` is not
+  `alice`'s relay App
+
+#### Scenario: With no commit applied, a relayed answer is pushed as input
+
+- **WHEN** under `igor run`, where igor PR #208 has applied no commit of
+  the lore repository, a worker re-working an item reports a log file
+  linking a `User says: ` comment by `alice-relay`
+- **THEN** the relay check does not run, and the Igor pushes the file
+  with `authority: input`
 
 #### Scenario: A listed Igor's App proves no writer
 
@@ -1248,7 +1278,11 @@ a session with a person in it SHALL return each surviving question, prepared, to
 started it. A session with no person in it SHALL never use the picker.
 An Igor worker SHALL ask only in its handback comment, which its Igor
 posts, and SHALL ask no question with a category: it raises the bare
-flag instead, as *Some questions are recorded by hash only* says. A session with no person in it that can post, such
+flag instead, as *Some questions are recorded by hash only* says. The
+worker does not need to know whether its run is flagged: when igor
+counts it flagged, the Igor posts the handoff, which asks nothing, in
+place of the handback comment, and what it does with the question
+instead is igor PR #216's (its decisions 73, 75 and 76). A session with no person in it that can post, such
 as a scheduled agent, SHALL ask the question in a post, tagged as *A
 question in a post tags one person who can decide* says. A session
 with no person in it that can neither post nor hand back SHALL ask nowhere: it stops only if the work
@@ -2010,7 +2044,9 @@ run ends in the Igor's handback comment with no artifact, the worker
 SHALL write no such file, and the handback comment is the question's
 record. A later run on the item that publishes an artifact SHALL log the
 question in it, with its answer from the start once a person has given
-one. A citation file
+one. That rule does not apply to the question that stopped a flagged
+run: no log file SHALL record it, neither from that run nor from a later
+one (proposal decision 243). A citation file
 is never an answer. Every commit
 the script makes to a lore repository's questions branch SHALL have the
 message `inquisitor: log <file>`, and SHALL carry no prose or bug-hunter
@@ -2047,12 +2083,12 @@ question's answer is recorded, in the format *A log file and a miss file
 have one format* states. A questions-branch file pushed with its answer,
 and a file a later Igor run logs with its answer, hold these from the
 start. The answer reaches a file in another
-repository by a further pull request, as the file did. The answer, like the question, SHALL be written
+repository by a further pull request, as the file did. The question, and an agent's own choice, SHALL be written
 at the privacy of what the question concerns: private context generalised
-or left out. An answer taken from a comment is recorded word for word or
-not at all, so when its words hold such context the file gets no answer.
-When the agent cannot generalise the question and answer that
-way, it SHALL add no answer to the question's file, which stays as it was
+or left out. A person's answer is never generalised: it is recorded in
+their words or not at all, so when its words hold such context the file
+gets no answer (proposal decision 240).
+When the answer cannot be recorded at that privacy, the agent SHALL add no answer to the question's file, which stays as it was
 written, and the question stays open; it uses the answer in the work, and
 its report says the answer could not be recorded at this privacy.
 
@@ -2134,6 +2170,14 @@ why.
   configured login has write access to the repository the question concerns
 - **THEN** the log file records the answer with `authority: decision`
 
+#### Scenario: A picker answer is logged in the person's words
+
+- **WHEN** the person answers in the picker by choosing the option
+  `Back off, capped at a minute.`, or by typing `back off but cap it at
+  a minute`
+- **THEN** the log file's answer is that option or that text word for
+  word, as quote lines under `## Answer`, never the agent's rewording
+
 #### Scenario: A question needing a password gets the secret category
 
 - **WHEN** the agent's question needs a database password to make sense
@@ -2213,6 +2257,13 @@ why.
   `authority` when it pushes it, and, when the comment is a relay App's,
   its `answered_by`
 
+#### Scenario: A flagged run's question is logged nowhere
+
+- **WHEN** an Igor worker's run stops on a question it would ask in its
+  handback comment, and the run is flagged
+- **THEN** no log file records that question, from that run or from a
+  later run on the item, and the Igor pushes none
+
 #### Scenario: A handback with no artifact logs no repository question
 
 - **WHEN** an Igor worker asks, in its handback comment, a question about
@@ -2285,10 +2336,10 @@ why.
 - **THEN** no log file is written, and the agent tells the person the question
   was not logged
 
-#### Scenario: An answer that can't be generalised is not recorded
+#### Scenario: An answer holding private context is not recorded
 
 - **WHEN** a person answers a question about a public repository by naming
-  a private repository's code, and the agent cannot generalise the answer
+  a private repository's code
 - **THEN** the question's file, written when it was asked, gets no answer
   and the question stays open; the agent uses the answer in the work, and
   its report says the answer could not be recorded at this privacy
@@ -2386,11 +2437,14 @@ written.
   is the question under `## Question`, and, once the answer comes, the
   answer under `## Answer`: for an answer with an `answer_link`, the
   comment's own text word for word, as *Only an answer with authority
-  stops a question* says, in as many lines as it has; otherwise the answer
-  in one sentence. Each line of the answer is written as a quote line: `> `
+  stops a question* says; for any other answer a person gave, their
+  words as given, word for word, such as, in the session, the option they
+  chose in the picker or the text they typed; for an agent's own choice,
+  that choice in one sentence. An answer keeps as many lines as it has. Each line of
+  the answer is written as a quote line: `> `
   followed by the line, or `>` alone for a blank line, with line ends made
   LF and blank lines at the answer's start and end dropped (proposal
-  decision 239's items 1 and 2, which wait for Adam). When the person answered the
+  decisions 239 and 240). When the person answered the
   question as rephrased in an answer session, the body also holds, between
   those two sections, the rephrased question under `## Rephrased question`
   and the discussion in one sentence under `## Discussion`. The script
@@ -3014,8 +3068,7 @@ the post as a person's answer. When the post starts with `Inquisitor: `
 and names filter 2, or names filter 3 or 4 and holds, as its last line
 apart from a `Re: ` line, the line the `answer-session` spec adds when
 the person chose that filter under decline reason 3,
-`The person chose this filter.` (proposal decision 239's item 6, which
-waits for Adam), the agent SHALL take
+`The person chose this filter.` (proposal decision 239's item 6), the agent SHALL take
 that filter's action, as if its own filter had stopped the question, and
 record its choice where that filter says, but only when both of these
 hold: the post's author is
@@ -3115,8 +3168,8 @@ in the same way, under `misses/` in place of `questions/`; on a lore
 repository's questions branch it is pushed directly, except that an Igor
 worker reports it for its Igor to push. The file holds the
 question, the filter that should have stopped it, and what the person
-said, written at the privacy of what the question concerns, as a logged
-answer is. A miss is logged whatever words the person uses; "that
+said, written at the privacy of what the question concerns: private
+context generalised or left out. A miss is logged whatever words the person uses; "that
 was obvious" is one way to say it. A question that got no
 log file gets no miss file either, except a miss an answer session logs:
 an answer session logs its own misses, whether or not the asker logged
