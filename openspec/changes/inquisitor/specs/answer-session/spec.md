@@ -1435,8 +1435,8 @@ question passes four filters before a person sees it* states them. It
 SHALL treat a question as failing a filter only when the case is clear;
 any unclear case goes to the person, as an ordinary question.
 
-For an agent's question with a thread that clearly fails filter 2, 3 or
-4, the answer session SHALL reply by itself through the relay with that
+For an agent's question that has a thread the relay can reply in, has
+no category, and clearly fails filter 2, 3 or 4, the answer session SHALL reply by itself through the relay with that
 filter's fixed text, which the session's model does not write:
 
 - filter 2: `Inquisitor: filter 2, deferrable. Carry on without an answer,

@@ -136,7 +136,7 @@ Terms used throughout this spec:
   So a reader SHALL take every App whose slug starts with `igor-` as an
   Igor's App.
 - **A flagged run** is an Igor's run that igor counts as flagged: its
-  worker reported the bare flag of *Some questions are recorded by hash
+  worker reported the flag of *Some questions are recorded by hash
   only*, or the run ended without the worker's completed report, as igor
   PR #216 defines it. Its **handoff**, the Igor's comment handing the
   item back, asks no question.
@@ -1277,12 +1277,12 @@ session asks in its reply instead. A subagent of
 a session with a person in it SHALL return each surviving question, prepared, to whoever
 started it. A session with no person in it SHALL never use the picker.
 An Igor worker SHALL ask only in its handback comment, which its Igor
-posts, and SHALL ask no question with a category: it raises the bare
+posts, and SHALL ask no question with a category: it raises the
 flag instead, as *Some questions are recorded by hash only* says. The
 worker does not need to know whether its run is flagged: when igor
 counts it flagged, the Igor posts the handoff, which asks nothing, in
 place of the handback comment, and what it does with the question
-instead is igor PR #216's (its decisions 73, 75 and 76). A session with no person in it that can post, such
+instead is igor PR #216's (its decisions 73, 75, 76, 79 to 85, 88 and 89). A session with no person in it that can post, such
 as a scheduled agent, SHALL ask the question in a post, tagged as *A
 question in a post tags one person who can decide* says. A session
 with no person in it that can neither post nor hand back SHALL ask nowhere: it stops only if the work
@@ -2683,9 +2683,16 @@ not only one worker's part of it, and each model step igor PR #153 runs
 after the worker, such as writing the pull request body, counts as a
 worker (igor PR #216's decisions 60 and 64). During an Igor's run, whenever a worker gives a question a category,
 whatever the question's verdict, the worker SHALL raise in its report the
-bare flag igor PR #216 defines: that the run met a question with a
-category, with no category, question or answer. A worker that such a
-question stops SHALL report only that flag, never the question's category.
+flag igor PR #216 defines: that the run met a question with a category,
+with no question or answer. A worker that such a question stops SHALL
+also report, with the flag, that question's category, one word with no
+other text (proposal decision 244). When several questions stop it,
+the flag SHALL carry each category among them once, in the
+order `vulnerability`, `secret`, `personal`. A question with a category
+that does not stop the worker SHALL add no category to the flag
+(proposal decision 245, which this change proposes and Adam has yet to
+confirm). What the Igor does with the words is igor PR
+#216's (its decision 89).
 igor's task-execution requirement
 [*Transcripts and outcomes are captured to the state branch*](https://github.com/adamstallard/igor/blob/spec-lore-search/openspec/changes/lore-search/specs/task-execution/spec.md),
 in #216, says what the Igor does with the flag, and applies the same rules
@@ -2753,22 +2760,31 @@ and use it in the code of the fix.
   repository's private security advisory, has a question with the
   category `vulnerability`, and the work needs the answer
 - **THEN** it asks the question nowhere, not even in its handback comment,
-  stops the work that needs the answer, and its report holds igor's bare
-  flag and no category, question or answer
+  stops the work that needs the answer, and its report holds igor's flag
+  with the category `vulnerability`, and no question or answer
 
-#### Scenario: An Igor worker stopped by a personal question reports only the flag
+#### Scenario: An Igor worker stopped by a personal question reports only the flag and its category
 
 - **WHEN** an Igor worker has a question with the category `personal`, and
   the work needs the answer
 - **THEN** it asks and posts nothing, stops the work that needs the answer,
-  and its report holds igor's bare flag and no category, question or answer
+  and its report holds igor's flag with the one word `personal`, and no
+  question or answer
 
 #### Scenario: A categorized question raises the flag whatever its verdict
 
 - **WHEN** during an Igor's run the worker gives a question the category
   `secret`, and decides it under filter 4
-- **THEN** the worker's report holds igor's bare flag that the run met a
-  question with a category, and no category, question or answer
+- **THEN** the worker's report holds igor's flag that the run met a
+  question with a category, and no category, question or answer, since
+  the question did not stop the work
+
+#### Scenario: Several stopping questions give each category once
+
+- **WHEN** an Igor worker is stopped by two `personal`
+  questions, one `secret` question and one question with no category
+- **THEN** its report holds igor's flag with the words `secret` and
+  `personal`, in that order, and no question or answer
 
 #### Scenario: A deferred vulnerability goes to the advisory
 

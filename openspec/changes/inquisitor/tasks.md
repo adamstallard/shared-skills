@@ -298,8 +298,9 @@ contradicts what design.md assumed.
       with prose, logging answers and misses, the three categories recorded
       by hash only, what a headless session does (no picker, an Igor
       worker asking only in its handback comment, stopping on a
-      categorized question, and an Igor worker raising igor's bare flag
-      for a categorized question, with no category), describing no
+      categorized question, and an Igor worker raising igor's flag
+      for a categorized question, with the category only when that
+      question stops it), describing no
       weakness in public text before its advisory is published, reviewing
       misses, and lessons by scope
 - [ ] 5.2 `README.md`: what the skill is for, `inquisitor.json` and

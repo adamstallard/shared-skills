@@ -322,11 +322,16 @@ beside it.
 - **A question about one person's way of working:** no log. Its answer goes
   into that person's memory or `CLAUDE.md`, which agents already read.
 - **A question in one of the three categories** (`vulnerability`, `secret`,
-  `personal`): no log. Only the hooks' record above holds it, as a hash.
+  `personal`): no log. Of this skill's records, only the hooks' record of
+  the question, described in the bullet before last, holds it, as a hash.
   During an Igor's run, the worker, the agent an Igor starts on a work
-  item, raises a bare flag in its report: a mark, defined by igor PR #216,
-  that the run met such a question, holding nothing else about it, not
-  even the category. When the Igor reads that flag, #216's task-execution
+  item, raises a flag in its report: a mark, defined by igor PR #216,
+  that the run met such a question. A worker that such a question stops
+  adds its category, one word, and nothing else (proposal decision 244).
+  igor then counts the run as flagged. It writes the category word, never
+  the question's text, into an operator-only file on its host, and moves
+  the run's session log, which holds the text, beside that file (igor PR
+  #216's decisions 88 and 89). When the Igor reads that flag, #216's task-execution
   requirement *Transcripts and outcomes are captured to the state branch*
   has it write no transcript of the run, since a transcript would hold the
   question (proposal decision 136).
@@ -523,10 +528,12 @@ Igor worker is given no
 credential that can post, so it asks only in its handback comment, which
 its Igor posts (proposal decision 126). The worker asks there even if
 task 0.14 finds a `gh` login within its reach. When igor counts the run
-as flagged, because its worker reported the bare flag or ended without a
-completed report, the Igor posts a handoff that asks nothing and keeps
-the worker's question in a file on its own host instead (proposal
-decision 243). A headless session that can post,
+as flagged, because its worker reported the flag described above or ended without a
+completed report, the Igor posts a handoff that asks nothing. The Igor
+keeps the question the run stopped on in a file on its own host: its
+category where it has one, or else its text. What that file holds in
+other cases, such as a run with no completed report, is igor PR #216's
+(proposal decisions 243 and 244). A headless session that can post,
 such as a scheduled agent, tags the login only when the login has write
 access and the post goes out as someone else, and otherwise tags no one. In a session with a person in it,
 the script reads the configured login's write access with the same

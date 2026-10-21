@@ -15,10 +15,10 @@ are written down:
   196, 204 to 214, 216 to 221, 223 to 226, 229 and 231, on 2026-10-20;
 - 232 to 237, on 2026-10-21, and 238 in two parts: Message Content
   turned on, on 2026-10-20, and how `check` reads it, on 2026-10-21.
-- 240 to 243, on 2026-10-21.
+- 240 to 244, on 2026-10-21.
 
-Apart from 229 and 241 to 243, which he gave in the session reviewing
-igor PR #216, he gave those of 2026-10-19 to 2026-10-21 while reviewing this pull
+Apart from 229 and 241 to 244, which he gave in the session reviewing
+igor PR #216, and 238, which he gave in shared-skills PR #1, he gave those of 2026-10-19 to 2026-10-21 while reviewing this pull
 request, [#25](https://github.com/adamstallard/shared-skills/pull/25), whose
 own thread holds none of them. In the same sessions he also ruled on the
 decisions this change proposed itself: 16 to 30, 36, 37, 50, 79, 86, 99,
@@ -357,7 +357,8 @@ fifth consistency read:
     question it asks only in the repository's private security advisory,
     and it stops the work and reports the same way. Adam's decision 136
     has an Igor worker report only a bare flag, a mark defined by igor PR
-    #216 that its run met such a question, with no category.
+    #216 that its run met such a question, with no category; his decision
+    244 adds the category of a question that stops the worker.
 68. *Amended by Adam's decision 240: a person's answer is recorded in
     their words or not at all, never generalised; a miss's `said` is
     still generalised.* **A logged answer, and a miss's record of what the person said, are
@@ -871,7 +872,9 @@ recording decisions 131 to 135:
      branch* says what the Igor does with the flag, and applies the same
      rules when the Igor runs the skill itself. A worker that such a
      question stops reports only that flag, never the question's
-     category. This amends decision 67 for an Igor worker.
+     category. This amends decision 67 for an Igor worker. *Amended by
+     Adam's decision 244: a worker that such a question stops reports
+     its category with the flag.*
 137. **A question another installed skill requires a person to decide is
      exempt from filter 2 as well as filters 3 and 4.** It is asked now,
      and only filter 1 still applies. This amends decision 74.
@@ -945,7 +948,7 @@ touches them:
      decision`. This narrows decision 142, and decision 149 extends it.
 146. **In the rules for a question with a category, an Igor's run is the
      whole execution on the item,** not only one worker's part of it.
-     This applies to decision 136's bare flag, the mark a worker's report
+     This applies to decision 136's flag, the mark a worker's report
      carries when its run meets a question with a category.
 147. **UI is prototyped, not specified.** Once Adam has used a UI's
      prototype and approved it, the UI goes straight to an implementation
@@ -975,7 +978,7 @@ touches them:
      unanswered one, as decision 140 has it. This extends decision 145.
 150. **A run that counts as flagged pushes nothing to the `questions`
      branch,** citations included. A run counts as flagged when its
-     worker reported decision 136's bare flag, or when the provider
+     worker reported decision 136's flag, or when the provider
      refused it over a usage limit before the worker's completed report
      (#216's decision 19). #216's decision 38 widens that: a run that ends
      without the worker's completed report, for any reason, counts as
@@ -1596,7 +1599,11 @@ points to #216 for igor's mechanics:
      person's words are never reworded, an answer holding context more
      private than what the question concerns is not recorded at all, as
      decision 239's item 4 has it for a comment. This changes decision
-     239's item 2.
+     239's item 2. Adam confirmed (2026-10-21) both readings this change
+     took from 240: an answer whose words hold context more private than
+     its question is not recorded at all, never generalised, and an
+     answer a person types in their own message in a session is recorded
+     word for word.
 241. **An Igor reads relay files as of the commit igor PR #208's lore
      read last applied** (#216's decision 77). #208 applies only a
      commit that passes igor's startup checks, so the relay files of a
@@ -1616,26 +1623,48 @@ points to #216 for igor's mechanics:
      counts (#216's decision 78).
 243. **A flagged run asks nothing on the item, and its question stays on
      the Igor's host.** A flagged run is one igor counts as having met a
-     sensitive question: its worker reported the bare flag (decision
-     136), or it ended without the worker's completed report (decision
-     221). Its handoff, the Igor's comment handing the item back, posts
-     no question (#216's decision 73), gets no `igor:question` label, and
-     reaches nothing in igor #211's inquisitor role (#216's decision 75).
-     The Igor keeps the question in the file
-     `flagged-questions/<tracker>/<repo>/<item>.md` under its state
-     directory, mode 0600, never pushed, and a reply does not rerun the
-     item (#216's decisions 76 and 81); when that file cannot be written,
-     the handoff still posts (#216's decision 80). Only someone with
-     write access to the item's repository releases a flagged item
-     (#216's decision 79). Here, an Igor worker still asks only in its
-     handback comment (decision 126), but when the run is flagged, the
-     Igor posts the handoff that asks nothing in its place. So no log
-     file records the question that stopped a flagged run: not from that
-     run, and not from a later one, which decision 183's item 6 would
-     otherwise have log it with its answer; this amends that item. The
-     file on the host is igor's, and this change reads nothing from it.
-     Decision 150 already has a flagged run push nothing to the
-     `questions` branch.
+     sensitive question: its worker reported the flag (decision 136, with
+     the category decision 244 adds), or it ended without the worker's
+     completed report (decision 221). Its handoff, the Igor's comment
+     handing the item back, posts no question (#216's decision 73), gets
+     no `igor:question` label, and reaches nothing in igor #211's
+     inquisitor role (#216's decision 75). The Igor keeps the question in
+     an operator-only file on its own host, never pushed, and the item
+     stays held: a reply does not rerun it. What that file holds, and how
+     a held item is released, are #216's, which this change points to
+     rather than restates (#216's decisions 76, 79 to 85, 88 and 89 at
+     8600ffe). In brief, the file holds the question's category where it
+     has one, otherwise its text, and the path of the run's session log,
+     moved beside it. The operator can always release the item on the
+     host with `igor release` (#216's decision 84), and an attributable
+     edit or label by someone with write access to the item's repository
+     releases it too (#216's decisions 79 and 84).
+     In this change, an Igor worker still asks only in its handback
+     comment (decision 126), but when the run is flagged, the Igor posts
+     the handoff that asks nothing in place of the worker's handback
+     comment. So no log file records the question that stopped a flagged
+     run: not from that run, and not from a later one, even though
+     decision 183's item 6 would otherwise have a later run log it with
+     its answer; this amends that item. The file on the host is
+     igor's, and this change reads nothing from it. Decision 150 already
+     has a flagged run push nothing to the `questions` branch. *This
+     change aligned its description of igor's side with #216 on
+     2026-10-21; Adam's decision itself is unchanged.*
+
+Adam gave 244 on 2026-10-21 in the session reviewing igor PR #216,
+answering its question on how the Igor learns a question's category
+(#216's decision 89 had left it open):
+
+244. **A worker that a question with a category stops reports that
+     category with its flag.** The category is one word from this
+     change's fixed list, `vulnerability`, `secret` or `personal`, with no
+     other text. The Igor writes it only into its operator-only file on
+     the host that keeps the question (#216's decision 89), never into
+     the execution ledger, the state branch, a comment or a label. This
+     amends decision 136, which had the worker report a bare flag.
+     Decision 245 proposes the rule for two cases this leaves open: a
+     question with a category that does not stop the worker, and several
+     questions stopping it.
 
 ### Proposed by this change
 
@@ -1654,7 +1683,8 @@ Decisions 227 and 228 came from this change too, and Adam confirmed them
 as written. Decision 230 came from this change too, and Adam confirmed
 it item by item, except items 4 and 5, which his decisions 232 and 235
 replace. Decision 239 came from this change too, and Adam confirmed it
-item by item, except item 2, which his decision 240 changes.
+item by item, except item 2, which his decision 240 changes. Decision
+245 came from this change too, and waits for Adam.
 
 16. **Confirmed by Adam (2026-10-19).** **A prepared question** states the recommended answer, what changes under
     the other answer, and a link to any related earlier decision, so that most
@@ -2575,33 +2605,57 @@ this change's own:
         raises when it meets a question with a category and which says
         nothing more, is raised by the model steps igor PR #153 runs after
         the worker as by the worker itself (#216's decisions
-        60 and 64); the Igor's handling of a handback answer
+        60 and 64; decision 244 later adds the category of a question
+        that stops the worker); the Igor's handling of a handback answer
         (`authority`, `answered_by`, the relay files it reads, and the
         answer it records) is pointed to, not restated. #216's decisions
         58 and 59,
         on fetching under `igor run` and the hashed record of handback
         questions, contradict nothing here.
 
+Decision 245 came from writing Adam's decision 244 into the
+requirements, which left the worker's report undefined in two cases. It
+is this change's own and waits for Adam:
+
+245. **Proposed, for Adam to confirm.** **The flag carries the
+     categories of the questions that stop the worker, each once.**
+     Decision 244 names the category of the question that stops the
+     worker, and two cases need a rule:
+     1. A question with a category that does not stop the worker, such
+        as one it decides under filter 4, raises the flag with no
+        category. The host file keeps only the question the run stopped
+        on, so a question that did not stop it has no place there.
+     2. When several questions stop the worker, the flag carries each
+        category among them once, in the order `vulnerability`,
+        `secret`, `personal`, each one word with no other text. A
+        stopping question with no category adds no word to the flag;
+        what the host file keeps for it is #216's.
+        *Rejected:* one word per question, which tells the Igor how many
+        questions of each category stopped the run, more than the host
+        file needs.
+
 **Still open:**
 
-Nothing waits for Adam in this change. Decision 230's item 1 still waits
+Decision 245 waits for Adam. Decision 230's item 1 still waits
 on shared-skills PR #1 for an option that sends with mention rewriting
 off; until it has one, Discord stays off.
 
-For igor PR #216, at c2edbec, which records Adam's decisions up to 81 in
-#216's own numbering:
-- **#216's text about #25 is stale in three places:** its *Still open*
-  items asking #25 to read relay files at the commit #208 last
-  applied, and
-  asking Adam about #25's quote-line format, are settled by decisions
-  241 and 239, and its decision 70 still says #25's format waits for
-  Adam.
-- **Two gaps for #216 to close in igor's own rules,** neither of which
-  changes this spec: what `answered_by` holds in a file the Igor pushes
-  as `input` because the relay check cannot run (decision 242), and what
-  the file on the Igor's host holds when the question that stopped a flagged run has a
-  category, since the worker reports no text for it here (*Some
-  questions are recorded by hash only*).
+For igor PR #216, at 8600ffe, which records Adam's decisions up to 90
+in #216's own numbering:
+- **#216 should record decision 244 as its own,** and amend its
+  decisions 13 and 89 and its `task-execution` requirement, which still
+  have a worker report a bare flag with no category and leave open how
+  the Igor learns one.
+- **A handback can stop on more than one question.** #216's host file
+  keeps "the question" of a flagged run, and decision 244 has a worker
+  report one category word. Which category, or which text, the file
+  keeps when several questions stopped the run is #216's to settle;
+  decision 245 proposes what the worker reports.
+- **The category word comes from the worker,** which a steered worker
+  controls. #216 should have the Igor write it into the host file only
+  when it is exactly one of the three words, and otherwise treat the flag
+  as carrying no category, so no free text reaches the file in place of
+  a categorized question's category.
 - **How an Igor runs the inquisitor skill itself** has no mechanism yet in
   #216 or igor #211. Settled: igor marks that run with `IGOR_RUN=igor`,
   and the script then searches lore only through `igor lore-search` and
@@ -2716,9 +2770,10 @@ item on Igor-worker mode.
   - a search during a run reads only the lore repository the Igor injects
     from (decision 133 here);
   - its task-execution requirement *Transcripts and outcomes are captured
-    to the state branch* defines the bare flag a worker raises when its
+    to the state branch* defines the flag a worker raises when its
     run meets a question with a category, and what the Igor does with it
-    (decision 136 here);
+    (decision 136 here), and should carry the category a stopped worker
+    adds (decision 244 here);
   - its requirement *An Igor publishes the questions-branch files its
     worker reports* says when and which of a worker's question, miss and
     `authority: agent` files the Igor pushes, including the answer to a
@@ -2758,8 +2813,10 @@ item on Igor-worker mode.
     and 42; decisions 148, 151 and 221 here);
   - its `graceful-handoff` and `work-triage` deltas have a flagged run's
     handback ask nothing, add no `igor:question` label, keep the question
-    on the Igor's host, and not rerun the item on a reply (its decisions
-    73, 75 and 76; decision 243 here).
+    on the Igor's host, its category where it has one, and hold the item
+    until `igor release` or an attributable edit or label by someone with
+    write access releases it (its decisions 73, 75, 76, 79 to 85, 88 and
+    89; decisions 243 and 244 here).
 - **igor PR #153, signed publishing,** would have an Igor whose role
   lists prose or bug-hunter push only commits that went through those
   skills and carry their trailers. Citation commits
