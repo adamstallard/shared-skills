@@ -843,8 +843,8 @@ text itself, which is new syntax for no gain.
 **Both given is refused.** Goals are ordered, most probable first, and joining
 `--goals` with a file would choose an order nobody gave.
 
-**Not changed.** `check`'s goals for the commit message still come only from
-`--goals`; its goals file holds per-file goals.
+**`check`.** Its own `--goals-file` holds per-file goals, so the message's
+goals come from a file of their own; see the next decision.
 
 **Rejected.** Reading goals from stdin. `sign`'s signing call reads the post
 on stdin, so its goals would need another way in, and the two calls would take
@@ -854,6 +854,35 @@ goals differently.
 arguments, as under systemd's `ProtectProc=invisible`, the file only saves
 quoting, as `check`'s does. The stdin rejection holds while `sign` reads the
 post on stdin.
+
+---
+
+## `check` takes the message's goals from a file too
+
+**Decision (Adam, 2026-10-20).** `check` takes `--message-goals-file <file>`
+in place of `--goals`. The file is written like `start`'s and `sign`'s: one or
+more goals per line, separated by `;`, naming no file, with blank and `#`
+lines skipped. Both given is refused, and the signing call, the one with
+`--pass <token>`, accepts the same goals from either or none, as `sign`'s
+does.
+
+**Why.** Goals that may hold an item's text stay off the command line, for
+the reason in the decision above. Igor's model step writes the message's
+goals from the item, as it writes the goals of the change's docs, so the
+message's goals need a file as much as theirs do (adamstallard/igor#153).
+
+**The option.** `check`'s `--goals-file` already holds `pattern: goal; goal`
+lines, and each pattern is matched against the change's files. It cannot
+carry the message's goals without a reserved pattern that names the message
+instead of a file. Such a pattern could clash with a real file's name, and
+it is the new syntax the decision above rejected. A second command-line option,
+`--message-goals-file`, keeps each file to one format.
+
+**Rejected.** Reading the message's goals from the message file. That file
+is the text being signed, and goals in it would be part of the message.
+
+**Where this stops applying.** Where no other user can read a process's
+arguments, the file only saves quoting, as in the decision above.
 
 ---
 

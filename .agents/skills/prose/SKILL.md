@@ -115,7 +115,10 @@ run the first call:
 python3 $S/prose.py check -F msg.txt --goals "review the fix; check it is safe to merge"
 ```
 
-Its `--goals` are the commit message's reader's: the reviewer's. Each changed
+Its `--goals` are the commit message's reader's: the reviewer's. To keep them
+off the command line, pass `--message-goals-file goals.txt` instead, a file
+written like `start`'s: one or more goals per line, separated by `;`, naming
+no file. Pass `--goals` or the file, not both. Each changed
 doc and spec has a reader of its own, who is not the reviewer and was not in
 the conversation behind the change. Name that reader's goals for each file
 with `--goals-for <path or pattern> '<goal; goal>'`, repeated as needed:
