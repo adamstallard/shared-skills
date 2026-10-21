@@ -203,6 +203,27 @@ test('a relayed answer can be edited: e puts it in the box, Enter updates the po
   await ui.unmount()
 })
 
+test("asked to draft the reply, the model's draft lands in the prompt box on the question, and Enter relays it", async ($, on) => {
+  const s = answerSession(on)
+  await s.open($)
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  await s.enter($, 'n')
+  await s.enter($, 't')
+  await s.enter($, 'Write my reply: yes to Friday, 10% of new sign-ups only')
+  expect(s.contexts[0]?.join('\n')).toContain('mcp__answer-session__propose_reply')
+  const called = await $.tool.call({ tool: 'mcp__answer-session__propose_reply', text: 'Yes, ship Friday to 10% of new sign-ups.' })
+  expect(JSON.stringify(called)).toContain("The draft is in Adam's prompt box")
+  await s.clock.advance(1_000)
+  expect(s.filled).toContain('Yes, ship Friday to 10% of new sign-ups.')
+  await ui.redraw()
+  expect(await ui.find({ type: 'Text', text: /TALKING IT THROUGH/ })).toBeUndefined()
+  expect(await ui.find({ type: 'Text', text: /Claude drafted a reply/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /POST ON LINEAR AS/ })).toBeDefined()
+  // Nothing posts until Enter; Enter relays what the box holds, edited or not.
+  expect(await s.enter($, 'Yes, ship Friday to 10% of new sign-ups.')).toContain('Relayed to Linear')
+  await ui.unmount()
+})
+
 test('Enter refuses what the screen cannot take, and sends nothing', async ($, on) => {
   const s = answerSession(on)
   await s.open($)

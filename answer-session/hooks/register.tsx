@@ -241,8 +241,10 @@ const RULE = 'subtle'
 // Prototype only: shown in the top bar, so a tester can tell which build is
 // loaded. v0.1-N, N the number of commits in the prototype repository once
 // this build is committed.
-const BUILD = 'v0.1-22'
+const BUILD = 'v0.1-23'
 const PREFIX = 'User says: '
+// The tool the session's model calls to put a drafted reply in the prompt box.
+const PROPOSE_TOOL = 'mcp__answer-session__propose_reply'
 // The key row's right end: the same place on every screen.
 const AT_RIGHT = ['b', 'n', 'q']
 const SPEAKER = 8
@@ -403,7 +405,7 @@ function systemPrompt(q: Question, returned?: Returned): string {
       ? `${q.asker.name}, an agent asking through ${q.asker.via ?? 'the inquisitor'}`
       : `${q.asker.name}, a person`
   const lines = [
-    "You are helping Adam think through one question that was relayed to him in his answer session. He will answer it himself. Your job is to help him understand it and work out what he wants, not to answer it for him.",
+    "You are helping Adam think through one question that was relayed to him in his answer session. The answer is his to decide. Your job is to help him understand it and work out what he wants, and, when he asks, to draft the reply he describes.",
     '',
     `The question, asked on ${SURFACE_NAME[q.surface]} in ${q.where} by ${who}, ${q.age} ago:`,
     `"${q.text}"`,
@@ -414,7 +416,7 @@ function systemPrompt(q: Question, returned?: Returned): string {
     lines.push('', "The answers offered, the asker's recommendation first, each with what it would change:")
     q.options.forEach((o, i) => lines.push(`${i + 1}. ${o.label}${i === 0 ? ' (recommended)' : ''}: ${o.effect}`))
   } else {
-    lines.push('', 'It is a free-form question from a person: Adam will write the reply himself.')
+    lines.push('', 'It is a free-form question from a person: Adam writes the reply, or asks you to draft it.')
   }
   if (q.related) lines.push(`Related earlier decision: ${q.related}`)
   if (q.answered) lines.push(`Possibly answered already by: ${q.answered.decision}`)
@@ -444,6 +446,7 @@ function discussionContext(q: Question, returned?: Returned): string {
     systemPrompt(q, returned),
     '- You may read the thread, the code and the specs with your tools to check a fact; say what you checked.',
     '- Do not post, comment, push or change anything: Adam answers through his answer session, not through you.',
+    `- If Adam asks you to write or draft his reply, call ${PROPOSE_TOOL} with exactly the text to post (no "User says:"). It puts the draft in his prompt box on the question, for him to confirm or edit; it posts nothing.`,
   ].join('\n')
 }
 
@@ -876,6 +879,25 @@ async function editPost($: EngineInterface, one: Question, text: string): Promis
   return note
 }
 
+/**
+ * The model's draft of Adam's reply, from its propose_reply tool: back to
+ * the question view with the draft in the prompt box, where the band
+ * previews the post and Enter relays it, after any edit. Posts nothing.
+ */
+async function proposeReply($: EngineInterface, draft: string): Promise<string> {
+  const text = draft.replace(new RegExp(`^\\s*${PREFIX.trim()}\\s*`, 'i'), '').trim()
+  if (!(await read($, openAtom))) return 'The answer session is closed, so nothing was drafted.'
+  const c = await snapshot($)
+  const q = c.q
+  if (!q || !c.open) return 'No open question is on screen in the answer session, so nothing was drafted.'
+  if (!text) return 'The draft was empty, so nothing was put in the prompt box.'
+  await update($, askingAtom, a => without(a, q.id))
+  await update($, talkingAtom, () => null)
+  await update($, flashAtom, () => 'Claude drafted a reply: edit it in the prompt box if you like, then ⏎ relays it')
+  await putInBox($, text)
+  return `The draft is in Adam's prompt box on the question "${cut(q.text, 80)}". He confirms or edits it; it posts only when he presses Enter. Do not post it yourself.`
+}
+
 /** Moves to question `i`, or the summary past the last, and says where. */
 function goTo($: EngineInterface, i: number): Promise<string> {
   const N = QUESTIONS.length
@@ -1049,6 +1071,21 @@ export const register: Register = on => {
       description: 'Open or close the answer session (prototype, example questions)',
       immediate: true,
     })
+    // In the tool list from the start, so the model reaches for it when Adam
+    // asks it to write his reply.
+    await $.tool
+      .register({
+        name: 'propose_reply',
+        description:
+          "Puts a drafted reply in the person's prompt box in their answer session, on the question they are discussing, for them to confirm or edit before it posts. Use it when they ask you to write or draft their reply. It posts nothing.",
+        inputSchema: {
+          type: 'object',
+          properties: { text: { type: 'string', description: 'Exactly the reply to post, without a "User says:" prefix.' } },
+          required: ['text'],
+        },
+        isDeferred: false,
+      })
+      .catch(() => undefined)
     const started = await next(e)
     // Back from `/tui fullscreen`: the answer session reopens as it was. The
     // switch is the person's own act, so the session counts as asked for.
@@ -1133,6 +1170,8 @@ export const register: Register = on => {
   // run, and prompts the engine sends itself pass. The drop's reason is what
   // the person sees (a row in the transcript), so it says what was done. A
   // failure here drops the prompt rather than letting it through.
+  on('tool.call', { tool: PROPOSE_TOOL }, async ($, e) => ({ result: await proposeReply($, typeof e.text === 'string' ? e.text : '') }))
+
   on('prompt.submit', async ($, e, next) => {
     if (e.command || e.isMeta || e.origin.kind !== 'composer' || !(await read($, openAtom))) return next(e)
     // A survey holds the band: nothing typed answers a question not on screen.
