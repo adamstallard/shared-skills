@@ -2748,6 +2748,133 @@ class PassToken(unittest.TestCase):
         self.assertNotIn("## The pass", signed.stderr)
         self.assertEqual(prose.verify_post(signed.stdout), (True, "signed"))
 
+    def goals_file(self, text):
+        """A goals file holding text, beside the repository rather than in it,
+        so that it never becomes part of the change prose lists."""
+        path = self.repo.path.parent / f"{self.repo.path.name}-goals.txt"
+        self.addCleanup(lambda: path.unlink(missing_ok=True))
+        path.write_bytes(text if isinstance(text, bytes) else text.encode("utf-8"))
+        return str(path)
+
+    def test_sign_takes_its_goals_from_a_file(self):
+        # DECISIONS: start and sign take their goals from a file too.
+        goals = self.goals_file("# the reviewer\n\napprove it; check it's safe\n  see what's left\n")
+        first = self.repo.prose("sign", "--goals-file", goals)
+        self.assertEqual((first.returncode, first.stdout), (4, ""), first.stderr)
+        self.assertIn("1. approve it\n  2. check it's safe\n  3. see what's left\n", first.stderr)
+        token = pass_token(first.stderr)
+        record = json.loads((prose.pass_dir(self.repo.path) / token).read_text())
+        self.assertEqual(record["goals"], ["approve it", "check it's safe", "see what's left"])
+        signed = cold_read(lambda *cold: self.repo.prose("sign", "--pass", token, "--goals-file",
+                                                         goals, *cold, stdin="Text.\n"))
+        self.assertEqual(signed.returncode, 0, signed.stderr)
+        self.assertEqual(prose.verify_post(signed.stdout), (True, "signed"))
+
+    def test_a_goals_file_names_the_same_goals_as_goals_does(self):
+        # The token is bound to the goals, not to where they came from.
+        token = pass_token(self.repo.prose("sign", "--goals", "approve it; check it").stderr)
+        same = cold_read(lambda *cold: self.repo.prose(
+            "sign", "--pass", token, "--goals-file", self.goals_file("approve it\ncheck it\n"),
+            *cold, stdin="Text.\n"))
+        self.assertEqual(same.returncode, 0, same.stderr)
+
+    def test_the_signing_call_refuses_a_goals_file_with_other_goals(self):
+        token = pass_token(self.repo.prose("sign", "--goals-file",
+                                           self.goals_file("approve it\n")).stderr)
+        refused = self.repo.prose("sign", "--pass", token, "--goals-file",
+                                  self.goals_file("something else\n"), stdin="Text.\n")
+        self.assertEqual((refused.returncode, refused.stdout), (2, ""))
+        self.assertIn("differ", refused.stderr)
+
+    def test_start_takes_its_goals_from_a_file(self):
+        started = self.repo.prose("start", "--goals-file", self.goals_file("review it\n"))
+        self.assertEqual(started.returncode, 0, started.stderr)
+        self.assertIn("1. review it", started.stdout)
+        self.assertIn("## The pass", started.stdout)
+
+    def test_a_goals_file_for_one_text_is_refused_when_unusable(self):
+        cases = (("# only a comment\n\n", "holds no reader goals"),
+                 (" ; ;\n", "holds no reader goals"),
+                 (b"approve it \xff\n", "is not valid UTF-8"),
+                 (None, "could not read the goals file"))
+        for text, said in cases:
+            for command in ("start", "sign"):
+                with self.subTest(text=text, command=command):
+                    path = self.goals_file(text) if text is not None else str(
+                        self.repo.path.parent / f"{self.repo.path.name}-missing.txt")
+                    result = self.repo.prose(command, "--goals-file", path)
+                    self.assertEqual((result.returncode, result.stdout), (2, ""))
+                    self.assertIn(said, result.stderr)
+                    self.assertFalse((self.repo.path / ".git" / "prose").exists())
+
+    def test_goals_given_twice_are_refused(self):
+        # Goals are ordered, so --goals and a file cannot be joined.
+        for command in ("start", "sign"):
+            with self.subTest(command=command):
+                result = self.repo.prose(command, "--goals", "approve it",
+                                         "--goals-file", self.goals_file("check it\n"))
+                self.assertEqual((result.returncode, result.stdout), (2, ""))
+                self.assertIn("given twice", result.stderr)
+
+    def test_check_takes_the_message_goals_from_a_file(self):
+        # DECISIONS: check takes the message's goals from a file too.
+        goals = self.goals_file("# the reviewer\n\nreview it; merge it\n  see what's left\n")
+        first = self.repo.prose("check", "-F", "-", "--message-goals-file", goals,
+                                stdin="DOCS(x): add a readme\n")
+        self.assertEqual(first.returncode, 4, first.stderr)
+        self.assertIn("1. review it\n  2. merge it\n  3. see what's left\n", first.stdout)
+        self.assertIn("The commit message, read with the goals above (--message-goals-file):",
+                      first.stdout)
+        token = pass_token(first.stdout)
+        record = json.loads((prose.pass_dir(self.repo.path) / token).read_text())
+        self.assertEqual(record["goals"], ["review it", "merge it", "see what's left"])
+        result = self.signing(token, "DOCS(x): add a readme\n", "--message-goals-file", goals)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.repo.commit("DOCS(x): add a readme\n", block_trailer(result.stdout))
+        self.assertEqual(self.repo.verify().stdout, "checked\n")
+
+    def test_a_message_goals_file_names_the_same_goals_as_goals_does(self):
+        token = pass_token(self.first(goals="review it; merge it").stdout)
+        same = self.signing(token, "DOCS(x): add a readme\n", "--message-goals-file",
+                            self.goals_file("review it\nmerge it\n"))
+        self.assertEqual(same.returncode, 0, same.stderr)
+
+    def test_the_signing_check_refuses_a_message_goals_file_with_other_goals(self):
+        token = pass_token(self.first(goals="review it").stdout)
+        refused = self.signing(token, "DOCS(x): add a readme\n", "--message-goals-file",
+                               self.goals_file("something else\n"))
+        self.assertEqual((refused.returncode, refused.stdout), (2, ""))
+        self.assertIn("differ", refused.stderr)
+        self.assertEqual(self.signing(token).returncode, 0)
+
+    def test_a_message_goals_file_is_refused_when_unusable_or_given_with_goals(self):
+        # Each case writes the file inside the loop: goals_file always writes the
+        # same path, so files written before the loop would all hold the last text.
+        cases = (("# only a comment\n\n", (), "holds no reader goals"),
+                 (" ; ;\n", (), "holds no reader goals"),
+                 (b"review it \xff\n", (), "is not valid UTF-8"),
+                 (None, (), "could not read the goals file"),
+                 ("merge it\n", ("--goals", "review it"),
+                  "given twice, with --goals and --message-goals-file"))
+        for text, extra, said in cases:
+            with self.subTest(text=text, extra=extra):
+                path = self.goals_file(text) if text is not None else str(
+                    self.repo.path.parent / f"{self.repo.path.name}-missing.txt")
+                result = self.repo.prose("check", "-F", "-", *extra, "--message-goals-file",
+                                         path, stdin="DOCS(x): a\n")
+                self.assertEqual((result.returncode, result.stdout), (2, ""))
+                self.assertIn(said, result.stderr)
+                passes = prose.pass_dir(self.repo.path)
+                self.assertFalse(passes.exists() and any(passes.iterdir()))
+
+    def test_check_goals_file_still_holds_only_per_file_goals(self):
+        # check's --goals-file gives per-file goals only: without --goals or
+        # --message-goals-file the message has none, and the first call is refused.
+        result = self.repo.prose("check", "-F", "-", "--goals-file",
+                                 self.goals_file("README.md: learn it\n"), stdin="DOCS(x): a\n")
+        self.assertEqual((result.returncode, result.stdout), (2, ""))
+        self.assertIn("no reader goals, so no pass token", result.stderr)
+
     def test_start_needs_goals_prints_the_rules_and_issues_no_token(self):
         refused = self.repo.prose("start")
         self.assertEqual((refused.returncode, refused.stdout), (2, ""))

@@ -98,7 +98,12 @@ python3 $S/prose.py start --goals "review the fix; check it is safe to merge"
 ```
 
 `--goals` lists the most probable reasons a reader opens this text, most
-probable first. `start` prints the goals and the rules and signs nothing. In
+probable first. To keep them off the command line, which other users of the
+machine can read, write them to a file instead and pass `--goals-file
+goals.txt`: one or more goals per line, separated by `;`. Unlike `check`'s
+goals file, below, a line holds goals only and names no file. Blank lines and
+`#` lines are skipped. Pass `--goals` or the file, not both.
+`start` prints the goals and the rules and signs nothing. In
 Claude Code, until `start` or one of the first calls below has run in the
 session, a hook blocks the session's first file write and its first `gh` or
 GitHub MCP post.
@@ -110,7 +115,10 @@ run the first call:
 python3 $S/prose.py check -F msg.txt --goals "review the fix; check it is safe to merge"
 ```
 
-Its `--goals` are the commit message's reader's: the reviewer's. Each changed
+Its `--goals` are the commit message's reader's: the reviewer's. To keep them
+off the command line, pass `--message-goals-file goals.txt` instead, a file
+written like `start`'s: one or more goals per line, separated by `;`, naming
+no file. Pass `--goals` or the file, not both. Each changed
 doc and spec has a reader of its own, who is not the reviewer and was not in
 the conversation behind the change. Name that reader's goals for each file
 with `--goals-for <path or pattern> '<goal; goal>'`, repeated as needed:
@@ -399,6 +407,10 @@ python3 $S/prose.py sign --goals "approve the change"
 python3 $S/prose.py sign --pass <token> < body.md > signed.md
 gh pr create --title "..." --body-file signed.md
 ```
+
+`sign`'s first call takes `--goals-file` in place of `--goals`, as `start`
+does. The second call, with `--pass`, may pass the same goals or none, and
+refuses other goals.
 
 Run `gh` as the whole command, with the body as `--body-file <file>` or
 `--body '<text>'`; a heredoc is not accepted. A hook blocks any other shape of
