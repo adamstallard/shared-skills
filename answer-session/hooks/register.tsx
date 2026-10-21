@@ -241,7 +241,7 @@ const RULE = 'subtle'
 // Prototype only: shown in the top bar, so a tester can tell which build is
 // loaded. v0.1-N, N the number of commits in the prototype repository once
 // this build is committed.
-const BUILD = 'v0.1-23'
+const BUILD = 'v0.1-24'
 const PREFIX = 'User says: '
 // The tool the session's model calls to put a drafted reply in the prompt box.
 const PROPOSE_TOOL = 'mcp__answer-session__propose_reply'
@@ -439,9 +439,11 @@ function systemPrompt(q: Question, returned?: Returned): string {
  * how to help. The message goes to the session's own model, which may read
  * the thread, the code and the specs with its tools before it answers.
  */
-function discussionContext(q: Question, returned?: Returned): string {
+function discussionContext(q: Question, returned?: Returned, editing?: string): string {
   return [
-    `[Answer session] Adam's message is about a question relayed to him (${q.link}). He is talking it through before he answers it.`,
+    editing === undefined
+      ? `[Answer session] Adam's message is about a question relayed to him (${q.link}). He is talking it through before he answers it.`
+      : `[Answer session] Adam's message is about a question relayed to him (${q.link}). He already posted in its thread and is editing that post, which now says: "${editing}". If he asks you to draft the new version, call the tool with the full replacement text.`,
     '',
     systemPrompt(q, returned),
     '- You may read the thread, the code and the specs with your tools to check a fact; say what you checked.',
@@ -657,8 +659,9 @@ function commands(c: Ctx): Command[] {
   if (c.talking) {
     return [
       { key: 't', what: 'keep (t)alking' },
-      ...(c.hasReply && !c.busy ? [{ key: 'r', what: '(r)eword the question' }] : []),
-      ...(!c.busy ? [{ key: 'a', what: '(a)sk the asker' }] : []),
+      // Rewording and asking the asker come before an answer, not during an edit.
+      ...(c.open && c.hasReply && !c.busy ? [{ key: 'r', what: '(r)eword the question' }] : []),
+      ...(c.open && !c.busy ? [{ key: 'a', what: '(a)sk the asker' }] : []),
       { key: 'b', what: 'go (b)ack' },
       close,
     ]
@@ -671,7 +674,10 @@ function commands(c: Ctx): Command[] {
           { key: 'l', what: '(l)ater' },
         ]
       : c.editing
-        ? [{ key: 'k', what: '(k)eep it as posted' }]
+        ? [
+            { key: 't', what: '(t)alk it through' },
+            { key: 'k', what: '(k)eep it as posted' },
+          ]
         : [{ key: 'e', what: '(e)dit your post' }]),
     ...(c.changed ? [{ key: 'o', what: '(o)riginal' }] : []),
     ...nav,
@@ -889,11 +895,14 @@ async function proposeReply($: EngineInterface, draft: string): Promise<string> 
   if (!(await read($, openAtom))) return 'The answer session is closed, so nothing was drafted.'
   const c = await snapshot($)
   const q = c.q
-  if (!q || !c.open) return 'No open question is on screen in the answer session, so nothing was drafted.'
+  if (!q || !(c.open || c.editing)) return 'No open question or post being edited is on screen in the answer session, so nothing was drafted.'
   if (!text) return 'The draft was empty, so nothing was put in the prompt box.'
   await update($, askingAtom, a => without(a, q.id))
   await update($, talkingAtom, () => null)
-  await update($, flashAtom, () => 'Claude drafted a reply: edit it in the prompt box if you like, then ⏎ relays it')
+  // While editing, the draft is the new version of the post: the edit stays on.
+  await update($, flashAtom, () =>
+    c.editing ? 'Claude drafted the edit: change it in the prompt box if you like, then ⏎ updates your post' : 'Claude drafted a reply: edit it in the prompt box if you like, then ⏎ relays it',
+  )
   await putInBox($, text)
   return `The draft is in Adam's prompt box on the question "${cut(q.text, 80)}". He confirms or edits it; it posts only when he presses Enter. Do not post it yourself.`
 }
@@ -1187,7 +1196,7 @@ export const register: Register = on => {
       await recordSay($, c.q, it.text)
       await update($, promptAtom, () => '')
       const returned = (await read($, returnedAtom))[c.q.id]
-      return next({ ...e, context: [...(e.context ?? []), discussionContext(c.q, returned)] })
+      return next({ ...e, context: [...(e.context ?? []), discussionContext(c.q, returned, c.editing ? c.answer?.text : undefined)] })
     }
     afterDrop = { dropped: e.text, text: '' }
     const done = await enter($, c, it)
@@ -1852,7 +1861,7 @@ export const register: Register = on => {
         <Text wrap="truncate-end">
           <Text color={ACCENT}>◇ </Text>
           <Text dimColor>TALKING IT THROUGH</Text>
-          <Text dimColor> · in the conversation above</Text>
+          <Text dimColor>{c.editing ? ' · for your edit, in the conversation above' : ' · in the conversation above'}</Text>
         </Text>
       )
       // The conversation above is where the discussion happens, so the band

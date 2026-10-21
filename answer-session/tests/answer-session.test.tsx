@@ -224,6 +224,32 @@ test("asked to draft the reply, the model's draft lands in the prompt box on the
   await ui.unmount()
 })
 
+test('while editing a post, Claude can draft the new version; Enter updates the post', async ($, on) => {
+  const s = answerSession(on)
+  await s.open($)
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  await s.enter($, '1')
+  await s.enter($, 'b')
+  await s.enter($, 'e')
+  await s.clock.advance(1_000)
+  expect(await s.enter($, 't')).toBe('Talking it through')
+  await ui.redraw()
+  expect(await ui.find({ type: 'Text', text: /for your edit/ })).toBeDefined()
+  // Rewording and asking the asker belong before an answer, not during an edit.
+  expect(await ui.find({ key: 'cmd:r' })).toBeUndefined()
+  expect(await ui.find({ key: 'cmd:a' })).toBeUndefined()
+  await s.enter($, 'Draft a version that covers miss files too')
+  expect(s.contexts[0]?.join('\n')).toContain("is editing that post, which now says: \"Yes, filter them by the role's scope\"")
+  await $.tool.call({ tool: 'mcp__answer-session__propose_reply', text: 'Yes: filter question and miss files by the role scope.' })
+  await s.clock.advance(1_000)
+  await ui.redraw()
+  expect(await ui.find({ type: 'Text', text: /Claude drafted the edit/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /EDIT ON GITHUB AS/ })).toBeDefined()
+  expect(await s.enter($, 'Yes: filter question and miss files by the role scope.')).toBe('Edited your post on GitHub adamstallard/igor #216')
+  expect(s.sent).toEqual(['Draft a version that covers miss files too'])
+  await ui.unmount()
+})
+
 test('Enter refuses what the screen cannot take, and sends nothing', async ($, on) => {
   const s = answerSession(on)
   await s.open($)
