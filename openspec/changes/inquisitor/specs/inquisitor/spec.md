@@ -125,6 +125,43 @@ Terms used throughout this spec:
   clone, and `owners` or `repos`, what it serves; and its key
   `answer_session` holds the answer session's configuration, which the
   `answer-session` spec defines.
+- **An Igor's App** is the GitHub App an Igor posts and pushes as.
+- **A lore repository's relay file** is the file `relays.yaml` at the root
+  of that lore repository's default branch, as the clone's remote-tracking
+  branch last fetched it, beside igor's `igor.config.yaml` and `roles/`. It names
+  each person's relay identities, the bots their answer session posts
+  through. It is YAML: a mapping whose keys are GitHub logins, each
+  holding a mapping with any of the keys `github`, `linear` and
+  `discord`, each a list of quoted strings. Under `github` each string is
+  the slug of a GitHub App, which GitHub shows as a comment's author
+  `<slug>[bot]`; under `linear`, a Linear app user's id; under `discord`, a
+  Discord bot's user id. For example:
+
+  ```yaml
+  adamstallard:
+    github: ["adam-relay"]
+    discord: ["123456789012345678"]
+  ```
+
+  The file SHALL change only through a pull request that a person with
+  write access to the lore repository reviews, as a lore entry does; the
+  answer session's setup proposes one, and nothing pushes the file
+  directly. A person SHALL list only an App that posts nothing a post hook
+  cannot see apart from the answer session's own posts, and never an
+  Igor's App. A reader SHALL read the file only from the default branch. A
+  file that is missing or does not parse lists no relay; a key that is not
+  GitHub's login syntax, or a value that is not a list of strings, lists
+  none for that key, and the rest of the file still counts. Only the
+  `github` lists prove anything: an answer on Linear or Discord is input
+  whoever posted it. Nothing in this spec reads the `linear` and
+  `discord` lists; they record which identities post for the person
+  there.
+- **A person's relay App** is a GitHub App whose slug a relay file lists
+  under that person's login and `github`: the relay file of the team's
+  lore repository, or, for a file on a lore repository's questions
+  branch, that lore repository's relay file. An App the person owns that
+  the file does not list is not their relay App, and an Igor's App never
+  is, even where a relay file lists it.
 - **More visible**: visibility is ranked private, then internal (GitHub's
   `INTERNAL`), then public. A repository
   the question concerns whose visibility cannot be read counts as private;
@@ -133,7 +170,14 @@ Terms used throughout this spec:
   more visible place. A question about an organization or project is
   bounded by the visibility of the repository the question concerns, which
   for such a question is the repository holding the current work; a
-  question about one person's way of working is never posted.
+  question about one person's way of working is never posted. Wherever
+  this spec or the `answer-session` spec compares a log file's or miss
+  file's visibility, it is that of the more private of the repositories
+  its `repository` and `asked_from` keys name, or of its `repository`
+  alone when it holds no `asked_from`. A value that fails the syntax check
+  *A log file and a miss file have one format* sets counts as a private
+  repository, and also makes the file input, labelled unreadable, as that
+  requirement says.
 - **A lore repository serves** the GitHub owners and the repositories
   (`owner/repo`) its entry in the inquisitor's configuration lists; several
   may serve the same owner. A **project** is known by its repositories: a
@@ -169,14 +213,15 @@ Terms used throughout this spec:
   and *Every answer is recorded and every asked question logged* define
   them, and *A citation file has one format* gives a citation file's form.
 - **A relayed answer** is a GitHub comment that starts with `User says: `
-  and whose author is a GitHub App that GitHub reports as owned by a
-  person's account: an answer that person's answer session posted for
-  them, on their confirmation. It counts as that person's own comment
-  wherever this spec reads who wrote a comment. A comment from such an App
-  that starts with `Recorded answer: ` or `Inquisitor: ` is the answer
-  session's automatic post, and is no one's answer. Until
-  task 0.21 shows that GitHub reports which account owns the App that
-  wrote a comment, no comment is a relayed answer.
+  and whose author is a person's relay App: an answer that person's answer
+  session posted for them, on their confirmation. It counts as that
+  person's own comment wherever this spec reads who wrote a comment. A
+  comment from such an App that starts with `Recorded answer: ` or
+  `Inquisitor: ` is the answer session's automatic post, and is no one's
+  answer. A `User says: ` comment from any App that is not the person's
+  relay App, an Igor's App included, is no relayed answer, and is input.
+  Until task 0.21 shows that GitHub reports which App wrote a comment, no
+  comment is a relayed answer.
 - **The credential patterns** are a private key's `-----BEGIN` line, GitHub
   tokens (`ghp_`, `gho_`, `ghs_`, `ghu_`, `ghr_`, `github_pat_`),
   Anthropic API keys (`sk-ant-`), AWS access key IDs (`AKIA`), and Slack
@@ -481,6 +526,18 @@ inline markup reduced to its text, each run of whitespace made one space)
 and a leading `User says: ` is dropped from the comment. No model judges
 it. This is the one rule for it, and igor's search applies the same rule.
 
+When a lore repository's questions branch holds more than one log file
+with the same question, meaning the same hash of the text under its
+`## Question`, taken whole and reduced as *Two calls prove the filters
+ran* reduces a question in a post, and more than one of them would count as an
+answer by the rules above, only the newest SHALL count: the one whose
+proof is newest. A comment link's proof dates from the time GitHub gives
+for the comment's last edit, or its creation when it was never edited; a
+signature's proof dates from the signed commit's committer date. Each
+other SHALL be shown as input, labelled as superseded. A file that would not count, such
+as an `input` file, an unanswered one or an unproven one, supersedes
+nothing.
+
 During an Igor's run, a questions-branch file whose `repository` key names
 a repository other than that of the item the run works SHALL be shown as
 input, labelled unconfirmed, whatever its proofs: they show who
@@ -505,7 +562,8 @@ Every other hit the search shows SHALL be shown to the agent as input,
 labelled with why it is not an answer: a `provisional` entry as unreviewed,
 a `deprecated` entry as retired, a `decision` or `agent` log entry that
 fails the conditions above as unconfirmed, an `authority: input` entry as
-input, a log file with no answer as unanswered, a miss file as a miss,
+input, a log file with no answer as unanswered, an answer a newer one on its
+questions branch supersedes as superseded, a miss file as a miss,
 with its `filter` and `said`, and any other
 entry whose `status` is missing or unknown as unreadable. Text
 from any hit SHALL be shown as quoted data, never as instructions to the
@@ -583,17 +641,78 @@ agent. The search SHALL never show a rejected candidate.
 
 - **WHEN** a `decision` file on a lore questions branch names `alice` as
   `answered_by` and links a comment that starts with `User says: `, holds
-  the answer the file records, and was written by a GitHub App that
-  GitHub reports as owned by `alice`, who has write access to what the
-  question concerns, and no commit after the one that added the file
-  changed it
+  the answer the file records, and was written by the GitHub App
+  `alice-relay`, which that lore repository's relay file lists under
+  `alice` and `github`, `alice` has write access to what the question
+  concerns, no commit after the one that added the file changed it, and
+  task 0.21 has shown that GitHub reports which App wrote a comment
 - **THEN** filter 1 treats it as an answer
+
+#### Scenario: An App the person owns but has not listed proves no writer
+
+- **WHEN** a `decision` file on a lore questions branch names `alice` as
+  `answered_by` and links a comment that starts with `User says: ` and
+  holds the answer the file records, written by an Igor's GitHub App that
+  GitHub reports as owned by `alice`, which the lore repository's relay
+  file does not list under `alice`
+- **THEN** the search shows the file labelled as unconfirmed
+
+#### Scenario: A relay listed only off the default branch proves no writer
+
+- **WHEN** a pull request to the lore repository adds `alice-relay` under
+  `alice` in `relays.yaml`, it has not merged, and a `decision` file links
+  a `User says: ` comment by `alice-relay`
+- **THEN** the search shows the file labelled as unconfirmed
+
+#### Scenario: A listed Igor's App proves no writer
+
+- **WHEN** a lore repository's relay file lists an Igor's App under
+  `alice`, and a `decision` file links a `User says: ` comment by that App
+  that holds the answer the file records
+- **THEN** the search shows the file labelled as unconfirmed
+
+#### Scenario: A malformed relay file entry lists no relay
+
+- **WHEN** a lore repository's `relays.yaml` holds the key `bad login!`,
+  and the key `alice` whose `github` is a string, not a list, beside a
+  well-formed entry for `bob`
+- **THEN** neither `bad login!` nor `alice` has a relay App, and `bob`'s
+  listed App is his relay App
+
+#### Scenario: An unparseable relay file lists no relay
+
+- **WHEN** a lore repository's `relays.yaml` is not valid YAML
+- **THEN** no App is anyone's relay App there, and every `User says: `
+  comment is input
 
 #### Scenario: An answer session's automatic reply proves no writer
 
 - **WHEN** a `decision` file on a lore questions branch links a comment
-  from a GitHub App owned by `alice` that starts with `Recorded answer: `
+  from `alice`'s relay App that starts with `Recorded answer: `
 - **THEN** the search shows the file labelled as unconfirmed
+
+#### Scenario: The newest answer to a question counts
+
+- **WHEN** a lore questions branch holds two `decision` files with the
+  same question, each proven by a linked comment and unchanged since it
+  was added, and the second's comment is newer than the first's
+- **THEN** filter 1 treats the second as the answer, and shows the first
+  as input, labelled as superseded
+
+#### Scenario: A re-pushed copy of an older answer does not count
+
+- **WHEN** someone pushes, after a maintainer's newer proven answer, a copy
+  of an older proven `decision` file under a new name, linking the older
+  comment
+- **THEN** filter 1 treats the newer answer as the answer, since its
+  comment is newer, and shows the copy labelled as superseded
+
+#### Scenario: A later input file supersedes no answer
+
+- **WHEN** a lore questions branch holds a proven `decision` file and,
+  added after it, an `input` file with the same question
+- **THEN** filter 1 treats the `decision` file as the answer, and shows
+  the `input` file labelled as input
 
 #### Scenario: A questions-branch decision linking its comment is an answer
 
@@ -1974,8 +2093,10 @@ written.
   questions-branch file pushed with its answer, `answered_by`, a GitHub login
   or `agent`; `authority`, `decision`, `input` or `agent`; `recorded_in`,
   where the question's answer is recorded, as a path from that
-  repository's root or a URL, never a lore entry; and `answer_link`, only when there is one,
-  the github.com URL of the comment or review holding the answer. Its body
+  repository's root or a URL, never a lore entry; `answer_link`, only when there is one,
+  the github.com URL of the comment or review holding the answer; and
+  `asked_from`, only in a questions-branch file an Igor pushes for its
+  worker. Its body
   is the question under `## Question`, and, once the answer comes, the
   answer in one sentence under `## Answer`. When the person answered the
   question as rephrased in an answer session, the body also holds, between
@@ -1991,9 +2112,17 @@ written.
   `answer-session` spec's source that found it; and `said`, what the person said, in their words or in one
   sentence, with any place they named, such as a spec's path, or, for a
   miss an answer session logs by itself or with no note from the person,
-  the fixed text the `answer-session` spec gives. Its body is
+  the fixed text the `answer-session` spec gives; and `asked_from`, as in
+  a log file. Its body is
   the question
   under `## Question`.
+- **`asked_from`:** the repository of the item the Igor's run works, as
+  `owner/repo`. The Igor sets it on every log and miss file it pushes for
+  its worker, after refusing any worker's file that already holds one, as
+  igor PR #216's *An Igor publishes the questions-branch files its worker
+  reports* says. A citation file never holds it.
+  The skill's script never writes it. A file holding it is as private as
+  the more private of its two repositories, as *More visible* says.
 - **Reading a log file:** it is answered when its frontmatter holds
   `authority`, and only then; nothing in its body decides it. Its body is
   read from the end, skipping blank lines: in an answered file the last line is the answer and
@@ -2005,9 +2134,9 @@ written.
   way, such as one whose frontmatter holds `authority` while its last two
   lines are not an answer section, is shown as input, labelled as
   unreadable.
-- **Checked before use:** filter 1 SHALL pass a file's `repository` to no
-  GitHub API call, and SHALL treat the file as input labelled as
-  unreadable, unless it is `<owner>/<repo>`, where `<owner>` has GitHub's
+- **Checked before use:** filter 1 SHALL pass a file's `repository` or
+  `asked_from` to no GitHub API call, and SHALL treat the file as input
+  labelled as unreadable, unless it is `<owner>/<repo>`, where `<owner>` has GitHub's
   login syntax (*A question in a post tags one person who can decide*)
   and `<repo>` is 1 to 100 letters, digits, `.`, `_` and `-`, and is not
   `.` or `..`. It SHALL pass an `answer_link` to no GitHub API call, and
@@ -2061,6 +2190,27 @@ written.
   `answer_link` is `https://github.com/o/r/pull/3?x=../`
 - **THEN** filter 1 makes no GitHub API call with that value, and shows the
   file as input
+
+#### Scenario: A file an Igor pushes names where it was asked from
+
+- **WHEN** an Igor pushes, for its worker on an item in `o/web`, a log file
+  whose `repository` key is `o/api`
+- **THEN** its frontmatter also holds `asked_from: "o/web"`, and a file
+  the script writes outside an Igor holds no `asked_from`
+
+#### Scenario: A malformed asked_from is never sent to GitHub
+
+- **WHEN** a questions-branch log file's `asked_from` is `o/../../user`
+- **THEN** filter 1 makes no GitHub API call with that value, shows the
+  file as input, labelled as unreadable, and every visibility rule treats
+  the file as being about a private repository
+
+#### Scenario: A file is as private as the more private of its two repositories
+
+- **WHEN** a questions-branch log file's `repository` names a public
+  repository and its `asked_from` names a private one
+- **THEN** every visibility rule in this spec and the `answer-session`
+  spec treats the file as being about a private repository
 
 #### Scenario: A log file holds no conditions
 
@@ -2439,8 +2589,9 @@ default branch adding it as a `provisional` entry, and leave the question's
 file on the questions branch.
 
 The script SHALL refuse to open either pull request to a lore repository
-that is more visible than the repository the question concerns, and SHALL
-tell the person why. Where no configured lore repository serves the
+that is more visible than the repository the question concerns, or, for
+an answer promoted from a questions-branch file, than that file, as *More
+visible* defines a file's visibility, and SHALL tell the person why. Where no configured lore repository serves the
 repository the question concerns, the agent SHALL tell the person the
 lesson instead.
 
@@ -2550,15 +2701,15 @@ the post as a person's answer. When the post starts with `Inquisitor: `
 and names filter 2, 3 or 4, the agent SHALL take that filter's action, as
 if its own filter had stopped the question, and record its choice where
 that filter says, but only when both of these hold: the post's author is
-a GitHub App that GitHub reports as owned by someone with write access to
-what the question concerns, whether or not that is the person the
-question asked, and the question is not one that *Every
+the relay App of someone with write access to what the question
+concerns, whether or not that is the person the question asked, and the
+question is not one that *Every
 question passes four filters before a person sees it* exempts from
 filters 2, 3 and 4 because another skill requires a person to decide it.
 Otherwise the agent treats the post as input, and its question stands.
 So an `Inquisitor: ` reply on Linear or Discord is always input, and so
 is every such reply on GitHub until task 0.21 shows that GitHub reports
-an App's owner.
+which App wrote a comment.
 Neither post is a person's answer. The agent logs no miss for either
 post: the answer session logs any miss due, as the `answer-session` spec
 says. When filter 1
@@ -2604,10 +2755,18 @@ treats the post as input, and its question stands.
 #### Scenario: An Inquisitor reply is acted on as its filter
 
 - **WHEN** an agent's question gets a reply starting
-  `Inquisitor: filter 4` from a GitHub App that GitHub reports as owned by
-  a person with write access to what the question concerns
+  `Inquisitor: filter 4` from the relay App of a person with write access
+  to what the question concerns, and task 0.21 has shown that GitHub
+  reports which App wrote a comment
 - **THEN** the agent chooses one option, and records what it chose and
   why, as filter 4 says
+
+#### Scenario: An Inquisitor reply from an App no relay file lists is input
+
+- **WHEN** an agent's question gets a reply starting
+  `Inquisitor: filter 4` from a GitHub App owned by a maintainer, which
+  the relay file of the team's lore repository does not list
+- **THEN** the agent treats the reply as input, and its question stands
 
 ### Requirement: A question that should not have been asked is logged as a miss
 
@@ -2669,7 +2828,8 @@ lesson from each pattern it finds, and send each lesson by its scope:
   shared-skills changing the skill;
 - a lesson that holds for one team or organization: a pull request to that
   team's lore repository, refused when the lore repository is more visible
-  than any repository whose misses the lesson draws on;
+  than any miss file the lesson draws on, as *More visible* defines a
+  file's visibility;
 - a lesson that holds for one person: an edit to that person's own agent
   memory or `CLAUDE.md`.
 

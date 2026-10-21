@@ -5,9 +5,9 @@ nothing but answer the questions asked of them. Its user interface is a
 Claude Code mod that ships with the skill. This spec names that interface
 only by what it does, never by how it looks or which keys it takes.
 
-The proposal's *Still open* lists the questions this spec leaves for
-Adam, and says, for each one that touches a requirement below, how that
-requirement is written until he answers.
+The proposal's *Still open* lists what this change leaves open, and says,
+for anything that touches a requirement below, how that requirement is
+written until it is settled.
 
 Terms used throughout this spec:
 
@@ -41,11 +41,12 @@ Terms used throughout this spec:
 - **The asker** is whoever asked the question: a person, or an agent such as
   an Igor's worker.
 - **A relayed question** is a message that starts with `User says: ` or
-  `User asks: `, posted on GitHub by an App that GitHub reports as owned
-  by a person, as the inquisitor's spec reads an App's owner for *a
-  relayed answer*, or by an App whose owner the answer session can't
-  read; or posted on Linear or Discord by any bot account, since there an
-  app's owner can't be proved.
+  `User asks: `, posted by any bot account, on any surface. One posted on
+  GitHub by a person's relay App, as the inquisitor's spec defines it, is
+  that person's; one from any other bot is a relayed question too,
+  whoever posted it. No automatic post answers a relayed question: *Filter
+  1 runs on every incoming question* skips one, and *Filters 2 to 4 judge
+  every incoming question* posts only on an agent's question.
 - **An agent's question** is one whose message's author is a bot account,
   such as a GitHub App, a Linear app user, or a Discord bot or webhook, or
   a log file of the fourth source in *A question asked of the person comes
@@ -147,7 +148,21 @@ types `/answer setup`. Setup SHALL:
 - save the configuration, with every channel, whether its check passed or
   failed;
 - install the `answer` command, as *Two commands open an answer session*
-  says.
+  says;
+- read the relay file, as the inquisitor's spec defines it, of each
+  configured lore repository that serves a subscribed GitHub channel, and,
+  where that file does not list each of the person's relay identities,
+  on every surface the configuration names, under their login, open a
+  pull request to that lore repository adding the missing ones, through
+  the person's `gh` login, and report its link. When such a pull request
+  from the person is already open, setup SHALL open no other, and SHALL
+  report that one's link. Setup SHALL open the pull request as a host
+  command, as a relay post is posted, with a fixed title and body that the
+  script writes, holding no word from the session's model, so no post
+  hook sees it and it gets no prose pass. Setup SHALL never push the
+  file to the default branch. Setup SHALL say that the person's relayed
+  answers on GitHub count only as input there until the pull request
+  merges and the lore clone has fetched its default branch.
 
 When a check fails, setup SHALL show the failure and what the person must
 do to fix it, as the identity's skill reports it, and SHALL save the rest.
@@ -208,6 +223,31 @@ never ran.
   the person fixes its permission, and opens the answer session
 - **THEN** the answer session checks that channel again, and, once that
   check passes, reads the channel
+
+#### Scenario: Setup proposes the person's relays to the lore repository
+
+- **WHEN** setup runs for a person subscribed to `o/api`, a configured lore
+  repository serves `o`, and its `relays.yaml` on the default branch does
+  not list the person's GitHub relay
+- **THEN** setup opens a pull request to that lore repository adding the
+  relay's App slug under the person's login and `github`, and any Linear
+  or Discord relay's id under `linear` or `discord`, reports its link,
+  pushes nothing to the default branch, and says that the person's
+  relayed answers there count only as input until it merges and the lore
+  clone has fetched it
+
+#### Scenario: Setup opens no second relay pull request
+
+- **WHEN** setup runs again while the person's earlier pull request to the
+  lore repository's `relays.yaml` is still open
+- **THEN** setup opens no other pull request, and reports the open one's
+  link
+
+#### Scenario: Setup proposes nothing when the relays are listed
+
+- **WHEN** setup runs, and the lore repository's `relays.yaml` already
+  lists each of the person's relay identities under their login
+- **THEN** setup opens no pull request to it
 
 #### Scenario: Setup runs again on request
 
@@ -512,6 +552,17 @@ on a machine whose state folder does not hold it, as the latest relay post
 in the question's thread that names the question. The edited text is scanned as a
 new post is.
 
+*A rephrased question is answered with its rephrasing* has the answer
+session also push a log file when it answers, in a thread, a question
+that an unanswered log file on a lore repository's questions branch
+holds. When an edit leaves a `User says: ` answer to such a question, the
+answer session SHALL push a new log file holding the question and the
+edited answer, as that requirement pushes one, with the edited post's
+URL as its `answer_link`, and SHALL leave every earlier file
+unchanged. The newest such file is the one
+that counts, as the inquisitor's *Only an answer with authority stops a
+question* says.
+
 #### Scenario: An answer is edited in place
 
 - **WHEN** the person edits an answer they relayed on Linear
@@ -536,6 +587,17 @@ new post is.
   from their first
 - **THEN** the answer session finds the relay post in the question's thread
   and edits it
+
+#### Scenario: Editing an answer the questions branch also logged pushes a new log file
+
+- **WHEN** the person edits a `User says: ` answer they relayed in a
+  thread to a question that an unanswered log file on the lore
+  repository's questions branch also holds, and the answer session had
+  pushed a log file recording that answer
+- **THEN** the relay updates its post, and the script pushes a new log
+  file holding the question and the edited answer, with the relay post's
+  URL as its `answer_link`, leaving the unanswered file and the earlier
+  answer's file unchanged
 
 ### Requirement: The person can ask the asker
 
@@ -1139,7 +1201,10 @@ the first line is `Recorded answer: see the record below.` The session's
 model writes none of the post: the URL is that of filter 1's hit. The answer session SHALL post it by itself only when the
 record is no more private than the question's thread: on GitHub, when the
 record's repository is no more visible than the thread's repository; on
-Linear and Discord, only when the record's repository is public.
+Linear and Discord, only when the record's repository is public. When
+the record is a log or miss file, the file's own visibility stands in for
+its repository's: the more private of its `repository` and `asked_from`,
+as the inquisitor's *More visible* defines it.
 Otherwise, and for a question from a questions branch, it SHALL show the
 recorded answer to the person beside the question, and post only what the
 person relays. When the record is a lore entry, it SHALL push a citation
@@ -1152,10 +1217,15 @@ reads the question's thread again, as *The thread is read again before a
 question is shown and before a post* says.
 
 A reply to an automatic post is a question, judged by filters 1 to 4
-again, and may be answered by itself again. The answer session SHALL NOT
-make by itself an automatic post whose text is the same as that of the
-automatic post the reply answers: such a repeat goes to the person, as an
-ordinary question.
+again, and may be answered by itself again. A question's **chain of
+replies** is the question, the relay post it replies to, the question
+that relay post names (on GitHub, by its `Re: ` line), and so on back to
+a question that replies to no relay post. The answer session SHALL NOT make by itself an automatic post
+whose text, apart from its `Re: ` line, is the same as that of any
+automatic post already made in the chain of replies of the question it
+would answer: such a repeat goes to the person, as an ordinary question.
+So in one chain each of the three `Inquisitor: ` texts goes out at most
+once, and so does each recorded answer.
 
 #### Scenario: A recorded answer is posted by itself
 
@@ -1177,11 +1247,20 @@ ordinary question.
 
 #### Scenario: A relayed question gets no automatic post
 
-- **WHEN** a GitHub comment that starts with `User asks: `, from a GitHub
-  App that GitHub reports as owned by Maya, tags the person, and the
-  repository's `DECISIONS.md` on its default branch decides it
+- **WHEN** a GitHub comment that starts with `User asks: `, from the
+  relay App of Maya, another person whom the relay file lists, tags the
+  person, and the repository's `DECISIONS.md` on its
+  default branch decides it
 - **THEN** the answer session posts nothing by itself, and shows the
   question as a person's, with the recorded answer beside it
+
+#### Scenario: A relayed question from an App no relay file lists gets no automatic post
+
+- **WHEN** a GitHub comment that starts with `User asks: ` comes from a
+  GitHub App that no relay file lists, tags the person, and the
+  repository's `DECISIONS.md` on its default branch decides it
+- **THEN** the answer session posts nothing by itself, and shows the
+  question as a person's
 
 #### Scenario: A lore entry's recorded answer sends a citation
 
@@ -1202,6 +1281,15 @@ ordinary question.
 
 - **WHEN** an agent replies to a relay post holding filter 4's fixed
   `Inquisitor: ` text with a question that clearly fails filter 4 again
+- **THEN** the answer session posts nothing by itself, and shows the reply
+  to the person
+
+#### Scenario: An automatic post made earlier in the chain is not made again
+
+- **WHEN** the answer session replied to an agent's question with filter
+  2's text, the agent replied with a question it answered with filter 4's
+  text, and the agent replies again with a question that clearly fails
+  filter 2
 - **THEN** the answer session posts nothing by itself, and shows the reply
   to the person
 

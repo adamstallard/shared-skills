@@ -12,7 +12,10 @@ tool call, one of three things:
 
 prose's posting hook and the inquisitor's post hook both SHALL use it, and neither SHALL read a post another way. prose's hook SHALL
 check a returned body's footer, and SHALL let through a call the reader
-returns a title for and no body.
+returns a title for and no body. In a title, prose's hook SHALL check only
+that the reader can read it, blocking a call the reader reports as
+unreadable: a title gets no prose pass, and the inquisitor's post hook
+vets its questions.
 
 **A gh post verb** is one of a closed list, the one prose's reader
 handles: `gh pr` with `create`, `new`, `edit`, `comment`, `review`,
@@ -151,6 +154,13 @@ exactly, such as one with a backtick, `$'…'` or an unterminated quote.
 - **WHEN** a hook asks about `gh issue edit 5 --title 'Rename it?'`
 - **THEN** the reader returns `Rename it?` as the title and no body, and
   prose's hook lets the command through
+
+#### Scenario: prose's hook checks only that a title can be read
+
+- **WHEN** a hook asks about `gh pr create --title 'A long and wordy
+  title' --body-file body.md`, and `body.md` ends in a valid prose footer
+- **THEN** prose's hook checks the body's footer, checks nothing in the
+  title, and lets the command through
 
 #### Scenario: A command that sends no body is no post
 

@@ -182,8 +182,10 @@ command, such as `cd x && gh pr edit 3 --title 'Rename?'`, is unreadable
 too, where prose's
 `DECISIONS.md` (*`--title` is not prose here*) has it pass; task 1.3
 updates that section. Those are the changes prose's hook sees. A footer
-can't go on a one-line title, so prose's hook checks no footer there, and
-lets a call with a title and no body through. `--fill` and its variants,
+can't go on a one-line title, so prose's hook checks only that the reader
+can read a title, and lets a call with a title and no body through. A
+title gets no prose pass: the inquisitor's post hook vets its questions,
+and nothing else checks it (decision 217). `--fill` and its variants,
 which take a title from commits, were already unreadable to prose's
 reader, and stay so.
 
@@ -283,7 +285,9 @@ beside it.
   matcher, as its decisions 30 and 28.
   Filter 1, the search for an earlier answer, counts such a file as a
   decision only when GitHub gives that comment's author as the file's
-  `answered_by` and the author has write access; otherwise it is input.
+  `answered_by`, or the comment is a relayed answer from `answered_by`'s
+  relay App (decisions 184 and 216), and `answered_by` has write access;
+  otherwise it is input.
   So a worker steered by text it read can't forge a person's answer. An answer worth giving agents as lore is promoted by a pull
   request to main adding a `provisional` entry; the question's file stays
   on its branch. Before pushing or promoting, the script checks
@@ -461,6 +465,17 @@ push access is unmeasured (task 0.4). Each check fails closed:
   as public;
 - an unread permission counts as no write access, so a question never tags
   a person who might be unable to decide it.
+
+A log or miss file an Igor pushes for its worker also names, in
+`asked_from`, the repository of the item the run worked (decision 221).
+The worker writes `repository` and the Igor writes `asked_from`. A
+worker steered by its item's text could put a private repository's
+details in a file whose `repository` names a public one, but
+`asked_from` would still name the private one. Every reader judges the file by the more private of its two
+repositories: igor's search does, and so do this change's own rules that
+compare a file's visibility, such as the answer session's privacy check
+before an automatic post and the refusal to promote a more private answer
+into lore.
 
 When none of decision 17's candidates (the approver of the related
 decision, a listed reviewer, the last committer) has write access, the
@@ -658,7 +673,8 @@ A relay post names the question it answers, by replying to it or by a last
 line `Re: <URL>` (decision 175's item 8), so a thread holding several
 questions keeps a state for each.
 
-The answer session writes no log file for a question it relays. The asker
+The answer session writes no log file for a question it relays, except
+for a question a questions-branch file also holds, below. The asker
 logged the question when it asked, often on a branch not yet merged, and
 records the answer when it reads the relay's post. When the asker is a
 person, or an agent that keeps no log, nothing logs the answer, and the
@@ -682,15 +698,46 @@ Decision 78 proves a logged answer's writer only when GitHub gives the
 linked comment's author as `answered_by`, and a relay post's author is
 the relay identity, so without this a relayed answer would only be input,
 and an Igor could never log a handback's relayed answer as a decision
-(decision 149). If GitHub reports the App behind a comment and the
-account that owns that App, which task 0.21 measures, a `User says: `
-comment from an App the person owns is tied to the person as firmly as
-the App is; until it is measured, a relayed answer is input. The tie
-holds only because the prefix is reserved (decisions 193 and 203): an
-agent holding the same App that posted `User says: ` by some way the post
-hook does not see would forge the person's answer.
-A relay post on Linear or Discord stays input, as any answer given off
-GitHub does (decision 109).
+(decision 149). Only an App listed as the person's relay in the lore
+repository's relay file, `relays.yaml` on its default branch, ties a
+`User says: ` comment to them (decision 216). Owning the App is not
+enough: an Igor's App owned by the same person posts its worker's text
+through igor's own code, which no post hook sees. A worker steered by its
+item could start such a comment `User says: `, and a `decision` file
+linking it would then pass the writer proof and count as the person's
+answer.
+The spec has the relay file change only by a reviewed pull request, as
+lore does, and the answer session's setup proposes the person's entry, so
+a reviewer decides which Apps speak for whom. No reader checks how the
+file reached the default branch; *Still open* asks whether one should. The tie still holds only because the
+prefix is reserved (decisions 193 and 203): an agent holding a listed App
+that posted `User says: ` by some way the post hook does not see would
+forge the person's answer, so a person lists only an App nothing else
+posts through unseen. Task 0.21 measures whether GitHub reports which App
+wrote a comment. Until that measurement shows it does, a relayed answer
+is input, and if it shows GitHub does not, no comment is ever a relayed
+answer. A relay post on
+Linear or Discord stays input, as any answer given off GitHub does
+(decision 109).
+
+The file is YAML at the lore repository's root, beside igor's
+`igor.config.yaml` and `roles/`, keyed by GitHub login, with one list per
+surface. Only the `github` lists prove anything; nothing in this change
+reads the `linear` and `discord` lists, which record in the same reviewed
+place which identities post for the person there. YAML matches the lore repository's other configuration. It is not
+a key of `igor.config.yaml`, which refuses any key igor does not read, and
+the inquisitor's own `inquisitor.json` is per person, so a reviewer would
+never see it.
+
+When the person edits a relayed answer that decision 210 also logged on a
+questions branch, the answer session pushes a new log file with the edited
+answer, since a file there never changes (decision 140), and the newest
+answered file for a question counts (decision 220): the one whose
+proof is newest: for a comment link, the comment's last edit; for a
+signature, the signed commit's date (decision 222's reading, which waits
+for Adam). Ordering by proof, not by branch history, keeps anyone with
+push access from re-pushing an older proven file to revert a newer
+answer.
 
 ### What the answer session does by itself
 
@@ -705,15 +752,22 @@ the spec answers each:
   points to filter 1's hit (decision 200). So a crafted question can at
   worst choose which canned reply or which record is posted. When an
   agent replies to an automatic post, the answer session judges the reply
-  again. If the automatic post it would make has the same text as the one
-  the agent replied to, it posts nothing and shows the reply to the
-  person (decision 202's item 6). A recorded answer is posted by itself
+  again. A chain of replies runs from a reply back through the relay post
+  it replies to, the question that relay post names (on GitHub, by its
+  `Re: ` line), and so on to the first question. If the automatic post it
+  would make has the same text as any automatic post already made in that
+  chain, it posts nothing
+  and shows the reply to the person (decision 219), so an agent that keeps
+  replying can't get filter 2's text, then filter 4's, then filter 2's
+  again with no person seeing the exchange. A recorded answer is posted by itself
   for a person's question as for an agent's (decision 195). Only an
   agent's question gets an `Inquisitor: ` reply by itself, and a question
   counts as an agent's only when its author is a bot account (decision
   199), so a person never gets a reply nobody wrote. A `User says: ` or
-  `User asks: ` post from another person's relay is that person's
-  question, and gets no automatic post. When the person declines a
+  `User asks: ` post from any bot is a relayed question, which gets no
+  automatic post: filter 1's automatic post skips a relayed question, and
+  filters 2 to 4 post only on an agent's question. Decision 222, which
+  waits for Adam, proposes that reading for every bot. When the person declines a
   question because the inquisitor should have handled it, decline reason
   3, they can choose an `Inquisitor: ` or `Recorded answer: ` post for any
   question, and see the exact post before it goes out (decision 209).

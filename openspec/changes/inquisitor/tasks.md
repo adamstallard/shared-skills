@@ -89,13 +89,19 @@ contradicts what design.md assumed.
       team's or channel's permission, or setup must read it itself. Where
       no check can, setup runs the skill's own check only, and a post a
       channel refuses later turns that channel off (decision 211)
-- [ ] 0.21 That GitHub's API reports, for a comment, the GitHub App that
-      wrote it and the account that owns that App, as decision 184 needs.
-      Until it does, no comment counts as a relayed answer, and a
-      relayed answer is input; an agent treats an `Inquisitor: ` reply
-      as input; and a post starting `User says: ` or
-      `User asks: ` from any GitHub App counts as a relayed question,
-      which gets no automatic post
+- [ ] 0.21 That GitHub's API reports, for a comment, the slug of the
+      GitHub App that wrote it, which the relay file names (decision 216),
+      in a form no account can take on: such as the author login
+      `<slug>[bot]` with the type `Bot`, or the comment's
+      `performed_via_github_app`. Until this task shows GitHub does, no
+      comment counts as a relayed answer, and an agent treats an
+      `Inquisitor: ` reply as input. If GitHub does not, both stay so for
+      good, record that, and stop for Adam
+- [ ] 0.22 Whether setup, through the person's `gh` login, can read
+      whether a lore repository's default branch requires a review
+      before a pull request merges, so that it can warn when
+      `relays.yaml` could change unreviewed (proposal *Still open*). If it
+      can't, setup says it could not check
 
 ## 1. Shared post reader
 
@@ -170,7 +176,12 @@ contradicts what design.md assumed.
       a questions-branch `decision` file only with its writer proven by a
       linked comment or a verified signature (decision 78), the comment
       holding the file's answer by normalized containment (decision 213),
-      and, during an Igor's run, a file about a repository other than the
+      a relayed answer only from an App the lore repository's
+      `relays.yaml` lists as the person's relay (decision 216), only the
+      newest answer counting among a question's files there (decision
+      220), a file's visibility taken from the more private of its
+      `repository` and `asked_from` (decision 221), and, during an Igor's
+      run, a file about a repository other than the
       item's shown as input (decision 214), while an
       `agent` file there is always input; each source not searched; when
       each clone's remote-tracking default branch was last updated by a
@@ -286,14 +297,19 @@ contradicts what design.md assumed.
       the candidates, each relay check, saving the file with the person's
       own keys kept, a failed identity's surface or a failed channel left
       off and checked again at each opening, the Linear key in the
-      keychain, and `~/.local/bin/answer`
+      keychain, `~/.local/bin/answer`, and the pull request adding the
+      person's relay identities to each serving lore repository's
+      `relays.yaml` (decision 216). Filter 1, and every check that reads a
+      comment's author, reads that file from the lore clone's default
+      branch
 - [ ] 6.3 Polling: the four sources, only while open, the catch-up on
       opening, 60 seconds or GitHub's `X-Poll-Interval`, conditional
       requests, poll positions, and the lore questions branches
 - [ ] 6.4 Relaying: posts with the four reserved prefixes through the
       relay identity's skill as host commands, post ids, editing in place,
       the thread read before a question is shown and before each post, and
-      a questions-branch question answered by a new log file
+      a questions-branch question answered by a new log file, and a new
+      log file again when its relayed answer is edited (decision 220)
 - [ ] 6.5 State: the state folder, a question's state read from its
       thread, closed questions, discussion records deleted once their
       question is answered or closed, the question on screen, and the lock,
@@ -324,7 +340,8 @@ contradicts what design.md assumed.
       `said: "not a question"` for the second reason, a miss against
       filter 1 for an agent's question it answers by itself, and no
       second miss for the same question; no automatic post on a relayed
-      question, and none that repeats the post a reply answers; a
+      question, and none that repeats an automatic post made earlier in
+      its chain of replies (decision 219); a
       questions-branch question asked in a post answered in its thread
       and by a log file; a refused post turning off a channel no check
       can read; the post hook's block of a
