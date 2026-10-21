@@ -27,11 +27,19 @@ python3 $D check
 ```
 
 It reports the bot's name, its servers, its default channel and what the bot may
-do there, whether `@name` mentions work, and two things from the bot's
-configuration that you need:
+do there, whether `@name` mentions work, whether it can read what other people
+write (`messageContent`), and two things from the bot's configuration that you
+need:
 
 - **`channels`**: what each channel is for. Post where it says, not where it is convenient.
 - **`people`**: who is who, by Discord handle. Use these to tag people.
+
+`"messageContent": false` means Discord removes the text from other people's
+messages, so `read` can't show them; tell the user, and point them at the
+README's setup. `null` means no recent message could tell, for example when
+only the bot has posted there; reading still works, and the user can confirm
+it by posting there and running `check` again. `check` never prints what the
+messages say.
 
 If it fails with "no bot token", the bot isn't set up on this machine. Point the
 user at the skill's README; don't try to find a token yourself.
@@ -101,6 +109,9 @@ python3 $D read --channel agents --limit 100 --before <oldest messageId seen>
 
 Newest first, up to 100 per call; `--before` pages further back. A message that
 has a thread carries its `threadId`.
+
+If `warnings` says Discord sent messages with no text, the bot lacks Discord's
+Message Content intent. Tell the user; the README's setup says how to turn it on.
 
 ## Threads
 

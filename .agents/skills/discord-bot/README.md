@@ -28,8 +28,15 @@ Do this in a browser, once per bot. The script can't do any of it.
 2. **Bot** tab → set the same username, then **Reset Token** and copy it.
    Discord shows it once; you'll store it in step 3. Resetting it later stops
    the old token immediately.
-3. Leave all three privileged intents off. The skill needs none of them;
-   `@name` mentions were tested with Server Members Intent off.
+3. On the same tab, under Privileged Gateway Intents, turn on **Message
+   Content Intent**. `read` needs it: without it, Discord removes the text,
+   attachments and embeds from other people's messages, except those that
+   mention the bot. A bot in 100 or more servers needs Discord's
+   verification and approval before it can use this intent.
+
+   Leave Server Members Intent and Presence Intent off; the skill uses
+   neither. `@name` mentions don't need Server Members Intent: they were
+   tested with it off.
 4. Invite the bot to your server with this URL, using your Application ID:
 
    ```
@@ -128,9 +135,18 @@ Every field is optional:
 python3 ~/.agents/skills/discord-bot/scripts/discord_bot.py --identity acme check
 ```
 
-You should see the bot's name, your server, the default channel with every
-permission `true`, and `"memberSearch": true`, which means a search for the
-bot's own name returned members, so `@name` mentions will work.
+You should see:
+
+- the bot's name and your server;
+- the default channel, with every permission `true`;
+- `"memberSearch": true`: a search for the bot's own name returned members, so
+  `@name` mentions will work;
+- `"messageContent": true`: recent messages from other people in the default
+  channel arrived with their text, so `read` will show it. `false` means
+  Discord removed their text; turn on Message Content Intent (step 1.3).
+  `null` means no recent message could tell, for example when only the bot
+  has posted there. Post a line there yourself, without mentioning the bot,
+  and run `check` again.
 
 ---
 
@@ -171,6 +187,10 @@ server nickname: partial names are never guessed. If it says Discord refused
 member search, `check` shows `"memberSearch": false`; turning on **Server
 Members Intent** on the developer portal's Bot tab is the setting that
 controls it.
+
+**`read` leaves out other people's messages**, or its warning says Discord
+sent them with no text, or `check` shows `"messageContent": false`: turn on
+**Message Content Intent** on the developer portal's Bot tab (setup step 1.3).
 
 **A permission is `false` in `check`**, or a post fails with status 403: grant
 it on the bot's role (Server Settings → Roles), or on the channel for a private

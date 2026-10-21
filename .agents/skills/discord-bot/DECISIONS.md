@@ -246,9 +246,9 @@ silently dropped every mention after a backtick in prose ("press the ` key").
 
 ## Member search needs no privileged intent
 
-**Decision.** Setup leaves all privileged intents off. Names are looked up
-with Discord's member-search endpoint, which worked with Server Members Intent
-off: tested 2026-10-02 against a real server, where a post's `@name` became a
+**Decision.** Setup leaves Server Members Intent off. Names are looked up
+with Discord's member-search endpoint, which worked with that intent off:
+tested 2026-10-02 against a real server, where a post's `@name` became a
 mention that notified the person. If Discord ever refuses the search, names
 stay plain text with one warning and the post still goes out.
 
@@ -260,6 +260,65 @@ returns members. Discord can accept a search and return nobody, so a request
 that merely succeeds proves nothing. Requiring the bot itself in the answer was
 rejected: the search is capped at 100 and unordered, so in a server where 100
 names start with the bot's, the bot can be missing while search works.
+
+## Message Content is on; Server Members and Presence stay off
+
+Decided by Adam, 2026-10-20.
+
+**Decision.** Setup turns on the Message Content intent and leaves the other
+two privileged intents off. `check` reports `messageContent`, and `read` warns
+when the messages it got from others came back empty.
+
+**Why.** `read` needs the intent. Without it, Discord empties `content`, `embeds`,
+`attachments`, `components` and `poll` in other people's messages, over HTTP
+as well as the gateway. It keeps them only in the bot's own messages, direct
+messages, messages that mention the bot, and the target of a context-menu
+command
+([Discord: Message Content Intent](https://docs.discord.com/developers/events/gateway#message-content-intent)).
+`read` leaves out a message with no text and no attachments, so without the
+intent it would show only the bot's own posts and mentions of it, with no
+sign that anything was missing. Server Members and Presence stay off because
+the skill uses neither: a bot holds only the access it uses, as Discord's same
+page asks.
+
+A bot in fewer than 100 servers turns Message Content on in the developer
+portal; from 100 servers Discord requires verification and its approval of the
+intent
+([Discord: Application Flags](https://docs.discord.com/developers/resources/application)).
+Discord also reviews an app's privileged intents once it has more than 10,000
+users.
+
+**`check` says `false` only on clear evidence.** It reads up to 100 recent
+messages in the default channel, and judges only
+ordinary messages and replies that someone other than the bot posted, not
+through a webhook. A webhook's post might come from the bot's own app.
+
+- **A message with text, an attachment or an embed counts as proof the
+  intent is on,** unless it might mention the bot: directly, through any role
+  or with `@everyone`. Discord leaves such a message whole without the intent.
+- **An empty message counts as proof the intent is off** only when every
+  field it fills in is one an ordinary text message has, and its embeds
+  weren't suppressed. A sticker, a forward, a Rich Presence invite or a shared
+  theme can be empty with the intent on. So can a post whose embeds a
+  moderator removed. A field that Discord adds to its API in future is not on
+  the list either, so a message carrying one gives `null`, never a false
+  `false`. Mentions don't matter on this side: a mention is written in the
+  text, so an empty message that has one was emptied by Discord.
+
+`messageContent` is true when every message that counts has content, and
+false when every one is empty. No message that counts, or both kinds, make it
+`null`, never `false`: a wrong `false` would send the user to change a setting
+that is already right. `check` reports the verdict only, never what a
+message says. `read` warns on the same rule, and asks Discord for the bot's
+id only when a message came back empty.
+
+**Rejected: listing the kinds of message that can be empty.** Each review
+pass found another kind: a Rich Presence invite, a shared theme, a post whose
+embeds were suppressed. The list of ordinary fields turns any kind not yet
+known into `null`.
+
+**Where it stops applying.** A quiet channel, or one where only the bot
+posts, gives `null` until someone else writes there.
 
 ## Permissions are computed in `check`, not before every post
 
