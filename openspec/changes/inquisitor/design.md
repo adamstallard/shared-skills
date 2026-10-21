@@ -363,8 +363,9 @@ system's temporary directory, so they can't be committed.
 
 ## Configuration
 
-`~/.config/shared-skills/inquisitor.json` holds the lore repositories, and
-the GitHub login of the person running the session:
+`~/.config/shared-skills/inquisitor.json` holds the lore repositories, the
+GitHub login of the person running the session, and the answer session's
+section, `answer_session`, whose keys the `answer-session` spec defines:
 
 ```json
 {
@@ -372,7 +373,13 @@ the GitHub login of the person running the session:
   "lore": [
     {"path": "/Users/me/src/team-lore", "owners": ["adamstallard"]},
     {"path": "/Users/me/src/api-lore", "repos": ["adamstallard/api"]}
-  ]
+  ],
+  "answer_session": {
+    "github": {"relay": "adam-relay", "subscriptions": ["adamstallard", "BrightID/aura"]},
+    "linear": {"relay": "adam-relay", "subscriptions": ["ENG"]},
+    "discord": {"relay": "adam-relay", "read": "aura-agent-adam",
+                "user": "123456789012345678", "subscriptions": ["987654321098765432"]}
+  }
 }
 ```
 
@@ -496,6 +503,141 @@ configuration has a `destination` setting naming the directory of a lore
 repository that holds its entries. Outside an Igor's run the search does
 not use it, since a plain session has no Igor configuration; during a run,
 that lore repository is the one the search covers.
+
+## The answer session
+
+The answer session gives a person one place to answer the questions asked
+of them on GitHub, Linear and Discord. A relay identity, a bot of the
+person's own on each surface, posts each answer in the question's thread.
+Its interface is a Claude Code mod that Adam approved by using its
+prototype (proposal decision 152). By decision 147, a UI approved that way
+is not specified, so nothing here describes how it looks.
+The rules are in the `answer-session` spec, the decisions in proposal
+decisions 152 to 175.
+
+### Polling while open, with the person's credentials
+
+A webhook needs a public HTTPS server, and Discord's push a permanent
+connection: either is a service to run, which nothing else in this skill
+needs. So the answer session polls, and only while it is open, about every
+60 seconds, with a catch-up poll when it opens (decisions 157 and 158).
+GitHub's notifications endpoint suits this: a conditional request that
+finds nothing new is answered `304` without counting against the rate
+limit, and the endpoint's `X-Poll-Interval` says how long to wait. A
+mention subscribes the person to its thread, so a later reply there,
+including a reply to the relay, arrives as a notification too. A mention of
+the relay in a thread the person was never subscribed to would be missed;
+task 0.15 measures what the endpoint reports, and until then the answer
+session also reads each subscribed repository's comments.
+
+Reading uses the person's own credentials, and a relay identity only posts
+(decision 159). A relay's token then needs only the right to post, and
+nothing the person reads is read under the bot's name. A relay identity
+also posts for nothing but the answer session (decision 175's item 16).
+Anything that holds the relay identity can post `User says: `, which marks
+a question answered on every machine, so no agent may use it for its own
+work. The skill's instructions say so, and nothing enforces it. On Discord a
+user account can't be automated within Discord's terms, so the spec reads
+Discord with a `discord-bot` identity of the person's own, named in the
+`read` key of the configuration's Discord object; *Still open* in the proposal asks Adam to confirm that.
+
+### The thread is the record
+
+An answer's record is the relay's post in the question's thread, not
+anything on the machine (decision 160). The thread is the one place every
+machine, and the asker, can read. A crash between a successful post and the
+write of its id to local state loses nothing: the next read of the thread
+finds the post and marks the question answered. A post that asks the asker
+starts with `User asks: ` instead of `User says: ` (decision 171), so
+"waiting for the asker" can be read from the thread too. The thread is read
+again before a question is shown, when its poll is over a minute old, and
+before each post, so an answer relayed from another machine is never posted
+twice.
+
+### Local state, one writer per machine
+
+The state folder holds working state only: what the person set aside for
+later, discussion records, poll positions, relay checks, post ids and the
+question on screen (decision 161). Decision 32 rules out a personal
+question log: a copy of a question's record kept where only one person
+would find it, instead of with what the question concerns. The state folder replaces
+no such record: the asker's log file and the thread stay the records, and
+filter 1 never reads the folder. It does hold each discussed question's
+text under the home directory, which the proposal's *Still open* puts to
+Adam. It is kept per
+machine; a question set aside on one machine shows as new on another,
+which costs a second look and nothing else.
+
+One answer session runs per machine, under a lock in the state folder that
+its holder refreshes (decision 162). A holder that crashes stops
+refreshing, and its lock goes stale after 2 minutes. Before each poll and
+each post the holder checks that the lock still names it, so a session that
+was taken over posts nothing more.
+
+**No TLA+ model** (decision 162). Adam's rule asks for one where several
+processes share state, and the lock is the only place that happens here.
+One person uses the answer session, the lock makes one session per machine
+the only writer of that machine's state, and the shared state across
+machines is the threads, which each write appends to and each read
+re-fetches. The interleavings left are two sessions racing for the lock,
+which an atomic create or replace settles, and a take-over during a post,
+which the check before each post settles.
+
+### What the answer session posts, and what it logs
+
+A relay post holds the person's own words, so neither prose's pass nor the
+inquisitor's filters apply to it (decision 170). The mod runs the relay
+identity's skill as a command on the host, with its own process call
+rather than a tool call of the session's model, and prose's posting hook
+and the inquisitor's post hook act only on tool calls. Task 0.18 measures that no hook sees such a command. The
+person's answer, and a draft built from a thread's untrusted text, reach
+that command, so it runs as an argument vector with no shell, with the
+post's text in a file or on standard input. Since no hook reads a relay
+post, the answer session scans it for the credential patterns itself.
+A relay post names the question it answers, by replying to it or by a last
+line `Re: <URL>` (decision 175's item 8), so a thread holding several
+questions keeps a state for each.
+
+The answer session writes no log file for a question it relays. The asker
+logged the question when it asked, often on a branch not yet merged, and
+records the answer when it reads the relay's post. When the asker is a
+person, or an agent that keeps no log, nothing logs the answer, and the
+thread is its only record. A rephrased answer's
+post gives the rephrased question and the one-sentence summary on lines of
+their own, and the asker adds them to its log file as two body sections
+(decisions 163 and 172). Body sections, not frontmatter keys, hold them,
+since every frontmatter value is one quoted line.
+
+A question from a lore repository's questions branch has no thread to
+relay to, so the answer session answers it by pushing a new log file to
+that branch, as any session does for an answer the person gave in it
+(decision 173). Asking the asker and editing are not offered for such a
+question.
+
+A relayed answer counts only as input to filter 1: a later agent is shown
+it as `authority: input`, and it stops no question. That is because
+decision 78 proves a logged answer's writer only when GitHub gives the linked comment's author
+as `answered_by`, and a relay post's author is the relay identity.
+*Still open* in the proposal puts this to Adam, with a recommendation.
+
+### The session's model
+
+A discussion runs in the session's own conversation (decision 167), so the
+model has its tools and can read the question's thread, the code and the
+specs before it replies. Each message carries the question as context. The
+model may ask the person in its reply there (decision 174), the one
+exception to the rule that an agent asks only through the picker: the
+person opened the conversation to talk the question through, and a picker
+would hide the answer session's screen. The model posts nothing: its draft goes
+through `propose_reply` into the prompt box (decision 168), and the person
+relays it. No hook enforces that the model posts and changes nothing; the
+context tells it, and the post hooks still vet any post it tries. The
+model's tools can reach what the person's own commands can, the keychain
+holding the Linear key included, as in any session. The answer session
+adds no guard against that: it is the same exposure as the person's `gh`
+login. The prototype has
+shown that a mod can fill the prompt box and register a tool the model
+calls by name.
 
 ## Tracing scenarios to tests
 

@@ -120,7 +120,9 @@ Terms used throughout this spec:
   filter 1's hits, as related to the question when it runs the first call.
 - **The inquisitor's configuration** is the file
   `~/.config/shared-skills/inquisitor.json`. It names the lore repositories,
-  and the GitHub login of the person running the session.
+  the GitHub login of the person running the session, and, under
+  `answer_session`, the answer session's configuration, which the
+  `answer-session` spec defines.
 - **More visible**: visibility is ranked private, then internal (GitHub's
   `INTERNAL`), then public. A repository
   the question concerns whose visibility cannot be read counts as private;
@@ -776,7 +778,10 @@ call, or in one section of one post.
 Where the host has a picker and a person is in the session, an agent SHALL
 put a question to a person only through the picker, in a post, in a message on another service such as
 Linear or Discord, or, for a `vulnerability` question, in the repository's
-private security advisory; never in the text of its reply. A subagent of
+private security advisory; never in the text of its reply. The one
+exception is a discussion in an answer session, in which the session's
+model may ask the person in its reply, as the `answer-session` spec's *A
+discussion runs in the session's own conversation* says. A subagent of
 such a session SHALL return each surviving question, prepared, to whoever
 started it. A session with no person in it SHALL never use the picker.
 An Igor worker SHALL ask only in its handback comment, which its Igor
@@ -1788,7 +1793,10 @@ written.
   repository's root or a URL, never a lore entry; and `answer_link`, only when there is one,
   the github.com URL of the comment or review holding the answer. Its body
   is the question under `## Question`, and, once the answer comes, the
-  answer in one sentence under `## Answer`.
+  answer in one sentence under `## Answer`. When the person answered the
+  question as rephrased in an answer session, the body also holds, between
+  those two sections, the rephrased question under `## Rephrased question`
+  and the discussion in one sentence under `## Discussion`.
 - **A miss file's keys:** `repository` and `asked`, as in its question's
   log file; `filter`, `"1"` to `"4"`, the filter that should have stopped
   the question; and `said`, what the person said, in their words or in one
@@ -1811,6 +1819,14 @@ written.
   a repository
 - **THEN** the miss file is under `.inquisitor/misses/`, and its
   frontmatter holds only `repository`, `asked`, `filter: "1"` and `said`
+
+#### Scenario: A rephrased question's log file holds the rephrasing
+
+- **WHEN** an agent logs the answer to a question that the person answered
+  as rephrased in an answer session
+- **THEN** the log file's body holds `## Question`, `## Rephrased
+  question`, `## Discussion` and `## Answer`, in that order, and its
+  frontmatter gains no key
 
 #### Scenario: A log file holds no conditions
 

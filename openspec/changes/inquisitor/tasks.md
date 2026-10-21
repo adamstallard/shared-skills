@@ -51,6 +51,44 @@ contradicts what design.md assumed.
 - [ ] 0.14 Whether an Igor worker's `gh` can post, from a login stored in
       the home directory igor gives it rather than in its environment, as
       decision 126 assumes it can't
+- [ ] 0.15 Which reasons GitHub's notifications endpoint gives, read with
+      the person's `gh` login, for a mention, a review request, an
+      assignment and a later comment in a thread the person was mentioned
+      in, and that a conditional request answered `304` does not count
+      against the rate limit. Until then the answer session also reads the
+      comments of each subscribed repository since its poll position
+- [ ] 0.16 How the answer session finds, on Linear with the person's key,
+      mentions of the person and of the relay, and replies to a relay
+      comment, in a subscribed team; and that the linear-app identity can
+      edit its own comment. If it can't find them, Linear stays off and
+      the README says so
+- [ ] 0.17 That a `discord-bot` identity can read a subscribed channel's
+      history and threads, see a mention of the person's user id and a
+      reply to the relay's message, and that the relay can edit its own
+      message, once shared-skills PR #1 has merged. Reading the content
+      of a message that doesn't mention the bot needs Discord's privileged
+      Message Content intent, which PR #1's setup leaves off; record how
+      the `read` identity turns it on. If it can't read them, Discord
+      stays off and the README says so
+- [ ] 0.18 That a command the mod runs with `$.process.run`, the mod API's
+      call that runs a host command, reaches no
+      `PreToolUse` hook, so neither post hook sees a relay post (decision
+      170). If a `PreToolUse` hook does see such a command, record it and
+      stop: decision 170 needs Adam again
+- [ ] 0.19 That a mod's timers keep polling every 60 seconds and
+      refreshing the lock every 30 seconds while its session is idle or
+      runs as a Claude Code background session, and how a session tells
+      that it is one, so that the lock can record it. If they stop, a holder that is still alive would let its
+      lock go stale, and another session would take it without asking;
+      record that, and stop for Adam
+- [ ] 0.20 How setup checks, on each surface, that a relay identity can
+      post in a given channel. On GitHub, github-app's `check` reads only
+      the identity's own configured repositories, so setup reads the App
+      installation's access to each subscribed repository itself. On
+      Linear and Discord, record whether the skill's own check reads a
+      team's or channel's permission, or setup must read it itself. Where
+      no check can, setup runs the skill's own check only, and a post the
+      surface refuses later turns that surface off
 
 ## 1. Shared post reader
 
@@ -200,9 +238,40 @@ contradicts what design.md assumed.
       sets `G` in the same command, or writes the script's full path, so
       the post hooks don't block it (decision 135)
 
-## 6. Archive
+## 6. The answer session
 
-- [ ] 6.0 Archive only after igor PR #216 has merged, since filter 1's
+- [ ] 6.0 Start only after shared-skills PR #1, which adds discord-bot,
+      has merged (decision 165)
+- [ ] 6.1 The mod, built into the inquisitor skill from the tag
+      `ui-approved` of Adam's local prototype repository,
+      `~/answer-session-prototype`, with its questions taken from the polls below
+      instead of the prototype's made-up ones
+- [ ] 6.2 The `answer_session` section of `inquisitor.json`, and setup:
+      the candidates, each relay check, saving the file with the person's
+      own keys kept, a failed surface left off and checked again at each
+      opening, the Linear key in the keychain, and `~/.local/bin/answer`
+- [ ] 6.3 Polling: the four sources, only while open, the catch-up on
+      opening, 60 seconds or GitHub's `X-Poll-Interval`, conditional
+      requests, poll positions, and the lore questions branches
+- [ ] 6.4 Relaying: `User says: ` and `User asks: ` posts through the
+      relay identity's skill as host commands, post ids, editing in place,
+      the thread read before a question is shown and before each post, and
+      a questions-branch question answered by a new log file
+- [ ] 6.5 State: the state folder, a question's state read from its
+      thread, the question on screen, and the lock with attach and take
+      over
+- [ ] 6.6 The discussion's context, `propose_reply`, and the rephrased
+      answer's post. SKILL.md tells an agent that records an answer from a
+      relay post to log its rephrasing and summary
+- [ ] 6.7 prose's SKILL.md and `DECISIONS.md` say that a relay post is
+      the person's words and gets no prose pass (decision 170)
+- [ ] 6.8 Tests, each tagged `@scenario answer-session: <Scenario name>`,
+      and the README's section on the answer session: setup, the `answer`
+      command, and what to do when a relay check fails
+
+## 7. Archive
+
+- [ ] 7.0 Archive only after igor PR #216 has merged, since filter 1's
       search in an Igor worker depends on it. If igor PR #202 has by then
       said where the scribe's records live, both in the repository a
       question concerns and in the lore repository, make filter 1 search
@@ -215,14 +284,15 @@ contradicts what design.md assumed.
       `openspec/specs/lore-firing/spec.md` on main, and
       its link to *Transcripts and outcomes are captured to the state
       branch* at igor's `openspec/specs/task-execution/spec.md` on main
-- [ ] 6.1 Say in prose's and bug-hunter's `DECISIONS.md` that the
+- [ ] 7.1 Say in prose's and bug-hunter's `DECISIONS.md` that the
       inquisitor's commits to a lore `questions` branch are machine records,
       exempt from their trailers. Make prose's file filter skip files under
       `.inquisitor/`, and say why in prose's `DECISIONS.md`: they are
       records quoted word for word (decision 134). This waits for archive
       because no `.inquisitor/` file is committed until the skill ships;
       tests write theirs in temporary repositories
-- [ ] 6.2 Fold this change's lasting reasoning, from proposal.md and
-      design.md, into a new `.agents/skills/inquisitor/DECISIONS.md`, and
+- [ ] 7.2 Fold this change's lasting reasoning, from proposal.md and
+      design.md, into a new `.agents/skills/inquisitor/DECISIONS.md`,
+      the answer session's included, and
       fold the reasoning for moving the post reader into prose's
       `DECISIONS.md`, as `AGENTS.md` says
