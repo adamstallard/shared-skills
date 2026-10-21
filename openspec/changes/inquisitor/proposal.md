@@ -11,7 +11,8 @@ are written down:
 - 11 to 15 and 31;
 - 32 to 35, 38 to 49 and 51 to 63, on 2026-10-19;
 - 64 to 78, 80 to 85, 87 to 98, 100 to 106, 108 to 110, 112 to 124,
-  126 to 129, 131 to 142, 144 to 151, and 152 to 169, on 2026-10-20.
+  126 to 129, 131 to 142, 144 to 151, 152 to 169 and 176 to 180, on
+  2026-10-20.
 
 He gave those of 2026-10-19 and 2026-10-20 while reviewing this pull
 request, [#25](https://github.com/adamstallard/shared-skills/pull/25), whose
@@ -22,7 +23,7 @@ with what he did. He changed 26, replaced 36 with his decision 42,
 confirmed 79 only in part, replaced 107's item 6 with his decision 108,
 and added his decision 109 to 107's item 5. He confirmed the rest.
 Decisions 170 to 175, which this change proposed while writing the answer
-session's requirements, wait for him.
+session's requirements, and 181 to 183, wait for him.
 
 1. **Four filters run before any question reaches a person.**
    1. **Already answered:** the agent finds the earlier answer, cites where it
@@ -451,7 +452,12 @@ eighth consistency read:
     review counts citations there, in one place, with no privacy risk. A
     question's own log file may still say where its answer came from, at
     its privacy. This replaces the `cites` field of decision 69. Decisions
-    87 and 110 say what the file holds.
+    87 and 110 say what the file holds. A question that filter 1 stops
+    with a lore entry is not asked, so it gets no log file, and its
+    citation is its only record. A log file is only ever for a question
+    someone answered, so the spec reads "where its answer came from" as
+    where that answer is recorded, which is never a lore entry, and no log
+    file names an entry by its id.
 84. **The secret scan is only a backstop:** it catches known token shapes,
     and a `DB_PASSWORD=…` passes it. The agent never puts a credential into
     a question, an answer or a verdict field; a question that needs one gets
@@ -821,8 +827,9 @@ consistency read of the change before commit 4f90389:
      records the same. This narrows decision 85 during a run.
 134. **prose's pass skips files under `.inquisitor/`.** A log or miss file
      is a record that quotes a question as asked and what a person said,
-     word for word, and prose's rewrite would change it. At archive,
-     prose's file filter and its `DECISIONS.md` say so (task 7.1).
+     word for word, and prose's rewrite would change it. prose's file
+     filter skips them from gate two, when the skill ships (task 5.6), and
+     its `DECISIONS.md` says why at archive (task 7.1).
 135. **The github-app skill's SKILL.md sets `G` in the same command as each
      use of it,** or writes the script's full path. Otherwise a post copied
      from one of its examples would be blocked once by decision 122, until
@@ -883,7 +890,8 @@ consistency read of the change before commit d93f48b:
      task 4.1, which could not run until this pull request had landed.
      Measured on 2026-10-20: a worker can't run the skill (design.md
      gives the evidence), so gate two builds everything except
-     Igor-worker mode.
+     Igor-worker mode, the spec's name for how the script runs in an Igor
+     worker.
 142. **An Igor worker pushes nothing to a lore repository,** since it
      holds no credential for one. Each question file, miss file and
      `authority: agent` file it would push to a `questions` branch goes in
@@ -1056,6 +1064,40 @@ specified, by decision 147:
      worker next takes the item. Asking back is therefore mostly for
      people's questions.
 
+Adam gave 176 and 177 on 2026-10-20, answering two questions this change
+had left for him:
+
+176. **A line ending in a colon whose text starts with "Open" begins an
+     open-questions section,** plain or bold, such as "Open questions:", as
+     a heading starting with "Open" or "Still open" does. The spec's rule
+     stands as written, so a line such as "Open a terminal and run:" begins
+     one too, and each list item after it needs a verdict before the post
+     goes out.
+177. **A session with a person in it, on a host with no picker, asks in the
+     text of its reply,** once the script's two calls have vetted the
+     question. No hook checks a question there, as decision 21 says. The
+     rule that an agent never asks in its reply holds only where the host
+     has a picker. Wherever the spec has a session with a person in it ask
+     through the picker, such a host's session asks in its reply instead.
+
+Adam gave 178 to 180 on 2026-10-20 for igor PR #216 to record. They are
+recorded here where this change touches them:
+
+178. **An Igor checks each questions-branch file it pushes for a worker
+     with the credential matcher of igor PR #217,** which matches the
+     values of known secrets, such as the worker's seat token, as well as
+     this change's credential patterns.
+179. **An Igor pushes a worker's log file holding a person's answer only
+     when the file's question matches the question the Igor posted in the
+     handback comment that the person's comment answers.** A worker
+     steered by text in its item could otherwise pair a real comment with
+     another question. This narrows decision 149.
+180. **When every push an Igor made of its workers' citations failed,
+     igor's review shows citations as "not checked",** not as a count, even
+     if people's own sessions pushed some citations. A count would then
+     show none for every entry only Igors cited. When at least one Igor
+     push succeeded, each count stays a lower bound (decision 98).
+
 ### Proposed by this change
 
 Decisions 16 to 18 are #211's proposals that apply to the skill; #211's
@@ -1064,8 +1106,8 @@ needed to write the requirements. Reviewing #25, Adam confirmed 16
 to 30, 37 and 50, except 26, which he changed; his decision 42 replaced 36.
 His decision 32 replaced part of 19, and his decision 35 part of 18. The
 later decisions 79, 86, 99, 107, 111, 125, 130 and 143 came from this change too,
-and each says what Adam did with it. Decisions 170 to 175 also came from
-this change, and wait for him.
+and each says what Adam did with it. Decisions 170 to 175 and 181 to 183
+also came from this change, and wait for him.
 
 16. **Confirmed by Adam (2026-10-19).** **A prepared question** states the recommended answer, what changes under
     the other answer, and a link to any related earlier decision, so that most
@@ -1114,7 +1156,8 @@ this change, and wait for him.
 21. **Confirmed by Adam (2026-10-19).** **An agent asks a person only
     through the picker,** where the host has one, so that the hook sees
     every question. On a host with no picker, this decision does not apply,
-    and no hook checks the question. *Rejected:* a hook at the end of the
+    and no hook checks the question; Adam's decision 177 has a session with
+    a person in it ask in its reply there. *Rejected:* a hook at the end of the
     agent's turn that reads questions in its reply, because the person has
     already read the reply when that hook runs. Decisions 24 and 39 name
     the other places a question may go: a post, a Linear or Discord
@@ -1411,8 +1454,10 @@ Adam:
      3. `answer` is installed as `~/.local/bin/answer`. Setup never
         overwrites a file there that it did not write.
      4. The lock is refreshed at least every 30 seconds, and stale after 2
-        minutes. Before each poll and each post, the holder checks that the
-        lock still names it.
+        minutes. The lock also holds the holder's Claude Code session id,
+        since every session `answer` starts is named `Answers`. Before each
+        poll and each post, the holder checks that the lock still holds its
+        session id.
      5. A channel with no poll position is read from 14 days back.
      6. A failed or never-run relay check is run again each time the
         answer session opens.
@@ -1447,10 +1492,60 @@ Adam:
      17. The Discord `read` identity must be able to read message content,
          which needs Discord's privileged Message Content intent.
 
+Decisions 181 to 183 came from spec-check's consistency read of commit
+041822a, which found rules that design.md applied and no decision recorded.
+Each is this change's own, and waits for Adam:
+
+181. **A verdict record stays valid after a hook blocks a call for another
+     question in it.** The picker hook and the post hook spend no record,
+     so when a call is blocked because of one question, the agent vets that
+     question alone and calls again. Each record still expires as
+     decisions 38 and 51 say. This change took it under filter 4.
+182. **The files an agent passes to `vet` go in a private directory
+     outside any repository:** a directory made with `mktemp -d`, which
+     only the agent's user can read, holding each file with mode 0600. The
+     script refuses a file that its group or others can read. Every user
+     of a host can read a file left with the usual mode in a shared
+     temporary directory such as `/tmp`, and with it a question's text. A
+     question with a category reaches the script on standard input
+     instead, never in a file. *Rejected:* the system's temporary
+     directory, as design.md first had it. This change took it under
+     filter 3.
+183. **Details the spec fixes,** each cheap to reverse, taken under
+     filter 4:
+     1. Filter 1 searches a repository's `.inquisitor/misses/` too, and
+        labels an unanswered log file as unanswered and a miss file as a
+        miss, never as an answer.
+     2. A log file is answered when its frontmatter holds `authority`, and
+        only then, so a `## Answer` line inside a question's text changes
+        nothing. The script writes the answer, the discussion's summary
+        and the rephrased question each on one line at the end of the
+        body. A reader then finds them by counting lines back from the
+        end, and everything above them is the question.
+     3. A log file's `repository` and `answer_link` are checked against
+        GitHub's syntax before any GitHub API call uses them. A file whose
+        `repository` fails is input, labelled unreadable, and an
+        `answer_link` that fails proves no writer.
+     4. The shared post reader reads a `gh api` field, and an assignment
+        to `G`, only when the shell would pass the word unchanged apart
+        from removing its quotes. So `-f body=$B` is unreadable, and
+        `G="/abs/github_app.py"`, quoted, sets `G`.
+     5. A citation's commit is made with `git -c commit.gpgsign=false`, so
+        a person's signing setup for decision 78 never signs it with their
+        key.
+     6. When an Igor's run ends in its handback comment with no artifact,
+        meaning nothing the Igor publishes for the run, such as a pull
+        request, the worker logs no question about the item's repository, since the
+        Igor publishes such a log file only with an artifact: the handback
+        comment is the question's record. A later run on the item that
+        publishes an artifact logs the question there, holding its answer
+        once a person has given one.
+
 **Still open:**
 
-Decisions 170 to 175 wait for Adam. Nine questions from the answer session
-are his too:
+Decisions 170 to 175 and 181 to 183 wait for Adam. Nine questions from
+the answer session are his too, one about a vulnerability's regression
+test, and one about where an open-questions section ends:
 - **A relayed answer counts only as input to filter 1.** Decision 78
   proves a logged answer's writer only when GitHub gives the linked
   comment's author as `answered_by`, and a relay post's author is the relay
@@ -1494,6 +1589,24 @@ are his too:
   shown only when its item is assigned to the person (source 3).
   *Recommended:* keep that, since igor assigns a handed-back item to a
   person.
+- **A regression test in the advisory's private fork, if task 0.13 shows
+  that the fork's pull request can be merged before publication.**
+  Decision 108's item 4 lands the test in the fork. If that pull request
+  can merge first, the test, a working exploit, would reach the public
+  branch before the advisory is published. Decision 127 settles the same
+  case for the fork's commit messages, and nothing settles it for the
+  test. *Recommended:* treat the test as decision 108's item 6, as 127
+  amends it, treats a fork commit's message once task 0.13 shows the
+  merge can come first. The test goes in the fork only when the person who
+  will publish the advisory has told the agent that the pull request will
+  be merged at the moment of publication; otherwise it waits for
+  publication.
+- **Where a section begun by a colon line ends.** Under decision 176, a
+  line such as "Open a terminal and run:" begins an open-questions
+  section, and a section ends only at the next heading or bold label. So
+  every list up to that heading counts as questions, not only the list
+  right after the line. *Recommended:* end a section begun by a colon line
+  at the end of its first list.
 
 Tasks 0.15 to 0.20 measure facts the answer session relies on: what
 GitHub's notifications endpoint reports, how Linear and Discord show

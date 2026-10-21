@@ -195,7 +195,10 @@ Beyond the forms above, the reader SHALL read:
   `/github_app.py`, written out, or as `$G` or `"$G"`, the shell variable
   the github-app skill sets, when the same command first assigns `G` such
   a path, as `G=<path>;` or `G=<path> &&`, and nothing else comes before
-  the `python3`. A script at any other path is not this form;
+  the `python3`. The `<path>` is a literal word, as defined below, so
+  `G="/abs/github_app.py"` and `G='/abs/github_app.py'` assign it, and
+  `G="$HOME/x/github_app.py"` does not. A script at any other path is not
+  this form;
 - a `gh api` call that writes an issue, a pull request, a comment or a
   review, at an endpoint under `repos/<owner>/<repo>/issues` or
   `repos/<owner>/<repo>/pulls`, with or without a leading `/`, and with
@@ -221,6 +224,17 @@ Beyond the forms above, the reader SHALL read:
   `--raw-field`, `-F` or `--field` (`-F` and `--field` also read
   `@<file>`), or in the `variables` of an `--input` file. It SHALL say that
   the post creates an issue when the mutation is `createIssue`.
+
+A **literal word** is one the shell passes on unchanged apart from
+removing its quotes: it holds no `$`, backtick or backslash outside single
+quotes, and no `*`, `?`, `[`, `{` or `~` outside quotes. The reader SHALL
+read a `gh api` field, such as `-f body=…`, only when the whole word that
+gives it is literal, so `-f body='a b'` gives `a b`, and `-f body=$B` and
+`-f "body=$B"` make the call unreadable. The rule covers fields and the
+path assigned to `G`, not the endpoint, whose `{owner}` and `{repo}` are
+read as placeholders. A field may be unquoted, while a `--body` or `-b`
+of `gh pr` or `gh issue` must be quoted: that is prose's reader's rule
+today, kept so that moving the reader changes nothing prose does.
 
 A command that runs `python3 $G` or `python3 "$G"`, mentions a gh post
 verb, and assigns `G` nowhere earlier in the same command SHALL be reported as
@@ -305,6 +319,28 @@ no `body` argument. The reader returns no title.
   body=@missing.md` where `missing.md` does not exist
 - **THEN** the reader reports each command as unreadable
 
+#### Scenario: A gh api body held in a shell variable is unreadable
+
+- **WHEN** a hook asks about `gh api repos/o/r/issues/5/comments -f
+  body=$B`, about the same call with `-f "body=$B"`, and about it with
+  `-f body='a b'`
+- **THEN** the reader reports the first two as unreadable, and returns
+  `a b` as the body of the third
+
+#### Scenario: A quoted assignment to G sets it
+
+- **WHEN** a hook asks about `G="/abs/github_app.py"; python3 "$G" gh pr
+  comment 5 --body-file c.md`, and about the same command with
+  `G="$HOME/github_app.py"`
+- **THEN** the reader returns the file's text as the body of the first,
+  and reports the second as unreadable
+
+#### Scenario: gh api placeholders count as an owner and a repository
+
+- **WHEN** a hook asks about `gh api /repos/{owner}/{repo}/issues/5/comments
+  -f body=hi`
+- **THEN** the reader returns `hi` as the body
+
 #### Scenario: A gh api read is no post
 
 - **WHEN** a hook asks about `gh api graphql -f query='{ viewer { login } }'`
@@ -349,6 +385,37 @@ no `body` argument. The reader returns no title.
 - **WHEN** a hook asks about `python3 "$G" gh pr view 12 --comments`, and
   the command assigns `G` nowhere
 - **THEN** the reader reports that the command sends no post
+
+#### Scenario: A gh post chained to another command is unreadable
+
+- **WHEN** a hook asks about `cd /x && gh pr comment 5 --body-file c.md`,
+  where `c.md` exists
+- **THEN** the reader reports the command as unreadable
+
+#### Scenario: gh named as another command's argument is unreadable
+
+- **WHEN** a hook asks about `xargs gh pr comment 5 -b x`, or about
+  `echo gh pr create` with `gh` as a word of its own
+- **THEN** the reader reports each command as unreadable
+
+#### Scenario: A post that reads its body from a pipe is unreadable
+
+- **WHEN** a hook asks about `cat c.md | gh pr comment 5 -F -`
+- **THEN** the reader reports the command as unreadable
+
+#### Scenario: A body file that does not exist is unreadable
+
+- **WHEN** a hook asks about `gh pr comment 5 --body-file missing.md`,
+  where `missing.md` does not exist
+- **THEN** the reader reports the command as unreadable
+
+#### Scenario: An MCP comment field and an issue_write create are read
+
+- **WHEN** a hook asks about a GitHub MCP tool whose input holds the
+  string `ok` under a key named `comment`, and about an `issue_write`
+  call with the `method` `create` and the `body` `b`
+- **THEN** the reader returns `ok` as a body of the first, returns `b` as
+  the body of the second, and says that the second creates an issue
 
 #### Scenario: A close with a comment is read
 

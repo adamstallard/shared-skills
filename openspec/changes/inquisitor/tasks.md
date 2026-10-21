@@ -142,7 +142,7 @@ contradicts what design.md assumed.
       the refusals, and the records the hooks read, each deleted once it is
       more than 2 hours old except a `deferred` record without a category
 - [ ] 2.3 Filter 1's search over decision documents, issues through `gh`, the
-      repository's question log, and configured lore clones' entries and
+      repository's question log and misses, and configured lore clones' entries and
       `questions` branch, fetched and read with `git show`, and during an
       Igor's run only the lore repository the Igor injects from, or none
       when the script can't tell which (decision 133); the authority
@@ -166,9 +166,11 @@ contradicts what design.md assumed.
 - [ ] 2.4b `cite`, pushing a citation file in the format of *A citation
       file has one format* (`entry` and `date`, no `run`) to the
       lore repository's `questions` branch when filter 1 stops a question
-      with a lore entry. It sends none for a question with a category, and
-      none to a more visible lore repository. During an Igor's run it
-      pushes nothing, and the citation is handled as igor PR #216's *An
+      with a lore entry, committed unsigned with `git -c
+      commit.gpgsign=false`. It sends none for a question with a
+      category, and none to a lore repository more visible than the
+      repository the question concerns. During an Igor's run it pushes
+      nothing, and the citation is handled as igor PR #216's *An
       Igor publishes the citations its worker reports* says
 - [ ] 2.5 The question finder for posts, as one function the post hook also
       calls
@@ -213,7 +215,14 @@ contradicts what design.md assumed.
 - [ ] 4.2 Every scenario has a tagged test: `spec_trace.py report
       --include-changes` lists no scenario of this change as `none`, its mark
       for a scenario with no tagged test. A scenario about what the agent
-      does is tagged on a test that checks SKILL.md states the rule
+      does is tagged on a test that checks SKILL.md states the rule. A
+      scenario about Igor-worker mode, which gate two does not build (task
+      0.12), is tagged on a test that is skipped, with a reason naming
+      what igor has yet to provide
+- [ ] 4.3 Once igor provides `igor lore-search` and a role's `commands`
+      can list the skill's script, build Igor-worker mode and stop
+      skipping its tests. If this is still open at archive, file an issue
+      for it then, linking igor's work it waits on
 
 ## 5. Docs and registration
 
@@ -237,6 +246,10 @@ contradicts what design.md assumed.
 - [ ] 5.5 github-app's `SKILL.md`: every example that runs `python3 $G`
       sets `G` in the same command, or writes the script's full path, so
       the post hooks don't block it (decision 135)
+- [ ] 5.6 prose's file filter skips files under `.inquisitor/`, so prose's
+      pass never rewrites a log or miss file, which quotes a question and a
+      person's words exactly (decision 134). It ships with the skill,
+      which writes such files from gate two on
 
 ## 6. The answer session
 
@@ -286,11 +299,9 @@ contradicts what design.md assumed.
       branch* at igor's `openspec/specs/task-execution/spec.md` on main
 - [ ] 7.1 Say in prose's and bug-hunter's `DECISIONS.md` that the
       inquisitor's commits to a lore `questions` branch are machine records,
-      exempt from their trailers. Make prose's file filter skip files under
-      `.inquisitor/`, and say why in prose's `DECISIONS.md`: they are
-      records quoted word for word (decision 134). This waits for archive
-      because no `.inquisitor/` file is committed until the skill ships;
-      tests write theirs in temporary repositories
+      exempt from their trailers, and say in prose's `DECISIONS.md` why its
+      file filter skips files under `.inquisitor/` (task 5.6): they are
+      records quoted word for word (decision 134)
 - [ ] 7.2 Fold this change's lasting reasoning, from proposal.md and
       design.md, into a new `.agents/skills/inquisitor/DECISIONS.md`,
       the answer session's included, and

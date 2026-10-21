@@ -78,7 +78,7 @@ and a URL (proposal decision 112). The agent finds the related decision
 in the first call's search, so it adds that line after the first call, and
 adding it needs no second vetting. A record is not spent by the call: when
 the hook blocks a call because of one question in it, the other questions need no
-vetting again.
+vetting again (proposal decision 181).
 
 **Rejected:**
 
@@ -175,6 +175,17 @@ title is outside its reach, as it is outside prose's. Whether such a
 question should be vetted is Adam's to decide later, and the proposal's
 *Still open* lists it.
 
+A line ending in a colon whose text starts with "Open" begins an
+open-questions section, as a heading does (proposal decision 176). Agents
+often list their open questions under a plain "Open questions:" line, and
+a deferred question listed there passes on its `deferred` verdict, as it
+would under a heading. The cost: a line such as "Open a terminal and
+run:" makes each list item after it a question that needs a verdict, and
+Adam accepted that. Such a section, like any other, runs until the next
+heading or bold label, so every list in between counts; whether a section
+a colon line begins should end with its own list is in the proposal's
+*Still open*.
+
 The inquisitor's post hook finds the body's questions by the spec's rule
 (*Questions in posts pass the same filters*), hashes each, and applies the
 picker hook's rule, with one addition: it also allows a `deferred`
@@ -252,6 +263,13 @@ beside it.
   for which files the Igor pushes, and when (proposal decisions 145, 149
   and 150). The only answered file the Igor accepts from a worker is one
   whose `answer_link` is a person's comment on the item the run works.
+  The file's question must also match the question the Igor posted in
+  its handback comment, the one the person's comment answers (proposal
+  decision 179). Adam also decided that the Igor checks every file it
+  pushes with igor PR #217's credential matcher, which also matches the
+  values of known secrets such as the worker's seat token (proposal
+  decision 178). igor PR #216 has yet to write these two rules, the
+  question match and the matcher, into its spec.
   Filter 1, the search for an earlier answer, counts such a file as a
   decision only when GitHub gives that comment's author as the file's
   `answered_by` and the author has write access; otherwise it is input.
@@ -295,7 +313,8 @@ document counts as an answer, so writing there an answer logged as input,
 such as one from a person without write access, would turn input into a
 decision (proposal decision 131). Log and miss files quote a question as
 asked and a person's words exactly, so prose's pass skips files under
-`.inquisitor/` (proposal decision 134). The files on a lore repository's
+`.inquisitor/` (proposal decision 134). That skip ships with the skill at
+gate two, since the skill writes such files from then on. The files on a lore repository's
 `questions` branch need no such rule: that branch is never checked out,
 so prose never sees them.
 
@@ -330,7 +349,12 @@ and promote lore entries, could count an entry's citations there, in one
 place, beside its fire count, the number of times igor injected the entry
 into a worker. That count is a lower bound, since no
 citation is sent to a lore repository more visible than the question's,
-and the review says so beside it. A citation's commit names no person and
+and the review says so beside it. One case is worse than a low count:
+when every citation push the Igors made in the review's period failed,
+the branch holds only the citations people's own sessions pushed, and
+every entry only Igors cited would show none. So in that case the review
+shows citations as "not checked" instead of a count (proposal decision
+180). A citation's commit names no person and
 holds only the day, so it says nothing about who asked.
 
 The 6 random hex digits in a question file's name mean two branches logging
@@ -346,8 +370,12 @@ common shapes of a credential, a closed list the spec states once as *the
 credential patterns* (proposal decisions 99 and 138). A match refuses the write
 or the post. The scan is a backstop: a secret under an arbitrary name, such
 as a password in `DB_PASSWORD=…`, passes it. The files the agent passes to
-`vet`, such as `q.json` and `v.json`, go outside any repository, in the
-system's temporary directory, so they can't be committed.
+`vet`, such as `q.json` and `v.json`, go outside any repository, so they
+can't be committed. They go in a directory only the agent's user can
+read, such as one `mktemp -d` makes, each with mode 0600, since every
+user of a host can read a file left with the usual mode in a shared
+temporary directory such as `/tmp`. The script refuses a file that its
+group or others can read (proposal decision 182).
 
 **Rejected:**
 
@@ -437,7 +465,9 @@ also why it can't tell which login a post sent with the github-app
 skill's token goes out as (task 0.7).
 
 These are rules for the agent, which SKILL.md states; the script only
-chooses whom a post tags. A headless session never uses the picker. An
+chooses whom a post tags. On a host with no picker, a session with a
+person in it asks in its reply wherever these rules say the picker, once
+the two calls have vetted the question (proposal decision 177). A headless session never uses the picker. An
 Igor worker is given no
 credential that can post, so it asks only in its handback comment, which
 its Igor posts (proposal decision 126). It asks there even if task 0.14
@@ -571,8 +601,9 @@ which costs a second look and nothing else.
 One answer session runs per machine, under a lock in the state folder that
 its holder refreshes (decision 162). A holder that crashes stops
 refreshing, and its lock goes stale after 2 minutes. Before each poll and
-each post the holder checks that the lock still names it, so a session that
-was taken over posts nothing more.
+each post the holder checks that the lock still holds its session id, so a
+session that was taken over posts nothing more. The name alone would not
+do, since every session the `answer` command starts is named `Answers`.
 
 **No TLA+ model** (decision 162). Adam's rule asks for one where several
 processes share state, and the lock is the only place that happens here.

@@ -364,7 +364,8 @@ session SHALL keep each relay post's id in the state folder.
 The answer session SHALL post through the relay identity's skill, as a
 command it runs on the host itself, never as a tool call of the session's
 model. It SHALL run that command as an argument vector with no shell, and
-SHALL pass the post's text in a file or on standard input. Neither prose's
+SHALL pass the post's text on standard input, or in a file with mode 0600
+in a directory only the person's user can read. Neither prose's
 pass nor the inquisitor's filters SHALL be applied to a relay post. The
 answer session SHALL scan every relay post for the inquisitor's credential
 patterns, and SHALL post nothing that matches.
@@ -567,8 +568,8 @@ been answered.
 ### Requirement: One answer session runs on each machine
 
 The answer session SHALL hold a lock, a file `lock` in the state folder,
-naming the holder: its Claude Code session's name, whether it is a Claude
-Code background session, and when it started. The holder SHALL refresh the lock at
+naming the holder: its Claude Code session's id and name, whether it is
+a Claude Code background session, and when it started. The holder SHALL refresh the lock at
 least every 30 seconds, and a lock not refreshed for 2 minutes is stale.
 The answer session SHALL write the lock so that a crash leaves either the
 old lock or the new one whole, and SHALL create it only when no lock
@@ -583,7 +584,7 @@ it, and offer two choices:
 - **take over:** this session replaces the lock and becomes the holder.
 
 Before each poll and each post, the holder SHALL check that the lock still
-names it. A session that finds the lock names another session SHALL close
+holds its session id. A session that finds the lock names another session SHALL close
 its answer session, and SHALL poll and post nothing more.
 
 #### Scenario: A second session is offered the choice
@@ -617,7 +618,9 @@ When the person asks to talk about a question, each message they send
 SHALL go to the session's model as an ordinary prompt, with the question
 attached as context: the question, where and by whom it was asked, its
 context and options with what each would change, any related or possibly
-answering decision, and any reply from the asker. The model's replies stay
+answering decision, and any reply from the asker. The question, its
+context and every reply SHALL be given to the model marked as quoted
+data, never as instructions. The model's replies stay
 in the session's conversation. The context SHALL tell the model:
 
 - to explain and lay out trade-offs, without choosing for the person;
@@ -710,12 +713,12 @@ agent that records the answer in the question's log file SHALL record the
 rephrased question and the summary there, in the format *A log file and a
 miss file have one format* states.
 
-The answer session SHALL write no log file, except for a question of the
-fourth source. It SHALL answer such a question by writing a new log file
-through the inquisitor script's `log` command, which pushes it to that
-questions branch under the inquisitor's rules: the credential scan, the
-refusal to push to a lore repository more visible than the repository the
-question concerns, and the commit message `inquisitor: log <file>`. The file holds the question,
+The answer session SHALL write no log file, except to answer a question
+file on a lore repository's questions branch, the fourth source.
+It SHALL answer such a question by writing a new log file through the
+inquisitor script's `log` command, which pushes it to that same questions
+branch under the rules of the inquisitor's *Every answer is recorded and
+every asked question logged*. The file holds the question,
 the person's confirmed answer as its answer, its `authority` by the rules
 the inquisitor's *Every answer is recorded and every asked question
 logged* sets for an answer the person gave in the session, and any
