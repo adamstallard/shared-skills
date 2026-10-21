@@ -236,7 +236,7 @@ const RULE = 'subtle'
 // Prototype only: shown in the top bar, so a tester can tell which build is
 // loaded. v0.1-N, N the number of commits in the prototype repository once
 // this build is committed.
-const BUILD = 'v0.1-20'
+const BUILD = 'v0.1-21'
 const PREFIX = 'User says: '
 const SPEAKER = 8
 const cursorAtom = atom({ plugin: 'answer-session', key: 'cursor' } as const, 0)
@@ -634,7 +634,7 @@ function commands(c: Ctx): Command[] {
   const q = c.q
   const close: Command = { key: 'q', what: '(q)uit' }
   const nav: Command[] = [
-    { key: 'p', what: '(p)revious' },
+    { key: 'b', what: '(b)ack' },
     { key: 'n', what: '(n)ext' },
   ]
   if (!q) return [...(c.deferredAt >= 0 ? [{ key: 'r', what: '(r)eview those for later' }] : []), ...nav, close]
@@ -667,8 +667,11 @@ function commands(c: Ctx): Command[] {
 async function runCommand($: EngineInterface, c: Ctx, key: string): Promise<string> {
   const q = c.q
   if (key === 'q') return closeSession($)
-  if (key === 'p') return stepBy($, c.at, -1)
-  if (key === 'n') return stepBy($, c.at, 1)
+  // b and n sit side by side: back and next through the queue. In a
+  // discussion b means back to the question, so the queue's keys act only
+  // outside one.
+  if (!c.talking && !c.composing && key === 'b') return stepBy($, c.at, -1)
+  if (!c.talking && !c.composing && key === 'n') return stepBy($, c.at, 1)
   if (!q) return key === 'r' ? go($, c.deferredAt, 'Back to a deferred question') : ''
   if (c.composing) return key === 'b' ? backToTalk($, q) : ''
   if (c.talking) {
