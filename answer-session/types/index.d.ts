@@ -1,5 +1,27 @@
-/** Why Adam won't answer a question: 1, the conversation is over; 2, not a real question; 3, it doesn't need a human. */
+/**
+ * Why Adam won't answer a question: 1, the conversation is over; 2, not a
+ * question (picked up by mistake); 3, the inquisitor should have handled it,
+ * and he answers for it.
+ */
 export type WontReason = 1 | 2 | 3
+
+/** The inquisitor's filters: 1 already answered, 2 can wait, 3 only one option has merit, 4 cheap to reverse. */
+export type Filter = 1 | 2 | 3 | 4
+
+/**
+ * The question Adam is declining to answer, and where he is in it: `reason`
+ * while he picks why; for reason 3, `filter` while he picks which filter
+ * should have stopped it, `place` while he gives where filter 1's answer is
+ * recorded, and `post` while the reply he is posting for the inquisitor is
+ * previewed (with the place, for filter 1). Nothing is recorded or posted
+ * until the last Enter; going back steps back, and from the first two
+ * stages keeps the question open.
+ */
+export type Declining =
+  | { id: string; stage: 'reason' }
+  | { id: string; stage: 'filter' }
+  | { id: string; stage: 'place' }
+  | { id: string; stage: 'post'; filter: Filter; place?: string }
 
 /** What was done with a question, by Adam or, for `recorded` and `handled`, by the session itself. */
 export type Answer = {
@@ -16,17 +38,22 @@ export type Answer = {
    * `recorded`, answered for Adam from a recorded answer with authority
    * (filter 1), posted as "Recorded answer: "; `handled`, an agent's
    * question that clearly fails filter 2, 3 or 4, replied to with that
-   * filter's action, posted as "Inquisitor: ".
+   * filter's action, posted as "Inquisitor: ". `handled` with `chosen` is
+   * Adam's won't-answer reason 3: he answered for the inquisitor with the
+   * filter he chose (filter 1 as "Recorded answer: " and where it is
+   * recorded), and the question is closed.
    */
   kind: 'answer' | 'defer' | 'wait' | 'wont' | 'recorded' | 'handled'
   /** True once the post was edited after it went out; an edited post is Adam's, prefixed "User says: ". */
   edited?: true
-  /** For `wont`: why. */
-  reason?: WontReason
-  /** For `wont` with reason 3: Adam's answer to which filter should have stopped it and why, the miss's "what was said". */
+  /** For `wont`: why. (Reason 3 posts, so it ends as `handled` with `chosen`.) */
+  reason?: 1 | 2
+  /** For `handled`: the filter whose reply was posted. */
+  filter?: Filter
+  /** For `handled`: true when Adam chose it (won't-answer reason 3) rather than the session. */
+  chosen?: true
+  /** For a `handled` Adam chose: the note he typed with it, the miss's "what was said". */
   said?: string
-  /** For `handled`: the filter whose action was posted. */
-  filter?: 2 | 3 | 4
   /** For an answer Adam relayed over the session's own post: that post, prefix included. */
   over?: string
 }
@@ -100,13 +127,8 @@ declare module 'claude-code' {
       editing: Record<string, true>
       /** Questions whose clarifying question to the asker is being written in the prompt box. */
       asking: Record<string, true>
-      /**
-       * The question Adam is declining to answer: `reason` while he picks why
-       * (nothing is recorded yet, and going back cancels), `miss` once he
-       * chose "doesn't need a human" and the session's model asks him, in the
-       * conversation, which filter should have stopped it.
-       */
-      declining: { id: string; stage: 'reason' | 'miss' } | null
+      /** The question Adam is declining to answer, and the stage he is at; null when none. */
+      declining: Declining | null
       /** Askers' replies to clarifying questions, by question id. */
       returned: Record<string, Returned>
       /**

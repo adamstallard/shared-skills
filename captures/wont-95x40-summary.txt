@@ -1,40 +1,40 @@
 
- ▐▛███▛█   Claude Code v2.1.306
-▝▜██████▀  Opus 5.5 · Claude Max
- ▝▝   ▝▝   ~/shared-skills
 
-⚠ Ask rule Advisor matches no tool · check for typos
+⏺ Prompt dropped by a hook: Filter 1, already answered: give where the answer is
+  recorded
 
-❯ /answer
-  ⎿  answer-session: Answer session open: type in the prompt box, Enter answers. 1 answered and
-     1 handled for you: see the summary.
+⏺ Prompt dropped by a hook: Filter 1, already answered: Recorded answer: the rollout
+  runbook: flags under 25% of new sign-ups need no metrics review. Check the reply,
+  then ⏎ posts it
 
+⏺ answer-session: reloaded (10 hooks: session.start, command.run, ui.render,
+  prompt.edit, prompt.change, tool.call, prompt.suggest, prompt.submit, turn.start,
+  turn.complete)
 
+⏺ Prompt dropped by a hook: Answered Maya Ortiz's question for the inquisitor on Linear
+  ENG-412 · Onboarding flag as adam-relay (Linear app). The real skill logs a miss
+  against filter 1.
 
+⏺ Prompt dropped by a hook: Question 2 of 9
 
-
-
-
-
-
-
+⏺ Prompt dropped by a hook: Question 1 of 9
 ────────────────────────────────────────────────────────────────────────────────────────── [-]
-Answer session  ○ ○ ○ ○ ◎ ○ ○ ○ ◈  summary  7 new · 2 done for you                 v0.1-28
-7 questions still new
-0 of 9 relayed this session · 1 answered for you · 1 handled for you
+Answer session  ◈ ◈ ○ ○ ◎ ○ ○ ○ ◈  summary  5 new · 2 done for you · 2 for the inquisitor
+5 questions still new
+0 of 9 relayed this session · 1 answered for you · 1 handled for you · 2 you answered for…
 
-◎ jlee           adamstallard/igor #216  │ Recorded answer: See decision 10 in #216: the…
-◈ Igor (worker)  #igor-dev               │ Inquisitor: Filter 4 (cheap to reverse): pick…
-
-
+◈ claude         adamstallard/igor #216     │ you chose · Inquisitor: Filter 4 (cheap to…
+◈ Maya Ortiz     ENG-412 · Onboarding flag  │ you chose · Recorded answer: the rollout ru…
+◎ jlee           adamstallard/igor #216     │ Recorded answer: See decision 10 in #216: t…
+◈ Igor (worker)  #igor-dev                  │ Inquisitor: Filter 4 (cheap to reverse): pi…
 
 
 
 
 
                                                                     (b)ack  (n)ext  (q)uit
-                                                                           ◐ medium · /effort
+
 ──────────────────────────────────────────────────────────────────── answer-session-prototype ─
 ❯ 
 ───────────────────────────────────────────────────────────────────────────────────────────────
-  ⏵⏵ auto mode on (shift+tab to cycle) · ← 2 agents · a key or your answer, then ⏎ · 5h 14%…
+  ⏵⏵ auto mode on (shift+tab to cycle) · ← 3 agents · a key or your answer, then ⏎ · 5h 19%…

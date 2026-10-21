@@ -1,0 +1,40 @@
+
+ ▐▛███▛█   Claude Code v2.1.306
+▝▜██████▀  Opus 5.5 · Claude Max
+ ▝▝   ▝▝   ~/shared-skills
+
+⚠ Ask rule Advisor matches no tool · check for typos
+
+❯ /answer
+  ⎿  answer-session: Answer session open: type in the prompt box, Enter answers. 1 answered and 1 handled for you: see the summary.
+
+⏺ Prompt dropped by a hook: Won't answer claude's question: choose why.
+
+⏺ Prompt dropped by a hook: The inquisitor should have handled claude's question: choose the filter that should have stopped it.
+  Nothing is posted yet.
+
+⏺ Prompt dropped by a hook: Filter 4, cheap to reverse: check the reply, then ⏎ posts it
+
+
+
+
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── [-]
+Answer session  ◉ ○ ○ ○ ◎ ○ ○ ○ ◈  summary  1 of 9 · 7 new · 0 relayed · 0 for later · 2 done for you                           v0.1-29
+GitHub  adamstallard/igor #216  12m ago                        │ ◈ ANSWER FOR THE INQUISITOR · Filter 4, cheap to reverse
+claude asks, an agent via the inquisitor                       │
+                                                               │ POST ON GITHUB AS adam-relay[bot]: Inquisitor: Filter 4 (cheap to
+During a run, should the inquisitor's first filter hide        │ reverse): pick one, it's cheap to switch.
+questions-branch files about projects the role doesn't work    │
+on, as it hides lore entries outside the role's scope?         │ NOTE FOR THE MISS, NOT POSTED: Isolation is decision 3, so either
+                                                               │ answer was cheap to switch
+The scope filter covers lore entries only. Question files on   │
+the lore repository's questions branch can be about any        │ The real skill logs a miss against filter 4, with your note as what
+project.                                                       │ was said.
+                                                               │ Posts on a person's question too, as you chose. You can still answer
+Related #216 decision 3: scope is a hard filter                │ on GitHub by hand.
+(p)ost it                                                                                                            go (b)ack   (q)uit
+
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────── answer-session-prototype ─
+❯ Isolation is decision 3, so either answer was cheap to switch
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on (shift+tab to cycle) · ⏎ post on GitHub for the inquisitor; the note goes in the miss · 5h 18% ⇣ 9:30p · 7d 58% Sat 2a

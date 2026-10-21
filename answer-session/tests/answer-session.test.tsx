@@ -679,8 +679,9 @@ test("(w)on't answer offers three reasons; going back cancels; reason 1 records 
   const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
   expect(await s.enter($, 'w')).toContain('choose why')
   await ui.redraw()
-  expect(await ui.find({ type: 'Text', text: /WON'T ANSWER · CHOOSE WHY · NOTHING IS POSTED/ })).toBeDefined()
-  for (const why of [/The conversation is over/, /Not a real question/, /Doesn't need a human/]) expect(await ui.find({ type: 'Text', text: why })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /WON'T ANSWER · CHOOSE WHY/ })).toBeDefined()
+  for (const why of [/The conversation is over/, /^Not a question$/, /The inquisitor should have handled it/]) expect(await ui.find({ type: 'Text', text: why })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /Not a real question/ })).toBeUndefined()
   expect(await ui.find({ type: 'Text', text: /The real skill ends the thread: later replies there stop/ })).toBeDefined()
   // Before a reason is chosen, nothing is recorded: going back keeps it open.
   expect(await s.enter($, 'b')).toBe("Kept claude's question open: nothing recorded")
@@ -709,15 +710,22 @@ test("(w)on't answer offers three reasons; going back cancels; reason 1 records 
   await ui.unmount()
 })
 
-test("reason 2 notes the lesson candidate; (r)eopen makes the question answerable again", async ($, on) => {
+test('reason 2, not a question, notes a lesson candidate against how it was found; (r)eopen makes it answerable again', async ($, on) => {
   const s = answerSession(on)
   await s.open($)
   const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
   await s.enter($, 'w')
-  expect(await s.enter($, '2')).toBe("Won't answer claude's question: not a real question. Nothing posted.")
+  await ui.redraw()
+  expect(await ui.find({ type: 'Text', text: /picked up by mistake/ })).toBeDefined()
+  expect(await s.enter($, '2')).toBe("Won't answer claude's question: not a question. Nothing posted.")
   await s.enter($, 'b')
   await ui.redraw()
-  expect(await ui.find({ type: 'Text', text: /a lesson candidate is written/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /^Not a question$/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /a lesson candidate is written against how the/ })).toBeDefined()
+  await ui.press({ key: 'dot:summary' })
+  await ui.redraw()
+  expect(await ui.find({ type: 'Text', text: /│ won't answer: not a question/ })).toBeDefined()
+  await ui.press({ key: 'dot:0' })
   expect(await s.enter($, 'r')).toBe("Reopened claude's question: the real skill withdraws the lesson candidate")
   await ui.redraw()
   expect(await ui.find({ key: 'opt:igor-216-scope:0' })).toBeDefined()
@@ -727,60 +735,214 @@ test("reason 2 notes the lesson candidate; (r)eopen makes the question answerabl
   await ui.unmount()
 })
 
-test("reason 3: Claude asks which filter should have stopped it, with the question; Adam's answer is the miss's what was said", async ($, on) => {
+test('reason 3 asks which filter should have stopped it; filter 4 previews the fixed reply, a note goes in the miss, Enter posts and closes it as handled', async ($, on) => {
   const s = answerSession(on)
   await s.open($)
   const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
   await s.enter($, 'w')
-  // The 3 goes on to the session's model, in words, with the question beside it.
-  expect(await s.enter($, '3')).toBeUndefined()
-  expect(s.sent).toEqual(["I won't answer this question: it doesn't need a human."])
-  const asked = s.contexts[0]?.join('\n') ?? ''
-  expect(asked).toContain('which filter should have stopped it and why')
-  expect(asked).toContain("During a run, should the inquisitor's first filter hide questions-branch files")
-  expect(asked).toContain('1, already answered; 2, can wait; 3, only one option has merit; 4, cheap to reverse')
-  expect(asked).toContain('Do not post, comment, push or change anything')
+  expect(await s.enter($, '3')).toContain('choose the filter that should have stopped it')
   await ui.redraw()
-  expect(await ui.find({ type: 'Text', text: /Claude is asking which filter should have stopped it/ })).toBeDefined()
-  expect(await s.enter($, 'Filter 3, I think')).toContain('Claude is still asking above')
+  expect(await ui.find({ type: 'Text', text: /WHICH FILTER SHOULD HAVE STOPPED IT/ })).toBeDefined()
+  for (const name of [/^Already answered$/, /^Can wait$/, /^Only one option has merit$/, /^Cheap to reverse$/]) expect(await ui.find({ type: 'Text', text: name })).toBeDefined()
+  expect(await ui.find({ key: 'cmd:b' })).toBeDefined()
+  // Nothing went to the model: the band asks, not Claude.
+  expect(s.sent).toEqual([])
+  await s.clock.advance(1_000)
+  await ui.press({ key: 'filter:4' })
+  expect(s.filled).toEqual(['4'])
+  expect(await s.enter($, '5')).toContain('1 to 4')
+  expect(await s.enter($, '4')).toBe("Filter 4, cheap to reverse: check the reply, then ⏎ posts it")
+  await ui.redraw()
+  // Exactly what will post: the handled-for-you path's fixed text for filter 4.
+  expect(await ui.find({ type: 'Text', text: /ANSWER FOR THE INQUISITOR/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /^POST ON GITHUB AS$/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /^Inquisitor: $/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /Inquisitor: Filter 4 \(cheap to$/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /logs a miss against filter 4/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /You can still/ })).toBeDefined()
+  expect(await ui.find({ key: 'cmd:p' })).toBeDefined()
 
-  await s.reply($, 'Was it filter 3, only one option has merit?')
+  const said = 'Isolation is decision 3, so either was cheap to switch'
+  expect(await s.enter($, said)).toBe(
+    "Answered claude's question for the inquisitor on GitHub adamstallard/igor #216 as adam-relay[bot]. The real skill logs a miss against filter 4, with your note: " + said,
+  )
   await ui.redraw()
-  expect(await ui.find({ type: 'Text', text: /Answer Claude above/ })).toBeDefined()
-  expect(await s.enter($, 'x')).toContain('x is not a command here')
-  const said = 'Filter 3: isolation is decision 3, so only the first option had merit'
-  expect(await s.enter($, said)).toBeUndefined()
-  expect(s.sent[1]).toBe(said)
-  expect(s.contexts[1]?.join('\n')).toContain('recorded as the miss\'s "what was said"')
-  await ui.redraw()
-  // Recorded, and the queue moves on; nothing was posted.
   expect(await ui.find({ type: 'Text', text: /Reply to Maya Ortiz/ })).toBeDefined()
-  await s.enter($, 'b')
+  expect(await s.enter($, 'b')).toBe('Question 1 of 9')
   await ui.redraw()
-  expect(await ui.find({ type: 'Text', text: /a miss file is written/ })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /│ Filter 3: isolation is decision 3/ })).toBeDefined()
-  expect(s.sent).toEqual(["I won't answer this question: it doesn't need a human.", said])
+  expect(await ui.find({ type: 'Text', text: /HANDLED BY YOUR CHOICE ON GITHUB AS/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /handled by your choice/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /^The real skill logs a miss against filter 4 \(cheap to reverse\), with/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /│ Isolation is decision 3/ })).toBeDefined()
+  // Closed: no options, no won't answer; the reply can be edited.
+  expect(await ui.find({ key: 'opt:igor-216-scope:0' })).toBeUndefined()
+  expect(await ui.find({ key: 'cmd:w' })).toBeUndefined()
+  expect(await ui.find({ key: 'cmd:e' })).toBeDefined()
+  expect(await s.enter($, 'An answer after all')).toBe('You answered this for the inquisitor: (e)dit the reply to change it.')
+  await ui.press({ key: 'dot:summary' })
+  await ui.redraw()
+  expect(await ui.find({ type: 'Text', text: /1 you answered for the inquisitor/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /│ you chose · Inquisitor: Filter 4 \(cheap to reverse\)/ })).toBeDefined()
+  expect(s.sent).toEqual([])
   await ui.unmount()
 })
 
-test("in the miss conversation a filter's number alone answers, and going back first keeps the question open", async ($, on) => {
+const FILTER_NAMES = { 2: 'can wait', 3: 'only one option has merit' } as const
+// Filter 2 on Maya's question (a person's), filter 3 on the first (an agent's).
+for (const [filter, at] of [
+  [2, 1],
+  [3, 0],
+] as const) {
+  test(`reason 3 with filter ${filter} posts its fixed Inquisitor reply, on a person's question as on an agent's; (p)ost needs no note`, async ($, on) => {
+    const s = answerSession(on)
+    await s.open($)
+    const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+    if (at) await ui.press({ key: `dot:${at}` })
+    await s.enter($, 'w')
+    await s.enter($, '3')
+    await s.enter($, String(filter))
+    // A click on (p)ost only types it.
+    await s.clock.advance(1_000)
+    await ui.press({ key: 'cmd:p' })
+    expect(s.filled).toEqual(['p'])
+    expect(await s.enter($, 'p')).toContain(`a miss against filter ${filter}.`)
+    await ui.press({ key: 'dot:summary' })
+    await ui.redraw()
+    expect(await ui.find({ type: 'Text', text: new RegExp(`│ you chose · Inquisitor: Filter ${filter} \\(${FILTER_NAMES[filter]}\\)`) })).toBeDefined()
+    await ui.press({ key: `dot:${at}` })
+    await ui.redraw()
+    expect(await ui.find({ type: 'Text', text: /HANDLED BY YOUR CHOICE ON/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: new RegExp(`^The real skill logs a miss against filter ${filter} \\(`) })).toBeDefined()
+    expect(s.sent).toEqual([])
+    await ui.unmount()
+  })
+}
+
+test("filter 1 without a place can't post; with one it previews a Recorded answer naming it, and back steps through the stages", async ($, on) => {
   const s = answerSession(on)
   await s.open($)
   const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
   await s.enter($, 'w')
   await s.enter($, '3')
-  await s.reply($, 'Which filter?')
+  expect(await s.enter($, '1')).toBe('Filter 1, already answered: give where the answer is recorded')
+  await ui.redraw()
+  expect(await ui.find({ type: 'Text', text: /Where is the answer recorded\?/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /^Recorded answer: $/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /Without a place it can't post as filter 1/ })).toBeDefined()
+  expect(await ui.find({ key: 'cmd:t' })).toBeDefined()
+  // Nothing typed: nothing can post, and (p)ost is not offered here.
+  expect(await ui.find({ key: 'cmd:p' })).toBeUndefined()
+  expect(await s.enter($, 'p')).toContain('p is not a command here')
+  expect(await s.enter($, '')).toBe("Type or paste where the answer is recorded: without it, it can't post as filter 1.")
+  // Back steps back: to the filters, then the question stays open.
+  expect(await s.enter($, 'b')).toBe('Back to the filters')
+  await ui.redraw()
+  expect(await ui.find({ type: 'Text', text: /WHICH FILTER SHOULD HAVE STOPPED IT/ })).toBeDefined()
   expect(await s.enter($, 'b')).toBe("Kept claude's question open: nothing recorded")
   await ui.redraw()
   expect(await ui.find({ key: 'opt:igor-216-scope:0' })).toBeDefined()
+
   await s.enter($, 'w')
   await s.enter($, '3')
-  await s.reply($, 'Which filter?')
-  expect(await s.enter($, '4')).toBeUndefined()
-  expect(s.sent[s.sent.length - 1]).toBe('Filter 4: cheap to reverse.')
+  await s.enter($, '1')
+  const place = '#216 decision 3: scope is a hard filter'
+  expect(await s.enter($, place)).toContain(`Recorded answer: ${place}`)
+  await ui.redraw()
+  expect(await ui.find({ type: 'Text', text: /^Recorded answer: $/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /#216 decision 3/ })).toBeDefined()
+  // Back from the preview puts the place in the box again, to change.
+  await s.clock.advance(1_000)
+  expect(await s.enter($, 'b')).toBe('Back to where the answer is recorded')
+  await s.clock.advance(1_000)
+  expect(s.filled).toContain(place)
+  await s.enter($, place)
+  expect(await s.enter($, 'p')).toContain('a miss against filter 1.')
   await ui.press({ key: 'dot:0' })
   await ui.redraw()
-  expect(await ui.find({ type: 'Text', text: /│ Filter 4: cheap to reverse\./ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /HANDLED BY YOUR CHOICE ON GITHUB AS/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /^Recorded answer: $/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /^The real skill logs a miss against filter 1 \(already answered\)\.$/ })).toBeDefined()
+  await ui.press({ key: 'dot:summary' })
+  await ui.redraw()
+  expect(await ui.find({ type: 'Text', text: /│ you chose · Recorded answer: #216 decision 3/ })).toBeDefined()
+  expect(s.sent).toEqual([])
+  await ui.unmount()
+})
+
+test("for filter 1, Claude can help find where it is recorded and fill the place in; it posts only on Adam's Enter", async ($, on) => {
+  const s = answerSession(on)
+  await s.open($)
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  // Maya's question has no options: help me answer.
+  await s.enter($, 'n')
+  await s.enter($, 'w')
+  await s.enter($, '3')
+  await s.enter($, '1')
+  expect(await s.enter($, 'h')).toBe('Talking to Claude')
+  await ui.redraw()
+  expect(await ui.find({ type: 'Text', text: /about where the answer is recorded/ })).toBeDefined()
+  // Rewording and asking the asker are not offered here.
+  expect(await ui.find({ key: 'cmd:r' })).toBeUndefined()
+  expect(await ui.find({ key: 'cmd:a' })).toBeUndefined()
+  expect(await s.enter($, 'Where did we decide this?')).toBeUndefined()
+  expect(s.sent).toEqual(['Where did we decide this?'])
+  const context = s.contexts[0]?.join('\n') ?? ''
+  expect(context).toContain("filter 1 (already answered) should have stopped it")
+  expect(context).toContain('mcp__answer-session__propose_reply')
+  expect(context).toContain('Can we ship the onboarding flag')
+  await s.reply($, 'The rollout runbook says flags under 25% need no review.')
+  const called = await $.tool.call({ tool: 'mcp__answer-session__propose_reply', text: 'Recorded answer: the rollout runbook, flags under 25% need no review' })
+  expect(JSON.stringify(called)).toContain("The place is in Adam's prompt box")
+  await s.clock.advance(1_000)
+  expect(s.filled).toContain('the rollout runbook, flags under 25% need no review')
+  await ui.redraw()
+  expect(await ui.find({ type: 'Text', text: /TALKING TO CLAUDE/ })).toBeUndefined()
+  expect(await ui.find({ type: 'Text', text: /Claude filled in where it is recorded/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /Where is the answer recorded\?/ })).toBeDefined()
+  // Nothing was posted yet; Enter takes the place, Enter again posts.
+  expect(await ui.find({ type: 'Text', text: /2 of 9/ })).toBeDefined()
+  await s.enter($, 'the rollout runbook, flags under 25% need no review')
+  expect(await s.enter($, 'p')).toContain("Answered Maya Ortiz's question for the inquisitor on Linear")
+  expect(s.sent).toEqual(['Where did we decide this?'])
+  await ui.unmount()
+})
+
+test('answering for the inquisitor posts nothing before Enter: clicks only type, and going back at any stage records nothing', async ($, on) => {
+  const s = answerSession(on)
+  await s.open($)
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  const unchanged = async () => {
+    await ui.press({ key: 'dot:summary' })
+    await ui.redraw()
+    const same = await ui.find({ type: 'Text', text: /0 of 9 relayed this session · 1 answered for you · 1 handled for you$/ })
+    await ui.press({ key: 'dot:0' })
+    return same
+  }
+  await s.enter($, 'w')
+  await ui.press({ key: 'why:3' })
+  await s.enter($, '3')
+  for (const n of [1, 2, 3, 4]) await ui.press({ key: `filter:${n}` })
+  await s.enter($, '2')
+  await s.clock.advance(1_000)
+  await ui.press({ key: 'cmd:p' })
+  await ui.redraw()
+  // Still previewing: a click on (p)ost put p in the box, and Enter did not come.
+  expect(await ui.find({ type: 'Text', text: /ANSWER FOR THE INQUISITOR/ })).toBeDefined()
+  expect(s.filled.slice(-1)).toEqual(['p'])
+  // Back from the preview: to the filters, then the question stays open.
+  expect(await s.enter($, 'b')).toBe('Back to the filters')
+  expect(await s.enter($, 'b')).toBe("Kept claude's question open: nothing recorded")
+  expect(await unchanged()).toBeDefined()
+  // Moving to another question drops it too.
+  await s.enter($, 'w')
+  await s.enter($, '3')
+  await s.enter($, '4')
+  await ui.press({ key: 'dot:2' })
+  await ui.press({ key: 'dot:0' })
+  await ui.redraw()
+  expect(await ui.find({ key: 'opt:igor-216-scope:0' })).toBeDefined()
+  expect(await unchanged()).toBeDefined()
+  expect(s.sent).toEqual([])
   await ui.unmount()
 })
 
@@ -875,7 +1037,7 @@ test("nothing posts or reaches the model without Enter, but the session's own tw
   // Every click on every question: the dots, the options, the verdict, the
   // citation, won't-answer and its reasons, then back.
   for (const [i, id] of ids.entries()) {
-    for (const key of [`dot:${i}`, `opt:${id}:0`, 'verdict', 'cmd:a', 'cite', 'cmd:c', 'cmd:w', 'why:1', 'why:2', 'why:3', 'cmd:b']) {
+    for (const key of [`dot:${i}`, `opt:${id}:0`, 'verdict', 'cmd:a', 'cite', 'cmd:c', 'cmd:w', 'why:1', 'why:2', 'why:3', 'filter:1', 'filter:4', 'cmd:p', 'cmd:b']) {
       await ui.redraw()
       if (await ui.find({ key })) await ui.press({ key })
     }

@@ -1,0 +1,40 @@
+
+⏺ Prompt dropped by a hook: Answered claude's question for the inquisitor on GitHub
+  adamstallard/igor #216 as adam-relay[bot]. The real skill logs a miss against filter
+  4, with your note: Isolation is decision 3, so either answer was cheap to switch
+
+⏺ Prompt dropped by a hook: Question 1 of 9
+
+⏺ Prompt dropped by a hook: Question 2 of 9
+
+⏺ Prompt dropped by a hook: Won't answer Maya Ortiz's question: choose why.
+
+⏺ Prompt dropped by a hook: The inquisitor should have handled Maya Ortiz's question:
+  choose the filter that should have stopped it. Nothing is posted yet.
+
+⏺ Prompt dropped by a hook: Filter 1, already answered: give where the answer is
+  recorded
+
+⏺ Prompt dropped by a hook: Filter 1, already answered: Recorded answer: the rollout
+  runbook: flags under 25% of new sign-ups need no metrics review. Check the reply,
+  then ⏎ posts it
+────────────────────────────────────────────────────────────────────────────────────────── [-]
+Answer session  ◈ ◉ ○ ○ ◎ ○ ○ ○ ◈  summary  2 of 9                                 v0.1-29
+Linear  ENG-412 · Onboarding flag  22m ago
+Maya Ortiz asks
+
+Can we ship the onboarding flag to 10% on Friday, or should we wait for the metrics review
+on Monday?
+QA signed off this morning, and the flag switches off in minutes. Waiting for the review …
+◈ ANSWER FOR THE INQUISITOR · Filter 1, already answered
+POST ON LINEAR AS adam-relay (Linear app): Recorded answer: the rollout runbook: flags
+under 25% of new sign-ups need no metrics review
+A note for the miss, if you like: type it in the prompt box. Or (p)ost it as it is. ⏎
+posts.
+Posts on a person's question too, as you chose. You can still answer on Linear by hand.
+(p)ost it                                                                go (b)ack  (q)uit
+
+──────────────────────────────────────────────────────────────────── answer-session-prototype ─
+❯ 
+───────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on (shift+tab to cycle) · ← 2 agents · a note for the miss, or p to post it …

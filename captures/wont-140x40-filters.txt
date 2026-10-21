@@ -1,0 +1,40 @@
+
+ ▐▛███▛█   Claude Code v2.1.306
+▝▜██████▀  Opus 5.5 · Claude Max
+ ▝▝   ▝▝   ~/shared-skills
+
+⚠ Ask rule Advisor matches no tool · check for typos
+
+❯ /answer
+  ⎿  answer-session: Answer session open: type in the prompt box, Enter answers. 1 answered and 1 handled for you: see the summary.
+
+⏺ Prompt dropped by a hook: Won't answer claude's question: choose why.
+
+⏺ Prompt dropped by a hook: The inquisitor should have handled claude's question: choose the filter that should have stopped it.
+  Nothing is posted yet.
+
+
+
+
+
+
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── [-]
+Answer session  ◉ ○ ○ ○ ◎ ○ ○ ○ ◈  summary  1 of 9 · 7 new · 0 relayed · 0 for later · 2 done for you                           v0.1-29
+GitHub  adamstallard/igor #216  12m ago                        │ ◈ WHICH FILTER SHOULD HAVE STOPPED IT? · NOTHING IS POSTED YET
+claude asks, an agent via the inquisitor                       │   1: Already answered
+                                                               │      → replies with where the answer is recorded, which you give
+During a run, should the inquisitor's first filter hide        │
+questions-branch files about projects the role doesn't work    │   2: Can wait
+on, as it hides lore entries outside the role's scope?         │      → replies: carry on without it, and list it as not done
+                                                               │
+The scope filter covers lore entries only. Question files on   │   3: Only one option has merit
+the lore repository's questions branch can be about any        │      → replies: take the option that has merit
+project.                                                       │
+                                                               │   4: Cheap to reverse
+Related #216 decision 3: scope is a hard filter                │      → replies: pick one, it's cheap to switch
+1–4: choose the filter                                                                                               go (b)ack   (q)uit
+
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────── answer-session-prototype ─
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on (shift+tab to cycle) · ← 3 agents · 1 to 4 for the filter, then ⏎ · 5h 18% ⇣ 9:30p · 7d 58% Sat 2a

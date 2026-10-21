@@ -1,40 +1,40 @@
-
- ▐▛███▛█   Claude Code v2.1.306
-▝▜██████▀  Opus 5.5 · Claude Max
- ▝▝   ▝▝   ~/shared-skills
-
-⚠ Ask rule Advisor matches no tool · check for typos
-
-❯ /answer
-  ⎿  answer-session: Answer session open: type in the prompt box, Enter answers. 1 answered and
-     1 handled for you: see the summary.
-
-⏺ Prompt dropped by a hook: Won't answer claude's question: choose why. Nothing is
+⏺ Prompt dropped by a hook: Won't answer claude's question: not a question. Nothing
   posted.
 
+⏺ Prompt dropped by a hook: Question 1 of 9
 
+⏺ Prompt dropped by a hook: Reopened claude's question: the real skill withdraws the
+  lesson candidate
 
+⏺ Prompt dropped by a hook: Won't answer claude's question: choose why.
 
+⏺ Prompt dropped by a hook: The inquisitor should have handled claude's question:
+  choose the filter that should have stopped it. Nothing is posted yet.
 
+⏺ Prompt dropped by a hook: Filter 2, can wait: check the reply, then ⏎ posts it
 
+⏺ Prompt dropped by a hook: Back to the filters
 
+⏺ Prompt dropped by a hook: Kept claude's question open: nothing recorded
+
+⏺ Prompt dropped by a hook: Won't answer claude's question: choose why.
 ────────────────────────────────────────────────────────────────────────────────────────── [-]
-Answer session  ◉ ○ ○ ○ ◎ ○ ○ ○ ◈  summary  1 of 9                                 v0.1-28
+Answer session  ◉ ○ ○ ○ ◎ ○ ○ ○ ◈  summary  1 of 9                                 v0.1-29
 GitHub  adamstallard/igor #216  12m ago
 claude asks, an agent via the inquisitor
 During a run, should the inquisitor's first filter hide questions-branch files about
 projects the role doesn't work on, as it hides lore entries outside the role's scope?
 The scope filter covers lore entries only. Question files on the lore repository's questi…
-⊘ WON'T ANSWER · CHOOSE WHY · NOTHING IS POSTED
+⊘ WON'T ANSWER · CHOOSE WHY
   1: The conversation is over
      → The real skill ends the thread: later replies there stop counting as questions.
-  2: Not a real question
-     → The real skill writes a lesson candidate, so the inquisitor learns to tell.
-  3: Doesn't need a human
-     → A filter should have stopped it: already answered, can wait, one option has merit,…
+  2: Not a question
+     → It was picked up by mistake. The real skill writes a lesson candidate against how…
+  3: The inquisitor should have handled it
+     → Choose the filter that should have stopped it, and the session answers for the inq…
 1–3: choose why                                                          go (b)ack  (q)uit
-                                                                           ◐ medium · /effort
+
 ──────────────────────────────────────────────────────────────────── answer-session-prototype ─
 ❯ 
 ───────────────────────────────────────────────────────────────────────────────────────────────
-  ⏵⏵ auto mode on (shift+tab to cycle) · ← 2 agents · 1, 2 or 3 for why, then ⏎ · 5h 14% ⇣ …
+  ⏵⏵ auto mode on (shift+tab to cycle) · ← 2 agents · 1, 2 or 3 for why, then ⏎ · 5h 19% ⇣ …

@@ -1,40 +1,40 @@
-  on #216 already made scope a hard filter, and question files are just more input that the
-  same rule covers. Or was it filter 3, because only filtering by scope had merit?
 
-⏺ Ran 1 stop hook
-  ⎿  Stop hook error: Failed with non-blocking status code: /bin/sh:
-  /Users/adam/shared-skills/.agents/skills/worktrees/scripts/worktree-sweep.py: No such
-  file or directory
+ ▐▛███▛█   Claude Code v2.1.306
+▝▜██████▀  Opus 5.5 · Claude Max
+ ▝▝   ▝▝   ~/shared-skills
 
-✻ Cooked for 3s · done 7:39 PM
+⚠ Ask rule Advisor matches no tool · check for typos
 
-❯ Filter 4: cheap to reverse.
+❯ /answer
+  ⎿  answer-session: Answer session open: type in the prompt box, Enter answers. 1 answered and
+     1 handled for you: see the summary.
 
-⏺ Noted: filter 4 should have stopped it, because the choice is cheap to reverse.
+⏺ Prompt dropped by a hook: Won't answer claude's question: choose why.
 
-⏺ Ran 1 stop hook
-  ⎿  Stop hook error: Failed with non-blocking status code: /bin/sh:
-  /Users/adam/shared-skills/.agents/skills/worktrees/scripts/worktree-sweep.py: No such
-  file or directory
+⏺ Prompt dropped by a hook: Won't answer claude's question: not a question. Nothing
+  posted.
 
-✻ Baked for 1s · done 7:39 PM
+⏺ Prompt dropped by a hook: Question 1 of 9
+
+
+
 ────────────────────────────────────────────────────────────────────────────────────────── [-]
-Answer session  ⊘ ○ ○ ○ ◎ ○ ○ ○ ◈  summary  1 of 9                                 v0.1-28
+Answer session  ⊘ ○ ○ ○ ◎ ○ ○ ○ ◈  summary  1 of 9                                 v0.1-29
 GitHub  adamstallard/igor #216  won't answer · 12m ago
 claude asks, an agent via the inquisitor
 
 During a run, should the inquisitor's first filter hide questions-branch files about
 projects the role doesn't work on, as it hides lore entries outside the role's scope?
 
-The scope filter covers lore entries only. Question files on the lore repository's questi…
+The scope filter covers lore entries only. Question files on the lore repository's
+questions branch can be about any project.
 Related #216 decision 3: scope is a hard filter
 
-⊘ WON'T ANSWER · Doesn't need a human · nothing was posted
-In the real skill a miss file is written: a filter should have stopped it. What you said …
-│ Filter 4: cheap to reverse.
+⊘ WON'T ANSWER · Not a question · nothing was posted
+In the real skill a lesson candidate is written against how the question was found.
 (r)eopen                                                            (b)ack  (n)ext  (q)uit
-                                                     Stop hook error occurred · ctrl+o to see
+                                                                           ◐ medium · /effort
 ──────────────────────────────────────────────────────────────────── answer-session-prototype ─
 ❯ 
 ───────────────────────────────────────────────────────────────────────────────────────────────
-  ⏵⏵ auto mode on (shift+tab to cycle) · ← 2 agents · a key or your answer, then ⏎ · 5h 14%…
+  ⏵⏵ auto mode on (shift+tab to cycle) · ← 3 agents · a key or your answer, then ⏎ · 5h 19%…

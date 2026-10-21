@@ -1,0 +1,40 @@
+
+
+⏺ Prompt dropped by a hook: Won't answer Maya Ortiz's question: choose why.
+
+⏺ Prompt dropped by a hook: The inquisitor should have handled Maya Ortiz's question: choose the filter that should have stopped it.
+  Nothing is posted yet.
+
+⏺ Prompt dropped by a hook: Filter 1, already answered: give where the answer is recorded
+
+⏺ Prompt dropped by a hook: Talking to Claude
+
+❯ Fill it in as: the rollout runbook, which says a flag under 25% of new sign-ups needs no metrics review
+
+⏺ answer-session - propose_reply (MCP)(text: "the rollout runbook, which says a flag under 25% of new sign-ups needs no metrics review, so
+                                      10% can ship Friday.")
+  ⎿  The place is in Adam's prompt box on the question "Can we ship the onboarding flag to 10% on Friday, or should we wait for the met
+     …". He checks it; the reply posts as "Recorded answer: the rollout runbook, which says a flag under 25% of new sig…" only when he
+     presses Enter. Do not post it yourself.
+
+· Razzmatazzing… (7s · ↓ 344 tokens · thinking)
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── [-]
+Answer session  ◈ ◉ ○ ○ ◎ ○ ○ ○ ◈  summary  2 of 9 · 6 new · 0 relayed · 0 for later · 2 done for you · 1 for the inquisitor    v0.1-29
+Linear  ENG-412 · Onboarding flag  22m ago                     │ ◈ ANSWER FOR THE INQUISITOR · Filter 1, already answered
+Maya Ortiz asks                                                │ Where is the answer recorded? Type or paste it in the prompt box: a
+                                                               │ link, or the decision and what it says. Or (h)elp me answer: Claude
+                                                               │ can find it and fill it in.
+Can we ship the onboarding flag to 10% on Friday, or should we │
+wait for the metrics review on Monday?                         │
+                                                               │ POST ON LINEAR AS adam-relay (Linear app): Recorded answer: the
+                                                               │ rollout runbook, which says a flag under 25% of new sign-ups needs no
+QA signed off this morning, and the flag switches off in       │ metrics review, so 10% can ship Friday.
+minutes. Waiting for the review adds three days.               │
+                                                               │
+                                                               │
+(h)elp me answer                       ✓ Claude filled in where it is recorded: check it in the prompt box, then ⏎   go (b)ack   (q)uit
+
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────── answer-session-prototype ─
+❯ the rollout runbook, which says a flag under 25% of new sign-ups needs no metrics review, so 10% can ship Friday.
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on (shift+tab to cycle) · ⏎ use this place, then check the reply; nothing is posted yet · 5h 18% ⇣ 9:30p · 7d 59% ⇡ Sat 2a

@@ -1,0 +1,40 @@
+
+
+⏺ Prompt dropped by a hook: Won't answer claude's question: choose why.
+
+⏺ Prompt dropped by a hook: The inquisitor should have handled claude's question:
+  choose the filter that should have stopped it. Nothing is posted yet.
+
+⏺ Prompt dropped by a hook: Filter 2, can wait: check the reply, then ⏎ posts it
+
+⏺ Prompt dropped by a hook: Back to the filters
+
+⏺ Prompt dropped by a hook: Kept claude's question open: nothing recorded
+
+⏺ Prompt dropped by a hook: Won't answer claude's question: choose why.
+
+⏺ Prompt dropped by a hook: The inquisitor should have handled claude's question:
+  choose the filter that should have stopped it. Nothing is posted yet.
+
+⏺ Prompt dropped by a hook: Filter 4, cheap to reverse: check the reply, then ⏎ posts
+  it
+────────────────────────────────────────────────────────────────────────────────────────── [-]
+Answer session  ◉ ○ ○ ○ ◎ ○ ○ ○ ◈  summary  1 of 9                                 v0.1-29
+GitHub  adamstallard/igor #216  12m ago
+claude asks, an agent via the inquisitor
+
+During a run, should the inquisitor's first filter hide questions-branch files about
+projects the role doesn't work on, as it hides lore entries outside the role's scope?
+The scope filter covers lore entries only. Question files on the lore repository's questi…
+◈ ANSWER FOR THE INQUISITOR · Filter 4, cheap to reverse
+POST ON GITHUB AS adam-relay[bot]: Inquisitor: Filter 4 (cheap to reverse): pick one, it's
+cheap to switch.
+NOTE FOR THE MISS, NOT POSTED: Isolation is decision 3, so either answer was cheap to
+switch
+Posts on a person's question too, as you chose. You can still answer on GitHub by hand.
+(p)ost it                                                                go (b)ack  (q)uit
+
+──────────────────────────────────────────────────────────────────── answer-session-prototype ─
+❯ Isolation is decision 3, so either answer was cheap to switch
+───────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on (shift+tab to cycle) · ⏎ post on GitHub for the inquisitor; the note goes…

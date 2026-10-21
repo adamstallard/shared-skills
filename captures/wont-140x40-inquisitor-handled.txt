@@ -1,0 +1,40 @@
+
+⏺ Prompt dropped by a hook: Won't answer Maya Ortiz's question: choose why.
+
+⏺ Prompt dropped by a hook: The inquisitor should have handled Maya Ortiz's question: choose the filter that should have stopped it.
+  Nothing is posted yet.
+
+⏺ Prompt dropped by a hook: Filter 1, already answered: give where the answer is recorded
+
+⏺ Prompt dropped by a hook: Filter 1, already answered: Recorded answer: the rollout runbook: flags under 25% of new sign-ups need
+  no metrics review. Check the reply, then ⏎ posts it
+
+⏺ answer-session: reloaded (10 hooks: session.start, command.run, ui.render, prompt.edit, prompt.change, tool.call, prompt.suggest,
+  prompt.submit, turn.start, turn.complete)
+
+⏺ Prompt dropped by a hook: Answered Maya Ortiz's question for the inquisitor on Linear ENG-412 · Onboarding flag as adam-relay
+  (Linear app). The real skill logs a miss against filter 1.
+
+⏺ Prompt dropped by a hook: Question 2 of 9
+
+⏺ Prompt dropped by a hook: Question 1 of 9
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── [-]
+Answer session  ◈ ◈ ○ ○ ◎ ○ ○ ○ ◈  summary  1 of 9 · 5 new · 0 relayed · 0 for later · 2 done for you · 2 for the inquisitor    v0.1-29
+GitHub  adamstallard/igor #216  handled by your choice · 12m … │ ◈ HANDLED BY YOUR CHOICE ON GITHUB AS adam-relay[bot]  view
+claude asks, an agent via the inquisitor                       │ │ Inquisitor: Filter 4 (cheap to reverse): pick one, it's cheap to
+                                                               │ │ switch.
+During a run, should the inquisitor's first filter hide        │ The real skill logs a miss against filter 4 (cheap to reverse), with
+questions-branch files about projects the role doesn't work    │ what you said:
+on, as it hides lore entries outside the role's scope?         │ │ Isolation is decision 3, so either answer was cheap to switch
+                                                               │
+The scope filter covers lore entries only. Question files on   │
+the lore repository's questions branch can be about any        │
+project.                                                       │
+                                                               │
+Related #216 decision 3: scope is a hard filter                │
+(e)dit the reply                                                                                               (b)ack   (n)ext   (q)uit
+
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────── answer-session-prototype ─
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on (shift+tab to cycle) · ← 2 agents · a key or your answer, then ⏎ · 5h 19% ⇣ 9:30p · 7d 59% ⇡ Sat 2a

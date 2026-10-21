@@ -1,40 +1,40 @@
 
- ▐▛███▛█   Claude Code v2.1.306
-▝▜██████▀  Opus 5.5 · Claude Max
- ▝▝   ▝▝   ~/shared-skills
+⏺ Prompt dropped by a hook: Won't answer Maya Ortiz's question: choose why.
 
-⚠ Ask rule Advisor matches no tool · check for typos
+⏺ Prompt dropped by a hook: The inquisitor should have handled Maya Ortiz's question: choose the filter that should have stopped it.
+  Nothing is posted yet.
 
-❯ /answer
-  ⎿  answer-session: Answer session open: type in the prompt box, Enter answers. 1 answered and 1 handled for you: see the summary.
+⏺ Prompt dropped by a hook: Filter 1, already answered: give where the answer is recorded
 
+⏺ Prompt dropped by a hook: Filter 1, already answered: Recorded answer: the rollout runbook: flags under 25% of new sign-ups need
+  no metrics review. Check the reply, then ⏎ posts it
 
+⏺ answer-session: reloaded (10 hooks: session.start, command.run, ui.render, prompt.edit, prompt.change, tool.call, prompt.suggest,
+  prompt.submit, turn.start, turn.complete)
 
+⏺ Prompt dropped by a hook: Answered Maya Ortiz's question for the inquisitor on Linear ENG-412 · Onboarding flag as adam-relay
+  (Linear app). The real skill logs a miss against filter 1.
 
+⏺ Prompt dropped by a hook: Question 2 of 9
 
-
-
-
-
-
-
+⏺ Prompt dropped by a hook: Question 1 of 9
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── [-]
-Answer session  ○ ○ ○ ○ ◎ ○ ○ ○ ◈  summary  7 new · 0 relayed · 0 for later · 2 done for you                                    v0.1-28
-7 questions still new
-0 of 9 relayed this session · 1 answered for you · 1 handled for you
+Answer session  ◈ ◈ ○ ○ ◎ ○ ○ ○ ◈  summary  5 new · 0 relayed · 0 for later · 2 done for you · 2 for the inquisitor             v0.1-29
+5 questions still new
+0 of 9 relayed this session · 1 answered for you · 1 handled for you · 2 you answered for the inquisitor
 
-◎ jlee           adamstallard/igor #216  │ Recorded answer: See decision 10 in #216: the run id links to the run's ledger row, which a…
-◈ Igor (worker)  #igor-dev               │ Inquisitor: Filter 4 (cheap to reverse): pick one, it's cheap to switch.
-
-
+◈ claude         adamstallard/igor #216     │ you chose · Inquisitor: Filter 4 (cheap to reverse): pick one, it's cheap to switch.
+◈ Maya Ortiz     ENG-412 · Onboarding flag  │ you chose · Recorded answer: the rollout runbook: flags under 25% of new sign-ups need n…
+◎ jlee           adamstallard/igor #216     │ Recorded answer: See decision 10 in #216: the run id links to the run's ledger row, whic…
+◈ Igor (worker)  #igor-dev                  │ Inquisitor: Filter 4 (cheap to reverse): pick one, it's cheap to switch.
 
 
 
 
 
                                                                                                                (b)ack   (n)ext   (q)uit
-                                                                                                                        ◐ medium · /effort
+
 ───────────────────────────────────────────────────────────────────────────────────────────────────────────────── answer-session-prototype ─
 ❯ 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-  ⏵⏵ auto mode on (shift+tab to cycle) · ← 2 agents · a key or your answer, then ⏎ · 5h 14% ⇣ 9:30p · 7d 57% Sat 2a
+  ⏵⏵ auto mode on (shift+tab to cycle) · ← 2 agents · a key or your answer, then ⏎ · 5h 19% ⇣ 9:30p · 7d 59% ⇡ Sat 2a

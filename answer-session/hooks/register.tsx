@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, ModelCompleteResult, Register, RenderElement } from 'claude-code'
 
-import type { Answer, Returned, Revision, Turn, WontReason } from '../types'
+import type { Answer, Declining, Filter, Returned, Revision, Turn, WontReason } from '../types'
 
 // Prototype only: the questions are fixed examples, and an answer is kept in
 // the session's state instead of being posted by the relay account.
@@ -203,7 +203,7 @@ const QUESTIONS: Question[] = [
 ]
 
 /** The inquisitor's filters, as the answer session names them and acts on them. */
-const FILTERS: Record<1 | 2 | 3 | 4, { name: string; action: string; verdict: string }> = {
+const FILTERS: Record<Filter, { name: string; action: string; verdict: string }> = {
   1: { name: 'already answered', action: 'here is the recorded answer', verdict: 'looks already answered' },
   2: { name: 'can wait', action: 'carry on without it, and list it as not done', verdict: 'looks like it can wait' },
   3: { name: 'only one option has merit', action: 'take the option that has merit', verdict: 'looks like only one option has merit' },
@@ -211,37 +211,55 @@ const FILTERS: Record<1 | 2 | 3 | 4, { name: string; action: string; verdict: st
 }
 
 /**
- * Why Adam won't answer, as he chooses it: what the real skill would log
- * for it (`will`, while choosing; `did`, once chosen). Prototype only:
- * nothing is written.
+ * Why Adam won't answer, as he chooses it, and what follows (`will`, shown
+ * while choosing). Prototype only: nothing is written or posted.
  */
-const REASONS: Record<WontReason, { label: string; will: string; did: string; undo: string }> = {
+const REASONS: Record<WontReason, { label: string; will: string }> = {
   1: {
     label: 'The conversation is over',
     will: 'The real skill ends the thread: later replies there stop counting as questions.',
+  },
+  2: {
+    label: 'Not a question',
+    will: 'It was picked up by mistake. The real skill writes a lesson candidate against how the question was found.',
+  },
+  3: {
+    label: 'The inquisitor should have handled it',
+    will: "Choose the filter that should have stopped it, and the session answers for the inquisitor with that filter's reply. The real skill logs a miss against that filter.",
+  },
+}
+
+/**
+ * Reasons 1 and 2 close the question with nothing posted: what the real
+ * skill logged (`did`), and what reopening withdraws (`undo`). Reason 3
+ * posts instead, so it closes as handled (`answerForInquisitor`).
+ */
+const CLOSED: Record<1 | 2, { did: string; undo: string }> = {
+  1: {
     did: 'In the real skill the thread is ended: later replies there no longer count as questions.',
     undo: 'replies in its thread count as questions again',
   },
   2: {
-    label: 'Not a real question',
-    will: 'The real skill writes a lesson candidate, so the inquisitor learns to tell.',
-    did: 'In the real skill a lesson candidate is written, so the inquisitor learns to tell.',
+    did: 'In the real skill a lesson candidate is written against how the question was found.',
     undo: 'the real skill withdraws the lesson candidate',
-  },
-  3: {
-    label: "Doesn't need a human",
-    will: 'A filter should have stopped it: already answered, can wait, one option has merit, cheap to reverse. Claude asks you which; the real skill writes a miss file.',
-    did: 'In the real skill a miss file is written: a filter should have stopped it. What you said goes in it:',
-    undo: 'the real skill withdraws the miss file',
   },
 }
 
 // The two prefixes the session posts with by itself, and only these: a
 // recorded answer with authority (filter 1), and a filter's action on an
-// agent's question (filters 2 to 4). Everything else posts on Adam's Enter,
-// as "User says: ".
+// agent's question (filters 2 to 4). Adam's reply for the inquisitor
+// (won't-answer reason 3) carries them too, on his Enter. Everything else
+// posts on Adam's Enter, as "User says: ".
 const RECORDED = 'Recorded answer: '
 const INQUISITOR = 'Inquisitor: '
+
+/**
+ * What a filter's reply says after its prefix: for filter 1, where the
+ * answer is recorded; for 2 to 4, the filter and its action, fixed.
+ */
+function filterReply(n: Filter, place = ''): string {
+  return n === 1 ? place : `Filter ${n} (${FILTERS[n].name}): ${FILTERS[n].action}.`
+}
 
 /** What the session did by itself as the questions arrived: filter 1's answers and the handled agents' questions. */
 const ARRIVED: Record<string, Answer> = Object.fromEntries(
@@ -249,15 +267,19 @@ const ARRIVED: Record<string, Answer> = Object.fromEntries(
     one.answered?.hasAuthority
       ? [[one.id, { kind: 'recorded', text: one.answered.cite }]]
       : one.handled
-        ? [[one.id, { kind: 'handled', filter: one.handled.filter, text: `Filter ${one.handled.filter} (${FILTERS[one.handled.filter].name}): ${FILTERS[one.handled.filter].action}.` }]]
+        ? [[one.id, { kind: 'handled', filter: one.handled.filter, text: filterReply(one.handled.filter) }]]
         : [],
   ),
 )
 
-/** The prefix a post carries: the session's own two, until Adam edits it; his, "User says: ". */
+/**
+ * The prefix a post carries: the session's own two, until Adam edits it
+ * (a filter-1 reply he posted for the inquisitor is a recorded answer); his,
+ * "User says: ".
+ */
 function prefixOf(a: Answer): string {
   if (a.edited) return PREFIX
-  return a.kind === 'recorded' ? RECORDED : a.kind === 'handled' ? INQUISITOR : PREFIX
+  return a.kind === 'recorded' || (a.kind === 'handled' && a.filter === 1) ? RECORDED : a.kind === 'handled' ? INQUISITOR : PREFIX
 }
 
 /** Whether a question has a post in its thread that Adam can edit. */
@@ -346,7 +368,7 @@ const TONE: Record<Answer['kind'], string> = { answer: DONE, defer: LATER, wait:
 // Prototype only: shown in the top bar, so a tester can tell which build is
 // loaded. v0.1-N, N the number of commits in the prototype repository once
 // this build is committed.
-const BUILD = 'v0.1-28'
+const BUILD = 'v0.1-29'
 const PREFIX = 'User says: '
 // The tool the session's model calls to put a drafted reply in the prompt box.
 const PROPOSE_TOOL = 'mcp__answer-session__propose_reply'
@@ -371,10 +393,7 @@ const askingAtom = atom({ plugin: 'answer-session', key: 'asking' } as const, {}
 const editingAtom = atom({ plugin: 'answer-session', key: 'editing' } as const, {} as Record<string, true>)
 const returnedAtom = atom({ plugin: 'answer-session', key: 'returned' } as const, {} as Record<string, Returned>)
 const openAtom = atom({ plugin: 'answer-session', key: 'isOpen' } as const, false)
-const decliningAtom = atom(
-  { plugin: 'answer-session', key: 'declining' } as const,
-  null as { id: string; stage: 'reason' | 'miss' } | null,
-)
+const decliningAtom = atom({ plugin: 'answer-session', key: 'declining' } as const, null as Declining | null)
 
 /** `text` cut to `width` cells, an ellipsis marking the cut. */
 function cut(text: string, width: number): string {
@@ -549,29 +568,23 @@ function questionBlock(q: Question, returned?: Returned): string {
   return lines.join('\n')
 }
 
-const FILTER_LIST = ([1, 2, 3, 4] as const).map(n => `${n}, ${FILTERS[n].name}`).join('; ')
-
 /**
- * What rides beside "it doesn't need a human": the model asks Adam, in the
- * conversation, which filter should have stopped the question, and why.
+ * What rides beside a message to Claude while Adam gives where filter 1's
+ * answer is recorded: he is answering for the inquisitor, and Claude helps
+ * him find the place, which it may fill in with the draft tool.
  */
-function missContext(q: Question, returned?: Returned): string {
+function placeContext(q: Question, returned?: Returned): string {
   return [
-    `[Answer session] Adam won't answer a question relayed to him (${q.link}): he says it doesn't need a human. The inquisitor's filters should have stopped it before it reached him. They are: ${FILTER_LIST}.`,
+    `[Answer session] Adam's message is about a question relayed to him (${q.link}). He won't answer it himself: the inquisitor's filter 1 (already answered) should have stopped it, so he is answering for the inquisitor with a post that says "${RECORDED}" and where the answer is recorded. He is talking to you to find that place.`,
     '',
     questionBlock(q, returned),
     '',
-    'Ask Adam, in one or two short sentences, which filter should have stopped it and why. If one plainly fits, name it as your guess for him to confirm or correct. Ask nothing else. His answer is recorded as the miss\'s "what was said".',
-    '- You may read the thread to check a fact. Do not post, comment, push or change anything.',
-    'Plain text for a terminal, under about 60 words.',
-  ].join('\n')
-}
-
-/** What rides beside Adam's answer to which filter should have stopped it. */
-function missAnswerContext(q: Question): string {
-  return [
-    `[Answer session] Adam's message answers your question about which of the inquisitor's filters should have stopped the question at ${q.link} (${FILTER_LIST}).`,
-    'It is recorded as the miss\'s "what was said", and the question is closed as won\'t-answer. Acknowledge it in one short sentence and ask nothing more. Do not post, comment, push or change anything.',
+    'How to help:',
+    '- Help him find where the answer is recorded: a decision, a spec, a doc, an earlier thread. You may read the thread, the code and the specs with your tools; say what you checked.',
+    '- Say when you cannot find it, rather than guess.',
+    `- If he asks you to fill the place in, call ${PROPOSE_TOOL} with exactly the text that follows "${RECORDED.trim()}" in the post: the place (a link, or the decision and what it says), short. It puts it in his prompt box for him to check; it posts nothing.`,
+    '- Do not post, comment, push or change anything.',
+    'Plain text for a terminal: under about 120 words, no headings, no bold or italics.',
   ].join('\n')
 }
 
@@ -752,8 +765,8 @@ type Ctx = {
   editing: boolean
   talking: boolean
   composing: boolean
-  /** Adam is choosing why he won't answer it (`reason`), or telling Claude which filter missed it (`miss`). */
-  declining?: 'reason' | 'miss'
+  /** Adam is declining to answer it: choosing why, or, for reason 3, answering for the inquisitor. */
+  declining?: Declining
   busy?: 'reply' | 'rephrase' | 'draft'
   hasReply: boolean
   changed: boolean
@@ -779,12 +792,13 @@ async function snapshot($: EngineInterface): Promise<Ctx> {
     base,
     q,
     answer,
-    open: !answer || answer.kind === 'defer' || answer.kind === 'handled',
+    // Handled by the session, he can still answer it; handled by his choice, it is closed.
+    open: !answer || answer.kind === 'defer' || (answer.kind === 'handled' && !answer.chosen),
     posted,
     editing: posted && !!(await read($, editingAtom))[base.id],
     talking,
     composing: talking && !!(await read($, askingAtom))[base.id],
-    declining: declining?.id === base.id ? declining.stage : undefined,
+    declining: declining?.id === base.id ? declining : undefined,
     busy: (await read($, thinkingAtom))[base.id],
     hasReply: ((await read($, talksAtom))[base.id] ?? []).some(t => t.who === 'model'),
     changed: !!(rephrased ?? returned?.revised),
@@ -808,16 +822,16 @@ function commands(c: Ctx): Command[] {
     { key: 'n', what: '(n)ext' },
   ]
   if (!q) return [...(c.deferredAt >= 0 ? [{ key: 'r', what: '(r)eview those for later' }] : []), ...nav, close]
-  // Until a reason is recorded, going back keeps the question open.
-  if (c.declining) return [{ key: 'b', what: 'go (b)ack' }, close]
   if (c.composing) return [{ key: 'b', what: 'go (b)ack to the discussion' }, close]
   // In a discussion the key sits inside the words, as Adam wrote them.
   if (c.talking) {
+    // Rewording and asking the asker come before an answer: not during an
+    // edit, nor while finding where an answer is recorded.
+    const asking = c.open && !c.editing && !c.declining && !c.busy
     return [
       { key: 't', what: 'keep (t)alking' },
-      // Rewording and asking the asker come before an answer, not during an edit.
-      ...(c.open && !c.editing && c.hasReply && !c.busy ? [{ key: 'r', what: '(r)eword the question' }] : []),
-      ...(c.open && !c.editing && !c.busy ? [{ key: 'a', what: '(a)sk the asker' }] : []),
+      ...(asking && c.hasReply ? [{ key: 'r', what: '(r)eword the question' }] : []),
+      ...(asking ? [{ key: 'a', what: '(a)sk the asker' }] : []),
       { key: 'b', what: 'go (b)ack' },
       close,
     ]
@@ -826,6 +840,18 @@ function commands(c: Ctx): Command[] {
   // have a reply drafted, or both. Named for what a question without
   // suggested answers needs most.
   const talk: Command = q.options ? { key: 't', what: '(t)alk to Claude' } : { key: 'h', what: '(h)elp me answer' }
+  // Declining: going back steps back, and from the first two stages keeps
+  // the question open. Claude can help find where filter 1's answer is
+  // recorded; `p` posts the reply for the inquisitor without a note.
+  if (c.declining) {
+    const stage = c.declining.stage
+    return [
+      ...(stage === 'place' ? [talk] : []),
+      ...(stage === 'post' ? [{ key: 'p', what: '(p)ost it', posts: true as const }] : []),
+      { key: 'b', what: 'go (b)ack' },
+      close,
+    ]
+  }
   const kind = c.answer?.kind
   const own: Command[] = c.editing
     ? [
@@ -835,7 +861,7 @@ function commands(c: Ctx): Command[] {
     : kind === 'wont'
       ? [{ key: 'r', what: '(r)eopen' }]
       : kind === 'handled'
-        ? [talk, { key: 'e', what: '(e)dit the reply' }]
+        ? [...(c.open ? [talk] : []), { key: 'e', what: '(e)dit the reply' }]
         : c.open
           ? [
               talk,
@@ -853,13 +879,12 @@ async function runCommand($: EngineInterface, c: Ctx, key: string): Promise<stri
   const q = c.q
   if (key === 'q') return closeSession($)
   // b and n sit side by side: back and next through the queue. In a
-  // discussion, or while choosing why not to answer, b means back to the
-  // question, so the queue's keys act only outside them.
+  // discussion, or while declining, b means back a step, so the queue's
+  // keys act only outside them.
   const inside = c.talking || c.composing || !!c.declining
   if (!inside && key === 'b') return stepBy($, c.at, -1)
   if (!inside && key === 'n') return stepBy($, c.at, 1)
   if (!q) return key === 'r' ? go($, c.deferredAt, 'Back to a deferred question') : ''
-  if (c.declining) return key === 'b' ? cancelDecline($, q) : ''
   if (c.composing) return key === 'b' ? backToTalk($, q) : ''
   if (c.talking) {
     switch (key) {
@@ -870,7 +895,20 @@ async function runCommand($: EngineInterface, c: Ctx, key: string): Promise<stri
       case 'a':
         return draftAsk($, q)
       case 'b':
-        return backToQuestion($, q)
+        return c.declining ? backToPlace($) : backToQuestion($, q)
+    }
+    return ''
+  }
+  if (c.declining) {
+    const d = c.declining
+    switch (key) {
+      case 'b':
+        return backDecline($, q, d)
+      case 't':
+      case 'h':
+        return d.stage === 'place' ? openTalk($, q) : ''
+      case 'p':
+        return d.stage === 'post' ? answerForInquisitor($, q, d, '') : ''
     }
     return ''
   }
@@ -908,7 +946,12 @@ type Intent =
   | { kind: 'ask'; text: string }
   | { kind: 'edit'; text: string }
   | { kind: 'reason'; reason: WontReason }
-  | { kind: 'miss'; text: string }
+  /** Reason 3: the filter that should have stopped it. */
+  | { kind: 'filter'; filter: Filter }
+  /** Filter 1: where the answer is recorded. */
+  | { kind: 'place'; text: string }
+  /** The note posted with the reply for the inquisitor: the miss's "what was said". */
+  | { kind: 'note'; text: string }
   | { kind: 'refused'; why: string }
 
 function intent(c: Ctx, draft: string): Intent {
@@ -918,27 +961,27 @@ function intent(c: Ctx, draft: string): Intent {
   if (command) return { kind: 'command', command }
   const q = c.q
   if (!q) return { kind: 'refused', why: 'Nothing to answer here: p or n moves to a question.' }
-  if (c.declining === 'reason') {
+  if (c.composing) return { kind: 'ask', text }
+  if (c.talking) {
+    // The choices are on the question, not here: go back to answer.
+    if (/^[1-9]$/.test(text)) return { kind: 'refused', why: c.declining ? 'Go (b)ack, then ⏎ on where it is recorded.' : 'To answer, go (b)ack to the question and choose there.' }
+    if (text.length === 1) return { kind: 'refused', why: `${text} is not a command here: the key row lists them.` }
+    return c.busy ? { kind: 'refused', why: 'Claude is still answering above: wait for it, or Esc to stop it.' } : { kind: 'say', text }
+  }
+  const stage = c.declining?.stage
+  if (stage === 'reason') {
     return /^[1-3]$/.test(text)
       ? { kind: 'reason', reason: Number(text) as WontReason }
       : { kind: 'refused', why: 'Choose why, 1 to 3, or go (b)ack to keep it open.' }
   }
-  if (c.declining === 'miss') {
-    if (c.busy) return { kind: 'refused', why: 'Claude is still asking above: wait for it, or Esc to stop it.' }
-    // A filter's number alone is an answer too.
-    if (/^[1-4]$/.test(text)) {
-      const n = Number(text) as 1 | 2 | 3 | 4
-      return { kind: 'miss', text: `Filter ${n}: ${FILTERS[n].name}.` }
-    }
-    if (text.length === 1) return { kind: 'refused', why: `${text} is not a command here: the key row lists them.` }
-    return { kind: 'miss', text }
+  if (stage === 'filter') {
+    return /^[1-4]$/.test(text)
+      ? { kind: 'filter', filter: Number(text) as Filter }
+      : { kind: 'refused', why: 'Choose the filter that should have stopped it, 1 to 4, or go (b)ack to keep it open.' }
   }
-  if (c.composing) return { kind: 'ask', text }
-  if (c.talking) {
-    // The choices are on the question, not here: go back to answer.
-    if (/^[1-9]$/.test(text)) return { kind: 'refused', why: 'To answer, go (b)ack to the question and choose there.' }
+  if (stage === 'place' || stage === 'post') {
     if (text.length === 1) return { kind: 'refused', why: `${text} is not a command here: the key row lists them.` }
-    return c.busy ? { kind: 'refused', why: 'Claude is still answering above: wait for it, or Esc to stop it.' } : { kind: 'say', text }
+    return stage === 'place' ? { kind: 'place', text } : { kind: 'note', text }
   }
   if (c.editing) return text === c.answer?.text.trim() ? { kind: 'refused', why: 'That is what it says now: change it, or (k)eep it as posted.' } : { kind: 'edit', text }
   if (!c.open) {
@@ -952,7 +995,9 @@ function intent(c: Ctx, draft: string): Intent {
             ? "You won't answer this question: (r)eopen it to answer."
             : kind === 'recorded'
               ? 'This question was answered for you: (e)dit the post to change it.'
-              : 'This question is already relayed: (e)dit your post to change it.',
+              : kind === 'handled'
+                ? 'You answered this for the inquisitor: (e)dit the reply to change it.'
+                : 'This question is already relayed: (e)dit your post to change it.',
     }
   }
   if (q.options && /^[1-9]$/.test(text)) {
@@ -968,26 +1013,32 @@ function intent(c: Ctx, draft: string): Intent {
 /** What Enter would do, in a few words for the hint line; undefined when nothing. */
 function enterHint(c: Ctx, it: Intent): string | undefined {
   const q = c.q
+  const surface = q ? SURFACE_NAME[q.surface] : ''
   switch (it.kind) {
     case 'option':
     case 'relay':
-      return q ? `⏎ relay to ${SURFACE_NAME[q.surface]}` : undefined
+      return q ? `⏎ relay to ${surface}` : undefined
     case 'command':
-      if (it.command.key === 'a' && q?.verdict) return `⏎ relay to ${SURFACE_NAME[q.surface]}: ${FILTERS[q.verdict.filter].action}`
-      if (it.command.key === 'w') return "⏎ choose why you won't answer; nothing is posted"
+      if (it.command.key === 'a' && q?.verdict) return `⏎ relay to ${surface}: ${FILTERS[q.verdict.filter].action}`
+      if (it.command.key === 'p' && c.declining?.stage === 'post') return `⏎ post on ${surface} for the inquisitor, with no note`
+      if (it.command.key === 'w') return "⏎ choose why you won't answer"
       return it.command.key === 'l' ? '⏎ ask me later, after the new ones' : `⏎ ${it.command.what.replace(/[()]/g, '')}`
     case 'say':
       return '⏎ to Claude, with the question'
     case 'ask':
       return q ? `⏎ send to ${q.asker.name}` : undefined
     case 'edit':
-      return q ? `⏎ update the post on ${SURFACE_NAME[q.surface]}` : undefined
+      return q ? `⏎ update the post on ${surface}` : undefined
     case 'reason':
       return it.reason === 3
-        ? "⏎ won't answer: Claude asks which filter should have stopped it"
+        ? '⏎ choose which filter should have stopped it; nothing is posted yet'
         : `⏎ won't answer: ${REASONS[it.reason].label.toLowerCase()}; nothing is posted`
-    case 'miss':
-      return '⏎ record it as the miss, and tell Claude'
+    case 'filter':
+      return it.filter === 1 ? '⏎ filter 1: then give where the answer is recorded' : `⏎ filter ${it.filter}: then check the reply; nothing is posted yet`
+    case 'place':
+      return '⏎ use this place, then check the reply; nothing is posted yet'
+    case 'note':
+      return `⏎ post on ${surface} for the inquisitor; the note goes in the miss`
     case 'refused':
       return it.why
     case 'none':
@@ -995,19 +1046,20 @@ function enterHint(c: Ctx, it: Intent): string | undefined {
   }
 }
 
-/** What Enter sends on to the session's model rather than doing in the band. */
-type ToModel = { kind: 'say'; text: string } | { kind: 'miss'; text: string } | { kind: 'reason'; reason: 3 }
-const isToModel = (it: Intent): it is ToModel => it.kind === 'say' || it.kind === 'miss' || (it.kind === 'reason' && it.reason === 3)
+/** What Enter sends on to the session's model rather than doing in the band: a message to Claude. */
+type ToModel = { kind: 'say'; text: string }
+const isToModel = (it: Intent): it is ToModel => it.kind === 'say'
 
 /**
  * Does what Enter does on the screen `c` describes, and says what it did: all
  * but what goes on to the model, which the submit hook sends.
  */
-async function enter($: EngineInterface, c: Ctx, it: Exclude<Intent, { kind: 'say' } | { kind: 'miss' }>): Promise<string> {
+async function enter($: EngineInterface, c: Ctx, it: Exclude<Intent, ToModel>): Promise<string> {
   const q = c.q
+  const d = c.declining
   switch (it.kind) {
     case 'none':
-      return 'Nothing to send.'
+      return d?.stage === 'place' ? "Type or paste where the answer is recorded: without it, it can't post as filter 1." : 'Nothing to send.'
     case 'refused':
       return it.why
     case 'command':
@@ -1020,7 +1072,13 @@ async function enter($: EngineInterface, c: Ctx, it: Exclude<Intent, { kind: 'sa
     case 'edit':
       return q ? editPost($, q, it.text) : ''
     case 'reason':
-      return q && it.reason !== 3 ? decline($, q, it.reason) : ''
+      return !q ? '' : it.reason === 3 ? startFilter($, q) : decline($, q, it.reason)
+    case 'filter':
+      return q ? chooseFilter($, q, it.filter) : ''
+    case 'place':
+      return q ? setPlace($, q, it.text) : ''
+    case 'note':
+      return q && d?.stage === 'post' ? answerForInquisitor($, q, d, it.text) : ''
   }
 }
 
@@ -1109,10 +1167,20 @@ async function editPost($: EngineInterface, one: Question, text: string): Promis
  * previews the post and Enter relays it, after any edit. Posts nothing.
  */
 async function proposeReply($: EngineInterface, draft: string): Promise<string> {
-  const text = draft.replace(new RegExp(`^\\s*${PREFIX.trim()}\\s*`, 'i'), '').trim()
   if (!(await read($, openAtom))) return 'The answer session is closed, so nothing was drafted.'
   const c = await snapshot($)
-  if (c.declining) return "Adam is recording why he won't answer this question, so nothing was drafted."
+  // Where filter 1's answer is recorded: the place goes in the box, for Adam
+  // to check; Enter takes it, and Enter again posts the reply.
+  if (c.declining?.stage === 'place' && c.q) {
+    const place = draft.replace(new RegExp(`^\\s*${RECORDED.trim()}\\s*`, 'i'), '').trim()
+    if (!place) return 'The place was empty, so nothing was put in the prompt box.'
+    await update($, talkingAtom, () => null)
+    await update($, flashAtom, () => 'Claude filled in where it is recorded: check it in the prompt box, then ⏎')
+    await putInBox($, place)
+    return `The place is in Adam's prompt box on the question "${cut(c.q.text, 80)}". He checks it; the reply posts as "${RECORDED}${cut(place, 60)}" only when he presses Enter. Do not post it yourself.`
+  }
+  if (c.declining) return "Adam is choosing why he won't answer this question, so nothing was drafted."
+  const text = draft.replace(new RegExp(`^\\s*${PREFIX.trim()}\\s*`, 'i'), '').trim()
   const q = c.q
   if (!q || !(c.open || c.editing)) return 'No open question or post being edited is on screen in the answer session, so nothing was drafted.'
   if (!text) return 'The draft was empty, so nothing was put in the prompt box.'
@@ -1172,10 +1240,25 @@ async function relay($: EngineInterface, one: Question, text: string): Promise<s
 async function startDecline($: EngineInterface, one: Question): Promise<string> {
   await update($, decliningAtom, () => ({ id: one.id, stage: 'reason' as const }))
   await update($, flashAtom, () => null)
-  return `Won't answer ${one.asker.name}'s question: choose why. Nothing is posted.`
+  return `Won't answer ${one.asker.name}'s question: choose why.`
 }
 
-async function cancelDecline($: EngineInterface, one: Question): Promise<string> {
+/**
+ * Back a step while declining: from the reply's preview to where filter 1's
+ * answer is recorded (the place back in the box) or to the filters; from
+ * there to the filters; from the filters or the reasons, the question stays
+ * open with nothing recorded.
+ */
+async function backDecline($: EngineInterface, one: Question, d: Declining): Promise<string> {
+  if (d.stage === 'post' && d.filter === 1) {
+    await update($, decliningAtom, () => ({ id: one.id, stage: 'place' as const }))
+    if (d.place) await putInBox($, d.place)
+    return 'Back to where the answer is recorded'
+  }
+  if (d.stage === 'post' || d.stage === 'place') {
+    await update($, decliningAtom, () => ({ id: one.id, stage: 'filter' as const }))
+    return 'Back to the filters'
+  }
   await update($, decliningAtom, () => null)
   return `Kept ${one.asker.name}'s question open: nothing recorded`
 }
@@ -1183,6 +1266,49 @@ async function cancelDecline($: EngineInterface, one: Question): Promise<string>
 /** Records a won't-answer for reason 1 or 2 and moves on. Prototype only: nothing is written. */
 function decline($: EngineInterface, one: Question, reason: 1 | 2): Promise<string> {
   return settle($, one, { kind: 'wont', text: '', reason }, `Won't answer ${one.asker.name}'s question: ${REASONS[reason].label.toLowerCase()}. Nothing posted.`)
+}
+
+/** Reason 3: the inquisitor should have handled it. The band asks which filter should have stopped it. */
+async function startFilter($: EngineInterface, one: Question): Promise<string> {
+  await update($, decliningAtom, () => ({ id: one.id, stage: 'filter' as const }))
+  await update($, flashAtom, () => null)
+  return `The inquisitor should have handled ${one.asker.name}'s question: choose the filter that should have stopped it. Nothing is posted yet.`
+}
+
+/** The filter chosen: filter 1 asks where the answer is recorded; 2 to 4 preview their fixed reply. */
+async function chooseFilter($: EngineInterface, one: Question, n: Filter): Promise<string> {
+  await update($, flashAtom, () => null)
+  if (n === 1) {
+    await update($, decliningAtom, () => ({ id: one.id, stage: 'place' as const }))
+    return 'Filter 1, already answered: give where the answer is recorded'
+  }
+  await update($, decliningAtom, () => ({ id: one.id, stage: 'post' as const, filter: n }))
+  return `Filter ${n}, ${FILTERS[n].name}: check the reply, then ⏎ posts it`
+}
+
+/** Filter 1's place given: the reply that names it is previewed, to post. */
+async function setPlace($: EngineInterface, one: Question, place: string): Promise<string> {
+  // What filled the place in (Claude's draft) is past: the reply is on screen now.
+  await update($, flashAtom, () => null)
+  await update($, decliningAtom, () => ({ id: one.id, stage: 'post' as const, filter: 1 as const, place }))
+  return `Filter 1, already answered: ${RECORDED}${place}. Check the reply, then ⏎ posts it`
+}
+
+/**
+ * Posts the chosen filter's reply for the inquisitor, with the session's own
+ * prefix, closes the question as handled by Adam's choice and moves on; the
+ * note is the miss's "what was said". Prototype only: nothing is posted or logged.
+ */
+async function answerForInquisitor($: EngineInterface, one: Question, d: Extract<Declining, { stage: 'post' }>, note: string): Promise<string> {
+  if (d.filter === 1 && !d.place) return "There is no place for the recorded answer: without it, it can't post as filter 1."
+  const said = note.trim()
+  const answer: Answer = { kind: 'handled', filter: d.filter, chosen: true, text: filterReply(d.filter, d.place), ...(said ? { said } : {}) }
+  return settle(
+    $,
+    one,
+    answer,
+    `Answered ${one.asker.name}'s question for the inquisitor on ${SURFACE_NAME[one.surface]} ${one.where} as ${one.relayAs}. The real skill logs a miss against filter ${d.filter}${said ? `, with your note: ${said}` : '.'}`,
+  )
 }
 
 /** Reopens a won't-answer: the question is open again, as if new. */
@@ -1193,7 +1319,7 @@ async function reopen($: EngineInterface, one: Question): Promise<string> {
     return was?.kind === 'wont' ? without(a, one.id) : a
   })
   if (was?.kind !== 'wont') return ''
-  const note = `Reopened ${one.asker.name}'s question: ${REASONS[was.reason ?? 1].undo}`
+  const note = `Reopened ${one.asker.name}'s question: ${CLOSED[was.reason ?? 1].undo}`
   await update($, flashAtom, () => note)
   return note
 }
@@ -1229,6 +1355,12 @@ async function backToQuestion($: EngineInterface, one: Question): Promise<string
   await update($, askingAtom, a => without(a, one.id))
   await update($, talkingAtom, () => null)
   return 'Back to the question'
+}
+
+/** Out of the talk about where filter 1's answer is recorded, back to giving it. */
+async function backToPlace($: EngineInterface): Promise<string> {
+  await update($, talkingAtom, () => null)
+  return 'Back to where the answer is recorded'
 }
 
 async function backToTalk($: EngineInterface, one: Question): Promise<string> {
@@ -1415,18 +1547,22 @@ export const register: Register = on => {
   on('ui.render', { component: 'PromptHint' }, async ($, e, next) => {
     if (surveyUp || !(await read($, openAtom))) return next(e)
     const c = await snapshot($)
-    const idle =
-      c.declining === 'reason'
-        ? '1, 2 or 3 for why, then ⏎'
-        : c.declining === 'miss'
-          ? 'your answer to Claude: which filter, and why, then ⏎'
-          : c.composing
-            ? `your question for ${c.q?.asker.name ?? 'the asker'}, then ⏎`
-            : c.talking
-              ? 'a message to Claude or a key, then ⏎'
-              : c.q?.options && c.open && !c.editing
-                ? 'a number, a key or your answer, then ⏎'
-                : 'a key or your answer, then ⏎'
+    const stage = c.declining?.stage
+    const idle = c.composing
+      ? `your question for ${c.q?.asker.name ?? 'the asker'}, then ⏎`
+      : c.talking
+        ? 'a message to Claude or a key, then ⏎'
+        : stage === 'reason'
+          ? '1, 2 or 3 for why, then ⏎'
+          : stage === 'filter'
+            ? '1 to 4 for the filter, then ⏎'
+            : stage === 'place'
+              ? 'where the answer is recorded, then ⏎'
+              : stage === 'post'
+                ? 'a note for the miss, or p to post it as it is, then ⏎'
+                : c.q?.options && c.open && !c.editing
+                  ? 'a number, a key or your answer, then ⏎'
+                  : 'a key or your answer, then ⏎'
     const hint = enterHint(c, intent(c, await read($, promptAtom))) ?? idle
     // Added after the engine's own line, never in place of it: a rewritten
     // `hint` drops every plugin's `tail`, usage-hint's figures among them.
@@ -1483,24 +1619,10 @@ export const register: Register = on => {
       if (!q) return { drop: 'Nothing to discuss here.' }
       const returned = (await read($, returnedAtom))[q.id]
       await update($, promptAtom, () => '')
-      if (it.kind === 'say') {
-        await recordSay($, q, it.text)
-        return next({ ...e, context: [...(e.context ?? []), discussionContext(q, returned, c.editing ? c.answer?.text : undefined)] })
-      }
-      // "It doesn't need a human": the session's model asks, in the
-      // conversation, which filter should have stopped it. The "3" goes on
-      // in words, so the conversation reads as what was done.
-      if (it.kind === 'reason') {
-        const text = "I won't answer this question: it doesn't need a human."
-        await update($, decliningAtom, () => ({ id: q.id, stage: 'miss' as const }))
-        await recordSay($, q, text)
-        return next({ ...e, text, context: [...(e.context ?? []), missContext(q, returned)] })
-      }
-      // Adam's answer is the miss's "what was said": recorded, and the
-      // question closed, as it goes on to the model to acknowledge.
       await recordSay($, q, it.text)
-      await settle($, q, { kind: 'wont', text: '', reason: 3, said: it.text }, `Won't answer ${q.asker.name}'s question: it doesn't need a human. Nothing posted; the miss is recorded.`)
-      return next({ ...e, text: it.text, context: [...(e.context ?? []), missAnswerContext(q)] })
+      // Finding where filter 1's answer is recorded, or talking it through.
+      const context = c.declining?.stage === 'place' ? placeContext(q, returned) : discussionContext(q, returned, c.editing ? c.answer?.text : undefined)
+      return next({ ...e, context: [...(e.context ?? []), context] })
     }
     afterDrop = { dropped: e.text, text: '' }
     const done = await enter($, c, it)
@@ -1597,8 +1719,10 @@ export const register: Register = on => {
     const waiting = count('wait')
     const wont = count('wont')
     const recorded = count('recorded')
-    const handledCount = count('handled')
-    const fresh = N - relayed - deferred - waiting - wont - recorded - handledCount
+    // Handled by the session, or by Adam for the inquisitor (won't-answer reason 3).
+    const mine = QUESTIONS.filter(one => answers[one.id]?.kind === 'handled' && answers[one.id]?.chosen).length
+    const handledCount = count('handled') - mine
+    const fresh = N - relayed - deferred - waiting - wont - recorded - handledCount - mine
 
     // What Enter would do with the prompt box's text, and the commands on
     // screen; a click on one does what typing its key and Enter does.
@@ -1607,9 +1731,6 @@ export const register: Register = on => {
     const cmds = commands(c)
     const run = (doing: Promise<unknown>) => void doing.catch(() => undefined)
     const isTalking = !!base && talking === base.id
-    // Telling Claude which filter missed it is a conversation too: the band
-    // shrinks to the question and where that stands.
-    const isConversing = isTalking || c.declining === 'miss'
 
     // ── rows ─────────────────────────────────────────────────────────────
     //
@@ -1695,7 +1816,7 @@ export const register: Register = on => {
 
     const dots = QUESTIONS.map((one, i) => {
       const a = answers[one.id]
-      const glyph = i === at && (!a || isConversing) ? (isConversing ? '◇' : '◉') : !a ? '○' : GLYPH[a.kind]
+      const glyph = i === at && (!a || isTalking) ? (isTalking ? '◇' : '◉') : !a ? '○' : GLYPH[a.kind]
       const color = i === at ? ACCENT : !a ? RULE : TONE[a.kind]
       // A click on a dot opens that question.
       return (
@@ -1722,13 +1843,13 @@ export const register: Register = on => {
         [waiting, 'waiting', false],
         [wont, "won't answer", false],
         [recorded + handledCount, 'done for you', false],
+        [mine, 'for the inquisitor', false],
       ] as const
     )
       .filter(([n, , always]) => n > 0 || always)
       .map(([n, words]) => `${n} ${words}`)
       .join(' · ')
-    const doing = isTalking ? 'talking to Claude' : "won't answer"
-    const where = [...(base ? [`${at + 1} of ${N}`] : []), ...(isConversing ? (cols >= 120 ? [doing] : []) : cols >= 120 || !base ? [tally] : [])].join(' · ')
+    const where = [...(base ? [`${at + 1} of ${N}`] : []), ...(isTalking ? (cols >= 120 ? ['talking to Claude'] : []) : cols >= 120 || !base ? [tally] : [])].join(' · ')
     const bar = (
       <Box height={1} overflow="hidden" justifyContent="space-between" width={cols} gap={2}>
         <Box gap={2} flexShrink={0}>
@@ -1867,7 +1988,7 @@ export const register: Register = on => {
               ? `│ asked: ${a!.text}`
               : a!.kind === 'wont'
                 ? `│ won't answer: ${REASONS[a!.reason ?? 1].label.toLowerCase()}`
-                : `│ ${prefixOf(a!)}${a!.text}`
+                : `│ ${a!.kind === 'handled' && a!.chosen ? 'you chose · ' : ''}${prefixOf(a!)}${a!.text}`
         const room = Math.max(0, W - 2 - who.length - place.length)
         return (
           <Box height={1} overflow="hidden">
@@ -1887,6 +2008,7 @@ export const register: Register = on => {
             `${relayed} of ${N} relayed this session`,
             ...(recorded ? [`${recorded} answered for you`] : []),
             ...(handledCount ? [`${handledCount} handled for you`] : []),
+            ...(mine ? [`${mine} you answered for the inquisitor`] : []),
             ...(wont ? [`${wont} you won't answer`] : []),
             ...(waiting ? [`${waiting} back with their askers`] : []),
           ].join(' · '),
@@ -1933,7 +2055,7 @@ export const register: Register = on => {
       recorded: 'answered for you · ',
       handled: 'handled for you · ',
     }
-    const stateText = answer ? STATE[answer.kind] : undefined
+    const stateText = answer?.kind === 'handled' && answer.chosen ? 'handled by your choice · ' : answer ? STATE[answer.kind] : undefined
     const state = stateText ? <Text color={answer ? TONE[answer.kind] : undefined}>{stateText}</Text> : ''
     const provenance = (lines: 0 | 1 | 2): Row[] => {
       if (lines === 0) return []
@@ -1999,18 +2121,21 @@ export const register: Register = on => {
     // The left column: where it came from, the question, what it rests on.
     // The post in one run, wrapping when long: where and as whom, then
     // exactly what it says, at most `max` lines.
-    const postRows = (text: string, width: number, max: number, verb = 'Post'): Row[] => {
+    const postRows = (text: string, width: number, max: number, verb = 'Post', prefix = PREFIX): Row[] => {
       const where = `${verb} ${postsAs}`.toUpperCase()
       const head = `${where} ${q.relayAs}: `
-      let lines = wrap(head + PREFIX + text, Math.max(10, width))
+      let lines = wrap(head + prefix + text, Math.max(10, width))
       if (lines.length > max) lines = [...lines.slice(0, Math.max(1, max) - 1), cut(lines.slice(Math.max(1, max) - 1).join(' '), width)]
       return lines.map((line, i) =>
         i === 0 && line.startsWith(head) ? (
           <Text wrap="truncate-end">
             <Text dimColor>{where}</Text>
             {` ${q.relayAs}: `}
-            <Text dimColor>{PREFIX}</Text>
-            {line.slice(head.length + PREFIX.length)}
+            {/* The session's own prefixes say who posted, and stand out. */}
+            <Text dimColor={prefix === PREFIX} bold={prefix !== PREFIX}>
+              {prefix}
+            </Text>
+            {line.slice(head.length + prefix.length)}
           </Text>
         ) : (
           plain(line)
@@ -2082,9 +2207,12 @@ export const register: Register = on => {
     // The right column: the answers to choose from, then what will post; or
     // the reasons not to answer; or what was done.
     const answerColumn = (t: Trim, width: number, g: (gap: Gap) => number): Row[] => {
-      if (c.declining === 'reason') return reasonsColumn(t, width)
+      const d = c.declining
+      if (d?.stage === 'reason') return reasonsColumn(t, width)
+      if (d?.stage === 'filter') return filtersColumn(t, width)
+      if (d) return inquisitorColumn(d, t, width, g)
       if (answer?.kind === 'wont') return wontColumn(answer, t, width)
-      if (answer && c.posted && (c.editing || answer.kind !== 'handled')) return postColumn(answer, t, width)
+      if (answer && c.posted && (c.editing || answer.kind !== 'handled' || answer.chosen)) return postColumn(answer, t, width)
       const choose = chooseColumn(t, width, g)
       // Handled for Adam: the session's reply, and he can still answer it himself.
       if (answer?.kind === 'handled') return stack([postColumn(answer, t, width), choose], [g('related')])
@@ -2098,7 +2226,7 @@ export const register: Register = on => {
         answer: ['✓', `Relayed ${postsAs}`],
         wait: ['◌', `Waiting for ${q.asker.name}. Asked ${postsAs}`],
         recorded: [GLYPH.recorded, `Answered for you ${postsAs}`],
-        handled: [GLYPH.handled, `Handled for you ${postsAs}`],
+        handled: [GLYPH.handled, a.chosen ? `Handled by your choice ${postsAs}` : `Handled for you ${postsAs}`],
       }
       const [glyph, words] = HEAD[a.kind as keyof typeof HEAD] ?? HEAD.answer
       // The post itself, a click away (prototype: the thread; the real
@@ -2124,19 +2252,24 @@ export const register: Register = on => {
             : [plain('Editing: change it in the prompt box, then ⏎ updates the post.', { dim: true })]),
         ]
       }
-      // Why the session posted by itself, until Adam edits it into his own.
+      // Why the session posted by itself, until Adam edits it into his own;
+      // for one he answered for the inquisitor, the miss the real skill logs.
+      const n = a.filter ?? 4
       const why =
-        a.edited
-          ? ''
-          : a.kind === 'recorded'
-            ? 'Filter 1 found a recorded answer with authority, so the session posted it for you.'
-            : a.kind === 'handled'
-              ? "It should have been stopped before it was asked: the session replied with the filter's action, and the real skill logs a miss."
-              : a.over
-                ? `After the session's own reply: ${a.over}`
-                : ''
+        a.kind === 'handled' && a.chosen
+          ? `The real skill logs a miss against filter ${n} (${FILTERS[n].name})${a.said ? ', with what you said:' : '.'}`
+          : a.edited
+            ? ''
+            : a.kind === 'recorded'
+              ? 'Filter 1 found a recorded answer with authority, so the session posted it for you.'
+              : a.kind === 'handled'
+                ? "It should have been stopped before it was asked: the session replied with the filter's action, and the real skill logs a miss."
+                : a.over
+                  ? `After the session's own reply: ${a.over}`
+                  : ''
       const whyRows = !why || t.effects === 'none' ? [] : t.effects === 'line' ? [plain(why, { dim: true })] : wrap(why, width).map(line => plain(line, { dim: true }))
-      return [headRow, ...posted, ...whyRows, ...(isRelayed && t.logNote ? logNote(width) : [])]
+      const said = a.kind === 'handled' && a.chosen && a.said && t.effects !== 'none' ? wrap(a.said, width - 2).slice(0, Math.max(1, t.bubble)).map(line => plain(`│ ${line}`)) : []
+      return [headRow, ...posted, ...whyRows, ...said, ...(isRelayed && t.logNote ? logNote(width) : [])]
     }
 
     // The suggested verdict on a person's question: only a suggestion, and
@@ -2199,7 +2332,7 @@ export const register: Register = on => {
       return [
         <Text wrap="truncate-end">
           <Text color={ACCENT}>{GLYPH.wont} </Text>
-          <Text dimColor>{"WON'T ANSWER · CHOOSE WHY · NOTHING IS POSTED"}</Text>
+          <Text dimColor>{"WON'T ANSWER · CHOOSE WHY"}</Text>
         </Text>,
         ...reasons,
       ]
@@ -2208,8 +2341,7 @@ export const register: Register = on => {
     // A won't-answer, with its reason and what the real skill logged for it.
     const wontColumn = (a: Answer, t: Trim, width: number): Row[] => {
       const r = a.reason ?? 1
-      const did = t.effects === 'none' ? [] : t.effects === 'line' ? [plain(REASONS[r].did, { dim: true })] : wrap(REASONS[r].did, width).map(line => plain(line, { dim: true }))
-      const said = a.said ? wrap(a.said, width - 2).slice(0, Math.max(1, t.bubble)).map(line => plain(`│ ${line}`)) : []
+      const did = t.effects === 'none' ? [] : t.effects === 'line' ? [plain(CLOSED[r].did, { dim: true })] : wrap(CLOSED[r].did, width).map(line => plain(line, { dim: true }))
       return [
         <Text wrap="truncate-end">
           <Text color={TONE.wont}>{GLYPH.wont} </Text>
@@ -2218,8 +2350,98 @@ export const register: Register = on => {
           <Text dimColor> · nothing was posted</Text>
         </Text>,
         ...did,
-        ...said,
       ]
+    }
+
+    // Reason 3: the filter that should have stopped it, chosen by number in
+    // the prompt box (a click puts the number there), each with what the
+    // reply for the inquisitor will say.
+    const filtersColumn = (t: Trim, width: number): Row[] => {
+      const chosen = it.kind === 'filter' ? it.filter : undefined
+      const filters = ([1, 2, 3, 4] as const).flatMap(n => {
+        const isChosen = chosen === n
+        const mark = <Text color={ACCENT}>{isChosen ? '▌ ' : '  '}</Text>
+        const says = n === 1 ? 'replies with where the answer is recorded, which you give' : `replies: ${FILTERS[n].action}`
+        const effect = t.effects === 'none' ? [] : [cut(`→ ${says}`, width - 5)]
+        return [
+          ...(n > 1 && t.optionGap ? [blank()] : []),
+          <Box height={1} overflow="hidden">
+            {mark}
+            <Button key={`filter:${n}`} plain onPress={() => run(putInBox($, String(n)))}>
+              <Text color={ACCENT}>{n}</Text>
+              <Text dimColor>: </Text>
+              <Text bold color={isChosen ? ACCENT : undefined}>
+                {FILTERS[n].name.replace(/^./, x => x.toUpperCase())}
+              </Text>
+            </Button>
+          </Box>,
+          ...effect.map(line => (
+            <Text wrap="truncate-end">
+              {mark}
+              <Text dimColor>
+                {'   '}
+                {line}
+              </Text>
+            </Text>
+          )),
+        ]
+      })
+      return [
+        <Text wrap="truncate-end">
+          <Text color={ACCENT}>{GLYPH.handled} </Text>
+          <Text dimColor>{'WHICH FILTER SHOULD HAVE STOPPED IT? · NOTHING IS POSTED YET'}</Text>
+        </Text>,
+        ...filters,
+      ]
+    }
+
+    // Answering for the inquisitor: for filter 1, where the answer is
+    // recorded, typed in the prompt box (or found with Claude's help); then
+    // exactly what will post, with an optional note for the miss. Enter posts.
+    const inquisitorColumn = (d: Extract<Declining, { stage: 'place' | 'post' }>, t: Trim, width: number, g: (gap: Gap) => number): Row[] => {
+      const n: Filter = d.stage === 'place' ? 1 : d.filter
+      const dim = (text: string) => wrap(text, width).map(line => plain(line, { dim: true }))
+      const head: Row = (
+        <Text wrap="truncate-end">
+          <Text color={ACCENT}>{GLYPH.handled} </Text>
+          <Text dimColor>{'ANSWER FOR THE INQUISITOR · '}</Text>
+          <Text bold>
+            Filter {n}, {FILTERS[n].name}
+          </Text>
+        </Text>
+      )
+      if (d.stage === 'place') {
+        const place = it.kind === 'place' ? it.text : ''
+        const talkKey = q.options ? '(t)alk to Claude' : '(h)elp me answer'
+        return stack(
+          [
+            [head, ...dim(`Where is the answer recorded? Type or paste it in the prompt box: a link, or the decision and what it says. Or ${talkKey}: Claude can find it and fill it in.`)],
+            place
+              ? postRows(place, width, t.bubble, 'Post', RECORDED)
+              : [...postRows('…', width, 1, 'Post', RECORDED), ...dim("Without a place it can't post as filter 1.")],
+          ],
+          [g('choices')],
+        )
+      }
+      const note: Row[] =
+        it.kind === 'note'
+          ? wrap(`NOTE FOR THE MISS, NOT POSTED: ${it.text}`, width).map((line, i) =>
+              i === 0 ? (
+                <Text wrap="truncate-end">
+                  <Text dimColor>NOTE FOR THE MISS, NOT POSTED: </Text>
+                  {line.slice('NOTE FOR THE MISS, NOT POSTED: '.length)}
+                </Text>
+              ) : (
+                plain(line)
+              ),
+            )
+          : dim('A note for the miss, if you like: type it in the prompt box. Or (p)ost it as it is. ⏎ posts.')
+      const after = [
+        ...(t.effects === 'full' ? dim(`The real skill logs a miss against filter ${n}, with your note as what was said.`) : []),
+        // Said once, here: it posts on people's questions as well as agents'.
+        ...(t.effects === 'none' ? [] : dim(`Posts on a person's question too, as you chose. You can still answer on ${SURFACE_NAME[q.surface]} by hand.`)),
+      ]
+      return stack([[head], postRows(filterReply(n, d.place), width, t.bubble, 'Post', n === 1 ? RECORDED : INQUISITOR), note, after], [g('choices'), g('preview'), g('related')])
     }
 
     // The answers to choose from, then what will post.
@@ -2288,10 +2510,16 @@ export const register: Register = on => {
       )
     }
 
-    if (!isConversing) {
+    if (!isTalking) {
       const options = q.options ?? []
       const hints: [string, string][] =
-        c.declining === 'reason' ? [['1–3', 'choose why']] : !open || c.editing || isHuman ? [] : [[`1–${options.length}`, 'choose']]
+        c.declining?.stage === 'reason'
+          ? [['1–3', 'choose why']]
+          : c.declining?.stage === 'filter'
+            ? [['1–4', 'choose the filter']]
+            : c.declining || !open || c.editing || isHuman
+              ? []
+              : [[`1–${options.length}`, 'choose']]
       const one = isWide ? [] : fit((t, g) => stack([questionColumn(t, cols, g), answerColumn(t, cols, g)], g('choices')), B)
       const body = isWide ? (
         columns(fit((t, g) => questionColumn(t, LW, g), B), fit((t, g) => answerColumn(t, RW, g), B), LW, RW)
@@ -2336,12 +2564,17 @@ export const register: Register = on => {
     ]
     // Where the discussion stands, and what Enter would do with the box.
     const talkState = (width: number): Row[] => {
-      if (c.declining === 'miss') return missState(width)
       const head: Row = (
         <Text wrap="truncate-end">
           <Text color={ACCENT}>◇ </Text>
           <Text dimColor>TALKING TO CLAUDE</Text>
-          <Text dimColor>{c.editing ? ' · for your edit, in the conversation above' : ' · in the conversation above'}</Text>
+          <Text dimColor>
+            {c.editing
+              ? ' · for your edit, in the conversation above'
+              : c.declining
+                ? ' · about where the answer is recorded, in the conversation above'
+                : ' · in the conversation above'}
+          </Text>
         </Text>
       )
       // The conversation above is where the discussion happens, so the band
@@ -2361,7 +2594,9 @@ export const register: Register = on => {
               : said
                 ? []
                 : wrap(
-                    `Ask anything about the question, or tell Claude what to say and it drafts your reply for you to check. It gets the question with your message and may read the thread and the code first; its reply shows above. The rest of the queue waits.`,
+                    c.declining
+                      ? `Ask Claude where the answer is recorded, or to find it and fill it in for you to check. It gets the question with your message and may read the thread and the code first. Nothing posts until you ⏎ on the reply.`
+                      : `Ask anything about the question, or tell Claude what to say and it drafts your reply for you to check. It gets the question with your message and may read the thread and the code first; its reply shows above. The rest of the queue waits.`,
                     width,
                   ).map(line => plain(line, { dim: true }))
       const pending: Row[] =
@@ -2376,40 +2611,6 @@ export const register: Register = on => {
             ]
           : []
       return spaced([...state, ...pending])
-    }
-
-    // "It doesn't need a human": Claude asks which filter should have stopped
-    // it, in the conversation above; Adam's answer is the miss's "what was said".
-    function missState(width: number): Row[] {
-      const head: Row = (
-        <Text wrap="truncate-end">
-          <Text color={ACCENT}>◇ </Text>
-          <Text dimColor>{"WON'T ANSWER · "}</Text>
-          <Text bold>{REASONS[3].label}</Text>
-          <Text dimColor> · Claude asks above</Text>
-        </Text>
-      )
-      const last = turns[turns.length - 1]
-      const dim = (text: string) => wrap(text, width).map(line => plain(line, { dim: true }))
-      const ask = `Which filter should have stopped it, and why? 1 already answered · 2 can wait · 3 only one option has merit · 4 cheap to reverse. A number alone will do. ⏎ records your answer as the miss's "what was said"; nothing is posted.`
-      const state: Row[] =
-        busy === 'reply'
-          ? [plain('◌ Claude is asking which filter should have stopped it…', { color: ACCENT }), ...dim(ask)]
-          : last?.who === 'error'
-            ? [...wrap(last.text, width).map(line => plain(line, { color: LATER })), ...dim(`Answer anyway. ${ask}`)]
-            : dim(`Answer Claude above. ${ask}`)
-      const pending: Row[] =
-        it.kind === 'miss'
-          ? [
-              <Text wrap="truncate-end">
-                <Text color={ACCENT} bold>
-                  {'you'.padEnd(SPEAKER)}
-                </Text>
-                <Text dimColor>{it.text} ⏎</Text>
-              </Text>,
-            ]
-          : []
-      return [blank(), head, blank(), ...state, ...pending, blank()]
     }
 
     if (isWide) {
