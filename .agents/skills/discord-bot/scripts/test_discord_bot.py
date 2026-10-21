@@ -615,6 +615,63 @@ class StoreToken(unittest.TestCase):
     def test_no_warning_without_an_environment_token(self):
         self.assertNotIn("warnings", self.store("acme", {}))
 
+    def store_with_security(self, readback="s3cret\n", add_rc=0, find_rc=0, add_stderr=""):
+        def run(cmd, **kwargs):
+            if cmd[1] == "add-generic-password":
+                return types.SimpleNamespace(returncode=add_rc, stdout="", stderr=add_stderr)
+            return types.SimpleNamespace(returncode=find_rc, stdout=readback, stderr="not found")
+        run = mock.Mock(side_effect=run)
+        args = types.SimpleNamespace(identity="acme")
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(d.getpass, "getpass", return_value=" s3cret\n"):
+            try:
+                result = d.cmd_store_token(args, {"XDG_CONFIG_HOME": tmp}, run=run, which=lambda t: t == "security")
+            except d.Failure as e:
+                result = e
+        return result, run.call_args_list
+
+    def test_security_gets_the_token_twice_on_standard_input_never_as_an_argument(self):
+        result, calls = self.store_with_security()
+        self.assertEqual(result["stored"], True)
+        add = calls[0]
+        self.assertEqual(add.args[0], ["security", "add-generic-password", "-U", "-s", "discord-bot", "-a", "acme", "-w"])
+        self.assertEqual(add.kwargs["input"], "s3cret\ns3cret\n")
+        for call in calls:
+            self.assertNotIn("s3cret", " ".join(call.args[0]))
+
+    def test_security_runs_with_no_terminal_to_prompt_on(self):
+        # With a controlling terminal, `security` prompts there and ignores standard input.
+        _, calls = self.store_with_security()
+        self.assertIs(calls[0].kwargs.get("start_new_session"), True)
+
+    def test_the_stored_token_is_read_back(self):
+        _, calls = self.store_with_security()
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(calls[1].args[0], ["security", "find-generic-password", "-s", "discord-bot", "-a", "acme", "-w"])
+
+    def test_an_empty_read_back_fails(self):
+        # `security` exits 0 after storing an empty password when the second copy is missing.
+        result, _ = self.store_with_security(readback="\n")
+        self.assertIsInstance(result, d.Failure)
+        self.assertIn("does not hold the token entered", str(result))
+
+    def test_a_different_read_back_fails_without_echoing_either_token(self):
+        result, _ = self.store_with_security(readback="other-secret\n")
+        self.assertIsInstance(result, d.Failure)
+        self.assertNotIn("s3cret", str(result))
+        self.assertNotIn("other-secret", str(result))
+
+    def test_a_failed_read_back_fails(self):
+        result, _ = self.store_with_security(find_rc=44)
+        self.assertIsInstance(result, d.Failure)
+        self.assertIn("could not read back", str(result))
+
+    def test_a_failed_store_skips_the_read_back_and_drops_the_prompts(self):
+        result, calls = self.store_with_security(
+            add_rc=1, add_stderr="password data for new item: retype password for new item: security: denied\n")
+        self.assertIsInstance(result, d.Failure)
+        self.assertEqual(str(result), "storing the token failed: security: denied")
+        self.assertEqual(len(calls), 1)
+
     def test_no_keychain_tool_advice_names_the_identity(self):
         args = types.SimpleNamespace(identity="reviewer")
         with tempfile.TemporaryDirectory() as tmp, mock.patch.object(d.getpass, "getpass", return_value="tok"), \

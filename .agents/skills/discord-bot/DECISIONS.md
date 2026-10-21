@@ -271,15 +271,40 @@ order. Other commands just try, and report Discord's 403.
 session to name the missing permission up front, because Discord's own error
 for a missing thread permission is a bare code that names none.
 
-## `store-token` passes the token to `security` as an argument
+## `store-token` gives `security` the token on standard input, twice, and reads it back
 
-**Decision.** On macOS the token is stored with
-`security add-generic-password -w <token>`.
+Decided by Adam, 2026-10-21.
 
-**Why.** `security` has no way to read the secret from standard input, so it
-is visible to this user's other processes for the instant the command runs.
-Linux `secret-tool` reads it from standard input. Anyone who can't accept that
-moment can add the entry with Keychain Access instead; the script only reads it.
+**Decision.** On macOS, `store-token` runs `security add-generic-password` with
+`-w` as its last option and no value. It writes the token to `security`'s
+standard input twice, one line each. It starts `security` in a new process
+session, which leaves it no controlling terminal. Then it reads the entry back, and fails if that read fails
+or returns anything but the token. The token never appears on a command
+line, in an error or in the output.
+
+**Why.** Passing the token as `-w <token>` would make it visible to this
+user's other processes while `security` runs. Measured on macOS: given `-w`
+with no value, `security` asks for the password twice, the second time to
+confirm it.
+
+- **Twice:** given only one copy, `security` reports that the passwords don't
+  match, stores an empty password and still exits 0.
+- **No terminal:** `security` reads the answers from standard input only when
+  it has no terminal. Run from a terminal, it prompts there and ignores
+  standard input.
+- **Read back:** the exit status can't be trusted, as the first point shows,
+  so only reading the entry proves it holds the token.
+
+**A read-back that fails or doesn't match leaves the entry as it is.** A
+mismatch may come from a matching entry in another keychain, and deleting by
+service and account could remove that entry, which `store-token` did not
+write. Deleting the entry `store-token` did write would gain little: the
+one-copy case above leaves it empty, and the script reads an empty entry as
+no token and says to run `store-token`.
+
+On Linux, `secret-tool` asks once and stores all of its standard input as
+the secret, so the one-copy case can't arise there, and `store-token`
+doesn't read the token back.
 
 ## Output is JSON with fixed exit codes
 

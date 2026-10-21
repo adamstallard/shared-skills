@@ -706,6 +706,35 @@ def cmd_check(api, config, args):
     return result
 
 
+SECURITY_PROMPTS = re.compile(r"(?:password data|retype password) for new item: ")
+
+
+def store_in_macos_keychain(service, account, token, run=subprocess.run):
+    """Store `token` with `security`, never on its command line, and check that it reads back.
+
+    Given `-w` last with no value, `security` asks for the password twice.
+    It reads the answers from standard input only when it has no terminal,
+    so it runs in a new session. Given one copy instead of two, it stores an
+    empty password and still exits 0, so the entry is read back to check it.
+    See DECISIONS.md.
+    """
+    where = f"(service {service!r}, account {account!r})"
+    cmd = ["security", "add-generic-password", "-U", "-s", service, "-a", account, "-w"]
+    result = run(cmd, input=f"{token}\n{token}\n", capture_output=True, text=True, start_new_session=True)
+    if result.returncode != 0:
+        raise Failure(f"storing the token failed: {SECURITY_PROMPTS.sub('', result.stderr).strip()}")
+    cmd = ["security", "find-generic-password", "-s", service, "-a", account, "-w"]
+    result = run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise Failure(f"could not read back the keychain entry {where} to check it: {result.stderr.strip()}")
+    # Stripped as read_keychain strips the token it reads, so this passes only
+    # when later commands would get this token. A wrong entry is left in place,
+    # because it may be another keychain's; DECISIONS.md says why.
+    if result.stdout.strip() != token:
+        raise Failure(f"the keychain entry {where} does not hold the token entered; "
+                      "run store-token again, or add the entry with Keychain Access")
+
+
 def cmd_store_token(args, env=None, run=subprocess.run, which=shutil.which):
     env = os.environ if env is None else env
     config, _ = load_config(args.identity, env)
@@ -714,18 +743,15 @@ def cmd_store_token(args, env=None, run=subprocess.run, which=shutil.which):
     if not token:
         raise Failure("no token entered")
     if which("security"):
-        # `security` takes the secret only as an argument, so it is briefly
-        # visible to other processes of this user; see DECISIONS.md.
-        cmd = ["security", "add-generic-password", "-U", "-s", service, "-a", account, "-w", token]
-        result = run(cmd, capture_output=True, text=True)
+        store_in_macos_keychain(service, account, token, run)
     elif which("secret-tool"):
         cmd = ["secret-tool", "store", "--label", f"Discord bot token ({account})", "service", service, "account", account]
         result = run(cmd, input=token, capture_output=True, text=True)
+        if result.returncode != 0:
+            raise Failure(f"storing the token failed: {result.stderr.strip()}")
     else:
         raise Failure("no keychain tool found (macOS 'security' or Linux 'secret-tool'); "
                       f"{token_advice(args.identity, env)} instead")
-    if result.returncode != 0:
-        raise Failure(f"storing the token failed: {result.stderr.strip()}")
     stored = {"identity": args.identity, "stored": True, "service": service, "account": account}
     present = env_token_set(env)
     if present and args.identity == env_identity(env):
