@@ -119,9 +119,11 @@ Terms used throughout this spec:
 - **The related earlier decision** is the decision the agent names, from
   filter 1's hits, as related to the question when it runs the first call.
 - **The inquisitor's configuration** is the file
-  `~/.config/shared-skills/inquisitor.json`. It names the lore repositories,
-  the GitHub login of the person running the session, and, under
-  `answer_session`, the answer session's configuration, which the
+  `~/.config/shared-skills/inquisitor.json`. Its key `login` names the
+  GitHub login of the person running the session; its key `lore` lists
+  the lore repositories, each as an object holding `path`, the local
+  clone, and `owners` or `repos`, what it serves; and its key
+  `answer_session` holds the answer session's configuration, which the
   `answer-session` spec defines.
 - **More visible**: visibility is ranked private, then internal (GitHub's
   `INTERNAL`), then public. A repository
@@ -160,11 +162,21 @@ Terms used throughout this spec:
   the worker's report instead. The rules for what an Igor worker does as
   an agent, such as asking only in its handback comment, are not part of
   it.
-- **A miss** is a question a person said need not have been asked, and a
+- **A miss** is a question a person said need not have been asked, or
+  that an answer session judged clearly need not have been, and a
   **citation file** records that filter 1 stopped a question with a lore
   entry; *A question that should not have been asked is logged as a miss*
   and *Every answer is recorded and every asked question logged* define
   them, and *A citation file has one format* gives a citation file's form.
+- **A relayed answer** is a GitHub comment that starts with `User says: `
+  and whose author is a GitHub App that GitHub reports as owned by a
+  person's account: an answer that person's answer session posted for
+  them, on their confirmation. It counts as that person's own comment
+  wherever this spec reads who wrote a comment. A comment from such an App
+  that starts with `Recorded answer: ` or `Inquisitor: ` is the answer
+  session's own, posted without the person, and is no one's answer. Until
+  task 0.21 shows that GitHub reports which account owns the App that
+  wrote a comment, no comment is a relayed answer.
 - **The credential patterns** are a private key's `-----BEGIN` line, GitHub
   tokens (`ghp_`, `gho_`, `ghs_`, `ghu_`, `ghr_`, `github_pat_`),
   Anthropic API keys (`sk-ant-`), AWS access key IDs (`AKIA`), and Slack
@@ -452,7 +464,8 @@ these:
   github.com URL of a comment or review on an issue or pull request of the
   repository its `repository` key names or of that lore repository, the
   comment's text holds the answer the file records, and GitHub gives that
-  comment's author as `answered_by`, or
+  comment's author as `answered_by`, or the comment is a relayed answer
+  of `answered_by`'s, or
   when the commit that added the file carries a
   signature GitHub verifies for `answered_by`'s account;
 - an in-scope lore entry whose `status` is `active`.
@@ -549,6 +562,22 @@ agent. The search SHALL never show a rejected candidate.
   `answered_by`, links no comment, and its commit has no signature GitHub
   verifies for `alice`, though the commit's author email is hers
 - **THEN** the search shows it labelled as unconfirmed
+
+#### Scenario: A relayed answer proves its writer
+
+- **WHEN** a `decision` file on a lore questions branch names `alice` as
+  `answered_by` and links a comment that starts with `User says: `, holds
+  the answer the file records, and was written by a GitHub App that
+  GitHub reports as owned by `alice`, who has write access to what the
+  question concerns, and no commit after the one that added the file
+  changed it
+- **THEN** filter 1 treats it as an answer
+
+#### Scenario: An answer session's automatic reply proves no writer
+
+- **WHEN** a `decision` file on a lore questions branch links a comment
+  from a GitHub App owned by `alice` that starts with `Recorded answer: `
+- **THEN** the search shows the file labelled as unconfirmed
 
 #### Scenario: A questions-branch decision linking its comment is an answer
 
@@ -800,10 +829,12 @@ call, or in one section of one post.
 Where the host has a picker and a person is in the session, an agent SHALL
 put a question to a person only through the picker, in a post, in a message on another service such as
 Linear or Discord, or, for a `vulnerability` question, in the repository's
-private security advisory; never in the text of its reply. The one
-exception is a discussion in an answer session, in which the session's
+private security advisory; never in the text of its reply. The
+exceptions are in an answer session: in a discussion, and after the
+person declines a question because it didn't need a human, the session's
 model may ask the person in its reply, as the `answer-session` spec's *A
-discussion runs in the session's own conversation* says.
+discussion runs in the session's own conversation* and *The person can
+decline to answer* say.
 
 Where the host has no picker and a person is in the session, the agent
 SHALL ask in the text of its reply, once the script's two calls have
@@ -1116,7 +1147,10 @@ verdict records, it SHALL block a post that holds a question. The hook
 SHALL learn a post's body from the shared post reader (the *gh-post*
 capability): it SHALL vet the body the reader returns, let through a call
 the reader reports as sending no post, and block one the reader reports as
-unreadable. It SHALL let through a payload that is not JSON. The first call
+unreadable. It SHALL let through a payload that is not JSON. It SHALL
+block a post whose body starts with `User says: `, `User asks: `,
+`Recorded answer: ` or `Inquisitor: `, the prefixes the `answer-session`
+spec reserves for its own posts, which no tool call makes. The first call
 SHALL take a post's body and
 find its questions the same way the hook does, and SHALL refuse a post with
 a question that holds a string matching the credential patterns, such
@@ -1127,6 +1161,11 @@ as a private key or a GitHub access token.
 - **WHEN** an agent runs `gh pr create --body-file body.md` and the body asks
   a question that no second call recorded as `ask`
 - **THEN** the hook blocks the command and names the question
+
+#### Scenario: A tool-call post with a reserved prefix is blocked
+
+- **WHEN** an agent runs `gh issue comment 7 --body "User says: yes"`
+- **THEN** the post hook blocks it
 
 #### Scenario: A GitHub MCP post is checked
 
@@ -1553,6 +1592,12 @@ message `inquisitor: log <file>`, and SHALL carry no prose or bug-hunter
 trailer. A citation file is not a log file, and the search never shows
 one. No log file names a lore entry by its id.
 
+The skill's script SHALL write every log file and miss file through its
+`log` command, which takes the file's place, its keys and its body
+sections, writes the file in the format *A log file and a miss file have
+one format* states, and, for a questions branch, pushes it as this
+requirement says.
+
 A log file for a question that was never asked, such as an agent's choice
 under filter 3 or 4, SHALL follow the same privacy rules as any other: its
 question is written at the privacy of what it concerns. An agent's choice
@@ -1605,6 +1650,14 @@ why.
 - **THEN** the agent records the answer in that spec, and adds to the
   question's file in that repository's `.inquisitor/questions/` a pointer to
   it
+
+#### Scenario: The log command writes and pushes a questions-branch file
+
+- **WHEN** the agent logs a miss about an organization through the
+  script's `log` command
+- **THEN** the command writes the miss file in the one format and pushes
+  it to the team's lore repository's questions branch, in a commit with
+  the message `inquisitor: log <file>`
 
 #### Scenario: An answer with no document is held in the log
 
@@ -1892,7 +1945,9 @@ written.
   question each on one line, with each run of whitespace made one space.
 - **A miss file's keys:** `repository` and `asked`, as in its question's
   log file; `filter`, `"1"` to `"4"`, the filter that should have stopped
-  the question; and `said`, what the person said, in their words or in one
+  the question, or, for a miss an answer session logs against how it
+  found a message that asks nothing, `"source 1"` to `"source 4"`, the
+  `answer-session` spec's source that found it; and `said`, what the person said, in their words or in one
   sentence, with any place they named, such as a spec's path. Its body is
   the question
   under `## Question`.
@@ -2426,6 +2481,42 @@ outside a run.
   repository's owner
 - **THEN** the agent tells the person the lesson, and opens no pull request
 
+### Requirement: An answer session's automatic reply is a verdict, not a person's answer
+
+When an agent reads, in reply to its question, a post from a person's
+answer session that starts with `Recorded answer: `, it SHALL check the
+place the post's `Recorded in: ` line names through filter 1, and act on
+it only as filter 1 counts it. It SHALL NOT log the post as a person's
+answer. When the post starts with `Inquisitor: ` and names filter 2, 3 or
+4, the agent SHALL take that filter's action, as if its own filter had
+stopped the question, and record its choice where that filter says.
+Neither post is a person's answer. The agent logs no miss for an
+`Inquisitor: ` post, since the answer session logged one. When filter 1
+does not count the place a `Recorded answer: ` post names, the agent
+treats the post as input, and its question stands.
+
+#### Scenario: A recorded answer is checked, not logged as the person's
+
+- **WHEN** an agent's question gets a reply starting `Recorded answer: `
+  whose `Recorded in: ` line names a `DECISIONS.md` on the repository's
+  default branch
+- **THEN** the agent reads that file through filter 1, acts on the
+  decision it holds, and logs no answer from the person
+
+#### Scenario: A recorded answer the asker cannot count is input
+
+- **WHEN** an agent's question gets a reply starting `Recorded answer: `
+  whose `Recorded in: ` line names a lore entry in a lore repository the
+  agent's configuration does not name
+- **THEN** the agent treats the reply as input, and its question stands
+
+#### Scenario: An Inquisitor reply is acted on as its filter
+
+- **WHEN** an agent's question gets a reply starting
+  `Inquisitor: filter 4`
+- **THEN** the agent chooses one option, and records what it chose and
+  why, as filter 4 says
+
 ### Requirement: A question that should not have been asked is logged as a miss
 
 When a person says a question did not need asking (it was already answered,
@@ -2439,7 +2530,9 @@ question, the filter that should have stopped it, and what the person
 said, written at the privacy of what the question concerns, as a logged
 answer is. A miss is logged whatever words the person uses; "that
 was obvious" is one way to say it. A question that got no
-log file gets no miss file either.
+log file gets no miss file either. An answer session logs its own misses
+as the `answer-session` spec's *The answer session logs its misses on the
+team's lore repository's questions branch* says.
 
 #### Scenario: "That was obvious" is logged against a filter
 
@@ -2487,8 +2580,10 @@ lesson from each pattern it finds, and send each lesson by its scope:
 - a lesson that holds for one person: an edit to that person's own agent
   memory or `CLAUDE.md`.
 
-The agent SHALL write a lesson bound for shared-skills in general terms,
-quoting no logged question or miss.
+A pattern among misses whose `filter` names an answer session's source
+is a lesson about how the answer session finds questions, sent by the same
+scopes. The agent SHALL write a lesson bound for shared-skills in general
+terms, quoting no logged question or miss.
 Nothing SHALL draft or send a lesson until a person asks for the review.
 
 #### Scenario: A lesson for everyone changes the skill
@@ -2504,6 +2599,13 @@ Nothing SHALL draft or send a lesson until a person asks for the review.
   private repository
 - **THEN** the lesson for shared-skills states the pattern in general terms,
   and quotes none of those questions
+
+#### Scenario: A pattern of source misses changes how questions are found
+
+- **WHEN** a review of the misses finds many logged against the answer
+  session's second source, each a reply that thanks the relay
+- **THEN** the agent drafts a lesson about how the answer session finds
+  replies to the relay, and sends it by its scope
 
 #### Scenario: A lesson for a team goes to its lore repository
 

@@ -11,8 +11,8 @@ are written down:
 - 11 to 15 and 31;
 - 32 to 35, 38 to 49 and 51 to 63, on 2026-10-19;
 - 64 to 78, 80 to 85, 87 to 98, 100 to 106, 108 to 110, 112 to 124,
-  126 to 129, 131 to 142, 144 to 151, 152 to 169 and 176 to 180, on
-  2026-10-20.
+  126 to 129, 131 to 142, 144 to 151, 152 to 169, 176 to 180 and 184 to
+  196, on 2026-10-20.
 
 He gave those of 2026-10-19 and 2026-10-20 while reviewing this pull
 request, [#25](https://github.com/adamstallard/shared-skills/pull/25), whose
@@ -22,8 +22,10 @@ decisions this change proposed itself: 16 to 30, 36, 37, 50, 79, 86, 99,
 with what he did. He changed 26, replaced 36 with his decision 42,
 confirmed 79 only in part, replaced 107's item 6 with his decision 108,
 and added his decision 109 to 107's item 5. He confirmed the rest.
-Decisions 170 to 175, which this change proposed while writing the answer
-session's requirements, and 181 to 183, wait for him.
+He confirmed 170 to 174, which this change proposed while writing the
+answer session's requirements, and confirmed 175 item by item, changing
+items 2 and 16 (decisions 185 and 193). Decisions 181 to 183 and 197 to
+203 wait for him.
 
 1. **Four filters run before any question reaches a person.**
    1. **Already answered:** the agent finds the earlier answer, cites where it
@@ -1098,6 +1100,100 @@ recorded here where this change touches them:
      show none for every entry only Igors cited. When at least one Igor
      push succeeded, each count stays a lower bound (decision 98).
 
+Adam gave 184 to 196 on 2026-10-20, answering the nine questions this
+change had left him about the answer session and adding three rules to
+it:
+
+184. **A relayed answer counts as the person's own for filter 1.** A
+     GitHub comment that starts with `User says: `, whose author is a
+     GitHub App that GitHub reports as owned by the person's account,
+     counts as that person's comment wherever filter 1 reads who wrote a
+     comment. That is what lets decision 78 prove `answered_by` for an
+     answer relayed on GitHub, and what lets an Igor log a person's
+     answer to its handback with `authority: decision` (decision 149). It
+     holds because only the answer session makes a `User says: ` post,
+     and only on the person's confirmation (decision 193). This replaces
+     the reading under which a relayed answer was only input. Task 0.21
+     measures that GitHub reports an App's owner for a comment; until it
+     does, a relayed answer stays input.
+185. **On Discord, one `discord-bot` identity both reads and relays.** The
+     bot reads and posts in the channels it has been added to. There is
+     no separate identity for reading, and no `read` key. A Discord user
+     account can't be automated within Discord's terms, so this is the
+     one surface the answer session reads with a bot. This amends
+     decision 159 for Discord, and replaces decision 175's item 2 there.
+186. **The person's Linear API key lives in the system keychain,** as
+     decision 175's item 2 has it.
+187. **A failed relay check turns off only that channel,** not its whole
+     surface. A check of the identity itself, such as its skill's own
+     check or, on Discord, reading message content, concerns every
+     channel of its surface, so when it fails each of them is off. This
+     amends decision 155.
+188. **A second `/answer` opens nothing while another session holds the
+     lock.** It says which session holds it, by name and whether it is a
+     Claude Code background session, says how to reach that session, and
+     offers to take over. This is what decision 162's "attach" means.
+189. **A Linear issue assigned to the person counts as a question,** as an
+     assigned GitHub issue does. This amends decision 156's third source.
+190. **A question's discussion record is deleted once the question is
+     answered,** so decision 161 does not amend decision 32: the state
+     folder holds a discussion only while its question is open.
+191. **The Discord relay needs Discord's Message Content intent,** as
+     decision 175's item 17 says, and shared-skills PR #1's README, the
+     `discord-bot` skill's, should say how to turn it on. That is PR #1's
+     to add.
+192. **A handback question reaches the person only through an
+     assignment.** An Igor worker's handback comment tags no one, so its
+     question is shown only when its item is assigned to the person.
+193. **Only the prefix is reserved.** A relay identity may be used for
+     other work, but a post that starts with `User says: ` or
+     `User asks: ` is made only by the answer session, on the person's
+     confirmation. Decisions 195 and 196 reserve `Recorded answer: ` and
+     `Inquisitor: ` the same way, for the posts the answer session makes
+     by itself. This replaces decision 175's item 16.
+194. **The person can decline to answer.** On any open question they can
+     choose not to answer. Nothing is posted. They give one of three
+     reasons:
+     1. **The conversation is over.** The question closes, and later
+        replies in its thread stop counting as questions unless they
+        mention the person or the relay.
+     2. **Not a real question.** The question closes, and a lesson
+        candidate is logged against how the answer session found it,
+        meaning its sources of questions, for the review of misses.
+     3. **It doesn't need a human:** one of filters 1 to 4 should have
+        stopped it. The question closes and is logged as a miss in this
+        change's miss format. The session's model then asks the person
+        which filter should have stopped it, and why, and their answer is
+        the miss's record of what they said.
+
+     Declining is kept per machine, as setting a question aside for later
+     is: it does not reach the person's other machines.
+195. **The answer session runs filter 1 on every incoming question,**
+     whether a person or an agent asked it, before showing it. When an
+     answer with authority is recorded, the answer session answers by
+     itself: it posts through the relay, starting `Recorded answer: ` and
+     giving where the answer is recorded, never starting `User says: `.
+     The question is listed for the person as answered for them, and they
+     can edit that post as any relay post.
+196. **The answer session judges every incoming question by filters 2 to
+     4 too.** When a question clearly fails one of them:
+     - for an agent's question, the answer session replies by itself
+       through the relay, starting `Inquisitor: ` and naming the filter,
+       with that filter's action: under filter 2, carry on without an
+       answer, list the question as not done, and file an issue if it
+       outlives the work; under filter 3, take the option that has merit
+       and record it; under filter 4, pick one and record what and why. A
+       rhetorical question gets no reply. The answer session also logs a
+       miss against that filter, and lists the question for the person as
+       handled for them;
+     - for a person's question, it only shows the person its suggested
+       verdict, and the person decides.
+
+     Any unclear case goes to the person. No post the answer session makes
+     by itself is presented as the person's words, and each can be edited.
+     `Recorded answer: ` and `Inquisitor: ` are reserved as `User says: `
+     is (decision 193).
+
 ### Proposed by this change
 
 Decisions 16 to 18 are #211's proposals that apply to the skill; #211's
@@ -1106,8 +1202,10 @@ needed to write the requirements. Reviewing #25, Adam confirmed 16
 to 30, 37 and 50, except 26, which he changed; his decision 42 replaced 36.
 His decision 32 replaced part of 19, and his decision 35 part of 18. The
 later decisions 79, 86, 99, 107, 111, 125, 130 and 143 came from this change too,
-and each says what Adam did with it. Decisions 170 to 175 and 181 to 183
-also came from this change, and wait for him.
+and each says what Adam did with it. Decisions 170 to 175 also came from
+this change, and Adam confirmed them, with the changes 175 notes.
+Decisions 181 to 183 and 197 to 203 came from this change too, and wait
+for him.
 
 16. **Confirmed by Adam (2026-10-19).** **A prepared question** states the recommended answer, what changes under
     the other answer, and a link to any related earlier decision, so that most
@@ -1400,10 +1498,9 @@ option with merit without asking, and listed it; Adam confirmed it:
      the work needs the answer, and reports the question in its output.
 
 Decisions 170 to 175 came from writing the answer session's requirements,
-from Adam's decisions 152 to 169. Each is this change's own, and waits for
-Adam:
+from Adam's decisions 152 to 169. Adam confirmed each on 2026-10-20:
 
-170. **A relay post is the person's words, so it gets no prose pass and
+170. **Confirmed by Adam (2026-10-20).** **A relay post is the person's words, so it gets no prose pass and
      no vetting.** The answer session posts it by running the relay
      identity's skill as a command on the host itself, through the mod's
      own process call, not as a tool call of the session's model. The post
@@ -1411,11 +1508,13 @@ Adam:
      sees it. A prose rewrite would post words the person did not confirm,
      and the inquisitor's filters guard a person's time against an agent's
      questions, not the person's own. This change took it under filter 3.
-171. **A relay post that asks the asker starts with `User asks: `,** where
-     an answer starts with `User says: `. Decision 160 reads "waiting for
+171. **Confirmed by Adam (2026-10-20).** **A relay post that asks the
+     asker starts with `User asks: `,** where an answer starts with
+     `User says: `. "User" is literal in both prefixes, never the person's
+     name. Decision 160 reads "waiting for
      the asker" from the thread, which needs a mark that every machine, and
      every surface, can read there. This change took it under filter 4.
-172. **The asker, not the answer session, logs a rephrased answer.** The
+172. **Confirmed by Adam (2026-10-20).** **The asker, not the answer session, logs a rephrased answer.** The
      session's model drafts the rephrased question and the one-sentence
      summary at the privacy of what the question concerns, generalising or
      leaving out more private context, as decision 33 says, and nothing is
@@ -1429,28 +1528,30 @@ Adam:
      *Rejected:* new frontmatter keys, since every frontmatter value is one
      quoted line and a question's text is not. This change took it under
      filter 4.
-173. **A question from a lore repository's questions branch is answered
+173. **Confirmed by Adam (2026-10-20).** **A question from a lore repository's questions branch is answered
      by pushing a new log file there,** holding the question and the
      answer, under the rules for an answer the person gave in the session
      (decisions 94 and 140). Such a file has no thread to relay to, and
      the questions branch never changes a file once pushed. Asking the
      asker and editing are not offered for it. This change took it under
      filter 3.
-174. **In an answer session's discussion, the model may ask the person in
+174. **Confirmed by Adam (2026-10-20).** **In an answer session's discussion, the model may ask the person in
      its reply.** The inquisitor's rule that an agent asks only through the
      picker gains this one exception, and such a question passes none of
      the four filters and needs no vetting. The person opened the conversation to
      talk the question through, and a picker would hide the answer
      session's screen. This change took it under filter 3.
-175. **Details the spec fixes,** each cheap to reverse, taken under
-     filter 4:
+175. **Confirmed by Adam (2026-10-20), item by item, with items 2 and 16
+     changed as noted.** **Details the spec fixes,** each cheap to
+     reverse, taken under filter 4:
      1. The configuration's keys: `answer_session`, holding `github`,
         `linear` and `discord`, each with `relay` and `subscriptions`, and
-        on Discord also `user`, the person's Discord user id, and
-        `read`.
-     2. The person's Linear API key is kept in the system keychain. On
-        Discord the answer session reads with a `discord-bot` identity
-        named in `read`, never the relay.
+        on Discord also `user`, the person's Discord user id. Item 2's
+        change dropped the `read` key this item first had.
+     2. *Changed by Adam's decisions 185 and 186.* The person's Linear API
+        key is kept in the system keychain. On Discord one `discord-bot`
+        identity, the relay, both reads and posts. This item first had a
+        second identity, named in a `read` key, for reading.
      3. `answer` is installed as `~/.local/bin/answer`. Setup never
         overwrites a file there that it did not write.
      4. The lock is refreshed at least every 30 seconds, and stale after 2
@@ -1474,7 +1575,8 @@ Adam:
      10. Every reply to any relay post is a new question, whether that
          relay post was an answer or a question to the asker. So is the
          asker's next comment after a relay post in a GitHub
-         conversation.
+         conversation. Adam confirmed it together with decision 194's
+         first reason, which ends a thread's new questions.
      11. A questions-branch file whose question has the same hash as one
          shown from a thread is not shown again.
      12. Until task 0.15 shows that GitHub's notifications endpoint reports
@@ -1488,9 +1590,14 @@ Adam:
      15. A relay post is scanned for the credential patterns, and its
          command runs with no shell, its text in a file or on standard
          input.
-     16. A relay identity is used for nothing but the answer session.
-     17. The Discord `read` identity must be able to read message content,
-         which needs Discord's privileged Message Content intent.
+     16. *Replaced by Adam's decision 193.* Only the prefix is reserved: a
+         relay identity may be used for other work, but a post starting
+         `User says: ` or `User asks: ` is made only by the answer
+         session, on the person's confirmation. This item first kept a
+         relay identity for nothing but the answer session.
+     17. The Discord relay must be able to read message content, which
+         needs Discord's privileged Message Content intent (decision
+         191).
 
 Decisions 181 to 183 came from spec-check's consistency read of commit
 041822a, which found rules that design.md applied and no decision recorded.
@@ -1541,54 +1648,138 @@ Each is this change's own, and waits for Adam:
         publishes an artifact logs the question there, holding its answer
         once a person has given one.
 
+Decisions 197 to 203 came from writing Adam's decisions 184 to 196 into
+the answer session's requirements. Each is this change's own, and waits
+for Adam:
+
+197. **A miss the answer session logs goes to the questions branch of the
+     team's lore repository,** pushed directly by the script, as decision
+     173's answers are. Its `repository` is the repository the question
+     concerns, which the session's model judges as the inquisitor's spec
+     has an agent judge it; on GitHub it is the thread's repository when
+     the model can't tell. No miss file is written when the question has a
+     category; when it concerns no repository; when no configured lore
+     repository serves that repository; or when the lore repository is
+     more visible than that repository or than the question's thread (on
+     Linear and Discord, unless the lore repository is private). The
+     answer session then says so, and the question still closes. A miss
+     whose question and `filter` match a miss file already on that branch
+     is not pushed again, so a question judged on two machines gives one
+     miss. The inquisitor's rule that a question with no log file gets no
+     miss file does not apply here, since the answer session can't see
+     whether the asker logged the question. *Rejected:* writing the miss
+     where the asker's log file went, which the answer session can't
+     know, often an unmerged branch, and which would take a pull request
+     for each miss. *Rejected:* the state folder, which would be the
+     personal question log decision 32 rules out. This change took it
+     under filter 3.
+198. **A lesson candidate about how the answer session found a message is
+     a miss file whose `filter` is `"source <n>"`,** where `<n>` is the
+     number, 1 to 4, of the source that found it, and whose `said` is
+     `not a real question`. It goes where decision 197 sends any miss of
+     the answer session's, so the review of misses reads it with the
+     rest, and the format gains no key. A pattern among such misses is a
+     lesson about the answer session's sources, sent by the scope rules
+     every lesson follows. A miss the answer session logs by itself, under
+     decision 196, has `said` set to `answer session: clearly filter <n>`,
+     so a review can tell the session's judgement from a person's word.
+     This change took it under filter 4.
+199. **An agent's question is one whose author is a bot account,** such as
+     a GitHub App, a Linear app user, or a Discord bot or webhook, or a
+     log file from a questions branch, which only the inquisitor's script
+     writes. Every other question counts as a person's, including an
+     agent's posted with a person's own credentials, which the answer
+     session can't tell apart. Erring that way keeps the posts decision
+     196 makes by itself off people's questions. This change took it
+     under filter 3.
+200. **What the answer session posts by itself:**
+     1. A recorded answer is posted as `Recorded answer: <the log file's
+        answer line>`, or `Recorded answer: see the record below.` when
+        the record is not a log file, then a line `Recorded in: <URL>`
+        holding filter 1's hit, then, on GitHub, the `Re: ` line every
+        relay post ends with.
+     2. An `Inquisitor: ` post is a fixed text for each of filters 2, 3
+        and 4, which names the filter and gives its action.
+
+     The session's model writes no word of an automatic post, so a
+     thread's text, which reaches the model, can at worst choose which
+     fixed reply or which record is posted. Since the text is fixed or
+     quoted from a record, an automatic post gets no prose pass and no
+     vetting, as a relay post of the person's words does (decision 170).
+     *Rejected:* a recorded answer in a sentence the model writes, which a
+     crafted thread could steer.
+     3. The answer session posts by itself only on a question with a
+        thread. On a question from a questions branch it shows the
+        recorded answer or the verdict to the person instead.
+     4. It posts a recorded answer by itself only when the record is no
+        more private than the question's thread: on GitHub, when the
+        record's repository is no more visible than the thread's; on
+        Linear and Discord, only when the record's repository is public.
+        Otherwise it shows the recorded answer to the person beside the
+        question, for them to relay or not.
+     5. When a lore entry is the recorded answer, it pushes a citation
+        file, as any session's filter 1 does.
+
+     This change took it under filter 3.
+201. **Editing a post the answer session made by itself makes it the
+     person's words:** the edited post starts with `User says: ` in place
+     of `Recorded answer: ` or `Inquisitor: `, since the person confirmed
+     its new text. This change took it under filter 4.
+202. **Details the spec fixes,** each cheap to reverse, taken under
+     filter 4:
+     1. A declined question, and a rhetorical question the answer session
+        handled with no reply, are kept closed in the state folder, per
+        machine.
+     2. Under decision 194's first reason, a mention means an explicit
+        @-mention in a reply's text. A Discord reply to the relay's
+        message without one counts as no mention. A review request or an
+        assignment made after the question closed is still a question.
+     3. A question's discussion record is deleted once it is closed, as
+        decision 190 has it for an answered question.
+     4. The model's question after the third reason is asked in its
+        reply, under decision 174's exception, and needs no vetting.
+     5. An agent that reads a reply starting `Recorded answer: ` checks
+        the place it names through filter 1, and does not log the reply
+        as the person's answer. An agent that reads a reply starting
+        `Inquisitor: ` takes that filter's action, and records its choice
+        as its own filter would have.
+     6. A reply to a post the answer session made by itself is a new
+        question, as a reply to any relay post is (decision 175's item
+        10), and is judged by the filters again, but the answer session
+        never answers it by itself: it goes to the person. That bounds an
+        exchange between an agent and the answer session to one automatic
+        post. When an asker's filter 1 can't count the place a recorded
+        answer names, the asker treats it as input, and its question
+        stands.
+     7. A question filter 1 answers by itself logs no miss. *Still open*
+        asks Adam whether an agent's should.
+     8. A log file's question is reduced as a post's question is, without
+        list marker or inline markup and with its whitespace joined,
+        before it is hashed, so decision 175's item 11 finds a question
+        logged from a thread. Before this, a log file's question was
+        hashed as written, and the two hashes could differ.
+     9. When a post fails, such as a Discord message over 2,000
+        characters, nothing is posted, the person is told why, and the
+        question keeps its state. An automatic post that fails sends its
+        question to the person.
+     10. A rhetorical question handled with no reply is recorded in the
+         state folder as handled for the person, on that machine.
+
+203. **The inquisitor's post hook blocks a tool-call post on GitHub that
+     starts with a reserved prefix.** The answer session posts through a
+     host command that no tool hook sees (decision 170), so a tool-call
+     post starting with `User says: `, `User asks: `, `Recorded answer: `
+     or `Inquisitor: ` is never the answer session's. Since a
+     `User says: ` comment from the person's App proves their answer
+     (decision 184), and the App may do other work (decision 193), this
+     check keeps an agent that holds the App from forging one through
+     `gh`. Nothing checks Linear or Discord, where a relayed answer proves
+     nothing. This change took it under filter 3.
+
 **Still open:**
 
-Decisions 170 to 175 and 181 to 183 wait for Adam. Nine questions from
-the answer session are his too, one about a vulnerability's regression
-test, and one about where an open-questions section ends:
-- **A relayed answer counts only as input to filter 1.** Decision 78
-  proves a logged answer's writer only when GitHub gives the linked
-  comment's author as `answered_by`, and a relay post's author is the relay
-  identity, not the person. So an answer relayed on GitHub stops no later
-  question until a decision document records it, and igor #216's rule
-  that an Igor logs a handback's answer with `authority: decision` never
-  applies to one. *Recommended:* treat a comment as the person's own when
-  its author is a GitHub App that GitHub gives as owned by that person, and
-  it starts with `User says: `. That holds only while the App posts for
-  nothing but the answer session (decision 175's item 16), which nothing
-  enforces.
-- **Reading Discord with a person's own account would break Discord's
-  terms,** which forbid automating a user account. The spec reads Discord
-  through a `discord-bot` identity named in `read` (decision 175's item
-  2). *Recommended:* confirm that a bot of the person's own, such as their
-  agent's, is what "their Discord identity" means.
-- **Where the person's Linear key lives** is not settled. *Recommended:*
-  the system keychain, as decision 175's item 2 has it.
-- **A failed relay check turns off its whole surface,** even when only one
-  channel fails. *Recommended:* keep that, as decision 155 says, until
-  the person has many channels on one surface.
-- **What "attach" does** is not settled. The spec says that the second
-  session opens no answer session and tells the person how to reach the
-  holder. *Recommended:* that, until Claude Code can switch to another
-  session from a command.
-- **Whether a Linear issue assigned to the person is a question,** as a
-  GitHub issue is. The spec counts GitHub's only, as decision 156 names
-  it. *Recommended:* count Linear's too.
-- **Discussion records under the home directory, against decision 32,**
-  which keeps no question log anywhere personal. The state folder holds
-  each discussed question's text and discussion. design.md argues that
-  this is working state, which filter 1 never searches, and not a log.
-  *Recommended:* confirm that decision 161 doesn't amend 32, and have a
-  question's discussion record deleted once its question is answered.
-- **Discord's Message Content intent.** The `read` identity sees the text
-  of a message that doesn't mention it only with that privileged intent
-  on, and PR #1's setup leaves every privileged intent off. *Recommended:*
-  turn it on for the `read` identity only, and have PR #1's README say how.
-- **A handback question reaches the answer session only through an
-  assignment.** An Igor worker's handback comment tags no one, so it is
-  shown only when its item is assigned to the person (source 3).
-  *Recommended:* keep that, since igor assigns a handed-back item to a
-  person.
+Decisions 181 to 183 and 197 to 203 wait for Adam, and so do four
+questions:
 - **A regression test in the advisory's private fork, if task 0.13 shows
   that the fork's pull request can be merged before publication.**
   Decision 108's item 4 lands the test in the fork. If that pull request
@@ -1607,13 +1798,32 @@ test, and one about where an open-questions section ends:
   every list up to that heading counts as questions, not only the list
   right after the line. *Recommended:* end a section begun by a colon line
   at the end of its first list.
+- **Whether an agent's question that filter 1 answers by itself is also a
+  miss.** Decision 196 logs a miss for each agent's question that filters
+  2 to 4 handle by themselves, and decision 195 says nothing of one for
+  filter 1. An agent that asks what is already recorded has missed filter
+  1 as surely. *Recommended:* log a miss against filter 1 for an agent's
+  question that filter 1 answers by itself, and none for a person's.
+- **Decision 194's second reason shares its name with filter 3.** "Not a
+  real question" is filter 3's name, for a question with fewer than two
+  options with merit, which the third reason covers. The second reason
+  means a message that asks the person nothing. *Recommended:* call the
+  second reason "not a question" in the spec and in the answer session's
+  wording, and leave filter 3's name as it is.
 
-Tasks 0.15 to 0.20 measure facts the answer session relies on: what
+Tasks 0.15 to 0.21 measure facts the answer session relies on: what
 GitHub's notifications endpoint reports, how Linear and Discord show
 mentions and replies, that a command the mod runs reaches no tool hook,
 that a mod keeps polling while its session is idle or in the
-background, and how setup checks a relay's access to each channel. Each
-task says what the spec does until it is measured.
+background, how setup checks a relay's access to each channel, and
+whether GitHub reports who owns the App that wrote a comment. Each task
+says what the spec does until it is measured.
+
+Declining to answer (decision 194), and the questions the answer session
+answered or handled for the person (decisions 195 and 196), need screens
+the prototype tagged `ui-approved` does not have. By decision 147 they are
+prototyped, not specified: task 6.9 has Adam approve them by using the
+prototype before gate two builds them.
 
 One more is his to make later: whether a
 question in a post's title should be vetted. The shared post reader
@@ -1632,7 +1842,10 @@ below on Igor-worker mode. The other items are changes elsewhere that this chang
 - igor PR #202, the scribe's records (decision 63);
 - igor PR #153, signed publishing (decision 124);
 - in bug-hunter, a rule for a vulnerability fix's regression test (decision
-  108).
+  108);
+- shared-skills PR #1, whose `discord-bot` README tells the person to
+  leave every privileged intent off, while the Discord relay needs the
+  Message Content intent (decision 191).
 
 The last item is a possible extension that this change does not plan.
 
@@ -1799,7 +2012,10 @@ agent asks it again.
   one person's memory.
 - An answer session gives a person one place to answer the questions asked
   of them on GitHub, Linear and Discord. A relay identity posts each answer
-  for them.
+  for them. The answer session runs the four filters on each incoming
+  question too: it answers what is already recorded, replies to an agent's
+  question that another filter clearly stops, and lets the person decline
+  a question, logging a miss where one is due.
 - shared-skills adopts OpenSpec, with spec-check's decisions-first rule and
   spec-trace's CI check.
 
@@ -1820,8 +2036,9 @@ team discussion.
 - `answer-session`: where a person answers the questions asked of them in
   the channels they subscribe to, each answer posted by a relay identity:
   its configuration and setup, the four sources of questions, polling,
-  relaying, editing, asking the asker, where its state lives, the lock, and
-  the session's model in a discussion.
+  relaying, editing, asking the asker, declining to answer, the filters
+  it runs on incoming questions, the misses it logs, where its state
+  lives, the lock, and the session's model in a discussion.
 
 ### Modified Capabilities
 

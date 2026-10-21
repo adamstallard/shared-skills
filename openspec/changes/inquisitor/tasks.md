@@ -68,7 +68,7 @@ contradicts what design.md assumed.
       message, once shared-skills PR #1 has merged. Reading the content
       of a message that doesn't mention the bot needs Discord's privileged
       Message Content intent, which PR #1's setup leaves off; record how
-      the `read` identity turns it on. If it can't read them, Discord
+      the relay identity turns it on. If it can't read them, Discord
       stays off and the README says so
 - [ ] 0.18 That a command the mod runs with `$.process.run`, the mod API's
       call that runs a host command, reaches no
@@ -87,8 +87,12 @@ contradicts what design.md assumed.
       installation's access to each subscribed repository itself. On
       Linear and Discord, record whether the skill's own check reads a
       team's or channel's permission, or setup must read it itself. Where
-      no check can, setup runs the skill's own check only, and a post the
-      surface refuses later turns that surface off
+      no check can, setup runs the skill's own check only, and a post a
+      channel refuses later turns that channel off
+- [ ] 0.21 That GitHub's API reports, for a comment, the GitHub App that
+      wrote it and the account that owns that App, as decision 184 needs.
+      Until it does, no comment counts as a relayed answer, and a
+      relayed answer is input
 
 ## 1. Shared post reader
 
@@ -261,26 +265,42 @@ contradicts what design.md assumed.
       instead of the prototype's made-up ones
 - [ ] 6.2 The `answer_session` section of `inquisitor.json`, and setup:
       the candidates, each relay check, saving the file with the person's
-      own keys kept, a failed surface left off and checked again at each
-      opening, the Linear key in the keychain, and `~/.local/bin/answer`
+      own keys kept, a failed identity's surface or a failed channel left
+      off and checked again at each opening, the Linear key in the
+      keychain, and `~/.local/bin/answer`
 - [ ] 6.3 Polling: the four sources, only while open, the catch-up on
       opening, 60 seconds or GitHub's `X-Poll-Interval`, conditional
       requests, poll positions, and the lore questions branches
-- [ ] 6.4 Relaying: `User says: ` and `User asks: ` posts through the
+- [ ] 6.4 Relaying: posts with the four reserved prefixes through the
       relay identity's skill as host commands, post ids, editing in place,
       the thread read before a question is shown and before each post, and
       a questions-branch question answered by a new log file
 - [ ] 6.5 State: the state folder, a question's state read from its
-      thread, the question on screen, and the lock with attach and take
-      over
+      thread, closed questions, discussion records deleted once their
+      question is answered or closed, the question on screen, and the lock,
+      which a second session reports and offers to take over
 - [ ] 6.6 The discussion's context, `propose_reply`, and the rephrased
       answer's post. SKILL.md tells an agent that records an answer from a
       relay post to log its rephrasing and summary
 - [ ] 6.7 prose's SKILL.md and `DECISIONS.md` say that a relay post is
-      the person's words and gets no prose pass (decision 170)
+      the person's words and gets no prose pass (decision 170), and that an
+      automatic post, whose text is fixed or quoted from a record, gets
+      none either (decision 200)
 - [ ] 6.8 Tests, each tagged `@scenario answer-session: <Scenario name>`,
       and the README's section on the answer session: setup, the `answer`
-      command, and what to do when a relay check fails
+      command, what to do when a relay check fails, and that no post but
+      the answer session's starts with a reserved prefix
+- [ ] 6.9 Prototype declining a question, with its three reasons, and the
+      list of questions answered and handled for the person, in
+      `~/answer-session-prototype`, until Adam approves them by using it
+      (decision 147). 6.1 builds from the tag of that approval
+- [ ] 6.10 Filter 1 on every incoming question and the `Recorded answer: `
+      post; filters 2 to 4 and the three fixed `Inquisitor: ` texts;
+      declining with its three reasons; the misses on the questions
+      branch, with `filter: "source <n>"` for the second reason, and no
+      second miss for the same question; the post hook's block of a
+      tool-call post that starts with a reserved prefix (decision 203). SKILL.md tells an agent how to
+      act on a `Recorded answer: ` or `Inquisitor: ` reply
 
 ## 7. Archive
 

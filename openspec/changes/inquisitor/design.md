@@ -405,8 +405,8 @@ section, `answer_session`, whose keys the `answer-session` spec defines:
   "answer_session": {
     "github": {"relay": "adam-relay", "subscriptions": ["adamstallard", "BrightID/aura"]},
     "linear": {"relay": "adam-relay", "subscriptions": ["ENG"]},
-    "discord": {"relay": "adam-relay", "read": "aura-agent-adam",
-                "user": "123456789012345678", "subscriptions": ["987654321098765432"]}
+    "discord": {"relay": "adam-relay", "user": "123456789012345678",
+                "subscriptions": ["987654321098765432"]}
   }
 }
 ```
@@ -543,7 +543,7 @@ Its interface is a Claude Code mod that Adam approved by using its
 prototype (proposal decision 152). By decision 147, a UI approved that way
 is not specified, so nothing here describes how it looks.
 The rules are in the `answer-session` spec, the decisions in proposal
-decisions 152 to 175.
+decisions 152 to 175 and 184 to 203.
 
 ### Polling while open, with the person's credentials
 
@@ -560,16 +560,23 @@ the relay in a thread the person was never subscribed to would be missed;
 task 0.15 measures what the endpoint reports, and until then the answer
 session also reads each subscribed repository's comments.
 
-Reading uses the person's own credentials, and a relay identity only posts
-(decision 159). A relay's token then needs only the right to post, and
-nothing the person reads is read under the bot's name. A relay identity
-also posts for nothing but the answer session (decision 175's item 16).
-Anything that holds the relay identity can post `User says: `, which marks
-a question answered on every machine, so no agent may use it for its own
-work. The skill's instructions say so, and nothing enforces it. On Discord a
-user account can't be automated within Discord's terms, so the spec reads
-Discord with a `discord-bot` identity of the person's own, named in the
-`read` key of the configuration's Discord object; *Still open* in the proposal asks Adam to confirm that.
+Reading uses the person's own credentials on GitHub and Linear, and there a
+relay identity only posts (decision 159). A relay's token then needs only
+the right to post, and nothing the person reads is read under the bot's
+name. On Discord a user account can't be automated within Discord's terms,
+so one `discord-bot` identity, the relay, both reads and posts, in the
+channels it has been added to (decision 185). Reading a message that
+doesn't mention it needs Discord's privileged Message Content intent
+(decision 191), which shared-skills PR #1's setup leaves off.
+
+A relay identity may do other work, but only the answer session starts a
+post with one of the four reserved prefixes (decision 193). Anything that
+holds the relay identity could post `User says: `, which marks a question
+answered on every machine and, on GitHub, counts as the person's own
+answer to filter 1. The skill's instructions reserve the prefixes. On
+GitHub the inquisitor's post hook blocks a tool-call post that starts with
+one (decision 203), which never blocks the answer session, whose posts
+reach no tool hook. Nothing enforces it on Linear or Discord.
 
 ### The thread is the record
 
@@ -579,7 +586,13 @@ machine, and the asker, can read. A crash between a successful post and the
 write of its id to local state loses nothing: the next read of the thread
 finds the post and marks the question answered. A post that asks the asker
 starts with `User asks: ` instead of `User says: ` (decision 171), so
-"waiting for the asker" can be read from the thread too. The thread is read
+"waiting for the asker" can be read from the thread too. The two prefixes
+of the posts the answer session makes by itself, `Recorded answer: ` and
+`Inquisitor: `, mark a question answered or handled for the person, the
+same way, on every machine (decisions 195 and 196). A question the person
+declines is closed in the state folder only (decision 194): nothing is
+posted, so nothing in the thread can say so, and another machine shows it
+as open. The thread is read
 again before a question is shown, when its poll is over a minute old, and
 before each post, so an answer relayed from another machine is never posted
 twice.
@@ -593,8 +606,10 @@ question log: a copy of a question's record kept where only one person
 would find it, instead of with what the question concerns. The state folder replaces
 no such record: the asker's log file and the thread stay the records, and
 filter 1 never reads the folder. It does hold each discussed question's
-text under the home directory, which the proposal's *Still open* puts to
-Adam. It is kept per
+text under the home directory, but only while the question is open: a
+discussion record is deleted once its question is answered or closed
+(decisions 190 and 202), so it never becomes a record. Adam ruled that
+decision 161 does not amend 32 on that condition. It is kept per
 machine; a question set aside on one machine shows as new on another,
 which costs a second look and nothing else.
 
@@ -645,11 +660,53 @@ that branch, as any session does for an answer the person gave in it
 (decision 173). Asking the asker and editing are not offered for such a
 question.
 
-A relayed answer counts only as input to filter 1: a later agent is shown
-it as `authority: input`, and it stops no question. That is because
-decision 78 proves a logged answer's writer only when GitHub gives the linked comment's author
-as `answered_by`, and a relay post's author is the relay identity.
-*Still open* in the proposal puts this to Adam, with a recommendation.
+A relayed answer counts as the person's own for filter 1 (decision 184).
+Decision 78 proves a logged answer's writer only when GitHub gives the
+linked comment's author as `answered_by`, and a relay post's author is
+the relay identity, so without this a relayed answer would only be input,
+and an Igor could never log a handback's relayed answer as a decision
+(decision 149). If GitHub reports the App behind a comment and the
+account that owns that App, which task 0.21 measures, a `User says: `
+comment from an App the person owns is tied to the person as firmly as
+the App is; until it is measured, a relayed answer is input. The tie
+holds only because the prefix is reserved (decisions 193 and 203): an
+agent holding the same App that posted `User says: ` by some way the post
+hook does not see would forge the person's answer.
+A relay post on Linear or Discord stays input, as any answer given off
+GitHub does (decision 109).
+
+### What the answer session does by itself
+
+The answer session runs filter 1 on every incoming question, and judges
+the rest by filters 2 to 4 (decisions 195 and 196), so the person sees
+only what needs them. Posting without the person raises two risks, and
+the spec answers each:
+
+- **A thread's text reaches the model that judges it.** The model writes
+  no word of an automatic post: an `Inquisitor: ` post is one of three
+  fixed texts, and a recorded answer quotes a log file's answer line or
+  points to filter 1's hit (decision 200). So a crafted question can at
+  worst choose which canned reply or which record is posted, and a reply
+  to an automatic post always goes to the person (decision 202), so no
+  exchange runs on without them. Only an agent's
+  question gets an `Inquisitor: ` reply, and a question counts as an
+  agent's only when its author is a bot account (decision 199), so a
+  person never gets a reply nobody wrote.
+- **A record can be more private than the thread.** A recorded answer is
+  posted by itself only when its record is no more private than the
+  thread; otherwise the person sees it and decides (decision 200).
+
+Every automatic post can be edited, and an edit makes it the person's
+words, starting `User says: ` (decision 201).
+
+The misses the answer session logs, when the person declines a question
+that didn't need them or when filters 2 to 4 handle an agent's question,
+go to the questions branch of the team's lore repository (decision 197).
+The answer session can't see where the asker logged the question, which
+is often an unmerged branch, and the questions branch takes a direct push,
+so no miss needs a pull request. A miss against how the answer session
+found a message that asks nothing has `filter: "source <n>"` (decision
+198), so the review of misses finds it with the rest.
 
 ### The session's model
 
