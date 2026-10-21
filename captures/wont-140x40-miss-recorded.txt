@@ -1,0 +1,40 @@
+
+⏺ Which filter should have stopped this? My guess is filter 1, already answered: decision 3 on #216 already made scope a hard filter, and
+  question files should follow the same rule as lore entries. If it was really filter 3 (only one option has merit), or something else, tell
+  me.
+
+⏺ Ran 1 stop hook
+  ⎿  Stop hook error: Failed with non-blocking status code: /bin/sh:
+  /Users/adam/shared-skills/.agents/skills/worktrees/scripts/worktree-sweep.py: No such file or directory
+
+✻ Cooked for 2s · done 7:39 PM
+
+❯ 1: decision 3 already makes scope a hard filter for what a worker reads
+
+⏺ Recorded: filter 1, because decision 3 already makes scope a hard filter on everything a worker reads.
+
+⏺ Ran 1 stop hook
+  ⎿  Stop hook error: Failed with non-blocking status code: /bin/sh:
+  /Users/adam/shared-skills/.agents/skills/worktrees/scripts/worktree-sweep.py: No such file or directory
+
+✻ Cogitated for 1s · done 7:39 PM
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── [-]
+Answer session  ⊘ ◉ ○ ○ ◎ ○ ○ ○ ◈  summary  2 of 9 · 6 new · 0 relayed · 0 for later · 1 won't answer · 2 done for you          v0.1-28
+Linear  ENG-412 · Onboarding flag  22m ago                     │ SUGGESTED Looks cheap to reverse · the inquisitor's filter 4
+Maya Ortiz asks                                                │ The flag switches off in minutes, so either choice is easy to undo.
+                                                               │   (a)gree: pick one, it's cheap to switch
+                                                               │
+Can we ship the onboarding flag to 10% on Friday, or should we │
+wait for the metrics review on Monday?                         │   Reply to Maya Ortiz: type it in the prompt box
+                                                               │
+                                                               │
+QA signed off this morning, and the flag switches off in       │
+minutes. Waiting for the review adds three days.               │
+                                                               │
+                                                               │
+(h)elp me answer   (a)gree   (w)on't answer   (l)ater   ✓ Won't answer claude's question: it doesn't need a…   (b)ack   (n)ext   (q)uit
+                                                                                                  Stop hook error occurred · ctrl+o to see
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────── answer-session-prototype ─
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on (shift+tab to cycle) · ← 2 agents · a key or your answer, then ⏎ · 5h 14% ⇣ 9:30p · 7d 57% Sat 2a

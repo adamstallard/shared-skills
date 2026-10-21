@@ -1,0 +1,40 @@
+
+ ▐▛███▛█   Claude Code v2.1.306
+▝▜██████▀  Opus 5.5 · Claude Max
+ ▝▝   ▝▝   ~/shared-skills
+
+⚠ Ask rule Advisor matches no tool · check for typos
+
+❯ /answer
+  ⎿  answer-session: Answer session open: type in the prompt box, Enter answers. 1 answered and 1 handled for you: see the summary.
+
+
+
+
+
+
+
+
+
+
+
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── [-]
+Answer session  ○ ○ ○ ○ ◎ ○ ○ ○ ◈  summary  7 new · 0 relayed · 0 for later · 2 done for you                                    v0.1-28
+7 questions still new
+0 of 9 relayed this session · 1 answered for you · 1 handled for you
+
+◎ jlee           adamstallard/igor #216  │ Recorded answer: See decision 10 in #216: the run id links to the run's ledger row, which a…
+◈ Igor (worker)  #igor-dev               │ Inquisitor: Filter 4 (cheap to reverse): pick one, it's cheap to switch.
+
+
+
+
+
+
+
+                                                                                                               (b)ack   (n)ext   (q)uit
+                                                                                                                        ◐ medium · /effort
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────── answer-session-prototype ─
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on (shift+tab to cycle) · ← 2 agents · a key or your answer, then ⏎ · 5h 14% ⇣ 9:30p · 7d 57% Sat 2a

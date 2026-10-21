@@ -129,7 +129,7 @@ for (const surface of SURFACES) {
     expect(await ui.find({ type: 'Text', text: /Relayed to GitHub/ })).toBeDefined()
 
     // Back to the first: it now shows what was relayed.
-    expect(await s.enter($, 'b')).toBe('Question 1 of 8')
+    expect(await s.enter($, 'b')).toBe('Question 1 of 9')
     await ui.redraw()
     expect(await ui.find({ type: 'Text', text: /RELAYED ON GITHUB AS/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /No, show them as input/ })).toBeDefined()
@@ -156,8 +156,10 @@ test('putting one off for later and relaying the rest ends on the summary', asyn
   await s.open($)
   const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
   expect(await s.enter($, 'l')).toContain('comes back after the new ones')
-  // The rest in queue order: a person's gets words, an agent's its first option.
-  for (const text of ['ok', '1', '1', 'ok', '1', 'ok', '1']) expect(await s.enter($, text)).toContain('Relayed')
+  // The rest in queue order: a person's gets words, an agent's its first
+  // option. jlee's was answered for Adam and the last handled for him: the
+  // queue passes them by.
+  for (const text of ['ok', '1', '1', '1', 'ok', '1']) expect(await s.enter($, text)).toContain('Relayed')
   await ui.redraw()
   expect(await ui.find({ type: 'Text', text: /Nothing new\. 1 for later\./ })).toBeDefined()
   await s.enter($, 'r')
@@ -173,12 +175,12 @@ test("after Enter the box is left to the engine's put-back, and a citation lands
   await s.clock.advance(1_000)
   // No put-back came: an empty box is left alone.
   expect(s.filled).toEqual([])
-  // Walk to jlee's question, which a decision may already answer; c cites it.
-  for (let i = 0; i < 8 && !((await s.enter($, 'n')) ?? '').startsWith('Question 5'); i++);
+  // Walk to Sam's question, which the runbook may already answer; c cites it.
+  for (let i = 0; i < 9 && !((await s.enter($, 'n')) ?? '').startsWith('Question 7'); i++);
   expect(await s.enter($, 'c')).toContain('citing reply')
   expect(s.filled).toEqual([])
   await s.clock.advance(1_000)
-  expect(s.filled).toEqual(["See decision 10 in #216: the run id links to the run's ledger row, which an item number cannot."])
+  expect(s.filled).toEqual(['The runbook has staging follow prod freezes, so yes: hold staging deploys until the migration finishes.'])
 })
 
 test('a relayed answer can be edited: e puts it in the box, Enter updates the post, k keeps it', async ($, on) => {
@@ -285,7 +287,7 @@ test('a new session shows nothing until /answer', async ($, on) => {
 test('q, the close button and /answer close the band; /answer opens it again where it was', async ($, on) => {
   const s = answerSession(on)
   await s.open($)
-  expect(await s.enter($, 'n')).toBe('Question 2 of 8')
+  expect(await s.enter($, 'n')).toBe('Question 2 of 9')
   expect(await s.enter($, 'q')).toContain('Answer session closed')
   expect(await isShown($)).toBe(false)
   // Closed, a prompt reaches the model again.
@@ -294,7 +296,7 @@ test('q, the close button and /answer close the band; /answer opens it again whe
 
   await slash($, 'answer')
   const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
-  expect(await ui.find({ type: 'Text', text: /2 of 8/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /2 of 9/ })).toBeDefined()
   await ui.press({ key: 'cmd:q' })
   await ui.unmount()
   expect(await isShown($)).toBe(false)
@@ -311,12 +313,12 @@ test('a click on a dot opens that question; on summary, the summary; a summary r
   await ui.press({ key: 'dot:3' })
   await ui.redraw()
   expect(await ui.find({ type: 'Text', text: /Two lore entries disagree/ })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /4 of 8/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /4 of 9/ })).toBeDefined()
   // Enter acts on the question the dot opened.
   expect(await s.enter($, '2')).toContain('Relayed to Discord')
   await ui.press({ key: 'dot:summary' })
   await ui.redraw()
-  expect(await ui.find({ type: 'Text', text: /7 questions still new/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /6 questions still new/ })).toBeDefined()
   await ui.press({ key: 'sum:lore-backoff' })
   await ui.redraw()
   expect(await ui.find({ type: 'Text', text: /RELAYED ON DISCORD AS/ })).toBeDefined()
@@ -356,7 +358,7 @@ test('a click on an option puts its number in the box; Enter relays it', async (
   expect(await s.enter($, '1')).toContain('Relayed to GitHub')
   await ui.redraw()
   expect(await ui.find({ type: 'Text', text: /Reply to Maya Ortiz/ })).toBeDefined()
-  expect(await s.enter($, 'b')).toBe('Question 1 of 8')
+  expect(await s.enter($, 'b')).toBe('Question 1 of 9')
   await ui.redraw()
   expect(await ui.find({ type: 'Text', text: /Yes, filter them by the role's scope/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /RELAYED ON GITHUB AS/ })).toBeDefined()
@@ -400,7 +402,7 @@ test('a survey takes the band, and Enter answers nothing while it is up', async 
   expect(await s.enter($, '1')).toContain('A survey is above the prompt')
   await survey.unmount()
   const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
-  expect(await ui.find({ type: 'Text', text: /1 of 8/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /1 of 9/ })).toBeDefined()
   expect(await s.enter($, '1')).toContain('Relayed to GitHub')
   expect(s.sent).toEqual([])
   await ui.unmount()
@@ -503,8 +505,8 @@ test('rephrasing reads the discussion as it happened in the session, and keeps t
   expect(prompts[0]).toContain('You: It asks whether out-of-scope question files are hidden.')
   expect(await ui.find({ type: 'Text', text: /leave out questions-branch files/ })).toBeDefined()
   expect(await ui.find({ key: 'opt:igor-216-scope:0' })).toBeDefined()
-  // Same place in the queue: 1 of 8.
-  expect(await ui.find({ type: 'Text', text: /1 of 8/ })).toBeDefined()
+  // Same place in the queue: 1 of 9.
+  expect(await ui.find({ type: 'Text', text: /1 of 9/ })).toBeDefined()
 
   await s.enter($, 'o')
   await ui.redraw()
@@ -630,7 +632,7 @@ test('after the restart the band reopens by itself where it was', async ($, on) 
   await $.session.start({ cwd: '/work', surface: 'terminal', isInteractive: true })
   expect(store.has('reopen-after-restart')).toBe(false)
   const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
-  expect(await ui.find({ type: 'Text', text: /3 of 8/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /3 of 9/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /1 relayed/ })).toBeDefined()
   await ui.unmount()
 })
@@ -669,4 +671,238 @@ test('typing /tui fullscreen with the session open keeps it too; with it closed,
   await slash($, 'answer')
   await $.command.run(typed)
   expect(store.has('reopen-after-restart')).toBe(false)
+})
+
+test("(w)on't answer offers three reasons; going back cancels; reason 1 records it, posts nothing and moves on", async ($, on) => {
+  const s = answerSession(on)
+  await s.open($)
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await s.enter($, 'w')).toContain('choose why')
+  await ui.redraw()
+  expect(await ui.find({ type: 'Text', text: /WON'T ANSWER · CHOOSE WHY · NOTHING IS POSTED/ })).toBeDefined()
+  for (const why of [/The conversation is over/, /Not a real question/, /Doesn't need a human/]) expect(await ui.find({ type: 'Text', text: why })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /The real skill ends the thread: later replies there stop/ })).toBeDefined()
+  // Before a reason is chosen, nothing is recorded: going back keeps it open.
+  expect(await s.enter($, 'b')).toBe("Kept claude's question open: nothing recorded")
+  await ui.redraw()
+  expect(await ui.find({ key: 'opt:igor-216-scope:0' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /1 of 9/ })).toBeDefined()
+
+  await s.enter($, 'w')
+  await s.clock.advance(1_000)
+  await ui.redraw()
+  // A click on a reason types its number, as an option's does.
+  await ui.press({ key: 'why:1' })
+  expect(s.filled).toEqual(['1'])
+  expect(await s.enter($, '4')).toContain('Choose why, 1 to 3')
+  expect(await s.enter($, '1')).toBe("Won't answer claude's question: the conversation is over. Nothing posted.")
+  await ui.redraw()
+  expect(await ui.find({ type: 'Text', text: /Reply to Maya Ortiz/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /1 won't answer/ })).toBeDefined()
+  expect(await s.enter($, 'b')).toBe('Question 1 of 9')
+  await ui.redraw()
+  expect(await ui.find({ type: 'Text', text: /the thread is ended/ })).toBeDefined()
+  expect(await ui.find({ key: 'cmd:r' })).toBeDefined()
+  expect(await ui.find({ key: 'opt:igor-216-scope:0' })).toBeUndefined()
+  expect(await s.enter($, 'An answer after all')).toContain("You won't answer this question")
+  expect(s.sent).toEqual([])
+  await ui.unmount()
+})
+
+test("reason 2 notes the lesson candidate; (r)eopen makes the question answerable again", async ($, on) => {
+  const s = answerSession(on)
+  await s.open($)
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  await s.enter($, 'w')
+  expect(await s.enter($, '2')).toBe("Won't answer claude's question: not a real question. Nothing posted.")
+  await s.enter($, 'b')
+  await ui.redraw()
+  expect(await ui.find({ type: 'Text', text: /a lesson candidate is written/ })).toBeDefined()
+  expect(await s.enter($, 'r')).toBe("Reopened claude's question: the real skill withdraws the lesson candidate")
+  await ui.redraw()
+  expect(await ui.find({ key: 'opt:igor-216-scope:0' })).toBeDefined()
+  expect(await ui.find({ key: 'cmd:w' })).toBeDefined()
+  expect(await s.enter($, '1')).toContain('Relayed to GitHub')
+  expect(s.sent).toEqual([])
+  await ui.unmount()
+})
+
+test("reason 3: Claude asks which filter should have stopped it, with the question; Adam's answer is the miss's what was said", async ($, on) => {
+  const s = answerSession(on)
+  await s.open($)
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  await s.enter($, 'w')
+  // The 3 goes on to the session's model, in words, with the question beside it.
+  expect(await s.enter($, '3')).toBeUndefined()
+  expect(s.sent).toEqual(["I won't answer this question: it doesn't need a human."])
+  const asked = s.contexts[0]?.join('\n') ?? ''
+  expect(asked).toContain('which filter should have stopped it and why')
+  expect(asked).toContain("During a run, should the inquisitor's first filter hide questions-branch files")
+  expect(asked).toContain('1, already answered; 2, can wait; 3, only one option has merit; 4, cheap to reverse')
+  expect(asked).toContain('Do not post, comment, push or change anything')
+  await ui.redraw()
+  expect(await ui.find({ type: 'Text', text: /Claude is asking which filter should have stopped it/ })).toBeDefined()
+  expect(await s.enter($, 'Filter 3, I think')).toContain('Claude is still asking above')
+
+  await s.reply($, 'Was it filter 3, only one option has merit?')
+  await ui.redraw()
+  expect(await ui.find({ type: 'Text', text: /Answer Claude above/ })).toBeDefined()
+  expect(await s.enter($, 'x')).toContain('x is not a command here')
+  const said = 'Filter 3: isolation is decision 3, so only the first option had merit'
+  expect(await s.enter($, said)).toBeUndefined()
+  expect(s.sent[1]).toBe(said)
+  expect(s.contexts[1]?.join('\n')).toContain('recorded as the miss\'s "what was said"')
+  await ui.redraw()
+  // Recorded, and the queue moves on; nothing was posted.
+  expect(await ui.find({ type: 'Text', text: /Reply to Maya Ortiz/ })).toBeDefined()
+  await s.enter($, 'b')
+  await ui.redraw()
+  expect(await ui.find({ type: 'Text', text: /a miss file is written/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /│ Filter 3: isolation is decision 3/ })).toBeDefined()
+  expect(s.sent).toEqual(["I won't answer this question: it doesn't need a human.", said])
+  await ui.unmount()
+})
+
+test("in the miss conversation a filter's number alone answers, and going back first keeps the question open", async ($, on) => {
+  const s = answerSession(on)
+  await s.open($)
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  await s.enter($, 'w')
+  await s.enter($, '3')
+  await s.reply($, 'Which filter?')
+  expect(await s.enter($, 'b')).toBe("Kept claude's question open: nothing recorded")
+  await ui.redraw()
+  expect(await ui.find({ key: 'opt:igor-216-scope:0' })).toBeDefined()
+  await s.enter($, 'w')
+  await s.enter($, '3')
+  await s.reply($, 'Which filter?')
+  expect(await s.enter($, '4')).toBeUndefined()
+  expect(s.sent[s.sent.length - 1]).toBe('Filter 4: cheap to reverse.')
+  await ui.press({ key: 'dot:0' })
+  await ui.redraw()
+  expect(await ui.find({ type: 'Text', text: /│ Filter 4: cheap to reverse\./ })).toBeDefined()
+  await ui.unmount()
+})
+
+test("jlee's question arrives answered for Adam from the record; it is listed, and e edits it into his own post", async ($, on) => {
+  const s = answerSession(on)
+  await s.open($)
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: /1 answered and 1 handled for you: see the summary/ })).toBeDefined()
+  await ui.press({ key: 'dot:4' })
+  await ui.redraw()
+  expect(await ui.find({ type: 'Text', text: /ANSWERED FOR YOU ON GITHUB AS/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /^Recorded answer: $/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /Filter 1 found a recorded answer with authority/ })).toBeDefined()
+  expect(await ui.find({ key: 'cmd:w' })).toBeUndefined()
+  expect(await s.enter($, 'Another answer')).toBe('This question was answered for you: (e)dit the post to change it.')
+
+  expect(await s.enter($, 'e')).toBe("The session's post is in the prompt box: change it, then ⏎")
+  await s.clock.advance(1_000)
+  expect(s.filled).toEqual(["See decision 10 in #216: the run id links to the run's ledger row, which an item number cannot."])
+  expect(await s.enter($, 'See decision 10 in #216; the ledger row is public.')).toBe('Edited the post on GitHub adamstallard/igor #216')
+  await ui.redraw()
+  // Edited, it is Adam's: "User says: ".
+  expect(await ui.find({ type: 'Link', text: /edited · view/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /^User says: $/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /Filter 1 found/ })).toBeUndefined()
+
+  await ui.press({ key: 'dot:summary' })
+  await ui.redraw()
+  expect(await ui.find({ type: 'Text', text: /1 answered for you · 1 handled for you/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /│ User says: See decision 10 in #216; the ledger row is public\./ })).toBeDefined()
+  expect(s.sent).toEqual([])
+  await ui.unmount()
+})
+
+test("an agent's question that clearly fails filter 4 is handled for Adam; he can edit the reply or still answer it himself", async ($, on) => {
+  const s = answerSession(on)
+  await s.open($)
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  await ui.press({ key: 'dot:8' })
+  await ui.redraw()
+  expect(await ui.find({ type: 'Text', text: /HANDLED FOR YOU ON DISCORD AS/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /^Inquisitor: $/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /^Filter 4 \(cheap to reverse\): pick one, it's cheap to/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /the real skill logs a miss/ })).toBeDefined()
+  expect(await ui.find({ key: 'cmd:e' })).toBeDefined()
+
+  // Edit the session's reply.
+  expect(await s.enter($, 'e')).toBe("The session's post is in the prompt box: change it, then ⏎")
+  expect(await s.enter($, 'Debug, please.')).toBe('Edited the post on Discord #igor-dev')
+  // Or answer it properly: Adam's own post follows the session's.
+  await ui.redraw()
+  expect(await ui.find({ key: 'opt:sync-log-level:1' })).toBeDefined()
+  expect(await s.enter($, '2')).toContain('Relayed to Discord')
+  await ui.press({ key: 'dot:8' })
+  await ui.redraw()
+  expect(await ui.find({ type: 'Text', text: /RELAYED ON DISCORD AS/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /After the session's own reply: User says: Debug, please\./ })).toBeDefined()
+  expect(s.sent).toEqual([])
+  await ui.unmount()
+})
+
+test("a person's question only shows a suggested verdict; agreeing is a key and Enter, and a click only types it", async ($, on) => {
+  const s = answerSession(on)
+  await s.open($)
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  await s.enter($, 'n')
+  // The engine's put-back of the n is due first.
+  await s.clock.advance(1_000)
+  await ui.redraw()
+  expect(await ui.find({ type: 'Text', text: /Looks cheap to reverse/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /HANDLED FOR YOU/ })).toBeUndefined()
+  // A click on (a)gree, in the key row or beside the verdict, puts a in the box and posts nothing.
+  await ui.press({ key: 'cmd:a' })
+  await ui.press({ key: 'verdict' })
+  expect(s.filled).toEqual(['a', 'a'])
+  await ui.redraw()
+  expect(await ui.find({ type: 'Text', text: /2 of 9/ })).toBeDefined()
+  expect(await s.enter($, 'a')).toBe('Relayed to Linear ENG-412 · Onboarding flag as adam-relay (Linear app)')
+  await s.enter($, 'b')
+  await ui.redraw()
+  expect(await ui.find({ type: 'Text', text: /^User says: $/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /Your call: either way is cheap to switch/ })).toBeDefined()
+  expect(s.sent).toEqual([])
+  await ui.unmount()
+})
+
+test("nothing posts or reaches the model without Enter, but the session's own two prefixes", async ($, on) => {
+  const s = answerSession(on)
+  await s.open($)
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  const ids = ['igor-216-scope', 'eng-412', 'igor-216-visibility', 'lore-backoff', 'igor-216-jlee', 'igor-216-citation-time', 'ops-staging', 'igor-216-sensitive', 'sync-log-level']
+  // Every click on every question: the dots, the options, the verdict, the
+  // citation, won't-answer and its reasons, then back.
+  for (const [i, id] of ids.entries()) {
+    for (const key of [`dot:${i}`, `opt:${id}:0`, 'verdict', 'cmd:a', 'cite', 'cmd:c', 'cmd:w', 'why:1', 'why:2', 'why:3', 'cmd:b']) {
+      await ui.redraw()
+      if (await ui.find({ key })) await ui.press({ key })
+    }
+  }
+  await ui.press({ key: 'dot:summary' })
+  await ui.redraw()
+  // Posted: only what the session did itself, under its own two prefixes.
+  expect(await ui.find({ type: 'Text', text: /0 of 9 relayed this session · 1 answered for you · 1 handled for you$/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /│ Recorded answer: See decision 10 in #216/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /│ Inquisitor: Filter 4 \(cheap to reverse\)/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /User says:/ })).toBeUndefined()
+  expect(await ui.find({ type: 'Text', text: /7 questions still new/ })).toBeDefined()
+  expect(s.sent).toEqual([])
+  await ui.unmount()
+})
+
+test("while the session is open the engine's prompt guesses stay out of the box, and only the main loop can draft", async ($, on) => {
+  const s = answerSession(on)
+  on('prompt.suggest', () => ({ isShown: true }))
+  expect((await $.prompt.suggest({ text: 'next question', origin: { kind: 'suggestion' } })).isShown).toBe(true)
+  await s.open($)
+  expect((await $.prompt.suggest({ text: 'next question', origin: { kind: 'suggestion' } })).isShown).toBe(false)
+  await s.enter($, 'n')
+  await s.enter($, 'h')
+  const forked = await $.tool.call({ tool: 'mcp__answer-session__propose_reply', text: 'next question', agentId: 'fork-1' })
+  expect(JSON.stringify(forked)).toContain('Only the main conversation')
+  await s.clock.advance(1_000)
+  expect(s.filled).not.toContain('next question')
+  expect(s.sent).toEqual([])
 })

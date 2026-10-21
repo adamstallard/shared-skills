@@ -1,0 +1,40 @@
+  question files should follow the same rule as lore entries. If it was really filter 3 (only one option has merit), or something else, tell
+  me.
+
+⏺ Ran 1 stop hook
+  ⎿  Stop hook error: Failed with non-blocking status code: /bin/sh:
+  /Users/adam/shared-skills/.agents/skills/worktrees/scripts/worktree-sweep.py: No such file or directory
+
+✻ Cooked for 2s · done 7:39 PM
+
+❯ 1: decision 3 already makes scope a hard filter for what a worker reads
+
+⏺ Recorded: filter 1, because decision 3 already makes scope a hard filter on everything a worker reads.
+
+⏺ Ran 1 stop hook
+  ⎿  Stop hook error: Failed with non-blocking status code: /bin/sh:
+  /Users/adam/shared-skills/.agents/skills/worktrees/scripts/worktree-sweep.py: No such file or directory
+
+✻ Cogitated for 1s · done 7:39 PM
+
+⏺ Prompt dropped by a hook: Relayed to Linear ENG-412 · Onboarding flag as adam-relay (Linear app)
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── [-]
+Answer session  ⊘ ● ○ ○ ◎ ○ ○ ○ ◈  summary  5 of 9 · 5 new · 1 relayed · 0 for later · 1 won't answer · 2 done for you          v0.1-28
+GitHub  adamstallard/igor #216  answered for you · 2h ago      │ ◎ ANSWERED FOR YOU ON GITHUB AS adam-relay[bot]  view
+jlee asks                                                      │ │ Recorded answer: See decision 10 in #216: the run id links to the
+                                                               │ │ run's ledger row, which an item number cannot.
+                                                               │ Filter 1 found a recorded answer with authority, so the session posted
+Why does a citation carry an opaque run id rather than the     │ it for you.
+item number?                                                   │
+                                                               │
+                                                               │
+Review comment on                                              │
+openspec/changes/lore-search/specs/lore-firing/spec.md         │
+                                                               │
+Recorded answer #216 decision 10: the run id links to the run… │
+(e)dit the post                                                                                                (b)ack   (n)ext   (q)uit
+                                      tmux focus-events off · add 'set -g focus-events on' to ~/.tmux.conf and reattach for focus tracking
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────── answer-session-prototype ─
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on (shift+tab to cycle) · ← 2 agents · a key or your answer, then ⏎ · 5h 14% ⇣ 9:30p · 7d 57% Sat 2a

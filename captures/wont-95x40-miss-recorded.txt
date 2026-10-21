@@ -1,0 +1,40 @@
+  on #216 already made scope a hard filter, and question files are just more input that the
+  same rule covers. Or was it filter 3, because only filtering by scope had merit?
+
+⏺ Ran 1 stop hook
+  ⎿  Stop hook error: Failed with non-blocking status code: /bin/sh:
+  /Users/adam/shared-skills/.agents/skills/worktrees/scripts/worktree-sweep.py: No such
+  file or directory
+
+✻ Cooked for 3s · done 7:39 PM
+
+❯ Filter 4: cheap to reverse.
+
+⏺ Noted: filter 4 should have stopped it, because the choice is cheap to reverse.
+
+⏺ Ran 1 stop hook
+  ⎿  Stop hook error: Failed with non-blocking status code: /bin/sh:
+  /Users/adam/shared-skills/.agents/skills/worktrees/scripts/worktree-sweep.py: No such
+  file or directory
+
+✻ Baked for 1s · done 7:39 PM
+────────────────────────────────────────────────────────────────────────────────────────── [-]
+Answer session  ⊘ ◉ ○ ○ ◎ ○ ○ ○ ◈  summary  2 of 9                                 v0.1-28
+Linear  ENG-412 · Onboarding flag  22m ago
+Maya Ortiz asks
+
+Can we ship the onboarding flag to 10% on Friday, or should we wait for the metrics review
+on Monday?
+
+QA signed off this morning, and the flag switches off in minutes. Waiting for the review …
+
+SUGGESTED Looks cheap to reverse · the inquisitor's filter 4
+The flag switches off in minutes, so either choice is easy to undo.
+  (a)gree: pick one, it's cheap to switch
+  Reply to Maya Ortiz: type it in the prompt box
+(h)elp me answer  (a)gree  (w)on't answer  (l)ater  ✓ Won't answe…  (b)ack  (n)ext  (q)uit
+                                                     Stop hook error occurred · ctrl+o to see
+──────────────────────────────────────────────────────────────────── answer-session-prototype ─
+❯ 
+───────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on (shift+tab to cycle) · ← 2 agents · a key or your answer, then ⏎ · 5h 14%…

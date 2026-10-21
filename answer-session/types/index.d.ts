@@ -1,17 +1,34 @@
-/** What was done with a question. */
+/** Why Adam won't answer a question: 1, the conversation is over; 2, not a real question; 3, it doesn't need a human. */
+export type WontReason = 1 | 2 | 3
+
+/** What was done with a question, by Adam or, for `recorded` and `handled`, by the session itself. */
 export type Answer = {
   /**
-   * The relayed text, without the "User says: " prefix: the answer, or for
-   * `wait` the clarifying question sent back; empty for a deferral.
+   * The posted text, without its prefix: the answer, for `wait` the
+   * clarifying question sent back, for `recorded` the citation, for
+   * `handled` the filter's action; empty for a deferral and a won't-answer.
    */
   text: string
   /**
    * `answer` is relayed; `defer` keeps it open, behind the new ones; `wait`
-   * sent the asker a clarifying question, and it returns when they reply.
+   * sent the asker a clarifying question, and it returns when they reply;
+   * `wont` posts nothing and closes it, with a reason. The session's own:
+   * `recorded`, answered for Adam from a recorded answer with authority
+   * (filter 1), posted as "Recorded answer: "; `handled`, an agent's
+   * question that clearly fails filter 2, 3 or 4, replied to with that
+   * filter's action, posted as "Inquisitor: ".
    */
-  kind: 'answer' | 'defer' | 'wait'
-  /** True once the post was edited after it went out. */
+  kind: 'answer' | 'defer' | 'wait' | 'wont' | 'recorded' | 'handled'
+  /** True once the post was edited after it went out; an edited post is Adam's, prefixed "User says: ". */
   edited?: true
+  /** For `wont`: why. */
+  reason?: WontReason
+  /** For `wont` with reason 3: Adam's answer to which filter should have stopped it and why, the miss's "what was said". */
+  said?: string
+  /** For `handled`: the filter whose action was posted. */
+  filter?: 2 | 3 | 4
+  /** For an answer Adam relayed over the session's own post: that post, prefix included. */
+  over?: string
 }
 
 /** One message in a question's discussion. */
@@ -83,6 +100,13 @@ declare module 'claude-code' {
       editing: Record<string, true>
       /** Questions whose clarifying question to the asker is being written in the prompt box. */
       asking: Record<string, true>
+      /**
+       * The question Adam is declining to answer: `reason` while he picks why
+       * (nothing is recorded yet, and going back cancels), `miss` once he
+       * chose "doesn't need a human" and the session's model asks him, in the
+       * conversation, which filter should have stopped it.
+       */
+      declining: { id: string; stage: 'reason' | 'miss' } | null
       /** Askers' replies to clarifying questions, by question id. */
       returned: Record<string, Returned>
       /**

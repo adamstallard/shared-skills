@@ -1,0 +1,40 @@
+
+✻ Cooked for 3s · done 7:39 PM
+
+❯ Filter 4: cheap to reverse.
+
+⏺ Noted: filter 4 should have stopped it, because the choice is cheap to reverse.
+
+⏺ Ran 1 stop hook
+  ⎿  Stop hook error: Failed with non-blocking status code: /bin/sh:
+  /Users/adam/shared-skills/.agents/skills/worktrees/scripts/worktree-sweep.py: No such
+  file or directory
+
+✻ Baked for 1s · done 7:39 PM
+
+⏺ Prompt dropped by a hook: Relayed to Linear ENG-412 · Onboarding flag as adam-relay
+  (Linear app)
+
+⏺ Prompt dropped by a hook: The session's post is in the prompt box: change it, then ⏎
+
+⏺ Prompt dropped by a hook: Edited the post on GitHub adamstallard/igor #216
+────────────────────────────────────────────────────────────────────────────────────────── [-]
+Answer session  ⊘ ● ○ ○ ◎ ○ ○ ○ ◈  summary  9 of 9                                 v0.1-28
+Discord  #igor-dev  handled for you · 5m ago
+Igor (worker) asks, an agent via its inquisitor role
+
+Should the questions-branch sync log each file it skips at debug or at info level?
+One line in sync.go sets it, and any later release can change it.
+◈ HANDLED FOR YOU ON DISCORD AS adam-relay#4127  view
+│ Inquisitor: Filter 4 (cheap to reverse): pick one, it's cheap to switch.
+It should have been stopped before it was asked: the session replied with the filter's ac…
+  1: Debug  ★ recommended
+     → Quiet logs; skips show with --debug.
+  2: Info
+     → Every skip in the normal log.
+1–2: choose  (t)alk to Claude  (e)dit the reply                     (b)ack  (n)ext  (q)uit
+  tmux focus-events off · add 'set -g focus-events on' to ~/.tmux.conf and reattach for focu…
+──────────────────────────────────────────────────────────────────── answer-session-prototype ─
+❯ 
+───────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on (shift+tab to cycle) · ← 2 agents · a number, a key or your answer, then …

@@ -1,0 +1,40 @@
+  /Users/adam/shared-skills/.agents/skills/worktrees/scripts/worktree-sweep.py: No such
+  file or directory
+
+✻ Cooked for 3s · done 7:39 PM
+
+❯ Filter 4: cheap to reverse.
+
+⏺ Noted: filter 4 should have stopped it, because the choice is cheap to reverse.
+
+⏺ Ran 1 stop hook
+  ⎿  Stop hook error: Failed with non-blocking status code: /bin/sh:
+  /Users/adam/shared-skills/.agents/skills/worktrees/scripts/worktree-sweep.py: No such
+  file or directory
+
+✻ Baked for 1s · done 7:39 PM
+
+⏺ Prompt dropped by a hook: Relayed to Linear ENG-412 · Onboarding flag as adam-relay
+  (Linear app)
+
+⏺ Prompt dropped by a hook: The session's post is in the prompt box: change it, then ⏎
+────────────────────────────────────────────────────────────────────────────────────────── [-]
+Answer session  ⊘ ● ○ ○ ◎ ○ ○ ○ ◈  summary  5 of 9                                 v0.1-28
+GitHub  adamstallard/igor #216  answered for you · 2h ago
+jlee asks
+
+Why does a citation carry an opaque run id rather than the item number?
+Review comment on openspec/changes/lore-search/specs/lore-firing/spec.md
+Recorded answer #216 decision 10: the run id links to the run's ledger row
+◎ ANSWERED FOR YOU ON GITHUB AS adam-relay[bot]  view
+│ Recorded answer: See decision 10 in #216: the run id links to the run's ledger row,
+│ which an item number cannot.
+EDIT ON GITHUB AS adam-relay[bot]: User says: See decision 10 in #216: the run id links to
+the run's ledger row, which an item number cannot. The ledger row is public.
+(h)elp me edit  (k)eep it as posted                                 (b)ack  (n)ext  (q)uit
+  tmux focus-events off · add 'set -g focus-events on' to ~/.tmux.conf and reattach for focu…
+──────────────────────────────────────────────────────────────────── answer-session-prototype ─
+❯ See decision 10 in #216: the run id links to the run's ledger row, which an item number
+  cannot. The ledger row is public.
+───────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on (shift+tab to cycle) · ⏎ update the post on GitHub · 5h 14% ⇣ 9:30p · 7d …

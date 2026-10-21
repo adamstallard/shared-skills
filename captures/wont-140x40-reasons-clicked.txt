@@ -1,0 +1,40 @@
+
+ ▐▛███▛█   Claude Code v2.1.306
+▝▜██████▀  Opus 5.5 · Claude Max
+ ▝▝   ▝▝   ~/shared-skills
+
+⚠ Ask rule Advisor matches no tool · check for typos
+
+❯ /answer
+  ⎿  answer-session: Answer session open: type in the prompt box, Enter answers. 1 answered and 1 handled for you: see the summary.
+
+⏺ Prompt dropped by a hook: Won't answer claude's question: choose why. Nothing is posted.
+
+
+
+
+
+
+
+
+
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── [-]
+Answer session  ◉ ○ ○ ○ ◎ ○ ○ ○ ◈  summary  1 of 9 · 7 new · 0 relayed · 0 for later · 2 done for you                           v0.1-28
+GitHub  adamstallard/igor #216  12m ago                        │ ⊘ WON'T ANSWER · CHOOSE WHY · NOTHING IS POSTED
+claude asks, an agent via the inquisitor                       │   1: The conversation is over
+                                                               │      → The real skill ends the thread: later replies there stop
+During a run, should the inquisitor's first filter hide        │        counting as questions.
+questions-branch files about projects the role doesn't work    │   2: Not a real question
+on, as it hides lore entries outside the role's scope?         │      → The real skill writes a lesson candidate, so the inquisitor
+                                                               │        learns to tell.
+The scope filter covers lore entries only. Question files on   │ ▌ 3: Doesn't need a human
+the lore repository's questions branch can be about any        │ ▌    → A filter should have stopped it: already answered, can wait,
+project.                                                       │ ▌      one option has merit, cheap to reverse. Claude asks you which;
+                                                               │ ▌      the real skill writes a miss file.
+Related #216 decision 3: scope is a hard filter                │
+1–3: choose why                                                                                                      go (b)ack   (q)uit
+                                                                                                                        ◐ medium · /effort
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────── answer-session-prototype ─
+❯ 3
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on (shift+tab to cycle) · ⏎ won't answer: Claude asks which filter should have stopped it · 5h 14% ⇣ 9:30p · 7d 57% Sat 2a

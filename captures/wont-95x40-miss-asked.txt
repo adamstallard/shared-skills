@@ -1,0 +1,40 @@
+
+⚠ Ask rule Advisor matches no tool · check for typos
+
+❯ /answer
+  ⎿  answer-session: Answer session open: type in the prompt box, Enter answers. 1 answered and
+     1 handled for you: see the summary.
+
+⏺ Prompt dropped by a hook: Won't answer claude's question: choose why. Nothing is
+  posted.
+
+❯ I won't answer this question: it doesn't need a human.
+
+⏺ Which filter should have stopped this one? My guess is filter 1, already answered. Decision 3
+  on #216 already made scope a hard filter, and question files are just more input that the
+  same rule covers. Or was it filter 3, because only filtering by scope had merit?
+
+⏺ Ran 1 stop hook
+  ⎿  Stop hook error: Failed with non-blocking status code: /bin/sh:
+  /Users/adam/shared-skills/.agents/skills/worktrees/scripts/worktree-sweep.py: No such
+  file or directory
+
+✻ Cooked for 3s · done 7:39 PM
+────────────────────────────────────────────────────────────────────────────────────────── [-]
+Answer session  ◇ ○ ○ ○ ◎ ○ ○ ○ ◈  summary  1 of 9                                 v0.1-28
+GitHub  adamstallard/igor #216  claude · 12m ago
+During a run, should the inquisitor's first filter hide questions-branch files about
+projects the role doesn't work on, as it hides lore entries outside the role's scope?
+
+◇ WON'T ANSWER · Doesn't need a human · Claude asks above
+
+Answer Claude above. Which filter should have stopped it, and why? 1 already answered · 2
+can wait · 3 only one option has merit · 4 cheap to reverse. A number alone will do. ⏎
+records your answer as the miss's "what was said"; nothing is posted.
+
+                                                                         go (b)ack  (q)uit
+                                                     Stop hook error occurred · ctrl+o to see
+──────────────────────────────────────────────────────────────────── answer-session-prototype ─
+❯ 
+───────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on (shift+tab to cycle) · ← 2 agents · your answer to Claude: which filter, …
