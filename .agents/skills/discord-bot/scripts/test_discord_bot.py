@@ -1010,9 +1010,9 @@ class Regressions(unittest.TestCase):
 
 
 class Check(unittest.TestCase):
-    def run_check(self, search, messages=()):
+    def run_check(self, search, application=None):
         routes = guild_routes(search=search)
-        routes[("GET", "/channels/2/messages")] = messages if isinstance(messages, d.Failure) else list(messages)
+        routes[("GET", "/applications/@me")] = application if application is not None else {"id": "7", "flags": 0}
         routes[("GET", "/users/@me")] = {"id": BOT, "username": "helper-bot"}
         routes[("GET", f"/guilds/{GUILD}")] = {"id": GUILD, "owner_id": "1", "roles": [
             {"id": GUILD, "permissions": str(d.PERMISSIONS["viewChannel"] | d.PERMISSIONS["sendMessages"])}]}
@@ -1045,124 +1045,76 @@ class Check(unittest.TestCase):
         self.assertFalse(perms["createPublicThreads"])
 
 
-SECRET = "the launch moves to Thursday"
-
-
-def posted(mid, author=OTHER, content=SECRET, **fields):
-    """A message as Discord's REST API returns it; content="" is what it sends without the intent."""
-    m = {"id": mid, "type": 0, "timestamp": "t" + mid, "author": {"id": author, "username": "u" + author},
-         "content": content, "embeds": [], "attachments": [], "components": [], "mentions": [],
-         "mention_roles": [], "mention_everyone": False}
-    m.update(fields)
-    return m
+GATEWAY_MESSAGE_CONTENT = 1 << 18
+GATEWAY_MESSAGE_CONTENT_LIMITED = 1 << 19
+GATEWAY_GUILD_MEMBERS_LIMITED = 1 << 15
 
 
 class MessageContent(unittest.TestCase):
-    """check's messageContent, and read's warning, decided from recent messages."""
+    """check's messageContent, read from the application's flags.
 
-    def verdict(self, messages):
-        return Check.run_check(self, [member(BOT, "helper-bot")], messages)
+    Either Message Content bit means on. Any other bit, such as
+    GATEWAY_GUILD_MEMBERS_LIMITED, must not count.
+    """
 
-    def test_text_from_someone_else_means_readable(self):
-        result = self.verdict([posted("2"), posted("1", author=BOT)])
-        self.assertIs(result["messageContent"], True)
+    def verdict(self, application):
+        return Check.run_check(self, [member(BOT, "helper-bot")], application)
 
-    def test_blank_messages_from_someone_else_mean_not_readable(self):
-        result = self.verdict([posted("3", content=""), posted("2", content="", type=19), posted("1", author=BOT)])
-        self.assertIs(result["messageContent"], False)
+    def test_either_message_content_flag_means_on(self):
+        for flags in (GATEWAY_MESSAGE_CONTENT, GATEWAY_MESSAGE_CONTENT_LIMITED,
+                      GATEWAY_MESSAGE_CONTENT | GATEWAY_MESSAGE_CONTENT_LIMITED,
+                      GATEWAY_MESSAGE_CONTENT_LIMITED | GATEWAY_GUILD_MEMBERS_LIMITED | 1 << 23):
+            self.assertIs(self.verdict({"id": "7", "flags": flags})["messageContent"], True, flags)
 
-    def test_an_empty_channel_is_unknown(self):
-        self.assertIsNone(self.verdict([])["messageContent"])
+    def test_neither_flag_means_off(self):
+        for flags in (0, GATEWAY_GUILD_MEMBERS_LIMITED, 1 << 12 | 1 << 13 | 1 << 14 | 1 << 23):
+            self.assertIs(self.verdict({"id": "7", "flags": flags})["messageContent"], False, flags)
 
-    def test_only_the_bots_own_messages_is_unknown(self):
-        self.assertIsNone(self.verdict([posted("1", author=BOT)])["messageContent"])
-
-    def test_a_message_that_mentions_the_bot_keeps_its_text_so_proves_nothing(self):
-        for fields in ({"mentions": [{"id": BOT}]}, {"mention_roles": ["55"]}, {"mention_everyone": True}):
-            self.assertIsNone(self.verdict([posted("1", **fields)])["messageContent"], fields)
-
-    def test_messages_that_can_be_empty_anyway_prove_nothing(self):
-        for fields in ({"sticker_items": [{"id": "5"}]}, {"message_snapshots": [{"message": {}}]},
-                       {"webhook_id": "44"}, {"type": 7}, {"type": 21}):
-            self.assertIsNone(self.verdict([posted("1", content="", **fields)])["messageContent"], fields)
-
-    def test_a_shared_theme_without_text_proves_nothing(self):
-        theme = posted("2", content="", shared_client_theme={"colors": ["5865F2"], "base_theme": 1})
-        self.assertIsNone(self.verdict([theme, posted("1", author=BOT)])["messageContent"])
-
-    def test_a_post_whose_embeds_were_suppressed_proves_nothing(self):
-        suppressed = posted("2", content="", flags=4)  # an embed-only post whose embeds a moderator suppressed
-        self.assertIsNone(self.verdict([suppressed, posted("1", author=BOT)])["messageContent"])
-
-    def test_a_full_rest_payload_emptied_still_proves_the_intent_is_off(self):
-        full = posted("2", content="", channel_id="2", guild_id=GUILD, pinned=False, tts=False, flags=0,
-                      edited_timestamp=None, mention_channels=[], reactions=[], nonce=None, position=0,
-                      member={"roles": [], "joined_at": "t"})
-        self.assertIs(self.verdict([full, posted("1", author=BOT)])["messageContent"], False)
-
-    def test_an_emptied_reply_proves_the_intent_is_off(self):
-        reply = posted("3", content="", type=19, message_reference={"type": 0, "message_id": "1", "channel_id": "2"},
-                       referenced_message=posted("1", author=BOT))
-        self.assertIs(self.verdict([reply, posted("1", author=BOT)])["messageContent"], False)
-
-    def test_an_attachment_alone_counts_as_content(self):
-        result = self.verdict([posted("1", content="", attachments=[{"url": "https://cdn/x.png"}])])
-        self.assertIs(result["messageContent"], True)
-
-    def test_blank_and_readable_messages_together_are_unknown(self):
-        self.assertIsNone(self.verdict([posted("2"), posted("1", content="")])["messageContent"])
-
-    def test_check_never_prints_message_content(self):
-        for messages in ([posted("1")], [posted("1", author=BOT)], [posted("1", mentions=[{"id": BOT}])]):
-            self.assertNotIn("Thursday", json.dumps(self.verdict(messages)))
-
-    def test_an_unreadable_channel_is_unknown_and_keeps_the_report(self):
-        result = self.verdict(d.Failure("Missing Access", status=403, code=50001))
+    def test_a_failed_lookup_is_unknown_and_keeps_the_report(self):
+        result = self.verdict(d.Failure("401: Unauthorized", status=401))
         self.assertIsNone(result["messageContent"])
-        self.assertIn("Missing Access", result["messageContentError"])
+        self.assertIn("Unauthorized", result["messageContentError"])
         self.assertTrue(result["memberSearch"])
+        self.assertIn("permissions", result["defaultChannel"])
 
-    def read(self, messages, me=None):
-        routes = guild_routes()
-        routes[("GET", "/channels/2/messages")] = messages
-        routes[("GET", "/users/@me")] = me if me is not None else {"id": BOT, "username": "helper-bot"}
+    def test_missing_or_malformed_flags_are_unknown_not_off(self):
+        for application in ({"id": "7"}, {"id": "7", "flags": None}, {"id": "7", "flags": "524288"},
+                            {"id": "7", "flags": True}):
+            result = self.verdict(application)
+            self.assertIsNone(result["messageContent"], application)
+            self.assertIn("flags", result["messageContentError"])
+
+    def test_reported_even_when_the_default_channel_cannot_be_found(self):
+        routes = guild_routes(search=[member(BOT, "helper-bot")])
+        routes[("GET", "/applications/@me")] = {"id": "7", "flags": GATEWAY_MESSAGE_CONTENT_LIMITED}
+        routes[("GET", "/users/@me")] = {"id": BOT, "username": "helper-bot"}
+        with mock.patch.dict(os.environ, {}, clear=True):
+            result = d.cmd_check(FakeApi(routes), {"defaultChannel": "missing"}, args())
+        self.assertFalse(result["defaultChannel"]["ok"])
+        self.assertIs(result["messageContent"], True)
+
+    def test_check_reads_no_messages(self):
+        routes = guild_routes(search=[member(BOT, "helper-bot")])
+        routes[("GET", "/applications/@me")] = {"id": "7", "flags": GATEWAY_MESSAGE_CONTENT_LIMITED}
+        routes[("GET", "/users/@me")] = {"id": BOT, "username": "helper-bot"}
+        routes[("GET", f"/guilds/{GUILD}")] = {"id": GUILD, "owner_id": "1", "roles": []}
+        routes[("GET", f"/guilds/{GUILD}/members/{BOT}")] = {"roles": []}
         api = FakeApi(routes)
-        return d.cmd_read(api, {}, args(channel="agents")), api
+        d.cmd_check(api, {"defaultChannel": "agents"}, args())
+        self.assertFalse([c for c in api.calls if c[1].endswith("/messages")])
 
-    def test_read_warns_when_others_messages_came_back_blank(self):
-        result, _ = self.read([posted("3", content=""), posted("2", content=""), posted("1", author=BOT, content="mine")])
+    def test_read_makes_no_extra_call_and_gives_no_intent_warning(self):
+        routes = guild_routes()
+        routes[("GET", "/channels/2/messages")] = [
+            {"id": "2", "type": 0, "timestamp": "t2", "author": {"id": OTHER, "username": "b"}, "content": ""},
+            {"id": "1", "type": 0, "timestamp": "t1", "author": {"id": BOT, "username": "a"}, "content": "mine"},
+        ]
+        api = FakeApi(routes)
+        result = d.cmd_read(api, {}, args(channel="agents"))
         self.assertEqual([m["messageId"] for m in result["messages"]], ["1"])
-        self.assertEqual(len(result["warnings"]), 1)
-        self.assertIn("Message Content intent", result["warnings"][0])
-        self.assertIn("messages from others", result["warnings"][0])
-
-    def test_read_warns_about_emptied_messages_that_mention_a_role_or_everyone(self):
-        # Their text would hold the mention, so arriving empty can only mean Discord emptied them.
-        result, _ = self.read([posted("3", content=""), posted("2", content="", mention_roles=["555"]),
-                               posted("1", content="", mention_everyone=True)])
-        self.assertEqual(result["messages"], [])
-        self.assertEqual(len(result.get("warnings", [])), 1)
-        self.assertNotIn("1 message", result["warnings"][0])
-
-    def test_an_activity_invite_is_empty_anyway_so_proves_nothing(self):
-        invite = posted("2", content="", activity={"type": 3, "party_id": "spotify:901"})
-        self.assertIsNone(self.verdict([invite, posted("1", author=BOT)])["messageContent"])
-        result, _ = self.read([invite, posted("1", author=BOT, content="mine")])
         self.assertNotIn("warnings", result)
-
-    def test_read_does_not_warn_when_text_arrives(self):
-        result, api = self.read([posted("2"), posted("1", author=BOT)])
-        self.assertNotIn("warnings", result)
+        self.assertEqual([c[:2] for c in api.calls][-1], ("GET", "/channels/2/messages"))
         self.assertNotIn(("GET", "/users/@me"), [c[:2] for c in api.calls])
-
-    def test_read_does_not_warn_when_blank_and_readable_messages_mix(self):
-        result, _ = self.read([posted("2"), posted("1", content="")])
-        self.assertNotIn("warnings", result)
-
-    def test_read_still_succeeds_if_the_bot_cannot_be_looked_up(self):
-        result, _ = self.read([posted("1", content="")], me=d.Failure("server error", status=500))
-        self.assertEqual(result["messages"], [])
-        self.assertNotIn("warnings", result)
 
 
 if __name__ == "__main__":

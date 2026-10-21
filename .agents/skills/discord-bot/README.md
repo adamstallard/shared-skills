@@ -141,12 +141,13 @@ You should see:
 - the default channel, with every permission `true`;
 - `"memberSearch": true`: a search for the bot's own name returned members, so
   `@name` mentions will work;
-- `"messageContent": true`: recent messages from other people in the default
-  channel arrived with their text, so `read` will show it. `false` means
-  Discord removed their text; turn on Message Content Intent (step 1.3).
-  `null` means no recent message could tell, for example when only the bot
-  has posted there. Post a line there yourself, without mentioning the bot,
-  and run `check` again.
+- `"messageContent": true`: the bot's application has Message Content Intent
+  on, so `read` will show what other people write. `false` means it is off;
+  turn it on as in setup step 1.3, above. `null` means `check` couldn't read
+  the setting from Discord: fix what `messageContentError` names, such as a
+  network error or Discord refusing the request, and run `check` again.
+  `check` reports `messageContent` even when it can't find the default
+  channel.
 
 ---
 
@@ -188,9 +189,9 @@ member search, `check` shows `"memberSearch": false`; turning on **Server
 Members Intent** on the developer portal's Bot tab is the setting that
 controls it.
 
-**`read` leaves out other people's messages**, or its warning says Discord
-sent them with no text, or `check` shows `"messageContent": false`: turn on
-**Message Content Intent** on the developer portal's Bot tab (setup step 1.3).
+**`read` leaves out other people's messages**, or `check` shows
+`"messageContent": false`: turn on **Message Content Intent** on the developer
+portal's Bot tab (setup step 1.3).
 
 **A permission is `false` in `check`**, or a post fails with status 403: grant
 it on the bot's role (Server Settings → Roles), or on the channel for a private

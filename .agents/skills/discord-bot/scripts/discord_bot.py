@@ -36,22 +36,11 @@ IDENTITY_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 TEXT_CHANNEL_TYPES = {0, 5}  # text, announcement
 THREAD_TYPES = {10, 11, 12}  # announcement thread, public thread, private thread
 READABLE_MESSAGE_TYPES = {0, 19, 21}  # default, reply, thread starter
-POSTED_MESSAGE_TYPES = {0, 19}  # default, reply: what a person posts
-# Message fields Discord leaves empty in other people's messages when the bot
-# lacks the Message Content intent. See DECISIONS.md.
-CONTENT_FIELDS = ("content", "embeds", "attachments", "components", "poll")
-SUPPRESS_EMBEDS = 1 << 2  # message flag: Discord leaves the embeds out
-# The keys an ordinary text message carries. An empty message counts as
-# evidence that the intent is off only if every key it fills in is here: a
-# message with any other key filled in can be empty with the intent on. A key
-# that Discord adds to its API in future is not here either, so it gives null,
-# never a false "off".
-ORDINARY_MESSAGE_KEYS = frozenset({
-    "id", "type", "channel_id", "guild_id", "author", "member", "content", "embeds",
-    "attachments", "components", "poll", "mentions", "mention_roles", "mention_channels",
-    "mention_everyone", "pinned", "tts", "timestamp", "edited_timestamp", "flags", "nonce",
-    "message_reference", "referenced_message", "reactions", "thread", "position", "application_id",
-})
+# Application flags meaning the Message Content intent is on: GATEWAY_MESSAGE_CONTENT
+# (a bot in 100 or more servers) and GATEWAY_MESSAGE_CONTENT_LIMITED (under 100).
+# Either one counts. See DECISIONS.md, "Message Content is on; Server Members
+# and Presence stay off".
+MESSAGE_CONTENT_FLAGS = (1 << 18) | (1 << 19)
 
 PERMISSIONS = {
     "viewChannel": 1 << 10,
@@ -581,40 +570,18 @@ def channel_permissions(api, guild_id, channel, bot_id):
 # --- message content intent ---------------------------------------------------------
 
 
-def content_evidence(message, bot_id):
-    """What one message shows about the Message Content intent: "shown", "hidden", or None.
+def message_content_enabled(application):
+    """Whether either Message Content bit is set in the application's flags.
 
-    Without the intent, Discord empties CONTENT_FIELDS in other people's
-    messages but keeps them in the bot's own and in those that mention it.
-    So text proves nothing in a message that might mention the bot, and
-    emptiness proves nothing in a message that can be empty with the intent on.
+    Raises Failure when the flags are missing or not an integer, so check
+    reports null instead of a wrong false.
     """
-    if message.get("type") not in POSTED_MESSAGE_TYPES:
-        return None  # a system message has no text of its own
-    if (message.get("author") or {}).get("id") == bot_id:
-        return None  # Discord keeps the bot's own messages whole
-    if message.get("webhook_id"):
-        return None  # a webhook's post may be the bot's own app's; whether Discord empties other webhooks' posts is unproven
-    if any(message.get(f) for f in CONTENT_FIELDS):
-        if (message.get("mention_everyone") or message.get("mention_roles")
-                or any((u or {}).get("id") == bot_id for u in message.get("mentions") or [])):
-            return None  # any role or @everyone may include the bot, and Discord keeps a message that mentions it whole
-        return "shown"
-    if (message.get("flags") or 0) & SUPPRESS_EMBEDS:
-        return None  # its embeds were left out, so it can be empty with the intent on
-    if any(value for key, value in message.items() if key not in ORDINARY_MESSAGE_KEYS):
-        return None  # a sticker, a forward, a shared theme or anything else can be empty with the intent on
-    return "hidden"
-
-
-def content_readable(messages, bot_id):
-    """True if other people's messages arrive with their content, False if emptied, None if these can't tell."""
-    seen = {content_evidence(m, bot_id) for m in messages} - {None}
-    if seen == {"shown"}:
-        return True
-    if seen == {"hidden"}:
-        return False
-    return None  # nothing counts, or both kinds appear: a mix the intent setting alone can't produce
+    flags = application.get("flags")
+    # isinstance(True, int) holds in Python. Without the bool test, a true
+    # flags value would pass as the number 1.
+    if not isinstance(flags, int) or isinstance(flags, bool):
+        raise Failure(f"Discord's application object had no usable flags: {flags!r}")
+    return bool(flags & MESSAGE_CONTENT_FLAGS)
 
 
 # --- commands ---------------------------------------------------------------------
@@ -678,25 +645,7 @@ def cmd_read(api, config, args):
     result = {"channel": "#" + where.get("name", ""), "messages": messages}
     if args.thread:
         result["threadId"] = where["id"]
-    warning = content_warning(api, raw)
-    if warning:
-        result["warnings"] = [warning]
     return result
-
-
-def content_warning(api, raw):
-    """A warning when Discord emptied the messages others wrote, as it does without the Message Content intent."""
-    if not any(content_evidence(m, None) == "hidden" for m in raw):
-        return None  # the usual case, so the bot's id is fetched only when it can matter
-    try:
-        bot_id = api.request("GET", "/users/@me")["id"]
-    except Failure:
-        return None  # the messages were read; a warning isn't worth failing over
-    if content_readable(raw, bot_id) is not False:
-        return None
-    return ("Discord sent messages from others with no text, attachments or embeds, so they are "
-            "left out. It does that when the bot lacks the Message Content intent; "
-            "see the README's setup step 1.3")
 
 
 def cmd_edit(api, config, args):
@@ -752,6 +701,15 @@ def cmd_check(api, config, args):
     for key in ("channels", "people"):
         if config.get(key):
             result[key] = config[key]
+    # Whether the Message Content intent is on, from the application's flags.
+    # It needs no channel, so it runs before target(): when target() can't
+    # find the default channel, check returns early, and a lookup placed
+    # after that return would leave messageContent out of the report.
+    try:
+        result["messageContent"] = message_content_enabled(api.request("GET", "/applications/@me"))
+    except Failure as e:
+        result["messageContent"] = None
+        result["messageContentError"] = str(e)
     try:
         channel, guild_id = target(api, config, args)
     except Failure as e:
@@ -777,14 +735,6 @@ def cmd_check(api, config, args):
         else:
             result["memberSearch"] = None
             result["memberSearchError"] = str(e)
-    # Whether others' messages arrive with their text. Only the verdict is
-    # reported, never what any message says.
-    try:
-        recent = api.request("GET", f"/channels/{channel['id']}/messages", query={"limit": MAX_READ})
-        result["messageContent"] = content_readable(recent, me["id"])
-    except Failure as e:
-        result["messageContent"] = None
-        result["messageContentError"] = str(e)
     return result
 
 

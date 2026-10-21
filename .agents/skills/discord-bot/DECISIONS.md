@@ -265,9 +265,9 @@ names start with the bot's, the bot can be missing while search works.
 
 Decided by Adam, 2026-10-20.
 
-**Decision.** Setup turns on the Message Content intent and leaves the other
-two privileged intents off. `check` reports `messageContent`, and `read` warns
-when the messages it got from others came back empty.
+**Decision.** Setup turns on the Message Content intent and leaves Server
+Members and Presence, the other two privileged intents, off. `check` reports `messageContent` from the bot's
+application flags. `read` gives no warning about the intent.
 
 **Why.** `read` needs the intent. Without it, Discord empties `content`, `embeds`,
 `attachments`, `components` and `poll` in other people's messages, over HTTP
@@ -283,42 +283,38 @@ page asks.
 
 A bot in fewer than 100 servers turns Message Content on in the developer
 portal; from 100 servers Discord requires verification and its approval of the
-intent
-([Discord: Application Flags](https://docs.discord.com/developers/resources/application)).
-Discord also reviews an app's privileged intents once it has more than 10,000
-users.
+intent.
 
-**`check` says `false` only on clear evidence.** It reads up to 100 recent
-messages in the default channel, and judges only
-ordinary messages and replies that someone other than the bot posted, not
-through a webhook. A webhook's post might come from the bot's own app.
+**How `check` knows.** It calls `GET /applications/@me`, which returns "the
+application object associated with the requesting bot user", so the bot's own
+token can call it.
+The intent is on when the `flags` field has either bit set:
+`GATEWAY_MESSAGE_CONTENT` (`1 << 18`), for a bot in 100 or more servers, or
+`GATEWAY_MESSAGE_CONTENT_LIMITED` (`1 << 19`), the developer portal's toggle
+for a bot in fewer
+([Discord: Get Current Application, Application Flags](https://docs.discord.com/developers/resources/application)).
+Neither bit gives `false`. A failed call, or a `flags` field that is missing
+or not a number, gives `null` and a `messageContentError`, never `false`: a
+wrong `false` would send the user to change a setting that is already right.
+The flags need no channel, so `check` reports `messageContent` even when it
+can't find the default channel.
 
-- **A message with text, an attachment or an embed counts as proof the
-  intent is on,** unless it might mention the bot: directly, through any role
-  or with `@everyone`. Discord leaves such a message whole without the intent.
-- **An empty message counts as proof the intent is off** only when every
-  field it fills in is one an ordinary text message has, and its embeds
-  weren't suppressed. A sticker, a forward, a Rich Presence invite or a shared
-  theme can be empty with the intent on. So can a post whose embeds a
-  moderator removed. A field that Discord adds to its API in future is not on
-  the list either, so a message carrying one gives `null`, never a false
-  `false`. Mentions don't matter on this side: a mention is written in the
-  text, so an empty message that has one was emptied by Discord.
+**`read` gives no warning.** SKILL.md has the agent run `check` at the start
+of every session, before it reads, and the setting rarely changes during one.
+So a warning keyed to the flags would cost every `read` an extra request to
+tell the agent what `check` already told it. A warning keyed to empty messages
+would bring back the guessing rejected below. An agent that skips `check` gets
+no sign that other people's messages were left out.
 
-`messageContent` is true when every message that counts has content, and
-false when every one is empty. No message that counts, or both kinds, make it
-`null`, never `false`: a wrong `false` would send the user to change a setting
-that is already right. `check` reports the verdict only, never what a
-message says. `read` warns on the same rule, and asks Discord for the bot's
-id only when a message came back empty.
-
-**Rejected: listing the kinds of message that can be empty.** Each review
-pass found another kind: a Rich Presence invite, a shared theme, a post whose
-embeds were suppressed. The list of ordinary fields turns any kind not yet
-known into `null`.
-
-**Where it stops applying.** A quiet channel, or one where only the bot
-posts, gives `null` until someone else writes there.
+**Rejected: guessing from recent messages whether the intent is on.** The
+guess reads up to 100 messages in the default channel and judges whether
+Discord emptied them, as it does when the intent is off. It needs a list of
+ordinary message fields, and exclusions for messages that might mention the
+bot, which Discord leaves whole. For a warning in `read` it also needs the
+bot's id, to tell which messages mention the bot. Adam
+chose the exact flags over guessing, on 2026-10-21. The guess gives `null` in
+a quiet channel, and each review of it found another kind of message that is
+empty with the intent on.
 
 ## Permissions are computed in `check`, not before every post
 

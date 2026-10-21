@@ -34,12 +34,11 @@ need:
 - **`channels`**: what each channel is for. Post where it says, not where it is convenient.
 - **`people`**: who is who, by Discord handle. Use these to tag people.
 
-`"messageContent": false` means Discord removes the text from other people's
-messages, so `read` can't show them; tell the user, and point them at the
-README's setup. `null` means no recent message could tell, for example when
-only the bot has posted there; reading still works, and the user can confirm
-it by posting there and running `check` again. `check` never prints what the
-messages say.
+`"messageContent": false` means the bot lacks Discord's Message Content intent,
+so Discord removes the text from other people's messages and `read` leaves
+them out; tell the user, and point them at the README's setup step 1.3, which
+turns the intent on. `null` means
+`check` couldn't read the setting from Discord; `messageContentError` says why.
 
 If it fails with "no bot token", the bot isn't set up on this machine. Point the
 user at the skill's README; don't try to find a token yourself.
@@ -108,10 +107,9 @@ python3 $D read --channel agents --limit 100 --before <oldest messageId seen>
 ```
 
 Newest first, up to 100 per call; `--before` pages further back. A message that
-has a thread carries its `threadId`.
-
-If `warnings` says Discord sent messages with no text, the bot lacks Discord's
-Message Content intent. Tell the user; the README's setup says how to turn it on.
+has a thread carries its `threadId`. If `check` showed `"messageContent": false`,
+Discord sends other people's messages without their text, and `read` leaves
+them out. Messages the bot posted, and those that mention it, still come back.
 
 ## Threads
 
