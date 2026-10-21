@@ -25,8 +25,10 @@ type Question = {
   options?: Option[]
   /** An earlier decision the question touches. */
   related?: string
+  /** Where that decision is; prototype URLs past the thread's own are made up. */
+  relatedLink?: string
   /** A decision that may already answer it, and a reply citing it. */
-  answered?: { decision: string; cite: string }
+  answered?: { decision: string; cite: string; link?: string }
   relayAs: string
 }
 
@@ -47,6 +49,7 @@ const QUESTIONS: Question[] = [
       { label: 'No, show them as input', effect: "Workers may read other projects' questions." },
     ],
     related: '#216 decision 3: scope is a hard filter',
+    relatedLink: 'https://github.com/adamstallard/igor/pull/216#decision-3',
     relayAs: 'adam-relay[bot]',
   },
   {
@@ -77,6 +80,7 @@ const QUESTIONS: Question[] = [
       },
     ],
     related: '#212: lore is no more visible than the repositories it serves',
+    relatedLink: 'https://github.com/adamstallard/igor/issues/212',
     relayAs: 'adam-relay[bot]',
   },
   {
@@ -106,6 +110,7 @@ const QUESTIONS: Question[] = [
     text: 'Why does a citation carry an opaque run id rather than the item number?',
     context: 'Review comment on openspec/changes/lore-search/specs/lore-firing/spec.md',
     answered: {
+      link: 'https://github.com/adamstallard/igor/pull/216#decision-10',
       decision: "#216 decision 10: the run id links to the run's ledger row",
       cite: "See decision 10 in #216: the run id links to the run's ledger row, which an item number cannot.",
     },
@@ -236,8 +241,10 @@ const RULE = 'subtle'
 // Prototype only: shown in the top bar, so a tester can tell which build is
 // loaded. v0.1-N, N the number of commits in the prototype repository once
 // this build is committed.
-const BUILD = 'v0.1-21'
+const BUILD = 'v0.1-22'
 const PREFIX = 'User says: '
+// The key row's right end: the same place on every screen.
+const AT_RIGHT = ['b', 'n', 'q']
 const SPEAKER = 8
 const cursorAtom = atom({ plugin: 'answer-session', key: 'cursor' } as const, 0)
 const answersAtom = atom({ plugin: 'answer-session', key: 'answers' } as const, {} as Record<string, Answer>)
@@ -254,6 +261,7 @@ const originalAtom = atom({ plugin: 'answer-session', key: 'original' } as const
 const awaitingAtom = atom({ plugin: 'answer-session', key: 'awaiting' } as const, [] as { id: string; text: string }[])
 const replyTurnsAtom = atom({ plugin: 'answer-session', key: 'replyTurns' } as const, {} as Record<string, string>)
 const askingAtom = atom({ plugin: 'answer-session', key: 'asking' } as const, {} as Record<string, true>)
+const editingAtom = atom({ plugin: 'answer-session', key: 'editing' } as const, {} as Record<string, true>)
 const returnedAtom = atom({ plugin: 'answer-session', key: 'returned' } as const, {} as Record<string, Returned>)
 const openAtom = atom({ plugin: 'answer-session', key: 'isOpen' } as const, false)
 
@@ -591,6 +599,8 @@ type Ctx = {
   q?: Question
   answer?: Answer
   open: boolean
+  /** A relayed answer or a question to the asker is being edited in the prompt box. */
+  editing: boolean
   talking: boolean
   composing: boolean
   busy?: 'reply' | 'rephrase' | 'draft'
@@ -605,7 +615,7 @@ async function snapshot($: EngineInterface): Promise<Ctx> {
   const answers = await read($, answersAtom)
   const deferredAt = QUESTIONS.findIndex(one => answers[one.id]?.kind === 'defer')
   const base = QUESTIONS[at]
-  if (!base) return { at, open: false, talking: false, composing: false, hasReply: false, changed: false, deferredAt }
+  if (!base) return { at, open: false, editing: false, talking: false, composing: false, hasReply: false, changed: false, deferredAt }
   const rephrased = (await read($, rephrasedAtom))[base.id]
   const returned = (await read($, returnedAtom))[base.id]
   const q = view(base, rephrased, returned, !!(await read($, originalAtom))[base.id])
@@ -617,6 +627,7 @@ async function snapshot($: EngineInterface): Promise<Ctx> {
     q,
     answer,
     open: answer?.kind !== 'answer' && answer?.kind !== 'wait',
+    editing: (answer?.kind === 'answer' || answer?.kind === 'wait') && !!(await read($, editingAtom))[base.id],
     talking,
     composing: talking && !!(await read($, askingAtom))[base.id],
     busy: (await read($, thinkingAtom))[base.id],
@@ -656,7 +667,9 @@ function commands(c: Ctx): Command[] {
           ...(q.answered ? [{ key: 'c', what: '(c)ite the decision' }] : []),
           { key: 'l', what: '(l)ater' },
         ]
-      : []),
+      : c.editing
+        ? [{ key: 'k', what: '(k)eep it as posted' }]
+        : [{ key: 'e', what: '(e)dit your post' }]),
     ...(c.changed ? [{ key: 'o', what: '(o)riginal' }] : []),
     ...nav,
     close,
@@ -694,6 +707,10 @@ async function runCommand($: EngineInterface, c: Ctx, key: string): Promise<stri
       return cite($, q)
     case 'l':
       return settle($, q, { kind: 'defer', text: '' }, `Later: ${q.asker.name}'s question comes back after the new ones`)
+    case 'e':
+      return startEdit($, q, c.answer?.text ?? '')
+    case 'k':
+      return stopEdit($, q)
     case 'o':
       return toggleOriginal($, q)
   }
@@ -708,6 +725,7 @@ type Intent =
   | { kind: 'command'; command: Command }
   | { kind: 'say'; text: string }
   | { kind: 'ask'; text: string }
+  | { kind: 'edit'; text: string }
   | { kind: 'refused'; why: string }
 
 function intent(c: Ctx, draft: string): Intent {
@@ -725,7 +743,11 @@ function intent(c: Ctx, draft: string): Intent {
     return c.busy ? { kind: 'refused', why: 'Claude is still answering above: wait for it, or Esc to stop it.' } : { kind: 'say', text }
   }
   if (!c.open) {
-    return { kind: 'refused', why: c.answer?.kind === 'wait' ? `This question waits for ${q.asker.name}'s reply.` : 'This question is already relayed.' }
+    if (c.editing) return text === c.answer?.text.trim() ? { kind: 'refused', why: 'That is what it says now: change it, or (k)eep it as posted.' } : { kind: 'edit', text }
+    return {
+      kind: 'refused',
+      why: c.answer?.kind === 'wait' ? `This question waits for ${q.asker.name}'s reply: (e)dit your post to change it.` : 'This question is already relayed: (e)dit your post to change it.',
+    }
   }
   if (q.options && /^[1-9]$/.test(text)) {
     const index = Number(text) - 1
@@ -748,6 +770,8 @@ function enterHint(c: Ctx, it: Intent): string | undefined {
       return '⏎ to Claude, with the question'
     case 'ask':
       return q ? `⏎ send to ${q.asker.name}` : undefined
+    case 'edit':
+      return q ? `⏎ update your post on ${SURFACE_NAME[q.surface]}` : undefined
     case 'refused':
       return it.why
     case 'none':
@@ -773,6 +797,8 @@ async function enter($: EngineInterface, c: Ctx, it: Exclude<Intent, { kind: 'sa
       return q ? relay($, q, it.text) : ''
     case 'ask':
       return q ? sendAsk($, q, it.text) : ''
+    case 'edit':
+      return q ? editPost($, q, it.text) : ''
   }
 }
 
@@ -815,8 +841,38 @@ async function settleBox($: EngineInterface, isPutBack: boolean): Promise<void> 
 
 /** Moves to question `i` (the queue's length is the summary). */
 async function go($: EngineInterface, i: number, note: string): Promise<string> {
+  // An edit not sent is dropped with the question it was on.
+  await update($, editingAtom, () => ({}))
   await update($, cursorAtom, () => i)
   await update($, flashAtom, () => null)
+  return note
+}
+
+/**
+ * Puts what was posted (the answer, or the question to the asker) back in
+ * the prompt box to change; Enter then updates the post where it is. The
+ * real skill edits the relay's own comment or message on the surface.
+ */
+async function startEdit($: EngineInterface, one: Question, posted: string): Promise<string> {
+  await update($, editingAtom, () => ({ [one.id]: true as const }))
+  await putInBox($, posted)
+  return 'Your post is in the prompt box: change it, then ⏎'
+}
+
+async function stopEdit($: EngineInterface, one: Question): Promise<string> {
+  await update($, editingAtom, e => without(e, one.id))
+  await putInBox($, '')
+  return 'Kept as posted'
+}
+
+async function editPost($: EngineInterface, one: Question, text: string): Promise<string> {
+  await update($, answersAtom, a => {
+    const was = a[one.id]
+    return was ? { ...a, [one.id]: { ...was, text, edited: true as const } } : a
+  })
+  await update($, editingAtom, e => without(e, one.id))
+  const note = `Edited your post on ${SURFACE_NAME[one.surface]} ${one.where}`
+  await update($, flashAtom, () => note)
   return note
 }
 
@@ -1344,11 +1400,13 @@ export const register: Register = on => {
       <Box height={1} overflow="hidden" justifyContent="space-between" width={cols} gap={3}>
         <Box columnGap={3} flexShrink={0}>
           {hints.map(([key, what]) => keyText(key, what))}
-          {shown.filter(cmd => cmd.key !== 'q').map(keyButton)}
+          {shown.filter(cmd => !AT_RIGHT.includes(cmd.key)).map(keyButton)}
         </Box>
+        {/* Back, next and quit always in the same place, at the right, for
+            quick back and forth by click. */}
         <Box gap={3} flexShrink={1} justifyContent="flex-end">
           {status}
-          {keyButton({ key: 'q', what: '(q)uit' })}
+          {AT_RIGHT.flatMap(key => shown.filter(cmd => cmd.key === key)).map(keyButton)}
         </Box>
       </Box>
     )
@@ -1528,8 +1586,8 @@ export const register: Register = on => {
     // The left column: where it came from, the question, what it rests on.
     // The post in one run, wrapping when long: where and as whom, then
     // exactly what it says, at most `max` lines.
-    const postRows = (text: string, width: number, max: number): Row[] => {
-      const where = `Post ${postsAs}`.toUpperCase()
+    const postRows = (text: string, width: number, max: number, verb = 'Post'): Row[] => {
+      const where = `${verb} ${postsAs}`.toUpperCase()
       const head = `${where} ${q.relayAs}: `
       let lines = wrap(head + PREFIX + text, Math.max(10, width))
       if (lines.length > max) lines = [...lines.slice(0, Math.max(1, max) - 1), cut(lines.slice(Math.max(1, max) - 1).join(' '), width)]
@@ -1566,7 +1624,8 @@ export const register: Register = on => {
             <Text wrap="truncate-end">
               <Text color={ACCENT}>↩ </Text>
               <Text bold>{q.asker.name}</Text>
-              <Text dimColor> replied to your question</Text>
+              <Text dimColor> replied to your question </Text>
+              <Link href={q.link}>view</Link>
             </Text>,
             ...(t.reply === 'full' ? wrap(`You asked: ${returned.asked}`, width - 2).map(line => plain(`  ${line}`, { dim: true })) : []),
             ...wrap(returned.reply, width - 2).map(line => (
@@ -1582,7 +1641,7 @@ export const register: Register = on => {
           ? [
               <Text wrap="truncate-end">
                 <Text dimColor>Related </Text>
-                {q.related}
+                {q.relatedLink ? <Link href={q.relatedLink}>{q.related}</Link> : q.related}
               </Text>,
             ]
           : []),
@@ -1590,7 +1649,7 @@ export const register: Register = on => {
           ? [
               <Text wrap="truncate-end">
                 <Text color={LATER}>Possibly answered already </Text>
-                {q.answered.decision}
+                {q.answered.link ? <Link href={q.answered.link}>{q.answered.decision}</Link> : q.answered.decision}
               </Text>,
               ...(open && t.related
                 ? [
@@ -1621,7 +1680,25 @@ export const register: Register = on => {
             <Text dimColor>{`Waiting for ${q.asker.name}. Asked ${postsAs}`.toUpperCase()}</Text> {q.relayAs}
           </Text>
         )
-        return [head, ...bubble(answer.text, isRelayed ? DONE : ACCENT, width, t.bubble), ...(isRelayed && t.logNote ? logNote(width) : [])]
+        // The post itself, a click away (prototype: the thread; the real
+        // skill links the relay's own comment or message).
+        const headRow: Row = (
+          <Box height={1} overflow="hidden" gap={2}>
+            <Box flexShrink={1}>{head}</Box>
+            <Link href={q.link}>{answer.edited ? 'edited · view' : 'view'}</Link>
+          </Box>
+        )
+        const posted = bubble(answer.text, c.editing ? RULE : isRelayed ? DONE : ACCENT, width, t.bubble)
+        if (c.editing) {
+          return [
+            headRow,
+            ...posted,
+            ...(it.kind === 'edit'
+              ? postRows(it.text, width, t.bubble, 'Edit')
+              : [plain('Editing: change it in the prompt box, then ⏎ updates the post.', { dim: true })]),
+          ]
+        }
+        return [headRow, ...posted, ...(isRelayed && t.logNote ? logNote(width) : [])]
       }
       // Each option: a gutter that marks the chosen one, the number and the
       // label (a click puts the number in the prompt box, as typing it

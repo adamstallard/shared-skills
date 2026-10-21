@@ -10,6 +10,8 @@ export type Answer = {
    * sent the asker a clarifying question, and it returns when they reply.
    */
   kind: 'answer' | 'defer' | 'wait'
+  /** True once the post was edited after it went out. */
+  edited?: true
 }
 
 /** One message in a question's discussion. */
@@ -77,6 +79,8 @@ declare module 'claude-code' {
       awaiting: { id: string; text: string }[]
       /** The question each running discussion turn answers, by turn id. */
       replyTurns: Record<string, string>
+      /** The relayed answer or question to the asker being edited in the prompt box, by question id. */
+      editing: Record<string, true>
       /** Questions whose clarifying question to the asker is being written in the prompt box. */
       asking: Record<string, true>
       /** Askers' replies to clarifying questions, by question id. */

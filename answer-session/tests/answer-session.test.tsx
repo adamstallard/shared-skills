@@ -181,13 +181,35 @@ test("after Enter the box is left to the engine's put-back, and a citation lands
   expect(s.filled).toEqual(["See decision 10 in #216: the run id links to the run's ledger row, which an item number cannot."])
 })
 
+test('a relayed answer can be edited: e puts it in the box, Enter updates the post, k keeps it', async ($, on) => {
+  const s = answerSession(on)
+  await s.open($)
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  await s.enter($, '1')
+  await s.enter($, 'b')
+  expect(await s.enter($, 'e')).toContain('Your post is in the prompt box')
+  await s.clock.advance(1_000)
+  expect(s.filled).toEqual(["Yes, filter them by the role's scope"])
+  expect(await s.enter($, "Yes, filter them by the role's scope")).toContain('That is what it says now')
+  expect(await s.enter($, 'Yes, and the same for miss files')).toBe('Edited your post on GitHub adamstallard/igor #216')
+  await ui.redraw()
+  expect(await ui.find({ type: 'Text', text: /the same for miss files/ })).toBeDefined()
+  expect(await ui.find({ type: 'Link', text: /edited · view/ })).toBeDefined()
+  // Keeping it as posted leaves the post alone.
+  await s.enter($, 'e')
+  expect(await s.enter($, 'k')).toBe('Kept as posted')
+  expect(await s.enter($, 'Something else')).toContain('already relayed')
+  expect(s.sent).toEqual([])
+  await ui.unmount()
+})
+
 test('Enter refuses what the screen cannot take, and sends nothing', async ($, on) => {
   const s = answerSession(on)
   await s.open($)
   expect(await s.enter($, '3')).toBe('There is no answer 3.')
   await s.enter($, '1')
   await s.enter($, 'b')
-  expect(await s.enter($, 'Changed my mind')).toBe('This question is already relayed.')
+  expect(await s.enter($, 'Changed my mind')).toBe('This question is already relayed: (e)dit your post to change it.')
   expect(s.sent).toEqual([])
 })
 
