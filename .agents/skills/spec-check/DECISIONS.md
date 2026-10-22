@@ -106,6 +106,114 @@ decision above it, whatever it says.
 
 ---
 
+## A stacked change declares what it builds on
+
+**Decision (Adam, 2026-10-21).** A change that applies on top of another open
+change says so in its `proposal.md`, one line per dependency, right after
+the title:
+
+```markdown
+Builds on: seat-files (adamstallard/igor#171)
+```
+
+The syntax is exactly `Builds on: <change> (<owner>/<repo>#<number>)`, alone
+on its line. Several lines list a chain in the order it applies to main.
+`check` and `sign` then read each dependency's change from its pull
+request's head commit. They apply the dependencies' deltas to the specs of
+the tree being checked, in memory, one dependency after another in the
+listed order. Within each delta they apply renames, then removals, then
+modifications, then additions, as `openspec archive` does. Every check on
+the stacked change then runs against that combined state.
+
+A declaration brings two more kinds of error:
+- `stack`: a line that cannot be read, a dependency that cannot be fetched
+  or does not apply, or a dependency already archived. An archived
+  dependency is an error, not something skipped quietly, so that the stale
+  line is removed: main already holds that dependency's result. When the
+  combined state cannot be built, the duplicate and drift checks do not run
+  for the change, and the error says so. The other checks, such as
+  `no-scenario` and `citation`, do not depend on it and still run.
+- `drift`: the stacked change modifies, removes or renames a requirement
+  that main plus its dependencies no longer define, or keeps a sentence the
+  dependency has since replaced (see *Why drift reads the dependency's
+  history*).
+
+**An archive counts as the dependency only when its proposal matches.** The
+dependency is archived when its pull request has merged and an archive
+directory of its name holds the same `proposal.md` as the pull request's
+head. A change name can be reused after an older change of that name was
+archived, and the older change's proposal differs. A merged change not yet
+archived is read from its pull request, like an open one.
+
+**Why.** igor PR #216 (change `lore-search`) builds on igor PR #171 (change
+`seat-files`), which renames a `task-execution` requirement and rewrites it.
+Once #216's delta restated #171's new requirement, `check` reported
+duplicates on #216: sentences of #171's new requirement are also in main's
+old requirement, which only #171 removes. The duplicate check excuses such a
+pair only when the change being checked removes or renames the old
+requirement itself. A removal by another change does not count, even with
+both changes in one tree, and #216 had no way to say that it applies on top
+of #171. In igor, stacking is normal: igor issue #204 sets the order in
+which about twenty open changes are archived.
+
+**Why a line in the proposal.** It sits in the change that depends, so a
+reviewer reading the proposal sees what it rests on, and the change's checks
+depend on nothing outside the change and the pull requests it names. Its
+form is fixed so that a near miss (`**Builds on:**`, a bare `#171`, a list
+item) is a `stack` error rather than a line silently ignored.
+
+**Why the dependency is read from its pull request.** The pull request is
+where its current text is, and where its author keeps changing it. A copy
+in the stacked branch would go stale silently, which is exactly what the
+drift check exists to catch. Reading the head commit with `git show` checks
+nothing out. When the branch is gone, as after a merge, GitHub's
+`refs/pull/<n>/head` still has it.
+
+**Why drift reads the dependency's history.** The stacked change's MODIFIED
+text is a full restatement, so nothing in it records which version of the
+dependency it was written against. The mechanical sign that the dependency
+has moved on is a replacement the stacked change missed. The check compares
+three texts of the requirement: an earlier one from the history of the
+dependency's delta, the dependency's current one, and the stacked change's.
+A sentence of the stacked text is drift when the earlier text had it, the
+current text has dropped it, and the current text has also gained a
+sentence the stacked text lacks.
+
+A sentence the dependency only dropped is not drift. A stack is often made
+by moving a rule out of the dependency into the stacked change, so that
+sentence is in the dependency's history and now belongs to the stacked
+change. The check reads at most the fifty latest commits that touched the
+delta, which bounds the work on a long-lived branch; drift against an older
+text is not reported.
+
+**A hint between declaring and guessing.** Without the line, a duplicate
+against a main requirement that an open pull request removes or renames
+ends with the exact line to add. It stays an error until the line is added:
+the hint guesses, as the rejected inference below would, and only the
+author knows whether the change builds on that pull request. The lookup is
+one `gh pr list` and at most twenty file reads per run. Without `gh`, or
+when GitHub cannot be reached, the hint is left out and the plain error
+stands.
+
+**Rejected:**
+- **A repository-wide order file.** igor already keeps the archive order in
+  an issue, #204, and a second copy would drift from it. It would also make a
+  change's checks depend on a file outside the change.
+- **Inferring the stack from open pull requests**, with no declaration. It
+  guesses: two open changes may retire the same requirement, and a change
+  may duplicate a rule by mistake while another pull request happens to
+  remove it. Inference survives only as the hint.
+- **Deciding "archived" from the archive directory's name.** Three rules
+  were tried that combined the name with something else: the pull request's
+  state, then also whether the change was still open in the tree. Each
+  misread a state that bug-hunter then found. An open pull request beside an
+  older archive of the same name read as archived; so did a merged change
+  not yet archived; so did a stacked branch cut before the merge, whose tree
+  never holds the dependency's open change. Only the proposal's text
+  identifies the change.
+
+---
+
 ## Undefined terms are left to the consistency read
 
 **Decision** (Adam, 2026-10-15). The script does not look for undefined

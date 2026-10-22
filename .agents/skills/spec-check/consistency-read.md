@@ -15,8 +15,23 @@ Read, in this order:
 2. Every spec under openspec/specs/ on the base branch:
    `git show <base>:openspec/specs/<capability>/spec.md`. Read all of them,
    not only those the change names.
-3. Every other open change under openspec/changes/ (not archive/).
-4. Every open pull request that touches openspec/: list them with
+3. Each dependency the proposal declares, if it is a stacked change: a line
+   `Builds on: <change> (<owner>/<repo>#<number>)`. Run
+   `git fetch origin pull/<number>/head`, which works for an open or merged
+   pull request, from a fork too, and read every file of the dependency's
+   change with `git show FETCH_HEAD:openspec/changes/<change>/<file>`. If the
+   fetch fails, or the change is not there, report that as a finding and
+   read on without it. Apply the dependencies to the base branch's specs in
+   the order listed, each delta's RENAMED, REMOVED, MODIFIED and ADDED
+   requirements in that order. From here on, "the base" means the base
+   branch plus those dependencies: a requirement a dependency removes or
+   renames is gone, and one it rewrites reads as the dependency wrote it.
+   Compare the change against that base, and check that what it modifies or
+   removes still matches what the dependency now says. Do not report a
+   dependency as a conflicting change for what it defines; the change builds
+   on it.
+4. Every other open change under openspec/changes/ (not archive/).
+5. Every open pull request that touches openspec/: list them with
    `gh pr list --state open --json number,title,files`. Then, for each pull
    request that changes a spec this change also touches, or that adds or
    edits an OpenSpec change naming the same capability, read `gh pr view <n> --json title,body,comments` and
@@ -24,7 +39,7 @@ Read, in this order:
    `gh issue view --comments`: when output is not a terminal they print only
    the comments and drop the title and body. Read an issue the change cites
    with `gh issue view <n> --json title,body,comments`.
-5. The repository's architecture or design docs, if it has them (for example
+6. The repository's architecture or design docs, if it has them (for example
    docs/architecture.md, ARCHITECTURE.md, docs/design/).
 
 Then go through the checklist below. For a finding that sets the change
