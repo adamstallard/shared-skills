@@ -564,10 +564,9 @@ member (proposal decision 246). An `@name` that no single member's name
 matches stays plain text and pings no one, and discord-bot's result
 warns about it; when Discord refuses member search, every `@name` stays
 plain text, under one warning that says so. After each Discord relay
-post, the answer session SHALL show the person every warning in
-discord-bot's result (proposal decision 247). This rule does not cover
-an edit of a relay post; the proposal's Still open asks whether it
-should.
+post, and after each edit of one, the answer session SHALL show the
+person every warning in discord-bot's result (proposal decisions 247 and
+252).
 
 When a post fails, because the surface refuses it, such as a Discord
 message over 2,000 characters, or because its command fails, the answer
@@ -608,6 +607,13 @@ used* says.
   `memberSearch` as `false` for the Discord relay, and every other check
   passes
 - **THEN** setup counts the Discord relay's check as passed
+
+#### Scenario: Warnings are shown after an edit too
+
+- **WHEN** the person edits a Discord relay post to "ask @maya", and
+  discord-bot's `edit` returns a warning that `@maya` matched no member
+- **THEN** the answer session shows the person that warning after the
+  edit
 
 #### Scenario: A Discord answer replies to the question
 
@@ -663,8 +669,10 @@ session also push a log file when it answers, in a thread, a question
 that an unanswered log file on a lore repository's questions branch
 holds. When an edit leaves a `User says: ` answer to such a question, the
 answer session SHALL push a new log file holding the question and the
-edited answer, as that requirement pushes one, with the edited post's
-URL as its `answer_link`, and SHALL leave every earlier file
+edited answer, as that requirement pushes one: it passes the edited
+post's URL as the `answer_link`, which the `log` command leaves out of a
+lore repository that is not private for a Linear or Discord post. It
+SHALL leave every earlier file
 unchanged. The newest such file is the one
 that counts, as the inquisitor's *Only an answer with authority stops a
 question* says.
@@ -697,7 +705,7 @@ question* says.
 #### Scenario: Editing an answer the questions branch also logged pushes a new log file
 
 - **WHEN** the person edits a `User says: ` answer they relayed in a
-  thread to a question that an unanswered log file on the lore
+  GitHub thread to a question that an unanswered log file on the lore
   repository's questions branch also holds, and the answer session had
   pushed a log file recording that answer
 - **THEN** the relay updates its post, and the script pushes a new log
@@ -1056,8 +1064,12 @@ answer such a question by writing a new log file through the
 inquisitor script's `log` command, which pushes it to that same questions
 branch under the rules of the inquisitor's *Every answer is recorded and
 every asked question logged*. When the answer was also relayed in a
-thread, the file's `answer_link` SHALL be the URL of that relay post,
-and its answer SHALL be the relay post's text, word for word, as quote
+thread, the answer session SHALL pass the `log` command the URL of that
+relay post as the `answer_link`, which the command leaves out of a lore
+repository that is not private when it is a Linear or Discord URL, as
+the inquisitor's *Every answer is recorded and every asked question
+logged* says (proposal decision 251). Its answer SHALL be the relay
+post's text, word for word, as quote
 lines in the inquisitor's log format. On GitHub that is the comment's own
 text, which the `log` command reads from the post itself, as the
 inquisitor's *Only an answer with authority stops a question* has every
@@ -1072,7 +1084,12 @@ is the answer the person confirmed in the answer session, word for word
 (proposal decision 240). The file also
 holds the question, its `authority` by the rules the inquisitor's *Every
 answer is recorded and every asked question logged* sets for an answer
-the person gave in the session, and any rephrasing and summary. The answer session SHALL offer no question to the asker and no
+the person gave in the session, and any rephrasing and summary. Its
+`authority` is set that way whatever surface relayed the answer. Whether
+the file then counts
+is the inquisitor's *Only an answer with authority stops a question*:
+after a Linear or Discord relay, only through the signature on the
+commit that added it (proposal decision 250). The answer session SHALL offer no question to the asker and no
 edit for a question of the fourth source.
 
 #### Scenario: A rephrased answer carries the rephrasing
@@ -1106,17 +1123,44 @@ edit for a question of the fourth source.
 
 #### Scenario: A questions-branch question asked in a post is answered in both places
 
-- **WHEN** the person answers, from its thread, a question that an
+- **WHEN** the person answers, from its GitHub thread, a question that an
   unanswered log file on the lore repository's questions branch also holds
 - **THEN** the relay posts the answer in the thread, starting
   `User says: `, and the script pushes a new log file holding the question
   and, as its answer, that relay post's text word for word, to that
   branch, whose `answer_link` is that relay post's URL
 
+#### Scenario: A Linear link is left out of a lore repository that is not private
+
+- **WHEN** the person answers, from its Linear thread, a question that an
+  unanswered log file on an internal lore repository's questions branch
+  also holds
+- **THEN** the script pushes a new log file holding the relayed answer
+  and no `answer_link`
+
+#### Scenario: A signed log file of a Discord-relayed answer is a decision
+
+- **WHEN** the person answers in the answer session a question that a
+  private lore repository's questions branch holds, the session relays
+  it on Discord, and GitHub verifies a signature for `answered_by` on
+  the commit that adds the log file, which no later commit changed, and
+  `answered_by` has write access to what the question concerns
+- **THEN** filter 1 counts the file as a decision, and the file's
+  Discord `answer_link` proves nothing
+
+#### Scenario: An unsigned log file of a Discord-relayed answer is input
+
+- **WHEN** the same answer is logged by a commit that carries no
+  signature GitHub verifies
+- **THEN** filter 1 shows the file as input, with the label the
+  inquisitor's *Only an answer with authority stops a question* gives a
+  `decision` file whose writer is not proven, unconfirmed
+
 #### Scenario: A questions-branch answer relayed on Linear keeps its link unfetched
 
 - **WHEN** the person answers, from its Linear thread, a question that an
-  unanswered log file on the lore repository's questions branch also holds
+  unanswered log file on a private lore repository's questions branch
+  also holds
 - **THEN** the script pushes a new log file whose answer is the text the
   answer session sent to the relay's skill, word for word, as quote
   lines, and whose `answer_link` is that Linear comment's URL, and

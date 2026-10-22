@@ -180,7 +180,9 @@ Terms used throughout this spec:
   rest of the file still counts. A person SHALL list only an App that
   posts nothing a post hook cannot see apart from the answer session's
   own posts, and never an Igor's App. Only the `github` list proves
-  anything: an answer on Linear or Discord is input whoever posted it.
+  anything: an answer on Linear or Discord is input whoever posted it,
+  unless an answer session's signed log file of it counts, as *Only an
+  answer with authority stops a question* says.
   Nothing in this spec reads the `linear` and `discord` lists; they
   record which identities post for the person there.
 - **A person's relay App** is a GitHub App whose slug is in the `github`
@@ -643,12 +645,16 @@ questions branch, it is the organization or project that lore repository
 serves, and write access to it is write access to that lore repository;
 the file's `repository` key still names where a linked comment may be.
 
-An answer given on another surface, such as a Discord thread, a Slack
-message or a Linear comment, SHALL be input until a decision document that
-the list above counts records it. One such document is the `accepted`
-decision record igor's scribe (igor PR #202) writes in a place filter 1
-searches, such as `docs/decisions/` on the default branch of the
-repository the question concerns. A link to a message on such a surface SHALL NOT prove a
+An answer typed directly on another surface, such as a Discord thread, a
+Slack message or a Linear comment, SHALL be input until a decision
+document that the list above counts records it. One such document is the
+`accepted` decision record igor's scribe (igor PR #202) writes in a place
+filter 1 searches, such as `docs/decisions/` on the default branch of the
+repository the question concerns. An answer the person typed in an
+answer session, which the session relayed on such a surface and logged,
+is not an answer typed there: its questions-branch log file can count
+through a signature on the commit that added it, the second of the two
+proofs a `decision` file's writer has above (proposal decision 250). A link to a message on such a surface SHALL NOT prove a
 questions-branch file's writer.
 
 Every other hit the search shows SHALL be shown to the agent as input,
@@ -897,7 +903,8 @@ agent. The search SHALL never show a rejected candidate.
 #### Scenario: A Discord answer link is recorded and never fetched
 
 - **WHEN** the answer session's `log` call passes an answer relayed on
-  Discord, with that Discord message's URL as its `answer_link`
+  Discord, with that Discord message's URL as its `answer_link`, for a
+  private lore repository
 - **THEN** the command fetches nothing, records the answer it was given
   word for word as quote lines, and writes the URL as the file's
   `answer_link`
@@ -932,7 +939,8 @@ agent. The search SHALL never show a rejected candidate.
 #### Scenario: A link to a Discord message proves no writer
 
 - **WHEN** a `decision` file on a lore questions branch names `alice` as
-  `answered_by`, and its `answer_link` is a Discord message by `alice`
+  `answered_by`, its `answer_link` is a Discord message by `alice`, and
+  the commit that added it carries no signature GitHub verifies
 - **THEN** the search shows the file labelled as unconfirmed, and
   fetches nothing from the link
 
@@ -2078,7 +2086,11 @@ when it cannot read the comment, it SHALL write nothing and say why. For
 an answer whose `answer_link` is a Linear or Discord URL, as *A log file
 and a miss file have one format* defines them, the command SHALL fetch
 nothing, and SHALL record the answer it was given, word for word
-(proposal decision 248). The command does not check who passed such a
+(proposal decision 248). Such a link comes only from an answer session,
+which logs only to a lore repository's questions branch. The command
+SHALL write the link only when it reads that lore repository's
+visibility as private, and otherwise SHALL write the file without an
+`answer_link` (proposal decision 251). The command does not check who passed such a
 link; it proves no writer whoever did. For an `answer_link` that is none
 of these, it SHALL write nothing and say why. In
 Igor-worker mode it SHALL read no comment: it writes the answer it was
@@ -2450,7 +2462,8 @@ written.
   the github.com URL of the comment or review holding the answer, or,
   for an answer an answer session relayed on Linear or Discord, the URL
   of that relay comment or message, kept as a pointer that nothing
-  fetches (proposal decision 248): on Discord
+  fetches and written only in a private lore repository (proposal
+  decisions 248 and 251): on Discord
   `https://discord.com/channels/<id>/<id>/<id>` with decimal ids, and on
   Linear a URL starting `https://linear.app/`; and
   `asked_from`, only in a questions-branch file an Igor pushes, whether

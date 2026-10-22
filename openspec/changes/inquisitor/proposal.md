@@ -15,7 +15,7 @@ are written down:
   196, 204 to 214, 216 to 221, 223 to 226, 229 and 231, on 2026-10-20;
 - 232 to 237, on 2026-10-21, and 238 in two parts: Message Content
   turned on, on 2026-10-20, and how `check` reads it, on 2026-10-21.
-- 240 to 249, on 2026-10-21.
+- 240 to 253, on 2026-10-21.
 
 Apart from 229 and 241 to 244, which he gave in the session reviewing
 igor PR #216, and 238, which he gave in shared-skills PR #1, he gave those of 2026-10-19 to 2026-10-21 while reviewing this pull
@@ -40,7 +40,8 @@ decision 200's item 1: a `Recorded answer: ` post no longer quotes the
 answer. His decision 245 replaces the rule this change had proposed under
 that number, and his decision 246 settles 230's item 1. His decisions 247
 to 249 answer the three questions this change put to him when it
-recorded 245 and 246.
+recorded 245 and 246, and 250 to 253 answer the four it put to him when
+it recorded 247 to 249.
 
 1. **Four filters run before any question reaches a person.**
    1. **Already answered:** the agent finds the earlier answer, cites where it
@@ -659,9 +660,12 @@ day are its items 1 to 6:
 Adam gave 109 on 2026-10-20, reviewing #25, as an addition to item 5 of
 decision 107:
 
-109. **An answer given on another surface, such as Discord, Slack or
-     Linear, counts once igor's scribe records it as an `accepted` decision
-     record;** until then it is input. The scribe is the Igor role that
+109. *Narrowed by Adam's decision 250 to an answer typed directly on
+     another surface; an answer typed in the answer session and relayed
+     there counts through the signature on its log file's commit.*
+     **An answer typed directly on another surface, such as Discord,
+     Slack or Linear, counts once igor's scribe records it as an
+     `accepted` decision record;** until then it is input. The scribe is the Igor role that
      writes a discussion's decisions down (igor issue #201, PR #202). What
      109 adds is that the answer itself never counts: not as a logged
      decision, and not through a link to the message, since a linked answer
@@ -1725,8 +1729,9 @@ decision 230's item 1:
 Adam gave 247 to 249 on 2026-10-21, answering the three questions this
 change put to him after recording 245 and 246:
 
-247. **After a Discord relay post, the answer session shows the person
-     discord-bot's warnings,** so they learn when an `@name` pinged no
+247. *Amended by Adam's decision 252: edits too.* **After a Discord
+     relay post, the answer session shows the person discord-bot's
+     warnings,** so they learn when an `@name` pinged no
      one. discord-bot leaves an `@name` as plain text when no single
      member's name matches it, and warns for that name. When Discord
      refuses its member search (`check` reports `memberSearch: false`),
@@ -1734,7 +1739,10 @@ change put to him after recording 245 and 246:
      Setup does not fail the Discord relay when `memberSearch` is false.
      *Rejected:* failing setup on `memberSearch: false`.
 248. **A questions-branch answer relayed on Linear or Discord is logged
-     with that relay post as its `answer_link`, never fetched.** The log
+     with that relay post as its `answer_link`, never fetched.** This is
+     a question both on a questions branch and asked in a Linear or
+     Discord thread, which the answer session answers in both places
+     (decision 210). The log
      file records, word for word as quote lines, the text the answer
      session relayed for the person. `answer_link` holds the Linear
      comment's or Discord message's URL as a pointer: the `log` command
@@ -1742,8 +1750,9 @@ change put to him after recording 245 and 246:
      call. Only a github.com link is fetched, and its comment's text
      copied (decision 239's item 3). The log format's `answer_link` widens
      to allow these URLs. A non-GitHub link still proves no writer
-     (decisions 78 and 183's item 3). Whether such a file can count as
-     an answer at all is open; see Still open.
+     (decisions 78 and 183's item 3). Decision 250 has such a file count
+     through the signature on its commit, and decision 251 writes the
+     link only in a private lore repository.
 249. **Igor-worker scenarios stay untagged until igor builds what they
      need.** Gate two, the implementation, tags no test of a scenario that only igor's
      unbuilt work, such as `igor lore-search`, can make pass, so
@@ -1751,6 +1760,43 @@ change put to him after recording 245 and 246:
      gaps, and task 4.3 tags each one once igor provides what it needs.
      spec-trace does not change. This replaces task 4.2's skipped,
      tagged tests, which spec-trace counted as coverage.
+
+Adam gave 250 to 253 on 2026-10-21, answering the four questions this
+change put to him when it recorded 247 to 249:
+
+250. **An answer typed in the answer session counts through its log
+     file's signature, whatever surface relays it.** When the person
+     answers in the answer session a questions-branch question that was
+     also asked on Discord or Linear (decision 248), the session relays
+     the answer there and logs it from the person's machine. When the commit that adds the file
+     carries a signature GitHub verifies for `answered_by` (decision
+     78's item 2), the file counts as a decision, as an answer the
+     person picks in Claude Code's picker does when the agent logs it
+     with a signed commit. Without a verified signature the file is input. Its Linear or
+     Discord `answer_link` stays a pointer that proves nothing (decision
+     248). This narrows decision 109 to answers typed directly on
+     Discord, Linear or Slack, which stay input until igor's scribe
+     records them. *Rejected:* keeping decision 109 whole, so that every
+     answer relayed off GitHub was input.
+251. **A Linear or Discord `answer_link` is written only when the lore
+     repository is private.** Otherwise the log file is written without
+     an `answer_link`, and still records the answer. A Discord URL holds
+     the server's and channel's ids, and a Linear URL the workspace,
+     issue and title. A Linear or Discord thread counts as private, so a
+     lore repository that is not private is more visible than it, and
+     the link would point its readers into the private workspace.
+     *Rejected:* always writing the link; and writing no log file in a
+     lore repository that is not private.
+252. **The answer session shows discord-bot's warnings after an edit of a
+     Discord relay post too,** as after a post, since an edit can drop a
+     ping. This amends decision 247.
+253. **This change is archived only after task 4.3 has tagged every
+     expected gap,** the Igor-worker scenarios of decision 249, so
+     spec-trace's CI never meets an untagged one in `openspec/specs/`.
+     Task 7.0 already makes the archive wait for igor PR #216 to merge;
+     this adds a second condition. *Rejected:*
+     archiving the rest and leaving the Igor-worker scenarios in an open
+     change.
 
 ### Proposed by this change
 
@@ -1965,8 +2011,9 @@ cheap to reverse, so this change made them under filter 4:
      5. **Confirmed by Adam (2026-10-20), with his decision 109 added.** A
         linked answer (decision 78) must be a github.com comment or review
         on the repository the question concerns or on the lore repository.
-        An answer given on another surface counts only through a decision
-        document that records it, such as the scribe's (decision 109).
+        An answer typed directly on another surface counts only through a
+        decision document that records it, such as the scribe's (decision
+        109, narrowed by decision 250).
      6. **Replaced by Adam's decision 108.** It kept a vulnerability's
         question and answer out of a fix's commit messages, pull request
         text and comments.
@@ -2707,52 +2754,9 @@ this change's own:
 
 **Still open:**
 
-Four questions for Adam, raised while recording decisions 247 to 249:
-- **Can an answer relayed off GitHub count as an answer?** Under decision
-  248 its log file's `answer_link` is a Linear or Discord URL, which
-  proves no writer (decisions 78 and 183's item 3), and the equality
-  check of decision 236 (igor #216's decision 72) runs only on a fetched
-  GitHub comment. The relay files that let a relayed GitHub comment count
-  (decisions 184 and 216) list only GitHub Apps. Whether the file can
-  count therefore turns on two rules that point different ways. Decision
-  109 says an answer given on another surface
-  never counts, "not as a logged decision, and not through a link to the
-  message", and the inquisitor spec makes an answer on Linear or Discord
-  input until a decision document records it. But decision 78 counts a
-  questions-branch `decision` file whose adding commit carries a
-  signature GitHub verifies for `answered_by`, and the answer session
-  logs an answer the person gave in the session as `authority:
-  decision`, so a signed file would count.
-  Options: decision 109 governs, so the answer session logs such a file
-  with `authority: input` (recommended: it keeps Adam's own rule, and
-  the person can still record the answer in a decision document); or a
-  signed file counts, which amends decision 109 for answers the answer
-  session relayed.
-- **A Linear or Discord link in a lore repository more visible than its
-  thread.** A Discord message URL holds the server's and channel's ids,
-  and a Linear comment URL the workspace and issue. The answer session's
-  own miss files go nowhere more visible than the question's thread. A
-  Linear or Discord thread counts as private, so for those threads that
-  rules out any lore repository that is not private. But
-  no such rule covers these log files. Options: write the link only when
-  the lore repository is private, and otherwise log the file without an
-  `answer_link` (recommended: the answer is still recorded, and nothing
-  points into a private workspace); always write it, accepting the ids
-  as public; or write no log file there at all.
-- **Warnings after an edit.** discord-bot's `edit` returns warnings too,
-  and editing a relay post can drop a ping. Decision 247 names only the
-  post, not an edit of it.
-  Options: show warnings after an edit as well (recommended: the same
-  reason applies); or after the first post only.
-- **Untagged Igor-worker scenarios fail spec-trace's CI once archived.**
-  spec-trace's `check` fails on any scenario in `openspec/specs/` that no
-  test tags and the baseline does not list, and the baseline takes no
-  new line. So if this change is archived before igor builds what those
-  scenarios need, CI fails. Options: hold the archive (task 7.0) until
-  task 4.3 has tagged every one (recommended: no rule bends, and task
-  7.0 already holds the archive for igor #216); or archive the other
-  capabilities' scenarios first and leave the Igor-worker scenarios in an
-  open change until igor builds its part.
+The archive waits for task 4.3 to tag every expected gap, which waits
+for igor to build `igor lore-search` and let a role's `commands` list
+the skill's script (decisions 249 and 253).
 
 Open on igor PR #216's side, at d3b7740, which records Adam's decisions
 up to 101 in #216's own numbering, decisions 244 and 245 among them as
@@ -2954,8 +2958,9 @@ item on Igor-worker mode.
 - **igor PR #202, the scribe's records.** Two of its open points decide
   when decision 109 can apply:
   - #202 has not settled how the scribe recognises an approval given off
-    GitHub. Until it does, the scribe can't mark a record of a Discord,
-    Slack or Linear answer `accepted`, so such an answer counts only when a
+    GitHub. Until it does, the scribe can't mark a record of an answer
+    typed directly on Discord, Slack or Linear `accepted`, so such an
+    answer counts only when a
     person writes it into another decision document that filter 1 counts,
     such as one on the default branch of the repository the question
     concerns.
@@ -2969,9 +2974,10 @@ item on Igor-worker mode.
   to a GitHub login. igor issue #160 already maps a Discord user to a
   GitHub login, by a configuration entry keyed by the Discord user id; a
   later change would choose between that entry and a file in the lore
-  repository. Until one adds it, such an answer
-  counts only through a decision document, such as the scribe's record
-  (decision 109).
+  repository. Until one adds it, an answer typed directly on such a
+  surface counts only through a decision document, such as the scribe's
+  record (decision 109). An answer typed in the answer session and
+  relayed there counts through its log file's signature (decision 250).
 
 #211's other open questions: decision 23 settles the first. The other two,
 how long to wait before following up and whether a discussion is a new kind

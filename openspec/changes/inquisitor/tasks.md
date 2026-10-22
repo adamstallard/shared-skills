@@ -213,7 +213,8 @@ contradicts what design.md assumed.
       an answer with a github.com `answer_link` read from the linked
       comment and recorded word for word (decision 236), an answer with
       a Linear or Discord `answer_link` recorded as given, its link
-      never fetched (decision 248), and any answer a person
+      never fetched (decision 248) and written only into a private lore
+      repository (decision 251), and any answer a person
       gave without an `answer_link` in their own words as given
       (decision 240), each in quote lines
       (decision 239's item 1): in the
@@ -294,8 +295,8 @@ contradicts what design.md assumed.
 - [ ] 4.3 Once igor provides `igor lore-search` and a role's `commands`
       can list the skill's script, build Igor-worker mode, write a tagged
       test for each expected gap, and remove it from design.md's list.
-      Archiving with a gap still untagged would fail spec-trace's CI; the
-      proposal's Still open asks Adam how to handle that
+      Archiving with a gap still untagged would fail spec-trace's CI, so
+      the archive waits for this task (task 7.0, decision 253)
 
 ## 5. Docs and registration
 
@@ -359,9 +360,10 @@ contradicts what design.md assumed.
       the thread read before a question is shown and before each post, and
       a questions-branch question answered by a new log file, and a new
       log file again when its relayed answer is edited (decision 220);
-      discord-bot's warnings shown after each Discord relay post
-      (decision 247); and, off GitHub, the relayed text logged with the
-      relay post's URL as an unfetched `answer_link` (decision 248)
+      discord-bot's warnings shown after each Discord relay post and each
+      edit of one (decisions 247 and 252); and, off GitHub, the relayed
+      text logged with the relay post's URL as an unfetched
+      `answer_link` (decision 248)
 - [ ] 6.5 State: the state folder, a question's state read from its
       thread, closed questions, discussion records deleted once their
       question is answered or closed, the question on screen, and the lock,
@@ -408,7 +410,9 @@ contradicts what design.md assumed.
 ## 7. Archive
 
 - [ ] 7.0 Archive only after igor PR #216 has merged, since filter 1's
-      search in an Igor worker depends on it. If igor PR #202 has by then
+      search in an Igor worker depends on it, and after task 4.3 has
+      tagged every expected gap, since spec-trace's CI fails on an
+      untagged scenario once archived (decision 253). If igor PR #202 has by then
       said where the scribe's records live, both in the repository a
       question concerns and in the lore repository, make filter 1 search
       those places (decisions 63, 66 and 109). Until #202 says so, filter 1

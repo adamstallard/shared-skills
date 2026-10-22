@@ -351,13 +351,19 @@ frontmatter (`repository`, `asked`, `answered_by`, `authority`:
 `decision`, `input` or `agent`, `recorded_in`, and `answer_link`, the
 comment or review holding the answer, when there is one) and the
 question and answer as its body. An `answer_link` is a github.com
-comment or review, whose text the `log` command fetches and records, or,
-for an answer the answer session relayed on Linear or Discord, that
-relay post's URL, which nothing fetches: the file records the text the
-session relayed (proposal decision 248). A Linear or Discord link
-proves no writer, since only GitHub tells a reader who wrote a comment;
-whether such a file can count as an answer at all is in the proposal's
-Still open. An answer an agent reads on Discord, Slack or Linear itself
+comment or review, whose text the `log` command fetches and records, or
+a Linear or Discord relay post's URL, which nothing fetches. The second
+kind arises only when the answer session answers a questions-branch
+question that was also asked in a Linear or Discord thread (proposal
+decision 210): the file then records the text the session relayed
+(proposal decision 248). A Linear or Discord link proves no writer,
+since only GitHub tells a reader who wrote a comment. It is written only
+when the lore repository is private, because its ids would otherwise
+point readers outside a private workspace at it (proposal decision 251).
+Such a file counts as a decision only when GitHub verifies a signature
+for `answered_by` on the commit that added it, the same proof as for an
+answer the person picks in Claude Code's picker and the agent logs from
+their machine (proposal decision 250). An answer an agent reads on Discord, Slack or Linear itself
 is logged as `input`. Filter 1 treats that answer as given only once a
 decision document records it, of a kind the spec's *Only an answer with
 authority stops a question* lists, such as one on the default branch of
@@ -814,8 +820,11 @@ the cost is accepted and the README says so. Task 0.21 measures whether GitHub r
 wrote a comment. Until that measurement shows it does, a relayed answer
 is input, and if it shows GitHub does not, no comment is ever a relayed
 answer. A relay post on
-Linear or Discord stays input, as any answer given off GitHub does
-(decision 109).
+Linear or Discord that an agent reads stays input, as any answer typed
+off GitHub does (decision 109). The answer session also logs an answer
+it relayed on Linear or Discord, when the question is on a questions
+branch, and that log file can count as a decision through its commit's
+signature (decision 250).
 
 The file is YAML under `relays/` in the lore repository, the one holding
 the entries, with one list per surface. Where igor PR #208's
@@ -945,4 +954,5 @@ spec on the same branch, lists each such scenario in this section by
 name when it writes the tests, and task 4.3 tags it once igor provides
 what it needs. Until the change is archived, its scenarios sit outside
 `openspec/specs/`, so CI passes. Archiving it while any gap is untagged
-would fail CI; the proposal's Still open asks Adam how to handle that.
+would fail CI, so the change is archived only after task 4.3 has tagged
+every gap (proposal decision 253).
