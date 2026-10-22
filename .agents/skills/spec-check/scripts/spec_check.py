@@ -16,6 +16,12 @@ A target is a change name, a change directory (openspec/changes/<name>), or
 is checked. `--ref` reads openspec/ from a git ref instead of the working tree,
 so a pull request's branch is checked without checking it out.
 
+A change whose proposal.md has `Builds on: <change> (<owner>/<repo>#<number>)`
+lines is checked against the specs of the tree being checked with those
+changes applied. Each is read from its pull request with gh and git, which
+needs the network; a dependency that cannot be read is an error, never
+skipped.
+
 check exits 0 with no errors, 1 with errors, 2 when it cannot run. Findings
 marked `check` are heuristics for a person or agent to judge; they never fail.
 
@@ -36,6 +42,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import urllib.parse
 
 DECISIONS_HEADINGS = ["Decisions"]
 
@@ -78,10 +85,10 @@ class Fatal(Exception):
     """Cannot run at all: exit 2."""
 
 
-def git(repo, *args, check=True, binary=False, stdin=None):
+def git(repo, *args, check=True, binary=False, stdin=None, env=None):
     result = subprocess.run(
         ["git", "-C", repo, "-c", "log.showSignature=false", *args],
-        capture_output=True, input=stdin, text=not binary,
+        capture_output=True, input=stdin, text=not binary, env=env,
     )
     if check and result.returncode != 0:
         err = result.stderr if not binary else result.stderr.decode("utf-8", "replace")
@@ -226,6 +233,25 @@ class Req:
         self.path, self.line, self.name, self.section = path, line, name, section
         self.text = []        # (line number, text) before the first scenario
         self.scenarios = []   # Scenario
+        # Set only on a requirement of the base a change is checked against
+        # (the tree's specs, plus any dependencies): cap is the capability it
+        # belongs to there. dep is the dependency that defined or renamed it,
+        # or None for a requirement of the tree's own specs.
+        self.cap = None
+        self.dep = None
+
+    def restated(self, name=None, cap=None, dep=None):
+        """A copy for the base a change is checked against, under a new name
+        if one is given. It shares its text and scenario lists with this
+        requirement."""
+        r = Req(self.path, self.line, name or self.name, None)
+        r.text, r.scenarios = self.text, self.scenarios
+        r.cap, r.dep = cap, dep
+        return r
+
+    def where(self, line=None):
+        at = f"{self.path}:{line or self.line}"
+        return f"{at} in {self.dep.slug}#{self.dep.number}" if self.dep else at
 
     @property
     def body(self):
@@ -273,6 +299,32 @@ def parse_spec(rel, text):
 
 
 RENAMED_FROM = re.compile(r"FROM:\s*`?\s*#*\s*Requirement:\s*(.+?)\s*`?\s*$")
+RENAMED_TO = re.compile(r"\bTO:\s*`?\s*#*\s*Requirement:\s*(.+?)\s*`?\s*$")
+
+
+def renamed_pairs(text):
+    """(old name, new name, line of the FROM line) for each rename in one
+    delta spec."""
+    pairs, section, old = [], None, None
+    for n, raw, fenced in markdown_lines(text):
+        if fenced:
+            continue
+        m = HEADING.match(raw)
+        if m and len(m.group(1)) == 2:
+            d = DELTA.match(m.group(2))
+            section, old = (d.group(1).upper() if d else None), None
+            continue
+        if section != "RENAMED":
+            continue
+        f = RENAMED_FROM.search(raw)
+        if f:
+            old = (f.group(1).strip(), n)
+            continue
+        t = RENAMED_TO.search(raw)
+        if t and old:
+            pairs.append((old[0], t.group(1).strip(), old[1]))
+            old = None
+    return pairs
 
 
 def retired_names(text):
@@ -313,6 +365,8 @@ class Corpus:
             for rel in self._markdown(os.path.join("openspec", "specs", cap)):
                 if rel.endswith("spec.md"):
                     self.specs[rel] = parse_spec(rel, self.texts[rel])
+                    for r in self.specs[rel]:
+                        r.cap = cap
         changes_dir = os.path.join(base, "changes")
         for name in sorted(os.listdir(changes_dir)) if os.path.isdir(changes_dir) else []:
             if name == "archive" or not os.path.isdir(os.path.join(changes_dir, name)):
@@ -340,14 +394,17 @@ class Corpus:
         prefix = f"openspec/changes/{change}/"
         return [p for p in self.texts if p.startswith(prefix)]
 
-    def all_reqs(self):
-        for path, reqs in self.specs.items():
-            for r in reqs:
-                yield r
-        for files in self.changes.values():
-            for reqs in files.values():
-                for r in reqs:
-                    yield r
+    def all_reqs(self, base=None, skip=()):
+        """Every requirement: those in the list base (by default, the specs
+        under openspec/specs), then those of every open change not named in
+        skip."""
+        if base is None:
+            base = [r for reqs in self.specs.values() for r in reqs]
+        yield from base
+        for name, files in self.changes.items():
+            if name not in skip:
+                for reqs in files.values():
+                    yield from reqs
 
 
 # -- findings ----------------------------------------------------------------
@@ -356,6 +413,11 @@ class Finding:
     def __init__(self, path, line, severity, kind, message):
         self.path, self.line, self.severity = path, line, severity
         self.kind, self.message = kind, message
+        # Set on a duplicate finding in a change: (the change's name,
+        # [(capability, name)] of each requirement under openspec/specs that
+        # the duplicate matched). add_hints looks for an open pull request
+        # that retires one of them.
+        self.retirable = None
 
     def text(self):
         where = f"{self.path}:{self.line}" if self.line else self.path
@@ -410,25 +472,32 @@ def normalize(sentence):
 
 
 def retires(corpus, a, b):
-    """Whether one of a and b is a main-spec requirement that the other's
-    change removes or renames, in its delta file for that requirement's
-    capability. Such a pair is not reported as a duplicate: the change
-    replaces the old requirement, even when the rule moves to another
-    capability."""
+    """Whether one of a and b is a requirement of the base (the specs, plus
+    any dependencies) that the change holding the other removes or renames.
+    The removal must be in that change's delta file for the base
+    requirement's capability; the restated rule may sit in any capability.
+    Such a pair is not reported as a duplicate, because the change replaces
+    the base requirement. A removal by a change that is not a declared
+    dependency does not count. A declared dependency's removal needs no
+    test here: the requirement is already gone from the base (class
+    Stack)."""
     for spec, delta in ((a, b), (b, a)):
         parts = delta.path.split("/")
-        if not spec.path.startswith("openspec/specs/") or parts[1:2] != ["changes"]:
+        if spec.cap is None or delta.cap is not None or parts[1:2] != ["changes"]:
             continue
-        cap = spec.path.split("/")[2]
-        retired_by_change = corpus.texts.get(f"openspec/changes/{parts[2]}/specs/{cap}/spec.md")
+        retired_by_change = corpus.texts.get(f"openspec/changes/{parts[2]}/specs/{spec.cap}/spec.md")
         if retired_by_change and spec.name.lower() in retired_names(retired_by_change):
             return True
     return False
 
 
-def check_duplicates(targets, corpus, out):
+def check_duplicates(targets, corpus, out, base=None, skip=()):
+    """base and skip are as Corpus.all_reqs takes them. A stacked change is
+    checked against the specs plus its dependencies, so its dependencies'
+    own changes are left out of the open changes: they are part of base
+    already."""
     index = {}
-    for r in corpus.all_reqs():
+    for r in corpus.all_reqs(base, skip):
         for line, sentence in units(r):
             key = normalize(sentence)
             if len(key.split()) >= DUPLICATE_MIN_WORDS:
@@ -448,9 +517,14 @@ def check_duplicates(targets, corpus, out):
             if others:
                 o, ol = others[0]
                 more = f" and {len(others) - 1} more" if len(others) > 1 else ""
-                out.append(Finding(r.path, line, "error", "duplicate",
-                                   f'this rule is also stated in "{o.name}" at {o.path}:{ol}{more}; '
-                                   "state it once and refer to it"))
+                f = Finding(r.path, line, "error", "duplicate",
+                            f'this rule is also stated in "{o.name}" at {o.where(ol)}{more}; '
+                            "state it once and refer to it")
+                parts = r.path.split("/")
+                if r.cap is None and parts[1:2] == ["changes"]:
+                    f.retirable = (parts[2], [(o.cap, o.name) for o, _ in others
+                                              if o.cap is not None and o.dep is None])
+                out.append(f)
 
 
 SUBMODULE = "submodule"  # a path inside a submodule: unreadable, not missing
@@ -669,6 +743,527 @@ def has_decisions(text, start, level):
     return False
 
 
+# -- stacked changes -------------------------------------------------------------
+
+# A change that applies on top of another open change says so in its
+# proposal.md, one line per dependency, in the order they apply to main:
+#
+#     Builds on: seat-files (adamstallard/igor#171)
+#
+# It is then checked against the specs of the tree being checked, with each
+# dependency's delta applied (DECISIONS.md, "A stacked change declares what it
+# builds on").
+BUILDS_ON = re.compile(
+    r"^Builds on:[ \t]+([A-Za-z0-9][A-Za-z0-9._-]*)[ \t]+"
+    r"\(([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)#([0-9]+)\)[ \t]*$")
+# Anything that looks like an attempt at the line, so a near miss is an error
+# rather than a line silently ignored.
+BUILDS_ON_LIKE = re.compile(r"^[\s>*_+-]*builds\s+on\b[\s*_]*:", re.I)
+BUILDS_ON_SYNTAX = "Builds on: <change> (<owner>/<repo>#<number>)"
+ARCHIVED = r"\d{4}-\d{2}-\d{2}-"   # OpenSpec archives a change as <date>-<name>
+
+# The GitHub CLI. Tests point this at a fake, so that no test reaches GitHub.
+GH = os.environ.get("SPEC_CHECK_GH") or "gh"
+GH_TIMEOUT = 60
+# The hint (add_hints) suggests a `Builds on:` line for a duplicate. It lists
+# at most HINT_PRS open pull requests and reads at most HINT_READS of their
+# delta files.
+HINT_READS = 20
+HINT_PRS = 100
+# How many of the latest commits touching a dependency's delta the drift
+# check reads for its earlier texts.
+HISTORY_DEPTH = 50
+
+
+class StackError(Exception):
+    """A dependency that cannot be read or applied."""
+
+
+class Dep:
+    """One `Builds on:` line, and once loaded, the dependency's change."""
+
+    def __init__(self, change, slug, number, line):
+        self.change, self.slug, self.number, self.line = change, slug, int(number), line
+        self.label = f"{change} ({slug}#{number})"
+        self.declaration = f"Builds on: {self.label}"
+        self.tree = None      # the commit its change was read from
+        self.deltas = {}      # capability -> delta spec text
+        self.builds_on = []   # (change, label) its own proposal declares
+        self.proposal = None  # its proposal.md text at that commit
+        self.head_archive = None  # the archive directory there, when that commit archives it
+        self._history = {}
+
+    def delta_path(self, cap):
+        return f"openspec/changes/{self.change}/specs/{cap}/spec.md"
+
+    def history(self, repo, cap):
+        """The earlier texts of its delta for cap, newest first, from the
+        HISTORY_DEPTH latest commits touching it in the history of the commit
+        it was read from."""
+        if cap not in self._history:
+            path = self.delta_path(cap)
+            shas = git(repo, "log", "--format=%H", f"--max-count={HISTORY_DEPTH}", self.tree,
+                       "--", path, check=False).stdout.split()
+            texts = []
+            for sha in shas:
+                text = show_text(repo, sha, path)
+                if text is not None and text != self.deltas.get(cap):
+                    texts.append(text)
+            self._history[cap] = texts
+        return self._history[cap]
+
+
+def builds_on(text, path):
+    """The `Builds on:` lines of one proposal, as ([Dep], [Finding])."""
+    deps, problems = [], []
+    for n, raw, fenced in markdown_lines(text):
+        if fenced or not BUILDS_ON_LIKE.match(raw):
+            continue
+        m = BUILDS_ON.match(raw)
+        if not m:
+            problems.append(Finding(path, n, "error", "stack",
+                                    f"cannot read this line; write it as `{BUILDS_ON_SYNTAX}`, "
+                                    "at the start of a line, one dependency per line"))
+            continue
+        dep = Dep(m.group(1), m.group(2), m.group(3), n)
+        if any(d.label == dep.label for d in deps):
+            problems.append(Finding(path, n, "error", "stack", f"{dep.label} is listed twice"))
+            continue
+        deps.append(dep)
+    return deps, problems
+
+
+def gh(repo, *args):
+    """gh's output, or raises StackError with what went wrong. Bytes that are
+    not UTF-8, as in a file read through `gh api`, are replaced."""
+    try:
+        r = subprocess.run([GH, *args], cwd=repo, capture_output=True,
+                           timeout=GH_TIMEOUT, env=dict(os.environ, GH_PROMPT_DISABLED="1"))
+    except (OSError, subprocess.TimeoutExpired) as e:
+        raise StackError(f"gh could not run: {e}") from e
+    out, err = (b.decode("utf-8", "replace") for b in (r.stdout, r.stderr))
+    if r.returncode != 0:
+        why = (err or out).strip().splitlines()
+        raise StackError(f"`gh {' '.join(args[:2])}` failed: {why[-1] if why else f'exit {r.returncode}'}")
+    return out
+
+
+def remote_slug(url):
+    """owner/repo from a remote URL, lowercased: https, ssh and scp-like
+    forms, and a plain path ending in owner/repo(.git)."""
+    u = url.strip().rstrip("/")
+    u = u[:-4] if u.endswith(".git") else u
+    parts = [p for p in re.split(r"[/:]", u) if p]
+    return "/".join(parts[-2:]).lower() if len(parts) >= 2 else ""
+
+
+def remote_for(repo, slug):
+    """The git remote here that fetches from slug, preferring origin."""
+    out = git(repo, "remote", "-v", check=False).stdout
+    names = []
+    for line in out.splitlines():
+        fields = line.split()
+        if len(fields) == 3 and fields[2] == "(fetch)" and remote_slug(fields[1]) == slug.lower():
+            names.append(fields[0])
+    return "origin" if "origin" in names else (names[0] if names else None)
+
+
+def show_text(repo, treeish, path):
+    """A file's text in a git tree, or None if it cannot be read. Bytes that
+    are not UTF-8 are replaced, as Corpus reads files on disk."""
+    out = git(repo, "show", f"{treeish}:{path}", check=False, binary=True)
+    return out.stdout.decode("utf-8", "replace") if out.returncode == 0 else None
+
+
+def read_text(path):
+    """A file's text on disk, or None if it cannot be read."""
+    try:
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            return fh.read()
+    except OSError:
+        return None
+
+
+def has_commit(repo, sha):
+    return git(repo, "cat-file", "-e", f"{sha}^{{commit}}", check=False).returncode == 0
+
+
+def archives_of(names, change):
+    """The archive directories among names that hold a change of this name,
+    newest first."""
+    return sorted((n for n in names if re.fullmatch(ARCHIVED + re.escape(change), n)), reverse=True)
+
+
+def archived_as(names, change):
+    """The newest archive directory among names named for change, or None.
+    It goes by the name alone, so it only guesses: it names a possible
+    archive in an error message, and archive_of_dep decides."""
+    return next(iter(archives_of(names, change)), None)
+
+
+def same_text(a, b):
+    """Whether two texts match, ignoring line endings and surrounding blank
+    space."""
+    return a is not None and b is not None and \
+        "\n".join(a.splitlines()).strip() == "\n".join(b.splitlines()).strip()
+
+
+def archive_of_dep(names, dep, read):
+    """The archive directory among names that holds dep's own change, or
+    None. A directory counts when it is named for the change and its
+    proposal.md has the same text as the proposal at dep's pull request's
+    head; read(directory) gives that proposal.md. A change name can be
+    reused after an older change of that name was archived, so the name
+    alone does not tell."""
+    return next((d for d in archives_of(names, dep.change)
+                 if same_text(read(d), dep.proposal)), None)
+
+
+def archive_names(repo, treeish):
+    out = git(repo, "ls-tree", "--name-only", treeish, "--", "openspec/changes/archive/", check=False)
+    return [p.rsplit("/", 1)[-1] for p in out.stdout.splitlines()] if out.returncode == 0 else []
+
+
+def pr_info(repo, dep):
+    """gh's view of the dependency's pull request. Raises StackError."""
+    try:
+        info = json.loads(gh(repo, "pr", "view", str(dep.number), "--repo", dep.slug, "--json",
+                             "state,headRefName,headRefOid,isCrossRepository"))
+    except ValueError as e:
+        raise StackError(f"gh gave unreadable output for #{dep.number}: {e}") from e
+    if not isinstance(info, dict):
+        raise StackError(f"gh gave unreadable output for #{dep.number}")
+    return info
+
+
+def load_dep(repo, dep, info):
+    """Reads the dependency's change from its pull request's head commit,
+    fetching it first if it is not here. info is pr_info's result. When that
+    commit archives the change instead, sets tree, proposal and
+    head_archive, and no deltas. Raises StackError."""
+    remote = remote_for(repo, dep.slug)
+    if remote is None:
+        raise StackError(f"no git remote here fetches from {dep.slug}; a change can build only "
+                         "on a change in its own repository")
+    if info.get("state") == "CLOSED":
+        raise StackError(f"pull request #{dep.number} was closed without merging")
+    oid = info.get("headRefOid") or ""
+    if not re.fullmatch(r"[0-9a-f]{40}", oid):
+        raise StackError(f"gh gave no head commit for #{dep.number}")
+    if not has_commit(repo, oid):
+        # The branch by name, then GitHub's ref for the pull request, which
+        # outlives a deleted branch and also serves one from a fork.
+        refs = [] if info.get("isCrossRepository") else [f"refs/heads/{info.get('headRefName')}"]
+        env = dict(os.environ, GIT_TERMINAL_PROMPT="0")
+        for ref in refs + [f"refs/pull/{dep.number}/head"]:
+            git(repo, "fetch", "--quiet", "--no-tags", "--no-write-fetch-head", remote, ref,
+                check=False, env=env)
+            if has_commit(repo, oid):
+                break
+        else:
+            raise StackError(f"cannot fetch #{dep.number}'s head commit {oid[:12]} from {remote}")
+    dep.tree = oid
+    prefix = f"openspec/changes/{dep.change}/"
+    paths = git(repo, "ls-tree", "-r", "--name-only", oid, "--", prefix).stdout.splitlines()
+    if not paths:
+        there = archived_as(archive_names(repo, oid), dep.change)
+        if not there:
+            raise StackError(f"#{dep.number}'s branch has no open change {dep.change}")
+        dep.head_archive = there
+        dep.proposal = show_text(repo, oid, f"openspec/changes/archive/{there}/proposal.md")
+        return
+    for p in paths:
+        parts = p.split("/")
+        if len(parts) == 6 and parts[3] == "specs" and parts[5] == "spec.md":
+            text = show_text(repo, oid, p)
+            if text is None:
+                raise StackError(f"cannot read {p} from #{dep.number}'s head commit")
+            dep.deltas[parts[4]] = text
+        elif p == prefix + "proposal.md":
+            dep.proposal = show_text(repo, oid, p)
+            own, _ = builds_on(dep.proposal or "", p)
+            dep.builds_on = [(d.change, d.label) for d in own]
+
+
+class Stack:
+    """The base a stacked change is checked against: the specs of the tree
+    being checked, with each dependency's delta applied in the listed order.
+    Each delta is applied as `openspec archive` would: renames, then
+    removals, then modifications, then additions."""
+
+    def __init__(self, corpus):
+        self.caps = {}       # capability -> [Req]
+        for path, reqs in corpus.specs.items():
+            self.caps.setdefault(path.split("/")[2], []).extend(reqs)
+        self.gone = {}       # (capability, lowercased name) -> (Dep, what it did)
+        self.deps = []       # the dependencies applied
+
+    def find(self, cap, name):
+        return next((r for r in self.caps.get(cap, []) if r.name.lower() == name.lower()), None)
+
+    def base(self):
+        return [r for reqs in self.caps.values() for r in reqs]
+
+    def apply(self, dep):
+        """Applies dep's delta. Raises StackError when it does not apply."""
+        problems = []
+        for cap, text in sorted(dep.deltas.items()):
+            path, cur = dep.delta_path(cap), self.caps.setdefault(cap, [])
+
+            def at(name):
+                return next((i for i, r in enumerate(cur) if r.name.lower() == name.lower()), None)
+
+            reqs = parse_spec(path, text)
+            for old, new, _ in renamed_pairs(text):
+                i = at(old)
+                if i is None:
+                    problems.append(f'it renames "{old}" in {cap}, which is not there')
+                    continue
+                cur[i] = cur[i].restated(name=new, cap=cap, dep=dep)
+                self.gone[(cap, old.lower())] = (dep, f'renames to "{new}"')
+            for r in reqs:
+                if r.section != "REMOVED":
+                    continue
+                i = at(r.name)
+                if i is None:
+                    problems.append(f'it removes "{r.name}" from {cap}, which is not there')
+                    continue
+                del cur[i]
+                self.gone[(cap, r.name.lower())] = (dep, "removes")
+            for r in reqs:
+                if r.section != "MODIFIED":
+                    continue
+                i = at(r.name)
+                if i is None:
+                    problems.append(f'it modifies "{r.name}" in {cap}, which is not there')
+                    continue
+                cur[i] = r.restated(cap=cap, dep=dep)
+            for r in reqs:
+                if r.section != "ADDED":
+                    continue
+                if at(r.name) is not None:
+                    problems.append(f'it adds "{r.name}" to {cap}, which is already there')
+                    continue
+                cur.append(r.restated(cap=cap, dep=dep))
+        if problems:
+            raise StackError("it does not apply on top of main" +
+                             (" and the dependencies listed before it" if self.deps else "") +
+                             ": " + "; ".join(problems))
+        self.deps.append(dep)
+
+
+def build_stack(change, corpus, repo, base):
+    """(Stack or None, [Finding], complete) for one change. The stack is None
+    only when the proposal has no `Builds on:` line at all, readable or not.
+    complete is False when the stack is not what the change builds on: a
+    line could not be read, the change names itself, a dependency could not
+    be read or applied, or its archive is on the base branch but not in the
+    tree. A dependency archived in the tree is an error that leaves complete
+    True, because the tree's specs already hold its result."""
+    path = f"openspec/changes/{change}/proposal.md"
+    deps, findings = builds_on(corpus.texts.get(path, ""), path)
+    if not deps and not findings:
+        return None, [], True
+    stack, complete = Stack(corpus), not findings
+    here = [d for d in os.listdir(os.path.join(corpus.root, "openspec", "changes", "archive"))] \
+        if os.path.isdir(os.path.join(corpus.root, "openspec", "changes", "archive")) else []
+    on_base = archive_names(repo, base.ref) if base.ok else []
+    listed = []
+
+    def stop(dep, why):
+        findings.append(Finding(path, dep.line, "error", "stack", f"{dep.label}: {why}"))
+        return findings[-1]
+
+    blocker = findings[0] if findings else None
+    for dep in deps:
+        if dep.change == change:
+            blocker = stop(dep, "a change cannot build on itself")
+            complete = False
+            listed.append(dep.change)
+            continue
+        if not complete:
+            listed.append(dep.change)
+            continue
+        try:
+            info = pr_info(repo, dep)
+            load_dep(repo, dep, info)
+        except StackError as e:
+            why = str(e)
+            here_dir, base_dir = archived_as(here, dep.change), archived_as(on_base, dep.change)
+            if here_dir or base_dir:
+                why += (f"; an archived change of that name exists "
+                        f"(openspec/changes/archive/{here_dir or base_dir}): if it is this one, "
+                        + ("" if here_dir else f"rebase onto {base.ref}, then ")
+                        + f"remove the `{dep.declaration}` line")
+            blocker = stop(dep, why)
+            complete = False
+            listed.append(dep.change)
+            continue
+        # An archive is the dependency's only when its pull request has
+        # merged and the archive's proposal.md is the one the pull request
+        # has (archive_of_dep): a change name can be reused.
+        merged = info.get("state") == "MERGED"
+        here_dir = merged and archive_of_dep(here, dep, lambda d: read_text(os.path.join(
+            corpus.root, "openspec", "changes", "archive", d, "proposal.md")))
+        if here_dir:
+            stop(dep, f"archived as openspec/changes/archive/{here_dir}, so main's specs already "
+                      f"hold its result: remove the `{dep.declaration}` line")
+            listed.append(dep.change)
+            continue
+        base_dir = merged and archive_of_dep(on_base, dep, lambda d: show_text(
+            repo, base.ref, f"openspec/changes/archive/{d}/proposal.md"))
+        if base_dir:
+            blocker = stop(dep, f"archived on {base.ref}, but not in the tree checked here: rebase onto "
+                      f"{base.ref}, then remove the `{dep.declaration}` line")
+            complete = False
+            listed.append(dep.change)
+            continue
+        try:
+            if dep.head_archive:
+                raise StackError(
+                    f"#{dep.number}'s branch has no open change {dep.change}; it is archived there "
+                    f"as {dep.head_archive}, so once #{dep.number} merges, main holds its result: "
+                    f"then remove the `{dep.declaration}` line")
+            missing = [label for name, label in dep.builds_on
+                       if name not in listed and not archived_as(here, name)]
+            if missing:
+                raise StackError(
+                    f"{dep.label} builds on " + " and ".join(missing) +
+                    "; list " + ("each" if len(missing) > 1 else "it") +
+                    f" in its own `Builds on:` line before {dep.change}'s line")
+            stack.apply(dep)
+        except StackError as e:
+            blocker = stop(dep, str(e))
+            complete = False
+        listed.append(dep.change)
+    if not complete:
+        blocker.message += ("; duplicate and drift checks did not run for this change, which "
+                            "is checked against main plus every dependency or not at all")
+    return stack, findings, complete
+
+
+def stale_sentences(r, current, repo):
+    """Sentences of r, the stacked change's version of a requirement, that
+    the dependency has since replaced. Each earlier text of the dependency's
+    requirement is compared with its current text. A sentence of r counts
+    when the earlier text has it, the current text does not, and the current
+    text has a sentence the earlier one lacks and r lacks too: r kept the old
+    wording and missed the new one. A sentence the dependency only dropped
+    is not drift, because a stack is often made by moving a rule out of the
+    dependency into the stacked change."""
+    dep, now = current.dep, {normalize(t) for _, t in units(current)}
+    have = {normalize(t) for _, t in units(r)}
+    stale = set()
+    for text in dep.history(repo, current.cap):
+        for old in parse_spec(dep.delta_path(current.cap), text):
+            if old.name.lower() != current.name.lower():
+                continue
+            then = {normalize(t) for _, t in units(old)}
+            if now - then - have:
+                stale |= (then - now) & have
+    return [(line, t) for line, t in units(r)
+            if normalize(t) in stale and len(normalize(t).split()) >= DUPLICATE_MIN_WORDS]
+
+
+def check_drift(change, corpus, stack, repo, out):
+    """Each requirement the stacked change modifies, removes or renames must
+    be in main plus its dependencies, and a modified one must not keep text
+    its dependency has since replaced."""
+    for rel, reqs in corpus.changes[change].items():
+        parts = rel.split("/")
+        if len(parts) != 6:
+            continue
+        cap = parts[4]
+        # OpenSpec applies a change's renames before its modifications, so a
+        # MODIFIED name may be the new side of the change's own rename.
+        own_renames = {new.lower(): old for old, new, _ in renamed_pairs(corpus.texts[rel])}
+        touched = [(r.line, r.name, "modifies" if r.section == "MODIFIED" else "removes", r)
+                   for r in reqs if r.section in ("MODIFIED", "REMOVED")]
+        touched += [(line, old, "renames", None)
+                    for old, _, line in renamed_pairs(corpus.texts[rel])]
+        for line, name, verb, r in touched:
+            renamed_from = own_renames.get(name.lower()) if verb == "modifies" else None
+            current = stack.find(cap, renamed_from or name)
+            if current is None and renamed_from:
+                continue  # the change's "renames" entry in touched reports the old name
+            if current is None:
+                gone = stack.gone.get((cap, name.lower()))
+                if gone:
+                    why = f"which {gone[0].label} {gone[1]}"
+                else:
+                    defined = next((d for d in stack.deps if any(
+                        o.name.lower() == name.lower()
+                        for t in d.history(repo, cap) for o in parse_spec(d.delta_path(cap), t))), None)
+                    why = (f"which an earlier version of {defined.label} defined and its current one "
+                           "does not" if defined else "which neither main nor its dependencies define")
+                out.append(Finding(rel, line, "error", "drift", f'{verb} "{name}" in {cap}, {why}; '
+                                   "write this change against what it builds on now"))
+                continue
+            if verb != "modifies" or current.dep is None:
+                continue
+            stale = stale_sentences(r, current, repo)
+            if stale:
+                first = stale[0][1]
+                more = f" (and {len(stale) - 1} more)" if len(stale) > 1 else ""
+                out.append(Finding(rel, stale[0][0], "error", "drift",
+                                   f'"{name}" keeps "{first[:60]}..."{more}, from an earlier text '
+                                   f"{current.dep.label} gave it, which now reads differently; "
+                                   f"restate it from {current.dep.change}'s current text"))
+
+
+def add_hints(repo, findings, declared):
+    """Appends a suggested `Builds on:` line to each duplicate of a
+    requirement under openspec/specs, when an open pull request in this
+    repository has a change that removes or renames that requirement. With
+    the line added, the requirement is gone from the base, so the duplicate
+    is no longer reported. One `gh pr list` and at
+    most HINT_READS file reads per run. Any failure leaves the plain error."""
+    wanted = {}
+    for f in findings:
+        if f.retirable:
+            for cap, name in f.retirable[1]:
+                wanted.setdefault(cap, set()).add(name.lower())
+    if not wanted:
+        return
+    try:
+        slug = json.loads(gh(repo, "repo", "view", "--json", "nameWithOwner"))["nameWithOwner"]
+        prs = json.loads(gh(repo, "pr", "list", "--repo", slug, "--state", "open",
+                            "--limit", str(HINT_PRS), "--json", "number,headRefOid,files"))
+    except (StackError, ValueError, KeyError, TypeError):
+        return
+    reads = []
+    for pr in prs if isinstance(prs, list) else []:
+        for f in pr.get("files") or []:
+            m = re.fullmatch(r"openspec/changes/([^/]+)/specs/([^/]+)/spec\.md", f.get("path", ""))
+            if m and m.group(1) != "archive" and m.group(2) in wanted:
+                reads.append((pr["number"], pr.get("headRefOid", ""), m.group(1), m.group(2), m.group(0)))
+    retiring = {}  # (cap, lowercased name) -> [(change, number)]
+    for number, oid, change, cap, path in reads[:HINT_READS]:
+        try:
+            text = gh(repo, "api", "-H", "Accept: application/vnd.github.raw",
+                      f"repos/{slug}/contents/{urllib.parse.quote(path)}?ref={oid}")
+        except StackError:
+            continue
+        for name in retired_names(text) & wanted[cap]:
+            retiring.setdefault((cap, name), []).append((change, number))
+    for f in findings:
+        if not f.retirable:
+            continue
+        change, matched = f.retirable
+        lines = []
+        for cap, name in matched:
+            for dep_change, number in retiring.get((cap, name.lower()), []):
+                line = f"Builds on: {dep_change} ({slug}#{number})"
+                if dep_change != change and dep_change not in declared.get(change, ()) \
+                        and line not in lines:
+                    lines.append(line)
+                    retired = name
+        if lines:
+            f.message += (f'. An open pull request removes or renames "{retired}": if this change '
+                          "applies on top of it, add " + " or ".join(f"`{l}`" for l in lines) +
+                          " to its proposal.md (spec-check's SKILL.md, \"Stacked changes\")")
+
+
 def run_validate(root, change):
     """`openspec validate --strict`, as findings plus a status line."""
     exe = shutil.which("openspec")
@@ -746,12 +1341,23 @@ def run_checks(root, repo, base_ref, targets, headings, validate, base_required=
     elif changes and state == INVALID:
         findings.append(Finding(DECISION_FILE, 0, "check", "decisions-first",
                                 f"{problem}; decisions-first was not checked"))
+    stacks, declared = [], {}
     for change in changes:
         reqs = [r for rs in corpus.changes[change].values() for r in rs]
         if state == ENFORCE:
             check_decisions(change, corpus, headings, findings)
         check_scenarios(reqs, findings)
-        check_duplicates(reqs, corpus, findings)
+        stack, problems, complete = build_stack(change, corpus, repo, base)
+        findings += problems
+        if stack is None:
+            check_duplicates(reqs, corpus, findings)
+        elif complete:
+            deps = {d.change for d in stack.deps}
+            declared[change] = deps
+            if stack.deps:
+                stacks.append((change, stack.deps))
+            check_duplicates(reqs, corpus, findings, stack.base(), deps)
+            check_drift(change, corpus, stack, repo, findings)
         check_citations(corpus.files_of(change), corpus, base, findings)
         if validate:
             v, status = run_validate(root, change)
@@ -767,10 +1373,11 @@ def run_checks(root, repo, base_ref, targets, headings, validate, base_required=
             v, status = run_validate(root, None)
             findings += v
             statuses.append(("openspec/specs", status))
-    return changes, specs, findings, statuses, state
+    add_hints(repo, findings, declared)
+    return changes, specs, findings, statuses, state, stacks
 
 
-def print_report(changes, specs, findings, statuses, state, base_ref, source, as_json):
+def print_report(changes, specs, findings, statuses, state, stacks, base_ref, source, as_json):
     errors = sum(1 for f in findings if f.severity == "error")
     checks = len(findings) - errors
     if as_json:
@@ -779,12 +1386,18 @@ def print_report(changes, specs, findings, statuses, state, base_ref, source, as
             "errors": errors, "checks": checks, "decisions_first": state,
             "findings": [f.as_dict() for f in findings],
             "openspec_validate": {k: v for k, v in statuses},
+            "builds_on": {c: [{"change": d.change, "repo": d.slug, "number": d.number,
+                               "commit": d.tree} for d in deps] for c, deps in stacks},
         }, indent=2))
         return errors
     for f in findings:
         print(f.text())
     if findings:
         print()
+    for change, deps in stacks:
+        print(f"{change} builds on " + ", then ".join(
+            f"{d.change} ({d.slug}#{d.number} at {d.tree[:12]})" for d in deps) +
+            "; checked against main plus " + ("it" if len(deps) == 1 else "them"))
     for what, status in statuses:
         print(f"openspec validate --strict ({what}): {status}")
     if not statuses:

@@ -36,7 +36,10 @@ import spec_check  # noqa: E402
 
 ENV = dict(os.environ, GIT_AUTHOR_NAME="Test", GIT_AUTHOR_EMAIL="t@example.com",
            GIT_COMMITTER_NAME="Test", GIT_COMMITTER_EMAIL="t@example.com",
-           OPENSPEC_TELEMETRY="0", DO_NOT_TRACK="1")
+           OPENSPEC_TELEMETRY="0", DO_NOT_TRACK="1",
+           # No test reaches GitHub. By default gh names a file nobody creates;
+           # a test that needs gh points SPEC_CHECK_GH at its fake.
+           SPEC_CHECK_GH=str(pathlib.Path(tempfile.gettempdir()) / "spec-check-no-gh"))
 HAS_OPENSPEC = shutil.which("openspec") is not None
 
 MAIN_SPEC = """# cap Specification
@@ -130,12 +133,12 @@ class Repo:
         self.write(f"openspec/changes/{name}/specs/{cap}/spec.md", delta)
         self.write(f"openspec/changes/{name}/tasks.md", TASKS)
 
-    def run(self, *args, cwd=None, stdin=None):
+    def run(self, *args, cwd=None, stdin=None, env=None):
         return subprocess.run([sys.executable, str(SCRIPT), *args], cwd=cwd or self.path,
-                              capture_output=True, text=True, env=ENV, input=stdin)
+                              capture_output=True, text=True, env=env or ENV, input=stdin)
 
-    def check(self, *args):
-        return self.run("check", "--base", "main", "--no-validate", *args)
+    def check(self, *args, env=None):
+        return self.run("check", "--base", "main", "--no-validate", *args, env=env)
 
 
 def kinds(result):
@@ -1288,6 +1291,558 @@ class ProposalHookTests(unittest.TestCase):
             for host in ("claude", "cursor"):
                 with self.subTest(payload=payload, host=host):
                     self.assertIsNone(self.context(self.run_hook(host, payload), host))
+
+# -- stacked changes -----------------------------------------------------------
+
+# A stand-in for the GitHub CLI. It answers from the JSON file named by
+# $FAKE_GH, logs each call to $FAKE_GH.log, and reads file contents for
+# `gh api .../contents/...` from the fixture's bare remote.
+FAKE_GH = """\
+import json, os, subprocess, sys, urllib.parse
+data = json.load(open(os.environ["FAKE_GH"]))
+a = sys.argv[1:]
+with open(os.environ["FAKE_GH"] + ".log", "a") as fh:
+    fh.write(json.dumps(a) + "\\n")
+def fields():
+    return a[a.index("--json") + 1].split(",")
+if a[:2] == ["repo", "view"]:
+    print(json.dumps({"nameWithOwner": data["repo"]}))
+elif a[:2] == ["pr", "view"]:
+    pr = data.get("prs", {}).get(a[2])
+    if pr is None or a[a.index("--repo") + 1] != data["repo"]:
+        sys.exit("GraphQL: Could not resolve to a PullRequest with the number of %s." % a[2])
+    print(json.dumps({k: pr[k] for k in fields() if k in pr}))
+elif a[:2] == ["pr", "list"]:
+    if data.get("list") is None:
+        sys.exit("error connecting to api.github.com")
+    print(json.dumps(data["list"]))
+elif a[:1] == ["api"]:
+    path, ref = a[-1].split("/contents/", 1)[1].split("?ref=")
+    r = subprocess.run(["git", "-C", data["git"], "show", "%s:%s" % (ref, urllib.parse.unquote(path))],
+                       capture_output=True)
+    if r.returncode:
+        sys.exit("gh: Not Found (HTTP 404)")
+    sys.stdout.buffer.write(r.stdout)
+else:
+    sys.exit("fake gh: unexpected call %r" % a)
+"""
+
+KEPT = "The store SHALL keep every record it is given for at least thirty days after the last read."
+SEAT = "Each record SHALL name the seat that wrote it, as the seat file recorded it at the time."
+SEAT_REWORDED = "Each record SHALL carry the seat that wrote it, taken from its seat file when it was written."
+AUDIT = "Every change to a record SHALL be written to the audit log with the seat that made it."
+SEARCH = "A search SHALL return the records whose text matches the query, newest first, at most fifty."
+
+
+def modified(name, *sentences):
+    return (f"## MODIFIED Requirements\n\n### Requirement: {name}\n\n{' '.join(sentences)}\n\n"
+            "#### Scenario: A record survives\n\n- **WHEN** a record is written\n"
+            "- **THEN** it can be read for thirty days\n")
+
+
+def renamed(old, new):
+    return (f"## RENAMED Requirements\n\n- FROM: `### Requirement: {old}`\n"
+            f"- TO: `### Requirement: {new}`\n\n")
+
+
+# seat-files renames "Records are kept" and rewrites it, keeping one sentence.
+SEAT_FILES = renamed("Records are kept", "Records are retained") + modified("Records are retained", KEPT, SEAT)
+
+
+def stacked_proposal(*deps):
+    lines = "".join(f"Builds on: {d}\n" for d in deps)
+    return f"# Lore search\n\n{lines}\n" + GOOD_PROPOSAL
+
+
+class Stack:
+    """A repository with a bare remote at <tmp>/acme/widgets.git, a colleague's
+    clone that pushes dependency branches to it, and a fake gh that knows
+    those branches as pull requests. The repository under test never has the
+    dependencies' commits until spec-check fetches them."""
+
+    SLUG = "acme/widgets"
+
+    def __init__(self, test):
+        self.test = test
+        self.repo = Repo(test)
+        tmp = pathlib.Path(tempfile.mkdtemp(prefix="spec-check-stack-")).resolve()
+        test.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        self.bare = tmp / "acme" / "widgets.git"
+        self.bare.parent.mkdir()
+        self.sh("git", "init", "-q", "--bare", "-b", "main", str(self.bare))
+        self.repo.git("remote", "add", "origin", str(self.bare))
+        self.repo.git("push", "-q", "origin", "main")
+        self.repo.git("fetch", "-q", "origin")
+        self.other = tmp / "other"
+        self.sh("git", "clone", "-q", str(self.bare), str(self.other))
+        self.sh("git", "-C", str(self.other), "config", "commit.gpgsign", "false")
+        self.data_path = tmp / "gh.json"
+        self.data = {"repo": self.SLUG, "prs": {}, "list": [], "git": str(self.bare)}
+        self.gh = tmp / "gh"
+        self.gh.write_text(f"#!{sys.executable}\n" + FAKE_GH)
+        self.gh.chmod(0o755)
+
+    def sh(self, *args):
+        r = subprocess.run(args, capture_output=True, text=True, env=ENV)
+        if r.returncode:
+            raise AssertionError(r.stdout + r.stderr)
+        return r.stdout.strip()
+
+    def dependency(self, number, change, delta, base="origin/main", proposal=None, cap="cap",
+                   state="OPEN", branch=None):
+        """Pushes a branch adding `change`, and registers it as pull request
+        `number`. Returns the branch name."""
+        branch = branch or change
+        o = str(self.other)
+        self.sh("git", "-C", o, "fetch", "-q", "origin")
+        self.sh("git", "-C", o, "checkout", "-q", "-B", branch, base)
+        self.put(f"openspec/changes/{change}/proposal.md", proposal or GOOD_PROPOSAL)
+        self.put(f"openspec/changes/{change}/specs/{cap}/spec.md", delta)
+        self.put(f"openspec/changes/{change}/tasks.md", TASKS)
+        self.push(branch, f"add {change}")
+        self.register(number, branch, state)
+        return branch
+
+    def put(self, rel, text):
+        p = self.other / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(text)
+
+    def push(self, branch, message):
+        o = str(self.other)
+        self.sh("git", "-C", o, "add", "-A")
+        self.sh("git", "-C", o, "commit", "-q", "-m", message)
+        self.sh("git", "-C", o, "push", "-q", "-f", "origin", branch)
+
+    def register(self, number, branch, state="OPEN"):
+        oid = self.sh("git", "-C", str(self.bare), "rev-parse", f"refs/heads/{branch}")
+        files = self.sh("git", "-C", str(self.bare), "diff", "--name-only", "main", oid).splitlines()
+        self.data["prs"][str(number)] = {"state": state, "headRefName": branch, "headRefOid": oid,
+                                         "isCrossRepository": False}
+        self.data["list"] = [p for p in self.data["list"] if p["number"] != number]
+        if state == "OPEN":
+            self.data["list"].append({"number": number, "headRefOid": oid,
+                                      "files": [{"path": f} for f in files]})
+
+    def env(self, gh=True):
+        self.data_path.write_text(json.dumps(self.data))
+        return dict(ENV, SPEC_CHECK_GH=str(self.gh), FAKE_GH=str(self.data_path)) if gh else ENV
+
+    def calls(self):
+        log = pathlib.Path(str(self.data_path) + ".log")
+        return [json.loads(l) for l in log.read_text().splitlines()] if log.exists() else []
+
+    def stacked(self, delta, *deps, name="lore-search"):
+        self.repo.change(name, proposal=stacked_proposal(*deps), delta=delta)
+
+    def check(self, *args, gh=True):
+        return self.repo.check(*args, env=self.env(gh))
+
+
+def errors(result):
+    return [l for l in result.stdout.splitlines() if ": error [" in l]
+
+
+class StackedChangeTests(unittest.TestCase):
+    """lore-search builds on seat-files (PR 171), as igor PR #216 builds on igor
+    PR #171: seat-files renames and rewrites a requirement, and the rewritten
+    text shares sentences with the old one, which only seat-files removes."""
+
+    def setUp(self):
+        self.s = Stack(self)
+        self.s.dependency(171, "seat-files", SEAT_FILES)
+        self.lore = modified("Records are retained", KEPT, SEAT, SEARCH)
+
+    def test_without_the_declaration_the_shared_sentence_is_a_duplicate(self):
+        self.s.repo.change("lore-search", delta=self.lore)
+        r = self.s.check("lore-search", gh=False)
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertEqual(kinds(r), ["duplicate"])
+        self.assertIn('also stated in "Records are kept"', r.stdout)
+        self.assertNotIn("Builds on", r.stdout)  # no gh, so no hint
+
+    def test_with_the_declaration_it_checks_against_main_plus_the_dependency(self):
+        self.s.stacked(self.lore, "seat-files (acme/widgets#171)")
+        r = self.s.check("lore-search")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(kinds(r), [])
+        self.assertIn("lore-search builds on seat-files (acme/widgets#171", r.stdout)
+
+    def test_both_changes_in_one_tree_need_the_declaration_too(self):
+        self.s.repo.change("seat-files", delta=SEAT_FILES)
+        self.s.repo.change("lore-search", delta=self.lore)
+        self.assertEqual(kinds(self.s.check("lore-search", gh=False)), ["duplicate"])
+        self.s.stacked(self.lore, "seat-files (acme/widgets#171)")
+        r = self.s.check("lore-search")
+        self.assertEqual(kinds(r), [], r.stdout + r.stderr)
+
+    def test_the_dependency_is_read_without_checking_anything_out(self):
+        self.s.stacked(self.lore, "seat-files (acme/widgets#171)")
+        before = (self.s.repo.git("rev-parse", "--abbrev-ref", "HEAD"), self.s.repo.git("status", "--porcelain"))
+        self.s.check("lore-search")
+        self.assertEqual(before, (self.s.repo.git("rev-parse", "--abbrev-ref", "HEAD"),
+                                  self.s.repo.git("status", "--porcelain")))
+        self.assertEqual(self.s.repo.git("branch", "--list", "seat-files"), "")
+
+    def test_a_duplicate_of_what_the_dependency_adds_is_still_reported(self):
+        self.s.stacked(modified("Records are retained", KEPT, SEAT, SEARCH)
+                       + "\n## ADDED Requirements\n\n### Requirement: Seats are shown\n\n" + SEAT
+                       + "\n\n#### Scenario: s\n\n- **WHEN** w\n- **THEN** t\n",
+                       "seat-files (acme/widgets#171)")
+        r = self.s.check("lore-search")
+        self.assertEqual(set(kinds(r)), {"duplicate"})  # its MODIFIED and ADDED requirements share SEAT too
+        self.assertIn("openspec/changes/seat-files/specs/cap/spec.md", r.stdout)
+        self.assertIn("in acme/widgets#171", r.stdout)
+
+    def test_the_hint_names_the_line_to_add(self):
+        self.s.repo.change("lore-search", delta=self.lore)
+        r = self.s.check("lore-search")
+        self.assertEqual(r.returncode, 1)
+        self.assertEqual(kinds(r), ["duplicate"])
+        self.assertIn("Builds on: seat-files (acme/widgets#171)", r.stdout)
+
+    def test_no_hint_when_no_open_pull_request_retires_the_requirement(self):
+        self.s.data["list"] = []
+        self.s.repo.change("lore-search", delta=self.lore)
+        r = self.s.check("lore-search")
+        self.assertEqual(kinds(r), ["duplicate"])
+        self.assertNotIn("Builds on", r.stdout)
+
+    def test_no_hint_when_gh_cannot_list_pull_requests(self):
+        self.s.data["list"] = None
+        self.s.repo.change("lore-search", delta=self.lore)
+        r = self.s.check("lore-search")
+        self.assertEqual(kinds(r), ["duplicate"])
+        self.assertNotIn("Builds on", r.stdout)
+
+    def test_the_hint_lookup_is_bounded_and_made_once(self):
+        for n in range(300, 330):  # thirty more open PRs that each touch cap
+            self.s.dependency(n, f"other-{n}", GOOD_DELTA.replace("Records expire", f"Thing {n}"))
+        self.s.repo.change("lore-search", delta=self.lore)
+        self.s.repo.change("lore-two", delta=self.lore)
+        self.s.check()
+        calls = self.s.calls()
+        self.assertEqual(sum(1 for c in calls if c[:2] == ["pr", "list"]), 1)
+        self.assertLessEqual(sum(1 for c in calls if c[:1] == ["api"]), 20)
+
+    def test_drift_when_the_dependency_renamed_the_requirement_again(self):
+        self.s.stacked(self.lore, "seat-files (acme/widgets#171)")
+        self.s.put("openspec/changes/seat-files/specs/cap/spec.md",
+                   renamed("Records are kept", "Records are held") + modified("Records are held", KEPT, SEAT))
+        self.s.push("seat-files", "rename again")
+        self.s.register(171, "seat-files")
+        r = self.s.check("lore-search")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("drift", kinds(r))
+        drift = [l for l in errors(r) if "[drift]" in l][0]
+        self.assertIn('"Records are retained"', drift)
+        self.assertIn("seat-files (acme/widgets#171)", drift)
+
+    def test_drift_when_the_dependency_reworded_a_sentence(self):
+        self.s.stacked(self.lore, "seat-files (acme/widgets#171)")
+        self.s.put("openspec/changes/seat-files/specs/cap/spec.md",
+                   renamed("Records are kept", "Records are retained")
+                   + modified("Records are retained", KEPT, SEAT_REWORDED))
+        self.s.push("seat-files", "reword")
+        self.s.register(171, "seat-files")
+        r = self.s.check("lore-search")
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertEqual(kinds(r), ["drift"])
+        self.assertIn('"Records are retained"', r.stdout)
+        self.assertIn("seat-files (acme/widgets#171)", r.stdout)
+        self.assertIn("Each record SHALL name the seat", r.stdout)
+
+    def test_a_sentence_of_the_stacked_change_own_is_not_drift(self):
+        self.s.stacked(modified("Records are retained", KEPT, SEAT, SEARCH, AUDIT), "seat-files (acme/widgets#171)")
+        self.assertEqual(kinds(self.s.check("lore-search")), [])
+
+    def test_drift_when_a_removed_requirement_is_gone(self):
+        self.s.stacked(GOOD_DELTA + "\n## REMOVED Requirements\n\n### Requirement: Records are kept\n\n"
+                       "**Reason**: replaced.\n", "seat-files (acme/widgets#171)")
+        r = self.s.check("lore-search")
+        self.assertEqual(kinds(r), ["drift"])
+        self.assertIn('removes "Records are kept" in cap, which seat-files (acme/widgets#171) renames to '
+                      '"Records are retained"', r.stdout)
+
+    def test_modifying_a_requirement_nobody_defines_is_an_error(self):
+        self.s.stacked(modified("Records are lost", KEPT), "seat-files (acme/widgets#171)")
+        r = self.s.check("lore-search")
+        self.assertIn("drift", kinds(r))
+        self.assertIn('modifies "Records are lost" in cap, which neither main nor its dependencies define',
+                      r.stdout)
+
+    def test_an_unknown_pull_request_is_an_error_not_a_pass(self):
+        self.s.stacked(self.lore, "seat-files (acme/widgets#999)")
+        r = self.s.check("lore-search")
+        self.assertEqual(r.returncode, 1)
+        self.assertEqual(kinds(r), ["stack"])
+        self.assertIn("seat-files (acme/widgets#999)", r.stdout)
+        self.assertIn("duplicate and drift checks did not run", r.stdout)
+
+    def test_no_gh_is_an_error_not_a_pass(self):
+        self.s.stacked(self.lore, "seat-files (acme/widgets#171)")
+        r = self.s.check("lore-search", gh=False)
+        self.assertEqual(r.returncode, 1)
+        self.assertEqual(kinds(r), ["stack"])
+        self.assertIn("seat-files (acme/widgets#171)", r.stdout)
+
+    def test_a_closed_pull_request_is_an_error(self):
+        self.s.data["prs"]["171"]["state"] = "CLOSED"
+        self.s.stacked(self.lore, "seat-files (acme/widgets#171)")
+        r = self.s.check("lore-search")
+        self.assertEqual(kinds(r), ["stack"])
+        self.assertIn("closed", r.stdout)
+
+    def test_a_branch_without_the_change_is_an_error(self):
+        self.s.stacked(self.lore, "seat-tables (acme/widgets#171)")
+        r = self.s.check("lore-search")
+        self.assertEqual(kinds(r), ["stack"])
+        self.assertIn("no open change seat-tables", r.stdout)
+
+    def test_an_unreachable_branch_is_an_error(self):
+        self.s.data["prs"]["171"]["headRefOid"] = "0" * 40
+        self.s.stacked(self.lore, "seat-files (acme/widgets#171)")
+        r = self.s.check("lore-search")
+        self.assertEqual(kinds(r), ["stack"])
+        self.assertIn("seat-files (acme/widgets#171)", r.stdout)
+
+    def test_a_repository_with_no_remote_here_is_an_error(self):
+        self.s.data["repo"] = "acme/gadgets"
+        self.s.data["prs"]["5"] = self.s.data["prs"]["171"]
+        self.s.stacked(self.lore, "seat-files (acme/gadgets#5)")
+        r = self.s.check("lore-search")
+        self.assertEqual(kinds(r), ["stack"])
+        self.assertIn("acme/gadgets", r.stdout)
+
+    def test_a_malformed_declaration_is_an_error(self):
+        for line in ("**Builds on:** seat-files (acme/widgets#171)", "Builds on: seat-files (#171)",
+                     "Builds on: seat-files", "- Builds on: seat-files (acme/widgets#171)"):
+            with self.subTest(line=line):
+                self.s.repo.change("lore-search", delta=self.lore,
+                                   proposal="# Lore search\n\n" + line + "\n\n" + GOOD_PROPOSAL)
+                r = self.s.check("lore-search")
+                self.assertIn("stack", kinds(r))
+                self.assertIn("Builds on: <change> (<owner>/<repo>#<number>)", r.stdout)
+
+    def test_a_declaration_in_a_code_fence_is_quoted_text(self):
+        self.s.repo.change("x", proposal=GOOD_PROPOSAL + "\n```\nBuilds on: seat-files (#171)\n```\n")
+        self.assertEqual(kinds(self.s.check("x")), [])
+        self.assertEqual(self.s.calls(), [])
+
+    def test_an_archived_dependency_says_to_remove_the_line(self):
+        # seat-files has been archived into main: main's spec holds its result.
+        main_spec = MAIN_SPEC.replace("### Requirement: Records are kept\n\n" + KEPT,
+                                      "### Requirement: Records are retained\n\n" + KEPT + " " + SEAT)
+        self.s.repo.write("openspec/specs/cap/spec.md", main_spec)
+        self.s.repo.write("openspec/changes/archive/2026-10-01-seat-files/proposal.md", GOOD_PROPOSAL)
+        self.s.repo.git("add", "-A")
+        self.s.repo.git("commit", "-q", "-m", "archive seat-files")
+        self.s.data["prs"]["171"]["state"] = "MERGED"
+        self.s.stacked(self.lore, "seat-files (acme/widgets#171)")
+        r = self.s.check("lore-search")
+        self.assertEqual(r.returncode, 1)
+        self.assertEqual(kinds(r), ["stack"])
+        self.assertIn("archived", r.stdout)
+        self.assertIn("remove the `Builds on: seat-files (acme/widgets#171)` line", r.stdout)
+
+    def test_a_dependency_archived_on_the_base_but_not_in_this_tree(self):
+        self.s.repo.git("checkout", "-q", "-b", "stale")
+        self.s.repo.git("checkout", "-q", "main")
+        self.s.repo.write("openspec/changes/archive/2026-10-01-seat-files/proposal.md", GOOD_PROPOSAL)
+        self.s.repo.git("add", "-A")
+        self.s.repo.git("commit", "-q", "-m", "archive seat-files")
+        self.s.repo.git("checkout", "-q", "stale")
+        self.s.data["prs"]["171"]["state"] = "MERGED"
+        self.s.stacked(self.lore, "seat-files (acme/widgets#171)")
+        r = self.s.check("lore-search")
+        self.assertEqual(kinds(r), ["stack"])
+        self.assertIn("archived", r.stdout)
+        self.assertIn("rebase", r.stdout)
+
+    def test_a_merged_pull_request_whose_branch_is_gone_is_still_read(self):
+        self.s.data["prs"]["171"]["state"] = "MERGED"
+        self.s.sh("git", "-C", str(self.s.bare), "update-ref", "refs/pull/171/head",
+                  self.s.data["prs"]["171"]["headRefOid"])
+        self.s.sh("git", "-C", str(self.s.bare), "update-ref", "-d", "refs/heads/seat-files")
+        self.s.stacked(self.lore, "seat-files (acme/widgets#171)")
+        r = self.s.check("lore-search")
+        self.assertEqual(kinds(r), [], r.stdout + r.stderr)
+
+    def test_sign_checks_the_stack_too(self):
+        self.s.stacked(self.lore, "seat-files (acme/widgets#171)")
+        self.s.repo.git("add", "-A")
+        r = self.s.repo.run("sign", "--read", "self", "--base", "main", "--no-validate", env=self.s.env())
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        r = self.s.repo.run("sign", "--read", "self", "--base", "main", "--no-validate", env=self.s.env(gh=False))
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("[stack]", r.stdout)
+
+    def test_a_branch_is_checked_with_its_stack(self):
+        self.s.stacked(self.lore, "seat-files (acme/widgets#171)")
+        self.s.repo.git("checkout", "-q", "-b", "lore")
+        self.s.repo.git("add", "-A")
+        self.s.repo.git("commit", "-q", "-m", "lore")
+        self.s.repo.git("checkout", "-q", "main")
+        r = self.s.check("--ref", "lore", "lore-search")
+        self.assertEqual(kinds(r), [], r.stdout + r.stderr)
+
+
+class StackedChainTests(unittest.TestCase):
+    """lore-search builds on seat-audit, which builds on seat-files."""
+
+    def setUp(self):
+        self.s = Stack(self)
+        self.s.dependency(171, "seat-files", SEAT_FILES)
+        self.s.dependency(172, "seat-audit", modified("Records are retained", KEPT, SEAT, AUDIT),
+                          base="seat-files",
+                          proposal=stacked_proposal("seat-files (acme/widgets#171)"))
+        self.lore = modified("Records are retained", KEPT, SEAT, AUDIT, SEARCH)
+
+    def test_a_chain_listed_in_order_passes(self):
+        self.s.stacked(self.lore, "seat-files (acme/widgets#171)", "seat-audit (acme/widgets#172)")
+        r = self.s.check("lore-search")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(kinds(r), [])
+
+    def test_a_missing_link_names_the_line_to_add_first(self):
+        self.s.stacked(self.lore, "seat-audit (acme/widgets#172)")
+        r = self.s.check("lore-search")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("stack", kinds(r))
+        self.assertIn("seat-audit (acme/widgets#172) builds on seat-files (acme/widgets#171)", r.stdout)
+        self.assertNotIn("duplicate", kinds(r))
+
+    def test_a_chain_listed_out_of_order_is_an_error(self):
+        self.s.stacked(self.lore, "seat-audit (acme/widgets#172)", "seat-files (acme/widgets#171)")
+        r = self.s.check("lore-search")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("stack", kinds(r))
+        self.assertIn("before", r.stdout)
+
+    def test_the_same_dependency_twice_is_an_error(self):
+        self.s.stacked(self.lore, "seat-files (acme/widgets#171)", "seat-files (acme/widgets#171)",
+                       "seat-audit (acme/widgets#172)")
+        self.assertIn("stack", kinds(self.s.check("lore-search")))
+
+
+
+class FoundByBugHunterStackTests(unittest.TestCase):
+    """Regressions found by bug-hunter's first pass over stacked changes."""
+
+    def setUp(self):
+        self.s = Stack(self)
+        self.s.dependency(171, "seat-files", SEAT_FILES)
+        self.lore = modified("Records are retained", KEPT, SEAT, SEARCH)
+
+    def test_a_stacked_change_may_rename_and_modify_under_the_new_name(self):
+        self.s.stacked(renamed("Records are retained", "Records are searchable")
+                       + modified("Records are searchable", KEPT, SEAT, SEARCH),
+                       "seat-files (acme/widgets#171)")
+        r = self.s.check("lore-search")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
+    def test_a_sentence_the_dependency_dropped_is_not_drift(self):
+        # The stack was made by moving the search rule out of seat-files.
+        self.s.dependency(171, "seat-files", renamed("Records are kept", "Records are retained")
+                          + modified("Records are retained", KEPT, SEAT, SEARCH))
+        self.s.put("openspec/changes/seat-files/specs/cap/spec.md", SEAT_FILES)
+        self.s.push("seat-files", "move search out")
+        self.s.register(171, "seat-files")
+        self.s.stacked(self.lore, "seat-files (acme/widgets#171)")
+        r = self.s.check("lore-search")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
+    def test_an_older_archived_change_of_the_same_name_is_not_the_dependency(self):
+        self.s.repo.write("openspec/changes/archive/2025-01-01-seat-files/proposal.md",
+                          GOOD_PROPOSAL.replace("Records expire.", "An older change of the same name."))
+        self.s.repo.git("add", "-A")
+        self.s.repo.git("commit", "-q", "-m", "an old seat-files")
+        self.s.repo.git("push", "-q", "origin", "main")
+        self.s.dependency(171, "seat-files", SEAT_FILES)
+        self.s.stacked(self.lore, "seat-files (acme/widgets#171)")
+        r = self.s.check("lore-search")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
+    def test_a_change_cannot_build_on_itself(self):
+        delta = GOOD_DELTA.replace("Records expire", "Lore is kept").replace(
+            "The store SHALL delete a record ninety days after its last read.", KEPT)
+        self.s.dependency(216, "lore-search", delta)
+        self.s.stacked(delta, "lore-search (acme/widgets#216)")
+        r = self.s.check("lore-search")
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("stack", kinds(r))
+
+    def test_only_an_archived_dependency_prints_no_empty_stack_line(self):
+        self.s.repo.write("openspec/changes/archive/2026-10-01-seat-files/proposal.md", GOOD_PROPOSAL)
+        self.s.repo.git("add", "-A")
+        self.s.repo.git("commit", "-q", "-m", "archive seat-files")
+        self.s.data["prs"]["171"]["state"] = "MERGED"
+        self.s.stacked(GOOD_DELTA, "seat-files (acme/widgets#171)")
+        r = self.s.check("lore-search")
+        self.assertNotIn("builds on ;", r.stdout)
+
+
+class FoundByBugHunterStackIteration2Tests(unittest.TestCase):
+    """Regressions found by bug-hunter's second pass over stacked changes."""
+
+    def setUp(self):
+        self.s = Stack(self)
+        self.s.dependency(171, "seat-files", SEAT_FILES)
+
+    def test_a_merged_dependency_not_yet_archived_beside_an_older_archive_of_its_name(self):
+        self.s.repo.write("openspec/changes/archive/2025-01-01-seat-files/proposal.md",
+                          GOOD_PROPOSAL.replace("Records expire.", "An older change of the same name."))
+        self.s.repo.change("seat-files", delta=SEAT_FILES)  # merged, not archived
+        self.s.repo.git("add", "-A")
+        self.s.repo.git("commit", "-q", "-m", "merge seat-files")
+        self.s.data["prs"]["171"]["state"] = "MERGED"
+        self.s.stacked(modified("Records are retained", KEPT, SEAT, SEARCH), "seat-files (acme/widgets#171)")
+        r = self.s.check("lore-search")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
+    def test_a_dependency_delta_that_is_not_utf8_is_not_a_crash(self):
+        path = self.s.other / "openspec/changes/seat-files/specs/cap/spec.md"
+        path.write_bytes(SEAT_FILES.replace("seat file", "s\u00e9at file").encode("latin-1"))
+        self.s.push("seat-files", "latin-1")
+        self.s.register(171, "seat-files")
+        self.s.stacked(modified("Records are retained", KEPT, SEAT, SEARCH), "seat-files (acme/widgets#171)")
+        r = self.s.check("lore-search")
+        self.assertNotIn("Traceback", r.stderr)
+        self.assertIn("spec-check:", r.stdout)
+
+
+class FoundByBugHunterStackIteration3Tests(unittest.TestCase):
+    """Regressions found by bug-hunter's third pass over stacked changes."""
+
+    def setUp(self):
+        self.s = Stack(self)
+        self.s.dependency(171, "seat-files", SEAT_FILES)
+
+    def test_a_hint_read_that_is_not_utf8_is_not_a_crash(self):
+        path = self.s.other / "openspec/changes/seat-files/specs/cap/spec.md"
+        path.write_bytes(SEAT_FILES.replace("seat file", "s\u00e9at file").encode("latin-1"))
+        self.s.push("seat-files", "latin-1")
+        self.s.register(171, "seat-files")
+        self.s.repo.change("lore-search", delta=modified("Records are retained", KEPT, SEAT, SEARCH))
+        r = self.s.check("lore-search")
+        self.assertNotIn("Traceback", r.stderr)
+        self.assertEqual(kinds(r), ["duplicate"])
+
+    def test_a_branch_from_before_the_merge_beside_an_older_archive_of_its_name(self):
+        old = GOOD_PROPOSAL.replace("Records expire.", "An older change of the same name.")
+        self.s.repo.write("openspec/changes/archive/2025-01-01-seat-files/proposal.md", old)
+        self.s.repo.git("add", "-A")
+        self.s.repo.git("commit", "-q", "-m", "an older seat-files")
+        self.s.repo.git("checkout", "-q", "-b", "lore")
+        self.s.repo.git("checkout", "-q", "main")
+        self.s.repo.change("seat-files", delta=SEAT_FILES)  # #171 merges, not archived
+        self.s.repo.git("add", "-A")
+        self.s.repo.git("commit", "-q", "-m", "merge seat-files")
+        self.s.repo.git("checkout", "-q", "lore")
+        self.s.data["prs"]["171"]["state"] = "MERGED"
+        self.s.stacked(modified("Records are retained", KEPT, SEAT, SEARCH), "seat-files (acme/widgets#171)")
+        r = self.s.check("lore-search")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
 
 
 if __name__ == "__main__":

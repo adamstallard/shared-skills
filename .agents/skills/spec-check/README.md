@@ -23,6 +23,16 @@ Before an agent commits, or opens a pull request for, anything under
      enforces that rule (see Setup).
 
    It also runs `openspec validate --strict` and includes the result.
+
+   A **stacked change**, one that applies on top of another open change, says
+   so in its proposal with a line such as `Builds on: seat-files
+   (adamstallard/igor#171)`. The checks then run against main plus that
+   change, read from its pull request. A requirement the stacked change edits
+   that its dependency has since renamed, removed or reworded is reported as
+   `drift`. A dependency that cannot be read fails the check with a `stack`
+   error. When a duplicate matches a main requirement that an open pull
+   request removes or renames, the error suggests the `Builds on:` line to
+   add.
 2. **Has a fresh subagent read the change** against every spec, every other
    open change, every open pull request touching the same specs, and your
    architecture docs. Findings come with quotes from both sides.
@@ -134,5 +144,14 @@ python3 ~/.agents/skills/manage-skills/scripts/skills.py disable-hook spec-check
 - **The agent cannot make the trailer.** `spec_check.py sign`, which prints
   the `Spec-check:` line, refuses while errors remain, and prints them. For
   work in progress, the agent commits with `Spec-check: skipped (<reason>)`.
+- **A `stack` error says a dependency cannot be read.** `check` reads each
+  `Builds on:` pull request with `gh` and fetches it with `git`, so it needs
+  both, signed in, and the network. Fix that and run it again. Until a run
+  can read every dependency, it does not check the change for duplicates or
+  drift.
+- **`check` says a dependency is archived.** Main's specs already hold its
+  result, so remove its `Builds on:` line. If `check` says the archive is on
+  the base branch but not in your branch, rebase first: until then, your
+  branch's specs lack the dependency's result.
 - **`check` says `openspec/spec-check.yaml` must hold one line.** Run
   `setup` or `setup --decline`, which rewrites it.
