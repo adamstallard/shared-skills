@@ -349,13 +349,19 @@ once, in the spec's requirement *A log file and a miss file have one
 format* (proposal decisions 118 and 125). In short, a log file has YAML
 frontmatter (`repository`, `asked`, `answered_by`, `authority`:
 `decision`, `input` or `agent`, `recorded_in`, and `answer_link`, the
-GitHub comment or review holding the answer, when there is one) and the
-question and answer as its body. An `answer_link` is only ever a
-github.com comment or review. An answer given on Discord, Slack or Linear
-is logged as `input`. Filter 1 counts it as an answer only once it is
-recorded in a decision document that the spec's *Only an answer with
-authority stops a question* counts as an answer, such as one on the
-default branch of the repository the question concerns. One such document is the `accepted` decision record written by
+comment or review holding the answer, when there is one) and the
+question and answer as its body. An `answer_link` is a github.com
+comment or review, whose text the `log` command fetches and records, or,
+for an answer the answer session relayed on Linear or Discord, that
+relay post's URL, which nothing fetches: the file records the text the
+session relayed (proposal decision 248). A Linear or Discord link
+proves no writer, since only GitHub tells a reader who wrote a comment;
+whether such a file can count as an answer at all is in the proposal's
+Still open. An answer an agent reads on Discord, Slack or Linear itself
+is logged as `input`. Filter 1 treats that answer as given only once a
+decision document records it, of a kind the spec's *Only an answer with
+authority stops a question* lists, such as one on the default branch of
+the repository the question concerns. One such document is the `accepted` decision record written by
 igor's scribe, the Igor role that writes a discussion's decisions down
 (proposal decision 109). An agent's choice has `answered_by: agent`.
 
@@ -920,11 +926,23 @@ calls by name.
 
 ## Tracing scenarios to tests
 
-Every scenario gets a tagged test before the change is archived, since
-spec-trace's CI fails on an untagged one, and spec-trace's baseline
+Every scenario but the expected gaps below gets a tagged test, since
+spec-trace's CI fails on an untagged scenario in `openspec/specs/`,
+where archiving this change writes its scenarios, and spec-trace's baseline
 (`openspec/spec-trace-baseline.txt`), which lists exempt scenarios, takes no
 new lines.
 Where a scenario is about the script or a hook, the test runs it. Where it is
 about what the agent does (asking through the picker, batching, handing a
 question back, choosing a lesson's scope), the test checks that SKILL.md
 states the rule, and the test's name says it checks SKILL.md.
+
+**Expected gaps.** A scenario that only igor's unbuilt work, such as
+`igor lore-search`, can make pass gets no tagged test until igor builds
+it, so spec-trace shows it as uncovered (proposal decision 249). A
+skipped test would not do: spec-trace counts a skipped test's tag as
+coverage. Gate two, the implementation that follows approval of this
+spec on the same branch, lists each such scenario in this section by
+name when it writes the tests, and task 4.3 tags it once igor provides
+what it needs. Until the change is archived, its scenarios sit outside
+`openspec/specs/`, so CI passes. Archiving it while any gap is untagged
+would fail CI; the proposal's Still open asks Adam how to handle that.

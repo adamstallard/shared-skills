@@ -15,7 +15,7 @@ are written down:
   196, 204 to 214, 216 to 221, 223 to 226, 229 and 231, on 2026-10-20;
 - 232 to 237, on 2026-10-21, and 238 in two parts: Message Content
   turned on, on 2026-10-20, and how `check` reads it, on 2026-10-21.
-- 240 to 246, on 2026-10-21.
+- 240 to 249, on 2026-10-21.
 
 Apart from 229 and 241 to 244, which he gave in the session reviewing
 igor PR #216, and 238, which he gave in shared-skills PR #1, he gave those of 2026-10-19 to 2026-10-21 while reviewing this pull
@@ -38,7 +38,9 @@ and 235 replace. He confirmed 239 item by item too, except item 2,
 which his decision 240 changes. 239's item 5 changes his earlier
 decision 200's item 1: a `Recorded answer: ` post no longer quotes the
 answer. His decision 245 replaces the rule this change had proposed under
-that number, and his decision 246 settles 230's item 1.
+that number, and his decision 246 settles 230's item 1. His decisions 247
+to 249 answer the three questions this change put to him when it
+recorded 245 and 246.
 
 1. **Four filters run before any question reaches a person.**
    1. **Already answered:** the agent finds the earlier answer, cites where it
@@ -1638,7 +1640,7 @@ points to #216 for igor's mechanics:
      stays held: a reply does not rerun it. What that file holds, and how
      a held item is released, are #216's, which this change points to
      rather than restates (#216's decisions 73, 75, 76, 79 to 85, 88, 89,
-     97 and 98 at 82550ea). In brief, the file holds the categories the
+     95, 97, 98, 100 and 101 at d3b7740). In brief, the file holds the categories the
      worker's flag lists, the text of each stopped question that has no
      category,
      and the paths of the execution's session logs, moved beside it. The operator can always release the item on the
@@ -1692,13 +1694,10 @@ decision 230's item 1:
      Igor stores what the flag carries, the case of several stopped
      questions included, is igor PR #216's. #216's decision 92 has the
      flag carry a category, and its decision 97 widens that to this
-     rule. Decision 97 also fitted three details of the host file: it
-     keeps the marked categories and the texts of stopped questions with
-     none as two unpaired lists; a word outside the three counts as no
-     category; and the Igor never follows a link in the directory that
-     holds the file. Adam confirmed those details on 2026-10-21; #216 at
-     82550ea still marks them for him to check. This
-     amends decision 244, which left both cases open.
+     rule. #216's decision 97 also fitted three details of its host
+     file; Adam confirmed them, and #216 records that as its decision
+     100. This amends decision 244, which
+     left both cases open.
      As this change proposed it, 245 had a question that did not stop the
      worker add no category, and listed only the stopped questions'
      categories, in a fixed order. Adam reversed the first, and his
@@ -1722,6 +1721,36 @@ decision 230's item 1:
      on main at 90a0237). This amends decision 230's item 1, and the
      last sentence of decision 238, which had kept every Discord channel
      off until discord-bot gained the option.
+
+Adam gave 247 to 249 on 2026-10-21, answering the three questions this
+change put to him after recording 245 and 246:
+
+247. **After a Discord relay post, the answer session shows the person
+     discord-bot's warnings,** so they learn when an `@name` pinged no
+     one. discord-bot leaves an `@name` as plain text when no single
+     member's name matches it, and warns for that name. When Discord
+     refuses its member search (`check` reports `memberSearch: false`),
+     every `@name` stays plain text, under one warning that says so.
+     Setup does not fail the Discord relay when `memberSearch` is false.
+     *Rejected:* failing setup on `memberSearch: false`.
+248. **A questions-branch answer relayed on Linear or Discord is logged
+     with that relay post as its `answer_link`, never fetched.** The log
+     file records, word for word as quote lines, the text the answer
+     session relayed for the person. `answer_link` holds the Linear
+     comment's or Discord message's URL as a pointer: the `log` command
+     never fetches it, and no non-GitHub link is passed to any GitHub API
+     call. Only a github.com link is fetched, and its comment's text
+     copied (decision 239's item 3). The log format's `answer_link` widens
+     to allow these URLs. A non-GitHub link still proves no writer
+     (decisions 78 and 183's item 3). Whether such a file can count as
+     an answer at all is open; see Still open.
+249. **Igor-worker scenarios stay untagged until igor builds what they
+     need.** Gate two, the implementation, tags no test of a scenario that only igor's
+     unbuilt work, such as `igor lore-search`, can make pass, so
+     spec-trace shows each as uncovered. design.md lists them as expected
+     gaps, and task 4.3 tags each one once igor provides what it needs.
+     spec-trace does not change. This replaces task 4.2's skipped,
+     tagged tests, which spec-trace counted as coverage.
 
 ### Proposed by this change
 
@@ -2678,37 +2707,60 @@ this change's own:
 
 **Still open:**
 
-Three questions for Adam, which spec-check's consistency read found on
-2026-10-21 while decisions 245 and 246 were being recorded:
-- **A Discord `@name` that discord-bot cannot resolve stays plain text,**
-  with a warning in discord-bot's output, when member search is refused
-  (`check`'s `memberSearch: false`) or no member's name matches exactly.
-  Decision 246 means the person expects a ping. Options: the answer
-  session shows discord-bot's warnings to the person after the post
-  (recommended: the person learns at once, and nothing else changes);
-  setup also fails the Discord relay when `memberSearch` is false; or
-  neither.
-- **A questions-branch answer relayed on Linear or Discord** cannot have
-  that relay post as its `answer_link`, which the log format allows only
-  as a github.com URL, and the `log` command reads through GitHub, so
-  as written such an answer is never logged. Options: off GitHub, the
-  file has no `answer_link` and records the confirmed answer as the
-  person's words under decision 240, as for an answer not relayed
-  (recommended: it matches how a picker answer is recorded); or the
-  format gains a non-GitHub link that the `log` command records without
-  reading.
-- **spec-trace counts a skipped test's `@scenario` tag as coverage,** so
-  the Igor-worker scenarios task 4.3 tags on skipped tests pass CI with
-  nothing built behind them. Options: a list of scenarios spec-trace
-  reports as not built (recommended: CI stays honest without failing);
-  leave those scenarios untagged until igor builds what they need; or
-  accept it, as task 4.3 does now.
+Four questions for Adam, raised while recording decisions 247 to 249:
+- **Can an answer relayed off GitHub count as an answer?** Under decision
+  248 its log file's `answer_link` is a Linear or Discord URL, which
+  proves no writer (decisions 78 and 183's item 3), and the equality
+  check of decision 236 (igor #216's decision 72) runs only on a fetched
+  GitHub comment. The relay files that let a relayed GitHub comment count
+  (decisions 184 and 216) list only GitHub Apps. Whether the file can
+  count therefore turns on two rules that point different ways. Decision
+  109 says an answer given on another surface
+  never counts, "not as a logged decision, and not through a link to the
+  message", and the inquisitor spec makes an answer on Linear or Discord
+  input until a decision document records it. But decision 78 counts a
+  questions-branch `decision` file whose adding commit carries a
+  signature GitHub verifies for `answered_by`, and the answer session
+  logs an answer the person gave in the session as `authority:
+  decision`, so a signed file would count.
+  Options: decision 109 governs, so the answer session logs such a file
+  with `authority: input` (recommended: it keeps Adam's own rule, and
+  the person can still record the answer in a decision document); or a
+  signed file counts, which amends decision 109 for answers the answer
+  session relayed.
+- **A Linear or Discord link in a lore repository more visible than its
+  thread.** A Discord message URL holds the server's and channel's ids,
+  and a Linear comment URL the workspace and issue. The answer session's
+  own miss files go nowhere more visible than the question's thread. A
+  Linear or Discord thread counts as private, so for those threads that
+  rules out any lore repository that is not private. But
+  no such rule covers these log files. Options: write the link only when
+  the lore repository is private, and otherwise log the file without an
+  `answer_link` (recommended: the answer is still recorded, and nothing
+  points into a private workspace); always write it, accepting the ids
+  as public; or write no log file there at all.
+- **Warnings after an edit.** discord-bot's `edit` returns warnings too,
+  and editing a relay post can drop a ping. Decision 247 names only the
+  post, not an edit of it.
+  Options: show warnings after an edit as well (recommended: the same
+  reason applies); or after the first post only.
+- **Untagged Igor-worker scenarios fail spec-trace's CI once archived.**
+  spec-trace's `check` fails on any scenario in `openspec/specs/` that no
+  test tags and the baseline does not list, and the baseline takes no
+  new line. So if this change is archived before igor builds what those
+  scenarios need, CI fails. Options: hold the archive (task 7.0) until
+  task 4.3 has tagged every one (recommended: no rule bends, and task
+  7.0 already holds the archive for igor #216); or archive the other
+  capabilities' scenarios first and leave the Igor-worker scenarios in an
+  open change until igor builds its part.
 
-Open on igor PR #216's side, at 82550ea, which records Adam's decisions
-up to 99 in #216's own numbering, decisions 244 and 245 among them as
+Open on igor PR #216's side, at d3b7740, which records Adam's decisions
+up to 101 in #216's own numbering, decisions 244 and 245 among them as
 its decisions 92 and 97:
-- **#216 should record Adam's confirmation of decision 97's three fitted
-  details** (2026-10-21), which it still marks for him to check.
+- **Two of #216's Still open items for this change are done.** It asks
+  this change to amend 245 to match its decision 97, without a fixed
+  order, and to align 243 with its decisions 84 and 89. Both are now so,
+  and #216 can drop the items.
 - **How an Igor runs the inquisitor skill itself** has no mechanism yet in
   #216 or igor #211. Settled: igor marks that run with `IGOR_RUN=igor`,
   and the script then searches lore only through `igor lore-search` and
@@ -2721,7 +2773,7 @@ its decisions 92 and 97:
 
 Tasks 0.15 to 0.22 measure facts the answer session relies on: what
 GitHub's notifications endpoint reports, how Linear and Discord show
-mentions and replies, that a command the mod runs reaches no tool hook,
+mentions and replies, how the Linear relay posts a comment, that a command the mod runs reaches no tool hook,
 that a mod keeps polling while its session is idle or in the
 background, how setup checks a relay's access to each channel,
 whether GitHub reports which App wrote a comment, and whether a reader
@@ -2865,8 +2917,8 @@ item on Igor-worker mode.
     and 42; decisions 148, 151 and 221 here);
   - its `graceful-handoff` and `work-triage` deltas hold igor's side of
     decision 243: the flagged run's handoff, its host file and the
-    release of a held item (its decisions 73, 75, 76, 79 to 85, 88, 89,
-    95, 97 and 98; decisions 243 to 245 here).
+    release of a held item, by the #216 decisions 243 cites (decisions
+    243 to 245 here).
 - **igor PR #153, signed publishing,** would have an Igor whose role
   lists prose or bug-hunter push only commits that went through those
   skills and carry their trailers. Citation commits

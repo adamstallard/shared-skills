@@ -149,7 +149,10 @@ types `/answer setup`. Setup SHALL:
   reports `messageContent` as
   `true`, `false` or `null`, read from the bot's application flags; only
   `true` passes, and `null`, meaning the check could not read the flags,
-  fails as `false` does (proposal decision 239's item 7);
+  fails as `false` does (proposal decision 239's item 7). `check` also
+  reports `memberSearch`, whether Discord lets discord-bot search the
+  server's members by name; that value does not affect whether the
+  Discord relay passes (proposal decision 247);
 - check that each relay identity can post in each of its surface's
   subscribed channels;
 - save the configuration, with every channel, whether its check passed or
@@ -557,8 +560,14 @@ with discord-bot's mention rewriting on, as discord-bot always posts. The
 text it passes is the answer as the person confirmed it; discord-bot
 then rewrites an `@name` into a mention that notifies that member, and a
 `#channel` into a link, so an `@name` in the person's answer pings that
-member (proposal decision 246). An `@name` that discord-bot cannot match
-to one member of the server stays plain text and pings no one.
+member (proposal decision 246). An `@name` that no single member's name
+matches stays plain text and pings no one, and discord-bot's result
+warns about it; when Discord refuses member search, every `@name` stays
+plain text, under one warning that says so. After each Discord relay
+post, the answer session SHALL show the person every warning in
+discord-bot's result (proposal decision 247). This rule does not cover
+an edit of a relay post; the proposal's Still open asks whether it
+should.
 
 When a post fails, because the surface refuses it, such as a Discord
 message over 2,000 characters, or because its command fails, the answer
@@ -585,6 +594,20 @@ used* says.
 - **THEN** the relay posts through discord-bot with no header option, so
   the message starts `User says: ask `, followed by a mention of maya
   that notifies her, and `#ops` is a link to that channel
+
+#### Scenario: An unmatched Discord name is shown to the person
+
+- **WHEN** the person confirms the Discord answer "ask @maya", and
+  discord-bot posts it with a warning that `@maya` matched no member
+- **THEN** the answer session shows the person that warning after the
+  post
+
+#### Scenario: Refused member search does not fail setup
+
+- **WHEN** discord-bot's `check` reports `messageContent` as `true` and
+  `memberSearch` as `false` for the Discord relay, and every other check
+  passes
+- **THEN** setup counts the Discord relay's check as passed
 
 #### Scenario: A Discord answer replies to the question
 
@@ -1033,12 +1056,18 @@ answer such a question by writing a new log file through the
 inquisitor script's `log` command, which pushes it to that same questions
 branch under the rules of the inquisitor's *Every answer is recorded and
 every asked question logged*. When the answer was also relayed in a
-thread, the file's `answer_link` SHALL be the URL of that relay post, and
-its answer SHALL be that post's own text word for word, as the
+thread, the file's `answer_link` SHALL be the URL of that relay post,
+and its answer SHALL be the relay post's text, word for word, as quote
+lines in the inquisitor's log format. On GitHub that is the comment's own
+text, which the `log` command reads from the post itself, as the
 inquisitor's *Only an answer with authority stops a question* has every
-writer record an answer from a comment, the post's `Rephrased
-question: ` and `Discussion: ` lines included (proposal decision 239's
-item 8). When the answer was not relayed in a thread, the file's answer
+writer record an answer from a comment. On Linear or Discord it is the
+text the answer session sent to the relay's skill, its `User says: `
+prefix included, before discord-bot rewrites any mention: the answer
+session SHALL pass the `log` command that text, and the command fetches
+nothing (proposal decision 248). Either way the answer
+includes the post's `Rephrased question: ` and `Discussion: ` lines
+(proposal decision 239's item 8). When the answer was not relayed in a thread, the file's answer
 is the answer the person confirmed in the answer session, word for word
 (proposal decision 240). The file also
 holds the question, its `authority` by the rules the inquisitor's *Every
@@ -1083,6 +1112,15 @@ edit for a question of the fourth source.
   `User says: `, and the script pushes a new log file holding the question
   and, as its answer, that relay post's text word for word, to that
   branch, whose `answer_link` is that relay post's URL
+
+#### Scenario: A questions-branch answer relayed on Linear keeps its link unfetched
+
+- **WHEN** the person answers, from its Linear thread, a question that an
+  unanswered log file on the lore repository's questions branch also holds
+- **THEN** the script pushes a new log file whose answer is the text the
+  answer session sent to the relay's skill, word for word, as quote
+  lines, and whose `answer_link` is that Linear comment's URL, and
+  nothing fetches that URL
 
 #### Scenario: A questions-branch question offers no ask-back or edit
 

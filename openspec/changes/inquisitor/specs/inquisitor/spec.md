@@ -894,6 +894,14 @@ agent. The search SHALL never show a rejected candidate.
 - **THEN** the file's answer is those two lines, word for word, whatever
   answer text the agent passed
 
+#### Scenario: A Discord answer link is recorded and never fetched
+
+- **WHEN** the answer session's `log` call passes an answer relayed on
+  Discord, with that Discord message's URL as its `answer_link`
+- **THEN** the command fetches nothing, records the answer it was given
+  word for word as quote lines, and writes the URL as the file's
+  `answer_link`
+
 #### Scenario: A linked comment the script cannot read is not logged
 
 - **WHEN** the `log` command is given an answer whose `answer_link` names
@@ -925,7 +933,8 @@ agent. The search SHALL never show a rejected candidate.
 
 - **WHEN** a `decision` file on a lore questions branch names `alice` as
   `answered_by`, and its `answer_link` is a Discord message by `alice`
-- **THEN** the search shows the file labelled as unconfirmed
+- **THEN** the search shows the file labelled as unconfirmed, and
+  fetches nothing from the link
 
 #### Scenario: An answer given in a Discord thread is input until the scribe records it
 
@@ -2062,10 +2071,16 @@ repository, in a directory only the agent's user can read, with mode
 its group or others can read, or one whose own directory they can read,
 and write nothing. It writes the file in the format *A log file and a miss file have
 one format* states, and, for a questions branch, pushes it as this
-requirement says. For an answer with an `answer_link`, the command SHALL
+requirement says. For an answer whose `answer_link` is a github.com URL, the command SHALL
 read the linked comment through GitHub, with the person's credentials, and
 record its text word for word as the answer, whatever answer the agent passed;
-when it cannot read the comment, it SHALL write nothing and say why. In
+when it cannot read the comment, it SHALL write nothing and say why. For
+an answer whose `answer_link` is a Linear or Discord URL, as *A log file
+and a miss file have one format* defines them, the command SHALL fetch
+nothing, and SHALL record the answer it was given, word for word
+(proposal decision 248). The command does not check who passed such a
+link; it proves no writer whoever did. For an `answer_link` that is none
+of these, it SHALL write nothing and say why. In
 Igor-worker mode it SHALL read no comment: it writes the answer it was
 given, which only identifies the comment, and the Igor replaces it.
 
@@ -2432,13 +2447,20 @@ written.
   or `agent`; `authority`, `decision`, `input` or `agent`; `recorded_in`,
   where the question's answer is recorded, as a path from that
   repository's root or a URL, never a lore entry; `answer_link`, only when there is one,
-  the github.com URL of the comment or review holding the answer; and
+  the github.com URL of the comment or review holding the answer, or,
+  for an answer an answer session relayed on Linear or Discord, the URL
+  of that relay comment or message, kept as a pointer that nothing
+  fetches (proposal decision 248): on Discord
+  `https://discord.com/channels/<id>/<id>/<id>` with decimal ids, and on
+  Linear a URL starting `https://linear.app/`; and
   `asked_from`, only in a questions-branch file an Igor pushes, whether
   its worker reported it or the Igor's own inquisitor run wrote it. Its body
   is the question under `## Question`, and, once the answer comes, the
-  answer under `## Answer`: for an answer with an `answer_link`, the
-  comment's own text word for word, as *Only an answer with authority
-  stops a question* says; for any other answer a person gave, their
+  answer under `## Answer`: for an answer with a github.com
+  `answer_link`, the comment's own text word for word, as *Only an answer
+  with authority stops a question* says; for one with a Linear or
+  Discord `answer_link`, the text the answer session relayed for the
+  person, word for word, its `User says: ` prefix included; for any other answer a person gave, their
   words as given, word for word, such as, in the session, the option they
   chose in the picker or the text they typed; for an agent's own choice,
   that choice in one sentence. An answer keeps as many lines as it has. Each line of
@@ -2495,7 +2517,9 @@ written.
   `https://github.com/<owner>/<repo>/pull/<n>`, with the same `<owner>`
   and `<repo>` syntax and a decimal `<n>`, followed by
   `#issuecomment-<id>`, `#pullrequestreview-<id>` or `#discussion_r<id>`
-  with a decimal `<id>`, and nothing else.
+  with a decimal `<id>`, and nothing else. Neither the `log` command
+  nor any reader of a log file, filter 1 and any search applying these
+  checks included, SHALL fetch any other `answer_link`.
 
 #### Scenario: A log file's name and keys
 

@@ -62,9 +62,11 @@ contradicts what design.md assumed.
       comments of each subscribed repository since its poll position
 - [ ] 0.16 How the answer session finds, on Linear with the person's key,
       mentions of the person and of the relay, and replies to a relay
-      comment, in a subscribed team; and that the linear-app identity can
-      edit its own comment. If it can't find them, Linear stays off and
-      the README says so
+      comment, in a subscribed team; that the answer session can post a
+      comment as the linear-app identity with a command it runs on the
+      host, and learn that comment's URL; and that the linear-app
+      identity can edit its own comment. If any of these fails, Linear
+      stays off and the README says so
 - [ ] 0.17 That a `discord-bot` identity can read a subscribed channel's
       history and threads, see a mention of the person's user id and a
       reply to the relay's message, and that the relay can edit its own
@@ -208,8 +210,10 @@ contradicts what design.md assumed.
 - [ ] 2.4 The `log` command, writing one file per question or miss in the
       format of *A log file and a miss file have one format*, with an
       `authority` of `decision`, `input` or `agent`, and `answered_by: agent` for an agent's choice,
-      an answer with an `answer_link` read from the linked comment and
-      recorded word for word (decision 236), and any answer a person
+      an answer with a github.com `answer_link` read from the linked
+      comment and recorded word for word (decision 236), an answer with
+      a Linear or Discord `answer_link` recorded as given, its link
+      never fetched (decision 248), and any answer a person
       gave without an `answer_link` in their own words as given
       (decision 240), each in quote lines
       (decision 239's item 1): in the
@@ -278,17 +282,20 @@ contradicts what design.md assumed.
 
 - [ ] 4.1 `scripts/test_inquisitor.py`, standard library only, each test tagged
       `@scenario inquisitor: <Scenario name>` for the scenario it checks
-- [ ] 4.2 Every scenario has a tagged test: `spec_trace.py report
-      --include-changes` lists no scenario of this change as `none`, its mark
-      for a scenario with no tagged test. A scenario about what the agent
-      does is tagged on a test that checks SKILL.md states the rule. A
-      scenario about Igor-worker mode, which gate two does not build (task
-      0.12), is tagged on a test that is skipped, with a reason naming
-      what igor has yet to provide
+- [ ] 4.2 Every scenario but the expected gaps has a tagged test: of
+      this change's scenarios, `spec_trace.py report --include-changes`
+      marks only the expected gaps `none`, meaning no tagged test. A
+      scenario about what the agent does is tagged on a test that checks
+      SKILL.md states the rule. An expected gap is a scenario that only
+      igor's unbuilt work can make pass, since task 0.12 measured that
+      an Igor worker can't run the skill: it gets no test, not
+      even a skipped one, and design.md's *Expected gaps* lists it by name
+      (decision 249)
 - [ ] 4.3 Once igor provides `igor lore-search` and a role's `commands`
-      can list the skill's script, build Igor-worker mode and stop
-      skipping its tests. If this is still open at archive, file an issue
-      for it then, linking igor's work it waits on
+      can list the skill's script, build Igor-worker mode, write a tagged
+      test for each expected gap, and remove it from design.md's list.
+      Archiving with a gap still untagged would fail spec-trace's CI; the
+      proposal's Still open asks Adam how to handle that
 
 ## 5. Docs and registration
 
@@ -351,7 +358,10 @@ contradicts what design.md assumed.
       relay identity's skill as host commands, post ids, editing in place,
       the thread read before a question is shown and before each post, and
       a questions-branch question answered by a new log file, and a new
-      log file again when its relayed answer is edited (decision 220)
+      log file again when its relayed answer is edited (decision 220);
+      discord-bot's warnings shown after each Discord relay post
+      (decision 247); and, off GitHub, the relayed text logged with the
+      relay post's URL as an unfetched `answer_link` (decision 248)
 - [ ] 6.5 State: the state folder, a question's state read from its
       thread, closed questions, discussion records deleted once their
       question is answered or closed, the question on screen, and the lock,
