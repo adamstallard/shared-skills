@@ -1,11 +1,22 @@
 # Commit
 
-Splits the working tree into `TYPE(Scope):` commits and creates them. The
-subject of a commit an agent wrote ends with `(agentic)`. Runs
+Splits the working tree into commits and creates them. Runs
 [`bug-hunter`](../bug-hunter/README.md) on each commit that contains code,
 when bug-hunter is installed.
 
-It does not take over a commit another skill is already making.
+Subjects follow your repository's own commit convention: the one written in
+`AGENTS.md`, `CONTRIBUTING.md` or a similar file, or else the one your
+`git log` shows. A repository with neither gets `TYPE(Scope): description`. A
+commit an agent wrote carries a `Co-Authored-By:` trailer naming that agent.
+
+Every commit goes through bug-hunter's commit script when bug-hunter is
+installed, including a commit with no code, which gets a `Bug-hunter: skipped …` trailer
+saying why the hunt did not run. When [`prose`](../prose/README.md) is
+installed, every commit also carries a `Prose:` trailer showing that its
+readability check ran on the message and changed docs.
+
+When another skill's own steps include making a commit, this skill leaves that
+commit to the other skill.
 
 > Agent instructions: [SKILL.md](SKILL.md).
 
@@ -43,9 +54,13 @@ Skip hunt this turn:
 **Skill not found** — ask again in this chat. If the agent still does not see
 it, open a new chat.
 
-**Still going straight to bug-hunter** — this skill is not installed in that
-agent's skill directory. Install it, then try this tab before opening a new
+**Still going straight to bug-hunter** — this skill is not installed in your
+agent's skill directory. Install it, then try this chat before opening a new
 one.
+
+**Subjects don't match your style** — write the convention down in
+`AGENTS.md` or `CONTRIBUTING.md`. The skill reads it before it falls back to
+`git log`.
 
 **Hunt ran and you didn't want it** — say "Skip bug-hunter" or "Commit without
 hunting" for this turn, or uninstall `bug-hunter` if you want organize-only.
