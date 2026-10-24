@@ -859,12 +859,25 @@ Each is left on purpose; its fix says what would close it.
   from a copy of the index (`GIT_INDEX_FILE`), tested to give the same hash.
 - **Only an MCP server named exactly `github` is checked** in Claude Code. Fix:
   match case-insensitively and by substring, as the Cursor path does.
-- **Config given only to `git commit`** (`git -c trailer.…`) is not seen by the
-  check, giving an honest mismatch. It fails closed. Fix: the commit script,
-  which composes the trailers, could narrow the gap by pinning the trailer
-  config it gives `git commit`. Only `prose check` making the commit itself
-  would close the gap, because then no config the check had not seen could
-  reach `git commit`.
+- **Config given only to `git commit`** (`git -c trailer.…`) can make an
+  honest commit fail verification. `prose check` refuses every `trailer.*`
+  setting it can see, but it runs before the commit, so it never sees a
+  setting given only to the commit. Such a setting can make git change the
+  message as it adds the trailers; the stored message then no longer matches
+  the `Prose:` signature, and verification rejects the commit. It fails
+  closed: the cost is an honest commit rejected and redone.
+  The commit-trailer library, which makes the commit, pins four settings on
+  it: `trailer.ifexists=add`, `trailer.ifmissing=add`, `trailer.separators=:`
+  and `trailer.where=end`. Per-trailer settings still reach the commit
+  unpinned. `trailer.<token>.where`, `.ifexists` and `.ifmissing` override the
+  matching pin for that token; `trailer.<token>.key` renames a trailer's key,
+  and `.cmd` and `.command` add trailers.
+  Fix, not built: just before it commits, the library would refuse any
+  `trailer.*` setting besides its pins, as `prose check` does. That would
+  cover every commit the library makes. A commit someone makes by running
+  `git commit` by hand, with `-c` settings of their own, would still be
+  rejected; only `prose check` making the commit itself would remove the need
+  to run `git commit` by hand.
 - **`commit.cleanup=verbatim` with a leading blank line** fails verify on an
   honest commit; it fails closed. Fix: `prose check` refuses a leading blank
   line when `commit.cleanup` is verbatim.
