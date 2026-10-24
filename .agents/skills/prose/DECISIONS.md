@@ -467,8 +467,8 @@ line.
 **Known gaps.** `fixed` proves the item changed, not that the edit touched the
 place the reader stopped; editing another part of the item is on the cheat
 list. Where a file repeats identical lines, the diff may attribute an added
-line to the wrong repeat; if that repeat is inside an item, the item counts
-as fixed though nobody edited it. A `kept` reason is
+line to the wrong repeat; if that repeat is inside an item or directly beside
+one, the item counts as fixed though nobody edited it. A `kept` reason is
 checked only for being there.
 
 ---
@@ -861,8 +861,10 @@ Each is left on purpose; its fix says what would close it.
   match case-insensitively and by substring, as the Cursor path does.
 - **Config given only to `git commit`** (`git -c trailer.…`) is not seen by the
   check, giving an honest mismatch. It fails closed. Fix: the commit script,
-  which composes the trailers, could pass the same trailer config to both the
-  check and `git commit`.
+  which composes the trailers, could narrow the gap by pinning the trailer
+  config it gives `git commit`. Only `prose check` making the commit itself
+  would close the gap, because then no config the check had not seen could
+  reach `git commit`.
 - **`commit.cleanup=verbatim` with a leading blank line** fails verify on an
   honest commit; it fails closed. Fix: `prose check` refuses a leading blank
   line when `commit.cleanup` is verbatim.
