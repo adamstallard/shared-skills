@@ -1,43 +1,66 @@
 #!/bin/sh
-# Assembles a bug-hunter commit correctly, so there is no hand-typed path left
-# to get wrong. Replaces constructing `git commit -m ... --trailer ...` by
-# hand, which is the single most common way this skill's trailer goes missing
-# (typed into the message body instead of passed as a flag — see SKILL.md
-# "Pass the trailer as a flag. Never type it into the message.").
+# Makes a bug-hunter commit, so no agent assembles `git commit -m ...
+# --trailer ...` by hand. Typing that command by hand is the most common way
+# this skill's trailer goes missing: the `Bug-hunter:` line ends up in the
+# message body instead of being passed as a flag (SKILL.md, Step 9, "Commit
+# through the script.").
 #
-# This file keeps bug-hunter's interface. It passes the Bug-hunter family,
-# minted by mint-trailer.sh next to this file, to the shared library
-# ../../../lib/commit-trailer/commit-with-trailers.sh, which makes the commit,
-# together with any other skill's --verified-value family passed here.
-# BEFORE CHANGING EITHER FILE, READ that library's DECISIONS.md, and
-# ../DECISIONS.md "The commit is assembled by a script, not by hand".
+# This script is a thin wrapper. The commit itself is made by the shared
+# library ../../../lib/commit-trailer/commit-with-trailers.sh, which takes
+# generic "families" (a family is an option such as --minted-by or
+# --verified-value plus the words that option takes, and adds one trailer).
+# This script keeps bug-hunter's own shorter interface, shown under Usage,
+# because bug-hunter's SKILL.md Step 9, reference.md and the report printed by
+# bug-hunter's hook (hook-report.sh) all tell agents to run it in that form.
+# It turns those arguments into a --minted-by family for the Bug-hunter
+# trailer, naming mint-trailer.sh beside this file as the minter that binds
+# the trailer to the staged tree. It passes that family to the library, with
+# any --verified-value families given here.
+#
+# BEFORE CHANGING THIS SCRIPT OR THE LIBRARY, READ the library's decision
+# record, ../../../lib/commit-trailer/DECISIONS.md, and this skill's
+# ../DECISIONS.md, "The commit is assembled by a script, not by hand".
 #
 # Usage:
 #   commit-with-trailer.sh -F <message-file> <bug-hunter-value> [co-authored-by]
-#   commit-with-trailer.sh --verified-value <verifier> <Key> <value>... -- \
+#   commit-with-trailer.sh --verified-value <verifier> <Key> <value> \
+#       [--verified-value <verifier> <Key> <value>]... -- \
 #       -F <message-file> <bug-hunter-value> [co-authored-by]
+#   (each family is exactly four words; repeat the whole family for each
+#   skill)
 #
-#   The same, with the message as two words instead of a file (still supported):
+#   The same, with the message as two shell arguments instead of a file:
 #   commit-with-trailer.sh [--verified-value ... --] <subject> <body> <bug-hunter-value> [co-authored-by]
 #
-#   -F <message-file> The message: its first line is the subject, the next line
-#                    must be blank, and the rest is the body. Prefer it: the
-#                    message is never quoted on the command line. prose's
-#                    msg.txt is this file. Read by the library's
-#                    --message-file option.
+#   -F <message-file> The commit message: its first line is the subject, the
+#                    next line must be blank, and the rest is the body. Prefer
+#                    it to <subject> <body>: the message never has to be quoted
+#                    on the command line. prose signs this same file. This
+#                    script passes the path on as the library's --message-file
+#                    option, and the library reads the file and checks its
+#                    layout.
 #
 #   --verified-value <verifier> <Key> <value>
-#                    Another skill's trailer, carried on the same commit (e.g.
-#                    prose's `Prose:`). Repeatable. Passed through unchanged to
-#                    the library, which validates it, runs <verifier> before
-#                    anything is minted, and refuses the whole commit if it no
-#                    longer matches. Why every installed skill's trailer goes
-#                    on one commit: the library's DECISIONS.md, "Every
-#                    installed skill's trailer, on one commit".
-#   --               Ends the families. Required after them, so a family word
-#                    that vanished (an empty unquoted variable) or a forgotten
-#                    `--` is refused instead of shifting the subject, body or
-#                    value into the wrong place. Allowed with no family.
+#                    Another skill's trailer, carried on the same commit, such
+#                    as prose's `Prose:`. Repeatable. This script passes the
+#                    four words to the library unchanged. Before the commit,
+#                    the library runs <verifier> on the staged files and the
+#                    message, and refuses the whole commit if the verifier
+#                    says the value no longer matches them. Every installed
+#                    skill's trailer goes on one commit: the library's
+#                    DECISIONS.md, "Every installed skill's trailer, on one
+#                    commit", says why.
+#   --               Ends the families. Required after them, so that a missing
+#                    word in a family (an empty unquoted variable vanishes
+#                    from the command line) is refused instead of shifting the
+#                    subject, body or value into the wrong place: the family
+#                    then takes the following word, such as the `--`, as its
+#                    last, and the loop below refuses the word after that,
+#                    unless that word is `--` or `--verified-value`. In that
+#                    case the library refuses instead, because the
+#                    swallowed `--` is now one of the family's words. With no
+#                    family it may be given or left out, which is why usage()
+#                    prints it as [--].
 #
 #   subject          First line of the commit message, in the repository's own
 #                    convention.
@@ -47,54 +70,101 @@
 #                       "0 bugs found"
 #                       "aborted after iteration 1 (...)"
 #                       "skipped at triage (docs-only, no code changed)"
-#                     A value starting with "skipped" (case-insensitive) is
-#                     never minted — triage stopped before any loop ran, so
-#                     there is no tree binding to attest to. Every other value
-#                     is a claim that the loop ran over the currently staged
-#                     tree, and gets a Bug-hunter-Tree trailer minted fresh,
-#                     right now, against that exact tree.
+#                     A value starting with "skipped" (either case of the s)
+#                     gets no tree binding: triage stopped before any loop
+#                     ran, so there is nothing to attest to. Every other value
+#                     claims the loop ran over the staged files, and gets a
+#                     Bug-hunter-Tree trailer: the hash of the git tree object
+#                     for the files staged when the commit is made.
 #   co-authored-by   Optional. The value for a Co-Authored-By trailer, e.g.
-#                       "Claude Opus 5 (1M context) <noreply@anthropic.com>"
-#                     Omit (or pass whitespace) to leave that trailer out.
+#                       "<Co-Authored-By value from your attribution instructions>"
+#                     Your host may give you a co-author line for commits; in
+#                     Claude Code it is in the attribution instructions, and
+#                     names the current model. Leave the argument out if you
+#                     have none.
 #
-# A trailer value is one line. Surrounding whitespace on arguments 3 and 4 is
-# trimmed (a heredoc's trailing newline is fine); an empty subject, an empty
-# Bug-hunter value or a line break inside either value is refused before
-# anything runs — git does not fold a multi-line --trailer, and the unindented
-# second line ends the trailer block for every trailer after it. The minted
-# Bug-hunter-Tree line is held to the same rule. A value that is exactly `--`
-# or one of the library's option names (--minted, --minted-by,
-# --verified-value, --co-authored-by) is also refused, as a missing argument.
-# A subject that is one of those names is refused too. The only option this
-# script takes is --verified-value: it adds the Bug-hunter family and the
-# Co-Authored-By trailer itself, and any other word in front would be read as
-# the subject.
+# Checks this script makes, each refused with exit 2 before anything runs:
+# - after --verified-value families, the next word must be `--` or another
+#   family;
+# - the subject (the first word after the families) must not be `--` or an
+#   option name (--minted, --minted-by, --verified-value, --co-authored-by);
+#   this script takes no option but --verified-value, and adds the Bug-hunter
+#   and Co-Authored-By trailers itself;
+# - the subject must not start with `-` at all, unless it is exactly `-F`, so
+#   a misspelt file option (-Fmsg.txt, --message-file=msg.txt) is not committed
+#   as the subject. This script cannot tell such a typo from a real subject
+#   that starts with `-`, so it refuses both;
+# - three or four words must follow the families.
 #
-# Before minting, the library runs the repository's pre-commit hook, if it
-# has one, so a formatter there rewrites the staged files before the tree is
-# bound, not during `git commit` after (the library's DECISIONS.md, "The
-# pre-commit hook runs before anything is bound"). A skip note binds nothing
-# and skips that.
+# Checks the library makes, also with exit 2 before anything runs (see its
+# header for the full list):
+# - it trims surrounding whitespace from every trailer value, so a value
+#   that ends in a newline, such as one read from a heredoc, is fine. It
+#   leaves out a Co-Authored-By value that is empty after trimming, so
+#   passing only whitespace omits that trailer;
+# - it refuses an empty subject, an empty Bug-hunter value, and a line break
+#   inside any trailer value. git reads trailers only from a block of
+#   `Key: value` lines at the end of the message. git does not indent the
+#   second line of a multi-line --trailer value, and that unindented line
+#   would end the block, so git would no longer read the trailers after it as
+#   trailers;
+# - where an option's argument should be, it refuses `--` or an option name
+#   (--minted, --minted-by, --verified-value, --co-authored-by,
+#   --message-file): it takes that word as a sign the argument is missing.
+#   Accepted as the argument, it would shift every later word into the wrong
+#   place.
+#
+# The pre-commit hook. The library binds the commit's values (it mints the
+# Bug-hunter-Tree line and runs each verifier) just before calling
+# `git commit`, and git normally runs the repository's pre-commit hook inside
+# `git commit`, after that binding. A formatter in the hook could then change
+# the staged files, so that the commit would no longer match its binding.
+#
+# The library treats a value starting with "skipped" in any family as a skip
+# note, whichever skill passed it, and a skip note binds nothing. A commit
+# binds something when any value it carries, the Bug-hunter value or a
+# --verified-value family's, is not a skip note; that decides whether the
+# library runs the hooks early.
+#
+# When the commit binds something and the repository has a pre-commit or
+# commit-msg hook, the library takes over running them. It runs the
+# pre-commit hook, if there is one, before binding. It runs commit-msg
+# itself, so that it can check the binding again if that hook changes the
+# message. It then commits with `git commit --no-verify`, so that git runs
+# neither hook a second time. With nothing to bind, git runs the hooks during
+# `git commit` as usual. Why: the library's DECISIONS.md, "The pre-commit
+# hook runs before anything is bound".
+#
+# Running a hook outside `git commit` needs `git hook run`, which arrived in
+# git 2.36. On older git, when the commit binds something:
+# - with a pre-commit hook, the library refuses with exit 1;
+# - with only a commit-msg hook, it commits without --no-verify, and git runs
+#   that hook during `git commit`. Nothing then re-checks the binding before
+#   the commit lands: if that hook changed the message, a value bound to the
+#   message, such as prose's, would no longer match it.
 #
 # Exit 2 for a bad argument. Exit 1 when the shared library is missing, when
 # the pre-commit hook fails or cannot be run first (an unmerged index, or a
 # hook on git older than 2.36), when the commit-msg hook rejects the message
 # or removes the binding, when a verifier refuses its value, or when the mint
 # fails, cannot be found, or prints anything but a one-line tree binding.
-# Either way, no commit is made.
+# Whichever of the two codes it exits with, no commit is made.
 #
-# Stages nothing itself — what to stage is a judgement call this script does
+# Stages nothing itself: what to stage is a judgement call this script does
 # not make. Run your `git add` first, then call this.
 #
-# Example:
+# Examples, with the script's path shortened: run it from inside the project,
+# with the path written out in full, as SKILL.md Step 9 says.
 #   scripts/commit-with-trailer.sh -F msg.txt \
 #     "1 iteration, 1 bug fixed" \
-#     "Claude Opus 5 (1M context) <noreply@anthropic.com>"
+#     "<Co-Authored-By value from your attribution instructions>"
 #
-#   With prose's trailer too (its value from prose's second `check` call on
-#   the same msg.txt):
+#   With prose's trailer too. The Prose value here is a sample: pass the one
+#   prose's second `check` call printed for the same msg.txt. <prose scripts>
+#   is the scripts directory prose's SKILL.md names, wherever prose is
+#   installed:
 #   scripts/commit-with-trailer.sh \
-#     --verified-value ~/.agents/skills/prose/scripts/verify-staged.sh \
+#     --verified-value <prose scripts>/verify-staged.sh \
 #       Prose "✓ 4d593e935186:9138830a72a2" -- \
 #     -F msg.txt "1 iteration, 1 bug fixed"
 set -eu

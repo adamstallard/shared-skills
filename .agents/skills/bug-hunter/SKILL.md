@@ -571,49 +571,114 @@ commit itself — what to stage, the trailer, splitting — is in
 [reference.md](reference.md#committing).
 
 **Commit through the script. Never assemble `git commit -m … --trailer …` by
-hand — not for a fix, not for a skip, not for a one-line docs change.** Scope:
-first letter capital when inventing; reuse `git log` tokens as-is. Stage
-everything first, then, standing in the project:
+hand — not for a fix, not for a skip, not for a one-line docs change.**
+
+Write the subject in the repository's own convention. Where `git log` shows
+subjects starting with a prefix, such as `FIX(parser):` or `parser:`, reuse
+one it shows, spelt exactly as it is there. Where it shows no convention,
+start the subject with a capital letter.
+
+In the commands below, `<base directory>` is this skill's base directory: the
+directory that holds this SKILL.md. Claude Code names it on a "Base
+directory for this skill:" line, which it prints just before this file's
+text when the skill loads. Write the path out in full, as that
+line gives it; don't swap in a home-directory install path, which may be
+missing or hold a different copy. The script's path is absolute because it
+lives in this skill, not in your project. Run the command from inside your
+project, though: the git commands the script runs act on the repository you
+run it from.
+
+Write the message to `msg.txt` in the directory you will run the command
+from, and don't stage it: it is not part of the commit. Stage everything the
+commit holds, then, standing in the project, run the command below. This is
+the form when the prose skill is not installed; when it is, the commit adds
+prose's value, as the paragraphs below that start "When prose is installed"
+show.
 
 ```bash
 BH="<base directory>/scripts/commit-with-trailer.sh"
-"$BH" -F msg.txt "1 iteration, 1 bug fixed" "Claude Opus 5 (1M context) <noreply@anthropic.com>"
+"$BH" -F msg.txt "1 iteration, 1 bug fixed" "<Co-Authored-By value from your attribution instructions>"
 ```
 
-`msg.txt` holds the message: the subject, a blank line, then the body (never a
-trailer in it). Write it to a file so the message never has to be quoted on the
-command line; prose's pass uses the same file. Then come the `Bug-hunter:`
-value and, optionally, the `Co-Authored-By` value. The message as two words,
-`"<subject>" "<body>"` in place of `-F msg.txt`, still works. Each trailer is
-passed as `--trailer`, so where it lands is git's problem; and for any value that
-is not `skipped …` the script runs `mint-trailer.sh` against the tree staged at
-that instant and adds the `Bug-hunter-Tree` binding — the one line a hand-typed
-commit cannot produce, and the one the hook checks. It runs the repository's
-pre-commit hook before minting, so a formatter there cannot change the tree
-after it is bound; if the hook fails, nothing is committed — review what it
-changed, stage what belongs, and run the script again. Verify with
-`git log -1 --format='%(trailers:key=Bug-hunter)'`; while the commit is still
-local, `git commit --amend --no-edit --trailer "…"` is the repair.
+`1 iteration, 1 bug fixed` is a sample: pass this run's own result. The
+arguments, in order:
 
-`<base directory>` is this skill's base directory: the directory that holds
-this SKILL.md, which Claude Code names on the "Base directory for this skill:"
-line above it. Write the path out in full, as that line gives it; don't swap in
-a home-directory install path, which may be missing or hold a different copy.
-The path *to the script* is absolute because `scripts/` is relative to this
-skill, not to your project; the git it runs is not. The mechanics the script wraps, and what the binding does and does
-not attest to: [reference.md](reference.md#committing),
+1. `-F msg.txt`: the file holding the commit message, which is the subject, a
+   blank line, then the body. Never put a trailer in it. With a file, the
+   message never has to be quoted on the command line. When the prose skill
+   is installed, it signs this same file, as described below. You can pass the message as two shell arguments instead,
+   `"<subject>" "<body>"` in place of `-F msg.txt`.
+2. The `Bug-hunter:` value, without the `Bug-hunter: ` prefix.
+3. Optionally, the `Co-Authored-By` value: the text after `Co-Authored-By: `,
+   without that prefix. Your host may give you a co-author line for commits;
+   in Claude Code it is in the attribution instructions, and names the
+   current model. Leave the argument out if you have none.
+
+A skip commits through the script too, with its reason in the value:
+
+```bash
+BH="<base directory>/scripts/commit-with-trailer.sh"
+"$BH" -F msg.txt "skipped at triage (docs only)" "<Co-Authored-By value from your attribution instructions>"
+```
+
+What the script does with the `Bug-hunter:` and `Co-Authored-By` values:
+
+- It passes each one to git as a `--trailer` option, and git places it in the
+  message's trailer block, the last paragraph, where git reads trailers. You
+  never place a trailer line yourself.
+- For a `Bug-hunter:` value that does not start with `skipped`, it runs
+  `mint-trailer.sh`, a script beside it in `scripts/`. That prints a `Bug-hunter-Tree: <hash>`
+  line, where the hash identifies the git tree object for the files staged at
+  that moment, and `commit-with-trailer.sh` adds the line as a trailer.
+- A binding is a trailer that a checker can match against the commit's
+  files. The `Bug-hunter-Tree` line is one. Each value from another skill
+  that the commit carries, such as prose's (below), is another: that
+  skill's verifier checks it against the staged files just before the
+  commit. A value that is a skip note, starting with `skipped`, is not a
+  binding, and nothing checks it.
+  Before minting or verifying, the script runs the repository's pre-commit
+  hook, if there is one, so a formatter there cannot change the staged files
+  after they are bound. When the commit binds nothing (every value it
+  carries is a skip note), git runs the hook during the commit instead.
+  If the hook fails, nothing is committed. A hook may rewrite files and
+  still fail, as some formatters do, so review what it changed, stage what
+  belongs, and run the script again.
+
+bug-hunter also installs a companion hook, separate from the script. It runs
+after each shell command you run and reports to you each commit that landed
+without a valid `Bug-hunter:` trailer. The hook counts a non-skip value as
+valid only with a `Bug-hunter-Tree` line beside it, so a hand-typed
+`git commit`, which leaves out the mint, gets reported.
+
+After committing, check that the trailer landed:
+`git log -1 --format='%(trailers:key=Bug-hunter)'` prints the `Bug-hunter:`
+line. If it prints nothing, the commit has no trailer; while the commit is
+still local, add one with `git commit --amend --no-edit --trailer
+"Bug-hunter: <value>"`. A value that is not a skip also needs its binding:
+add `--trailer "$("<base directory>/scripts/mint-trailer.sh")"` to the same
+command. The mint hashes whatever is staged when the command runs, and the
+amend commits exactly what is staged, so the hash always matches the amended
+commit's files. If you staged nothing since the commit, those are the
+commit's own files.
+
+The mechanics the script wraps, and what the binding does and does not attest
+to: [reference.md](reference.md#committing),
 [DECISIONS.md](DECISIONS.md#the-commit-is-assembled-by-a-script-not-by-hand).
 
 **When prose is installed, the same commit carries its `Prose:` trailer.**
-Skills that sign commits through the shared library commit once, with every
-installed skill's trailer
+`commit-with-trailer.sh` makes the commit through a library that several
+skills share, `.agents/lib/commit-trailer/commit-with-trailers.sh` in the
+shared-skills clone. Every skill that adds a trailer through it puts that
+trailer on one commit, rather than each making its own
 ([the rule](../../lib/commit-trailer/DECISIONS.md#every-installed-skills-trailer-on-one-commit)).
+So bug-hunter's commit carries prose's trailer too, passed to the same script.
 To learn whether prose is installed, ask the `manage-skills` skill (its
 `list`): prose is installed when its row says `installed`. prose's SKILL.md
 gives its scripts directory, written `$S` below.
 
-If it is, after the last fix and the final `git add`, write the message (subject,
-a blank line, body) to `msg.txt`, unstaged, and:
+When prose is installed, after the last fix and the final `git add`, write
+the message (subject, a blank line, body) to `msg.txt`, without staging that
+file, and:
 
 1. Run prose's first call. It lists the prose in the change and prints the
    rules and a pass token:
@@ -627,19 +692,31 @@ a blank line, body) to `msg.txt`, unstaged, and:
    SKILL.md, *The cold read*, then run it again with `--cold-read <report>`
    and `--dispositions <file>`. The cold reader's report holds findings,
    each a place it stopped, and one understood line per item, saying what it
-   took the item to mean. To keep one is to leave its item as it is: for an
-   understood line, although it shows a meaning other than yours. Each one
-   you would keep needs a person's answer first, through your host's interactive picker (prose's
-   SKILL.md, *The cold read*). If you cannot ask, because you run for another
-   agent or under *caller commits*, don't commit: leave the change staged,
-   and put prose's refusal, which names each one kept, in your bug-hunter
-   report, with one open decision per kept one ("keep as is · fix it"). Once signed,
-   the trailer ends with the cold read's counts; pass it as printed.
-4. Commit once, passing the text after `Prose: ` as a family before `--`:
+   took the item to mean. The dispositions file answers each finding with
+   `fixed` or `kept`, and each understood line with `matches`, `fixed` or
+   `kept`. Keeping one means leaving its
+   text as it is: for an understood line, even though the reader took a
+   meaning other than yours. Each one you would keep needs a person's answer
+   first, through your host's interactive picker (prose's SKILL.md, *The
+   cold read*). If you cannot ask, because you run for another agent or
+   under *caller commits*, don't commit: leave the change staged, and run
+   the second call anyway, with each one you would keep written as kept. It
+   refuses, and its message names each one kept; put that message in your
+   bug-hunter report, with one open decision per kept one ("keep as
+   is · fix it"). When the second call succeeds after a cold read, the
+   `Prose:` value it prints ends with the cold read's counts; pass the whole
+   value as printed.
+4. Commit once, passing the text after `Prose: ` as a *family* before `--`.
+   A family is four words: `--verified-value`, the verifier's path, the key
+   `Prose`, and the value. Set `BH` and `S` in the same command, since a
+   variable set in an earlier tool call is gone by now. The `Prose` value
+   below is a sample: pass the one your second call printed.
 
 ```bash
+BH="<base directory>/scripts/commit-with-trailer.sh"
+S="<prose's scripts directory>"
 "$BH" --verified-value "$S/verify-staged.sh" Prose "✓ 4d593e935186:9138830a72a2" -- \
-  -F msg.txt "1 iteration, 1 bug fixed" "Claude Opus 5 (1M context) <noreply@anthropic.com>"
+  -F msg.txt "1 iteration, 1 bug fixed" "<Co-Authored-By value from your attribution instructions>"
 ```
 
 A commit that changes `openspec/` carries spec-check's `Spec-check:` value
@@ -652,8 +729,9 @@ second call and the commit: the script runs prose's verifier first and refuses
 the commit if the tree or the message changed. A skip gets the prose pass too.
 
 **A prose pass that touches only comments, docs or the message needs no new
-hunt.** The `Bug-hunter-Tree` binding is minted at commit time, over the tree
-that lands, so it covers the rewrite. If the pass changes code, code was
+hunt.** The script mints the `Bug-hunter-Tree` binding when it commits, over
+the files staged then, which are the files that land, so the binding covers
+the rewrite. If the pass changes code, code was
 written since the last clean pass, and a hunt is owed.
 
 Three things are required every run, and they are the ones agents drop first:
