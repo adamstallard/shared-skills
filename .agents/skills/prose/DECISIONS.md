@@ -17,8 +17,7 @@ each was rejected. Entries give the rules' current numbers.
 - **The gate:** a Claude Code hook that blocks a session's first file write
   until a first call has run.
 - **Igor** (adamstallard/igor) is an agent pipeline that runs prose in its
-  workers; most examples come from it. **Adam** owns this skill and made the
-  decisions credited to him.
+  workers; most examples come from it.
 
 ---
 
@@ -60,9 +59,10 @@ explicit scope line ("Checked: X. Not checked: Y.") narrows rather than hedges:
 vague hedges lower trust while a stated limit raises it (van der Bles 2020,
 Jensen 2008).
 
-**Rule 3 names a pointer whose one referent is far back** ("it", "these
-commands", a paragraph after what they point at) as a cause of a reread, not
-only a pointer with two referents.
+**Rule 3 names a pointer whose one referent is far back** as a cause of a
+reread: "it" or "these commands" a paragraph after the one
+thing it points at. Before, the rule named only a pointer with two possible
+referents.
 
 **Rule 4, a hypothetical reads as one.** A case that happens only by accident,
 rarely, or by someone else's choice is marked three ways together: lead with
@@ -91,15 +91,16 @@ other.
 
 **Rule 6, each sentence follows from the last.** Abrupt switches to a subject
 the reader wasn't expecting kept slowing reading after the pass existed. It
-also says a "so", "because" or "therefore" points at what the reader just
-read: a "so" whose cause is two sentences back makes the reader search.
+also says a "so", "because" or "therefore" points at what the reader just read: a "so" whose cause is two
+sentences back makes the reader search.
 
 **Rule 7, a claim is stated once, with its reason.** In Igor's PR #156 one
 catchphrase appeared nine times across six documents, restating a rule in a
 form that sounded like a reason, so the reasons were never written down. The
 pass greps the repository for a phrase a changed passage repeats and fixes it
-at its source. That fix may touch text the change did not otherwise change,
-and rules.md's *Scope* section names it as the one exception allowing that. A
+at its source. rules.md's *Scope* limits the pass to text the change wrote, and names this
+fix as one of its two exceptions; the other is text someone asked to have
+revised. A
 term defined once and used as a name is vocabulary, not a catchphrase.
 
 **Rule 8, what is, not how it got here,** covers docs as well as comments. A
@@ -107,8 +108,9 @@ passage that labelled its past ("the argument once made … does not apply")
 passed the pass: it satisfied rule 5, which only asks that the past be
 labelled. Rule 8 is what says whether the past belongs in the text at all.
 
-**Rule 9, one claim per sentence.** "A longer sentence that reads once beats a
-shorter one read twice" says what may make a sentence longer: words that serve
+**Rule 9, spend words where they save reading time,** has *one claim per
+sentence* as its point. Its sentence "a longer sentence that reads once beats a
+shorter one read twice" now says what may make a sentence longer: words that serve
 its one claim, not a second claim.
 
 **New failures fold into an existing rule when they fit its question;** a new
@@ -119,6 +121,12 @@ headings without their reasons or examples.
 **Rejected.**
 - **A word or clause limit per sentence.** A count of words does not see
   claims, and reads as a target.
+- **Merging rule 8 (*What is*) into rule 5 (*Say when*).** They answer
+  different questions: whether the past belongs in the text, and how to mark
+  it when it does. Kept apart, rule 5 can say outright that labelling the past does not
+  justify keeping it: that is rule 8's call.
+- **Merging rule 6 into rule 11 (*One topic per block*).** Rule 11 is about
+  how text is divided; rule 6 is about whether one sentence leads to the next.
 - **A mechanical lint for passives** such as "is searched" with no "by". It
   would flag far more harmless sentences than harmful ones, and prose's checks
   are worth reading because they don't cry wolf.
@@ -155,8 +163,9 @@ with `--goals-for <pattern> '<goals>'` or a `--goals-file` of
 `pattern: goal; goal` lines. Without them the first call refuses, naming each
 file and its kind's default from rules.md's reader table. A deleted doc needs
 none; a code comment without goals gets its kind's default, labelled as one.
-The pass token records the per-file goals, and the signing call refuses goals
-that differ from them.
+The pass token records the per-file goals. The signing call refuses goals
+that differ from them, and a doc staged since the first call that they don't
+cover.
 
 **Why.** A commit to Igor's architecture doc passed with a valid trailer while
 telling the doc's reader that an argument they never saw "does not apply".
@@ -215,8 +224,7 @@ pattern naming the message could clash with a real file.
 
 ## A revision request is drafted fresh, section by section
 
-When someone asks for existing text to be improved with prose, the agent
-writes a draft of every section before rereading it, carries over every fact,
+When someone asks for existing text to be improved with prose, the agent writes a draft of every section before rereading it, carries over every fact,
 measurement, decision and warning the draft lacks, and keeps the original only
 where the draft, written without it, says essentially the same thing. A tie
 goes to the draft. A section an open branch also changes is held, with the
@@ -267,16 +275,15 @@ session mark is out of scope, as forging a footer is.
 
 ### The pass token
 
-- **One token signs one text,** once: a doc edit, a commit message and a PR
-  description have different readers, and a reusable token would let later
-  texts skip naming theirs. It is bound to its goals and its command (`check`
+- **One token signs one text,** once: a commit and a PR description have different readers, and a reusable token
+  would let later texts skip naming theirs. A commit's docs are signed with
+  its token, each under its own per-file goals. It is bound to its goals and its command (`check`
   signs a commit, `sign` a post). A refused signing call keeps it.
 - **Bound to the goals, not the text,** since the pass revises the text.
 - **Expires after 2 hours;** each first call deletes older tokens.
 - **Exit 4** for a first call, distinct from 2 (refused) and 0, so
   `sign … > signed.md && gh …` stops there.
-- **Lives in `prose/passes/` under the repository's git directory,** never
-  committed. Igor's workers each run in a throwaway clone with a shared HOME,
+- **Lives in `prose/passes/` under the repository's git directory,** never committed. Igor's workers each run in a throwaway clone with a shared HOME,
   so per-clone tokens mean no contention and no worker redeeming another's.
   Outside a repository, `${XDG_STATE_HOME:-$HOME/.local/state}/prose/passes/`.
   Written under a temporary name and renamed, so no call reads half of one.
@@ -358,8 +365,7 @@ next section), it checks both, then signs.
 - **No length threshold.** The first version read only texts of three or more
   lines, and every bug found in it was in that counting (comment syntax, binary-diffed docs, BOMs, UTF-16), and a
   character count has the same hard cases.
-- **Not the commit message** (Adam: "I don't care about commit message
-  bodies"). A commit changing no comment or doc signs without a report.
+- **Not the commit message:** its body needs no cold read. A commit changing no comment or doc signs without a report.
 - **Nothing with no new prose to read:** a doc git diffs as binary, a deleted
   doc, an edit that only removes lines, a symlink or submodule at a doc path,
   a code file that did not parse or could not be read.
@@ -507,7 +513,7 @@ commit if the tree or message no longer match.
 after it breaks it. Twelve hex per half stops a trailer written from memory;
 no hash can prove when it was computed.
 
-**Every commit gets the pass; there is no skip value.** Every commit has a
+**Every commit gets the pass; prose issues no skip value.** Every commit has a
 message a reviewer reads, so no commit honestly qualifies for a skip.
 
 **One commit carries every installed skill's trailer.** Composing them is the
@@ -546,7 +552,8 @@ says which half broke.
 - **A git `commit-msg` hook.** Per-clone setup, and the reflog hook covers it.
 
 **Known gap.** The commit script runs no verifier for a value starting
-`skipped`, so a `Prose: skipped…` commit lands and only the hook reports it.
+`skipped`, so a `Prose: skipped…` value written by hand or by another tool
+lands, and only the hook reports it (see *Open*).
 
 ---
 
@@ -601,18 +608,26 @@ signature, and the report says so.
 **Accepted cost.** A trailer-shaped line appended after signing does not break
 the hash.
 
-**Rejected: git's own commands for parsing** (`git stripspace`,
-`git interpret-trailers`). A prototype committed about 2,500 test and fuzzed
+**Rejected: git's own commands for parsing** (`git stripspace`, `git interpret-trailers`). A prototype committed about 2,500 test and fuzzed
 messages for real. The git version round-tripped every default-config one, but
 prose's own parser already matched git on all 2,464 of them that it accepts. The git version would save about 90 lines while adding git calls,
 depending on the internal order of `git commit`, and still needing most
 refusals. Revisit if people hit the refusals (configured trailer keys, `#`
 lines, `core.commentString`) in practice.
 
-**Known gap.** The fold follows git's default rule; with a configured
-`trailer.<x>.key` in a last paragraph that mixes trailer lines with other
-lines, git folds where prose does not, and an
-honest commit fails loudly. Fix: read `trailer.*.key` config.
+**The fold follows git's default rule:** an empty-valued
+key is folded only when git would read the whole paragraph as a trailer block.
+A configured `trailer.<x>.key` makes git count more lines as trailers, but
+`prose check` refuses to sign under any `trailer.*` config except
+`separators=:`. So a mismatch arises only when a commit is verified under
+trailer config that differs from where it was checked, and then it fails
+loudly. Fix, if needed: read `trailer.*.key` config and count those keys as
+git does.
+
+**Rejected: folding every paragraph.** It would need no config, but folding
+joins an indented line onto the empty-valued key above it, dropping its
+indentation, so an edit to only that indentation would no longer break the
+hash.
 
 ---
 
@@ -672,10 +687,14 @@ job would run, and the rewrite handling would come back from `e8da005`.
 ## The posting hook reads an allow-list
 
 For a Bash command, the hook reads a post's body only when `gh` is the whole
-command and the body is a literal `--body` (or `--comment` for close and
-reopen) in single quotes or in double quotes without `$`, backtick or
-backslash, or `--body-file` naming an existing file. Any other command that
-runs a `gh` post is blocked, and the message names those forms.
+command and the body comes one of two ways:
+- `--body` or `-b` (`--comment` or `-c` for close and reopen) with a literal
+  value, in single quotes or in double quotes without `$`, backtick or
+  backslash;
+- `--body-file` or `-F` naming an existing file.
+
+Any other command that runs a `gh` post is blocked, and the message names
+those forms.
 
 **Why.** Two bug-hunter runs found about 25 places where a general parser read a
 command differently from bash, most letting an unsigned post through. With a
@@ -687,15 +706,16 @@ short allow-list nothing is left to diverge.
   differently, and it needed five refusal rules for that shell alone.
   `--body-file` covers the same flow.
 
-**Where this stops applying.** A deliberately disguised `gh` (`g''h`, `$GH`)
-passes; the hook stops accidents, not an agent set on getting around it.
+**Titles are not checked.** A footer cannot go on a one-line title, so
+`--title` is an ordinary value flag.
+
+**Where this stops applying.** A deliberately disguised `gh` (`g''h`, `$GH`) passes; the hook stops accidents, not an agent set on getting around it.
 
 ---
 
 ## A command that runs no gh post is not a post
 
-A command that mentions a `gh` post verb but is not the whole-command form
-passes when the hook can show the shell runs no `gh` post in it: every simple
+A command that mentions a `gh` post verb but is not the whole-command form passes when the hook can show the shell runs no `gh` post in it: every simple
 command either names no `gh` as a word, or is a `gh` command that sends no
 text (a label edit, `gh pr ready`, a close without a comment, `gh pr view`).
 
@@ -715,15 +735,13 @@ comments holding quotes or operators. The rules for each simple command:
 - **Text naming `gh` is data** only in a command from `DATA_COMMANDS` (`echo`,
   `cat`, `grep`, `git`, `python3` and a few more), which run neither their
   arguments nor their stdin. Any other command naming `gh` blocks, since it
-  might run it (`sh -c`, `eval`, `trap`, `env -S`, `xargs`). `printf`, `test`
-  and `[` are excluded: bash evaluates an array subscript given to `printf -v`
+  might run it (`sh -c`, `eval`, `trap`, `env -S`, `xargs`). `printf`, `test` and `[` are left out of `DATA_COMMANDS`: bash evaluates an array subscript given to `printf -v`
   or `test -v`, command substitution included.
 - **A `gh` command** must be first and plain; its words are read after quote
   removal. `NO_TEXT_VERBS` lists the subcommands that send no text; `merge` is
   not on it.
 - **A pipe or input redirection** matters only for the command that reads it,
-  which must be a data command or a `NO_TEXT_VERBS` subcommand. A post verb
-  reading input blocks even with no body flag: allowing it would rely on gh
+  which must be a data command or a `NO_TEXT_VERBS` subcommand. A post verb reading input blocks even with no body flag: allowing it would rely on gh
   never reading a body from stdin except through `-F -` (`--body-file -`),
   which a later gh could change. When input can reach a group, loop or subshell, every
   command in it must be a data command.
@@ -822,4 +840,7 @@ Each is left on purpose; its fix says what would close it.
 
 ## Open
 
+- **Skip notes,** undecided: the commit script runs no verifier for a value
+  starting `skipped`, so a `Prose: skipped…` commit lands unchecked. Change
+  the shared library to verify it, or keep the gap recorded here.
 - More rules.
