@@ -259,6 +259,123 @@ blocks through:
 
 ---
 
+## Compaction keeps docs read before work compact
+
+Decided by Adam, 2026-10-24. `prose check`'s first call prints `compaction
+due for <file>: <why>` for a changed current-state doc that is over its size
+budget or holds history markers. The agent then compacts it, in a commit of
+its own in the same pull request: `prose compact <file>` prints a brief for a
+fresh compactor ([compact.md](compact.md)), `--verify` checks the result
+mechanically, and `--review` prints a brief for a fresh reviewer
+([compact-review.md](compact-review.md)).
+
+**Why.** Over two long sessions, about 69% of subagent spend was agents
+rereading large documents; igor's `docs/architecture.md` was read 249 times.
+Prose's pass rewrites only the lines a change touches, so rule 8 (*What is,
+not how it got here*) never reaches the rest, and history piles up there.
+This DECISIONS.md grew from 51 KB to 107 KB in three weeks. Adam's rules:
+docs read before work stay compact, and current-state docs don't accumulate
+history.
+
+**It lives in prose** because it is rule 8 applied to a whole file, and
+prose's commit check already lists every changed doc. Spec-check calls the
+same commands for OpenSpec proposals and designs.
+
+**Just do it; ask on loss.** The compaction is reviewed as a diff of its own,
+so asking first only adds a wait. Dropping a conclusion is a decision, not an
+edit: the compactor leaves one it believes dead in place and names it, and a
+person decides. The reviewer's verdicts decide what is restored; the person
+is asked only where restoring is itself a judgement call.
+
+**The compactor drafts each section fresh.** A first brief told it to edit in
+place; it cut 1 to 12% of five real docs, and a judge found 3 live
+conclusions lost across them. Drafting fresh cut 6 to 23%, with 6 lost before
+review (below). A naive "compact this" prompt cut 4 to 54%, with 41 lost.
+
+**A fresh reviewer judges every removal** (Adam, 2026-10-24), as bug-hunter's
+refuter judges findings, because a compactor checking its own work misses
+losses: the compactor of pull request #31, which compacted this file,
+missed eight, and a fresh reviewer caught them. `--review` writes every
+change to a file, old and new text side by side, headed by the code
+spans, flags, constants, paths and headings that are gone. That list is a
+script's work and costs no tokens. The reviewer runs on the same model, never
+a cheaper one. For each removal it answers superseded, folded in or lost; for
+each rewritten claim, holds or false, checked against the code; it skips
+unchanged text. The compactor restores and corrects. A second review runs only
+if the first found something, and never a third.
+
+**Measured** with skill-creator's benchmark harness on five docs, each seeded
+with three conclusions hidden in history or repetition: this file before and
+after #31, bug-hunter's DECISIONS.md, worktrees' DECISIONS.md and igor's
+`docs/architecture.md`. Every seeded conclusion survived in every run.
+- **Without the reviewer,** a judge found 6 conclusions lost across the
+  five. The first review found 17 lost and 15 false claims: it also counts
+  lost reasons and claims the rewrite made false, which the judge does not.
+- **After one review and its fixes,** the judge found 1. The second review
+  found 3 more lost and 4 more false; one of those false claims was false in
+  the original document too.
+- **Cost:** the two reviews and the fixes add 2.4 to 3.5 times the
+  compactor's tokens (200k to 390k), and 1.5 to 2.4 times its time. With the
+  compactor, a reviewed compaction cost 265k to 530k tokens.
+- **On #31's compaction,** the reviewer caught 7 of the 11 points the human
+  review restored or corrected. It missed one rejected alternative, one
+  reason and two wrong statements. It flagged 24 more points, lost or false,
+  that the human review left; nobody has checked those yet.
+
+**The triggers are a script.** They read the index, git history and blob
+sizes, in milliseconds per doc.
+- **Size: 40,000 bytes** (about 10,000 tokens), or a 50% growth since the
+  last compaction. Docs under it cut 6 to 13%, saving under 1,000 tokens per
+  read, so their reviewed compactions, at 265k to 350k tokens, take hundreds
+  of reads to repay. igor's architecture doc, 125 KB, cut 15 KB: about 3,800
+  tokens on each of its 249 reads. The last compaction is the newest commit
+  behind HEAD, merged branches included, that shrank the file by 10% or
+  more, read from blob sizes, so it needs no marker.
+- **Known gap: a squash merge.** It leaves one commit with the pull
+  request's net change. If that shrank the file by less than a tenth, the
+  compaction inside it is not found, and the doc is flagged again on its
+  next change.
+- **History markers,** at any size: a dated revision note or span, a
+  "History:" or "Update:" label, "previously" (not "a previously issued"),
+  "originally", "formerly", "was changed to". Code and quoted text are
+  skipped. Over 26 docs here and in igor they fire on 8 lines of the
+  pre-#31 file, on igor's architecture doc, bug-hunter's DECISIONS.md and an
+  igor design, and on none of the nine SKILL.md files, rules.md, the post-#31 file
+  or seven other DECISIONS.md files. They miss history phrased as "an
+  earlier version", which the reviewer then catches.
+- **Defaults:** `DECISIONS.md`, `SKILL.md`, `AGENTS.md`, `CLAUDE.md`,
+  `architecture*.md`, and OpenSpec specs, proposals and designs outside the
+  archive.
+- **Settings live in `.gitattributes`:** committed, matched by path, read by
+  one `git check-attr` call. The one line `* prose-compact-budget=60000`
+  sets the budget for every file.
+
+**`--verify` checks what a script sees exactly:** links into the file's
+headings from any tracked file, Markdown or a code comment's
+`DECISIONS.md#anchor`; headings another file names word for word; history
+markers left; and that the file did not grow.
+
+**Known gap.** To match GitHub's anchors and links, `--verify` reads Markdown
+with its own code. Bug-hunter's three passes found 14 bugs there, and the
+last pass's four fixes were not re-reviewed. A check that greps the
+repository for each removed anchor and heading would need no Markdown
+parsing; it is the fix if more such bugs appear.
+
+**Rejected.**
+- **Firing at every commit over budget.** A doc that stays long after a
+  compaction would be flagged forever. It gets its own budget instead, which
+  `--verify` suggests.
+- **A marker in the compaction commit.** An agent has to remember it, and a
+  squash merge can drop it.
+- **"No longer", "used to", "an earlier version" as markers.** Here they fire
+  mostly on present state ("if the tree no longer matches") or on rejected
+  alternatives stated in passing.
+- **A config file of its own.** One more file, with its own pattern matching.
+- **A cheaper model for the reviewer.** It is the check on a strong model's
+  judgement.
+
+---
+
 ## The rules are on screen before a signature
 
 A trailer or footer takes two calls. The first, `check` or `sign` without

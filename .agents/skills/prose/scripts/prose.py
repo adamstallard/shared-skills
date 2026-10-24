@@ -14,8 +14,9 @@ Both calls of `check` run the repository's pre-commit hook first, if it has one.
         Before a commit, first call. Lists the prose, each file under its own
         reader goals, and prints the rules and a token. --goals is the
         message's reader's. --message-goals-file gives them in a file instead:
-        one or more goals per line, separated by ';', naming no file. Every
-        changed doc or spec needs goals of its own, or check refuses it.
+        one or more goals per line, separated by ';', with no 'pattern:'
+        prefix. Every changed doc or spec needs goals of its own, or check
+        refuses it.
     prose.py check -F <message file, or - for stdin> --pass <token> [--amend]
             [--cold-read <report> [--dispositions <file>]]
         Second call. Prints the Prose: trailer. --amend: before `git commit --amend`.
@@ -29,6 +30,12 @@ Both calls of `check` run the repository's pre-commit hook first, if it has one.
     prose.py sign --pass <token> [--cold-read <report> [--dispositions <file>]] < text > signed
         Second call. Prints stdin's text with a signed footer, or, as check
         does, a cold-read brief on stderr, exiting 5.
+    prose.py compact <file> [--verify | --review]
+        Compaction: prints the brief a compactor subagent works from and
+        exits 4. --verify checks the compacted file against the copy the
+        first call saved, exiting 0 when it passes and 1 when it fails.
+        --review prints the brief for a reviewer of each removal and rewrite,
+        and exits 4.
     prose.py verify-staged <trailer line>     stdin: the message (the commit script's verifier)
     prose.py verify-commit <sha>              after a commit (the commit hook)
     prose.py verify-post                      stdin: posted text
@@ -99,6 +106,14 @@ GIT_TRAILER = re.compile(r"^([A-Za-z0-9-]+)[ \t]*:[ \t]*(.*)$")
 
 class Refused(Exception):
     """A condition the caller has to fix; the message says how."""
+
+
+def compactor():
+    """compact.py, imported only by the commands that use it."""
+    sys.dont_write_bytecode = True
+    sys.path.insert(0, str(HERE))
+    import compact
+    return compact
 
 
 def scanner():
@@ -2694,6 +2709,14 @@ def main(argv=None):
     p_hook = sub.add_parser("hook-post", help="the posting hook: payload on stdin")
     p_hook.add_argument("--host", default="")
     sub.add_parser("hook-gate", help="the first-write gate: payload on stdin")
+    p_compact = sub.add_parser("compact", help="print the brief that compacts a doc to what is "
+                                               "current; with --verify, check the result")
+    p_compact.add_argument("file")
+    p_compact.add_argument("--verify", action="store_true",
+                           help="check the compacted file against the copy the first call saved")
+    p_compact.add_argument("--review", action="store_true",
+                           help="print the brief for the reviewer who judges each removal and "
+                                "rewrite against the copy the first call saved")
     args = parser.parse_args(argv)
 
     try:
@@ -2767,12 +2790,29 @@ def main(argv=None):
             print_goals(goals, heading=MESSAGE_GOALS)
             print_check(assigned, flags, unused,
                         "--message-goals-file" if args.message_goals_file else "--goals")
+            compact = compactor()
+            compact.print_due(compact.due(
+                [item.path for item, _ in assigned
+                 if item.path is not None and not item.deleted and is_doc(item.path)],
+                git(["rev-parse", "--show-toplevel"], args.repo).strip()), _prose_command())
             print()
             print_rules()
             token = issue_pass(goals, "check", _session(args), args.repo, rules)
             print_pass(token, [next_check(token, args.message_file, args.amend, args.repo)])
             print_commit_how(args.amend, args.message_file)
             return PASS_ISSUED
+        if args.command == "compact":
+            compact = compactor()
+            try:
+                if args.verify and args.review:
+                    raise Refused("--verify and --review are separate steps; run one at a time")
+                if args.verify:
+                    return compact.verify(args.file, user_state_dir())
+                if args.review:
+                    return compact.review(args.file, user_state_dir())
+                return compact.brief(args.file, user_state_dir(), _prose_command())
+            except (ValueError, UnicodeDecodeError) as error:
+                raise Refused(str(error))
         if args.command == "verify-staged":
             ok, reason = verify_staged(args.line, _read_stdin(), args.repo)
             print(reason)

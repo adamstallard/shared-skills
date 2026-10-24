@@ -3909,5 +3909,449 @@ class ResultBlock(unittest.TestCase):
         self.assertTrue((prose.pass_dir(repo.path) / token).exists(), "the token was spent")
 
 
+# compact.py, compiled from source as prose.py is above, so a stale .pyc can
+# never stand in for the code under test.
+COMPACT = HERE / "compact.py"
+compact = types.ModuleType("compact_under_test")
+compact.__file__ = str(COMPACT)
+exec(compile(COMPACT.read_text(encoding="utf-8"), str(COMPACT), "exec"), compact.__dict__)
+
+
+class HistoryMarkers(unittest.TestCase):
+    """The history-marker trigger, which makes a current-state doc due at any size."""
+
+    def names(self, text):
+        return [marker.name for marker in compact.history_markers(text)]
+
+    def test_it_finds_revision_notes_and_narrative(self):
+        for text in ("**Revised 2026-09-30.** The goals open the call.",
+                     "(Revised 2026-09-26: the skip value is dropped.)",
+                     "### Superseded 2026-09-30: the gate that looked for prose",
+                     "That was dropped on 2026-09-28 in favour of a line.",
+                     "Checking by the quote was replaced on 2026-10-13.",
+                     "History: from 2026-09-26 the engine signed lines.",
+                     "**Update:** the hook now blocks.",
+                     "It previously read every comment.",
+                     "The gate was originally a comment scan.",
+                     "The limit was changed to 30 seconds."):
+            with self.subTest(text=text):
+                self.assertEqual(len(self.names(text)), 1)
+
+    def test_it_leaves_attribution_measurements_and_quoted_markers(self):
+        for text in ("**Decision (Adam, 2026-10-24).** Compaction lives in prose.",
+                     "Measured 2026-09-27 against one seat.",
+                     "It refuses a previously issued token.",
+                     "No `previously` or \"revised\" in a current doc, and no «superseded».",
+                     "```\nRevised 2026-09-30: an example inside a fence.\n```",
+                     "## Update the config",
+                     "Dropping one is a decision, not an\nedit: the compactor names it.",
+                     "The commit is refused if the tree no longer matches.",
+                     "**Rejected: a length budget per kind.** It reads as a target."):
+            with self.subTest(text=text):
+                self.assertEqual(self.names(text), [])
+
+    def test_a_quotation_wrapped_onto_the_next_line_is_still_quoted(self):
+        text = 'Markers: "History:", "a previously\nissued", "originally".\nIt previously ran.\n'
+        self.assertEqual([(m.line, m.name) for m in compact.history_markers(text)],
+                         [(3, "previously")])
+
+    def test_it_reports_one_marker_per_line_with_its_line_number(self):
+        found = compact.history_markers("# T\n\nIt previously was, originally.\nFine.\n")
+        self.assertEqual([(m.line, m.name) for m in found], [(3, "previously")])
+
+
+class CurrentStateDocs(unittest.TestCase):
+    """Which docs the triggers measure when no attribute says."""
+
+    def test_the_defaults(self):
+        for path, expected in (("DECISIONS.md", True),
+                               (".agents/skills/prose/SKILL.md", True),
+                               ("AGENTS.md", True), ("sub/CLAUDE.md", True),
+                               ("docs/architecture.md", True), ("ARCHITECTURE.md", True),
+                               ("openspec/specs/seat/spec.md", True),
+                               ("openspec/changes/fix-x/proposal.md", True),
+                               ("openspec/changes/fix-x/design.md", True),
+                               ("openspec/changes/archive/2026-10-01-x/design.md", False),
+                               ("openspec/changes/fix-x/tasks.md", False),
+                               ("README.md", False), ("CHANGELOG.md", False),
+                               ("docs/guide.md", False)):
+            with self.subTest(path=path):
+                self.assertEqual(compact.default_current(path), expected)
+
+    def test_gitattributes_declare_exempt_and_set_numbers(self):
+        repo = Repo()
+        self.addCleanup(repo.cleanup)
+        repo.write(".gitattributes", "* prose-compact-budget=500\n"
+                                     "docs/runbook.md prose-compact prose-compact-growth=20\n"
+                                     "DECISIONS.md -prose-compact\n")
+        found = compact.settings(["docs/runbook.md", "DECISIONS.md", "SKILL.md", "README.md"],
+                                 str(repo.path))
+        self.assertEqual(found["docs/runbook.md"], compact.Settings(True, 500, 20))
+        self.assertEqual(found["DECISIONS.md"].current, False)
+        self.assertEqual(found["SKILL.md"], compact.Settings(True, 500, compact.DEFAULT_GROWTH))
+        self.assertEqual(found["README.md"].current, False)
+
+    def test_outside_a_repository_every_path_gets_the_defaults(self):
+        found = compact.settings(["SKILL.md"], None)
+        self.assertEqual(found["SKILL.md"],
+                         compact.Settings(True, compact.DEFAULT_BUDGET, compact.DEFAULT_GROWTH))
+
+
+def paragraphs(count, word="Rule"):
+    """A current-state doc of count distinct paragraphs, about 60 bytes each."""
+    return "# Doc\n\n" + "".join(f"{word} {n} holds, because reason {n} applies.\n\n"
+                                 for n in range(count))
+
+
+class CompactionDue(unittest.TestCase):
+    """The size and history-marker triggers, as `prose check`'s first call prints them."""
+
+    def setUp(self):
+        self.repo = Repo()
+        self.addCleanup(self.repo.cleanup)
+        self.repo.write(".gitattributes", "* prose-compact-budget=1000\n")
+        self.repo.write("a.py", "x = 1\n")
+        self.repo.commit("base\n")
+
+    def check(self):
+        return self.repo.prose("check", "-F", "-", "--goals", "review it", stdin="T\n")
+
+    def test_a_doc_over_budget_never_compacted_is_due(self):
+        self.repo.write("DECISIONS.md", paragraphs(30))
+        result = self.check()
+        self.assertEqual(result.returncode, 4, result.stderr)
+        self.assertRegex(result.stdout, r"compaction due for DECISIONS\.md: [0-9,]+ bytes, over "
+                                        r"its budget of 1,000 and never compacted")
+
+    def test_a_doc_under_budget_or_not_current_state_is_not_due(self):
+        self.repo.write("DECISIONS.md", paragraphs(5))
+        self.repo.write("README.md", paragraphs(30))
+        self.assertNotIn("compaction due", self.check().stdout)
+
+    def test_history_markers_make_a_small_doc_due(self):
+        self.repo.write("SKILL.md", "# S\n\n**Revised 2026-09-30.** It signs twice.\n")
+        self.assertIn("compaction due for SKILL.md: history markers in a current-state doc: "
+                      "line 3 «Revised 2026-09-30»", self.check().stdout)
+
+    def test_a_change_that_compacts_the_doc_is_not_due(self):
+        self.repo.write("DECISIONS.md", paragraphs(40))
+        self.repo.commit("grow\n")
+        self.repo.write("DECISIONS.md", paragraphs(30))
+        self.assertNotIn("compaction due", self.check().stdout)
+
+    def test_after_a_compaction_only_growth_past_the_share_makes_it_due(self):
+        self.repo.write("DECISIONS.md", paragraphs(40))
+        self.repo.commit("grow\n")
+        self.repo.write("DECISIONS.md", paragraphs(30))
+        self.repo.commit("compact\n")
+        self.repo.write("DECISIONS.md", paragraphs(40))
+        self.assertNotIn("compaction due", self.check().stdout)
+        self.repo.write("DECISIONS.md", paragraphs(46))
+        self.assertRegex(self.check().stdout, r"compaction due for DECISIONS\.md: .* grown "
+                                              r"[0-9]+% since its last compaction \([0-9a-f]+, "
+                                              r"[0-9,]+ bytes\); 50% is allowed")
+
+    def test_a_deleted_doc_is_not_due(self):
+        self.repo.write("DECISIONS.md", paragraphs(30))
+        self.repo.commit("add\n")
+        self.repo.git("rm", "-q", "DECISIONS.md")
+        self.assertNotIn("compaction due", self.check().stdout)
+
+
+class Anchors(unittest.TestCase):
+    def test_github_slugs_with_duplicates_numbered(self):
+        text = "# `prose check` runs it\n\n## Why?\n\n## Why?\n\n```\n# not a heading\n```\n"
+        self.assertEqual(compact.anchors(text), {"prose-check-runs-it", "why", "why-1"})
+
+
+class GoneTermsAndChanges(unittest.TestCase):
+    """What the script hands the reviewer, at no model cost."""
+
+    def test_gone_terms_finds_each_kind_once(self):
+        before = ("# Doc\n\n## Kept\n\n## Dropped heading\n\nRun `prose check` with --goals-file;\n"
+                  "RULES_IN_FULL is 9. See lib/commit-trailer/DECISIONS.md and rules.md.\n"
+                  "Again `prose check`.\n")
+        after = "# Doc\n\n## Kept\n\nRun prose check.\n"
+        self.assertEqual(compact.gone_terms(before, after),
+                         [("heading", "Dropped heading"), ("flag", "--goals-file"),
+                          ("constant", "RULES_IN_FULL"), ("path", "lib/commit-trailer/DECISIONS.md"),
+                          ("path", "rules.md")])
+
+    def test_a_wrapped_code_span_or_a_heading_with_code_is_not_gone(self):
+        before = "# Doc\n\n## `prose check` runs it\n\nUse `git worktree\nremove` here.\n"
+        after = "# Doc\n\n## `prose check` runs it\n\nUse `git worktree remove`.\n"
+        self.assertEqual(compact.gone_terms(before, after), [])
+
+    def test_changes_ignore_rewrapping(self):
+        before = "# T\n\nOne two\nthree.\n\nGone.\n"
+        after = "# T\n\nOne two three.\n"
+        self.assertEqual([(c.kind, c.old, c.new) for c in compact.changes(before, after)],
+                         [("removed", ["Gone."], [])])
+
+
+class CompactCommand(unittest.TestCase):
+    """`prose compact <file>`: the brief, then --verify."""
+
+    def setUp(self):
+        self.repo = Repo()
+        self.addCleanup(self.repo.cleanup)
+        self.doc = ("# Decisions\n\n## The token expires after two hours\n\nIt expires.\n\n"
+                    "**Revised 2026-09-30.** It used to expire after one hour.\n\n"
+                    "## Old section\n\nGone soon.\n")
+        self.repo.write("DECISIONS.md", self.doc)
+        self.repo.write("README.md", "See [why](DECISIONS.md#the-token-expires-after-two-hours).\n")
+        self.repo.write("tool.py", "# DECISIONS: The token expires after two hours\n")
+        self.repo.commit("base\n")
+
+    def compact(self, *extra):
+        return self.repo.prose("compact", "DECISIONS.md", *extra)
+
+    def test_the_brief(self):
+        result = self.compact()
+        self.assertEqual(result.returncode, 4, result.stderr)
+        self.assertIn("=== compaction brief ===\n# Compact a document\n", result.stdout)
+        self.assertIn(f"The file: {(self.repo.path / 'DECISIONS.md').resolve()}", result.stdout)
+        self.assertIn("line 7: «Revised 2026-09-30»", result.stdout)
+        self.assertIn("  #the-token-expires-after-two-hours\n", result.stdout)
+        self.assertIn("  The token expires after two hours  (in tool.py)", result.stdout)
+        self.assertIn("compact DECISIONS.md --verify", result.stdout)
+
+    def test_a_good_compaction_verifies(self):
+        self.compact()
+        (self.repo.path / "DECISIONS.md").write_text(
+            "# Decisions\n\n## The token expires after two hours\n\nIt expires.\n")
+        result = self.compact("--verify")
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn("Links into this file: 1 checked, 0 broken.", result.stdout)
+        self.assertIn("Headings removed or renamed (1): Old section", result.stdout)
+
+    def test_a_broken_link_a_named_heading_and_a_marker_fail(self):
+        self.compact()
+        (self.repo.path / "DECISIONS.md").write_text(
+            "# Decisions\n\n## Expiry\n\nTwo hours. **Revised 2026-09-30.**\n")
+        result = self.compact("--verify")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("README.md links to #the-token-expires-after-two-hours", result.stdout)
+        self.assertIn("the heading 'The token expires after two hours' is gone, and tool.py "
+                      "names it", result.stdout)
+        self.assertIn("history marker left at line 5: «Revised 2026-09-30»", result.stdout)
+
+    def test_a_file_that_grew_or_emptied_fails(self):
+        for text, failure in ((self.doc + "More.\n", "the file grew"), ("\n", "the file is empty")):
+            with self.subTest(failure=failure):
+                self.compact()
+                (self.repo.path / "DECISIONS.md").write_text(text)
+                self.assertIn(failure, self.compact("--verify").stdout)
+
+    def test_verify_without_a_snapshot_is_refused(self):
+        repo = Repo()
+        self.addCleanup(repo.cleanup)
+        repo.write("SKILL.md", "# S\n")
+        result = repo.prose("compact", "SKILL.md", "--verify")
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("no snapshot of SKILL.md", result.stderr)
+
+    def test_a_missing_file_is_refused(self):
+        result = self.repo.prose("compact", "nope.md")
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("nope.md: no such file", result.stderr)
+
+    def test_outside_a_repository_it_checks_the_files_own_links(self):
+        folder = pathlib.Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, folder, True)
+        doc = folder / "DOC.md"
+        doc.write_text("# A\n\nSee [b](#b).\n\n## B\n\nText here, at length.\n")
+        self.assertEqual(run([sys.executable, str(SCRIPT), "compact", str(doc)]).returncode, 4)
+        doc.write_text("# A\n\nSee [b](#b).\n")
+        result = run([sys.executable, str(SCRIPT), "compact", str(doc), "--verify"])
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("Not in a git repository", result.stdout)
+        self.assertIn("the file links to #b, which no heading gives now", result.stdout)
+
+    def test_the_review_brief_names_a_file_of_every_change(self):
+        self.compact()
+        (self.repo.path / "DECISIONS.md").write_text(
+            "# Decisions\n\n## The token expires after two hours\n\nIt expires, always.\n")
+        result = self.compact("--review")
+        self.assertEqual(result.returncode, 4, result.stderr)
+        self.assertIn("=== compaction review brief ===\n# Review a compaction\n", result.stdout)
+        self.assertIn(f"The repository: {self.repo.path.resolve()}", result.stdout)
+        self.assertIn("Changes: 1. Names gone: 1.", result.stdout)
+        changes = pathlib.Path(re.search(r"^The changes: (.*)$", result.stdout, re.M).group(1))
+        text = changes.read_text(encoding="utf-8")
+        self.assertIn("- heading: Old section", text)
+        self.assertIn('## Change 1: rewritten, under "The token expires after two hours"\n\n'
+                      "### Before\n\nIt expires.\n\n**Revised 2026-09-30.** It used to expire "
+                      "after one hour.\n\n## Old section\n\nGone soon.\n\n"
+                      "### After\n\nIt expires, always.\n", text)
+
+    def test_verify_and_review_are_separate_steps(self):
+        self.compact()
+        result = self.compact("--verify", "--review")
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("separate steps", result.stderr)
+
+    def test_a_small_cut_on_a_doc_over_budget_suggests_its_own_budget(self):
+        report = compact.check_result("x" * 1000, "x" * 950, "DECISIONS.md", None, budget=500)
+        self.assertIn("DECISIONS.md prose-compact-budget=1425", " ".join(report.lines))
+        report = compact.check_result("x" * 1000, "x" * 950, "DECISIONS.md", None, budget=5000)
+        self.assertNotIn("prose-compact-budget", " ".join(report.lines))
+
+
+class CompactRegressions(unittest.TestCase):
+    """Bugs bug-hunter proved in the compaction code."""
+
+    def repo_with(self, files):
+        repo = Repo()
+        self.addCleanup(repo.cleanup)
+        for name, text in files.items():
+            repo.write(name, text)
+        repo.commit("base\n")
+        return repo
+
+    def verify_after(self, repo, new_text):
+        self.assertEqual(repo.prose("compact", "DECISIONS.md").returncode, 4)
+        (repo.path / "DECISIONS.md").write_text(new_text)
+        return repo.prose("compact", "DECISIONS.md", "--verify")
+
+    def test_a_link_from_a_code_comment_is_checked(self):
+        repo = self.repo_with({
+            "DECISIONS.md": "# D\n\n## The trailer is minted from the tree\n\nText.\n",
+            "hook.sh": "# see DECISIONS.md#the-trailer-is-minted-from-the-tree\n"})
+        result = self.verify_after(repo, "# D\n\n## Trailers come from the tree\n\nText.\n")
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("hook.sh links to #the-trailer-is-minted-from-the-tree", result.stdout)
+
+    def test_an_underscore_inside_a_heading_word_is_kept(self):
+        doc = "# D\n\n## The MAX_SIZE limit\n\nText.\n\n## Why MAX_RETRIES is three\n\nMore.\n"
+        repo = self.repo_with({"DECISIONS.md": doc,
+                               "README.md": "See [it](DECISIONS.md#the-max_size-limit).\n",
+                               "code.py": "# DECISIONS: Why MAX_RETRIES is three\n"})
+        self.assertEqual(self.verify_after(repo, doc).returncode, 0)
+        result = self.verify_after(repo, "# D\n\n## The MAX_SIZE limit\n\nText.\n")
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("the heading 'Why MAX_RETRIES is three' is gone", result.stdout)
+
+    def test_a_setext_heading_gives_an_anchor(self):
+        doc = "# D\n\nOther\n=====\n\nText.\n"
+        repo = self.repo_with({"DECISIONS.md": doc,
+                               "README.md": "See [it](DECISIONS.md#other).\n"})
+        self.assertEqual(self.verify_after(repo, doc).returncode, 0)
+
+    def test_a_compaction_inside_a_merged_branch_is_found(self):
+        repo = self.repo_with({".gitattributes": "* prose-compact-budget=1000\n",
+                               "DECISIONS.md": paragraphs(30)})
+        repo.git("checkout", "-q", "-b", "pr")
+        repo.write("DECISIONS.md", paragraphs(36))
+        repo.commit("grow\n")
+        repo.write("DECISIONS.md", paragraphs(31))
+        repo.commit("compact\n")
+        repo.git("checkout", "-q", "-")
+        repo.git("merge", "-q", "--no-ff", "-m", "merge", "pr")
+        repo.write("DECISIONS.md", paragraphs(32))
+        self.assertEqual(compact.due(["DECISIONS.md"], str(repo.path)), [])
+
+    def test_a_marker_wrapped_across_a_line_is_found(self):
+        self.assertEqual(
+            [m.line for m in compact.history_markers("The limit was changed\nto 5.\n\n**Revised\n2026-09-30.** X.\n")],
+            [1, 4])
+
+
+class CompactRegressionsTwo(unittest.TestCase):
+    """Bugs bug-hunter's second iteration proved in the compaction code."""
+
+    def repo_with(self, files):
+        repo = Repo()
+        self.addCleanup(repo.cleanup)
+        for name, text in files.items():
+            repo.write(name, text)
+        repo.commit("base\n")
+        return repo
+
+    def verify_after(self, repo, new_text, name="DECISIONS.md"):
+        self.assertEqual(repo.prose("compact", name).returncode, 4)
+        (repo.path / name).write_text(new_text)
+        return repo.prose("compact", name, "--verify")
+
+    def test_a_link_shown_in_code_is_not_a_link(self):
+        for readme in ("Syntax: `[why](DECISIONS.md#old-heading)` here.\n",
+                       "```markdown\nSee [why](DECISIONS.md#old-heading).\n```\n"):
+            with self.subTest(readme=readme):
+                repo = self.repo_with({"DECISIONS.md": "# D\n\n## Old heading\n\nText.\n",
+                                       "README.md": readme})
+                result = self.verify_after(repo, "# D\n\nText.\n")
+                self.assertEqual(result.returncode, 0, result.stdout)
+
+    def test_outside_a_repository_a_link_broken_before_does_not_fail(self):
+        folder = pathlib.Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, folder, True)
+        doc = folder / "DECISIONS.md"
+        doc.write_text("# D\n\nSee [the setup](#setup).\n")
+        self.assertEqual(run([sys.executable, str(SCRIPT), "compact", str(doc)]).returncode, 4)
+        result = run([sys.executable, str(SCRIPT), "compact", str(doc), "--verify"])
+        self.assertEqual(result.returncode, 0, result.stdout)
+
+    def test_a_root_relative_link_is_checked(self):
+        repo = self.repo_with({"docs/DECISIONS.md": "# D\n\n## Old heading\n\nText.\n",
+                               "sub/README.md": "[why](/docs/DECISIONS.md#old-heading)\n"})
+        result = self.verify_after(repo, "# D\n\nText.\n", "docs/DECISIONS.md")
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("sub/README.md links to #old-heading", result.stdout)
+
+    def test_the_same_heading_in_another_doc_is_not_a_citation(self):
+        repo = self.repo_with({
+            "a/DECISIONS.md": "# A\n\n## Scripts are found from the base directory\n\nX.\n",
+            "b/DECISIONS.md": "# B\n\n## Scripts are found from the base directory\n\nY.\n"})
+        result = self.verify_after(repo, "# A\n\n## Scripts resolve from the directory\n\nX.\n",
+                                   "a/DECISIONS.md")
+        self.assertEqual(result.returncode, 0, result.stdout)
+
+    def test_anchors_match_github_on_edge_headings(self):
+        text = ("# D\n\n## Use _ as placeholder\n\n## See [RFC 1234][rfc]\n\n## The &amp; sign\n\n"
+                "A paragraph that wraps\nonto a second line\n---\n\n"
+                "- item\n  continued text here\n---\n\n<details>\n---\n\n"
+                "[rfc]: https://www.rfc-editor.org/rfc/rfc1234\n")
+        self.assertEqual(compact.anchors(text),
+                         {"d", "use-_-as-placeholder", "see-rfc-1234", "the--sign",
+                          "a-paragraph-that-wraps-onto-a-second-line"})
+
+
+class CompactRegressionsThree(unittest.TestCase):
+    """Bugs bug-hunter's third iteration proved in the compaction code."""
+
+    repo_with = CompactRegressionsTwo.repo_with
+    verify_after = CompactRegressionsTwo.verify_after
+
+    def test_a_link_the_compaction_added_to_a_missing_anchor_fails(self):
+        repo = self.repo_with({"DECISIONS.md": "# D\n\n## Size budget\n\nA.\n\n## Other rule\n\n"
+                                               "B holds, for a long and repeated reason, twice over.\n"})
+        result = self.verify_after(repo, "# D\n\n## Size budget\n\nA.\n\n## Other rule\n\n"
+                                         "B, bounded by [the budget](#size-budgets).\n")
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("#size-budgets", result.stdout)
+
+    def test_a_reference_definition_to_an_own_heading_is_checked(self):
+        doc = "# D\n\nSee [the budget][budget].\n\n## Size budget\n\nA.\n\n[budget]: #size-budget\n"
+        repo = self.repo_with({"DECISIONS.md": doc})
+        result = self.verify_after(repo, "# D\n\nSee [the budget][budget].\n\n[budget]: #size-budget\n")
+        self.assertEqual(result.returncode, 1, result.stdout)
+
+    def test_a_path_with_a_space(self):
+        repo = self.repo_with({"my skill/SKILL.md": "# S\n\n## Size budget\n\nA.\n",
+                               "README.md": "[a](my%20skill/SKILL.md#size-budget) "
+                                            "[b](<my skill/SKILL.md#size-budget>)\n"})
+        brief = repo.prose("compact", "my skill/SKILL.md")
+        self.assertIn("compact 'my skill/SKILL.md' --verify", brief.stdout)
+        (repo.path / "my skill/SKILL.md").write_text("# S\n\nA.\n")
+        result = repo.prose("compact", "my skill/SKILL.md", "--verify")
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("Links into this file: 2 checked, 2 broken.", result.stdout)
+
+    def test_an_unpaired_underscore_is_literal(self):
+        self.assertEqual(compact.anchors("## Env vars: PROSE_*\n\n## Files named _draft\n\n"
+                                         "## The MAX_ prefix\n"),
+                         {"env-vars-prose_", "files-named-_draft", "the-max_-prefix"})
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

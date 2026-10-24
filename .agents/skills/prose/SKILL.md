@@ -77,6 +77,111 @@ converge, and name the branch each held section waits for. `prose check` lists
 only the sections your change touches, so your report is the only record that
 you read the rest.
 
+## Compaction
+
+Agents read some docs before every task, so each sentence there that no longer
+serves them is paid for on every read. Those docs stay compact, and a doc that
+describes the current state holds no history. `prose compact` applies rule 8
+of [rules.md](rules.md), *What is, not how it got here*, to a whole file, not
+only to the lines a change touched. `$S` below is this skill's scripts
+directory, as *Two calls* defines it.
+
+**When it is due.** `prose check`'s first call measures each changed
+current-state doc. By default that is every `DECISIONS.md`, `SKILL.md`,
+`AGENTS.md` and `CLAUDE.md`, every `architecture*.md`, and every OpenSpec
+`spec.md`, `proposal.md` and `design.md` outside `openspec/changes/archive/`.
+For each one due, it prints `compaction due for <file>: <why>`. A doc is due
+when either holds:
+- **Size:** it is over its budget, 40,000 bytes by default, and either was
+  never compacted or has grown by half since it was. Its last compaction is
+  the newest commit behind HEAD, merged branches included, that shrank it by
+  a tenth or more.
+- **History markers,** at any size: a dated revision note such as
+  "Revised 2026-09-30" or "dropped on 2026-09-28", a "History:" or "Update:"
+  label, "previously", "originally", "formerly", or "was changed to".
+
+**On that line, just compact.** Don't ask first. Commit the change you were
+making, then compact in a commit of its own in the same pull request, so a
+reviewer can read the compaction's diff apart from your change. Removing
+history, wording or repetition needs no question. A reviewer's verdicts decide
+what is restored. Ask the person only where restoring, or dropping, is itself
+a judgement call.
+
+1. Run `python3 $S/prose.py compact <file>`. It saves the file as it is,
+   prints a brief between `=== compaction brief ===` lines, and exits 4.
+2. Start a new subagent and give it the brief, exactly as printed. The brief
+   is [compact.md](compact.md), then the file's path, the history markers
+   found, and the headings other files link to or name. The subagent rewrites
+   the file in place and replies `Would drop: none`, or one `Would drop:` line
+   for each conclusion it left in place but believes is no longer true.
+3. Run `python3 $S/prose.py compact <file> --verify`. It compares the file
+   with the saved copy. It prints the size before and after, the headings
+   removed, and the names that are gone. It fails, exiting 1, when:
+   - a link from another file, a doc or a code comment, to one of its
+     headings no longer resolves;
+   - a heading that another file names word for word is gone;
+   - a history marker is left;
+   - the file grew, or is empty.
+
+   Have the compactor fix what it names, and run `--verify` again until it
+   exits 0.
+4. Run `python3 $S/prose.py compact <file> --review`. It writes every change
+   to a file, removed and rewritten text side by side, headed by the code
+   spans, flags, constants, paths and headings the new file no longer has. It
+   prints a brief between `=== compaction review brief ===` lines that names
+   that file, and exits 4.
+5. Start another new subagent, on the same model as the compactor, never a
+   cheaper one, and give it that brief exactly as printed. The brief is
+   [compact-review.md](compact-review.md). For each removal, the reviewer
+   answers superseded, folded in (and where) or lost. For each rewritten or
+   added sentence, it answers whether the claim holds against the code and
+   docs. It ends with `Totals: <n> lost, <m> false`.
+6. Send each `lost` and `false` line back to the compactor, which restores
+   the conclusion or corrects the claim. Then run `--verify` again. When the
+   first review found anything, run steps 4 and 5 once more with a fresh
+   reviewer, and fix what it finds. Never run more than two reviews. Report
+   whatever the second one still finds.
+7. Ask the person, through your host's picker, about each reviewer line
+   whose text starts `ask:` and each `Would drop:` line from the compactor,
+   and act on the answer. When you cannot
+   ask, leave the conclusion in, and put the line in your result for your
+   caller.
+8. Commit as usual, with both calls of `prose check`.
+
+**Settings** go in `.gitattributes`, one line each:
+
+```text
+* prose-compact-budget=60000
+docs/runbook.md prose-compact
+CHANGELOG.md -prose-compact
+docs/architecture.md prose-compact-budget=150000 prose-compact-growth=30
+```
+
+- `prose-compact-budget=<bytes>` replaces the budget.
+- `prose-compact-growth=<percent>` replaces the growth share, 50 by default.
+- `prose-compact` declares a file current-state.
+- `-prose-compact` exempts a file.
+
+A doc that is meant to stay over budget gets its own budget. `--verify`
+suggests one when a compaction cut less than a tenth of a doc that is still
+over its budget.
+
+**Called by another skill.** A skill that keeps docs of its own compact, such
+as spec-check for a change's `proposal.md` and `design.md`, runs the same
+commands and may then run its own checks on the result:
+- `prose.py compact <file>` exits 4 and prints the brief on stdout between
+  `=== compaction brief ===` and `=== end compaction brief ===`. The caller
+  may add its own instructions after the brief.
+- `prose.py compact <file> --verify` exits 0 when the result passes and 1 when
+  it fails, with the report on stdout.
+- `prose.py compact <file> --review` exits 4 and prints the reviewer's brief
+  between `=== compaction review brief ===` and `=== end compaction review
+  brief ===`.
+- Each call exits 2, with the reason on stderr, when the file is missing, or
+  when `--verify` or `--review` has no saved copy. The first call saves that
+  copy in the repository's git directory and deletes it after 7 days, so any
+  agent in the same clone can verify within that time.
+
 ## Two calls: the rules, then the signature
 
 Each commit and each post takes two calls. The first takes the goals of that
