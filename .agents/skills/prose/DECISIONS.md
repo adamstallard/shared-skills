@@ -15,7 +15,7 @@ each was rejected. Entries give the rules' current numbers.
 - **Cold read:** before signing, a fresh agent reads the changed text and
   reports where it stopped; the author answers each finding.
 - **The gate:** a Claude Code hook that blocks a session's first file write
-  until a first call has run.
+  and first GitHub post until `prose start` or a first call has run.
 - **Igor** (adamstallard/igor) is an agent pipeline that runs prose in its
   workers; most examples come from it.
 
@@ -42,8 +42,11 @@ commit subjects and ticket comments too.
   and text rewritten to raise them is no easier to understand.
 - **Length budgets per kind**, beyond the 72-character commit subject. A number
   reads as a target: short text gets padded, long text loses a needed
-  sentence. If bloat still gets through, measure word counts before and after
-  the pass first, and set limits from that.
+  sentence. Rule 1 already cuts length. The one figure there is, a median of
+  355 words for agent pull request descriptions against 56 for humans, shows
+  that agents write longer, not what length a reader needs. If bloat still gets through,
+  measure word counts before and after the pass first, and set limits from
+  that.
 
 ---
 
@@ -67,8 +70,9 @@ referents.
 **Rule 4, a hypothetical reads as one.** A case that happens only by accident,
 rarely, or by someone else's choice is marked three ways together: lead with
 what is always true, say the case is unusual and whose doing it would be, and
-put its consequences in "would" or "might". This comment, which passed three
-cold reads, was read as "spec-trace saves a log of its output":
+put its consequences in "would" or "might". The first two cold reads stopped
+on this comment; the third, after a fix, read it straight through, and took
+it to mean "spec-trace saves a log of its output":
 
 ```
 # A log of this output saved in the repository is searched by the next run.
@@ -279,7 +283,9 @@ session mark is out of scope, as forging a footer is.
   would let later texts skip naming theirs. A commit's docs are signed with
   its token, each under its own per-file goals. It is bound to its goals and its command (`check`
   signs a commit, `sign` a post). A refused signing call keeps it.
-- **Bound to the goals, not the text,** since the pass revises the text.
+- **Bound to the goals, not the text,** since the pass revises the text. The
+  goals go in neither the trailer nor the footer; only the token records
+  them, so no commit or post shows which goals the agent named.
 - **Expires after 2 hours;** each first call deletes older tokens.
 - **Exit 4** for a first call, distinct from 2 (refused) and 0, so
   `sign … > signed.md && gh …` stops there.
@@ -416,7 +422,10 @@ asks the reader again rather than prose guessing what a free-form report
 meant.
 
 **`fixed` is checked by its item changing.** The brief's call records each
-item's file, line spans and the staged text. At signing, the script diffs the
+item's file, line spans and the staged text. So the signing call refuses
+`--cold-read`, which passes in the reader's report, for a token whose brief
+was never printed. A brief printed again replaces the record, and the report
+must answer the latest one. At signing, the script diffs the
 recorded text against the current one: a line of the item changed or removed,
 or a line added inside it or directly beside it, counts. An edit elsewhere that
 only moves its lines does not. The quote is for the person deciding, and is
@@ -457,7 +466,10 @@ line.
 
 **Known gaps.** `fixed` proves the item changed, not that the edit touched the
 place the reader stopped; editing another part of the item is on the cheat
-list. A `kept` reason is checked only for being there.
+list. Where a file repeats identical lines, the diff may attribute an added
+line to the wrong repeat; if that repeat is inside an item, the item counts
+as fixed though nobody edited it. A `kept` reason is
+checked only for being there.
 
 ---
 
@@ -535,6 +547,8 @@ mismatch.
 **The listing is not hashed.** `prose check` lists the message, each changed
 doc or spec, and each touched code comment so the agent knows what to pass
 over; history language in touched comments is printed as non-blocking flags.
+The listing finds renames (`-M`) whatever git's `diff.renames` setting, so a
+pure rename, which changes no text, lists nothing.
 
 **`verify-commit`** exits 0 valid, 1 invalid, 3 unable to check, matching the
 library's callback contract. Its reason starts `missing` (git sees no `Prose`
@@ -550,6 +564,11 @@ says which half broke.
 - **Two lines** (`Prose: checked` plus a signature), or **counts of blocks
   rewritten** in the trailer: nobody needs them.
 - **A git `commit-msg` hook.** Per-clone setup, and the reflog hook covers it.
+
+**A cherry-pick finished by hand is verified.** After `git cherry-pick -n -x`
+and a plain `git commit`, the reflog shows a commit, not a replay, so the
+hook verifies it. Sign it like any commit; its `(cherry picked from commit …)`
+line is signed with the rest.
 
 **Known gap.** The commit script runs no verifier for a value starting
 `skipped`, so a `Prose: skipped…` value written by hand or by another tool
@@ -634,7 +653,8 @@ hash.
 ## Posted text carries a signed footer
 
 A pull request description or comment ends with `prose ✓ <6 hex>`, the hash of
-the text above it (LF endings, trailing blanks and blank lines removed), which
+the text above it (LF endings, trailing blanks off each line, and trailing
+blank lines removed; blank lines inside the text are hashed), which
 `sign` prints. A hook recomputes it before the post goes out and blocks a
 mismatch. `sign` replaces an existing footer, so re-signing works.
 
@@ -663,6 +683,11 @@ depth, so each review comment needs its own footer (inline comments are the
 agent text reviewers read most). A payload that is not JSON passes: the hook fails
 open, like the commit hook. For a stricter setup than a hook that fails open,
 permission rules can deny the raw GitHub tools outright.
+
+**Rejected: one hook event for everything.** A post must be blocked before
+the tool runs, but a commit exists only after it. Checked on the event before
+the tool, each commit would be reported at the next tool call, a turn late.
+Cursor splits shell and MCP events anyway.
 
 ---
 
@@ -733,8 +758,9 @@ comments holding quotes or operators. The rules for each simple command:
   command.
 - **`gh` is named** when not followed by a letter, digit, `_` or `-`.
 - **Text naming `gh` is data** only in a command from `DATA_COMMANDS` (`echo`,
-  `cat`, `grep`, `git`, `python3` and a few more), which run neither their
-  arguments nor their stdin. Any other command naming `gh` blocks, since it
+  `cat`, `grep`, `git`, `python3`, `node` and a few more). `python3` and
+  `node` can run code from their arguments or stdin (*Where it stops
+  applying*). Any other command naming `gh` blocks, since it
   might run it (`sh -c`, `eval`, `trap`, `env -S`, `xargs`). `printf`, `test` and `[` are left out of `DATA_COMMANDS`: bash evaluates an array subscript given to `printf -v`
   or `test -v`, command substitution included.
 - **A `gh` command** must be first and plain; its words are read after quote
@@ -753,6 +779,8 @@ comments holding quotes or operators. The rules for each simple command:
 - **A list of commands that run text as code.** Such a list was missing `trap`
   and `env -S`, and is never complete; a closed list of data commands fails
   toward blocking.
+- **Matching the command text with a pattern** instead of parsing its words.
+  A pattern cannot tell `gh` inside a quoted string from a `gh` that runs.
 
 **Where it stops applying.** A script handed to another interpreter
 (`python3 - <<'EOF'`, `node -e`) can run `gh` itself, and text the shell
@@ -803,7 +831,8 @@ listing, which changes no trailer.
 
 SKILL.md defines `S` as `scripts/` in the skill's base directory, the one
 Claude Code names on its "Base directory for this skill:" line. When `prose.py` prints the command for the next call, it uses the path it
-was run by, without resolving symlinks.
+was run by, without resolving symlinks. It still finds rules.md and the
+shared library from its resolved location.
 
 **Why.** Igor loads workers' skills from a pinned directory where the home
 installs are missing or hold a different copy, and grants `prose.py` by that
@@ -831,10 +860,15 @@ Each is left on purpose; its fix says what would close it.
 - **Only an MCP server named exactly `github` is checked** in Claude Code. Fix:
   match case-insensitively and by substring, as the Cursor path does.
 - **Config given only to `git commit`** (`git -c trailer.…`) is not seen by the
-  check, giving an honest mismatch. It fails closed.
-- **`commit.cleanup=verbatim` with a leading blank line,** and
-  **`git interpret-trailers` without `--no-divider` on a message holding a
-  `---` line,** both fail verify on an honest commit. They fail closed.
+  check, giving an honest mismatch. It fails closed. Fix: the commit script,
+  which composes the trailers, could pass the same trailer config to both the
+  check and `git commit`.
+- **`commit.cleanup=verbatim` with a leading blank line** fails verify on an
+  honest commit; it fails closed. Fix: `prose check` refuses a leading blank
+  line when `commit.cleanup` is verbatim.
+- **`git interpret-trailers` without `--no-divider` on a message holding a
+  `---` line** fails verify on an honest commit; it fails closed. Fix: `prose
+  check` refuses a `---` line in the message.
 
 ---
 
