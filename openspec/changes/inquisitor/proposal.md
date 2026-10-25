@@ -16,7 +16,7 @@ are written down:
 - 232 to 237, on 2026-10-21, and 238 in two parts: Message Content
   turned on, on 2026-10-20, and how `check` reads it, on 2026-10-21.
 - 240 to 253, on 2026-10-21;
-- 254 to 257, on 2026-10-24.
+- 254 to 261, on 2026-10-24.
 
 Apart from 229 and 241 to 244, which he gave in the session reviewing
 igor PR #216, and 238, which he gave in shared-skills PR #1, he gave those of 2026-10-19 to 2026-10-21 while reviewing this pull
@@ -43,7 +43,8 @@ that number, and his decision 246 settles 230's item 1. His decisions 247
 to 249 answer the three questions this change put to him when it
 recorded 245 and 246, and 250 to 253 answer the four it put to him when
 it recorded 247 to 249. On 2026-10-24 he gave 254 to 257, after an audit
-of the approved prototype against the spec.
+of the approved prototype against the spec, and 258 to 261, answering
+the four questions this change put to him when it recorded them.
 
 1. **Four filters run before any question reaches a person.**
    1. **Already answered:** the agent finds the earlier answer, cites where it
@@ -959,7 +960,11 @@ touches them:
      whole execution on the item,** not only one worker's part of it.
      This applies to decision 136's flag, the mark a worker's report
      carries when its run meets a question with a category.
-147. **UI is prototyped, not specified.** Once Adam has used a UI's
+147. *Amended by Adam's decisions 254 (item 3) and 261: a screen that
+     a spec's task names, to be designed at implementation from the
+     patterns of the feature's approved prototype, is built without a
+     prototype of its own, and AGENTS.md says so. The spec still does
+     not describe that screen; the task only names it.* **UI is prototyped, not specified.** Once Adam has used a UI's
      prototype and approved it, the UI goes straight to an implementation
      pull request: whether a UI works is easier to see than to read in a
      spec. The other parts of the same feature, such as its data flow,
@@ -1818,16 +1823,18 @@ spec:
      3. Screens the spec needs and v0.1-30 lacks are designed at
         implementation from the prototype's existing patterns, in no new
         visual style.
-     4. A screen Adam approves separately is taken from its own approved
-        tag. One such build is being prototyped, covering two screens:
-        thread replies, and the recorded answer shown beside the
-        question.
+     4. *Amended by Adam's decision 258: the tag is named before gate one
+        is approved.* A screen Adam approves separately is taken from its own approved
+        tag. One such build covers two screens: thread replies, and the
+        recorded answer shown beside the question. It is still being
+        prototyped, and task G.1 tracks its approval.
      This amends decision 231, which approved the whole UI by use, by
      saying how that approval meets the spec. Item 3 also amends
      decision 147 for the screens task 6.1's rule (c) lists, which ship
      with no prototype approved by use. Task 6.1's rules (a) to (d) are
      items 1 to 4 here.
-255. **The person may reopen a question they declined.** Reopening puts
+255. *Amended by Adam's decision 260: only a question declined with
+     nothing posted.* **The person may reopen a question they declined.** Reopening puts
      it back in their queue. A miss already logged for it stays, since a
      miss file is never changed (decision 140), and nothing records that
      the miss was withdrawn.
@@ -1843,11 +1850,40 @@ spec:
      the person to confirm; and the relay notice's UI, the notice shown for the comment GitHub Actions
      posts when a pull request changes the person's relay file, under task 6.1's rule (c). No requirement is added
      for them. Decision 257 specifies one thing cite does beyond its post.
-257. **Answering with cite pushes a citation file.** When the person
+257. *Narrowed by Adam's decision 259 to an `active` entry in scope.*
+     **Answering with cite pushes a citation file.** When the person
      answers by citing a lore entry, the answer session pushes a citation
      file for that entry, as filter 1's automatic case does (decision
      200's item 5), under the same visibility rules that withhold a
      citation from a place less private than the question.
+
+Adam gave 258 to 261 on 2026-10-24, answering the four questions this
+change put to him when it recorded 254 to 257:
+
+258. **The separately approved build is approved, and its tag named,
+     before gate one is approved.** Adam approves the new prototype
+     build, covering thread replies and the recorded answer shown beside
+     the question, before he approves this change's spec, and task
+     6.1's rule (d) names the build's tag once he has. Implementation
+     starts only after both, so no fallback is needed. *Rejected:*
+     designing those two screens under rule (c) if the build were late.
+259. **A person's cite pushes a citation file only for an `active` lore
+     entry in scope,** as filter 1's citation does, and as igor PR #216
+     pushes a citation only for an `active` entry. The
+     person can still cite any other entry; that pushes nothing. igor
+     PR #216 should widen its definition of a citation to include a
+     person's cite (Still open). *Rejected:* a citation for any cited
+     entry.
+260. **Reopening is offered only for a question declined with nothing
+     posted.** After a post, the thread records how the question was
+     handled, and the person changes that by editing the post. This
+     amends decision 255. *Rejected:* reopening a question on this
+     machine whatever its thread shows.
+261. **AGENTS.md states the exception.** UI is prototyped and approved
+     by use before it is built, except where a spec's task says a
+     screen is designed at implementation from an approved prototype's
+     patterns, as task 6.1's rule (c) does. *Rejected:* keeping the
+     exception only in this change.
 
 ### Proposed by this change
 
@@ -2809,40 +2845,31 @@ The archive waits for task 4.3 to tag every expected gap, which waits
 for igor to build `igor lore-search` and let a role's `commands` list
 the skill's script (decisions 249 and 253).
 
-The separately approved build of decision 254's item 4, covering thread
-replies and the recorded answer shown beside the question, has no tag
-yet. Four questions for Adam, raised while recording decisions 254 to
-257:
-- **If that build is not approved when gate two reaches those two
-  screens:** fall back to task 6.1's rule (c) and design them from the
-  prototype's patterns (recommended: gate two is not blocked, and an
-  approved build can replace them later); or wait for the approval.
-- **Which entries the person may cite.** The prototype offers cite on a
-  search hit that filter 1 found but did not count as an answer with
-  authority, labelled "Possibly answered already", and
-  igor PR #216 pushes a citation only for an `active` entry and defines a
-  citation as an agent's record that no person was asked. Options: a
-  citation is pushed only when the cited entry is `active` and in scope,
-  as for filter 1 (recommended: a citation then means the same thing
-  everywhere, and #216 only needs its definition widened to a person's
-  cite); or any cited entry gets one, and #216's review learns to tell
-  the two kinds apart.
-- **Reopening a question declined with a post.** A question declined
-  under reason 3 with a post takes its state from its thread, which then
-  shows it handled, so reopening cannot put it back in the queue as
-  decision 255 has it. Options: only a question declined with nothing
-  posted can be reopened (recommended: the thread stays the record); or
-  reopening puts it back in the queue on this machine, whatever the
-  thread shows.
-- **AGENTS.md's UI rule.** It says UI is prototyped and approved by use
-  before it is built, which decision 254's item 3 now waives for the
-  screens it names. Options: add that exception to AGENTS.md
-  (recommended: an agent reading the rule sees it); or leave AGENTS.md
-  as it is, the exception living only in this change.
+Before Adam approves this change's spec, he approves the new prototype
+build of decision 254's item 4, and task 6.1's rule (d) names its tag
+(decision 258). Until then rule (d) names no tag.
 
-Open on igor PR #216's side, at d3b7740, which records Adam's decisions
-up to 101 in #216's own numbering, decisions 244 and 245 among them as
+One question for Adam, raised while recording decisions 258 to 261:
+- **Does declining under reason 3 with filter 1, naming a lore entry as
+  the record, count as citing it?** The answer session then posts a
+  `Recorded answer: ` naming that entry, but only the automatic filter 1
+  reply and a person's cite push a citation file. The inquisitor spec
+  assumes the answer session pushed one for any lore entry a
+  `Recorded answer: ` post names, and so forbids the asking agent to
+  push one. Here that assumption fails, so an `active` entry in
+  scope that answered the question would get no citation. Options: it
+  counts as a cite, and the answer session pushes a citation file under
+  decision 259's rule (recommended: the entry gets credit once, from
+  the place that already pushes citations); or it does not, and the
+  asking agent pushes one when it acts on the post.
+
+Open on igor PR #216's side, at 59e7561, which records Adam's decisions
+up to 149 in #216's own numbering, decisions 244 and 245 among them as
 its decisions 92 and 97:
+- **#216 should widen its definition of a citation to include a
+  person's cite.** It defines a citation as an agent's record that a
+  lore entry answered a question so that no person was asked; decision
+  259 has a person's cite of an `active` entry in scope push one too.
 - **Two of #216's Still open items for this change are done.** It asks
   this change to amend 245 to match its decision 97, without a fixed
   order, and to align 243 with its decisions 84 and 89. Both are now so,

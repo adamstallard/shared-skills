@@ -635,7 +635,7 @@ needs that the prototype lacks follow its patterns (proposal decision
 254, task 6.1).
 The rules are in the `answer-session` spec, the decisions in proposal
 decisions 152 to 175, 184 to 203, 207 to 211, 215, 216, 219, 220,
-222 to 230, 234, 236, 238, 246 to 248, 250 to 252 and 254 to 257.
+222 to 230, 234, 236, 238, 246 to 248, 250 to 252 and 254 to 260.
 
 ### Polling while open, with the person's credentials
 

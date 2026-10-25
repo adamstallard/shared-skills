@@ -8,7 +8,10 @@
 - **UI is the exception: it is prototyped, not specified.** Build a
   prototype for the owner to use. Once they approve it, build the UI
   directly in an implementation pull request, with no specification pull
-  request for it. The rest of the same feature (data flow, integrations,
+  request for it. One exception: a screen may be built without a
+  prototype of its own when a spec's task says it is designed at
+  implementation from the patterns of that feature's approved prototype.
+  The spec still does not describe the screen; its task only names it. The rest of the same feature (data flow, integrations,
   setup, rules) still goes through its own specification pull request
   first.
 - **A skill's `DECISIONS.md` is its current reasoning in one place, not a

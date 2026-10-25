@@ -1,4 +1,11 @@
-Gate two: these follow on this branch once Adam approves the spec.
+## Before gate one is approved
+
+- [ ] G.1 Adam approves the prototype build covering thread replies and
+      the recorded answer shown beside the question, and task 6.1's rule
+      (d) names its tag (decision 258)
+
+Gate two: the tasks below follow on this branch once Adam approves the
+spec.
 
 ## 0. Measure before building
 
@@ -228,10 +235,11 @@ contradicts what design.md assumed.
       file has one format* (`entry` and `date`, no `run`) to the
       lore repository's `questions` branch when filter 1 stops a question
       with a lore entry, or when the person answers in the answer session
-      by citing one (decision 257), committed unsigned with `git -c
-      commit.gpgsign=false`. It sends none for a question with a
-      category, and none to a lore repository more visible than the
-      repository the question concerns. During an Igor's run it pushes
+      by citing an `active` entry in scope (decisions 257 and 259),
+      committed unsigned with `git -c commit.gpgsign=false`. It sends none
+      for a question with a category, none to a lore repository more
+      visible than the repository the question concerns, and none for a
+      cited entry that is not `active` or is out of scope. During an Igor's run it pushes
       nothing, and the citation is handled as igor PR #216's *An
       Igor publishes the citations its worker reports* says
 - [ ] 2.5 The question finder for posts, as one function the post hook also
@@ -356,8 +364,8 @@ contradicts what design.md assumed.
         texts, and reason 3's line `The person chose this filter.`;
         previews that show the `Re: <URL>` line; reason 1's wording, under
         which only the asker's unthreaded follow-up stops counting;
-        reopening a declined question keeping its logged miss (decision
-        255); and the question that was on screen, kept in the state
+        reopening offered only for a question declined with nothing
+        posted, keeping its logged miss (decisions 255 and 260); and the question that was on screen, kept in the state
         folder so a restarted session opens on it, not in the mod's
         `$.store`
       - (c) A screen the spec needs that v0.1-30 lacks is designed at
@@ -366,9 +374,12 @@ contradicts what design.md assumed.
         discord-bot's warnings, why no miss was logged, and a channel
         that is off
       - (d) A screen Adam approves separately is taken from its own
-        approved tag. One separately approved build, being prototyped,
-        will cover two screens: thread replies, and the recorded answer
-        shown beside the question
+        approved tag. One separately approved build covers two screens:
+        thread replies, and the recorded answer shown beside the
+        question. That build is still being prototyped. Adam approves it
+        before he approves this spec, and this rule names its tag then,
+        before gate one is approved (decision 258). Tag: not yet named,
+        since the build is not yet approved
 - [ ] 6.2 The `answer_session` section of `inquisitor.json`, and setup:
       the candidates, each relay check, saving the file with the person's
       own keys kept, a failed identity's surface or a failed channel left
@@ -443,7 +454,8 @@ contradicts what design.md assumed.
       reply revising the options; what agreeing with a suggested verdict
       and citing a lore entry post, each within the reserved-prefix rules
       of *Four reserved prefixes mark the answer session's posts*, though
-      citing always also pushes a citation file (decision 257);
+      citing an `active` entry in scope also pushes a citation file
+      (decisions 257 and 259);
       Claude's draft, through `propose_reply`, filling the place the person
       gives when declining under reason 3 with filter 1, that is, the URL of
       the record for the `Recorded in: ` line (Adam confirmed this,

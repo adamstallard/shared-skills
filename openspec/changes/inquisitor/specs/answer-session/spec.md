@@ -1267,12 +1267,13 @@ the answer session SHALL record it in the state folder, and nowhere a
 second machine reads. A question declined under the third reason with a
 post takes its state from its thread, as any question does.
 
-The person SHALL be able to reopen a question they declined, which puts
-it back in their queue. What reopening does to a question declined under
-the third reason with a post, whose thread shows it handled, is in the
-proposal's Still open. A miss already logged for it SHALL stay as it
-is, and nothing SHALL record that the miss was withdrawn (proposal
-decisions 140 and 255).
+The person SHALL be able to reopen a question they declined with
+nothing posted, which puts it back in their queue. A miss already logged
+for it SHALL stay as it is, and nothing SHALL record that the miss was
+withdrawn (proposal decisions 140 and 255). The answer session SHALL NOT
+offer to reopen a question declined with a post; the person changes its
+handling by editing that post, as *A relay post can be edited where it
+was posted* says (proposal decision 260).
 
 #### Scenario: Declining as over or as not a question posts nothing
 
@@ -1309,6 +1310,13 @@ decisions 140 and 255).
   answer session logged a miss, and the person then reopens it
 - **THEN** the question is back in the person's queue, the miss file is
   unchanged, and nothing is written to say it was withdrawn
+
+#### Scenario: A question declined with a post is not reopened
+
+- **WHEN** the person declined a question under the third reason, and
+  the answer session posted that filter's reply
+- **THEN** the answer session offers no way to reopen the question, and
+  the person can change the handling only by editing that post
 
 #### Scenario: Not a question logs a miss against its source
 
@@ -1399,10 +1407,15 @@ Otherwise, and for a question from a questions branch, it SHALL show the
 recorded answer to the person beside the question, and post only what the
 person relays. When the record is a lore entry, it SHALL push a citation
 file, as the inquisitor's *Every answer is recorded and every asked
-question logged* says. So SHALL it for the entry the person cites when
-they answer by citing a lore entry, under that requirement's citation
-rules (proposal decision 257). Which entries the person may cite, such
-as one that is not `active`, is in the proposal's Still open. When it answers an agent's question by itself, it
+question logged* says. A person **cites** a lore entry when they answer
+a question by naming that entry as its answer. Whether declining under
+the third reason with filter 1, naming a lore entry as the record, is a
+cite is in the proposal's Still open. The answer session SHALL
+push a citation file for the entry the person cites, under the citation rules of the
+inquisitor's *Every answer is recorded and every asked question logged*, but only when the entry is `active` and in scope for the
+question, as the inquisitor's *Filter 1 searches every place an answer
+is recorded* defines a lore entry's scope. Citing any other entry pushes nothing (proposal decisions 257
+and 259). When it answers an agent's question by itself, it
 SHALL log a miss against filter 1, as *The answer session logs its misses
 on the team's lore repository's questions branch* says; a person's
 question logs none. Before each automatic post, the answer session
@@ -1467,6 +1480,18 @@ once, and so does each recorded answer.
   citing an active entry in a private lore repository
 - **THEN** the answer session pushes a citation file for that entry to
   that lore repository's questions branch
+
+#### Scenario: Citing an entry that is not active sends none
+
+- **WHEN** the person answers a question by citing a lore entry whose
+  status is not `active`
+- **THEN** no citation file is pushed
+
+#### Scenario: Citing an entry out of scope sends none
+
+- **WHEN** the person answers a question by citing an `active` lore
+  entry whose scope does not cover the question
+- **THEN** no citation file is pushed
 
 #### Scenario: Citing an entry in a more visible lore repository sends none
 
