@@ -14,8 +14,10 @@ decides to.
 
 ## Setup
 
-You need **Python 3.8+**, and for keeping the token on disk, the macOS
-Keychain or Linux `secret-tool`. Allow about 10 minutes per bot.
+You need the minimum Python version in the
+[root README](../../../README.md#requirements), and for keeping the token on disk,
+whichever of the macOS Keychain
+or Linux `secret-tool` your system has. Allow about 10 minutes per bot.
 
 ### 1. Create the bot in Discord
 
