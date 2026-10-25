@@ -558,14 +558,24 @@ contradicts what design.md assumed.
       the assigned issue or pull request its `asked_in` links (decision
       326); a later run naming a file only from the Igor's own record
       (decision 327); the relay post first, then the answer file's push,
-      retried at each poll (decision 332); an Igor log file on an item whose
-      thread already holds an answer to an earlier question shown on its
-      own to the assignee, one on an
-      unassigned item shown to no one, and one on an item assigned to
-      someone else never shown to this person (decision 333); the record's
-      file-name suffix and date finding the file (decision 334); a file
-      that tags no one answered by the answer session's user or the
-      Igor item's assignee (decision 335); declining with two reasons, the first, nothing to
+      retried at each poll and each opening, the owed push recorded in
+      the state folder before the post (decisions 332 and 338); a
+      github.com `answer_link` withheld where the lore repository is more
+      visible than the repository it points into (decision 337); an Igor
+      log file on an item whose thread already holds an answer to an
+      earlier question following the run's new handback comment, one on
+      an unassigned item shown to no one, and one on an item assigned to
+      someone else never shown to this person (decisions 333 and 339);
+      the Igor's record's file-name suffix and date finding the file, and more
+      than one match naming none (decisions 334 and 342); a file that
+      tags no one answered only by an account with write access to the
+      lore repository (decision 340); an Igor handback comment shown under
+      the second source only to the item's assignee, and followed only
+      when it is in the item's thread from an `igor-` App (decision 339);
+      an owed push recorded before the post, its post's URL added once
+      the post goes out, and dropped when the
+      post never went out (decision 338); a GitHub message merged only
+      with a file of its own repository (decision 341); declining with two reasons, the first, nothing to
       answer, merging the old first two (decision 330); a named file still shown, with the
       answer beside it as input, when its answer file does not count
       (decision 320); the `log` command refusing an

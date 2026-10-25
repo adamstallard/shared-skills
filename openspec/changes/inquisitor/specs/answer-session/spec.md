@@ -72,11 +72,13 @@ Terms used throughout this spec:
 - **An unanswered log file**, on a lore repository's questions branch,
   is one that holds no answer and that no answer file counting as the
   person's answer names in `answers`.
-- **The person's answer**, for an answer file, is one whose
-  `answered_by` is the person, whose proof, a comment link or a
-  signature, is the person's, whose commit adds that answer file alone,
-  and which is the named file's answer under the inquisitor's *Only an
-  answer with authority stops a question* (proposal decision 328).
+- **The person's answer**, for an answer file, is one that is the named
+  file's answer under the inquisitor's *Only an answer with authority
+  stops a question*: its proof is that of the person the named file
+  asks, or, for a file that tags no one, of an account with write access
+  to the lore repository, which filter 1 requires for a questions-branch
+  file, and its commit adds that answer
+  file alone (proposal decisions 328 and 340).
 - **A question set aside for later** is one the person moved to the end of
   the queue on this machine, to come back to after the new ones.
 - **A channel's poll position** is the time of the newest message that
@@ -404,14 +406,17 @@ closed. An unclear one is shown (proposal decision 289).
    relay identities, or that replies to a relay post: a Discord reply to it,
    a Linear comment after it in the same comment thread, a GitHub reply to
    it in a review thread, or the asker's next comment after it in a GitHub
-   issue or pull request conversation;
+   issue or pull request conversation; and an Igor's handback comment on
+   an item assigned to the person, posted after a relay post there
+   answered an earlier question, the Igor counting as the asker of its
+   item, whatever comments came between that relay post and the handback
+   comment (proposal decision 339);
 3. on GitHub, a pull request in a subscribed channel that requests the
    person's review, or an issue there assigned to the person; on Linear,
    an issue in a subscribed team assigned to the person;
 4. a log file on the questions branch of a lore repository the inquisitor's
    configuration names, which holds no answer, whose question tags the
-   person (or, for an Igor's log file shown on its own to the item's
-   assignee as below, tags no one), which no handled file names, and which is not answered: no
+   person, which no handled file names, and which is not answered: no
    answer file on that branch that counts as the person's answer names
    it in `answers` (proposal decisions 273, 297, 303 and 320). A file
    named only by answer files that do not count is shown with the newest
@@ -429,13 +434,22 @@ the assigned issue or pull request its question is shown from under the
 third source, and follows that question as a file follows its thread
 message (proposal decision 326). So it is shown only to the item's
 assignee: to no one while the item is assigned to no one, and never to
-this person while it is assigned to someone else. One exception: a log
-file the person has not answered, on an item whose thread already holds
-a relay post answering an earlier question there, is shown on its own, as a question of the fourth source, to
-the person the item is assigned to, though it tags no one (proposal
-decision 333). An Igor's log file is never shown on its own because this
-machine does not read its item, under the rule in the next sentence,
-since only the item's assignee may see it. A log file whose `asked_in` links a message
+this person while it is assigned to someone else (proposal decision
+333). An item's thread **holds an answer to an earlier question** when
+it holds a relay post, of any prefix, naming an earlier question there
+(proposal decision 343). A log file for a new question on such an item
+links, in `asked_in`, the new handback comment of the later run that
+asks it instead, and
+follows it: the comment reaches the person under the second source,
+only while the item is assigned to them, so the answer is relayed on
+the item and logged against the file (proposal decision 339). The
+answer session SHALL follow such a link only when the comment is on an
+issue or pull request in the log file's `repository` and its author is
+an App whose slug starts with `igor-`; otherwise it shows the log file
+on its own. Apart from that case, an Igor's log file, one holding
+`asked_from`, is never shown on its own because this machine does not
+read its item, under the rule in the next sentence, since only the
+item's assignee may see it. A log file whose `asked_in` links a message
 this machine does not read, one in a channel it does not subscribe to
 or that is off, or on a surface it has turned off or cannot read, is
 shown on its own on
@@ -450,7 +464,9 @@ a thread message into one entry on this machine when all of these hold:
 the `asked_in` linking that message would be withheld from the file's
 lore repository: a Linear or Discord message where that repository is not
 private, or a GitHub message in a repository more private than it
-(proposal decisions 314 and 315); the two questions are the
+(proposal decisions 314 and 315); for a GitHub message, the file's
+`repository` is the message's repository (proposal decision 341); the
+two questions are the
 same question once every mention, an `@login` or a Linear or Discord
 user mention, is removed from each; the file's `asked` day is the day,
 in UTC, the message was posted; and the file meets these with no other
@@ -467,9 +483,9 @@ this machine shows (proposal decision 302).
 A question of the third source is answered by a comment
 on that pull request or issue. An Igor worker's handback comment tags no
 one, so its question is shown through the third source, when its item
-is assigned to the person, or, for a log file on an item whose thread
-already holds an answer to an earlier question, on its own as above
-(proposal decision 333).
+is assigned to the person, or, on an item whose thread already holds an
+answer to an earlier question, as a new message in that thread (proposal
+decision 339).
 
 A GitHub comment from `github-actions[bot]` whose first line is the relay
 notice's fixed first line, as the inquisitor's *A pull request that
@@ -561,6 +577,13 @@ the first (proposal decisions 283, 287 and 291).
   once mentions are removed, is in a private repository's issue and was
   posted on the file's `asked` day
 - **THEN** the answer session shows one entry, from the comment
+
+#### Scenario: A GitHub message in another repository is not merged
+
+- **WHEN** a log file with no `asked_in` has `repository: o/api`, and the
+  one GitHub comment this machine has polled with the same question, on
+  the file's `asked` day, is in `o/web`
+- **THEN** the answer session merges neither, and shows both
 
 #### Scenario: Two messages with the same words are not merged
 
@@ -834,10 +857,16 @@ counts as passed once setup, at the next opening, runs the relay
 identity's own check again and it passes.
 
 For a question a questions-branch file holds, the answer session SHALL
-post the relay post first, once the fetch before it finds no new
-message, and then push the answer file, with that post's URL as its
-`answer_link`; when the push fails, it SHALL try it again at each poll
-until it succeeds, as for a handled file (proposal decision 332), but
+once the fetch before the post finds no new message, record the owed
+push in the state folder, with the answer and the thread, then post the
+relay post, add the post's URL to that record, and then push the answer
+file, with that URL as its `answer_link`; when the push fails, it SHALL
+try it again at each poll and each time the answer session opens until
+it succeeds, as for a handled file (proposal decisions 332 and 338). A
+record that holds no post's URL is settled from the thread at the next
+poll or opening: when the thread holds a relay post naming the question
+whose text is this answer, the retry uses its URL; otherwise the answer was never posted, the record is dropped, and
+the answer is kept as answered, not relayed. The answer session
 SHALL drop the retry once a newer answer file names the same file, and
 SHALL NOT retry a push the `log` command refuses for a reason that will
 not change, such as lack of access, a relay post the command cannot
@@ -864,6 +893,21 @@ decision 329).
 While one machine holds an answer as answered, not relayed, every other
 machine of the person's reads the question's state from its thread
 alone, and so asks the question again as usual (proposal decision 316).
+
+#### Scenario: An owed push survives a crash
+
+- **WHEN** the relay post of an answer goes out, and the answer session
+  stops before it pushes the answer file
+- **THEN** the next time the answer session opens, it pushes the answer
+  file it recorded as owed
+
+#### Scenario: An owed push whose post never went out is dropped
+
+- **WHEN** the answer session recorded an owed push and stopped before
+  the relay post went out, and the thread holds no relay post naming the
+  question
+- **THEN** it drops the record, pushes no file, and keeps the answer as
+  answered, not relayed
 
 #### Scenario: A refused answer is kept pending
 
@@ -902,12 +946,14 @@ alone, and so asks the question again as usual (proposal decision 316).
 - **THEN** the answer session tries the push again at each poll until it
   succeeds, with the post's URL as the file's `answer_link`
 
-#### Scenario: A later Igor question on an answered item is shown on its own
+#### Scenario: A later Igor question on an answered item follows its handback comment
 
 - **WHEN** the person answered an Igor's question on an assigned issue,
-  and a later run on that issue writes a new log file linking it
-- **THEN** the answer session shows the new log file on its own, as a
-  question of the fourth source, to the person the issue is assigned to
+  and a later run on that issue posts a new handback comment and writes
+  a new log file whose `asked_in` is that comment's URL
+- **THEN** the answer session shows the comment as a new question in the
+  thread, relays the person's answer on the issue, and pushes an answer
+  file naming the new log file
 
 #### Scenario: An Igor log file on someone else's item is not shown
 
@@ -1215,7 +1261,9 @@ nowhere else: the questions set aside for later, the closed questions,
 each open question's discussion record, each channel's and the GitHub
 notifications feed's poll position, each check's last result, the ids of
 relay posts, the question on screen, the answers held as answered, not
-relayed, and the lock. An answer held as answered, not relayed, stays
+relayed, each owed answer-file or handled-file push (proposal decision
+338), and the
+lock. An answer held as answered, not relayed, stays
 until it is posted or dropped, whatever becomes of its question's
 discussion record.
 Filter 1 SHALL never search the state folder. The answer session SHALL
@@ -1432,10 +1480,9 @@ file in its `answers` key, through the inquisitor script's `log` command, which 
 branch under the rules of the inquisitor's *Every answer is recorded and
 every asked question logged*. When the answer was also relayed in a
 thread, the answer session SHALL pass the `log` command the URL of that
-relay post as the `answer_link`, which the command leaves out of a lore
-repository that is not private when it is a Linear or Discord URL, as
-the inquisitor's *Every answer is recorded and every asked question
-logged* says (proposal decision 251). Its answer SHALL be the relay
+relay post as the `answer_link`, which the command leaves out where the
+inquisitor's *Every answer is recorded and every asked question logged*
+withholds it (proposal decisions 251 and 337). Its answer SHALL be the relay
 post's text, word for word, as quote
 lines in the inquisitor's log format. On GitHub that is the comment's own
 text, which the `log` command reads from the post itself, as the
@@ -1574,8 +1621,10 @@ shown recorded answer included, or it posts a recorded answer or an
 log file and a miss file have one format* gives it. It SHALL push the
 handled file once the close takes effect: once the post that leads to
 it has gone out, or, when nothing is posted, once the person has
-confirmed the decline. When the push fails, the answer session SHALL
-try it again at each poll until it succeeds. A handled file closes the
+confirmed the decline. It SHALL record the owed push in the state
+folder before the post, drop the record when the post never went out,
+and, when the push fails, SHALL try it again at each poll
+and each time the answer session opens until it succeeds. A handled file closes the
 file it names without answering it, and never stops a question for a
 searching agent. The answer session writes the file only through the
 `log` command's handled option, as the inquisitor's *Every answer is

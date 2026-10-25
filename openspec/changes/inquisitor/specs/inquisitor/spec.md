@@ -645,11 +645,11 @@ holds `answers`. Separately, `answers` decides which answer a file it
 names has: the newest of the answer files naming it that would count,
 whose proof, a comment link or a signature, is that of the person the
 named file asks, and whose commit adds that answer file alone (proposal
-decisions 312, 319 and 328). For a named file that tags no one, that
-person is the user of the answer session that pushed the answer, by its
-configured login, and for an Igor's file, the assignee who answered; a
-reader knows that person as the account the answer file's signature or
-linked comment proves (proposal decision 335). An older answer file that a newer one
+decisions 312, 319 and 328). For a named file that tags no one, an
+answer file counts only when the account its proof is for has the write
+access the `answered_by` rule above asks of a `decision` entry on a
+questions branch:
+write access to the lore repository (proposal decision 340). An older answer file that a newer one
 naming the same file replaces SHALL also be shown in the search as
 input, labelled as superseded, and SHALL stop counting for its own
 question. It still supersedes the older files in its own hash group, so
@@ -876,13 +876,26 @@ agent. The search SHALL never show a rejected candidate.
 - **THEN** filter 1 treats the second as the answer, and shows the first
   as input, labelled as superseded
 
-#### Scenario: An untagged file's answer from the session's user counts
+#### Scenario: An untagged file's answer from an account with write access counts
 
 - **WHEN** a questions-branch file that tags no one is named in `answers`
-  by an answer file the answer session of `alice` pushed, whose commit
-  carries a signature GitHub verifies for `alice`, the account that
-  identifies the session's user to any reader
+  by an answer file whose commit carries a signature GitHub verifies for
+  `alice`, who has write access to the lore repository
 - **THEN** that answer file is the named file's answer
+
+#### Scenario: An untagged file's answer from an account without authority does not count
+
+- **WHEN** a questions-branch file that tags no one is named in `answers`
+  by an answer file signed by an account without write access to the lore
+  repository
+- **THEN** that answer file is not the named file's answer
+
+#### Scenario: A github.com link into a more private repository is left out of an answer file
+
+- **WHEN** an answer relayed in a private repository's issue is logged on
+  the questions branch of a public lore repository
+- **THEN** the answer file holds no `answer_link`, and counts only
+  through its signature
 
 #### Scenario: The newest answer naming a file counts
 
@@ -2148,7 +2161,10 @@ nothing, and SHALL record the answer it was given, word for word
 which logs only to a lore repository's questions branch. The command
 SHALL write the link only when it reads that lore repository's
 visibility as private, and otherwise SHALL write the file without an
-`answer_link` (proposal decision 251). Likewise it SHALL write a Linear
+`answer_link` (proposal decision 251). It SHALL write a github.com
+`answer_link` only when the lore repository is no more visible than the
+repository the URL points into, as *More visible* defines it, and
+otherwise SHALL write the file without it (proposal decision 337). Likewise it SHALL write a Linear
 or Discord `asked_in` only when it reads the lore repository's
 visibility as private, and a github.com `asked_in` only when the lore
 repository is no more visible than the repository the URL points into,
@@ -2162,8 +2178,10 @@ nothing and say why for an
 `asked_in` that is not a github.com, Linear or Discord URL of the forms
 given for `answer_link`, or, for an Igor worker's file, which the command
 writes in Igor-worker mode, a github.com
-issue or pull request URL with no fragment (proposal decisions 302 and
-326). The command does not check who passed such a
+issue or pull request URL with no fragment, or a comment URL in the form
+given for `answer_link`, which the answer session checks is an Igor's
+handback comment
+(proposal decisions 302, 326 and 339). The command does not check who passed such a
 link; it proves no writer whoever did. For an `answer_link` that is none
 of these, it SHALL write nothing and say why. In
 Igor-worker mode it SHALL read no comment: it writes the answer it was
@@ -2182,7 +2200,9 @@ asked. A questions-branch log file for a question also asked in a post
 SHALL hold that post's URL as `asked_in`, so the agent SHALL post the
 question before it writes the log file (proposal decision 299). An Igor
 worker's log file instead holds the URL of the assigned issue or pull
-request its question is shown from (proposal decision 326). The
+request its question is shown from (proposal decision 326), or, when
+the item's thread already holds an answer to an earlier question, the
+URL of that later run's new handback comment (proposal decision 339). The
 `log` command leaves the URL out where its rule for `asked_in`, above,
 withholds it (proposal decisions 302 and 315). A questions-branch file
 that answers a question an earlier file there logged unanswered SHALL
@@ -2193,7 +2213,9 @@ the handback,
 which holds the 6-hex-digit suffix and the date in the name of the
 questions-branch log file the Igor pushed for that question, and no
 question text; the run finds the file on the branch by them, and when
-more than one file matches, it names none (proposal decision 334), as igor PR #216 is asked to have it (#216's decision
+more than one file matches, it names none, two genuine files sharing
+both being a near impossibility (proposal decisions 334 and
+342), as igor PR #216 is asked to have it (#216's decision
 59). Until #216 keeps such a record, the run finds no record and
 writes no `answers`; both states are built and tested; the handback comment may show that name for people, but the run
 never reads it from there. The Igor adds that `answers` itself. When no
@@ -2610,7 +2632,9 @@ written.
   or `agent`; `authority`, `decision`, `input` or `agent`; `recorded_in`,
   where the question's answer is recorded, as a path from that
   repository's root or a URL, never a lore entry; `answer_link`, only when there is one,
-  the github.com URL of the comment or review holding the answer, or,
+  the github.com URL of the comment or review holding the answer,
+  written only in a lore repository no more visible than the repository
+  it points into (proposal decision 337), or,
   for an answer an answer session relayed on Linear or Discord, the URL
   of that relay comment or message, kept as a pointer that nothing
   fetches and written only in a private lore repository (proposal
@@ -2629,7 +2653,8 @@ written.
   `asked_in`, only in a questions-branch log file for a question the
   asking agent also asked in a post, the URL of that post, or, for an
   Igor worker's question, the URL of the assigned issue or pull request
-  the question is shown from (proposal decision 326), a Linear or
+  the question is shown from, or of the later run's new handback comment
+  on an item whose thread already holds an answer to an earlier question (proposal decisions 326 and 339), a Linear or
   Discord URL being written only in a private lore repository, as for
   `answer_link`, and a github.com URL only in a lore repository no more
   visible than the repository it points into (proposal decisions 299,

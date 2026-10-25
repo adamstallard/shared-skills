@@ -17,7 +17,7 @@ are written down:
   turned on, on 2026-10-20, and how `check` reads it, on 2026-10-21.
 - 240 to 253, on 2026-10-21;
 - 254 to 284, on 2026-10-24;
-- 285 to 306 and 308 to 336, on 2026-10-25, with 307, which this
+- 285 to 306 and 308 to 343, on 2026-10-25, with 307, which this
   change proposed, confirmed by 314.
 
 Apart from 229 and 241 to 244, which he gave in the session reviewing
@@ -70,7 +70,8 @@ confirming 307 with a change. 316 to 320 settle the five raised with
 the four raised with 316 to 320, one each, in order. 325 to 330
 answer six of the seven raised with 321 to 324. 331 answers the
 seventh, and 332 to 336 the five raised with 325 to 330, one each, in
-order.
+order. 337 to 341 answer the five raised with 331 to 336, and 342 and
+343 confirm two choices this change made then.
 
 1. **Four filters run before any question reaches a person.**
    1. **Already answered:** the agent finds the earlier answer, cites where it
@@ -1830,7 +1831,7 @@ change put to him when it recorded 247 to 249:
      Discord, Linear or Slack, which stay input until igor's scribe
      records them. *Rejected:* keeping decision 109 whole, so that every
      answer relayed off GitHub was input.
-251. *Extended by Adam's decision 302 to `asked_in`.* **A Linear or Discord `answer_link` is written only when the lore
+251. *Extended to a github.com link by Adam's decision 337.* *Extended by Adam's decision 302 to `asked_in`.* **A Linear or Discord `answer_link` is written only when the lore
      repository is private.** Otherwise the log file is written without
      an `answer_link`, and still records the answer. A Discord URL holds
      the server's and channel's ids, and a Linear URL the workspace,
@@ -2324,7 +2325,7 @@ change put to him when it recorded 292 to 296:
      decisions 196, 285 and 292 and retires 198's `"source <n>"` miss;
      208's `said: "not a question"` is no longer written. *Rejected:* a miss
      against the source.
-299. *For an Igor's question, Adam's decision 326 links the assigned issue or pull request.* *Amended by Adam's decisions 300 to 302: a file whose link this machine never reads is shown on its own, an answer records the message's question, and a withheld Linear, Discord or, by decision 315, GitHub link is made up for by merging.* **A questions-branch log file follows its thread message by exact
+299. *For an Igor's question, Adam's decisions 326 and 339 make its `asked_in` link the assigned issue or pull request, or, on an already answered item, that later run's new handback comment.* *Amended by Adam's decisions 300 to 302: a file whose link this machine never reads is shown on its own, an answer records the message's question, and a withheld Linear, Discord or, by decision 315, GitHub link is made up for by merging.* **A questions-branch log file follows its thread message by exact
      link.** A log file for a question the asking agent also asked in a
      post holds that message's URL as `asked_in`, and what the
      answer session decides about that message applies to the file. A
@@ -2522,7 +2523,7 @@ this change put to him when it recorded 321 to 324:
      still pushed at once, unchecked, as decision 318 has it. This
      amends decision 318. *Rejected:* pushing every answer file at
      confirmation.
-326. *Limited by Adam's decision 333: a log file written after the person answered an earlier question on the item is shown on its own; while the item is unassigned its log file is shown to no one, and while it is assigned to someone else, only to them.* **An Igor worker's log file links, in `asked_in`, the assigned issue
+326. *For an already answered item, Adam's decision 339 links the new handback comment instead.* *Limited by Adam's decision 333: while the item is unassigned its log file is shown to no one, and while it is assigned to someone else, only to them. 333's "shown on its own" case is replaced by decision 339.* **An Igor worker's log file links, in `asked_in`, the assigned issue
      or pull request its question is shown from,** not the handback
      comment, so answering or declining it there applies to the log
      file. This amends decision 299 for an Igor's question. *Rejected:*
@@ -2532,7 +2533,7 @@ this change put to him when it recorded 321 to 324:
      text, which anyone who can edit the comment could change; the
      comment shows the name for people only. This amends decision 324.
      *Rejected:* reading the comment's text.
-328. *Extended by Adam's decision 335 to a file that tags no one.* **An answer file counts as a named file's answer only when its proof,
+328. *Extended by Adam's decision 340, which replaced 335, to a file that tags no one: its answer's proof account needs write access to the lore repository, as filter 1 requires.* **An answer file counts as a named file's answer only when its proof,
      a comment link or a signature, is the person's, and its commit adds
      that answer file alone,** so a copy of another question's answer,
      pushed in one commit with other files, cannot become a named file's
@@ -2568,11 +2569,11 @@ leak private content or lose an answer is still raised.
      This amends decision 105 for the answer session, and widens 322's
      check to the identity.
      *Rejected:* warning that such answers do not count.
-332. **The relay post goes first, then the answer file is pushed with its
+332. *Amended by Adam's decision 338: the owed push is recorded before the post and retried at each opening too.* **The relay post goes first, then the answer file is pushed with its
      `answer_link`; a failed push is retried at each poll until it
      succeeds,** as a handled file's is. This amends decision 325.
      *Rejected:* accepting a thread answered with no file.
-333. **An Igor log file follows its item, with these limits:**
+333. *Amended by Adam's decision 339: a file on an already answered item follows the new handback comment; the assignee rules stay. Its "written after" is defined without clocks by decision 343.* **An Igor log file follows its item, with these limits:**
      - a log file a later Igor run writes after the person already
        answered an earlier question on the item is shown on its own, as
        its own question, to whoever the item's question would go to,
@@ -2583,19 +2584,63 @@ leak private content or lose an answer is still raised.
      - an item assigned to someone else is theirs and never appears in
        this person's queue.
      This amends decision 326. *Rejected:* linking the handback comment.
-334. **The Igor's record of a handback holds only the log file name's
+334. *Confirmed by Adam's decision 342: more than one match names none.* **The Igor's record of a handback holds only the log file name's
      6-hex-digit suffix and its date,** never question text, and the
      later run finds the file on the branch by them. The slug in file
      names stays, so a file name still carries some of the question's
      words; the record holds none. This amends decision 327. *Rejected:* dropping the slug
      from file names.
-335. **For a file that tags no one, "the person" is the user of the answer
+335. *Replaced by Adam's decision 340: the answer's proof account must have write access to the lore repository, as filter 1 requires.* **For a file that tags no one, "the person" is the user of the answer
      session that pushed the answer,** by its configured login; for an
      Igor's file, the assignee who answered. This amends decision 328.
      *Rejected:* answering such files only by hash in filter 1's search.
 336. **Filter 3's "not a question" choice is renamed "the agent shouldn't
      have asked",** so only reason 1 says "not a question". This amends
      decisions 304 and 330. *Rejected:* keeping both labels.
+
+Adam gave 337 to 343 on 2026-10-25: 337 to 341 answer the five
+questions this change put to him when it recorded 331 to 336, and 342
+and 343 confirm two choices this change made while recording them:
+
+337. **A github.com `answer_link` is withheld by the same rule as a
+     github.com `asked_in`** (decision 315): written only when the lore
+     repository is no more visible than the repository the URL points
+     into. A file written without it counts only through its signature.
+     This extends decision 251 to GitHub. *Rejected:* accepting the
+     leak.
+338. **The owed push is recorded first:** the answer session writes it to
+     the state folder before it posts the relay post, and retries it at
+     each opening as well as each poll, so a crash between the post and
+     the push does not lose the answer file. This amends decision 332.
+     *Rejected:* any machine pushing an answer file for a relay post it
+     finds without one.
+339. **A log file for a new Igor question on an item whose earlier
+     question is already answered follows that run's new handback
+     comment,** which reaches the person as a new message in an answered
+     thread (decision 291), so the answer is relayed on the item and
+     logged against the file. This replaces decision 333's "shown on its
+     own to the assignee" for that case; 333's assignee rules stay: no
+     one while the item is unassigned, and never while it is assigned to
+     someone else. *Rejected:* posting the answer on the item when the
+     file is answered on its own.
+340. **For a log file that tags no one, an answer counts only when its
+     proof's account has `decision` authority under filter 1's rules for
+     that file's repository.** As filter 1 defines it for a
+     questions-branch file, that is write access to the lore repository.
+     Both specs, the answer-session and inquisitor specs, use this one
+     test, which replaces decision 335's wording. *Rejected:* answering such files
+     only through filter 1's hash search.
+341. **A GitHub message merges with a log file only when the file's
+     `repository` equals the message's repository;** otherwise there is
+     no merge, and the question is shown twice, which Adam's unnumbered
+     rule above accepts. This narrows decision 307. *Rejected:* accepting
+     a merge that records an answer against another repository's
+     question.
+342. **Confirmed: when more than one file matches the record's suffix and
+     date, the run names none.** The 6 random hex digits make a name
+     unique, so a second match can only be a planted look-alike.
+343. **Confirmed: no clocks.** "Written after the item was answered" means
+     the item's thread already holds an answer to an earlier question.
 
 ### Proposed by this change
 
@@ -3561,7 +3606,7 @@ this change's own:
         on fetching under `igor run` and the hashed record of handback
         questions, contradict nothing here.
 
-307. **Confirmed by Adam (2026-10-25), with "on Linear or Discord"
+307. *Narrowed by Adam's decision 341: a GitHub message merges only with a file of its own repository.* **Confirmed by Adam (2026-10-25), with "on Linear or Discord"
      replaced by his decision 314.** **The merge criterion of decision
      302.** A log file with no `asked_in` is merged with a thread message
      on one machine only when the file is on a lore repository that is
@@ -3629,6 +3674,9 @@ are settled by decisions 325 to 330, and the seventh by decision 331.
 The five questions raised while recording decisions 325 to 330 are
 settled by decisions 332 to 336.
 
+The five questions raised while recording decisions 331 to 336 are
+settled by decisions 337 to 341.
+
 Open on igor PR #216's side, at the head last read, 59e7561, which records Adam's decisions
 up to 149 in #216's own numbering, decisions 244 and 245 among them as
 its decisions 92 and 97:
@@ -3651,8 +3699,10 @@ its decisions 92 and 97:
   people, but the run never reads it from there. Without the record, the
   run writes no `answers`.
 - **#216's Igor should write `asked_in`** in a worker's log file as the
-  URL of the assigned issue or pull request the question is shown from,
-  not the handback comment (decision 326), a Linear or Discord one only in a
+  URL of the assigned issue or pull request the question is shown from
+  (decision 326), or, when the item's thread already holds an answer to
+  an earlier question, as the URL of that later run's new handback comment
+  (decision 339), a Linear or Discord one only in a
   private lore repository (decision 302), and name in `answers` the file
   an answer file answers (decision 303), adding `answers` itself and
   refusing a worker's file that holds it (decision 310). Without
