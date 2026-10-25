@@ -22,6 +22,13 @@ one of:
   gaps, warnings, reasons a decision holds, and rejected alternatives with
   why they were rejected.
 
+**Every decision the new text keeps must still carry its reason.** For each
+decision in a change whose old text gave a reason for it, confirm that the
+new file still states that reason, in the same place or where it moved. If
+the decision survives but its reason does not, the reason is lost: write a
+`lost` line that states the reason. A decision without its reason invites the
+next editor to undo it.
+
 **For each rewritten or added sentence,** check that its claim holds against
 the code and docs it describes, in the repository named below. Open them;
 don't rely on the old text alone. A rewrite that renames a rule, changes a

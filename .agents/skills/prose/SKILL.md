@@ -87,11 +87,13 @@ only to the lines a change touched. `$S` below is this skill's scripts
 directory, as *Two calls* defines it.
 
 **When it is due.** `prose check`'s first call measures each changed
-current-state doc. By default that is every `DECISIONS.md`, `SKILL.md`,
+current-state file. By default that is every `DECISIONS.md`, `SKILL.md`,
 `AGENTS.md` and `CLAUDE.md`, every `architecture*.md`, and every OpenSpec
 `spec.md`, `proposal.md` and `design.md` outside `openspec/changes/archive/`.
-For each one due, it prints `compaction due for <file>: <why>`. A doc is due
-when either holds:
+A `prose-compact` declaration in `.gitattributes` adds any other text file,
+of any type; a file git treats as binary (`-diff`, `binary`, or a NUL byte)
+is skipped. For each one due, it prints `compaction due for <file>: <why>`.
+A file is due when either holds:
 - **Size:** it is over its budget, 40,000 bytes by default, and either was
   never compacted or has grown by half since it was. Its last compaction is
   the newest commit behind HEAD, merged branches included, that shrank it by
@@ -107,46 +109,99 @@ history, wording or repetition needs no question. A reviewer's verdicts decide
 what is restored. Ask the person only where restoring, or dropping, is itself
 a judgement call.
 
-1. Run `python3 $S/prose.py compact <file>`. It saves the file as it is,
-   prints a brief between `=== compaction brief ===` lines, and exits 4.
+Inside a git repository each step reads the file as staged, so stage it
+before every step that checks it: what is checked is what will be committed.
+Outside one, skip the staging and name the file by any path to it; each step
+reads the working file.
+
+1. Run `python3 $S/prose.py compact <file>`. Inside a repository, run it on
+   the committed file, with nothing staged or unstaged in it; staging starts
+   with step 3. Running it again on the unchanged file replaces the saved
+   copy and is harmless. Add the files that might refer to it, as *Which
+   files refer to the doc* below says; files you already know of can be
+   named directly, with no search. It saves the file as staged, prints a
+   brief between `=== compaction brief ===` lines, and exits 4.
 2. Start a new subagent and give it the brief, exactly as printed. The brief
    is [compact.md](compact.md), then the file's path, the history markers
    found, and the headings other files link to or name. The subagent rewrites
    the file in place and replies `Would drop: none`, or one `Would drop:` line
    for each conclusion it left in place but believes is no longer true.
-3. Run `python3 $S/prose.py compact <file> --verify`. It compares the file
-   with the saved copy. It prints the size before and after, the headings
-   removed, and the names that are gone. It fails, exiting 1, when:
-   - a link from another file, a doc or a code comment, to one of its
-     headings no longer resolves;
-   - a heading that another file names word for word is gone;
+3. Stage the file (`git add <file>`), then run
+   `python3 $S/prose.py compact <file> --verify`, with the same referrers as
+   step 1. It compares the staged file with the saved copy. It prints the
+   size before and after, what it searched, the headings removed, and the
+   names that are gone. It fails, exiting 1, when:
+   - a removed heading is still referenced: its `#anchor` appears in the
+     file itself or in a file searched, or its text (16 characters or more)
+     appears in another file searched, in any context. Text is compared with
+     case, backticks, `*` and `_` ignored, and with line breaks and the
+     comment or quote markers (`#`, `//`, `*`, `>`) starting a line read as
+     one space, so a citation wrapped in a comment counts;
    - a history marker is left;
    - the file grew, or is empty.
 
-   Have the compactor fix what it names, and run `--verify` again until it
-   exits 0.
-4. Run `python3 $S/prose.py compact <file> --review`. It writes every change
-   to a file, removed and rewritten text side by side, headed by the code
-   spans, flags, constants, paths and headings the new file no longer has. It
-   prints a brief between `=== compaction review brief ===` lines that names
-   that file, and exits 4.
+   Have the compactor fix what it names, stage it, and run `--verify` again
+   until it exits 0. It exits 2 when the file has unstaged changes, or when
+   it could not read a file it was to search; fix that, or narrow the paths,
+   and run it again.
+4. Run `python3 $S/prose.py compact <file> --review`, with the file staged.
+   It writes every change to a file, removed and rewritten text side by side,
+   headed by the code spans, flags, constants, paths and headings the new
+   file no longer has. It prints a brief between `=== compaction review
+   brief ===` lines that names that file, and exits 4.
 5. Start another new subagent, on the same model as the compactor, never a
    cheaper one, and give it that brief exactly as printed. The brief is
    [compact-review.md](compact-review.md). For each removal, the reviewer
-   answers superseded, folded in (and where) or lost. For each rewritten or
-   added sentence, it answers whether the claim holds against the code and
-   docs. It ends with `Totals: <n> lost, <m> false`.
+   answers superseded, folded in (and where) or lost. It checks that every
+   decision the new text keeps still carries its reason. For each rewritten
+   or added sentence, it answers whether the claim holds against the code and
+   docs. It ends with `Totals: <n> lost, <m> false`. Save its reply to a
+   file.
 6. Send each `lost` and `false` line back to the compactor, which restores
-   the conclusion or corrects the claim. Then run `--verify` again. When the
-   first review found anything, run steps 4 and 5 once more with a fresh
-   reviewer, and fix what it finds. Never run more than two reviews. Report
-   whatever the second one still finds.
-7. Ask the person, through your host's picker, about each reviewer line
+   the conclusion or corrects the claim. Stage the file and run `--verify`
+   again. When the first review found anything, run steps 4 and 5 once more
+   with a fresh reviewer, and fix what it finds. Never run more than two
+   reviews. Report whatever the second one still finds.
+7. Record the last review as complete:
+   `python3 $S/prose.py compact <file> --reviewed <reply file> --dispositions <answers file>`.
+   It checks that the reply gives every change a verdict and that its
+   `Totals:` line matches them. The answers file holds one line for each
+   change with a `lost` or `false` finding: `Change <n>: fixed` when the
+   compactor fixed it, which needs the staged file to differ from the one
+   reviewed, or `Change <n>: kept: <reason>`. With nothing fixed, the staged
+   file must be the one reviewed. A reply with no findings needs no answers
+   file. It exits 0, or 2 with what is missing.
+8. Ask the person, through your host's picker, about each reviewer line
    whose text starts `ask:` and each `Would drop:` line from the compactor,
-   and act on the answer. When you cannot
-   ask, leave the conclusion in, and put the line in your result for your
-   caller.
-8. Commit as usual, with both calls of `prose check`.
+   and act on the answer. When you cannot ask, leave the conclusion in, and
+   put the line in your result for your caller. If the answer changes the
+   file, stage it and run steps 3 to 7 again: the commit gate needs a
+   review of the file as staged, so this review runs even after two.
+9. Commit as usual, with both calls of `prose check`.
+
+**The commit gate.** A passing `--verify` and a completed review (step 7)
+are each recorded for the file's staged content. Once step 1 has run on a
+file, for 7 days after it and while the base (HEAD, or HEAD's parent with
+`--amend`) still holds the copy step 1 started from, `prose check` refuses
+to sign while that file is staged with other content and lacks either
+record, whatever kind of file it is. Nothing else is gated: always compact
+with `prose compact`, never by hand. Each refusal names the step:
+- `<file> was compacted but not verified; run prose compact --verify <file>`
+- `<file> was compacted but its review was not completed; ...`
+
+Either means the content staged is not the content that passed that step:
+the file changed after it, or the step never ran. Run the named step on the
+file as staged and sign again. Never change the file after its last
+`--verify` and `--reviewed`. Step 1 refuses a file whose staged copy
+differs from HEAD's, so every compaction starts from the committed file:
+commit the change you were making first. A symlink holds no prose and is
+not gated. A file renamed and shrunk in the same commit is not gated
+either. Outside git there is no commit to gate, so running `--verify` is up
+to you; the brief names it as the required last step.
+
+**Name every compaction** in your report and in the pull request body, with
+the file's size before and after, as `--verify` prints it: for example,
+"Compacted DECISIONS.md: 107,341 -> 61,020 bytes (-43%)".
 
 **Settings** go in `.gitattributes`, one line each:
 
@@ -162,6 +217,9 @@ docs/architecture.md prose-compact-budget=150000 prose-compact-growth=30
 - `prose-compact` declares a file current-state.
 - `-prose-compact` exempts a file.
 
+Declarations reach the triggers only. Prose's writing rules still apply
+only to docs.
+
 A doc that is meant to stay over budget gets its own budget. `--verify`
 suggests one when a compaction cut less than a tenth of a doc that is still
 over its budget.
@@ -169,18 +227,99 @@ over its budget.
 **Called by another skill.** A skill that keeps docs of its own compact, such
 as spec-check for a change's `proposal.md` and `design.md`, runs the same
 commands and may then run its own checks on the result:
-- `prose.py compact <file>` exits 4 and prints the brief on stdout between
-  `=== compaction brief ===` and `=== end compaction brief ===`. The caller
-  may add its own instructions after the brief.
-- `prose.py compact <file> --verify` exits 0 when the result passes and 1 when
-  it fails, with the report on stdout.
+- `prose.py compact <file> [--paths-from <file|-> [-0]] [-- <path>...]` exits
+  4 and prints the brief on stdout between `=== compaction brief ===` and
+  `=== end compaction brief ===`. The caller may add its own instructions
+  after the brief.
+- `prose.py compact <file> --verify [--paths-from <file|-> [-0]] [-- <path>...]`
+  exits 0 when the result passes and 1 when it fails, with the report on
+  stdout.
 - `prose.py compact <file> --review` exits 4 and prints the reviewer's brief
   between `=== compaction review brief ===` and `=== end compaction review
   brief ===`.
-- Each call exits 2, with the reason on stderr, when the file is missing, or
-  when `--verify` or `--review` has no saved copy. The first call saves that
-  copy in the repository's git directory and deletes it after 7 days, so any
-  agent in the same clone can verify within that time.
+- `prose.py compact <file> --reviewed <reply> [--dispositions <file>]` exits 0
+  when the review is complete, recording it for the commit gate.
+- Each call exits 2, with the reason on stderr, when the file is missing or
+  has unstaged changes, when a later step has no saved copy, or when a file
+  to search cannot be read. Step 1, `prose.py compact <file>`, saves that
+  copy in the repository's git directory, and the later steps refuse a copy
+  older than 7 days, so any agent in the same work tree can finish within
+  that time.
+
+### Which files refer to the doc
+
+`--verify` searches for removed headings in the files you name, beside the
+file itself. Inside a git repository it also searches every tracked file.
+Outside one it searches only what you name. Each name is a file: a
+directory is refused, and the refusal shows how to list its files.
+
+**Find the candidates** before step 1, when you cannot yet know which
+headings will go. Search every place a referrer could live (sibling folders,
+other repositories, notes) for the doc's file name, every heading's
+`#anchor`, and a distinctive word from each heading whose text is 16
+characters or more, ignoring case. `--verify` fails where a heading's
+anchor or text appears, even when a citation wraps the text or drops its
+formatting, so search for one word of it, which neither can break. A file that has none of them cannot refer to the doc. A shorter
+heading needs only its anchor searched. A broad term only adds candidates,
+which costs nothing. `rg` skips hidden, gitignored and binary files; add
+`--hidden --no-ignore -a` unless you know no referrer is one. The title
+heading counts like any other.
+
+```sh
+rg -l -i -F -e 'DECISIONS.md' -e '#snapshot-lifetime-policy' -e 'lifetime' ~/notes ~/other-repo
+```
+
+Give step 1 and every `--verify` the same files: save the search's list
+once to a file outside the repository, such as one in `$TMPDIR`, so it is
+never staged or searched as a tracked file, and pass `--paths-from <that
+file>` (with `-0` if the list is NUL-separated), or run the identical
+search again from the same directory. Every relative path, the doc's and
+the referrers', is read from the current directory, so run the search from
+where you run prose.py. Inside a repository, spell and case the doc's path
+as `git ls-files` lists it.
+
+**A few known files: list them after `--`.** Give the same list to step 1
+and to every `--verify`. A file named this way is read whatever its type
+or size.
+
+```sh
+python3 $S/prose.py compact DECISIONS.md --verify -- ../README.md ../notes/plan.md
+```
+
+**Many files, or files a search found: `--paths-from`.** It reads one path
+per line from a file, or from stdin with `-`:
+
+```sh
+rg -l -i -F -e 'DECISIONS.md' -e 'lifetime' ~/notes | python3 $S/prose.py compact DECISIONS.md --paths-from -
+rg -l -i -F -e 'DECISIONS.md' -e 'lifetime' ~/notes | python3 $S/prose.py compact DECISIONS.md --verify --paths-from -
+```
+
+The first line is step 1 and the second is step 3, each fed the same search.
+To read every Markdown file in a folder, list them with `find`.
+
+Add `-0` when the list is NUL-separated, as `rg -l0` and `find -print0`
+write it, and use those forms whenever the tool can write them. In a list of
+one path per line, a name holding a newline splits in two and its file is
+missed, and a tool that quotes odd names, spaces among them, gives paths
+that match no file. A NUL-separated list keeps every name exactly.
+
+```sh
+rg -l0 -i -F -e 'DECISIONS.md' -e 'lifetime' ~/notes | python3 $S/prose.py compact DECISIONS.md --verify --paths-from - -0
+find ~/notes -name '*.md' -print0 | python3 $S/prose.py compact DECISIONS.md --verify --paths-from - -0
+```
+
+The two forms combine: `--paths-from list.txt -- ../README.md`. In a
+pipeline the exit code is prose.py's, the last command's: 1 still means a
+reference broke.
+
+**Read the report's `Searched for references:` line** before trusting a
+pass. Inside a repository it names the tracked files, and the given files and
+where they came from. Outside one, it names only the given files and says
+`only these were read`. With no paths outside a repository it says
+`references from other files were not checked`. Then a pass proves only
+that the file's own links still work; give the referrers and run it again.
+`0 given files (the list was empty)` means the search found nothing, which
+is a real answer only if the search was right.
 
 ## Two calls: the rules, then the signature
 

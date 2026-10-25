@@ -3892,7 +3892,7 @@ class ResultBlock(unittest.TestCase):
         self.addCleanup(shutil.rmtree, root, True)
         scripts = root / "skills" / "prose" / "scripts"
         scripts.mkdir(parents=True)
-        for name in ("prose.py", "comment_scan.py"):
+        for name in ("prose.py", "comment_scan.py", "compact.py"):
             shutil.copy(HERE / name, scripts / name)
         shutil.copy(HERE.parent / "rules.md", scripts.parent / "rules.md")
         lib = root / "lib" / "commit-trailer"
@@ -4060,8 +4060,10 @@ class CompactionDue(unittest.TestCase):
 
 class Anchors(unittest.TestCase):
     def test_github_slugs_with_duplicates_numbered(self):
-        text = "# `prose check` runs it\n\n## Why?\n\n## Why?\n\n```\n# not a heading\n```\n"
-        self.assertEqual(compact.anchors(text), {"prose-check-runs-it", "why", "why-1"})
+        text = "# `prose check` runs it\n\n## Why?\n\n## Why?\n\n```\n# in a code block\n```\n"
+        # A heading-shaped line in a code block counts: --verify errs toward blocking.
+        self.assertEqual(compact.anchors(text),
+                         {"prose-check-runs-it", "why", "why-1", "in-a-code-block"})
 
 
 class GoneTermsAndChanges(unittest.TestCase):
@@ -4104,6 +4106,9 @@ class CompactCommand(unittest.TestCase):
         self.repo.commit("base\n")
 
     def compact(self, *extra):
+        # Stage, then verify or review: the staged file is what is checked.
+        if extra[:1] in (("--verify",), ("--review",)):
+            self.repo.git("add", "DECISIONS.md")
         return self.repo.prose("compact", "DECISIONS.md", *extra)
 
     def test_the_brief(self):
@@ -4112,7 +4117,7 @@ class CompactCommand(unittest.TestCase):
         self.assertIn("=== compaction brief ===\n# Compact a document\n", result.stdout)
         self.assertIn(f"The file: {(self.repo.path / 'DECISIONS.md').resolve()}", result.stdout)
         self.assertIn("line 7: «Revised 2026-09-30»", result.stdout)
-        self.assertIn("  #the-token-expires-after-two-hours\n", result.stdout)
+        self.assertIn("  #the-token-expires-after-two-hours  (in README.md)", result.stdout)
         self.assertIn("  The token expires after two hours  (in tool.py)", result.stdout)
         self.assertIn("compact DECISIONS.md --verify", result.stdout)
 
@@ -4122,7 +4127,7 @@ class CompactCommand(unittest.TestCase):
             "# Decisions\n\n## The token expires after two hours\n\nIt expires.\n")
         result = self.compact("--verify")
         self.assertEqual(result.returncode, 0, result.stdout)
-        self.assertIn("Links into this file: 1 checked, 0 broken.", result.stdout)
+        self.assertIn("References to removed headings: 0.", result.stdout)
         self.assertIn("Headings removed or renamed (1): Old section", result.stdout)
 
     def test_a_broken_link_a_named_heading_and_a_marker_fail(self):
@@ -4131,9 +4136,8 @@ class CompactCommand(unittest.TestCase):
             "# Decisions\n\n## Expiry\n\nTwo hours. **Revised 2026-09-30.**\n")
         result = self.compact("--verify")
         self.assertEqual(result.returncode, 1)
-        self.assertIn("README.md links to #the-token-expires-after-two-hours", result.stdout)
-        self.assertIn("the heading 'The token expires after two hours' is gone, and tool.py "
-                      "names it", result.stdout)
+        self.assertIn("README.md:1 links to #the-token-expires-after-two-hours", result.stdout)
+        self.assertIn("tool.py:1 names 'The token expires after two hours'", result.stdout)
         self.assertIn("history marker left at line 5: «Revised 2026-09-30»", result.stdout)
 
     def test_a_file_that_grew_or_emptied_fails(self):
@@ -4166,7 +4170,7 @@ class CompactCommand(unittest.TestCase):
         result = run([sys.executable, str(SCRIPT), "compact", str(doc), "--verify"])
         self.assertEqual(result.returncode, 1)
         self.assertIn("Not in a git repository", result.stdout)
-        self.assertIn("the file links to #b, which no heading gives now", result.stdout)
+        self.assertIn("DOC.md:3 links to #b, a heading the compaction removed", result.stdout)
 
     def test_the_review_brief_names_a_file_of_every_change(self):
         self.compact()
@@ -4185,6 +4189,22 @@ class CompactCommand(unittest.TestCase):
                       "after one hour.\n\n## Old section\n\nGone soon.\n\n"
                       "### After\n\nIt expires, always.\n", text)
 
+    def test_a_change_inside_code_is_a_change_but_rewrapping_prose_is_not(self):
+        code = "```yaml\nroot:\n    child:\n        enabled: false\n```"
+        self.assertEqual(len(compact.changes(f"# D\n\n{code}\n",
+                                             "# D\n\n" + code.replace("    ", "") + "\n")), 1)
+        self.assertEqual(len(compact.changes("# D\n\n    indented code\n",
+                                             "# D\n\nindented code\n")), 1)
+        self.assertEqual(compact.changes("# D\n\nOne long\nsentence here.\n",
+                                         "# D\n\nOne long sentence\nhere.\n"), [])
+
+    def test_a_fence_inside_a_quote_is_compared_exactly(self):
+        self.assertEqual(len(compact.changes("> ```\n> a  b\n> ```\n", "> ```\n> a b\n> ```\n")), 1)
+
+    def test_a_fence_opened_on_a_list_item_line_is_compared_exactly(self):
+        before = "Intro.\n\n- ```yaml\n  a: 1\n  b: 2\n\n  c: 3\n  ```\n"
+        self.assertEqual(len(compact.changes(before, before.replace("  b: 2", "   b: 2"))), 1)
+
     def test_verify_and_review_are_separate_steps(self):
         self.compact()
         result = self.compact("--verify", "--review")
@@ -4198,8 +4218,10 @@ class CompactCommand(unittest.TestCase):
         self.assertNotIn("prose-compact-budget", " ".join(report.lines))
 
 
-class CompactRegressions(unittest.TestCase):
-    """Bugs bug-hunter proved in the compaction code."""
+class ConservativeVerify(unittest.TestCase):
+    """--verify's rule: a removed heading or anchor that is still referenced,
+    by its normalised text or its `#slug`, anywhere else, blocks the
+    compaction."""
 
     def repo_with(self, files):
         repo = Repo()
@@ -4209,34 +4231,285 @@ class CompactRegressions(unittest.TestCase):
         repo.commit("base\n")
         return repo
 
-    def verify_after(self, repo, new_text):
+    def verify_after(self, repo, new_text, name="DECISIONS.md"):
+        self.assertEqual(repo.prose("compact", name).returncode, 4)
+        (repo.path / name).write_text(new_text)
+        repo.git("add", "--", name)
+        return repo.prose("compact", name, "--verify")
+
+    DOC = "# D\n\n## Snapshot lifetime policy\n\nA long paragraph about it.\n\n## Keep\n\nB.\n"
+    AFTER = "# D\n\n## Keep\n\nB.\n"
+
+    def test_an_unreferenced_heading_may_be_removed(self):
+        repo = self.repo_with({"DECISIONS.md": self.DOC, "README.md": "Nothing to see.\n"})
+        result = self.verify_after(repo, self.AFTER)
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn("References to removed headings: 0.", result.stdout)
+
+    def test_an_incidental_mention_blocks(self):
+        repo = self.repo_with({"DECISIONS.md": self.DOC,
+                               "notes.txt": "We talked about a snapshot lifetime policy... "
+                                            "the Snapshot lifetime policy, that is.\n"})
+        result = self.verify_after(repo, self.AFTER)
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("notes.txt:1 names 'Snapshot lifetime policy'", result.stdout)
+
+    def test_an_anchor_substring_blocks(self):
+        for text in ("See DECISIONS.md#snapshot-lifetime-policy.\n",
+                     "# docs/x/DECISIONS.md#snapshot-lifetime-policy-and-more\n",
+                     "https://example.com/other#snapshot-lifetime-policy\n"):
+            with self.subTest(text=text):
+                repo = self.repo_with({"DECISIONS.md": self.DOC, "code.py": text})
+                result = self.verify_after(repo, self.AFTER)
+                self.assertEqual(result.returncode, 1, result.stdout)
+                self.assertIn("code.py:1 links to #snapshot-lifetime-policy", result.stdout)
+
+    def test_the_files_own_anchor_blocks(self):
+        repo = self.repo_with({"DECISIONS.md": self.DOC})
+        result = self.verify_after(repo, self.AFTER + "\nSee [x](#snapshot-lifetime-policy).\n")
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("DECISIONS.md:7 links to #snapshot-lifetime-policy", result.stdout)
+
+    def test_the_heading_text_in_the_file_itself_does_not_block(self):
+        repo = self.repo_with({"DECISIONS.md": self.DOC})
+        result = self.verify_after(repo, self.AFTER + "\nThe Snapshot lifetime policy is gone.\n")
+        self.assertEqual(result.returncode, 0, result.stdout)
+
+    def test_a_short_headings_text_is_not_searched_but_its_anchor_is(self):
+        doc = "# D\n\n## Why\n\nA long paragraph about why.\n\n## Keep\n\nB.\n"
+        repo = self.repo_with({"DECISIONS.md": doc, "README.md": "Why not.\n"})
+        self.assertEqual(self.verify_after(repo, self.AFTER).returncode, 0)
+        repo = self.repo_with({"DECISIONS.md": doc, "README.md": "[w](DECISIONS.md#why)\n"})
+        self.assertEqual(self.verify_after(repo, self.AFTER).returncode, 1)
+
+    def test_a_reference_broken_before_does_not_count(self):
+        repo = self.repo_with({"DECISIONS.md": self.DOC, "README.md": "[x](DECISIONS.md#never-was)\n"})
+        self.assertEqual(self.verify_after(repo, self.AFTER).returncode, 0)
+
+    def test_a_shared_heading_blocks(self):
+        shared = "## Environment credentials belong to one identity"
+        repo = self.repo_with({"a/DECISIONS.md": f"# A\n\n{shared}\n\nA long paragraph.\n\n## Keep\n\nB.\n",
+                               "b/DECISIONS.md": f"# B\n\n{shared}\n\nC.\n"})
+        result = self.verify_after(repo, "# A\n\n## Keep\n\nB.\n", "a/DECISIONS.md")
+        self.assertEqual(result.returncode, 1, result.stdout)
+
+    def test_a_citation_is_matched_normalised(self):
+        # Case, backticks, `*`, `_`, whitespace, and line breaks with the
+        # comment or quote markers that start the next line, are ignored.
+        doc = ("# D\n\n## `prose check` runs the *pre-commit* hook\n\nA long paragraph.\n\n"
+               "## Keep\n\nB.\n")
+        for text, line in (("x = 1\n# See Prose check\n# runs the pre-commit\n#   hook first.\n", 2),
+                           ("// DECISIONS: prose check runs\n// the PRE-COMMIT hook\n", 1),
+                           ("> quoted: `prose check` runs\n> the pre-commit    hook\n", 1),
+                           ("/*\n * prose check runs the\n * pre-commit hook\n */\n", 2)):
+            with self.subTest(text=text):
+                repo = self.repo_with({"DECISIONS.md": doc, "code.c": text})
+                result = self.verify_after(repo, self.AFTER)
+                self.assertEqual(result.returncode, 1, result.stdout)
+                self.assertIn(f"code.c:{line} names '`prose check` runs the *pre-commit* hook'",
+                              result.stdout)
+
+    def test_removing_one_of_two_same_headings_searches_both_anchors(self):
+        doc = "# D\n\n## Notes\n\nfirst notes, about caching\n\n## Notes\n\nsecond notes\n"
+        repo = self.repo_with({"DECISIONS.md": doc, "other.md": "Caching: see DECISIONS.md#notes\n"})
+        result = self.verify_after(repo, "# D\n\n## Notes\n\nsecond notes\n")
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("other.md:1 links to #notes,", result.stdout)
+        self.assertIn("Headings removed or renamed (1): Notes", result.stdout)
+
+    def test_bare_carriage_returns_break_lines(self):
+        repo = self.repo_with({"DECISIONS.md": self.DOC})
+        (repo.path / "notes.txt").write_bytes(b"# see the Snapshot\r# lifetime policy section\r")
+        repo.git("add", "notes.txt")
+        self.assertEqual(self.verify_after(repo, self.AFTER).returncode, 1)
+
+    def test_case_is_folded_not_lowered(self):
+        doc = "# D\n\n## Gr\u00f6\u00dfe der Stra\u00dfe handling\n\nA long paragraph.\n\n## Keep\n\nB.\n"
+        repo = self.repo_with({"DECISIONS.md": doc, "notes.txt": "See GR\u00d6SSE DER STRASSE HANDLING.\n"})
+        self.assertEqual(self.verify_after(repo, self.AFTER).returncode, 1)
+
+    def test_a_heading_needle_is_normalised_as_the_files_are(self):
+        texts = {compact.normalised([(0, "Snapshot lifetime\r# policy rules")])[0]: "h"}
+        self.assertEqual(len(compact._find("r.md", [(1, "Snapshot lifetime\r# policy rules")],
+                                           [], texts)), 1)
+
+    def test_a_bom_or_bare_cr_line_ends_do_not_hide_headings(self):
+        self.assertEqual(compact.heading_texts("\ufeff# Title here\n\n## Next\n"), ["Title here", "Next"])
+        self.assertEqual(compact.heading_texts("# Doc\r\rIntro.\r\r## Snapshot lifetime policy\r"),
+                         ["Doc", "Snapshot lifetime policy"])
+
+    def test_normalising_keeps_other_punctuation(self):
+        self.assertEqual(compact.normalise_line("  # // > **The `C#` heading**,  here "),
+                         "the c# heading, here")
+        repo = self.repo_with({"DECISIONS.md": self.DOC, "a.md": "Snapshot-lifetime policy\n"})
+        self.assertEqual(self.verify_after(repo, self.AFTER).returncode, 0)
+
+    def test_grep_config_does_not_hide_or_break_references(self):
+        for key, value in (("grep.column", "true"), ("color.ui", "always"), ("color.grep", "always")):
+            with self.subTest(key=key):
+                repo = self.repo_with({"DECISIONS.md": self.DOC,
+                                       "other.md": "See DECISIONS.md#snapshot-lifetime-policy.\n"})
+                repo.git("config", key, value)
+                result = self.verify_after(repo, self.AFTER)
+                self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+                self.assertIn("other.md:1 links to #snapshot-lifetime-policy", result.stdout)
+
+    def test_a_removed_headings_own_anchor_is_searched_when_a_survivor_takes_it(self):
+        doc = ("# D\n\n## Retry policy: backoff\n\nA long paragraph.\n\n"
+               "## Retry policy backoff\n\nB.\n")
+        repo = self.repo_with({"DECISIONS.md": doc, "other.md": "DECISIONS.md#retry-policy-backoff\n"})
+        result = self.verify_after(repo, "# D\n\n## Retry policy backoff\n\nB.\n")
+        self.assertEqual(result.returncode, 1, result.stdout)
+
+    def test_a_heading_in_a_code_block_counts(self):
+        doc = "# D\n\n```\n## Snapshot lifetime policy\n```\n\nA long example.\n\n## Keep\n\nB.\n"
+        repo = self.repo_with({"DECISIONS.md": doc, "other.md": "DECISIONS.md#snapshot-lifetime-policy\n"})
+        self.assertEqual(self.verify_after(repo, self.AFTER).returncode, 1)
+
+    def test_crlf_line_ends_read_as_lf(self):
+        repo = self.repo_with({"DECISIONS.md": self.DOC.replace("\n", "\r\n"),
+                               "other.md": "DECISIONS.md#snapshot-lifetime-policy\n"})
+        result = self.verify_after(repo, self.AFTER.replace("\n", "\r\n"))
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("other.md:1 links to #snapshot-lifetime-policy", result.stdout)
+        self.assertEqual([m.line for m in compact.history_markers(
+            "# R\r\n\r\n```bash\r\nx\r\n```\r\n\r\nWe previously used tabs.\r\n")], [7])
+
+    def test_a_kept_heading_sharing_a_removed_headings_anchor_blocks(self):
+        # Accepted over-blocking: a rename that keeps the anchor blocks too.
+        for before, after in (("## Foo bar\n\nA.\n\n## foo bar\n\nB, at length.\n", "## Foo bar\n\nA.\n"),
+                              ("## Setup and usage\n\nA, at length.\n", "## Setup and Usage\n\nA.\n")):
+            with self.subTest(after=after):
+                repo = self.repo_with({"DECISIONS.md": "# D\n\n" + before,
+                                       "other.md": f"DECISIONS.md#{compact.slug(after.split(chr(10))[0][3:])}\n"})
+                self.assertEqual(self.verify_after(repo, "# D\n\n" + after).returncode, 1)
+
+    def test_only_a_tracked_path_spelt_as_git_lists_it_is_accepted(self):
+        repo = self.repo_with({"Doc.md": self.DOC})
+        (repo.path / "new.md").write_text(self.DOC)
+        for name in ("new.md",) + (("doc.md",) if (repo.path / "doc.md").exists() else ()):
+            with self.subTest(name=name):
+                result = repo.prose("compact", name)
+                self.assertEqual(result.returncode, 2, result.stdout)
+                self.assertIn("not a tracked file", result.stderr)
+
+    def test_outside_a_repository_the_files_own_anchors_are_checked(self):
+        folder = pathlib.Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, folder, True)
+        doc = folder / "DECISIONS.md"
+        doc.write_text(self.DOC)
+        self.assertEqual(run([sys.executable, str(SCRIPT), "compact", str(doc)]).returncode, 4)
+        doc.write_text(self.AFTER + "\nSee [x](#snapshot-lifetime-policy).\n")
+        result = run([sys.executable, str(SCRIPT), "compact", str(doc), "--verify"])
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("Not in a git repository", result.stdout)
+
+    def test_git_rev_parse_failing_means_outside_whatever_it_says(self):
+        # A repository git refuses for its owner, a broken .git link and a
+        # filesystem boundary all fail rev-parse: each is outside a
+        # repository, and the report says other files were not checked.
+        repo = self.repo_with({"DECISIONS.md": self.DOC, "a.txt": "Snapshot lifetime policy\n"})
+        env = dict(os.environ, GIT_TEST_ASSUME_DIFFERENT_OWNER="1")
+        result = run([sys.executable, str(SCRIPT), "compact", "DECISIONS.md"], cwd=repo.path, env=env)
+        self.assertEqual(result.returncode, 4, result.stderr)
+        (repo.path / "DECISIONS.md").write_text(self.AFTER)
+        result = run([sys.executable, str(SCRIPT), "compact", "DECISIONS.md", "--verify"],
+                     cwd=repo.path, env=env)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("references from other files were not checked", result.stdout)
+        folder = pathlib.Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, folder, True)
+        (folder / ".git").write_text("gitdir: /nonexistent/repo/.git\n")
+        (folder / "DECISIONS.md").write_text(self.DOC)
+        result = run([sys.executable, str(SCRIPT), "compact", str(folder / "DECISIONS.md")])
+        self.assertEqual(result.returncode, 4, result.stderr)
+
+    def test_grep_writing_an_error_fails_even_when_it_exits_0(self):
+        if os.geteuid() == 0:
+            self.skipTest("root reads every file")
+        repo = self.repo_with({"DECISIONS.md": self.DOC, "other.md": "Nothing.\n"})
         self.assertEqual(repo.prose("compact", "DECISIONS.md").returncode, 4)
-        (repo.path / "DECISIONS.md").write_text(new_text)
-        return repo.prose("compact", "DECISIONS.md", "--verify")
+        repo.write("DECISIONS.md", self.AFTER)
+        # The index's old copy of other.md still matches, so git grep exits 0.
+        (repo.path / "other.md").write_text("See Snapshot lifetime policy.\n")
+        os.chmod(repo.path / "other.md", 0)
+        self.addCleanup(os.chmod, repo.path / "other.md", 0o644)
+        result = repo.prose("compact", "DECISIONS.md", "--verify")
+        self.assertEqual(result.returncode, 2, result.stdout)
+        self.assertIn("git grep failed", result.stderr)
 
-    def test_a_link_from_a_code_comment_is_checked(self):
-        repo = self.repo_with({
-            "DECISIONS.md": "# D\n\n## The trailer is minted from the tree\n\nText.\n",
-            "hook.sh": "# see DECISIONS.md#the-trailer-is-minted-from-the-tree\n"})
-        result = self.verify_after(repo, "# D\n\n## Trailers come from the tree\n\nText.\n")
+    def test_submodules_are_not_searched_whatever_the_config(self):
+        sub = self.repo_with({"n.txt": "Snapshot lifetime policy\n"})
+        repo = self.repo_with({"DECISIONS.md": self.DOC})
+        repo.git("-c", "protocol.file.allow=always", "submodule", "add", "-q", str(sub.path), "sub")
+        repo.commit("sub\n")
+        repo.git("config", "submodule.recurse", "true")
+        self.assertEqual(self.verify_after(repo, self.AFTER).returncode, 0)
+
+    def test_a_file_git_treats_as_binary_is_still_searched(self):
+        repo = self.repo_with({".gitattributes": "notes.md -diff\n", "DECISIONS.md": self.DOC,
+                               "notes.md": "see DECISIONS.md#snapshot-lifetime-policy\n"})
+        result = self.verify_after(repo, self.AFTER)
         self.assertEqual(result.returncode, 1, result.stdout)
-        self.assertIn("hook.sh links to #the-trailer-is-minted-from-the-tree", result.stdout)
+        self.assertIn("notes.md:1 links to", result.stdout)
 
-    def test_an_underscore_inside_a_heading_word_is_kept(self):
-        doc = "# D\n\n## The MAX_SIZE limit\n\nText.\n\n## Why MAX_RETRIES is three\n\nMore.\n"
-        repo = self.repo_with({"DECISIONS.md": doc,
-                               "README.md": "See [it](DECISIONS.md#the-max_size-limit).\n",
-                               "code.py": "# DECISIONS: Why MAX_RETRIES is three\n"})
-        self.assertEqual(self.verify_after(repo, doc).returncode, 0)
-        result = self.verify_after(repo, "# D\n\n## The MAX_SIZE limit\n\nText.\n")
-        self.assertEqual(result.returncode, 1, result.stdout)
-        self.assertIn("the heading 'Why MAX_RETRIES is three' is gone", result.stdout)
+    def test_a_hash_ending_a_headings_text_is_kept(self):
+        self.assertEqual(compact.heading_texts("## Building with C#\n## Closed ##\n"),
+                         ["Building with C#", "Closed"])
 
-    def test_a_setext_heading_gives_an_anchor(self):
-        doc = "# D\n\nOther\n=====\n\nText.\n"
-        repo = self.repo_with({"DECISIONS.md": doc,
-                               "README.md": "See [it](DECISIONS.md#other).\n"})
-        self.assertEqual(self.verify_after(repo, doc).returncode, 0)
+    def test_a_tracked_symlink_is_refused(self):
+        repo = self.repo_with({"README.md": "x\n"})
+        (repo.path / "untracked.md").write_text(self.DOC)
+        os.symlink("untracked.md", repo.path / "link.md")
+        repo.git("add", "link.md")
+        repo.commit("link\n")
+        # A symlink's blob is its target's name, not prose.
+        result = repo.prose("compact", "link.md")
+        self.assertEqual(result.returncode, 2, result.stdout)
+        self.assertIn("a symlink holds no prose", result.stderr)
+
+    def test_an_unreadable_tracked_file_is_an_error(self):
+        if os.geteuid() == 0:
+            self.skipTest("root reads every file")
+        repo = self.repo_with({"DECISIONS.md": self.DOC, "ref.md": "Snapshot lifetime policy\n"})
+        self.assertEqual(repo.prose("compact", "DECISIONS.md").returncode, 4)
+        (repo.path / "DECISIONS.md").write_text(self.AFTER)
+        os.chmod(repo.path / "ref.md", 0)
+        self.addCleanup(os.chmod, repo.path / "ref.md", 0o644)
+        self.assertEqual(repo.prose("compact", "DECISIONS.md", "--verify").returncode, 2)
+
+    def test_a_tracked_file_outside_the_work_tree_is_still_searched(self):
+        repo = self.repo_with({"DECISIONS.md": self.DOC, "ref.md": "Snapshot lifetime policy\n"})
+        repo.git("sparse-checkout", "set", "--no-cone", "/DECISIONS.md")
+        self.assertEqual(self.verify_after(repo, self.AFTER).returncode, 1)
+
+    def test_a_root_whose_name_ends_in_a_space_works(self):
+        parent = pathlib.Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, parent, True)
+        root = parent / "sp "
+        root.mkdir()
+        run(["git", "init", "-q"], cwd=root)
+        (root / "DECISIONS.md").write_text(self.DOC)
+        run(["git", "add", "DECISIONS.md"], cwd=root)
+        run(["git", "-c", "user.name=T", "-c", "user.email=t@e", "commit", "-qm", "base"], cwd=root)
+        self.assertEqual(run([sys.executable, str(SCRIPT), "compact", "DECISIONS.md"], cwd=root).returncode, 4)
+
+    def test_extra_spaces_after_the_hashes_are_not_part_of_the_heading(self):
+        self.assertEqual(compact.heading_texts("##  Configuration of the widget\n"),
+                         ["Configuration of the widget"])
+
+    def test_a_path_with_a_space_is_quoted_in_the_next_command(self):
+        repo = self.repo_with({"my skill/SKILL.md": "# S\n\n## Size budget\n\nA.\n"})
+        self.assertIn("compact 'my skill/SKILL.md' --verify",
+                      repo.prose("compact", "my skill/SKILL.md").stdout)
+
+    def test_a_file_once_emptied_is_measured_without_dividing_by_zero(self):
+        repo = self.repo_with({"SKILL.md": "x" * 100})
+        repo.write("SKILL.md", "")
+        repo.commit("empty\n")
+        repo.write("SKILL.md", "y " * 25000)
+        found = compact.due(["SKILL.md"], str(repo.path))
+        self.assertEqual(len(found), 1, found)
 
     def test_a_compaction_inside_a_merged_branch_is_found(self):
         repo = self.repo_with({".gitattributes": "* prose-compact-budget=1000\n",
@@ -4251,106 +4524,575 @@ class CompactRegressions(unittest.TestCase):
         repo.write("DECISIONS.md", paragraphs(32))
         self.assertEqual(compact.due(["DECISIONS.md"], str(repo.path)), [])
 
+    def test_tracked_symlinks_are_not_counted_as_searched(self):
+        repo = self.repo_with({"DECISIONS.md": self.DOC})
+        os.symlink("DECISIONS.md#snapshot-lifetime-policy", repo.path / "link.md")
+        repo.git("add", "link.md")
+        repo.commit("link\n")
+        result = self.verify_after(repo, self.AFTER)
+        self.assertIn("the repository's 1 tracked file,", result.stdout)
+
+    def test_a_sparse_index_hint_is_not_an_error(self):
+        repo = self.repo_with({"DECISIONS.md": self.DOC, "far/ref.md": "x\n"})
+        repo.git("sparse-checkout", "init", "--cone", "--sparse-index")
+        repo.git("sparse-checkout", "set", "near")
+        (repo.path / "far").mkdir(exist_ok=True)
+        (repo.path / "far" / "ref.md").write_text("Snapshot lifetime policy\n")
+        result = self.verify_after(repo, self.AFTER)
+        self.assertNotIn("git grep failed", result.stderr)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+
+    def test_indented_and_tab_separated_headings_are_headings(self):
+        self.assertEqual(compact.heading_texts("   ## Indented heading here\n##\tTabbed heading here\n"
+                                               "    ## Code, not a heading\n"),
+                         ["Indented heading here", "Tabbed heading here"])
+
+    def test_a_tracked_file_whose_name_holds_a_newline_is_attributed_rightly(self):
+        repo = self.repo_with({"DECISIONS.md": self.DOC,
+                               "x\nDECISIONS.md": "See DECISIONS.md#snapshot-lifetime-policy\n"})
+        result = self.verify_after(repo, self.AFTER)
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("x\nDECISIONS.md:1 links to", result.stdout)
+
+    def test_the_tracked_count_leaves_out_submodules_and_says_so(self):
+        sub = self.repo_with({"n.txt": "x\n"})
+        repo = self.repo_with({"DECISIONS.md": self.DOC})
+        repo.git("-c", "protocol.file.allow=always", "submodule", "add", "-q", str(sub.path), "sub")
+        repo.commit("sub\n")
+        result = self.verify_after(repo, self.AFTER)
+        self.assertIn("the repository's 2 tracked files, in the work tree and the index, "
+                      "not its 1 submodule", result.stdout)
+
     def test_a_marker_wrapped_across_a_line_is_found(self):
         self.assertEqual(
             [m.line for m in compact.history_markers("The limit was changed\nto 5.\n\n**Revised\n2026-09-30.** X.\n")],
             [1, 4])
 
 
-class CompactRegressionsTwo(unittest.TestCase):
-    """Bugs bug-hunter's second iteration proved in the compaction code."""
 
-    def repo_with(self, files):
-        repo = Repo()
-        self.addCleanup(repo.cleanup)
-        for name, text in files.items():
-            repo.write(name, text)
-        repo.commit("base\n")
-        return repo
+class GivenReferrers(unittest.TestCase):
+    """The files --verify searches beside the tracked ones: paths after `--`,
+    and lists from --paths-from."""
 
-    def verify_after(self, repo, new_text, name="DECISIONS.md"):
-        self.assertEqual(repo.prose("compact", name).returncode, 4)
-        (repo.path / name).write_text(new_text)
-        return repo.prose("compact", name, "--verify")
+    DOC = ConservativeVerify.DOC
+    AFTER = ConservativeVerify.AFTER
+    LINK = "See [it](DECISIONS.md#snapshot-lifetime-policy).\n"
 
-    def test_a_link_shown_in_code_is_not_a_link(self):
-        for readme in ("Syntax: `[why](DECISIONS.md#old-heading)` here.\n",
-                       "```markdown\nSee [why](DECISIONS.md#old-heading).\n```\n"):
-            with self.subTest(readme=readme):
-                repo = self.repo_with({"DECISIONS.md": "# D\n\n## Old heading\n\nText.\n",
-                                       "README.md": readme})
-                result = self.verify_after(repo, "# D\n\nText.\n")
-                self.assertEqual(result.returncode, 0, result.stdout)
-
-    def test_outside_a_repository_a_link_broken_before_does_not_fail(self):
+    def folder(self, files):
         folder = pathlib.Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, folder, True)
-        doc = folder / "DECISIONS.md"
-        doc.write_text("# D\n\nSee [the setup](#setup).\n")
-        self.assertEqual(run([sys.executable, str(SCRIPT), "compact", str(doc)]).returncode, 4)
-        result = run([sys.executable, str(SCRIPT), "compact", str(doc), "--verify"])
+        for name, text in files.items():
+            (folder / name).parent.mkdir(parents=True, exist_ok=True)
+            (folder / name).write_text(text) if isinstance(text, str) else (folder / name).write_bytes(text)
+        return folder
+
+    def outside(self, files, *extra, stdin=None):
+        folder = self.folder(dict({"DECISIONS.md": self.DOC}, **files))
+        self.assertEqual(run([sys.executable, str(SCRIPT), "compact", "DECISIONS.md"],
+                             cwd=folder).returncode, 4)
+        (folder / "DECISIONS.md").write_text(self.AFTER)
+        return run([sys.executable, str(SCRIPT), "compact", "DECISIONS.md", "--verify", *extra],
+                   cwd=folder, stdin=stdin)
+
+    def test_outside_with_no_paths_says_other_files_were_not_checked(self):
+        result = self.outside({"notes/a.md": self.LINK})
         self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn("Searched for references: the file's own links. Not in a git repository and "
+                      "no paths given, so references from other files were not checked", result.stdout)
 
-    def test_a_root_relative_link_is_checked(self):
-        repo = self.repo_with({"docs/DECISIONS.md": "# D\n\n## Old heading\n\nText.\n",
-                               "sub/README.md": "[why](/docs/DECISIONS.md#old-heading)\n"})
-        result = self.verify_after(repo, "# D\n\nText.\n", "docs/DECISIONS.md")
+    def test_files_after_the_dashes(self):
+        result = self.outside({"notes/a.md": self.LINK, "b.txt": "Snapshot lifetime policy\n"},
+                              "--", "b.txt", "notes/a.md", "notes/a.md")
         self.assertEqual(result.returncode, 1, result.stdout)
-        self.assertIn("sub/README.md links to #old-heading", result.stdout)
+        self.assertIn("notes/a.md:1 links to #snapshot-lifetime-policy", result.stdout)
+        self.assertIn("b.txt:1 names 'Snapshot lifetime policy'", result.stdout)
+        self.assertEqual(result.stdout.count("notes/a.md:1 links to"), 1, result.stdout)
 
-    def test_the_same_heading_in_another_doc_is_not_a_citation(self):
-        repo = self.repo_with({
-            "a/DECISIONS.md": "# A\n\n## Scripts are found from the base directory\n\nX.\n",
-            "b/DECISIONS.md": "# B\n\n## Scripts are found from the base directory\n\nY.\n"})
-        result = self.verify_after(repo, "# A\n\n## Scripts resolve from the directory\n\nX.\n",
-                                   "a/DECISIONS.md")
+    def test_a_directory_is_refused_with_how_to_list_its_files(self):
+        result = self.outside({"notes/a.md": self.LINK}, "--", "notes")
+        self.assertEqual(result.returncode, 2, result.stdout)
+        self.assertIn("notes: a directory; name the files in it", result.stderr)
+        self.assertIn("rg -l <name> notes | prose compact --verify <file> --paths-from -",
+                      result.stderr)
+        self.assertIn("-print0", result.stderr)
+
+    def test_a_dangling_symlink_is_an_error(self):
+        folder = self.folder({"DECISIONS.md": self.DOC})
+        os.symlink("nowhere.md", folder / "dangling.md")
+        result = run([sys.executable, str(SCRIPT), "compact", "DECISIONS.md", "--",
+                      "dangling.md"], cwd=folder)
+        self.assertEqual(result.returncode, 2, result.stdout)
+        self.assertIn("dangling.md: no such file", result.stderr)
+
+    def test_a_file_named_after_the_dashes_is_read_whatever_its_suffix(self):
+        result = self.outside({"a.py": self.LINK}, "--", "a.py")
+        self.assertEqual(result.returncode, 1, result.stdout)
+
+    def test_paths_from_a_file_and_from_stdin(self):
+        result = self.outside({"n/a.md": self.LINK, "list.txt": "n/a.md\r\n\n"},
+                              "--paths-from", "list.txt")
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("n/a.md:1 links to", result.stdout)
+        result = self.outside({"n/a.md": self.LINK}, "--paths-from", "-", stdin="n/a.md\n")
+        self.assertEqual(result.returncode, 1, result.stdout)
+
+    def test_nul_separated_paths_keep_spaces_and_newlines(self):
+        result = self.outside({"n/a b\nc.md": self.LINK}, "--paths-from", "-", "-0",
+                              stdin="n/a b\nc.md\0")
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("1 given file from the list on stdin.", result.stdout)
+
+    def test_a_nul_separated_list_without_the_flag_says_add_it(self):
+        result = self.outside({"n/a.md": self.LINK}, "--paths-from", "-", stdin="n/a.md\0")
+        self.assertEqual(result.returncode, 2, result.stdout)
+        self.assertIn("holds NUL bytes", result.stderr)
+        self.assertIn("add -0", result.stderr)
+
+    def test_paths_after_the_dashes_follow_any_option(self):
+        result = self.outside({"n/a.md": self.LINK, "list.txt": "n/b.md\n", "n/b.md": "x\n"},
+                              "--paths-from", "list.txt", "--", "n/a.md")
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("2 given files", result.stdout)
+
+    def test_a_file_named_after_the_dashes_alone_is_the_doc(self):
+        folder = self.folder({"-notes.md": self.DOC, "r.md": self.LINK})
+        result = run([sys.executable, str(SCRIPT), "compact", "--", "-notes.md"], cwd=folder)
+        self.assertEqual(result.returncode, 4, result.stderr)
+        result = run([sys.executable, str(SCRIPT), "compact", "--verify", "--", "-notes.md",
+                      "r.md"], cwd=folder)
+        self.assertNotIn("arguments are required", result.stderr)
+        self.assertIn("1 given file from r.md", result.stdout)
+
+    def test_the_commands_printed_for_a_dash_named_file_run(self):
+        folder = self.folder({"-notes.md": self.DOC})
+        result = run([sys.executable, str(SCRIPT), "compact", "--", "-notes.md"], cwd=folder)
+        self.assertIn("compact ./-notes.md --verify", result.stdout)
+        self.assertEqual(compact.command_path("-x.md"), "./-x.md")
+        self.assertEqual(compact.command_path("a b.md"), "'a b.md'")
+
+    def test_a_closed_stdin_does_not_crash(self):
+        folder = self.folder({"DECISIONS.md": self.DOC})
+        result = subprocess.run([sys.executable, str(SCRIPT), "compact", "DECISIONS.md"], cwd=folder,
+                                stdin=subprocess.DEVNULL, capture_output=True, text=True,
+                                close_fds=True, preexec_fn=lambda: os.close(0))
+        self.assertEqual(result.returncode, 4, result.stderr)
+
+    def test_a_referrer_without_the_dashes_and_an_abbreviation_are_errors(self):
+        folder = self.folder({"DECISIONS.md": self.DOC, "r.md": self.LINK, "l.txt": "r.md\n"})
+        for extra in (["r.md"], ["--verify", "r.md"], ["--paths", "l.txt"]):
+            with self.subTest(extra=extra):
+                result = run([sys.executable, str(SCRIPT), "compact", "DECISIONS.md", *extra],
+                             cwd=folder)
+                self.assertEqual(result.returncode, 2, result.stdout)
+                self.assertIn("unrecognized arguments", result.stderr)
+
+    def test_printed_fixes_use_the_callers_spelling(self):
+        folder = self.folder({"DECISIONS.md": self.DOC, "-docs/a.md": self.LINK})
+        result = run([sys.executable, str(SCRIPT), "compact", "DECISIONS.md", "--", "-docs"],
+                     cwd=folder)
+        self.assertIn("rg -l <name> ./-docs", result.stderr)
+        repo = ConservativeVerify.repo_with(self, {"sub/DECISIONS.md": self.DOC})
+        self.assertEqual(run([sys.executable, str(SCRIPT), "compact", "DECISIONS.md"],
+                             cwd=repo.path / "sub").returncode, 4)
+        (repo.path / "sub/DECISIONS.md").write_text(self.AFTER)
+        result = run([sys.executable, str(SCRIPT), "compact", "DECISIONS.md", "--verify"],
+                     cwd=repo.path / "sub")
+        self.assertIn("(git add DECISIONS.md)", result.stderr)
+
+    def test_an_empty_list_is_reported_as_empty(self):
+        result = self.outside({}, "--paths-from", "-", stdin="")
         self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn("0 given files (the list was empty)", result.stdout)
 
-    def test_anchors_match_github_on_edge_headings(self):
-        text = ("# D\n\n## Use _ as placeholder\n\n## See [RFC 1234][rfc]\n\n## The &amp; sign\n\n"
-                "A paragraph that wraps\nonto a second line\n---\n\n"
-                "- item\n  continued text here\n---\n\n<details>\n---\n\n"
-                "[rfc]: https://www.rfc-editor.org/rfc/rfc1234\n")
-        self.assertEqual(compact.anchors(text),
-                         {"d", "use-_-as-placeholder", "see-rfc-1234", "the--sign",
-                          "a-paragraph-that-wraps-onto-a-second-line"})
+    def test_a_missing_path_and_a_misused_flag_are_refused(self):
+        self.assertIn("nope: no such file", self.outside({}, "--", "nope").stderr)
+        self.assertIn("-0 goes with --paths-from", self.outside({}, "-0").stderr)
+        folder = self.folder({"DECISIONS.md": self.DOC})
+        run([sys.executable, str(SCRIPT), "compact", "DECISIONS.md"], cwd=folder)
+        result = run([sys.executable, str(SCRIPT), "compact", "DECISIONS.md", "--review", "--",
+                      "DECISIONS.md"],
+                     cwd=folder)
+        self.assertEqual(result.returncode, 2)
 
+    def test_the_report_names_where_each_list_came_from(self):
+        result = self.outside({"n/a.md": self.LINK, "list.txt": "n/a.md\n"},
+                              "--paths-from", "list.txt", "--", "n/a.md")
+        self.assertIn("2 given files from the list in list.txt, n/a.md.", result.stdout)
+        result = self.outside({"n/a.md": self.LINK}, "--paths-from", "-", stdin="n/a.md\n")
+        self.assertIn("1 given file from the list on stdin.", result.stdout)
 
-class CompactRegressionsThree(unittest.TestCase):
-    """Bugs bug-hunter's third iteration proved in the compaction code."""
+    def test_an_unreadable_referrer_fails_even_when_nothing_was_removed(self):
+        if os.geteuid() == 0:
+            self.skipTest("root reads every file")
+        folder = self.folder({"DECISIONS.md": self.DOC + "\nWe previously did it.\n", "ref.md": "x\n"})
+        run([sys.executable, str(SCRIPT), "compact", "DECISIONS.md"], cwd=folder)
+        (folder / "DECISIONS.md").write_text(self.DOC)
+        os.chmod(folder / "ref.md", 0)
+        self.addCleanup(os.chmod, folder / "ref.md", 0o644)
+        result = run([sys.executable, str(SCRIPT), "compact", "DECISIONS.md", "--verify", "--",
+                      "ref.md"], cwd=folder)
+        self.assertEqual(result.returncode, 2, result.stdout)
+        self.assertIn("ref.md: could not read it", result.stderr)
 
-    repo_with = CompactRegressionsTwo.repo_with
-    verify_after = CompactRegressionsTwo.verify_after
+    def test_a_snapshot_older_than_its_lifetime_is_refused(self):
+        folder = self.folder({"DECISIONS.md": self.DOC})
+        env = dict(os.environ, XDG_STATE_HOME=str(folder / "state"))
+        run([sys.executable, str(SCRIPT), "compact", "DECISIONS.md"], cwd=folder, env=env)
+        for snapshot in (folder / "state/prose/compact").iterdir():
+            fields = json.loads(snapshot.read_text())
+            fields["saved"] -= compact.SNAPSHOT_LIFETIME + 60
+            snapshot.write_text(json.dumps(fields))
+        result = run([sys.executable, str(SCRIPT), "compact", "DECISIONS.md", "--verify"],
+                     cwd=folder, env=env)
+        self.assertEqual(result.returncode, 2, result.stdout)
+        self.assertIn("no snapshot of DECISIONS.md from the last 7 days", result.stderr)
 
-    def test_a_link_the_compaction_added_to_a_missing_anchor_fails(self):
-        repo = self.repo_with({"DECISIONS.md": "# D\n\n## Size budget\n\nA.\n\n## Other rule\n\n"
-                                               "B holds, for a long and repeated reason, twice over.\n"})
-        result = self.verify_after(repo, "# D\n\n## Size budget\n\nA.\n\n## Other rule\n\n"
-                                         "B, bounded by [the budget](#size-budgets).\n")
+    def test_the_doc_named_in_another_case_or_by_a_hard_link_is_not_a_referrer(self):
+        folder = self.folder({"DECISIONS.md": self.DOC})
+        os.link(folder / "DECISIONS.md", folder / "alias.md")
+        names = ["alias.md"] + (["decisions.md"] if (folder / "decisions.md").exists() else [])
+        files = compact.referrer_files([str(folder / n) for n in names], folder / "DECISIONS.md")
+        self.assertEqual(files.files, [])
+
+    def test_a_referrer_that_exists_but_cannot_be_read_says_so(self):
+        if os.geteuid() == 0:
+            self.skipTest("root reads every file")
+        folder = self.folder({"DECISIONS.md": self.DOC, "locked/ref.md": "x\n"})
+        os.mkfifo(folder / "fifo")
+        os.chmod(folder / "locked", 0)
+        self.addCleanup(os.chmod, folder / "locked", 0o755)
+        with self.assertRaisesRegex(ValueError, "not a regular file"):
+            compact.referrer_files([str(folder / "fifo")], folder / "DECISIONS.md")
+        with self.assertRaisesRegex(ValueError, "could not read it"):
+            compact.referrer_files([str(folder / "locked/ref.md")], folder / "DECISIONS.md")
+
+    def test_the_doc_itself_is_not_a_referrer(self):
+        result = self.outside({}, "--", "DECISIONS.md", "./DECISIONS.md")
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn("0 given files", result.stdout)
+
+    def test_inside_a_repository_given_paths_add_to_the_tracked_files(self):
+        repo = ConservativeVerify.repo_with(self, {"DECISIONS.md": self.DOC})
+        (repo.path / "untracked.md").write_text(self.LINK)
+        elsewhere = self.folder({"x.md": self.LINK})
+        self.assertEqual(repo.prose("compact", "DECISIONS.md").returncode, 4)
+        repo.write("DECISIONS.md", self.AFTER)
+        result = repo.prose("compact", "DECISIONS.md", "--verify")
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn("the repository's 1 tracked file, in the work tree and the index.", result.stdout)
+        result = repo.prose("compact", "DECISIONS.md", "--verify", "--", "untracked.md",
+                            str(elsewhere / "x.md"))
         self.assertEqual(result.returncode, 1, result.stdout)
-        self.assertIn("#size-budgets", result.stdout)
+        self.assertIn("untracked.md:1 links to", result.stdout)
+        self.assertIn(f"{elsewhere}/x.md:1 links to", result.stdout)
 
-    def test_a_reference_definition_to_an_own_heading_is_checked(self):
-        doc = "# D\n\nSee [the budget][budget].\n\n## Size budget\n\nA.\n\n[budget]: #size-budget\n"
-        repo = self.repo_with({"DECISIONS.md": doc})
-        result = self.verify_after(repo, "# D\n\nSee [the budget][budget].\n\n[budget]: #size-budget\n")
-        self.assertEqual(result.returncode, 1, result.stdout)
+    def test_the_brief_names_headings_a_given_file_references_and_the_command(self):
+        folder = self.folder({"DECISIONS.md": self.DOC, "n/a.md": self.LINK})
+        result = run([sys.executable, str(SCRIPT), "compact", "DECISIONS.md", "--", "n/a.md"],
+                     cwd=folder)
+        self.assertEqual(result.returncode, 4, result.stderr)
+        self.assertIn("  #snapshot-lifetime-policy  (in n/a.md)", result.stdout)
+        self.assertIn("compact DECISIONS.md --verify -- n/a.md\n", result.stdout)
+        self.assertNotIn("checks only its own links", result.stdout)
 
-    def test_a_path_with_a_space(self):
-        repo = self.repo_with({"my skill/SKILL.md": "# S\n\n## Size budget\n\nA.\n",
-                               "README.md": "[a](my%20skill/SKILL.md#size-budget) "
-                                            "[b](<my skill/SKILL.md#size-budget>)\n"})
-        brief = repo.prose("compact", "my skill/SKILL.md")
-        self.assertIn("compact 'my skill/SKILL.md' --verify", brief.stdout)
-        (repo.path / "my skill/SKILL.md").write_text("# S\n\nA.\n")
-        result = repo.prose("compact", "my skill/SKILL.md", "--verify")
-        self.assertEqual(result.returncode, 1, result.stdout)
-        self.assertIn("Links into this file: 2 checked, 2 broken.", result.stdout)
 
-    def test_an_unpaired_underscore_is_literal(self):
-        self.assertEqual(compact.anchors("## Env vars: PROSE_*\n\n## Files named _draft\n\n"
-                                         "## The MAX_ prefix\n"),
-                         {"env-vars-prose_", "files-named-_draft", "the-max_-prefix"})
+class CompactionGate(unittest.TestCase):
+    """`prose check` refuses to sign a compaction unless --verify passed on
+    the staged blob and its review was completed."""
+
+    DOC = ConservativeVerify.DOC + "".join(f"\nParagraph {n}, at some length.\n" for n in range(20))
+    AFTER = ConservativeVerify.AFTER
+    PASSES = ".git/prose/passes"
+
+    def setUp(self):
+        self.repo = Repo()
+        self.addCleanup(self.repo.cleanup)
+        self.repo.write("DECISIONS.md", self.DOC)
+        self.repo.commit("base\n")
+
+    def sign(self):
+        (self.repo.path / ".msg").write_text("DOCS(x): compact\n")
+        return self.repo.two_calls("check", "-F", ".msg", "--goals", "review it")
+
+    def pending(self):
+        # From the repository, as prose check runs, so printed paths are
+        # relative to it.
+        here = os.getcwd()
+        os.chdir(self.repo.path)
+        try:
+            return compact.unverified(str(self.repo.path), False, self.repo.path / self.PASSES)
+        finally:
+            os.chdir(here)
+
+    def write(self, name, text):
+        path = self.repo.path / name
+        path.write_text(text)
+        return str(path)
+
+    CLEAN = "Change 1: superseded\nChange 2: superseded\nTotals: 0 lost, 0 false\n"
+
+    def compaction(self, after=None, reply=CLEAN):
+        """The steps SKILL.md gives: snapshot, compact, stage, verify,
+        review, record the review."""
+        self.assertEqual(self.repo.prose("compact", "DECISIONS.md").returncode, 4)
+        self.repo.write("DECISIONS.md", self.AFTER if after is None else after)
+        verified = self.repo.prose("compact", "DECISIONS.md", "--verify")
+        self.assertEqual(verified.returncode, 0, verified.stdout + verified.stderr)
+        self.assertEqual(self.repo.prose("compact", "DECISIONS.md", "--review").returncode, 4)
+        return self.repo.prose("compact", "DECISIONS.md", "--reviewed", self.write(".reply", reply))
+
+    def test_an_unverified_unreviewed_compaction_is_refused_naming_both_steps(self):
+        self.assertEqual(self.repo.prose("compact", "DECISIONS.md").returncode, 4)
+        self.repo.write("DECISIONS.md", self.AFTER)
+        first = self.repo.prose("check", "-F", "-", "--goals", "g", stdin="DOCS(x): c\n")
+        self.assertIn("DECISIONS.md was compacted but not verified", first.stdout)
+        result = self.sign()
+        self.assertEqual(result.returncode, 2, result.stdout)
+        self.assertIn("DECISIONS.md was compacted but not verified; run "
+                      "`prose compact --verify DECISIONS.md`", result.stderr)
+        self.assertIn("DECISIONS.md was compacted but its review was not completed", result.stderr)
+
+    def test_a_verified_and_reviewed_compaction_signs(self):
+        done = self.compaction()
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertEqual(self.pending(), [])
+        result = self.sign()
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_verified_but_not_reviewed_names_the_review(self):
+        self.repo.prose("compact", "DECISIONS.md")
+        self.repo.write("DECISIONS.md", self.AFTER)
+        self.assertEqual(self.repo.prose("compact", "DECISIONS.md", "--verify").returncode, 0)
+        found = self.pending()
+        self.assertEqual(len(found), 1, found)
+        self.assertIn("its review was not completed", found[0])
+
+    def test_verify_and_review_refuse_an_unstaged_file(self):
+        self.repo.prose("compact", "DECISIONS.md")
+        (self.repo.path / "DECISIONS.md").write_text(self.AFTER)
+        for step in ("--verify", "--review"):
+            result = self.repo.prose("compact", "DECISIONS.md", step)
+            self.assertEqual(result.returncode, 2, result.stdout)
+            self.assertIn("has changes that are not staged", result.stderr)
+
+    def test_a_change_after_the_records_is_refused_again(self):
+        self.compaction()
+        self.repo.write("DECISIONS.md", self.AFTER + "\nMore.\n")
+        self.assertEqual(len(self.pending()), 2)
+
+    def test_the_first_call_refuses_a_file_that_differs_from_head(self):
+        self.repo.prose("compact", "DECISIONS.md")
+        self.repo.write("DECISIONS.md", self.AFTER)
+        # Run again on the compacted copy: refused, so no snapshot can start
+        # from anything but the committed file.
+        result = self.repo.prose("compact", "DECISIONS.md")
+        self.assertEqual(result.returncode, 2, result.stdout)
+        self.assertIn("differs from HEAD's; commit the change you were making first", result.stderr)
+
+    def test_a_failed_verify_removes_its_record(self):
+        self.compaction()
+        (self.repo.path / "ref.md").write_text("DECISIONS.md#snapshot-lifetime-policy\n")
+        self.assertEqual(self.repo.prose("compact", "DECISIONS.md", "--verify", "--",
+                                         "ref.md").returncode, 1)
+        self.assertEqual([line for line in self.pending() if "not verified" in line],
+                         ["DECISIONS.md was compacted but not verified; run "
+                          "`prose compact --verify DECISIONS.md`"])
+
+    def test_the_reply_must_answer_every_change_and_total_its_findings(self):
+        self.repo.prose("compact", "DECISIONS.md")
+        self.repo.write("DECISIONS.md", self.AFTER)
+        self.repo.prose("compact", "DECISIONS.md", "--review")
+        both = "Change 1: holds\nChange 2: superseded\n"
+        for reply, error in (("Totals: 0 lost, 0 false\n", "no verdict for changes 1, 2"),
+                             ("Change 1: superseded\nTotals: 0 lost, 0 false\n",
+                              "no verdict for change 2"),
+                             (both, "needs one line 'Totals: 0 lost, 0 false'"),
+                             (both + "Change 1: lost: x\nTotals: 0 lost, 0 false\n",
+                              "Totals: 1 lost"),
+                             (both + "Change 3: holds\nTotals: 0 lost, 0 false\n",
+                              "change 3 is not one of"),
+                             (both + "Change 1 - lost\nTotals: 0 lost, 0 false\n",
+                              "does not allow")):
+            with self.subTest(reply=reply):
+                result = self.repo.prose("compact", "DECISIONS.md", "--reviewed",
+                                         self.write(".reply", reply))
+                self.assertEqual(result.returncode, 2, result.stdout)
+                self.assertIn(error, result.stderr)
+
+    def test_findings_need_answers_and_a_fix_needs_a_changed_file(self):
+        reply = "Change 1: lost: the snapshot policy\nChange 2: superseded\nTotals: 1 lost, 0 false\n"
+        self.repo.prose("compact", "DECISIONS.md")
+        self.repo.write("DECISIONS.md", self.AFTER)
+        self.repo.prose("compact", "DECISIONS.md", "--review")
+        reviewed = lambda *extra: self.repo.prose("compact", "DECISIONS.md", "--reviewed",
+                                                  self.write(".reply", reply), *extra)
+        self.assertIn("pass it with --dispositions", reviewed().stderr)
+        fixed = ["--dispositions", self.write(".answers", "Change 1: fixed\n")]
+        self.assertIn("is the file the reviewer read", reviewed(*fixed).stderr)
+        self.assertIn("not 'Change <n>: fixed'",
+                      reviewed("--dispositions", self.write(".answers", "Change 1: kept\n")).stderr)
+        kept = reviewed("--dispositions", self.write(".answers", "Change 1: kept: still true\n"))
+        self.assertEqual(kept.returncode, 0, kept.stderr)
+        self.repo.write("DECISIONS.md", self.AFTER + "\nThe snapshot policy, restored.\n")
+        self.assertEqual(self.repo.prose("compact", "DECISIONS.md", "--verify").returncode, 0)
+        # The kept call above rewrote .answers; the fix is answered afresh.
+        fixed = ["--dispositions", self.write(".answers", "Change 1: fixed\n")]
+        self.assertEqual(reviewed(*fixed).returncode, 0)
+        self.assertEqual(self.pending(), [])
+
+    def test_a_review_that_did_not_see_the_staged_file_is_refused(self):
+        self.repo.prose("compact", "DECISIONS.md")
+        # Reviewed before the compaction: no changes to answer.
+        self.repo.prose("compact", "DECISIONS.md", "--review")
+        self.repo.write("DECISIONS.md", self.AFTER)
+        self.assertEqual(self.repo.prose("compact", "DECISIONS.md", "--verify").returncode, 0)
+        result = self.repo.prose("compact", "DECISIONS.md", "--reviewed",
+                                 self.write(".reply", "Totals: 0 lost, 0 false\n"))
+        self.assertEqual(result.returncode, 2, result.stdout)
+        self.assertIn("not the file the reviewer read", result.stderr)
+
+    def test_an_assume_unchanged_or_skip_worktree_file_is_refused(self):
+        for flag in ("--assume-unchanged", "--skip-worktree"):
+            with self.subTest(flag=flag):
+                self.repo.git("update-index", flag, "DECISIONS.md")
+                self.addCleanup(self.repo.git, "update-index", flag.replace("--", "--no-"),
+                                "DECISIONS.md")
+                result = self.repo.prose("compact", "DECISIONS.md")
+                self.assertEqual(result.returncode, 2, result.stdout)
+                self.assertIn("marked", result.stderr)
+                self.repo.git("update-index", flag.replace("--", "--no-"), "DECISIONS.md")
+
+    def test_a_verified_compaction_under_an_eol_conversion_signs(self):
+        self.repo.write(".gitattributes", "*.md text eol=crlf\n")
+        self.repo.commit("eol\n")
+        (self.repo.path / "DECISIONS.md").unlink()
+        self.repo.git("checkout", "--", "DECISIONS.md")
+        self.assertIn(b"\r\n", (self.repo.path / "DECISIONS.md").read_bytes())
+        self.assertEqual(self.compaction(self.AFTER.replace("\n", "\r\n")).returncode, 0)
+        self.assertEqual(self.pending(), [])
+
+    def test_odd_paths_are_read_by_their_listed_ids(self):
+        for name in ("0:DECISIONS.md", "a\nb/DECISIONS.md", "DECISIONS.md\r"):
+            with self.subTest(name=repr(name)):
+                self.repo.write(name, self.DOC)
+                self.repo.commit("odd\n")
+                started = self.repo.prose("compact", name)
+                self.assertEqual(started.returncode, 4, started.stderr)
+                self.repo.write(name, self.AFTER)
+                self.assertEqual(len(self.pending()), 2, name)
+
+    def test_a_doc_made_a_symlink_is_not_gated(self):
+        self.repo.write("README.md", "hi\n")
+        self.repo.commit("readme\n")
+        self.assertEqual(self.repo.prose("compact", "DECISIONS.md").returncode, 4)
+        (self.repo.path / "DECISIONS.md").unlink()
+        os.symlink("README.md", self.repo.path / "DECISIONS.md")
+        self.repo.git("add", "DECISIONS.md")
+        self.assertEqual(self.pending(), [])
+
+    def test_only_a_started_compaction_is_gated(self):
+        # A shrink by hand, a merge or a deletion of text that prose compact
+        # was never started on is not gated, however much it cut.
+        self.repo.write("DECISIONS.md", self.AFTER)
+        self.assertEqual(self.pending(), [])
+        self.assertEqual(self.sign().returncode, 0)
+
+    def test_any_file_compact_was_started_on_is_gated_whatever_it_changed(self):
+        self.repo.write("runbook.txt", self.DOC)
+        self.repo.commit("runbook\n")
+        self.assertEqual(self.repo.prose("compact", "runbook.txt").returncode, 4)
+        self.assertEqual(self.pending(), [])
+        # A small edit, far under a tenth, of a file prose does not read as a doc.
+        self.repo.write("runbook.txt", self.DOC.replace("\nParagraph 19, at some length.\n", ""))
+        self.assertEqual(len(self.pending()), 2, self.pending())
+        result = self.repo.prose("compact", "runbook.txt", "--verify")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(self.repo.prose("compact", "runbook.txt", "--review").returncode, 4)
+        done = self.repo.prose("compact", "runbook.txt", "--reviewed",
+                               self.write(".reply", "Change 1: holds\nTotals: 0 lost, 0 false\n"))
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertEqual(self.pending(), [])
+
+    def test_a_snapshot_from_another_work_tree_does_not_gate_this_one(self):
+        self.assertEqual(self.repo.prose("compact", "DECISIONS.md").returncode, 4)
+        directory = self.repo.path / ".git/prose/compact"
+        for snapshot in directory.iterdir():
+            if not snapshot.suffix:
+                fields = json.loads(snapshot.read_text())
+                fields["root"] = "/elsewhere"
+                snapshot.write_text(json.dumps(fields))
+        self.repo.write("DECISIONS.md", self.DOC + "x\n")
+        self.assertEqual(self.pending(), [])
+
+    def test_a_declaration_makes_any_text_file_current_state_but_not_a_binary(self):
+        self.repo.write(".gitattributes", "*.txt prose-compact\nblob.txt binary\n")
+        self.repo.write("runbook.txt", "a\n")
+        self.repo.write("blob.txt", "a\n")
+        self.repo.write("nul.txt", "a\n")
+        self.repo.commit("attrs\n")
+        for name in ("runbook.txt", "blob.txt"):
+            self.repo.write(name, "We previously did it.\n")
+        self.repo.write("nul.txt", "We previously did it.\0\n")
+        first = self.repo.prose("check", "-F", "-", "--goals", "g", stdin="DOCS(x): c\n")
+        self.assertIn("compaction due for runbook.txt: history markers", first.stdout)
+        self.assertNotIn("compaction due for blob.txt", first.stdout)
+        self.assertNotIn("compaction due for nul.txt", first.stdout)
+
+    def test_core_ignore_stat_is_named_in_the_refusal(self):
+        self.repo.git("config", "core.ignoreStat", "true")
+        self.repo.write("DECISIONS.md", self.DOC + "x\n")
+        result = self.repo.prose("compact", "DECISIONS.md")
+        self.assertEqual(result.returncode, 2, result.stdout)
+        self.assertIn("core.ignoreStat is true", result.stderr)
+
+    def test_an_unreadable_snapshot_refuses(self):
+        if os.geteuid() == 0:
+            self.skipTest("root reads every file")
+        self.assertEqual(self.repo.prose("compact", "DECISIONS.md").returncode, 4)
+        self.repo.write("DECISIONS.md", self.DOC + "x\n")
+        for snapshot in (self.repo.path / ".git/prose/compact").iterdir():
+            os.chmod(snapshot, 0)
+            self.addCleanup(os.chmod, snapshot, 0o644)
+        found = self.pending()
+        self.assertEqual(len(found), 1, found)
+        self.assertIn("could not tell which staged files were compacted", found[0])
+
+    def test_a_partial_clone_offline_is_not_refused(self):
+        source = Repo()
+        self.addCleanup(source.cleanup)
+        source.write("a/DECISIONS.md", self.DOC)
+        source.write("b/other.md", "x\n")
+        source.commit("base\n")
+        source.git("config", "uploadpack.allowFilter", "true")
+        parent = pathlib.Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, parent, True)
+        clone = parent / "clone"
+        result = run(["git", "clone", "-q", "--filter=blob:none", "--sparse", "--no-local",
+                      f"file://{source.path}", str(clone)])
+        if result.returncode != 0:
+            self.skipTest(f"git cannot make a partial clone here: {result.stderr}")
+        run(["git", "sparse-checkout", "set", "a"], cwd=clone)
+        shutil.move(str(source.path), str(source.path) + ".gone")
+        self.addCleanup(shutil.move, str(source.path) + ".gone", str(source.path))
+        (clone / "a/DECISIONS.md").write_text(self.DOC + "x\n")
+        run(["git", "add", "a/DECISIONS.md"], cwd=clone)
+        self.assertEqual(compact.unverified(str(clone), False, clone / self.PASSES), [])
+
+    def test_a_textconv_driver_does_not_hide_unstaged_changes(self):
+        (self.repo.path / ".git/info/attributes").write_text("DECISIONS.md diff=strip\n")
+        self.repo.git("config", "diff.strip.textconv", "sh -c 'tr -d \"[:space:]\" < \"$0\"'")
+        (self.repo.path / "DECISIONS.md").write_text(self.DOC + "\n\n\n")
+        result = self.repo.prose("compact", "DECISIONS.md")
+        self.assertEqual(result.returncode, 2, result.stdout)
+        self.assertIn("has changes that are not staged", result.stderr)
+
+    def test_a_rename_with_a_shrink_is_not_gated(self):
+        # The known gap DECISIONS.md records: the new path has no base.
+        self.assertEqual(self.repo.prose("compact", "DECISIONS.md").returncode, 4)
+        (self.repo.path / "docs").mkdir()
+        self.repo.git("mv", "DECISIONS.md", "docs/DECISIONS.md")
+        self.repo.write("docs/DECISIONS.md", self.AFTER)
+        self.assertEqual(self.pending(), [])
 
 
 if __name__ == "__main__":

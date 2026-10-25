@@ -30,12 +30,18 @@ Both calls of `check` run the repository's pre-commit hook first, if it has one.
     prose.py sign --pass <token> [--cold-read <report> [--dispositions <file>]] < text > signed
         Second call. Prints stdin's text with a signed footer, or, as check
         does, a cold-read brief on stderr, exiting 5.
-    prose.py compact <file> [--verify | --review]
+    prose.py compact <file> [--verify] [--paths-from <file|-> [-0]] [-- <path>...]
+    prose.py compact <file> --review
+    prose.py compact <file> --reviewed <reply> [--dispositions <file>]
         Compaction: prints the brief a compactor subagent works from and
-        exits 4. --verify checks the compacted file against the copy the
-        first call saved, exiting 0 when it passes and 1 when it fails.
-        --review prints the brief for a reviewer of each removal and rewrite,
-        and exits 4.
+        exits 4. --verify checks the compacted file against the copy
+        `compact <file>` saved, exiting 0 when it passes and 1 when it fails.
+        --review prints the brief for a reviewer of each removal and
+        rewrite, and exits 4. --reviewed records the review as complete
+        once its findings are answered; check refuses to sign a compaction
+        without both the --verify and the --reviewed record. `compact
+        <file>` with no flag and every --verify take the files that might
+        refer to the doc, after -- or listed in --paths-from.
     prose.py verify-staged <trailer line>     stdin: the message (the commit script's verifier)
     prose.py verify-commit <sha>              after a commit (the commit hook)
     prose.py verify-post                      stdin: posted text
@@ -2709,15 +2715,50 @@ def main(argv=None):
     p_hook = sub.add_parser("hook-post", help="the posting hook: payload on stdin")
     p_hook.add_argument("--host", default="")
     sub.add_parser("hook-gate", help="the first-write gate: payload on stdin")
-    p_compact = sub.add_parser("compact", help="print the brief that compacts a doc to what is "
-                                               "current; with --verify, check the result")
+    # allow_abbrev=False: an abbreviation such as --paths would make the
+    # split at `--` below misread the option's value as the file.
+    p_compact = sub.add_parser("compact", allow_abbrev=False,
+                               help="print the brief that compacts a doc to what is current; "
+                                    "with --verify, check the result",
+                               epilog="Files that might refer to the doc go after --, for the "
+                                      "first call and every --verify.")
     p_compact.add_argument("file")
     p_compact.add_argument("--verify", action="store_true",
                            help="check the compacted file against the copy the first call saved")
     p_compact.add_argument("--review", action="store_true",
                            help="print the brief for the reviewer who judges each removal and "
                                 "rewrite against the copy the first call saved")
+    p_compact.add_argument("--reviewed", default="", metavar="REPLY",
+                           help="record the review as complete: the file holding the reviewer's "
+                                "reply, whose findings --dispositions answers")
+    p_compact.add_argument("--dispositions", dest="compact_dispositions", default="",
+                           metavar="FILE",
+                           help="with --reviewed: 'Change <n>: fixed' or 'Change <n>: kept: "
+                                "<reason>' for each change with a lost or false finding")
+    p_compact.add_argument("--paths-from", default="", metavar="FILE",
+                           help="a file listing more such paths, one per line; - reads stdin")
+    p_compact.add_argument("-0", dest="nul", action="store_true",
+                           help="with --paths-from: the paths are separated by NUL, as "
+                                "rg -l0 and find -print0 write them")
+    # Paths after `--` are split off before parsing and are the referrers:
+    # argparse before Python 3.12 cannot give a positional list the paths
+    # after `--` once an option such as --verify follows the file.
+    argv = list(sys.argv[1:] if argv is None else argv)
+    tail = []
+    if argv[:1] == ["compact"] and "--" in argv:
+        at = argv.index("--")
+        argv, tail = argv[:at], argv[at + 1:]
+        # With no file before `--`, the first path after it is the file, as
+        # in `compact -- -notes.md`; it is passed after a `--` of its own.
+        valued = {"--paths-from", "--reviewed", "--dispositions"}
+        named = [arg for i, arg in enumerate(argv[1:], start=1)
+                 if not arg.startswith("-") and argv[i - 1] not in valued]
+        if not named and tail:
+            argv, tail = argv + ["--", tail[0]], tail[1:]
     args = parser.parse_args(argv)
+    # Referrers come only from after `--`, so a stray positional is an error
+    # on every Python version.
+    args.referrers = tail
 
     try:
         if getattr(args, "report", "") and not args.token:
@@ -2759,6 +2800,15 @@ def main(argv=None):
             items, flags, trailer = check(message, args.repo, args.amend, bool(args.token))
             assigned, unused = assign_goals(items, rules)
             refuse_uncovered(assigned, unused, after_first_call=bool(args.token))
+            compact = compactor()
+            root = git(["rev-parse", "--show-toplevel"], args.repo).rstrip("\n")
+            # A compaction is signed only when the bytes staged both passed
+            # --verify and had their review completed with --reviewed
+            # (DECISIONS: Compaction).
+            pending = compact.unverified(root, args.amend, pass_dir(args.repo))
+
+            if pending and args.token:
+                raise Refused("; ".join(pending))
             if args.token:
                 cold, result = cold_items(assigned), None
                 if args.report:
@@ -2778,7 +2828,7 @@ def main(argv=None):
                     print_cold_read(args.token, cold, next_check(
                         args.token, args.message_file, args.amend, args.repo, REPORT_FILE,
                         DISPOSITIONS_FILE),
-                        root=git(["rev-parse", "--show-toplevel"], args.repo).strip())
+                        root=git(["rev-parse", "--show-toplevel"], args.repo).rstrip("\n"))
                     return COLD_READ_NEEDED
                 # The signing call prints only the result block. It is built
                 # before the token is spent, so a block that cannot be built
@@ -2790,11 +2840,19 @@ def main(argv=None):
             print_goals(goals, heading=MESSAGE_GOALS)
             print_check(assigned, flags, unused,
                         "--message-goals-file" if args.message_goals_file else "--goals")
-            compact = compactor()
-            compact.print_due(compact.due(
-                [item.path for item, _ in assigned
-                 if item.path is not None and not item.deleted and is_doc(item.path)],
-                git(["rev-parse", "--show-toplevel"], args.repo).strip()), _prose_command())
+            # Every staged path, doc or not: a declaration in .gitattributes
+            # makes any file current-state (DECISIONS: Compaction). The
+            # triggers only advise, so a listing that fails skips them.
+            try:
+                staged_paths = compact.changed_paths(root, args.amend)
+            except ValueError:
+                staged_paths = []
+            compact.print_due(compact.due(staged_paths, root), _prose_command())
+
+            if pending:
+                print("\nThe signing call will refuse until each of these is done:\n")
+                for line in pending:
+                    print(f"  {line}")
             print()
             print_rules()
             token = issue_pass(goals, "check", _session(args), args.repo, rules)
@@ -2804,13 +2862,27 @@ def main(argv=None):
         if args.command == "compact":
             compact = compactor()
             try:
-                if args.verify and args.review:
-                    raise Refused("--verify and --review are separate steps; run one at a time")
+                if sum(map(bool, (args.verify, args.review, args.reviewed))) > 1:
+                    raise Refused("--verify, --review and --reviewed are separate steps; run one "
+                                  "at a time")
+                if args.compact_dispositions and not args.reviewed:
+                    raise Refused("--dispositions goes with --reviewed, the reply it answers")
+                given = compact.Given(tuple(args.referrers), args.paths_from, args.nul)
+                # A closed stdin is None; only --paths-from - needs it.
+                stdin = sys.stdin.buffer if sys.stdin is not None else None
+                if args.nul and not args.paths_from:
+                    raise Refused("-0 goes with --paths-from, the list it separates")
+                if (args.review or args.reviewed) and given.supplied():
+                    raise Refused("--review and --reviewed read no other files; give the paths "
+                                  "to --verify")
+                if args.reviewed:
+                    return compact.reviewed(args.file, user_state_dir(), pass_dir, args.reviewed,
+                                            args.compact_dispositions)
                 if args.verify:
-                    return compact.verify(args.file, user_state_dir())
+                    return compact.verify(args.file, user_state_dir(), pass_dir, given, stdin)
                 if args.review:
-                    return compact.review(args.file, user_state_dir())
-                return compact.brief(args.file, user_state_dir(), _prose_command())
+                    return compact.review(args.file, user_state_dir(), _prose_command())
+                return compact.brief(args.file, user_state_dir(), _prose_command(), given, stdin)
             except (ValueError, UnicodeDecodeError) as error:
                 raise Refused(str(error))
         if args.command == "verify-staged":

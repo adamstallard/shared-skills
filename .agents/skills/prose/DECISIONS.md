@@ -287,10 +287,10 @@ edit: the compactor leaves one it believes dead in place and names it, and a
 person decides. The reviewer's verdicts decide what is restored; the person
 is asked only where restoring is itself a judgement call.
 
-**The compactor drafts each section fresh.** A first brief told it to edit in
-place; it cut 1 to 12% of five real docs, and a judge found 3 live
-conclusions lost across them. Drafting fresh cut 6 to 23%, with 6 lost before
-review (below). A naive "compact this" prompt cut 4 to 54%, with 41 lost.
+**The compactor drafts each section fresh.** On five real docs, a brief that
+edited in place cut 1 to 12%. Drafting fresh cut 6 to 23%, with 1 live
+conclusion lost after review. A naive "compact this" prompt cut 4 to 54% but
+lost 41, with no reviewer to catch them.
 
 **A fresh reviewer judges every removal** (Adam, 2026-10-24), as bug-hunter's
 refuter judges findings, because a compactor checking its own work misses
@@ -301,26 +301,36 @@ spans, flags, constants, paths and headings that are gone. That list is a
 script's work and costs no tokens. The reviewer runs on the same model, never
 a cheaper one. For each removal it answers superseded, folded in or lost; for
 each rewritten claim, holds or false, checked against the code; it skips
-unchanged text. The compactor restores and corrects. A second review runs only
+unchanged text. It also checks that every decision the new text keeps still
+carries its reason, since a decision without its reason invites the next
+editor to undo it. The compactor restores and corrects. A second review runs only
 if the first found something, and never a third.
 
 **Measured** with skill-creator's benchmark harness on five docs, each seeded
 with three conclusions hidden in history or repetition: this file before and
 after #31, bug-hunter's DECISIONS.md, worktrees' DECISIONS.md and igor's
-`docs/architecture.md`. Every seeded conclusion survived in every run.
-- **Without the reviewer,** a judge found 6 conclusions lost across the
-  five. The first review found 17 lost and 15 false claims: it also counts
-  lost reasons and claims the rewrite made false, which the judge does not.
-- **After one review and its fixes,** the judge found 1. The second review
-  found 3 more lost and 4 more false; one of those false claims was false in
-  the original document too.
-- **Cost:** the two reviews and the fixes add 2.4 to 3.5 times the
-  compactor's tokens (200k to 390k), and 1.5 to 2.4 times its time. With the
-  compactor, a reviewed compaction cost 265k to 530k tokens.
-- **On #31's compaction,** the reviewer caught 7 of the 11 points the human
-  review restored or corrected. It missed one rejected alternative, one
-  reason and two wrong statements. It flagged 24 more points, lost or false,
-  that the human review left; nobody has checked those yet.
+`docs/architecture.md`. Every seeded conclusion survived in every run. A
+judge agent counted the live conclusions each result no longer states, and
+the table gives that count; the reviewer counts more, since it also counts
+lost reasons and claims made false.
+
+| Brief | Size cut | Lost after review (judge's count) |
+|---|---|---|
+| Drafting fresh (shipped) | 6 to 23% | 1, after one review |
+| Cutting boldly | 17 to 36% | 12, after two |
+| Cutting boldly, reviewer checks reasons | 6 to 42% | 6, after two |
+
+**Rejected: cutting boldly and relying on the reviewer** (Adam, 2026-10-24).
+The brief once aimed for the 61% a hand compaction of this file reached. Even
+with the reviewer told to check that every kept decision keeps its reason,
+6 conclusions were lost after two reviews, mostly reasons dropped from
+igor's architecture doc. Adam's bar was at most 1 to 3, which the gentler
+brief meets with 1. A bold compaction also cost 365k to 780k tokens and 6 to
+19 minutes. The reviewer keeps the reasons check.
+
+**The reviewer, measured on #31's compaction,** caught 7 of the 11 points the
+human review restored or corrected. It missed one rejected alternative, one
+reason and two wrong statements, and found 23 more; 14 of those were real.
 
 **The triggers are a script.** They read the index, git history and blob
 sizes, in milliseconds per doc.
@@ -337,29 +347,211 @@ sizes, in milliseconds per doc.
   next change.
 - **History markers,** at any size: a dated revision note or span, a
   "History:" or "Update:" label, "previously" (not "a previously issued"),
-  "originally", "formerly", "was changed to". Code and quoted text are
-  skipped. Over 26 docs here and in igor they fire on 8 lines of the
+  "originally", "formerly", "was changed to". Over 26 docs here and in igor they fire on 8 lines of the
   pre-#31 file, on igor's architecture doc, bug-hunter's DECISIONS.md and an
   igor design, and on none of the nine SKILL.md files, rules.md, the post-#31 file
   or seven other DECISIONS.md files. They miss history phrased as "an
   earlier version", which the reviewer then catches.
+- **The marker scan skips fenced code and quoted text** (Adam, 2026-10-24),
+  by the simple rule: a line starting with three backticks or tildes opens
+  or closes a block, and text in inline code, double quotes or guillemets
+  is skipped. Prose's own docs quote Before and After specimens, which
+  would otherwise fire the trigger constantly. A false trigger costs a full
+  reviewed compaction, 300k to 500k tokens; a miss only waits for the next
+  marker or the size trigger, which counts every byte, and a block the
+  simple rule misjudges costs at most one extra "compaction due" line. Like
+  `--verify`, the trigger errs the cheap way: for a trigger that means
+  staying quiet, where for `--verify` it means blocking. `--verify` itself
+  detects no fences.
 - **Defaults:** `DECISIONS.md`, `SKILL.md`, `AGENTS.md`, `CLAUDE.md`,
   `architecture*.md`, and OpenSpec specs, proposals and designs outside the
   archive.
+- **A declaration works on any file** (Adam, 2026-10-24). `prose check`
+  reads the `prose-compact` declaration, the `-prose-compact` exemption and
+  the `prose-compact-budget` and `prose-compact-growth` settings for
+  every staged path, and a declared file of any type joins both triggers:
+  the size check counts bytes and the marker scan reads text, so neither
+  needs Markdown. A file git treats as binary, by `-diff` (which `binary`
+  sets) or a NUL byte, is skipped. Declarations reach the triggers only;
+  prose's writing rules still apply only to docs.
 - **Settings live in `.gitattributes`:** committed, matched by path, read by
   one `git check-attr` call. The one line `* prose-compact-budget=60000`
   sets the budget for every file.
 
-**`--verify` checks what a script sees exactly:** links into the file's
-headings from any tracked file, Markdown or a code comment's
-`DECISIONS.md#anchor`; headings another file names word for word; history
-markers left; and that the file did not grow.
+**`--verify` blocks on any reference to what was removed** (Adam,
+2026-10-24). A heading or anchor the compaction removed counts as still
+referenced when its heading text appears anywhere in another searched
+file, in any context, or its `#slug` appears anywhere in a searched file or
+in the file itself. Then `--verify` fails and the compactor keeps the
+heading. Only removed headings and anchors are looked for, so a reference
+broken before the compaction never counts. It also fails on a history
+marker left, or a file that grew.
 
-**Known gap.** To match GitHub's anchors and links, `--verify` reads Markdown
-with its own code. Bug-hunter's three passes found 14 bugs there, and the
-last pass's four fixes were not re-reviewed. A check that greps the
-repository for each removed anchor and heading would need no Markdown
-parsing; it is the fix if more such bugs appear.
+**Heading text is compared normalised** (Adam, 2026-10-24), on both sides:
+case folded (`casefold`, so "STRASSE" matches "Straße"); backticks, `*`
+and `_` dropped; and every run of whitespace made one space. So is each
+line break, a bare CR among them, together with any comment or quote
+markers (`#`, `//`, `*`, `>`) that start the next line, so a citation
+wrapped inside a comment reads as one line. It is plain string clean-up, no parsing. The
+anchor is searched as written. Comparing exact text missed 11 of 15 real
+references in the benchmark below: citations drop a heading's backticks,
+lowercase its first word, and wrap.
+
+Every choice errs toward blocking (Adam, 2026-10-24); the logic that tried
+to be precise is gone.
+- **Over-blocking is accepted.** Each case below only keeps a heading:
+  - an incidental mention of the heading's text, or of its `#anchor`;
+  - a heading-shaped line (`#` to `######` and a space) inside a code block,
+    which counts as a heading, since `--verify` detects no fences;
+  - a heading renamed only in case or formatting, or removed while a kept
+    heading gives the same anchor: the removed heading's anchor is searched
+    anyway;
+  - another doc with the same heading text.
+- **Heading text under 16 characters, once normalised, is not searched;**
+  its anchor always is. "Why", "Open" or "Rejected" appear in ordinary prose
+  everywhere, so such a heading could never be removed.
+- **Paths are taken exactly as `git ls-files` lists them.** Inside a
+  repository, a file argument that is not a tracked path, mistyped case
+  included, is refused as "not a tracked file". CRLF line ends are read as
+  LF.
+- **A git error is an error.** Anything `git grep` writes to stderr fails
+  `--verify` (exit 2), whatever its exit code: it exits 0 when anything
+  matched, and the staged copy of the file always matches, so an unreadable
+  file would otherwise pass in silence.
+- **Outside a repository means `git rev-parse` failed,** judged by its exit
+  code alone. Its messages differ by git version and by cause, such as a
+  filesystem boundary, so they are not read.
+- **git grep reads the tracked files,** with a pattern every line matches,
+  so the work tree and the index, binary files and files outside a sparse
+  checkout are all read, and submodules are not; the matching is done in
+  Python on the normalised text. Symlinks, which git grep skips, are not counted
+  as searched. `advice.sparseIndexExpanded` is turned off, since its hint
+  on stderr would otherwise fail every run in a sparse-index clone. Reading
+  every binary has a cost: a repository
+  with 100 MB of tracked binaries took 7 seconds and 1.1 GB. igor, 317
+  files, takes under a second.
+- **Known gap:** a heading underlined with `===` or `---` is not seen. No doc
+  in this repository or igor uses one. An ATX heading indented up to three
+  spaces, or with a tab after its hashes, is seen.
+- **Known gap: a heading moved into a code block counts as kept.** With no
+  fence detection, the line still looks like a heading, so its anchor is not
+  searched, though GitHub no longer gives it. A compactor rarely does this,
+  and the reviewer sees the change. Masking code on the new side only would
+  close it; that is for Adam.
+- **Known gap: an HTML anchor** such as `<a id="x">` is not a heading, so
+  removing it is not checked.
+- **Known gap: an assume-unchanged referrer.** git grep reads such a file's
+  index copy in its work-tree pass, so an unstaged reference in it is not
+  seen. The doc itself marked assume-unchanged or skip-worktree is refused,
+  since its changes could not be seen.
+
+**The caller names the files that might refer to the doc** (Adam,
+2026-10-24), each one explicitly: after `--`, or listed by `--paths-from
+<file|->`, one path per line or NUL-separated with `-0`, so names with
+spaces or newlines survive `rg -l0` and `find -print0`. A file is read
+whatever its type or size. A directory is refused, with how to list its
+files by search. Walking folders needed filters for type, size, hidden
+directories, symlinked folders and a file cap, each with its own bugs, one
+of which left a large file unread when its folder was named first. A search
+lists exactly the files meant. Inside a repository the given files add to the tracked ones. Outside one,
+exactly the given files are read, and with none only the file's own links
+are checked. The report always says what was searched, so a run that
+checked too little shows it. Every file is read even when nothing was
+removed, so the report stays true and an unreadable file is still an error.
+
+**A compaction is signed only after it is verified and reviewed** (Adam,
+2026-10-24). Inside a repository the agent stages the compaction first, and
+`--verify` and `--review` read the staged blob, refusing a file with
+unstaged changes, so what is checked is what is committed.
+- **Two records,** in prose's pass directory under `.git/prose/passes/`:
+  `compacted/` for a passing `--verify`, and `reviewed/` for a completed
+  review. Each is named by the staged blob's id exactly as `git ls-files -s
+  -z` lists it, and holds `before`, the blob id `prose compact <file>`
+  snapshotted when the compaction started.
+  A failed `--verify` deletes its record.
+- **Every compaction is gated** (Adam, 2026-10-24), whatever kind of file.
+  Once `prose compact <file>` has snapshotted a file in this work tree,
+  `prose check` refuses to sign while that file is staged with a blob other
+  than the base's, the base being HEAD's blob (HEAD's parent's with
+  `--amend`), and lacks either record for its staged id with `before` equal
+  to the base's id, as `git ls-tree` lists it. Each refusal names the
+  missing step: "<file> was compacted but not verified; run `prose compact
+  --verify <file>`", or "<file> was compacted but its review was not
+  completed; ...". Its first call lists the same lines. No new trailer, hook
+  or `Prose:` format.
+- **Only a compaction started with `prose compact` is gated** (Adam,
+  2026-10-25). A safety net that also gated any current-state file shrunk
+  by a tenth was dropped: it refused merges, cherry-picks and reverts that
+  bring in a compaction made elsewhere, and legitimate deletions, with no
+  way to satisfy it, since `prose compact <file>` refuses unless the staged
+  file equals HEAD's. A
+  compaction by hand takes an agent deliberately skipping the tool.
+- **`prose compact <file>` starts from the committed file.** It refuses a file whose
+  staged blob differs from HEAD's, so the snapshot is always of the base.
+  Running it again on an already-compacted copy is refused, and a snapshot
+  from a compaction already committed no longer matches the base, so it
+  gates nothing.
+- **A snapshot belongs to its work tree.** Linked work trees share the git
+  directory, so each snapshot names its root, and only this work tree's
+  snapshots gate its commits.
+- **Ids are read from listings, never from names.** The gate reads `git
+  ls-files -s -z` and `git ls-tree -r -z`, so a path such as `0:x.md`, or
+  one holding a newline or ending in a CR, cannot name another file.
+- **A completed review** is one `--reviewed <reply> --dispositions <file>`
+  accepts: the reviewer's reply gives each change of the last `--review` a
+  verdict and a `Totals:` line that matches them, and each change with a
+  `lost` or `false` finding is answered `fixed`, which needs a staged blob
+  other than the one reviewed, or `kept: <reason>`. With nothing fixed, the
+  staged blob must be the one reviewed, so a review taken before the
+  compaction, or of an earlier draft, does not count. That a second review
+  ran when the first found something stays SKILL.md's rule; the record
+  cannot show it.
+- **A symlink is skipped by its mode,** 120000: it holds no prose, and
+  hashing its target would never match the link's blob.
+- **Known gap, accepted** (Adam, 2026-10-24): a file renamed and changed in
+  the same commit is not gated, since its new path has no base.
+- **Snapshots and records live 7 days.** A later step refuses a snapshot
+  older than that, as SKILL.md says, and writing a record deletes records
+  older than that. Records sit in subdirectories of prose's pass directory:
+  prose deletes the files there older than two hours, the life of a pass
+  token, but leaves subdirectories alone.
+- **Partial clones work offline.** Trees are listed without sizes, and a
+  size is read by blob id only where a check needs it, so a blobless or
+  sparse clone is neither refused nor made to fetch on every check.
+- **Python 3.9 or later** (Adam, 2026-10-24). Paths after `--` are split off
+  before argparse, which before 3.12 drops them once an option follows the
+  file.
+- **Outside git** `--verify` reads the working file and there is no gate;
+  the brief names `--verify` as the required last step.
+
+**Measured `--verify`** on the same benchmark's compactions, each in a clone
+of its real repository at the doc's commit. Judge agents
+labelled each of the 47 removed heading-shaped lines over the three briefs
+as genuinely referenced or not: 15 are, all in this file before or after
+#31; the other three docs lost no referenced heading.
+
+| `--verify` | Caught | Missed | False blocks |
+|---|---|---|---|
+| Normalised text (shipped) | 15 of 15 | 0 | 6 |
+| Exact text | 4 of 15 | 11 | 3 |
+| f37015c, precise matching | 10 of 15 | 5 | 6 |
+
+- **The false blocks** each keep one heading:
+  - three lines of a code block that rules.md quotes;
+  - `#rejected`, a prefix of a live link to `#rejected-a-github-action`;
+  - "A claim is stated once, with its reason", which rules.md states as a rule;
+  - "Every commit gets the pass", used in passing in a test.
+- **Five of f37015c's six false blocks** came from one compaction whose
+  fence it misread: it reported 38 headings gone where all 48 were kept, and
+  five of those 38 are cited elsewhere.
+
+**Rejected: matching links and citations precisely.** A Markdown parser
+first, then grep with rules for paths, percent-encoding, comment prefixes,
+emphasis, wrapped lines, shared headings, fences, path case and anchor
+collisions. Bug-hunter found 14 bugs in the parser over three passes and
+over 25 more in the matching rules over three runs, each fix exposing the
+next case, and was still finding them at its cap. The
+review of #31's compaction checked links the same way, by grep.
 
 **Rejected.**
 - **Firing at every commit over budget.** A doc that stays long after a
@@ -892,6 +1084,17 @@ permission hook prints no valid JSON, so every allowing path prints
 `{"permission":"allow"}`.
 
 ---
+
+## Docstrings are found by a child interpreter
+
+Decided by Adam, 2026-10-25: a Python file too deep to parse is listed as one
+that does not parse, never a crash. Python 3.9's parser crashes in C on a
+deep enough expression, such as 200,000 terms added in a row, and a crash in
+C cannot be caught. So `ast` runs in a child interpreter, which takes the
+crash; a child that fails, by error or by signal, means the file does not
+parse. A depth cap set before parsing was rejected: it could only guess the
+parser's limits, which differ by Python version and by kind of expression.
+The child costs one interpreter start per changed Python file.
 
 ## Which files are docs
 
