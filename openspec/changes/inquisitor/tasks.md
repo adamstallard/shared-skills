@@ -385,9 +385,10 @@ contradicts what design.md assumed.
         state deciding only what the spec leaves to it, such as a
         question declined with nothing posted; agreeing to a recorded
         answer on a questions-branch question, where v0.1-33 logs the
-        recorded answer in a new file and the spec writes no log file,
-        pushing only a miss against filter 1 and any citation (decisions
-        266 and 267);
+        recorded answer in a new file and the spec writes no log file;
+        on such a question with no thread it treats agreeing as a
+        decline under reason 3 with filter 1, and on one shown from a
+        thread it posts the recorded answer (decisions 266 and 268);
         and the question that was on screen, kept in the state
         folder so a restarted session opens on it, not in the mod's
         `$.store`
@@ -474,7 +475,7 @@ contradicts what design.md assumed.
 - [ ] 6.11 Decide at implementation, with no requirement added
       (decision 256), and record each choice in design.md while the
       change is open. Agreeing to a shown recorded answer is not among
-      them: decisions 264, 266 and 267 set it. The choices: how a question's options are parsed from its
+      them: decisions 264 and 266 to 268 set it. The choices: how a question's options are parsed from its
       thread; `propose_reply`, the tool Claude calls to put a draft reply in the
       prompt box, refusing a call from a subagent (Adam confirmed this);
       a draft's privacy, beyond the existing rule that the draft is

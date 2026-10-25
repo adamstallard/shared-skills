@@ -16,7 +16,7 @@ are written down:
 - 232 to 237, on 2026-10-21, and 238 in two parts: Message Content
   turned on, on 2026-10-20, and how `check` reads it, on 2026-10-21.
 - 240 to 253, on 2026-10-21;
-- 254 to 267, on 2026-10-24.
+- 254 to 269, on 2026-10-24.
 
 Apart from 229 and 241 to 244, which he gave in the session reviewing
 igor PR #216, and 238, which he gave in shared-skills PR #1, he gave those of 2026-10-19 to 2026-10-24 while reviewing this pull
@@ -46,10 +46,10 @@ it recorded 247 to 249. On 2026-10-24 he gave 254 to 257, after an audit
 of the approved prototype against the spec, 258 to 261, answering
 the four questions this change put to him when it recorded 254 to 257,
 262, answering the one it put to him when it recorded 258 to 261, and
-263, approving the prototype build that 258 required, 264 and 265,
-answering the two questions this change put to him when it recorded
-263, and 266 and 267, answering the five it put to him when it recorded
-264 and 265.
+263, approving the prototype build that 258 required. Each later pair
+answers the questions this change put to him when it recorded the pair
+before: 264 and 265 answer two, 266 and 267 answer five, and 268 and
+269 answer two.
 
 1. **Four filters run before any question reaches a person.**
    1. **Already answered:** the agent finds the earlier answer, cites where it
@@ -1961,7 +1961,8 @@ change put to him when it recorded 263:
 Adam gave 266 and 267 on 2026-10-24, answering the five questions this
 change put to him when it recorded 264 and 265:
 
-266. **On a questions-branch question, agreeing to a recorded answer
+266. *Amended by Adam's decision 268: on a question with no thread,
+     agreeing is a decline under reason 3 with filter 1.* **On a questions-branch question, agreeing to a recorded answer
      writes no new log file.** The question closes as handled for the
      person, and a citation file is pushed when the record is an
      `active` lore entry in scope (decision 259). No log file is
@@ -1973,12 +1974,39 @@ change put to him when it recorded 264 and 265:
      post of decision 264, and that post is the record in the thread.
      This replaces the rule decision 264 first gave, that the log file's
      answer is the `Recorded answer: ` text, and with it the four of the
-     five questions in Still open that were about that file. How the
-     close is recorded is a new question in Still open. *Rejected:* a log file whose answer points to the record.
+     five questions in Still open that were about that file. Decision
+     268 replaces this decision's rule for a question with no thread: it
+     is closed as a decline, not "as handled for the person". The rest
+     holds for a question shown from a thread. *Rejected:* a log file whose answer points to the record.
 267. **Agreeing on an agent's question logs a miss against filter 1,** as
      when the answer session answers one by itself, since filter 1
      should have stopped the question either way. *Rejected:* logging
      none.
+
+Adam gave 268 and 269 on 2026-10-24, answering the two questions this
+change put to him when it recorded 266 and 267:
+
+268. **On a question with no thread, agreeing to the shown recorded
+     answer is declining it under reason 3 with filter 1, naming that
+     record.** The decline path does the rest: nothing is posted, the
+     question closes in the state folder (on one machine only, as
+     decision 202's item 1 accepts for declines), the person can reopen
+     it (decision 260), the miss against filter 1 is logged with the
+     decline's `said`, and a lore entry is cited (decision 262). This folds
+     decision 266's case of a question with no thread into the decline
+     path instead of keeping a separate path for agreeing. *Rejected:*
+     a record and a `said` of agreeing's own.
+269. **A known limit, accepted: an agreed question asked in a thread can
+     come back from the questions branch.** Its questions-branch file
+     stays unanswered, and the answer session hides it only while it
+     shows the same question from the thread, which nothing durable
+     records. A channel's first poll reads back 14 days (decision 175's
+     item 5), so a machine that first polls more than 14 days after the
+     question was asked in the thread never reads it, and shows the file
+     as a new question. The same holds for the automatic
+     post and a reason 3 decline in a thread. No rule is added.
+     *Rejected:* hiding a questions-branch file whenever any relay post
+     names the same question.
 
 ### Proposed by this change
 
@@ -2947,31 +2975,43 @@ the skill's script (decisions 249 and 253).
 The five questions raised while recording decisions 264 and 265, on
 agreeing to a recorded answer, are settled by decisions 266 and 267.
 
-Two questions for Adam, raised while recording decisions 266 and 267:
-- **Nothing records that an agreed questions-branch question is closed.**
-  With no log file, its unanswered file still counts as a question of the
-  fourth source, the answer session's name for a questions-branch file, so it returns after a restart and on every other
-  machine, and no rule says whether it can be reopened or what its
-  miss's `said` is. Options: treat agreeing on a question with no thread
-  as declining it under reason 3 with filter 1, naming that record
-  (recommended: it removes agreeing as an outcome of its own beside
-  answering, declining and setting aside, and the decline
-  path already closes the question in the state folder, lets the person
-  reopen it, logs the filter 1 miss with its `said`, and cites a lore
-  entry; the cost, a close kept on one machine, is the one decision
-  202's item 1 accepted for declines); or give agreeing its own record
-  in the state folder and its own `said`.
-- **An agreed question asked in a thread can come back from the
-  questions branch.** Its file stays unanswered, and only being shown
-  from the thread hides it. A channel's first poll reads back 14 days
-  (decision 175's item 5), so a machine that first polls more than 14
-  days after the thread never reads that thread, so it shows the file as a
-  new question, and agreeing again could push a second citation file.
-  The automatic post and a reason 3 decline in a thread already leave
-  the same unanswered file. Options: accept it, as for those (recommended:
-  it adds no rule, and a second machine already pushes no second miss
-  for the same question and filter); or hide a
-  questions-branch file whenever any relay post names the same question.
+The two questions raised while recording decisions 266 and 267 are
+settled by decisions 268 and 269.
+
+Three questions for Adam, raised while recording decisions 268 and 269,
+on the path of agreeing to a recorded answer:
+- **The miss's `said` when the person agrees in a thread.** Decision 267
+  logs it "as when it answers one by itself", whose `said` is
+  `answer session: clearly filter 1`, a person's act labelled as the
+  session's own judgment, while agreeing with no thread gets the
+  decline's `said`. Options: extend decision 268 to every question, so
+  agreeing to a shown recorded answer is always declining under reason
+  3 with filter 1, naming that record (recommended: it removes agreeing
+  as a path of its own; the decline path already shows the exact post,
+  warns for a more private record, cites a lore entry and logs a miss
+  with a defined `said`, and pushes no log file in a thread; the cost is
+  a miss on a person's question too, which reason 3 already logs); or
+  give the agreeing miss its own `said`.
+- **Repeated citations.** A question closed by a decline with nothing
+  posted is closed on one machine only, and a reopened question runs
+  filter 1 again, so the same questions-branch question can be agreed
+  again after reopening and once on each other machine. Each time a
+  citation is pushed. The miss is pushed once per question and filter,
+  but a citation holds nothing about the question, so igor's review
+  would overcount the entry. Options: push a decline's citation only
+  when its miss is pushed (recommended: it reuses the miss's check, so
+  one question gives at most one citation); or push no citation for a
+  filter 1 decline of a question with no thread.
+- **An agreed thread question coming back is wider than decision 269
+  says.** Nothing in the state folder records which questions a thread
+  showed, and a restart reads only what came after each channel's poll
+  position, while the questions branch is fetched whole at every poll.
+  So after a restart the thread is not read again and nothing hides the
+  file, while the branch is fetched again, and the file comes back on
+  the same machine too, not only on one that first polls 14 days later. Options: widen decision
+  269's known limit to say so (recommended: it adds no rule); or push
+  the log file after all when the person agrees in a thread, so the
+  file is answered and never comes back.
 
 Open on igor PR #216's side, at 59e7561, which records Adam's decisions
 up to 149 in #216's own numbering, decisions 244 and 245 among them as

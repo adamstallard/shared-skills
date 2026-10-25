@@ -1281,7 +1281,11 @@ giving one of three reasons:
    session logs a miss against the filter the person picked, whose `said`
    is the note the person typed, or `the inquisitor should have handled
    it` when they typed none, written at the privacy of what the question
-   concerns.
+   concerns. The answer session SHALL push that miss, and any citation
+   that a filter 1 decline naming a lore entry brings under *Filter 1
+   runs on every incoming question*, only once its post has gone out,
+   or, when nothing is posted, once the person has confirmed the
+   decline.
 
 A question declined with nothing posted is closed on this machine only:
 the answer session SHALL record it in the state folder, and nowhere a
@@ -1427,17 +1431,24 @@ as the inquisitor's *More visible* defines it.
 Otherwise, and for a question from a questions branch, it SHALL show the
 recorded answer to the person beside the question, and post only what the
 person relays or agrees to. The person may agree to the shown recorded
-answer, except on a question with a category, where nothing is posted,
-as for every filter under decline reason 3. For a record more private than the thread, the answer session
+answer. Agreeing is not offered on a question with a category: there
+the decline rule posts nothing for any filter. For a record more private than the thread, the answer session
 SHALL first show the person that posting it shows the record exists, and
 SHALL post the recorded answer, in the form above, only once they confirm
-(proposal decision 264). On a question from a questions branch, agreeing
-posts nothing and writes no log file, and the question closes as
-handled for the person (proposal decision 266). What records that close,
-and whether it holds on another machine, is in the proposal's Still
-open. When the person agrees on an agent's question, the
-answer session SHALL log a miss against filter 1, as when it answers
-one by itself (proposal decision 267). When the record is a lore entry, it SHALL push a citation
+(proposal decision 264). On a question with no thread, such as one from
+a questions branch, agreeing to the shown recorded answer is declining
+the question under the third reason of *The person can decline to
+answer* with filter 1, naming that record, and the answer session SHALL
+handle it as that requirement does: it posts nothing and writes no log
+file, closes the question in the state folder, lets the person reopen
+it, logs the miss against filter 1, and cites the record when it is a
+lore entry (proposal decision 268). Agreeing takes no note, as in the
+approved prototype, so that miss's `said` is `the inquisitor should
+have handled it`. When the person agrees on an agent's question in a
+thread, the answer session SHALL log a miss against filter 1, as when it
+answers one by itself (proposal decision 267); which `said` that miss
+carries is in the proposal's Still open. Agreeing on a person's question
+in a thread logs no miss. When the record is a lore entry, it SHALL push a citation
 file, as the inquisitor's *Every answer is recorded and every asked
 question logged* says. A person **cites** a lore entry when they answer
 a question by naming that entry as its answer, when they agree to a
@@ -1616,14 +1627,15 @@ once, and so does each recorded answer.
   lore entry that is not `active`
 - **THEN** no citation file is pushed
 
-#### Scenario: Agreeing on a questions-branch question writes no log file
+#### Scenario: Agreeing on a question with no thread is a filter 1 decline
 
-- **WHEN** a question of the fourth source is answered by a decision
+- **WHEN** a question from a lore repository's questions branch (the
+  fourth source), which has no thread, is answered by a decision
   document, and the person agrees to the shown recorded answer
-- **THEN** nothing is posted, no log file is written, the question
-  closes as handled for the person, and a miss against filter 1 is
-  logged, since a log file of the fourth source is an agent's question
-  by this spec's definition
+- **THEN** nothing is posted and no log file is written, the question is
+  closed in the state folder as one declined with nothing posted, the
+  person can reopen it, and a miss against filter 1 is logged with
+  `said: "the inquisitor should have handled it"`
 
 #### Scenario: Agreeing in a thread on a questions-branch question pushes no log file
 
@@ -1759,7 +1771,9 @@ serves the repository the question concerns; when that lore repository
 is more visible than it; or when that lore repository is more visible
 than the question's thread, which on GitHub means more visible than the
 thread's repository, and on Linear and Discord means any lore repository
-that is not private. It SHALL push no miss whose question is the
+that is not private. For a question with no thread, the questions-branch
+file's own visibility, as the inquisitor's *More visible* defines it,
+stands in for the thread's. It SHALL push no miss whose question is the
 same question as a miss file already on that branch with the same
 `filter`.
 
