@@ -512,6 +512,19 @@ unstaged changes, so what is checked is what is committed.
   cannot show it.
 - **A symlink is skipped by its mode,** 120000: it holds no prose, and
   hashing its target would never match the link's blob.
+- **`--abandon` ends a compaction that will not be finished.** Without it,
+  a compaction started and then dropped would block that file's ordinary
+  commits for the 7 days the snapshot lasts, with no way out but deleting
+  the snapshot by hand. It deletes the file's snapshot, the review file
+  beside it, and the `--verify` and review records whose path and starting
+  blob are the file's, so the gate treats the file as ordinary again.
+  Records are named by blob id and shared by every work tree, so a record
+  is kept while any surviving snapshot starts from its blob: another work
+  tree's snapshot of the same file, or a snapshot of a file with the same
+  content. A file deleted from the work tree, its compacted copy still
+  staged, can still be abandoned. It refuses when nothing was started, so
+  a mistyped path is not taken for success, and it touches no other file's
+  compaction. Each gate refusal names it.
 - **Known gap, accepted** (Adam, 2026-10-24): a file renamed and changed in
   the same commit is not gated, since its new path has no base.
 - **Snapshots and records live 7 days.** A later step refuses a snapshot

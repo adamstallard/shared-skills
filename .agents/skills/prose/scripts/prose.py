@@ -26,22 +26,26 @@ Both calls of `check` run the repository's pre-commit hook first, if it has one.
     prose.py sign --goals <goals> | --goals-file <file>
         Before posting, first call. Prints the rules and a token; reads no stdin.
         start's and sign's goals file holds the goals --goals would, one or
-        more per line, naming no file, since neither command lists files.
+        more per line, with no 'pattern:' prefix as check's goals file has,
+        since neither command lists files.
     prose.py sign --pass <token> [--cold-read <report> [--dispositions <file>]] < text > signed
         Second call. Prints stdin's text with a signed footer, or, as check
         does, a cold-read brief on stderr, exiting 5.
     prose.py compact <file> [--verify] [--paths-from <file|-> [-0]] [-- <path>...]
     prose.py compact <file> --review
     prose.py compact <file> --reviewed <reply> [--dispositions <file>]
+    prose.py compact <file> --abandon
         Compaction: prints the brief a compactor subagent works from and
         exits 4. --verify checks the compacted file against the copy
         `compact <file>` saved, exiting 0 when it passes and 1 when it fails.
         --review prints the brief for a reviewer of each removal and
         rewrite, and exits 4. --reviewed records the review as complete
         once its findings are answered; check refuses to sign a compaction
-        without both the --verify and the --reviewed record. `compact
-        <file>` with no flag and every --verify take the files that might
-        refer to the doc, after -- or listed in --paths-from.
+        without both the --verify and the --reviewed record. --abandon
+        discards a compaction started on the file, so the commit gate
+        treats it as ordinary again. `compact <file>` with no flag and every
+        --verify take the files that might refer to the doc, after -- or
+        listed in --paths-from.
     prose.py verify-staged <trailer line>     stdin: the message (the commit script's verifier)
     prose.py verify-commit <sha>              after a commit (the commit hook)
     prose.py verify-post                      stdin: posted text
@@ -2728,6 +2732,9 @@ def main(argv=None):
     p_compact.add_argument("--review", action="store_true",
                            help="print the brief for the reviewer who judges each removal and "
                                 "rewrite against the copy the first call saved")
+    p_compact.add_argument("--abandon", action="store_true",
+                           help="discard a compaction started on the file, and its records, so "
+                                "the commit gate treats the file as ordinary again")
     p_compact.add_argument("--reviewed", default="", metavar="REPLY",
                            help="record the review as complete: the file holding the reviewer's "
                                 "reply, whose findings --dispositions answers")
@@ -2862,9 +2869,9 @@ def main(argv=None):
         if args.command == "compact":
             compact = compactor()
             try:
-                if sum(map(bool, (args.verify, args.review, args.reviewed))) > 1:
-                    raise Refused("--verify, --review and --reviewed are separate steps; run one "
-                                  "at a time")
+                if sum(map(bool, (args.verify, args.review, args.reviewed, args.abandon))) > 1:
+                    raise Refused("--verify, --review, --reviewed and --abandon are separate "
+                                  "steps; run one at a time")
                 if args.compact_dispositions and not args.reviewed:
                     raise Refused("--dispositions goes with --reviewed, the reply it answers")
                 given = compact.Given(tuple(args.referrers), args.paths_from, args.nul)
@@ -2872,9 +2879,11 @@ def main(argv=None):
                 stdin = sys.stdin.buffer if sys.stdin is not None else None
                 if args.nul and not args.paths_from:
                     raise Refused("-0 goes with --paths-from, the list it separates")
-                if (args.review or args.reviewed) and given.supplied():
-                    raise Refused("--review and --reviewed read no other files; give the paths "
-                                  "to --verify")
+                if (args.review or args.reviewed or args.abandon) and given.supplied():
+                    raise Refused("--review, --reviewed and --abandon read no other files; give "
+                                  "the paths to --verify")
+                if args.abandon:
+                    return compact.abandon(args.file, user_state_dir(), pass_dir)
                 if args.reviewed:
                     return compact.reviewed(args.file, user_state_dir(), pass_dir, args.reviewed,
                                             args.compact_dispositions)

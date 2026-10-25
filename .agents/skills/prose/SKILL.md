@@ -189,15 +189,26 @@ with `prose compact`, never by hand. Each refusal names the step:
 - `<file> was compacted but not verified; run prose compact --verify <file>`
 - `<file> was compacted but its review was not completed; ...`
 
-Either means the content staged is not the content that passed that step:
-the file changed after it, or the step never ran. Run the named step on the
-file as staged and sign again. Never change the file after its last
-`--verify` and `--reviewed`. Step 1 refuses a file whose staged copy
+Either refusal means the content staged is not the content that passed that
+step: the file changed after it, or the step never ran. Run the named step
+on the file as staged and sign again. Never change the file after its last
+`--verify` and `--reviewed`. Each refusal also names `prose compact
+--abandon <file>`, for a compaction you will not finish (see below). Step 1 refuses a file whose staged copy
 differs from HEAD's, so every compaction starts from the committed file:
 commit the change you were making first. A symlink holds no prose and is
 not gated. A file renamed and shrunk in the same commit is not gated
 either. Outside git there is no commit to gate, so running `--verify` is up
 to you; the brief names it as the required last step.
+
+**Abandoning a compaction.** Run `python3 $S/prose.py compact --abandon
+<file>` when you started step 1 on a file and decided not to compact it,
+or to discard the attempt and start again from step 1. It deletes the saved
+copy, the review file and the file's `--verify` and review records, so the
+commit gate treats the file as an ordinary one again; without it, the gate
+refuses that file's commits for the 7 days the saved copy lasts. It leaves
+the file itself as it is: restore the committed copy yourself if you mean
+to discard the edits too. It exits 0, or 2 when no compaction was started
+on the file.
 
 **Name every compaction** in your report and in the pull request body, with
 the file's size before and after, as `--verify` prints it: for example,
@@ -239,6 +250,8 @@ commands and may then run its own checks on the result:
   brief ===`.
 - `prose.py compact <file> --reviewed <reply> [--dispositions <file>]` exits 0
   when the review is complete, recording it for the commit gate.
+- `prose.py compact <file> --abandon` exits 0 when it discarded a started
+  compaction, and 2 when none was started.
 - Each call exits 2, with the reason on stderr, when the file is missing or
   has unstaged changes, when a later step has no saved copy, or when a file
   to search cannot be read. Step 1, `prose.py compact <file>`, saves that

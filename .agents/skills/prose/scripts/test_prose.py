@@ -4699,6 +4699,17 @@ class GivenReferrers(unittest.TestCase):
                      cwd=repo.path / "sub")
         self.assertIn("(git add DECISIONS.md)", result.stderr)
 
+    def test_abandon_outside_a_repository(self):
+        folder = self.folder({"DECISIONS.md": self.DOC})
+        env = dict(os.environ, XDG_STATE_HOME=str(folder / "state"))
+        abandon = [sys.executable, str(SCRIPT), "compact", "DECISIONS.md", "--abandon"]
+        self.assertEqual(run(abandon, cwd=folder, env=env).returncode, 2)
+        run([sys.executable, str(SCRIPT), "compact", "DECISIONS.md"], cwd=folder, env=env)
+        self.assertEqual(run(abandon, cwd=folder, env=env).returncode, 0)
+        result = run([sys.executable, str(SCRIPT), "compact", "DECISIONS.md", "--verify"],
+                     cwd=folder, env=env)
+        self.assertIn("no snapshot of DECISIONS.md", result.stderr)
+
     def test_an_empty_list_is_reported_as_empty(self):
         result = self.outside({}, "--paths-from", "-", stdin="")
         self.assertEqual(result.returncode, 0, result.stdout)
@@ -4896,7 +4907,8 @@ class CompactionGate(unittest.TestCase):
                                          "ref.md").returncode, 1)
         self.assertEqual([line for line in self.pending() if "not verified" in line],
                          ["DECISIONS.md was compacted but not verified; run "
-                          "`prose compact --verify DECISIONS.md`"])
+                          "`prose compact --verify DECISIONS.md`; or, to drop this compaction, "
+                          "`prose compact --abandon DECISIONS.md`"])
 
     def test_the_reply_must_answer_every_change_and_total_its_findings(self):
         self.repo.prose("compact", "DECISIONS.md")
@@ -5085,6 +5097,136 @@ class CompactionGate(unittest.TestCase):
         result = self.repo.prose("compact", "DECISIONS.md")
         self.assertEqual(result.returncode, 2, result.stdout)
         self.assertIn("has changes that are not staged", result.stderr)
+
+    def test_abandon_clears_the_block(self):
+        self.assertEqual(self.repo.prose("compact", "DECISIONS.md").returncode, 4)
+        self.repo.write("DECISIONS.md", self.AFTER)
+        self.assertEqual(self.repo.prose("compact", "DECISIONS.md", "--verify").returncode, 0)
+        found = self.pending()
+        self.assertEqual(len(found), 1, found)
+        self.assertIn("`prose compact --abandon DECISIONS.md`", found[0])
+        result = self.repo.prose("compact", "DECISIONS.md", "--abandon")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("Abandoned the compaction of DECISIONS.md: removed its snapshot and "
+                      "1 record.", result.stdout)
+        self.assertEqual(self.pending(), [])
+        self.assertEqual(list((self.repo.path / self.PASSES / "compacted").iterdir()), [])
+        self.assertEqual(self.sign().returncode, 0)
+
+    def test_abandon_with_nothing_started_is_refused(self):
+        result = self.repo.prose("compact", "DECISIONS.md", "--abandon")
+        self.assertEqual(result.returncode, 2, result.stdout)
+        self.assertIn("DECISIONS.md: no compaction was started on it, so there is nothing to "
+                      "abandon", result.stderr)
+
+    def test_abandon_leaves_other_files_compactions_alone(self):
+        skill = "# S\n\n## Another section entirely\n\nA long paragraph.\n\n## Stays\n\nC.\n"
+        self.repo.write("SKILL.md", skill)
+        self.repo.commit("skill\n")
+        for name, after in (("DECISIONS.md", self.AFTER), ("SKILL.md", "# S\n\n## Stays\n\nC.\n")):
+            self.assertEqual(self.repo.prose("compact", name).returncode, 4)
+            self.repo.write(name, after)
+            verified = self.repo.prose("compact", name, "--verify")
+            self.assertEqual(verified.returncode, 0, verified.stdout)
+        self.assertEqual(self.repo.prose("compact", "DECISIONS.md", "--abandon").returncode, 0)
+        found = self.pending()
+        self.assertEqual(len(found), 1, found)
+        self.assertTrue(found[0].startswith("SKILL.md was compacted but its review"), found)
+        self.assertEqual(len(list((self.repo.path / self.PASSES / "compacted").iterdir())), 1)
+
+    def test_abandon_keeps_records_another_compaction_still_needs(self):
+        # Two files with the same content compacted alike share their
+        # records, by blob id; abandoning one must not undo the other.
+        doc = "# S\n\n## Stays\n\nA long paragraph that goes.\n\nC.\n"
+        after = "# S\n\n## Stays\n\nC.\n"
+        self.repo.write("A.md", doc)
+        self.repo.write("B.md", doc)
+        self.repo.commit("twins\n")
+        reply = self.write(".reply", "Change 1: superseded\nTotals: 0 lost, 0 false\n")
+        for name in ("B.md", "A.md"):
+            self.assertEqual(self.repo.prose("compact", name).returncode, 4)
+            self.repo.write(name, after)
+            self.assertEqual(self.repo.prose("compact", name, "--verify").returncode, 0)
+            self.assertEqual(self.repo.prose("compact", name, "--review").returncode, 4)
+            self.assertEqual(self.repo.prose("compact", name, "--reviewed", reply).returncode, 0)
+        self.assertEqual(self.pending(), [])
+        self.assertEqual(self.repo.prose("compact", "A.md", "--abandon").returncode, 0)
+        self.assertEqual(self.pending(), [])
+
+    def test_abandon_leaves_another_work_trees_compaction_of_the_same_file(self):
+        other = pathlib.Path(tempfile.mkdtemp()) / "wt"
+        self.addCleanup(shutil.rmtree, other.parent, True)
+        self.repo.git("worktree", "add", "-q", "-b", "other", str(other))
+        reply = self.write(".reply", "Change 1: superseded\nChange 2: superseded\n"
+                                     "Totals: 0 lost, 0 false\n")
+        for where, after in ((other, self.AFTER + "\nOther.\n"), (self.repo.path, self.AFTER)):
+            prose = lambda *args: run([sys.executable, str(SCRIPT), *args], cwd=where)
+            self.assertEqual(prose("compact", "DECISIONS.md").returncode, 4)
+            (where / "DECISIONS.md").write_text(after)
+            run(["git", "add", "DECISIONS.md"], cwd=where)
+            self.assertEqual(prose("compact", "DECISIONS.md", "--verify").returncode, 0)
+            self.assertEqual(prose("compact", "DECISIONS.md", "--review").returncode, 4)
+            done = prose("compact", "DECISIONS.md", "--reviewed", reply)
+            self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertEqual(self.repo.prose("compact", "DECISIONS.md", "--abandon").returncode, 0)
+        self.assertEqual(compact.unverified(str(other), False, self.repo.path / self.PASSES), [])
+
+    def test_abandon_works_on_a_file_deleted_from_the_work_tree(self):
+        self.assertEqual(self.repo.prose("compact", "DECISIONS.md").returncode, 4)
+        self.repo.write("DECISIONS.md", self.AFTER)
+        (self.repo.path / "DECISIONS.md").unlink()
+        self.assertEqual(len(self.pending()), 2)
+        result = self.repo.prose("compact", "DECISIONS.md", "--abandon")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.pending(), [])
+
+    def test_abandon_works_when_the_files_directory_is_gone_too(self):
+        self.repo.write("docs/sub/D.md", self.DOC)
+        self.repo.commit("doc\n")
+        self.assertEqual(self.repo.prose("compact", "docs/sub/D.md").returncode, 4)
+        self.repo.write("docs/sub/D.md", self.AFTER)
+        shutil.rmtree(self.repo.path / "docs")
+        result = self.repo.prose("compact", "docs/sub/D.md", "--abandon")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.pending(), [])
+
+    def test_a_snapshot_of_an_odd_shape_keeps_every_record(self):
+        self.repo.write("SKILL.md", "# S\n\n## Another section entirely\n\nA long paragraph.\n")
+        self.repo.commit("skill\n")
+        self.assertEqual(self.repo.prose("compact", "SKILL.md").returncode, 4)
+        for snapshot in (self.repo.path / ".git/prose/compact").iterdir():
+            if not snapshot.suffix:
+                fields = json.loads(snapshot.read_text())
+                fields["before"] = [fields["before"]]
+                snapshot.write_text(json.dumps(fields))
+        self.assertEqual(self.repo.prose("compact", "DECISIONS.md").returncode, 4)
+        self.repo.write("DECISIONS.md", self.AFTER)
+        self.assertEqual(self.repo.prose("compact", "DECISIONS.md", "--verify").returncode, 0)
+        result = self.repo.prose("compact", "DECISIONS.md", "--abandon")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("record", result.stdout)
+        self.assertEqual(self.pending(), [])
+
+    def test_the_unmerged_refusal_names_abandon_too(self):
+        self.assertEqual(self.repo.prose("compact", "DECISIONS.md").returncode, 4)
+        # A conflict, made in the index: stages 1 to 3 for the file.
+        base = self.repo.git("rev-parse", "HEAD:DECISIONS.md").strip()
+        other = self.repo.git("hash-object", "-w", "--stdin", stdin=self.AFTER).strip()
+        self.repo.git("rm", "-q", "--cached", "DECISIONS.md")
+        self.repo.git("update-index", "--index-info",
+                      stdin="".join(f"100644 {oid} {stage}\tDECISIONS.md\n"
+                                    for oid, stage in ((base, 1), (other, 2), (base, 3))))
+        found = self.pending()
+        self.assertEqual(len(found), 1, found)
+        self.assertIn("is unmerged", found[0])
+        self.assertIn("`prose compact --abandon DECISIONS.md`", found[0])
+
+    def test_abandon_then_start_again(self):
+        self.repo.prose("compact", "DECISIONS.md")
+        self.assertEqual(self.repo.prose("compact", "DECISIONS.md", "--abandon").returncode, 0)
+        self.assertEqual(self.repo.prose("compact", "DECISIONS.md", "--abandon").returncode, 2)
+        self.assertEqual(self.compaction().returncode, 0)
+        self.assertEqual(self.pending(), [])
 
     def test_a_rename_with_a_shrink_is_not_gated(self):
         # The known gap DECISIONS.md records: the new path has no base.

@@ -1581,25 +1581,147 @@ def unverified(root, amend, passes):
         entries = index.get(path, [])
         if not entries:
             continue
+        # The path as typed from here, so the printed command runs where
+        # prose check ran; each refusal also names the way out for a
+        # compaction that was started and is not going to be finished.
+        quoted = command_path(os.path.relpath(os.path.join(os.path.realpath(root), path),
+                                              os.path.realpath(os.getcwd())))
+        drop = f"; or, to drop this compaction, `prose compact --abandon {quoted}`"
         if len(entries) != 1 or entries[0].stage != "0":
             out.append(f"{path} is unmerged, so whether it was compacted cannot be told; resolve "
-                       f"it first")
+                       f"it first{drop}")
             continue
         if entries[0].mode not in REGULAR or entries[0].oid == old[1]:
             continue
         oid = entries[0].oid
-        # The path as typed from here, so the printed command runs where
-        # prose check ran.
-        quoted = command_path(os.path.relpath(os.path.join(os.path.realpath(root), path),
-                                              os.path.realpath(os.getcwd())))
         if not _record(verified_dir(passes), oid, old[1]):
             out.append(f"{path} was compacted but not verified; run "
-                       f"`prose compact --verify {quoted}`")
+                       f"`prose compact --verify {quoted}`{drop}")
         if not _record(reviewed_dir(passes), oid, old[1]):
             out.append(f"{path} was compacted but its review was not completed; run "
                        f"`prose compact --review {quoted}`, answer the reviewer's findings, then "
-                       f"`prose compact --reviewed <reply> {quoted}`")
+                       f"`prose compact --reviewed <reply> {quoted}`{drop}")
     return out
+
+
+def abandon(name, state_home, passes=None):
+    """Discard the compaction started on the file: its snapshot, the review
+    file beside it, and, inside a repository, the --verify and review
+    records made for it, so the commit gate treats the file as ordinary
+    again. Raises ValueError when no compaction was started on it. Returns
+    VERIFIED, the success exit code."""
+    try:
+        where = target(name)
+    except ValueError:
+        # target() refuses a file that is not there. A file deleted from the
+        # work tree, its compacted copy still staged, is still gated, so the
+        # target is built from the path alone; a file that is there failed
+        # target() for another reason, which stands.
+        file_path = pathlib.Path(name).absolute()
+        file_path = file_path.parent.resolve() / file_path.name
+        if file_path.exists():
+            raise
+        # git runs in the nearest directory that still exists, since the
+        # file's own may be gone with it.
+        nearest = file_path.parent
+        while not nearest.is_dir() and nearest != nearest.parent:
+            nearest = nearest.parent
+        root = _root_of(nearest / "_")
+        if root is None:
+            raise
+        try:
+            rel = str(file_path.relative_to(pathlib.Path(root).resolve()))
+        except ValueError:
+            raise ValueError(f"{name}: not inside the repository")
+        where = Target(file_path, root, rel, name)
+    directory = snapshot_dir(where.root, state_home)
+    own = _snapshot_path(where, state_home)
+    # The snapshot named for this path, and inside a repository any other
+    # one this work tree took of the same file. The name comes from the
+    # path with its directory resolved, and a directory that is gone cannot
+    # be resolved as it was, so a file deleted with its directory may name
+    # its snapshot differently; matching the path and the work tree's root
+    # finds it anyway.
+    found = {}
+    try:
+        entries = list(directory.iterdir())
+    except FileNotFoundError:
+        entries = []
+    except OSError as error:
+        raise ValueError(f"could not read the compaction snapshots: {error}")
+    here = os.path.realpath(where.root) if where.root is not None else None
+    for entry in entries:
+        if entry.name.startswith(".") or entry.suffix:
+            continue
+        try:
+            fields = json.loads(entry.read_bytes().decode("utf-8"))
+        except OSError as error:
+            raise ValueError(f"could not read the compaction snapshot {entry}: "
+                             f"{error.strerror}")
+        except ValueError:
+            continue
+        if not isinstance(fields, dict):
+            continue
+        if entry == own or (here is not None and fields.get("rel") == where.rel
+                            and isinstance(fields.get("root"), str)
+                            and os.path.realpath(fields["root"]) == here):
+            found[entry] = fields
+    if not found:
+        raise ValueError(f"{name}: no compaction was started on it, so there is nothing to "
+                         f"abandon")
+    for entry in found:
+        for path in (entry, entry.with_suffix(".review.md")):
+            try:
+                path.unlink()
+            except FileNotFoundError:
+                pass
+    # The records of this file's compaction, matched by its path and the
+    # blob it started from. A record is named by its staged blob and holds
+    # the path of whichever file wrote it last, so it can serve another
+    # file with the same content, or this file in another work tree. The
+    # gate reads a record only for a snapshot that starts from the record's
+    # blob, so a record is kept while any surviving snapshot does.
+    removed = 0
+    if where.root is not None and passes is not None:
+        starts = {fields.get("before") for fields in found.values()
+                  if isinstance(fields.get("before"), str)}
+        surviving = set()
+        for entry in (directory.iterdir() if directory.exists() else []):
+            if entry.name.startswith(".") or entry.suffix:
+                continue
+            try:
+                fields = json.loads(entry.read_bytes().decode("utf-8"))
+            except (OSError, ValueError):
+                # A snapshot that cannot be read might need any record.
+                surviving = starts
+                break
+            if not isinstance(fields, dict):
+                continue
+            if not isinstance(fields.get("before"), str):
+                # A snapshot of an unknown shape might need any record.
+                surviving = starts
+                break
+            surviving.add(fields["before"])
+        starts = starts - surviving
+        for records in (verified_dir(passes(where.root)), reviewed_dir(passes(where.root))):
+            try:
+                items = list(records.iterdir())
+            except FileNotFoundError:
+                continue
+            for record in items:
+                try:
+                    fields = json.loads(record.read_text(encoding="utf-8"))
+                except (OSError, ValueError):
+                    continue
+                if isinstance(fields, dict) and fields.get("path") == where.rel \
+                        and isinstance(fields.get("before"), str) \
+                        and fields["before"] in starts:
+                    record.unlink()
+                    removed += 1
+    print(f"Abandoned the compaction of {where.rel}: removed its snapshot"
+          + (f" and {removed} record{'' if removed == 1 else 's'}" if removed else "")
+          + ". The commit gate treats it as an ordinary file again.")
+    return VERIFIED
 
 
 def changed_paths(root, amend):
