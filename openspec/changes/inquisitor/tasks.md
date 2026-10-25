@@ -221,12 +221,14 @@ contradicts what design.md assumed.
       format of *A log file and a miss file have one format*, with an
       `authority` of `decision`, `input` or `agent`, and `answered_by: agent` for an agent's choice,
       a handled file (for a questions-branch question the answer
-      session marks handled: `repository`, `asked`, `handled` and
-      `question_hash`, with no question text, answer or authority;
+      session marks handled: `repository`, the closed file's or the
+      closing machine's topic repository, `asked`,
+      `handled`, `question_hash`, and `over` after a decline as over,
+      with no question text, answer or authority;
       written only through the command's handled option, which only the
       answer session passes, a `handled` key being refused without it;
-      the command does not check its caller; decisions 273, 276 and
-      277),
+      the command does not check its caller; decisions 273, 276, 277,
+      293, 295 and 296),
       an answer with a github.com `answer_link` read from the linked
       comment and recorded word for word (decision 236), an answer with
       a Linear or Discord `answer_link` recorded as given, its link
@@ -489,11 +491,14 @@ contradicts what design.md assumed.
       closes a question a questions-branch file holds, whether from that
       branch or shown from a thread, which closes for good every copy
       with the same hash about the handled file's topic repository,
-      wherever asked, on or before its day; a later message in a closed
-      question's thread, a follow-up or a reply, shown as a new question;
-      a message that is not really a question ignored; and a miss for a
+      wherever asked, before its commit time, except that one from a
+      decline as over closes only the questions-branch files that hold
+      the question, whoever asked them; a later message in a
+      closed question's thread, a follow-up or a reply, shown as a new
+      question; a message that is not really a question ignored, and one
+      that reaches the queue declined under reason 2; and a miss for a
       question a questions-branch file holds copying that file's
-      `asked_from` (decisions 273, 274, 278, 281 to 283 and 286 to 291)
+      `asked_from` (decisions 273, 274, 278, 281 to 283 and 286 to 295)
 - [ ] 6.11 Decide at implementation, with no requirement added
       (decision 256), and record each choice in design.md while the
       change is open. Agreeing to a shown recorded answer is not among

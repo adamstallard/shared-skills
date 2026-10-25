@@ -17,7 +17,7 @@ are written down:
   turned on, on 2026-10-20, and how `check` reads it, on 2026-10-21.
 - 240 to 253, on 2026-10-21;
 - 254 to 284, on 2026-10-24;
-- 285 to 291, on 2026-10-25.
+- 285 to 296, on 2026-10-25.
 
 Apart from 229 and 241 to 244, which he gave in the session reviewing
 igor PR #216, and 238, which he gave in shared-skills PR #1, he gave those of 2026-10-19 to 2026-10-25 while reviewing this pull
@@ -57,7 +57,8 @@ raised with 273 to 276, and 281 to 284 the four raised with 277 to 280,
 one decision each. On 2026-10-25 he gave 285 to 287, settling the five
 raised with 281 to 284: 285 answers three of them by removing the case
 they were about. 288 to 291 answer the five raised with 285 to 287, one
-decision each, 289 settling two.
+decision each, except that 289 settles two, and 292 to 295 the four raised with
+288 to 291; in 296 he confirmed three choices this change had made.
 
 1. **Four filters run before any question reaches a person.**
    1. **Already answered:** the agent finds the earlier answer, cites where it
@@ -1260,9 +1261,9 @@ it:
      giving where the answer is recorded, never starting `User says: `.
      The question is listed for the person as answered for them, and they
      can edit that post as any relay post.
-196. *Amended by Adam's decision 285: there is no rhetorical case; a
-     rhetorical message in the queue is a miss the person declines under
-     decline reason 3, picking filter 3.* *Amended by Adam's decision 234: the asking agent acts on an
+196. *Amended by Adam's decisions 285 and 292: there is no rhetorical
+     case; a rhetorical message in the queue is declined under reason 2,
+     picked up by mistake.* *Amended by Adam's decision 234: the asking agent acts on an
      automatic `Inquisitor: ` reply only when it names filter 2, and on
      filter 3's or 4's reply only when the person chose it under decline
      reason 3.* **The answer
@@ -2074,8 +2075,9 @@ change put to him when it recorded 268 and 269:
 Adam gave 273 to 276 on 2026-10-24, answering the three questions this
 change put to him when it recorded 270 to 272:
 
-273. *Amended by Adam's decisions 277 and 278: the file holds the
-     question's hash, and is written on every close.* **The answer session writes the handled file itself.** Whenever it
+273. *Amended by Adam's decisions 277, 278 and 295: the file holds the
+     question's hash, is written on every close, and from a decline as
+     over closes only its questions-branch files.* **The answer session writes the handled file itself.** Whenever it
      declines a question, agreeing included (decision 270), or posts a
      recorded answer or an `Inquisitor: ` reply on it, and a
      questions-branch file holds that question, it pushes the handled
@@ -2169,7 +2171,8 @@ put to him when it recorded 277 to 280:
 Adam gave 285 to 287 on 2026-10-25, settling the five questions this
 change put to him when it recorded 281 to 284:
 
-285. *Extended by Adam's decision 289: the answer session ignores a
+285. *Changed by Adam's decision 292: a non-question in the queue is
+     declined under reason 2, not reason 3 with filter 3.* *Extended by Adam's decision 289: the answer session ignores a
      message that is not a question too.* **"Rhetorical" is no longer a category.** An asking agent does not
      treat a message that is not really a question as one: the
      inquisitor already has it rewrite such a message as a statement
@@ -2185,7 +2188,8 @@ change put to him when it recorded 281 to 284:
      case with no thread. The existing categories, the decline reasons and
      filters 2 to 4, already cover a question that needs no answer.
      *Rejected:* a rhetorical text of filter 3's own.
-286. *"Repository" here means the topic repository, by Adam's decision
+286. *Changed by Adam's decision 294: a handled file closes copies asked
+     before its commit time, not by day.* *"Repository" here means the topic repository, by Adam's decision
      288.* **A handled file closes only copies of its question in its own
      `repository`, asked no later than its `handled` day,** so asking
      again later, or elsewhere, reaches the person. This narrows decision
@@ -2199,7 +2203,9 @@ change put to him when it recorded 281 to 284:
 Adam gave 288 to 291 on 2026-10-25, one for each question this change
 put to him when it recorded 285 to 287, 289 settling two:
 
-288. **A handled file closes every copy whose topic repository matches
+288. *Limited by Adam's decisions 293 and 295: the topic repository is
+     the closing machine's, and a reason 1 decline's file closes only its
+     questions-branch files.* **A handled file closes every copy whose topic repository matches
      its `repository`,**
      the repository the question concerns, which the answer session
      already works out, wherever the copy was asked: a Linear or Discord
@@ -2213,11 +2219,12 @@ put to him when it recorded 285 to 287, 289 settling two:
      posted, nothing closed, consistent with decision 285. Filter 3's
      automatic reply is only for a real question that did not need
      asking, so an agent's rhetorical message in a thread gets no post.
-     When one reaches the queue anyway, the existing decline reason 3,
-     with filter 3, covers it as a miss. *Rejected:* filter 3's
+     When one reaches the queue anyway, an existing decline reason covers
+     it as a miss: reason 3 with filter 3 as first decided, reason 2
+     since decision 292. *Rejected:* filter 3's
      automatic reply on a rhetorical message, and declining such a
      message under reason 1.
-290. **Accepted as a limit: the same words asked again on the handled
+290. *Reversed by Adam's decision 294.* **Accepted as a limit: the same words asked again on the handled
      day, about the same topic repository, are closed with the earlier
      copy.** *Rejected:* comparing by the handled file's commit time.
 291. **Declining under reason 1 closes only that question.** The asker's
@@ -2228,6 +2235,48 @@ put to him when it recorded 285 to 287, 289 settling two:
      counts on one machine and not another, as when a reason 1 decline,
      held in each machine's own state folder, stopped it counting only
      there.
+
+Adam gave 292 to 295 on 2026-10-25, one for each question this change
+put to him when it recorded 288 to 291:
+
+292. **A non-question that reaches the queue is declined under reason 2,
+     "picked up by mistake":** nothing is posted, and a miss is logged
+     against the source. The asking agent's misreading, which decision
+     285 logged as a filter 3 miss, is then logged nowhere; whether to
+     accept that is in Still open. Since decision 289, such a message reaches the
+     queue only when the answer session's own judgment let it through.
+     This replaces decision 285's reason 3 with filter 3 for this case.
+     *Rejected:* reason 3 with filter 3, whose post tells the asker to
+     take an option it does not have.
+293. **The handled file records the topic repository the closing machine
+     worked out,** and other machines match on it. Other machines still
+     work out a thread copy's topic repository themselves, since the
+     handled file holds only a hash, a repository and a time, never a
+     thread's address, and so cannot identify the copy. A machine that cannot
+     work out a copy's topic repository matches on hash and time alone.
+     *Rejected:* matching on hash and time alone everywhere.
+294. **Compare by time, not day:** a handled file closes only copies
+     asked before its commit time, so a word-for-word repeat after the
+     close reaches the person. An agent that cannot see or count the
+     recorded answer, such as a private record, one withheld by the
+     visibility rules, or one without authority (decision 280), will
+     likely ask again, and that is a legitimate request. This reverses
+     decision 290 and ends its conflict with decision 291. *Rejected:*
+     the same-day limit.
+295. **A handled file from a reason 1 decline closes only the copy
+     declined and the questions-branch files that hold its question,**
+     not other askers' thread copies. It holds `over`, so other machines
+     know not to close their thread copies by it. This limits decision
+     288 for reason 1. Questions-branch files with the same question are
+     still closed by it, whoever asked them, and agreeing and reasons 2
+     and 3 still close every asker's copy. *Rejected:* closing every matching copy.
+296. **Adam confirmed three choices this change made while recording
+     288 to 291:** the ignore rule applies only to sources 1 and 2, a
+     mention of the person and a mention of or reply to the relay, and
+     only to clear cases, while an unclear message is still shown; an
+     asker's reply to the relay's `User asks: ` post puts the person's
+     waiting question back in the queue, whatever the reply says; and there is one handled file per distinct
+     topic repository.
 
 ### Proposed by this change
 
@@ -2807,11 +2856,14 @@ confirmed each on 2026-10-20, amending 199 and changing items 2, 4, 6 and
      `Inquisitor: ` replies to filter 2's, or filter 3's or 4's the person
      chose.** **Details the spec fixes,** each
      cheap to reverse, taken under filter 4:
-     1. *Amended by decisions 273, 278, 281, 284, 285, 286 and 288.* A
+     1. *Amended by decisions 273, 278, 281, 284, 285, 286, 288, 294 and
+        295.* A
         declined question is kept closed in the state folder, per
         machine, and one that a questions-branch file holds is closed
         everywhere by its handled file: every copy about that file's
-        topic repository, wherever asked, no later than its day. As first written, a rhetorical question
+        topic repository, wherever asked, before its commit time, a
+        decline as over closing only the questions-branch files that
+        hold the question. As first written, a rhetorical question
         handled with no reply was kept closed the same way; decision 285
         removed that case.
      2. *Changed by Adam, and again by his decision 291, under which a
@@ -3223,42 +3275,50 @@ settled by decisions 285 to 287.
 The five questions raised while recording decisions 285 to 287 are
 settled by decisions 288 to 291.
 
-Four questions for Adam, raised while recording decisions 288 to 291,
-one decision each:
-- **Which reason declines a non-question that reaches the queue?**
-  Decision 285 has the person decline it under reason 3 with filter 3,
-  which posts filter 3's text, telling the asker to take the option that
-  has merit and record it, and adds "The person chose this filter.", on
-  which the asking agent acts. Since decision 289, such a message reaches
-  the queue only when the answer session's own judgment let it through,
-  which is decline reason 2's meaning, "picked up by mistake".
-  Recommended: decline it under reason 2, which posts nothing and logs a
-  miss against the source; this removes filter 3's post and its line
-  "The person chose this filter.". Alternative: keep reason
-  3 with filter 3.
-- **The topic repository is a judgment, made on each machine.** A thread
-  copy matches a handled file only when this machine's model works out
-  the same topic repository the closing machine did, so a declined copy
-  can come back on a machine that judges differently. Recommended: the
-  handled file's `repository` is the topic repository the closing
-  machine worked out for the copy it closed, and a machine that cannot
-  work out a copy's topic repository matches on hash and day alone.
-  Alternative: match on hash and day alone everywhere, decision 288's
-  rejected option, which removes the judgment.
-- **A same-day repeat in a closed question's thread.** Decision 291 shows
-  a later message in the thread as a new question, but decision 290
-  closes the same words asked again that day. An asking agent whose
-  filter 1 cannot count a recorded answer is likely to ask again in the
-  same words, and is then closed until the next day. Recommended: a handled file closes
-  only copies asked before its commit, decision 290's rejected option,
-  which ends the conflict. Alternative: decision 290 wins for a same-day
-  repeat.
-- **A reason 1 decline closes other askers' copies.** Declining as over
-  pushes a handled file, which closes the same question about that
-  repository asked by anyone, anywhere, on every machine, with nothing
-  posted to them. Recommended: a handled file from a reason 1 decline
-  closes only the questions-branch files and the copy declined.
-  Alternative: keep it closing every matching copy.
+The four questions raised while recording decisions 288 to 291 are
+settled by decisions 292 to 295.
+
+Six questions for Adam, one decision each, raised while recording
+decisions 292 to 296:
+- **How do other machines treat the thread copy a reason 1 decline
+  declined?** Decision 295 closes the copy declined, but the handled
+  file identifies a copy only by hash, topic repository and time, which
+  other askers' copies share. So the declined copy is closed only on the
+  declining machine; and there, decision 274, which bars reopening a
+  question a questions-branch file holds, bars reopening it too.
+  Recommended: treat it as any per-machine decline, closed on that
+  machine and reopenable there (decision 260), which adds no key.
+  Alternative: the handled file names the declined copy's thread by its
+  URL, written only where decision 251's visibility rule allows.
+- **Topic-repository judgment on other machines.** Decision 293 records
+  the closing machine's topic repository, but other machines still work
+  out a thread copy's own, so a machine that judges differently still
+  shows a declined copy. Recommended: match a thread copy on hash and
+  time alone, which removes the judgment. Alternative: accept the
+  difference.
+- **A reason 1 handled file closes other askers' questions-branch
+  files.** Matching is by hash, topic repository and time, so it also
+  closes another asker's file with the same question, such as one an
+  Igor pushed. Recommended: accept it, rewording decision 295 to "its
+  questions-branch files, whoever asked". Alternative: the handled file
+  names the files it closes by their name's 6-digit suffix, a new key.
+- **Which questions-branch copies a handled file closes by time.** Git
+  author dates come from local clocks, and a file pushed later can carry
+  an earlier date. Recommended: a handled file closes the questions-branch
+  files already on the branch at its commit, by git ancestry, which
+  needs no clock. Alternative: compare author dates, as now written.
+- **Ignoring a thread copy surfaces its questions-branch file.** Under
+  the show-once rule, the questions-branch copy is hidden only while the
+  thread copy is shown,
+  so ignoring the thread copy shows the file under the fourth source.
+  Recommended: whatever is judged for a thread copy holds for questions-
+  branch files with the same question, so ignoring the thread copy hides
+  them too. Alternative: judge the questions-branch file on its own.
+- **The asking agent's misreading is no longer logged.** With decision
+  292, the miss names the source, not the agent that wrote a non-question.
+  Recommended: accept it, since such a message is rare once agents
+  rewrite non-questions. Alternative: also log a filter 3 miss against
+  the asking agent.
 
 Open on igor PR #216's side, at the head last read, 59e7561, which records Adam's decisions
 up to 149 in #216's own numbering, decisions 244 and 245 among them as

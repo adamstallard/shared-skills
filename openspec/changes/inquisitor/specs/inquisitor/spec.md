@@ -2081,7 +2081,8 @@ An agent SHALL write no handled file: only an answer session writes
 one, as the `answer-session` spec's *A handled file closes a
 questions-branch question* says. The script's `log` command SHALL write
 a handled file only when called with its handled option, and SHALL
-refuse a `handled` key passed without that option. The command cannot
+refuse a `handled`, `over` or `question_hash` key passed without that
+option. The command cannot
 check who calls it: only the answer session passes the option, and the
 skill's instructions tell an agent never to, which keeps an agent from
 writing one by mistake. igor PR #216's refusal, in the proposal's Still
@@ -2487,9 +2488,14 @@ written.
   `yyyy-mm-dd` in UTC, on which an answer session closed the question,
   even when the push itself succeeds on a later poll, held only
   in a **handled file**: a questions-branch file holding `repository`,
-  `asked`, `handled` and `question_hash`, and no body, no question text,
-  and no `answered_by`, `authority`, `recorded_in` or answer (proposal
-  decisions 273, 276 and 277); `question_hash`, only in a handled file,
+  a topic repository: the closed questions-branch file's own, or, when
+  the closing answer session's topic repository for the copy it closed
+  matches none, that one; `asked`; `handled`; `question_hash`; and
+  `over` when the close was a decline under the answer session's first
+  reason, "the conversation is over"; and no body, no question
+  text, and no `answered_by`, `authority`, `recorded_in` or answer
+  (proposal decisions 273, 276, 277, 293 and 295); `over`, only in a
+  handled file, `"true"`; `question_hash`, only in a handled file,
   the SHA-256, in lowercase hex, of the question it closes: the whole
   text under the closed file's `## Question`, reduced as *Two calls
   prove the filters ran* reduces a question in a post, the same hash that decides whether two log files hold the same
@@ -3203,8 +3209,10 @@ treats the post as input, and its question stands.
 #### Scenario: A handled file's keys
 
 - **WHEN** an answer session marks a questions-branch file handled
-- **THEN** the new file holds `repository` and `asked`, copied from the
-  file it closes, `handled`, as the day in `yyyy-mm-dd`, and
+- **THEN** the new file holds `repository`, the closed file's own,
+  `asked`, copied from the file it closes, `over` only when the close was a
+  decline under the first reason,
+  `handled`, as the day in `yyyy-mm-dd`, and
   `question_hash`, the hash of the question it
   closes, and no body, no question text, and no `answered_by`,
   `authority`, `recorded_in` or answer
