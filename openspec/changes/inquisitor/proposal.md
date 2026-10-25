@@ -2,7 +2,7 @@
 
 ## Decisions
 
-### Decided by Adam (2026-10-19 to 2026-10-24)
+### Decided by Adam (2026-10-19 to 2026-10-25)
 
 Decisions 1 to 10 are recorded in the body of
 [igor #211](https://github.com/adamstallard/igor/issues/211). Adam gave the
@@ -16,10 +16,11 @@ are written down:
 - 232 to 237, on 2026-10-21, and 238 in two parts: Message Content
   turned on, on 2026-10-20, and how `check` reads it, on 2026-10-21.
 - 240 to 253, on 2026-10-21;
-- 254 to 284, on 2026-10-24.
+- 254 to 284, on 2026-10-24;
+- 285 to 287, on 2026-10-25.
 
 Apart from 229 and 241 to 244, which he gave in the session reviewing
-igor PR #216, and 238, which he gave in shared-skills PR #1, he gave those of 2026-10-19 to 2026-10-24 while reviewing this pull
+igor PR #216, and 238, which he gave in shared-skills PR #1, he gave those of 2026-10-19 to 2026-10-25 while reviewing this pull
 request, [#25](https://github.com/adamstallard/shared-skills/pull/25), whose
 own thread holds none of them. In the same sessions he also ruled on the
 decisions this change proposed itself: 16 to 30, 36, 37, 50, 79, 86, 99,
@@ -53,7 +54,9 @@ answer two, 270 to 272 answer the three raised with 268 and 269, and
 273 to 275 answer the three raised with 270 to 272, and in 276 Adam
 confirmed two details this change had chosen. 277 to 280 answer the four
 raised with 273 to 276, and 281 to 284 the four raised with 277 to 280,
-one decision each.
+one decision each. On 2026-10-25 he gave 285 to 287, settling the five
+raised with 281 to 284: 285 answers three of them by removing the case
+they were about.
 
 1. **Four filters run before any question reaches a person.**
    1. **Already answered:** the agent finds the earlier answer, cites where it
@@ -1252,8 +1255,9 @@ it:
      giving where the answer is recorded, never starting `User says: `.
      The question is listed for the person as answered for them, and they
      can edit that post as any relay post.
-196. *Amended by Adam's decision 284: a rhetorical question gets filter
-     3's rhetorical text.* *Amended by Adam's decision 234: the asking agent acts on an
+196. *Amended by Adam's decision 285: there is no rhetorical case; a
+     rhetorical message in the queue is a miss the person declines under
+     decline reason 3, picking filter 3.* *Amended by Adam's decision 234: the asking agent acts on an
      automatic `Inquisitor: ` reply only when it names filter 2, and on
      filter 3's or 4's reply only when the person chose it under decline
      reason 3.* **The answer
@@ -1264,8 +1268,9 @@ it:
        answer, list the question as not done, and file an issue if it
        outlives the work; under filter 3, take the option that has merit
        and record it; under filter 4, pick one and record what and why. A
-       rhetorical question gets filter 3's rhetorical text (decision 284;
-       as first written, it got no reply). The answer session also logs a
+       rhetorical message has no case of its own (decision 285; as first
+       written, it got no reply, and decision 284 briefly gave it a text
+       of its own). The answer session also logs a
        miss against that filter, and lists the question for the person as
        handled for them;
      - for a person's question, it only shows the person its suggested
@@ -2113,8 +2118,8 @@ put to him when it recorded 273 to 276:
      for the handled file:* copying the question's text into it with the
      original's `asked_from`, and writing no handled file for a question
      with a category, one the inquisitor records by hash only.
-278. *Amended by Adam's decision 284: a rhetorical close posts filter 3's
-     rhetorical text.* **A handled file is written whenever the answer session closes a
+278. *Amended by Adam's decision 285: there is no rhetorical close; a
+     handled file is written on a decline or an automatic post.* **A handled file is written whenever the answer session closes a
      question a questions-branch file holds,** not only when it posts
      or declines. A rhetorical question closed under filter 3 with no
      reply is included. This amends decision 273. *Rejected:* keeping
@@ -2132,7 +2137,8 @@ put to him when it recorded 273 to 276:
 Adam gave 281 to 284 on 2026-10-24, one for each question this change
 put to him when it recorded 277 to 280:
 
-281. **A handled file closes every copy of its question with the same
+281. *Narrowed by Adam's decision 286 to its own repository and day.*
+     **A handled file closes every copy of its question with the same
      hash,** thread copies included, on every machine. *Rejected:* thread
      copies kept per machine.
 282. **The miss a close logs copies the questions-branch file's
@@ -2140,11 +2146,12 @@ put to him when it recorded 277 to 280:
      It is an exception to "the script never writes `asked_from`", stated
      in the inquisitor spec's definition of `asked_from`. *Rejected:* no miss for a question whose file holds
      `asked_from`.
-283. **A handled file is final:** nothing reopens a question it closed, a
+283. *Extended by Adam's decision 287: the reply is shown as a new
+     question.* **A handled file is final:** nothing reopens a question it closed, a
      threaded reply under decline reason 1 included. This amends decision
      194's reason 1. *Rejected:* a reply reopening the thread copy on one
      machine.
-284. **A rhetorical close posts filter 3's `Inquisitor: ` reply with a
+284. *Withdrawn by Adam's decision 285.* **A rhetorical close posts filter 3's `Inquisitor: ` reply with a
      fixed rhetorical text,** which the person can edit like any post. The
      rule that a rhetorical question gets no reply is removed, amending
      decision 202's item 10 and decision 278. With no thread, as for a
@@ -2153,6 +2160,34 @@ put to him when it recorded 277 to 280:
      Still open asks about. The text's wording is this change's; see
      Still open. *Rejected:* a rhetorical close with no post in a thread,
      which the person could not undo.
+
+Adam gave 285 to 287 on 2026-10-25, settling the five questions this
+change put to him when it recorded 281 to 284:
+
+285. **"Rhetorical" is no longer a category.** An asking agent does not
+     treat a message that is not really a question as one: the
+     inquisitor already has it rewrite such a message as a statement
+     (decision 107's item 3), so nothing is shown, posted or
+     closed for it. When one reaches
+     the person's queue anyway, that is a miss, an agent misreading
+     ordinary language, and the person declines it under reason 3 with
+     filter 3, which posts filter 3's one fixed text and logs the miss.
+     The rhetorical fixed text and its close with no thread go, which
+     withdraws decision 284 and amends decisions 196, 202's item 10 and
+     278. With no second filter 3 text, the question of which one reason
+     3 posts is moot, and so are the rhetorical text's wording and its
+     case with no thread. The existing categories, the decline reasons and
+     filters 2 to 4, already cover a question that needs no answer.
+     *Rejected:* a rhetorical text of filter 3's own.
+286. **A handled file closes only copies of its question in its own
+     `repository`, asked no later than its `handled` day,** so asking
+     again later, or elsewhere, reaches the person. This narrows decision
+     281. *Rejected:* closing every copy with the same hash.
+287. **A reply arriving after a handled file closed its question is
+     shown on its own, as a new question of the second source, a reply
+     to a relay post,** as
+     decision 202's item 6 treats a reply to an automatic post. *Rejected:*
+     dropping the reply.
 
 ### Proposed by this change
 
@@ -2732,12 +2767,13 @@ confirmed each on 2026-10-20, amending 199 and changing items 2, 4, 6 and
      `Inquisitor: ` replies to filter 2's, or filter 3's or 4's the person
      chose.** **Details the spec fixes,** each
      cheap to reverse, taken under filter 4:
-     1. *Amended by decisions 273, 278, 281 and 284.* A declined question
-        is kept closed in the state folder, per machine, and one that a
-        questions-branch file holds is closed everywhere, every copy of
-        it, by its handled file. As first written, a rhetorical question
-        handled with no reply was kept closed the same way; decision 284
-        gives it filter 3's rhetorical text instead.
+     1. *Amended by decisions 273, 278, 281, 284, 285 and 286.* A declined
+        question is kept closed in the state folder, per machine, and one
+        that a questions-branch file holds is closed everywhere by its
+        handled file, every copy in that file's repository asked no later
+        than its day. As first written, a rhetorical question
+        handled with no reply was kept closed the same way; decision 285
+        removed that case.
      2. *Changed by Adam.* Under decision 194's first reason, any
         threaded reply to a relay post, such as a Discord reply to it,
         reopens the closed question. The reason stops
@@ -2781,9 +2817,9 @@ confirmed each on 2026-10-20, amending 199 and changing items 2, 4, 6 and
         characters, nothing is posted, the person is told why, and the
         question keeps its state. An automatic post that fails sends its
         question to the person.
-     10. *Replaced by Adam's decision 284.* A rhetorical question handled
+     10. *Withdrawn by Adam's decision 285.* A rhetorical question handled
          with no reply was recorded in the state folder as handled for the
-         person, on that machine; it now gets filter 3's rhetorical text.
+         person, on that machine. There is now no rhetorical case.
 
 203. **Confirmed by Adam (2026-10-20).** **The inquisitor's post hook blocks a tool-call post on GitHub that
      starts with a reserved prefix.** The answer session posts through a
@@ -3139,40 +3175,49 @@ settled by decisions 277 to 280.
 The four questions raised while recording decisions 277 to 280 are
 settled by decisions 281 to 284.
 
-Five questions for Adam, raised while recording decisions 281 to 284,
+The five questions raised while recording decisions 281 to 284 are
+settled by decisions 285 to 287.
+
+Five questions for Adam, raised while recording decisions 285 to 287,
 one decision each:
-- **The rhetorical text's wording.** Decision 284 asks for a fixed text.
-  Recommended: `Inquisitor: filter 3, rhetorical. This needs no answer;
-  carry on.`, which names the filter and its case as the other fixed
-  texts do. Alternative: another wording of Adam's.
-- **A rhetorical question with no thread.** Decision 284 closes it by
-  itself, with a handled file and nothing posted, but an agent's
-  questions-branch question gets only a suggestion that the person
-  decides, and such a close has no post to edit and cannot be reopened,
-  the kind of close 284 rejected for a thread. Recommended: drop that case; a rhetorical question
-  with no thread is shown with filter 3 as its suggested verdict, and its
-  handled file is pushed only when the person declines it, so the
-  rhetorical text applies only where the general rule already posts by
-  itself: a thread, and no category, a category being one of the three
-  kinds of question the inquisitor records by hash only. Alternative: keep the automatic
-  close with no thread.
-- **Questions with the same words elsewhere.** "The same question" is
-  only a hash of the reduced text, so a handled file also closes, for
-  good, the same words asked again later, or in another thread or
-  repository, such as a stock "ready to merge?", which decision 280's
-  remedy, asking again, then cannot reach. Recommended: a handled file
-  closes only a copy in the repository its `repository` names, asked no
-  later than its `handled` day. Alternative: keep the hash alone.
-- **What happens to a reply after a handled file closed its question.**
-  Reason 1's reopening by reply no longer applies, but the spec does
-  not say whether the reply itself is shown. Recommended: such a reply
-  is a new question of the second source, a reply to a relay post,
-  shown on its own, as decision
-  202's item 6 treats a reply to an automatic post. Alternative: drop it.
-- **Which filter 3 text decline reason 3 posts.** Filter 3 now has two
-  fixed texts, "not a real question" and the rhetorical one. Recommended: when the person picks filter 3, the preview
-  offers both, and they choose. Alternative: reason 3 always posts "not
-  a real question".
+- **A thread copy asked outside the handled file's repository.** A
+  handled file's `repository` is the repository the question concerns,
+  not where it was asked, so a Linear or Discord thread copy, a GitHub
+  copy asked in another repository, and an Igor question whose
+  `asked_from` differs from the handled file's `repository` are never
+  closed by it; declined with nothing
+  posted, such a copy comes back on every other machine. The same holds
+  when two questions-branch files with the same question name different
+  repositories. Recommended: match a thread copy on the repository the
+  question concerns, which the answer session already works out for
+  every question, so decision 286 holds as written. Alternative: drop the
+  repository condition and keep only the day, which removes the step but
+  closes the same words asked elsewhere that day.
+- **An agent's rhetorical message in a thread.** The answer session judges
+  filters 2 to 4 as the inquisitor states them, under which a rhetorical
+  question fails filter 3, so for an agent's rhetorical message in a
+  thread the answer session posts filter 3's text by itself and closes
+  it. Recommended: accept that, since filter 3 is the existing category
+  that covers it, and decision 285 reads as being about the asking
+  agent's side. Alternative: the answer session leaves such a message to
+  the person.
+- **Filter 3's text on a rhetorical message.** The text tells the asker
+  to take the option that has merit and record its choice, which a
+  rhetorical message does not have. Recommended: accept it; the asker
+  records that the message needed no answer. Alternative: decline such a
+  message under reason 1, "the conversation is over", which posts
+  nothing but logs no miss.
+- **The same words asked again on the handled day.** They are closed
+  with the earlier copy. Recommended: accept it as a limit. Alternative:
+  compare by the time of the handled file's commit.
+- **The asker's unthreaded follow-up after a decline under reason 1,
+  "the conversation is over".** On the
+  declining machine it stops counting as a question; on every other
+  machine, which knows only the handled file, it is shown. Recommended:
+  declining as over closes only the question and stops no later message
+  from counting, so a follow-up is treated like a reply (decision 287)
+  on every machine; this reverses part of decision 202's item 2.
+  Alternative: keep the per-machine difference.
 
 Open on igor PR #216's side, at the head last read, 59e7561, which records Adam's decisions
 up to 149 in #216's own numbering, decisions 244 and 245 among them as
@@ -3186,8 +3231,8 @@ its decisions 92 and 97:
   (decision 273), but #216 pushes any file a worker reports that holds
   no `authority` as an unanswered question file, so it would push a
   handled file too, and a worker steered by
-  item text could then close any question with the same hash on every
-  machine.
+  item text could then close any question with the same hash, in that
+  repository, on every machine.
 - **#216 should widen its definition of a citation to include a
   person's cite.** It defines a citation as an agent's record that a
   lore entry answered a question so that no person was asked. Decision

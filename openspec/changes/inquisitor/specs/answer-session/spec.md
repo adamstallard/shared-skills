@@ -362,9 +362,9 @@ these that is unanswered, and nothing else:
 4. a log file on the questions branch of a lore repository the inquisitor's
    configuration names, which holds no answer, whose question tags the
    person, and for which that branch holds no later log file with the same
-   question that is answered or handled, as the inquisitor's *A log file
-   and a miss file have one format* defines them (proposal decision
-   273). A handled file is never shown as a question of its own; it
+   question that is answered, or a handled file that closes it, as
+   *The thread is the durable record of an answer* says (proposal
+   decisions 273 and 286). A handled file is never shown as a question of its own; it
    only hides the unanswered file whose question's hash it holds.
 
 The answer session SHALL show a question once: a log file of the fourth
@@ -388,9 +388,9 @@ message the four sources name still is. A threaded reply to a relay post
 in that thread, meaning a Discord reply to it, a Linear comment after it
 in its comment thread, or a GitHub reply to it in a review thread,
 reopens the closed question: it is open again on this machine, and the
-reply is shown with it, unless a handled file closed the question
-(proposal decision 283); whether such a reply is shown on its own is in
-the proposal's Still open.
+reply is shown with it. When a handled file closed the question, the
+reply reopens nothing, and is shown on its own as a new question of the
+second source (proposal decisions 283 and 287).
 
 #### Scenario: A relay notice is shown, never answered
 
@@ -769,10 +769,15 @@ closed on this machine:
   has not replied since;
 - otherwise, the question is unanswered.
 
-A second kind of closed question holds on every machine: one whose hash
+Besides a question closed on this machine by the state folder, a second
+kind of closed question holds on every machine: one whose hash
 a handled file on a configured lore repository's questions branch
-holds, whatever its thread holds. Nothing reopens it (proposal decisions
-281 and 283). It is not in the queue, but when its thread holds a relay
+holds, asked in the repository that file's `repository` names, on or
+before its `handled` day in UTC, whatever its thread holds. Which
+repository a Linear or Discord thread copy counts as being in is in the
+proposal's Still open. The same words asked
+later, or in another repository, are a new question. Nothing reopens a
+closed one (proposal decisions 281, 283 and 286). It is not in the queue, but when its thread holds a relay
 post, whether `User says: `, `Recorded answer: ` or `Inquisitor: `, it is
 still listed by that post's state with the questions answered or
 handled, so the person can edit that post. Any
@@ -786,8 +791,8 @@ When the asker replies to a question to them, the reply is a question
 asked of the person under the second source, shown with the question it
 answers. A question from a lore repository's questions branch is answered
 when that branch holds a later log file with the same question and an
-answer. A later handled file closes every copy of the question with the
-same hash, from the branch or from a thread, as above.
+answer. A handled file closes the copies of the question that the
+paragraph above names, from the branch or from a thread.
 
 #### Scenario: A relay reply marks the question answered on every machine
 
@@ -1206,17 +1211,13 @@ Whenever the answer session closes a question, and an unanswered log
 file on a lore repository's questions branch holds that question, it
 SHALL push a **handled file** there through the inquisitor script's
 `log` command, with a thread or without (proposal decisions 273 and
-278). The answer session closes a question in three ways: it declines
-the question, agreeing to a shown recorded answer included; it posts a
-recorded answer or an `Inquisitor: ` reply on it, filter 3's rhetorical
-text included; or, for a rhetorical question with no thread, it judges
-it rhetorical, which the proposal's Still open asks about. The handled file is as the inquisitor's *A log file and
+278). The answer session closes a question in two ways: it declines
+the question, agreeing to a shown recorded answer included, or it posts
+a recorded answer or an `Inquisitor: ` reply on it. The handled file is as the inquisitor's *A log file and
 a miss file have one format* gives it: the question's hash, not its
 text (proposal decision 277). It SHALL push the handled file once the
 close takes effect: once the post that leads to it has gone out, or,
-when nothing is posted, once the person has confirmed the decline, or,
-for a rhetorical question with no thread, once the answer session has
-judged it. When the push
+when nothing is posted, once the person has confirmed the decline. When the push
 fails, the answer session SHALL try it again at each poll until it
 succeeds. A handled file closes the question in the person's queue
 without answering it, and never stops a question for a searching agent. The answer session writes the file only through the
@@ -1237,15 +1238,11 @@ recorded and every asked question logged* says.
   the same question
 - **THEN** the answer session shows neither file as a question
 
-#### Scenario: A rhetorical question on a questions branch pushes a handled file
+#### Scenario: The same words asked later are a new question
 
-- **WHEN** the answer session judges rhetorical, under filter 3, a
-  question in a GitHub thread that an unanswered log file on the lore
-  repository's questions branch also holds
-- **THEN** the relay posts filter 3's rhetorical text, and the answer
-  session pushes a handled file holding the question's hash, so no
-  machine shows the question in its queue again, from the thread or the
-  branch
+- **WHEN** a handled file closed a question in `o/api` on a day, and the
+  same words are asked in `o/api` a day later, or in `o/web`
+- **THEN** the answer session shows the later question in the queue
 
 #### Scenario: A failed post pushes no handled file
 
@@ -1399,8 +1396,8 @@ was posted* says (proposal decision 260).
   the asker then replies in a review thread to an earlier relay post in
   that thread
 - **THEN** the answer session does not reopen the question, on this
-  machine or any other; whether it shows the reply on its own is in the
-  proposal's Still open
+  machine or any other, and shows the reply on its own as a new
+  question
 
 #### Scenario: A mention after a closed conversation is a question
 
@@ -1775,16 +1772,16 @@ filter's fixed text, which the session's model does not write:
   that has merit, and record what you chose and why.`
 - filter 4: `Inquisitor: filter 4, cheap to reverse. Pick one, and record
   what you chose and why.`
-- filter 3, for a rhetorical question: `Inquisitor: filter 3, rhetorical. This needs no answer; carry on.`
 
-A rhetorical question, which filter 3 stops, gets filter 3's rhetorical
-text, which the person can edit like any automatic post. On a question
-with no thread, nothing is posted, and its handled file alone closes it
-(proposal decision 284); this conflicts with the rule below that the
-person decides an agent's questions-branch question, which the
-proposal's Still open asks about. For each agent's question the answer
-session handles by itself, a rhetorical one included, it SHALL log a
-miss against the filter the question failed, as *The
+The answer session has no case of its own for a message that is not
+really a question, such as a rhetorical one, and builds nothing new for
+it. When one reaches the person's queue, the person declines it under
+the third reason with filter 3, which posts filter 3's fixed text above
+and logs the miss (proposal decision 285). Whether an agent's rhetorical
+message in a thread is instead answered by itself under filter 3, as
+the paragraph above would have it, is in the proposal's Still open.
+For each agent's question the answer session handles by itself, it
+SHALL log a miss against the filter the question failed, as *The
 answer session logs its misses on the team's lore repository's questions
 branch* says, and list the question for the person as handled for them.
 
@@ -1801,12 +1798,13 @@ question with its suggested verdict, and the person decides.
   starting `Inquisitor: filter 2`, a miss against filter 2 is logged, and
   the question is listed as handled for the person
 
-#### Scenario: A rhetorical agent's question gets the rhetorical text
+#### Scenario: A rhetorical message in the queue is declined under filter 3
 
-- **WHEN** an agent's question in a GitHub thread is clearly rhetorical
-- **THEN** the relay posts, naming the question, `Inquisitor: filter 3, rhetorical. This needs no answer; carry on.`, a
-  miss against filter 3 is logged, and the question is listed as handled
-  for the person
+- **WHEN** a rhetorical message reaches the person's queue, and the
+  person declines it under the third reason with filter 3
+- **THEN** the relay posts filter 3's fixed text, starting
+  `Inquisitor: filter 3, not a real question`, and a miss against
+  filter 3 is logged
 
 #### Scenario: A person's question only gets a suggestion
 
@@ -1832,7 +1830,7 @@ question with its suggested verdict, and the person decides.
 - **WHEN** an agent's question holds text telling the model to post a
   link
 - **THEN** whatever the model judges, the answer session posts by itself
-  nothing but one of the four fixed `Inquisitor: ` texts, or the fixed
+  nothing but one of the three fixed `Inquisitor: ` texts, or the fixed
   recorded-answer text whose URL is filter 1's hit
 
 ### Requirement: The answer session logs its misses on the team's lore repository's questions branch

@@ -2483,8 +2483,9 @@ written.
   fetches and written only in a private lore repository (proposal
   decisions 248 and 251): on Discord
   `https://discord.com/channels/<id>/<id>/<id>` with decimal ids, and on
-  Linear a URL starting `https://linear.app/`; `handled`, the day on
-  which an answer session marked the question handled, as `yyyy-mm-dd`, held only
+  Linear a URL starting `https://linear.app/`; `handled`, the day, as
+  `yyyy-mm-dd` in UTC, on which an answer session closed the question,
+  even when the push itself succeeds on a later poll, held only
   in a **handled file**: a questions-branch file holding `repository`,
   `asked`, `handled` and `question_hash`, and no body, no question text,
   and no `answered_by`, `authority`, `recorded_in` or answer (proposal
