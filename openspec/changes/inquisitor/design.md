@@ -638,7 +638,7 @@ needs that v0.1-33 lacks follow its patterns (proposal decision
 254, task 6.1).
 The rules are in the `answer-session` spec, the decisions in proposal
 decisions 152 to 175, 184 to 203, 207 to 211, 215, 216, 219, 220,
-222 to 230, 234, 236, 238, 246 to 248, 250 to 252, 254 to 260 and 262 to 276.
+222 to 230, 234, 236, 238, 246 to 248, 250 to 252, 254 to 260 and 262 to 280.
 
 ### Polling while open, with the person's credentials
 
@@ -788,14 +788,18 @@ counts it as an answer. The answer session does push one other file to
 the branch, a handled file: a new log file marking the question closed,
 with no answer. It closes the question only in the person's queue, and
 filter 1 still shows the question to a searching agent as unanswered.
-The answer session pushes one whenever it declines a question that a
-questions-branch file holds, or posts a recorded answer or an
-`Inquisitor: ` reply in the thread where that same question was also
-asked. Before decision 273, nothing on the branch recorded that the
-person had declined or answered for the question, so it would reappear
-in the person's queue on another machine, or after a restart; the
-handled file stops that, whether a person or an agent asked (decision
-273).
+The answer session pushes one whenever it closes a question that a
+questions-branch file holds: when it declines it, posts a recorded
+answer or an `Inquisitor: ` reply in the thread where that same question
+was also asked, or handles it as rhetorical, filter 3's case of a
+question that needs no reply (decision 278). The file holds the
+question's hash, not its text (decision 277). Before decision 273,
+nothing on the branch recorded that the person had declined or answered
+for the question, so its questions-branch copy would reappear in the
+person's queue on another machine, or after a restart; the handled file
+stops that, whether a person or an agent asked (decision 273). Whether
+it also keeps the thread copy of such a question out of another
+machine's queue is in the proposal's Still open.
 
 A relayed answer counts as the person's own for filter 1 (decision 184).
 Decision 78 proves a logged answer's writer only when GitHub gives the

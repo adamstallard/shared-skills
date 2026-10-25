@@ -220,12 +220,13 @@ contradicts what design.md assumed.
 - [ ] 2.4 The `log` command, writing one file per question or miss in the
       format of *A log file and a miss file have one format*, with an
       `authority` of `decision`, `input` or `agent`, and `answered_by: agent` for an agent's choice,
-      a handled file, holding `repository`, `asked`, `handled` and the
-      question, with no answer and no authority, for a questions-branch
-      question the answer session marks handled, written only through
-      the command's handled option, which only the answer session
-      passes, with a `handled` key refused without it; the command does
-      not check its caller (decisions 273 and 276),
+      a handled file (for a questions-branch question the answer
+      session marks handled: `repository`, `asked`, `handled` and
+      `question_hash`, with no question text, answer or authority;
+      written only through the command's handled option, which only the
+      answer session passes, a `handled` key being refused without it;
+      the command does not check its caller; decisions 273, 276 and
+      277),
       an answer with a github.com `answer_link` read from the linked
       comment and recorded word for word (decision 236), an answer with
       a Linear or Discord `answer_link` recorded as given, its link
@@ -482,11 +483,11 @@ contradicts what design.md assumed.
       reply only when it names filter 2, or names filter 3 or 4 and its
       last line apart from a `Re: ` line says the person chose it, which
       reason 3's posts add (decision 234; the line is decision 239's
-      item 6). Also the answer session's handled file, pushed on every
-      decline, recorded answer and `Inquisitor: ` reply on a question a
-      questions-branch file holds, whether from that branch or shown
-      from a thread, and no reopening of such a question once declined
-      (decisions 273 and 274)
+      item 6). The tests also cover the answer session's handled file, pushed whenever it
+      closes a question a questions-branch file holds, whether from that
+      branch or shown from a thread, a rhetorical question included, and
+      no reopening of such a question once declined (decisions 273, 274
+      and 278)
 - [ ] 6.11 Decide at implementation, with no requirement added
       (decision 256), and record each choice in design.md while the
       change is open. Agreeing to a shown recorded answer is not among

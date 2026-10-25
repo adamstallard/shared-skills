@@ -2464,6 +2464,8 @@ written.
 - **Slug:** the question's text in lower case, with each run of characters
   other than `a` to `z` and `0` to `9` made one `-`, cut to at most 40
   characters, with no `-` at either end; `question` when nothing is left.
+  A handled file's slug is always `handled`, so its name carries none of
+  the question's text.
 - **Encoding:** UTF-8 with LF line ends: YAML frontmatter between two `---`
   lines, every value a double-quoted YAML string, then a markdown body. The
   frontmatter SHALL hold no key but those below, so never `conditions`.
@@ -2484,9 +2486,13 @@ written.
   Linear a URL starting `https://linear.app/`; `handled`, the day on
   which an answer session marked the question handled, as `yyyy-mm-dd`, held only
   in a **handled file**: a questions-branch file holding `repository`,
-  `asked`, `handled` and the question, and no `answered_by`,
-  `authority`, `recorded_in` or answer (proposal decisions 273 and 276);
-  and
+  `asked`, `handled` and `question_hash`, and no body, no question text,
+  and no `answered_by`, `authority`, `recorded_in` or answer (proposal
+  decisions 273, 276 and 277); `question_hash`, only in a handled file,
+  the SHA-256, in lowercase hex, of the question it closes: the whole
+  text under the closed file's `## Question`, reduced as *Two calls
+  prove the filters ran* reduces a question in a post, the same hash that decides whether two log files hold the same
+  question; and
   `asked_from`, only in a questions-branch file an Igor pushes, whether
   its worker reported it or the Igor's own inquisitor run wrote it. Its body
   is the question under `## Question`, and, once the answer comes, the
@@ -2530,10 +2536,11 @@ written.
 - **Reading a log file:** it is answered when its frontmatter holds
   `authority`, and only then; nothing in its body decides it. It is
   **handled** when its frontmatter holds `handled`: closed, with no
-  answer and no authority. Filter 1 shows a handled file to the searching
-  agent as it shows an unanswered one, so a handled file never stops a
-  question. Its body is
-  read from the end, skipping blank lines after the last line that is not
+  answer and no authority. A handled file has no body; the question it
+  closes is the one whose hash is its `question_hash`. Since it holds no
+  question text, filter 1's search never matches a handled file, so a
+  handled file never stops a question, just as an unanswered file does
+  not. Any other log file's body is read from the end, skipping blank lines after the last line that is not
   blank: in an answered file the answer is the longest run of quote lines
   at the end, each line starting with `>`, read with its `> ` or `>`
   dropped, and the line before that run is `## Answer`; in a file holding
@@ -3191,14 +3198,18 @@ treats the post as input, and its question stands.
 #### Scenario: A handled file's keys
 
 - **WHEN** an answer session marks a questions-branch file handled
-- **THEN** the new file holds `repository`, `asked` and `handled`, the
-  last as the day in `yyyy-mm-dd`, the question under `## Question`, and
-  no `answered_by`, `authority`, `recorded_in` or answer
+- **THEN** the new file holds `repository` and `asked`, copied from the
+  file it closes, `handled`, as the day in `yyyy-mm-dd`, and
+  `question_hash`, the hash of the question it
+  closes, and no body, no question text, and no `answered_by`,
+  `authority`, `recorded_in` or answer
 
-#### Scenario: Filter 1 shows a handled file as unanswered
+#### Scenario: A handled file never stops a question
 
-- **WHEN** filter 1's search finds a handled file for the question
-- **THEN** it shows the file labelled as unanswered
+- **WHEN** a questions branch holds a handled file closing a question,
+  and an agent's filter 1 searches for the same question
+- **THEN** the search shows no hit from the handled file, and the
+  handled file stops nothing
 
 #### Scenario: A recorded answer the asker cannot count is input
 

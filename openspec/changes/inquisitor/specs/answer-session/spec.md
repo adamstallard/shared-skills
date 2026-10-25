@@ -69,11 +69,12 @@ Terms used throughout this spec:
   the channel's last poll read. GitHub's notifications endpoint is one feed
   for every GitHub channel, and has one poll position of its own: the
   `Last-Modified` time of its last response.
-- **The same question**, for two questions, means the same hash, as the
-  inquisitor's spec defines *a question's text* and *a question's hash*
-  for a question in a post, and a log file's question as its *Only an
-  answer with authority stops a question* reads it. So a question logged
-  from a thread has the same hash as the thread's.
+- **The same question**, for two questions, means the same hash. The
+  inquisitor spec defines a question's text and its hash for a question
+  in a post; for a log file, the question is the one the inquisitor
+  spec's *Only an answer with authority stops a question* reads from
+  it; and for a handled file, the hash is its `question_hash`. So a question logged from a thread has the
+  same hash as the thread's.
 - **A Claude Code background session** is one with no terminal attached,
   such as a session picker starts.
 - **The state folder** is
@@ -362,7 +363,7 @@ these that is unanswered, and nothing else:
    question that is answered or handled, as the inquisitor's *A log file
    and a miss file have one format* defines them (proposal decision
    273). A handled file is never shown as a question of its own; it
-   only hides the unanswered file whose question it holds.
+   only hides the unanswered file whose question's hash it holds.
 
 The answer session SHALL show a question once: a log file of the fourth
 source whose question is the same question as one it shows from a thread
@@ -1192,21 +1193,22 @@ edit for a question of the fourth source.
 
 ### Requirement: A handled file closes a questions-branch question
 
-Whenever the answer session declines a question, agreeing to a shown
-recorded answer included, or posts a recorded answer or an
-`Inquisitor: ` reply on it, and an unanswered log file on a lore
-repository's questions branch holds that question, it SHALL push a
-**handled file** there through the inquisitor script's `log` command,
-with a thread or without: a new log file holding `handled`, whose value
-is the day it is pushed, as `yyyy-mm-dd`, and the other keys and body
-the inquisitor's *A log file and a miss file have one format* gives a
-handled file. It SHALL push the handled
-file once the post that leads to it has gone out, or, for a decline
-with nothing posted, once the person has confirmed the decline: the
-point at which a decline also pushes its miss (proposal decision 273).
-A handled file closes the question in the person's queue without
-answering it: filter 1 still shows the question to a searching agent
-as unanswered. The answer session writes the file only through the
+Whenever the answer session closes a question, and an unanswered log
+file on a lore repository's questions branch holds that question, it
+SHALL push a **handled file** there through the inquisitor script's
+`log` command, with a thread or without (proposal decisions 273 and
+278). It closes a question when it declines it, agreeing to a shown
+recorded answer included, when it posts a recorded answer or an
+`Inquisitor: ` reply on it, and when it handles a rhetorical question
+with no reply. The handled file is as the inquisitor's *A log file and
+a miss file have one format* gives it: the question's hash, not its
+text (proposal decision 277). It SHALL push the handled file once the
+close takes effect: once the post that leads to it has gone out, or,
+when nothing is posted, once the person has confirmed the decline or
+the answer session has recorded the rhetorical question. When the push
+fails, the answer session SHALL try it again at each poll until it
+succeeds. A handled file closes the question in the person's queue
+without answering it, and never stops a question for a searching agent. The answer session writes the file only through the
 `log` command's handled option, as the inquisitor's *Every answer is
 recorded and every asked question logged* says.
 
@@ -1223,6 +1225,15 @@ recorded and every asked question logged* says.
   file whose question tags the person, and a later handled file with
   the same question
 - **THEN** the answer session shows neither file as a question
+
+#### Scenario: A rhetorical question on a questions branch pushes a handled file
+
+- **WHEN** the answer session judges rhetorical, under filter 3, a
+  question in a GitHub thread that an unanswered log file on the lore
+  repository's questions branch also holds
+- **THEN** it posts nothing and pushes a handled file holding the
+  question's hash, so no other machine shows the questions-branch copy
+  of the question
 
 #### Scenario: A failed post pushes no handled file
 
@@ -1744,7 +1755,9 @@ filter's fixed text, which the session's model does not write:
 
 A rhetorical question, which filter 3 stops, gets no reply: the answer
 session SHALL record it in the state folder as handled for the person,
-on this machine. For each such question, replied to
+on this machine, and, when a questions-branch file holds it, push a
+handled file, as *A handled file closes a questions-branch question*
+says, which closes it on every machine. For each such question, replied to
 or not, the answer session SHALL log a miss against that filter, as *The
 answer session logs its misses on the team's lore repository's questions
 branch* says, and list the question for the person as handled for them.
