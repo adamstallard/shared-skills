@@ -32,9 +32,9 @@ Terms used throughout this spec:
 - **An automatic post** is a relay post that starts with
   `Recorded answer: ` or `Inquisitor: `, whose text the answer session
   fixes rather than the person. The answer session makes one by itself,
-  or makes one only once the person confirms it: when they decline a question
-  because the inquisitor should have handled it, or agree to a recorded
-  answer shown beside the question.
+  or, when the person declines a question because the inquisitor should
+  have handled it, agreeing to a shown recorded answer included, makes
+  one only once the person confirms it.
 - **A question's thread** is where a reply to the question goes: the
   conversation of the GitHub issue or pull request that holds it, or the
   review thread when the question is a review comment; the comment thread
@@ -359,7 +359,9 @@ these that is unanswered, and nothing else:
 4. a log file on the questions branch of a lore repository the inquisitor's
    configuration names, which holds no answer, whose question tags the
    person, and for which that branch holds no later log file with the same
-   question and an answer.
+   question that is answered or handled, as the inquisitor's *A log file
+   and a miss file have one format* defines them (proposal decision
+   272). A handled file is never shown itself.
 
 The answer session SHALL show a question once: a log file of the fourth
 source whose question is the same question as one it shows from a thread
@@ -773,7 +775,9 @@ When the asker replies to a question to them, the reply is a question
 asked of the person under the second source, shown with the question it
 answers. A question from a lore repository's questions branch is answered
 when that branch holds a later log file with the same question and an
-answer.
+answer. A later handled file closes the question, and the question is no
+longer shown from the questions branch; the question takes no state of
+its own beside its thread's.
 
 #### Scenario: A relay reply marks the question answered on every machine
 
@@ -1075,11 +1079,7 @@ relayed as the person's words* says, and also push the log file. It SHALL
 answer such a question by writing a new log file through the
 inquisitor script's `log` command, which pushes it to that same questions
 branch under the rules of the inquisitor's *Every answer is recorded and
-every asked question logged*. One exception: when the person agrees to
-the recorded answer shown for a question shown from a thread, the
-answer session posts it as *Filter 1 runs on every incoming question*
-says, and pushes no log file; that post stands in the thread in place of
-a log file (proposal decision 266). When the answer was also relayed in a
+every asked question logged*. When the answer was also relayed in a
 thread, the answer session SHALL pass the `log` command the URL of that
 relay post as the `answer_link`, which the command leaves out of a lore
 repository that is not private when it is a Linear or Discord URL, as
@@ -1195,9 +1195,7 @@ answer session SHALL post a text starting with `User says: ` or
 `User asks: ` only once the person has confirmed that whole text, and a
 text starting with `Recorded answer: ` or `Inquisitor: ` only as *Filter 1
 runs on every incoming question*, *Filters 2 to 4 judge every incoming
-question* and *The person can decline to answer* say, including a
-recorded answer the person agrees to under *Filter 1 runs on every
-incoming question*. A relay identity may post for other work, but no post
+question* and *The person can decline to answer* say. A relay identity may post for other work, but no post
 outside the answer session SHALL start with a reserved prefix. The
 skill's instructions SHALL say so, and on GitHub the inquisitor's post
 hook blocks such a post, as the inquisitor's *Questions in posts pass the
@@ -1273,19 +1271,21 @@ giving one of three reasons:
    the preview the person confirms SHALL also show that posting it shows
    the record exists, so their one confirmation covers both (proposal
    decision 264). When the question has no thread, the answer session
-   posts nothing, shows the person the recorded answer, and the question
-   closes. On a
+   posts nothing for any filter, shows the person the recorded answer
+   for filter 1, and the question closes. On a
    question with a category, it posts nothing for any filter, and the
    question closes. This reason applies to a person's question as to an
    agent's. The answer
    session logs a miss against the filter the person picked, whose `said`
    is the note the person typed, or `the inquisitor should have handled
    it` when they typed none, written at the privacy of what the question
-   concerns. The answer session SHALL push that miss, and any citation
-   that a filter 1 decline naming a lore entry brings under *Filter 1
-   runs on every incoming question*, only once its post has gone out,
-   or, when nothing is posted, once the person has confirmed the
-   decline.
+   concerns. The answer session SHALL push that miss only once its post
+   has gone out, or, when nothing is posted, once the person has
+   confirmed the decline. A filter 1 decline naming a lore entry SHALL
+   push its citation file, under *Filter 1 runs on every incoming
+   question*, only when it pushes its miss, which *The answer session
+   logs its misses on the team's lore repository's questions branch*
+   withholds in some cases (proposal decision 271).
 
 A question declined with nothing posted is closed on this machine only:
 the answer session SHALL record it in the state folder, and nowhere a
@@ -1430,33 +1430,23 @@ its repository's: the more private of its `repository` and `asked_from`,
 as the inquisitor's *More visible* defines it.
 Otherwise, and for a question from a questions branch, it SHALL show the
 recorded answer to the person beside the question, and post only what the
-person relays or agrees to. The person may agree to the shown recorded
-answer. Agreeing is not offered on a question with a category: there
-the decline rule posts nothing for any filter. For a record more private than the thread, the answer session
-SHALL first show the person that posting it shows the record exists, and
-SHALL post the recorded answer, in the form above, only once they confirm
-(proposal decision 264). On a question with no thread, such as one from
-a questions branch, agreeing to the shown recorded answer is declining
-the question under the third reason of *The person can decline to
-answer* with filter 1, naming that record, and the answer session SHALL
-handle it as that requirement does: it posts nothing and writes no log
-file, closes the question in the state folder, lets the person reopen
-it, logs the miss against filter 1, and cites the record when it is a
-lore entry (proposal decision 268). Agreeing takes no note, as in the
-approved prototype, so that miss's `said` is `the inquisitor should
-have handled it`. When the person agrees on an agent's question in a
-thread, the answer session SHALL log a miss against filter 1, as when it
-answers one by itself (proposal decision 267); which `said` that miss
-carries is in the proposal's Still open. Agreeing on a person's question
-in a thread logs no miss. When the record is a lore entry, it SHALL push a citation
-file, as the inquisitor's *Every answer is recorded and every asked
-question logged* says. A person **cites** a lore entry when they answer
-a question by naming that entry as its answer, when they agree to a
-shown recorded answer whose record is that entry, or when they decline a
-question
-under the third reason of *The person can decline to answer*, "the
+person relays or confirms. The person may agree to the shown recorded
+answer. Agreeing is declining the question under the third reason of
+*The person can decline to answer* with filter 1, naming that record,
+and the answer session SHALL handle it exactly as that requirement
+does, with its preview, its warning for a record more private than the
+thread, its miss, its citation and its close (proposal decision 270).
+On a question with a category, agreeing closes it with nothing posted,
+as that rule has it. Agreeing takes no note, as in the approved
+prototype, so its miss's `said` is `the inquisitor should have handled
+it`. When the answer session posts a recorded answer by itself and the
+record is a lore entry, it SHALL push a citation file, as the
+inquisitor's *Every answer is recorded and every asked question logged*
+says. A person **cites** a lore entry when they answer
+a question by naming that entry as its answer, or when they decline a
+question, agreeing to a shown recorded answer included, under the third reason of *The person can decline to answer*, "the
 inquisitor should have handled it", with filter 1, naming that entry as
-the record (proposal decisions 262 and 264). The answer session SHALL
+the record (proposal decisions 262 and 270). The answer session SHALL
 push a citation file for the entry the person cites, under the citation rules of the
 inquisitor's *Every answer is recorded and every asked question logged*, but only when the entry is `active` and in scope for the
 question, as the inquisitor's *Filter 1 searches every place an answer
@@ -1464,7 +1454,7 @@ is recorded* defines a lore entry's scope. Citing any other entry pushes nothing
 and 259). When it answers an agent's question by itself, it
 SHALL log a miss against filter 1, as *The answer session logs its misses
 on the team's lore repository's questions branch* says; a person's
-question logs none. Before each automatic post, the answer session
+question logs none when the answer session answers it by itself. Before each automatic post, the answer session
 reads the question's thread again, as *The thread is read again before a
 question is shown and before a post* says.
 
@@ -1618,8 +1608,10 @@ once, and so does each recorded answer.
 
 - **WHEN** the person agrees to a shown recorded answer whose record is
   an `active` lore entry, in a private lore repository, whose scope
-  covers a question about a private repository
-- **THEN** the answer session pushes a citation file for that entry
+  covers a question about a private repository, and no filter 1 miss for
+  that question is on the branch yet
+- **THEN** the answer session pushes the filter 1 miss and a citation
+  file for that entry
 
 #### Scenario: Agreeing to an inactive lore entry's recorded answer cites nothing
 
@@ -1643,14 +1635,31 @@ once, and so does each recorded answer.
   repository's questions branch also holds is shown from its GitHub
   thread, with a recorded answer more private than the thread shown
   beside it, and the person agrees to it and confirms after the warning
-- **THEN** the relay posts the recorded answer in the thread, and no log
-  file is pushed to the questions branch
+- **THEN** the relay posts the recorded answer in the thread, and the
+  answer session pushes no log file to the questions branch
 
-#### Scenario: Agreeing on an agent's question logs a miss
+#### Scenario: Agreeing logs a miss on any question
 
-- **WHEN** the person agrees to the recorded answer shown beside an
-  agent's question
-- **THEN** the answer session logs a miss against filter 1
+- **WHEN** the person agrees to the recorded answer shown beside a
+  question in a private repository's GitHub thread, whose lore
+  repository is private, whether a person or an agent asked it
+- **THEN** the answer session logs a miss against filter 1 with
+  `said: "the inquisitor should have handled it"`
+
+#### Scenario: Agreeing again pushes no second citation
+
+- **WHEN** the person reopens a question from a questions branch, with no
+  thread, that they declined by agreeing to a shown recorded answer
+  whose record is an `active` lore entry in scope, and agrees again
+- **THEN** no second miss and no second citation file is pushed, since a
+  miss for that question and filter is already on the branch
+
+#### Scenario: A handled file closes a questions-branch question
+
+- **WHEN** a lore repository's questions branch holds an unanswered log
+  file whose question tags the person, and a later handled file with
+  the same question
+- **THEN** the answer session shows neither file as a question
 
 #### Scenario: A questions-branch question's recorded answer is shown, not posted
 

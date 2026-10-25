@@ -638,7 +638,7 @@ needs that v0.1-33 lacks follow its patterns (proposal decision
 254, task 6.1).
 The rules are in the `answer-session` spec, the decisions in proposal
 decisions 152 to 175, 184 to 203, 207 to 211, 215, 216, 219, 220,
-222 to 230, 234, 236, 238, 246 to 248, 250 to 252, 254 to 260 and 262 to 269.
+222 to 230, 234, 236, 238, 246 to 248, 250 to 252, 254 to 260 and 262 to 272.
 
 ### Polling while open, with the person's credentials
 
@@ -778,10 +778,16 @@ session shows it from the thread, relays the answer there, and pushes the
 log file too (decision 210), so neither the asker reading the thread nor
 an agent searching the branch misses the answer. When the person, rather
 than answering in their own words, agrees to the recorded answer shown
-beside the question, no log file is pushed (decision 266). An agent that
-searches later is then stopped by that record only when its own filter
-1 can read the record and counts it as an answer; otherwise it sees the
-question as unanswered.
+beside the question, that is a decline under reason 3, "the inquisitor
+should have handled it", with filter 1 (decision 270), and no log file
+is pushed. So the questions branch holds nothing saying the question was
+answered, and an agent that searches later is stopped by the record the
+person agreed to only when its own filter 1 can read that record and
+counts it as an answer. The asking agent, reading the decline's post in
+the thread, marks its questions-branch file handled, so the answer
+session does not show the question again from the branch, on any
+machine (decision 272). An asker that marks nothing, such as a person,
+leaves the file to come back.
 
 A relayed answer counts as the person's own for filter 1 (decision 184).
 Decision 78 proves a logged answer's writer only when GitHub gives the

@@ -220,6 +220,9 @@ contradicts what design.md assumed.
 - [ ] 2.4 The `log` command, writing one file per question or miss in the
       format of *A log file and a miss file have one format*, with an
       `authority` of `decision`, `input` or `agent`, and `answered_by: agent` for an agent's choice,
+      a handled file, holding `repository`, `asked`, `handled` and the
+      question, with no answer and no authority, for a questions-branch
+      question the asking agent marks handled (decision 272),
       an answer with a github.com `answer_link` read from the linked
       comment and recorded word for word (decision 236), an answer with
       a Linear or Discord `answer_link` recorded as given, its link
@@ -239,8 +242,8 @@ contradicts what design.md assumed.
       lore repository's `questions` branch when filter 1 stops a question
       with a lore entry, or when the person answers in the answer session
       by citing an `active` entry in scope, a decline under reason 3
-      with filter 1 naming such an entry included (decisions 257, 259
-      and 262),
+      with filter 1 naming such an entry included, a decline's citation
+      going only with its miss (decisions 257, 259, 262 and 271),
       committed unsigned with `git -c commit.gpgsign=false`. It sends none
       for a question with a category, none to a lore repository more
       visible than the repository the question concerns, and none for a
@@ -384,11 +387,10 @@ contradicts what design.md assumed.
         not only from the person's own `User says: ` post, with local
         state deciding only what the spec leaves to it, such as a
         question declined with nothing posted; agreeing to a recorded
-        answer on a questions-branch question, where v0.1-33 logs the
-        recorded answer in a new file and the spec writes no log file;
-        on such a question with no thread it treats agreeing as a
-        decline under reason 3 with filter 1, and on one shown from a
-        thread it posts the recorded answer (decisions 266 and 268);
+        answer: v0.1-33 treats it as a path of its own and, on a
+        questions-branch question, logs the recorded answer in a new
+        file, while the spec treats it as a decline under reason 3 with
+        filter 1 and writes no log file (decisions 266 and 270);
         and the question that was on screen, kept in the state
         folder so a restarted session opens on it, not in the mod's
         `$.store`
@@ -471,11 +473,14 @@ contradicts what design.md assumed.
       reply only when it names filter 2, or names filter 3 or 4 and its
       last line apart from a `Re: ` line says the person chose it, which
       reason 3's posts add (decision 234; the line is decision 239's
-      item 6)
+      item 6); and that on a `Recorded answer: ` post or a decline's post
+      from the relay App of the person asked, in the thread of a
+      question it logged on a questions branch, it marks that file
+      handled (decision 272)
 - [ ] 6.11 Decide at implementation, with no requirement added
       (decision 256), and record each choice in design.md while the
       change is open. Agreeing to a shown recorded answer is not among
-      them: decisions 264 and 266 to 268 set it. The choices: how a question's options are parsed from its
+      them: decisions 264, 266 and 270 to 272 set it, 270 having folded 267 and 268 in. The choices: how a question's options are parsed from its
       thread; `propose_reply`, the tool Claude calls to put a draft reply in the
       prompt box, refusing a call from a subagent (Adam confirmed this);
       a draft's privacy, beyond the existing rule that the draft is

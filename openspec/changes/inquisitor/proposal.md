@@ -16,7 +16,7 @@ are written down:
 - 232 to 237, on 2026-10-21, and 238 in two parts: Message Content
   turned on, on 2026-10-20, and how `check` reads it, on 2026-10-21.
 - 240 to 253, on 2026-10-21;
-- 254 to 269, on 2026-10-24.
+- 254 to 272, on 2026-10-24.
 
 Apart from 229 and 241 to 244, which he gave in the session reviewing
 igor PR #216, and 238, which he gave in shared-skills PR #1, he gave those of 2026-10-19 to 2026-10-24 while reviewing this pull
@@ -46,10 +46,10 @@ it recorded 247 to 249. On 2026-10-24 he gave 254 to 257, after an audit
 of the approved prototype against the spec, 258 to 261, answering
 the four questions this change put to him when it recorded 254 to 257,
 262, answering the one it put to him when it recorded 258 to 261, and
-263, approving the prototype build that 258 required. Each later pair
-answers the questions this change put to him when it recorded the pair
-before: 264 and 265 answer two, 266 and 267 answer five, and 268 and
-269 answer two.
+263, approving the prototype build that 258 required. Each later group
+answers the questions this change put to him when it recorded the group
+before: 264 and 265 answer two, 266 and 267 answer five, 268 and 269
+answer two, and 270 to 272 answer the three raised with 268 and 269.
 
 1. **Four filters run before any question reaches a person.**
    1. **Already answered:** the agent finds the earlier answer, cites where it
@@ -1939,8 +1939,9 @@ Adam gave 263 on 2026-10-24, approving the build decision 258 required:
 Adam gave 264 and 265 on 2026-10-24, answering the two questions this
 change put to him when it recorded 263:
 
-264. *Amended by Adam's decision 266: agreeing on a questions-branch
-     question writes no log file.* **The person may agree to a recorded answer more private than the
+264. *Amended by Adam's decisions 266 and 270: agreeing writes no log
+     file, and is a decline under reason 3 with filter 1, whose warning
+     for a more private record this decision supplies.* **The person may agree to a recorded answer more private than the
      thread.** When a record is shown, not posted, because it is more
      private than the thread, agreeing to it posts `Recorded answer: see
      the record below.` with `Recorded in: <URL>`, after the screen warns
@@ -1961,8 +1962,9 @@ change put to him when it recorded 263:
 Adam gave 266 and 267 on 2026-10-24, answering the five questions this
 change put to him when it recorded 264 and 265:
 
-266. *Amended by Adam's decision 268: on a question with no thread,
-     agreeing is a decline under reason 3 with filter 1.* **On a questions-branch question, agreeing to a recorded answer
+266. *Amended by Adam's decisions 268 and 270: agreeing is a decline
+     under reason 3 with filter 1 on every question, and the decline
+     path closes it.* **On a questions-branch question, agreeing to a recorded answer
      writes no new log file.** The question closes as handled for the
      person, and a citation file is pushed when the record is an
      `active` lore entry in scope (decision 259). No log file is
@@ -1978,7 +1980,8 @@ change put to him when it recorded 264 and 265:
      268 replaces this decision's rule for a question with no thread: it
      is closed as a decline, not "as handled for the person". The rest
      holds for a question shown from a thread. *Rejected:* a log file whose answer points to the record.
-267. **Agreeing on an agent's question logs a miss against filter 1,** as
+267. *Amended by Adam's decision 270: agreeing logs the decline's miss,
+     on a person's question too.* **Agreeing on an agent's question logs a miss against filter 1,** as
      when the answer session answers one by itself, since filter 1
      should have stopped the question either way. *Rejected:* logging
      none.
@@ -1986,7 +1989,7 @@ change put to him when it recorded 264 and 265:
 Adam gave 268 and 269 on 2026-10-24, answering the two questions this
 change put to him when it recorded 266 and 267:
 
-268. **On a question with no thread, agreeing to the shown recorded
+268. *Widened by Adam's decision 270 to every question.* **On a question with no thread, agreeing to the shown recorded
      answer is declining it under reason 3 with filter 1, naming that
      record.** The decline path does the rest: nothing is posted, the
      question closes in the state folder (on one machine only, as
@@ -1996,7 +1999,10 @@ change put to him when it recorded 266 and 267:
      decision 266's case of a question with no thread into the decline
      path instead of keeping a separate path for agreeing. *Rejected:*
      a record and a `said` of agreeing's own.
-269. **A known limit, accepted: an agreed question asked in a thread can
+269. *Retired by Adam's decision 272 for a `Recorded answer: ` post
+     and a decline's post: the asking agent marks the questions-branch
+     file handled, so it no longer comes back. After an automatic
+     `Inquisitor: ` post the limit still holds; see Still open.* **A known limit, accepted: an agreed question asked in a thread can
      come back from the questions branch.** Its questions-branch file
      stays unanswered, and the answer session hides it only while it
      shows the same question from the thread, which nothing durable
@@ -2007,6 +2013,39 @@ change put to him when it recorded 266 and 267:
      post and a reason 3 decline in a thread. No rule is added.
      *Rejected:* hiding a questions-branch file whenever any relay post
      names the same question.
+
+Adam gave 270 to 272 on 2026-10-24, answering the three questions this
+change put to him when it recorded 268 and 269:
+
+270. **Agreeing to a recorded answer is always declining the question
+     under reason 3 with filter 1, naming that record,** in a thread as
+     with no thread. Agreeing is no longer a path of its own: the decline
+     path shows the exact post, warns before a record more private than
+     the thread is posted (decision 264), cites a lore entry (decision
+     262), logs the miss with its defined `said`, closes the question in
+     the state folder when nothing is posted, and pushes no log file,
+     with a thread or without. A miss on a person's question is accepted. This folds
+     decisions 264, 266, 267 and 268 into the decline path, and settles
+     which `said` the miss carries. *Rejected:* a `said` of agreeing's
+     own.
+271. **A decline's citation is pushed only when its miss is pushed.** A
+     miss already on the branch for the same question and filter stops
+     a second miss, so it also stops a second citation when the person
+     agrees again, after reopening or on another machine. *Rejected:* no
+     citation for a filter 1 decline of a question with no thread, the
+     one case where agreeing again was then possible.
+272. **The asking agent marks its questions-branch file handled** when it
+     reads, in the question's thread, a `Recorded answer: ` post or a
+     post the answer session made on a decline, at the point where it
+     would record a `User says: ` answer. Handled means closed, with no
+     answer and no authority. Since a questions-branch file is never
+     changed (decision 140), the agent pushes a new file holding the
+     question and a `handled` key, which the log file format now
+     defines. The question then stops counting as a question from the
+     questions branch, the answer session's fourth source, on every
+     machine. This retires decision 269's known limit for those posts;
+     after an automatic `Inquisitor: ` post it still holds.
+     *Rejected:* widening that limit to a restart on the same machine.
 
 ### Proposed by this change
 
@@ -2978,40 +3017,52 @@ agreeing to a recorded answer, are settled by decisions 266 and 267.
 The two questions raised while recording decisions 266 and 267 are
 settled by decisions 268 and 269.
 
-Three questions for Adam, raised while recording decisions 268 and 269,
-on the path of agreeing to a recorded answer:
-- **The miss's `said` when the person agrees in a thread.** Decision 267
-  logs it "as when it answers one by itself", whose `said` is
-  `answer session: clearly filter 1`, a person's act labelled as the
-  session's own judgment, while agreeing with no thread gets the
-  decline's `said`. Options: extend decision 268 to every question, so
-  agreeing to a shown recorded answer is always declining under reason
-  3 with filter 1, naming that record (recommended: it removes agreeing
-  as a path of its own; the decline path already shows the exact post,
-  warns for a more private record, cites a lore entry and logs a miss
-  with a defined `said`, and pushes no log file in a thread; the cost is
-  a miss on a person's question too, which reason 3 already logs); or
-  give the agreeing miss its own `said`.
-- **Repeated citations.** A question closed by a decline with nothing
-  posted is closed on one machine only, and a reopened question runs
-  filter 1 again, so the same questions-branch question can be agreed
-  again after reopening and once on each other machine. Each time a
-  citation is pushed. The miss is pushed once per question and filter,
-  but a citation holds nothing about the question, so igor's review
-  would overcount the entry. Options: push a decline's citation only
-  when its miss is pushed (recommended: it reuses the miss's check, so
-  one question gives at most one citation); or push no citation for a
-  filter 1 decline of a question with no thread.
-- **An agreed thread question coming back is wider than decision 269
-  says.** Nothing in the state folder records which questions a thread
-  showed, and a restart reads only what came after each channel's poll
-  position, while the questions branch is fetched whole at every poll.
-  So after a restart the thread is not read again and nothing hides the
-  file, while the branch is fetched again, and the file comes back on
-  the same machine too, not only on one that first polls 14 days later. Options: widen decision
-  269's known limit to say so (recommended: it adds no rule); or push
-  the log file after all when the person agrees in a thread, so the
-  file is answered and never comes back.
+The three questions raised while recording decisions 268 and 269 are
+settled by decisions 270 to 272.
+
+Three questions for Adam, raised while recording decisions 270 to 272:
+- **Who writes the handled file.** With the asking agent writing it,
+  four edges appear: an agent whose own filter 1 does not count the
+  record still closes the file on every machine; the agent must check
+  that the post came from the relay App of the person asked, so on
+  GitHub nothing is marked until task 0.21 shows GitHub reports which
+  App wrote a comment; an Igor worker's handled file passes igor PR
+  #216's checks as an unanswered file, so a worker steered by item text
+  could close any question; an automatic `Inquisitor: ` post marks
+  nothing, so decision 269's limit still holds after one. Two details
+  this change chose also need his word either way: the `handled` key
+  holds the day, and filter 1 shows a handled file to a searching agent
+  as unanswered, so it never stops a question. Options: the answer session pushes the handled file
+  itself, whenever its decline post, recorded-answer post or automatic
+  post goes out on a question a questions-branch file also holds, and
+  the asking agent writes none (recommended: it removes the agent's
+  read-and-mark step, and with it all four edges, since only the answer
+  session knows it made the post; the cost is that decision 270's "pushes
+  no log file in a thread" gains this one file); or keep the asking
+  agent marking, with the author check and the task 0.21 wait now
+  written, and ask #216 to check a worker's handled file.
+- **Citations tied to misses lose some.** A decline pushes a miss only
+  to the lore repository of the repository the question concerns, and
+  only when that is no more visible than the thread, while a citation
+  goes to the lore repository holding the entry. So tying the citation
+  to the miss drops citations decisions 259 and 262 allow: on Linear or
+  Discord with a public lore repository, where the thread counts as
+  more private, so no miss goes, after an earlier filter 1 miss
+  for the same question named another record, and whenever the two lore
+  repositories differ. Options: a decline under reason 3, agreeing
+  included, pushes no citation (recommended: it removes the step; igor's
+  count of an entry's citations stays a true lower bound; and no other
+  check could replace the miss's, since a citation file holds nothing
+  about the question); or keep decision 271 and accept those
+  lost citations as the same undercount.
+- **A declined questions-branch question with no thread closes on one
+  machine only.** Nothing is posted, so no handled file is written, and
+  it comes back on every other machine. Options: the answer session
+  pushes a handled file when it closes such a question (recommended with
+  the first question's first option: one rule closes a questions-branch
+  question everywhere; the cost is that it can no longer be reopened,
+  decision 260); or keep the close per machine, as decision 202's item 1
+  accepts for declines.
 
 Open on igor PR #216's side, at 59e7561, which records Adam's decisions
 up to 149 in #216's own numbering, decisions 244 and 245 among them as
