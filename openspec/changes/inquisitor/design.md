@@ -179,8 +179,8 @@ the script's output say each time that it acts on
 
 prose's posting hook already reads the body of a `gh` post from a short
 allow-list of command forms, and the body fields of GitHub MCP tools
-(`.agents/skills/prose/DECISIONS.md`, *The posting hook reads an allow-list*
-and *The posting hook's reach*).
+(`.agents/skills/prose/DECISIONS.md`, *The posting hook reads an
+allow-list*).
 That reader moves to `.agents/lib/gh-post/`, and both hooks call it. Its
 rules are stated once, in this change's `gh-post` capability spec.
 prose's tests must pass unchanged after the move, except where the reader
@@ -211,8 +211,8 @@ command sends, and the reader reads a command that sends text only when
 `gh` is the whole command line. So a title edit chained to another
 command, such as `cd x && gh pr edit 3 --title 'Rename?'`, is unreadable
 too, where prose's
-`DECISIONS.md` (*`--title` is not prose here*) has it pass; task 1.3
-updates that section. Those are the changes prose's hook sees. A footer
+`DECISIONS.md` has it pass (*The posting hook reads an allow-list*, its
+paragraph "Titles are not checked"); task 1.3 updates that paragraph. Those are the changes prose's hook sees. A footer
 can't go on a one-line title, so prose's hook checks only that the reader
 can read a title, and lets a call with a title and no body through. A
 title gets no prose pass: the inquisitor's post hook vets its questions,
@@ -635,7 +635,7 @@ needs that the prototype lacks follow its patterns (proposal decision
 254, task 6.1).
 The rules are in the `answer-session` spec, the decisions in proposal
 decisions 152 to 175, 184 to 203, 207 to 211, 215, 216, 219, 220,
-222 to 230, 234, 236, 238, 246 to 248, 250 to 252 and 254 to 260.
+222 to 230, 234, 236, 238, 246 to 248, 250 to 252, 254 to 260 and 262.
 
 ### Polling while open, with the person's credentials
 

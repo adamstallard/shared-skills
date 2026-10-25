@@ -16,10 +16,10 @@ are written down:
 - 232 to 237, on 2026-10-21, and 238 in two parts: Message Content
   turned on, on 2026-10-20, and how `check` reads it, on 2026-10-21.
 - 240 to 253, on 2026-10-21;
-- 254 to 261, on 2026-10-24.
+- 254 to 262, on 2026-10-24.
 
 Apart from 229 and 241 to 244, which he gave in the session reviewing
-igor PR #216, and 238, which he gave in shared-skills PR #1, he gave those of 2026-10-19 to 2026-10-21 while reviewing this pull
+igor PR #216, and 238, which he gave in shared-skills PR #1, he gave those of 2026-10-19 to 2026-10-24 while reviewing this pull
 request, [#25](https://github.com/adamstallard/shared-skills/pull/25), whose
 own thread holds none of them. In the same sessions he also ruled on the
 decisions this change proposed itself: 16 to 30, 36, 37, 50, 79, 86, 99,
@@ -43,8 +43,9 @@ that number, and his decision 246 settles 230's item 1. His decisions 247
 to 249 answer the three questions this change put to him when it
 recorded 245 and 246, and 250 to 253 answer the four it put to him when
 it recorded 247 to 249. On 2026-10-24 he gave 254 to 257, after an audit
-of the approved prototype against the spec, and 258 to 261, answering
-the four questions this change put to him when it recorded them.
+of the approved prototype against the spec, 258 to 261, answering
+the four questions this change put to him when it recorded 254 to 257,
+and 262, answering the one it put to him when it recorded 258 to 261.
 
 1. **Four filters run before any question reaches a person.**
    1. **Already answered:** the agent finds the earlier answer, cites where it
@@ -1885,6 +1886,22 @@ change put to him when it recorded 254 to 257:
      patterns, as task 6.1's rule (c) does. *Rejected:* keeping the
      exception only in this change.
 
+Adam gave 262 on 2026-10-24, answering the question this change put to
+him when it recorded 258 to 261:
+
+262. **Declining under reason 3 with filter 1, naming a lore entry as
+     the record, counts as citing it.** Reason 3 is the decline reason
+     "the inquisitor should have handled it"; with filter 1, already
+     answered, the person names the record, and the answer session
+     replies with a `Recorded answer: ` post whose `Recorded in: ` line
+     names it, as the answer-session spec's decline rule has it. When that
+     record is a lore entry, the answer session pushes a citation file
+     for it under decision 259's rule: only when the entry is `active`
+     and its scope covers the question, and nothing otherwise. The
+     asking agent's rule (decision 215's item 3) is unchanged: it pushes
+     no citation for an entry a `Recorded answer: ` post names. *Rejected:* having the
+     asking agent push the citation when it acts on the post.
+
 ### Proposed by this change
 
 Decisions 16 to 18 are #211's proposals that apply to the skill; #211's
@@ -2849,27 +2866,15 @@ Before Adam approves this change's spec, he approves the new prototype
 build of decision 254's item 4, and task 6.1's rule (d) names its tag
 (decision 258). Until then rule (d) names no tag.
 
-One question for Adam, raised while recording decisions 258 to 261:
-- **Does declining under reason 3 with filter 1, naming a lore entry as
-  the record, count as citing it?** The answer session then posts a
-  `Recorded answer: ` naming that entry, but only the automatic filter 1
-  reply and a person's cite push a citation file. The inquisitor spec
-  assumes the answer session pushed one for any lore entry a
-  `Recorded answer: ` post names, and so forbids the asking agent to
-  push one. Here that assumption fails, so an `active` entry in
-  scope that answered the question would get no citation. Options: it
-  counts as a cite, and the answer session pushes a citation file under
-  decision 259's rule (recommended: the entry gets credit once, from
-  the place that already pushes citations); or it does not, and the
-  asking agent pushes one when it acts on the post.
-
 Open on igor PR #216's side, at 59e7561, which records Adam's decisions
 up to 149 in #216's own numbering, decisions 244 and 245 among them as
 its decisions 92 and 97:
 - **#216 should widen its definition of a citation to include a
   person's cite.** It defines a citation as an agent's record that a
-  lore entry answered a question so that no person was asked; decision
-  259 has a person's cite of an `active` entry in scope push one too.
+  lore entry answered a question so that no person was asked. Decision
+  259 has a person's cite of an `active` entry in scope push one too,
+  and decision 262 counts as a cite a decline under reason 3 with filter
+  1 naming such an entry, for a question that did reach the person.
 - **Two of #216's Still open items for this change are done.** It asks
   this change to amend 245 to match its decision 97, without a fixed
   order, and to align 243 with its decisions 84 and 89. Both are now so,

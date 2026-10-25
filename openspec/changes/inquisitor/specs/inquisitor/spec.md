@@ -242,10 +242,10 @@ Terms used throughout this spec:
 - **A miss** is a question a person said need not have been asked, or
   that an answer session judged clearly need not have been, and a
   **citation file** records that a lore entry answered a question: filter
-  1 stopped the question with it, or the person answered in an answer
-  session by citing it while it was `active` and its scope covered the
-  question, as *Filter 1 searches every place an answer is recorded*
-  defines scope (proposal decisions 257 and 259); *A question that should not have been asked is logged as a miss*
+  1 stopped the question with it, or the person of an answer session
+  cited it, as the `answer-session` spec defines citing. Either way the
+  entry was `active` and its scope covered the question, as *Filter 1 searches every place an answer is recorded*
+  defines scope (proposal decisions 257, 259 and 262); *A question that should not have been asked is logged as a miss*
   and *Every answer is recorded and every asked question logged* define
   them, and *A citation file has one format* gives a citation file's form.
 - **A relayed answer** is a GitHub comment that starts with `User says: `
@@ -3125,7 +3125,8 @@ When an agent reads, in reply to its question, a post from a person's
 answer session that starts with `Recorded answer: `, it SHALL check the
 place the post's `Recorded in: ` line names through filter 1, and act on
 it only as filter 1 counts it. It SHALL push no citation for a lore entry
-that post names, since the answer session pushed one. It SHALL NOT log
+that post names, since the answer session pushes the citation when
+one is due. It SHALL NOT log
 the post as a person's answer. When the post starts with `Inquisitor: `
 and names filter 2, or names filter 3 or 4 and holds, as its last line
 apart from a `Re: ` line, the line the `answer-session` spec adds when

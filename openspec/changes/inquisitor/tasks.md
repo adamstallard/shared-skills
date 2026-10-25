@@ -147,8 +147,9 @@ contradicts what design.md assumed.
         reports a call whose title it can't read as unreadable (decision
         206), and a title edit chained to another command as unreadable.
         prose's hook lets a call with a title and no body through, and
-        prose's `DECISIONS.md` section *`--title` is not prose here* says
-        that a title is now read
+        this task rewrites the paragraph "Titles are not checked" in
+        prose's `DECISIONS.md`, under *The posting hook reads an
+        allow-list*, to say that a title is now read
       - It reads `python3 <github-app script> gh pr|issue …` posts,
         including `python3 $G …` only when the same command assigns `G`.
       - It reads `gh api` comments whose body is given by `-f body=`,
@@ -235,7 +236,9 @@ contradicts what design.md assumed.
       file has one format* (`entry` and `date`, no `run`) to the
       lore repository's `questions` branch when filter 1 stops a question
       with a lore entry, or when the person answers in the answer session
-      by citing an `active` entry in scope (decisions 257 and 259),
+      by citing an `active` entry in scope, a decline under reason 3
+      with filter 1 naming such an entry included (decisions 257, 259
+      and 262),
       committed unsigned with `git -c commit.gpgsign=false`. It sends none
       for a question with a category, none to a lore repository more
       visible than the repository the question concerns, and none for a

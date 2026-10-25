@@ -1408,9 +1408,10 @@ recorded answer to the person beside the question, and post only what the
 person relays. When the record is a lore entry, it SHALL push a citation
 file, as the inquisitor's *Every answer is recorded and every asked
 question logged* says. A person **cites** a lore entry when they answer
-a question by naming that entry as its answer. Whether declining under
-the third reason with filter 1, naming a lore entry as the record, is a
-cite is in the proposal's Still open. The answer session SHALL
+a question by naming that entry as its answer, or declines a question
+under the third reason of *The person can decline to answer*, "the
+inquisitor should have handled it", with filter 1, naming that entry as
+the record (proposal decision 262). The answer session SHALL
 push a citation file for the entry the person cites, under the citation rules of the
 inquisitor's *Every answer is recorded and every asked question logged*, but only when the entry is `active` and in scope for the
 question, as the inquisitor's *Filter 1 searches every place an answer
@@ -1486,6 +1487,26 @@ once, and so does each recorded answer.
 - **WHEN** the person answers a question by citing a lore entry whose
   status is not `active`
 - **THEN** no citation file is pushed
+
+#### Scenario: Declining with filter 1 and a lore entry cites it
+
+- **WHEN** the person declines a question with no category, asked in a
+  GitHub thread of a private repository, under the third reason, picks
+  filter 1, and names as the record an `active` entry in a private lore
+  repository whose scope covers the question
+- **THEN** the relay posts in the thread the `Recorded answer: ` reply
+  whose `Recorded in: ` line names that entry, and the answer session
+  pushes a citation file for it
+
+#### Scenario: A filter-1 decline with no thread still cites its entry
+
+- **WHEN** the person declines under the third reason, with filter 1, a
+  question from a private lore repository's questions branch, which has
+  no thread, naming as the record an `active` entry of that lore
+  repository whose scope covers the question
+- **THEN** the answer session posts nothing, shows the person the
+  recorded answer beside the question as the decline rule has it for a
+  question with no thread, and pushes a citation file for that entry
 
 #### Scenario: Citing an entry out of scope sends none
 
