@@ -173,6 +173,12 @@ types `/answer setup`. Setup SHALL:
   Discord relay passes (proposal decision 247);
 - check that each relay identity can post in each of its surface's
   subscribed channels;
+- check that the person's commits to each configured lore repository's
+  questions branch are signed with a key GitHub verifies for their
+  account, and, when they are not, warn, saying how to fix it (proposal
+  decision 322). When setup cannot tell, as offline, it SHALL show the
+  check as not checked, never as passed. The warning turns nothing off,
+  and setup runs the check again each time it opens until it passes;
 - save the configuration, with every channel, whether its check passed or
   failed;
 - install the `answer` command, as *Two commands open an answer session*
@@ -237,6 +243,19 @@ never ran.
   of two subscribed Discord channels, and can post in the other
 - **THEN** setup shows the failure and how to fix it, saves both channels,
   and the answer session reads and posts in the other channel only
+
+#### Scenario: Unsigned commits get a warning
+
+- **WHEN** setup finds that the person's commits to a lore questions
+  branch would not be signed
+- **THEN** setup warns that their answer files without a link will not
+  count, says how to turn on signing, and saves the rest
+
+#### Scenario: A signing key GitHub does not verify gets a warning
+
+- **WHEN** the person's commits would be signed with a key GitHub does
+  not list for their account
+- **THEN** setup warns as for unsigned commits
 
 #### Scenario: A failed identity check turns off its whole surface
 
@@ -398,7 +417,10 @@ shown on its own on
 this machine, as a question of the fourth source
 (proposal decision 300).
 
-A log file of the fourth source with no `asked_in` SHALL be merged with
+A log file with no `asked_in` that is of the fourth source, or that this
+machine had merged before a handled file named it, so that a late
+answer there still pushes a file answering it (proposal decision 306),
+SHALL be merged with
 a thread message into one entry on this machine when all of these hold:
 the `asked_in` linking that message would be withheld from the file's
 lore repository: a Linear or Discord message where that repository is not
@@ -753,15 +775,22 @@ show the answer so they can relay it by hand.
 
 The answer session SHALL keep every answer this machine holds as
 answered, not relayed, on the pending list, apart from the queue
-(proposal decision 317). Once setup's check of posting in the channel
-of that answer's own thread passes, as *Setup checks each relay identity before its channels
+(proposal decision 317). For an answer kept because its thread's channel
+was off, or because a refused post turned that channel off, once setup's check of posting in that channel passes, as *Setup checks each relay identity before its channels
 are used* runs it, each such answer SHALL go back
 into the queue with its question, the answer kept, for the person to
 approve again. The answer session SHALL post it only once the person
-confirms; the person can edit it first, or drop it, after which nothing
-is posted. An answer kept for a reason no check covers, a refused text
-or a reply that arrived, stays on the pending list, where the person can
-post, edit or drop it. An answer leaves the pending list when it goes
+confirms. The person SHALL be able to edit or drop any answer on the
+pending list at any time, and to post one whenever its thread's channel
+is on and subscribed on this machine; a dropped answer is never posted.
+An answer kept for any other reason, a text the surface refused for
+itself, such as its length, a reply that arrived, or a channel this
+machine does not subscribe to, stays on the
+pending list until the person acts on it, whatever check passes
+(proposal decision 321). An answer whose file was pushed also leaves
+the pending list when a newer answer file than its own, from any
+writer, that counts as the person's answer names the same
+questions-branch file. An answer leaves the pending list when it goes
 back into the queue, once it is posted or dropped, or once a relay post
 naming the question appears in the thread, from any machine; the question's state is then read from its
 thread as for any answer. Where no check can read whether the relay
@@ -811,6 +840,26 @@ alone, and so asks the question again as usual (proposal decision 316).
   another machine relays it in the thread
 - **THEN** the answer leaves this machine's pending list, and the question shows
   as answered
+
+#### Scenario: A refused answer stays pending after its channel's check passes
+
+- **WHEN** this machine holds an answer refused for its length, and the
+  check of posting in its channel then passes
+- **THEN** the answer stays on the pending list until the person edits,
+  posts or drops it
+
+#### Scenario: The person edits and posts a pending answer
+
+- **WHEN** the person edits an answer on the pending list for a channel
+  that is on, and confirms it
+- **THEN** the answer session posts the edited text in the thread
+
+#### Scenario: A newer answer file clears a pending answer
+
+- **WHEN** this machine holds an answer whose file it pushed, and another
+  machine pushes a newer answer file naming the same questions-branch
+  file
+- **THEN** the answer leaves this machine's pending list
 
 #### Scenario: A dropped pending answer is never posted
 

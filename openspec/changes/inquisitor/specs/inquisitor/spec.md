@@ -643,12 +643,21 @@ other SHALL be shown as input, labelled as superseded.
 Filter 1's search groups every file this way, by hash, whether or not it
 holds `answers`. Separately, `answers` decides which answer a file it
 names has: the newest of the answer files naming it that would count
-(proposal decisions 312 and 319). A named file and its answer files can
+(proposal decisions 312 and 319). An older answer file that a newer one
+naming the same file replaces SHALL also be shown in the search as
+input, labelled as superseded, and SHALL stop counting for its own
+question, while still superseding the older files in its own hash
+group, which then has no answer that counts: the search shows all its
+files as input, labelled as superseded (proposal decision 323). Whether a named file is answered is
+decided only by the answer files naming it: a file that hash grouping
+supersedes for its words still counts as the answer of the file it
+names, unless a newer answer file naming that file replaces it. A named file and its answer files can
 fall in different hash groups; the search shows each group's newest as
 that group's answer, and the answer session shows the named file's
 answer. A file that would not count, such
 as an `input` file, an unanswered one or an unproven one, supersedes
-nothing.
+nothing; a file that stops counting only because a newer answer file
+naming the same file replaced it is the one exception.
 
 During an Igor's run, a questions-branch file whose `repository` key names
 a repository other than that of the item the run works SHALL be shown as
@@ -867,8 +876,8 @@ agent. The search SHALL never show a rejected candidate.
   same file in `answers`, each would count, and the second's proof is
   newer
 - **THEN** the second is the named file's answer, and filter 1's search
-  counts each answer file in the group of its own question's hash, where
-  neither supersedes the other
+  shows the first as input, labelled as superseded, though its question's
+  hash differs
 
 #### Scenario: A re-pushed copy of an older answer does not count
 
@@ -2074,7 +2083,8 @@ file it would push to a questions branch SHALL go in its report. So SHALL
 a log file recording a person's answer to its handback question, when a
 worker re-works the item after that answer: the file holds the question
 and the answer, with an `answer_link` to the person's comment on the
-item, and it is a new file, beside the unanswered one. The worker reports
+item, and it is a new file, beside the unanswered one. The worker writes
+no `answers`; the Igor adds it, as below. The worker reports
 the file, and the Igor decides its `authority`, its `answered_by` for a
 relay App's comment, and its answer, under this spec's checks in *Only an
 answer with authority stops a question*, as igor PR #216 has it. igor's lore-firing requirement
@@ -2101,11 +2111,9 @@ An agent SHALL write no handled file: only an answer session writes
 one, as the `answer-session` spec's *A handled file closes a
 questions-branch question* says. The script's `log` command SHALL write
 a handled file only when called with its handled option, and SHALL
-refuse a `handled` or `closes` key passed without that option. The command cannot
-check who calls it: only the answer session passes the option, and the
-skill's instructions tell an agent never to, which keeps an agent from
-writing one by mistake. igor PR #216's refusal, in the proposal's Still
-open, covers a worker steered into passing it (proposal decision 273).
+refuse a `handled` or `closes` key passed without that option. The
+skill's instructions SHALL tell an agent never to pass it (proposal
+decision 273).
 
 The skill's script SHALL write every log file and miss file through its
 `log` command, which takes the file's place, its keys and its body
@@ -2160,9 +2168,14 @@ question before it writes the log file (proposal decision 299); the
 withholds it (proposal decisions 302 and 315). A questions-branch file
 that answers a question an earlier file there logged unanswered SHALL
 name that file in `answers`, one answer file for each such file it
-knows of: the agent that pushed the earlier file has its name, and a
-later run has the names of the files filter 1's search found (proposal
-decision 303). When the answer comes, it gains who answered (its `answered_by`),
+knows exactly: the agent that pushed the earlier file has its name, and
+a later run has it only from the Igor's handback comment, which names
+the questions-branch log file the Igor pushed for that question, as igor
+PR #216 is asked to have it, and the Igor adds that `answers` itself.
+When no handback comment names such a file, or the file it names is not
+on the branch, the Igor SHALL write no `answers` for that run, and the earlier file
+stays shown until the person answers it (proposal decisions 303 and
+324). When the answer comes, it gains who answered (its `answered_by`),
 the answer's `authority`, the answer, and where the
 question's answer is recorded, in the format *A log file and a miss file
 have one format* states. A questions-branch file pushed with its answer,
@@ -2514,6 +2527,19 @@ why.
 - **WHEN** an agent records, on the lore repository's questions branch,
   the answer to a question it logged there unanswered
 - **THEN** the new file names the unanswered file in `answers`
+
+#### Scenario: A later run names the file its handback comment names
+
+- **WHEN** an Igor's later run records a person's answer to a handback
+  question whose comment names the questions-branch file the Igor pushed
+- **THEN** the Igor writes the answer file naming that file in `answers`
+
+#### Scenario: A later run with no named file writes no answers key
+
+- **WHEN** an Igor's later run records a person's answer to a handback
+  question whose comment names no questions-branch file
+- **THEN** the answer file holds no `answers`, and the earlier file stays
+  shown to the person
 
 #### Scenario: A question logged and asked in a post links the post
 
@@ -3420,9 +3446,7 @@ lesson from each pattern it finds, and send each lesson by its scope:
 - a lesson that holds for one person: an edit to that person's own agent
   memory or `CLAUDE.md`.
 
-A pattern among misses whose `filter` names an answer session's source
-is a lesson about how the answer session finds questions, sent by the same
-scopes. The agent SHALL write a lesson bound for shared-skills in general
+The agent SHALL write a lesson bound for shared-skills in general
 terms, quoting no logged question or miss.
 Nothing SHALL draft or send a lesson until a person asks for the review.
 
@@ -3439,13 +3463,6 @@ Nothing SHALL draft or send a lesson until a person asks for the review.
   private repository
 - **THEN** the lesson for shared-skills states the pattern in general terms,
   and quotes none of those questions
-
-#### Scenario: A pattern of source misses changes how questions are found
-
-- **WHEN** a review of the misses finds many logged against the answer
-  session's second source, each a reply that thanks the relay
-- **THEN** the agent drafts a lesson about how the answer session finds
-  replies to the relay, and sends it by its scope
 
 #### Scenario: A lesson for a team goes to its lore repository
 

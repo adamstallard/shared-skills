@@ -111,7 +111,7 @@ skills), #175 (a worker as its own Unix user) and #216. The first bullet
 below is measured from igor's code; the second is read from #174's and
 #175's specs, since neither is built yet.
 - **Today:** a worker's Bash permission is only its role's `commands`
-  (igor's `src/execute.ts`, line 1607), so the skill's script runs only if a
+  (igor's `src/execute.ts`, line 1607, at 8478aec), so the skill's script runs only if a
   role lists it, and Read is refused outside the working tree. HOME is
   the home directory of the user the Igor runs as, so `inquisitor.json`
   and a `gh` login are there only if a developer set them up, as under
@@ -641,7 +641,7 @@ needs that v0.1-33 lacks follow its patterns (proposal decision
 254, task 6.1).
 The rules are in the `answer-session` spec, the decisions in proposal
 decisions 152 to 175, 184 to 203, 207 to 211, 215, 216, 219, 220,
-222 to 230, 234, 236, 238, 246 to 248, 250 to 252, 254 to 260 and 262 to 320.
+222 to 230, 234, 236, 238, 246 to 248, 250 to 252, 254 to 260 and 262 to 324.
 
 ### Polling while open, with the person's credentials
 
@@ -840,7 +840,16 @@ Filter 1's search is different: when a later agent asks a question
 already answered, it has no log file of its own to name, so the search
 finds earlier answers by the hash of their question, and groups every
 answer file that way, `answers` or not, so that only the newest in each
-group counts (decision 319).
+group counts (decision 319). Two answer files naming one file can
+record different words, each the question as the person saw it, and so
+fall in different hash groups; hash grouping alone would leave the
+older one counting in its own group. So an answer file that a newer one
+naming the same file has replaced is superseded in the search too, and
+the person's changed answer is the only one that counts (decision 323).
+A later Igor run on the same item, recording a person's answer to a
+handback question, names a file in `answers` only when the Igor's
+handback comment names it; it never names a file because a search found
+matching words (decision 324).
 
 Misses no longer match either: a miss file is pushed even when one with
 the same question and filter is already on the branch, since dropping it

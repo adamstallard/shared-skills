@@ -17,7 +17,7 @@ are written down:
   turned on, on 2026-10-20, and how `check` reads it, on 2026-10-21.
 - 240 to 253, on 2026-10-21;
 - 254 to 284, on 2026-10-24;
-- 285 to 306 and 308 to 320, on 2026-10-25, with 307, which this
+- 285 to 306 and 308 to 324, on 2026-10-25, with 307, which this
   change proposed, confirmed by 314.
 
 Apart from 229 and 241 to 244, which he gave in the session reviewing
@@ -66,7 +66,8 @@ sixth. 300 to 306 answer the seven raised with 297 to 299, one
 decision each, and 308 to 315 the eight raised with 300 to 307, 314
 confirming 307 with a change. 316 to 320 settle the five raised with
 308 to 315, one each: 316 the first, by making it moot, 319 the second,
-320 the third, 318 the fourth and 317 the fifth.
+320 the third, 318 the fourth and 317 the fifth. 321 to 324 settle
+the four raised with 316 to 320, one each, in order.
 
 1. **Four filters run before any question reaches a person.**
    1. **Already answered:** the agent finds the earlier answer, cites where it
@@ -2117,7 +2118,7 @@ change put to him when it recorded 270 to 272:
      closes the question everywhere, and a decline with a post in a
      thread cannot be reopened; two machines with the same question open
      at once are in Still open.
-276. **Two details are Adam's:** the `handled` key holds the day, and
+276. *Its second half is moot since Adam's decisions 277 and 305: a handled file holds no question, so filter 1's search never matches it.* **Two details are Adam's:** the `handled` key holds the day, and
      filter 1 shows a handled file to a searching agent as unanswered.
 
 Adam gave 277 to 280 on 2026-10-24, one for each question this change
@@ -2356,7 +2357,7 @@ put to him when it recorded 297 to 299:
      merged; decision 307 states the criterion, and Adam confirmed 307
      with decision 314's change. *Rejected:* always
      writing the URL.
-303. *Amended by Adam's decision 319: answer files still group by hash in filter 1's search, and `answers` decides only which answer a named file has.* *Narrowed by Adam's decision 320: only an answer file that counts hides the file it names.* *Guarded by Adam's decision 310: `answers` is written only when it names an unanswered file already on the branch.* **No hash matching for misses or answers:** a miss is pushed even
+303. *Amended by Adam's decision 324: a later run names only a file it knows exactly, from the Igor's handback comment.* *Amended by Adam's decision 319: answer files still group by hash in filter 1's search, and `answers` decides only which answer a named file has.* *Narrowed by Adam's decision 320: only an answer file that counts hides the file it names.* *Guarded by Adam's decision 310: `answers` is written only when it names an unanswered file already on the branch.* **No hash matching for misses or answers:** a miss is pushed even
      when one with the same question and `filter` is already on the
      branch, and an answer file names, in a new `answers` key, the file
      it answers, as `closes` does, instead of answering every file with
@@ -2442,7 +2443,7 @@ change put to him when it recorded 308 to 315:
      messages could show that notice in the wrong thread, is moot. This amends
      decision 311. *Rejected:* the notice, offered only for a file
      linked by `asked_in`.
-317. **Pending answers are kept in a separate pending list, which reuses
+317. *Settled further by Adam's decision 321: a pending answer no check brings back stays on the list, and the person can always drop it.* **Pending answers are kept in a separate pending list, which reuses
      the main queue's UI almost exactly,** in Adam's words: the queue's
      screens, holding pending answers. Once setup's check of posting in
      a pending answer's own thread's channel passes, that answer leaves
@@ -2461,7 +2462,7 @@ change put to him when it recorded 308 to 315:
      pending answer leaves its file on the branch, still answering the
      file it names. Adam accepts both. *Rejected:* pushing the file only
      when the answer is relayed.
-319. **Filter 1's search groups every answer file by hash,** with or
+319. *Amended by Adam's decision 323: an answer file replaced as a named file's answer is superseded in the search too.* **Filter 1's search groups every answer file by hash,** with or
      without `answers`, and the newest counts. `answers` decides only
      which answer a named file has. This amends decision 312.
      *Rejected:* taking files with `answers` out of the hash grouping.
@@ -2470,6 +2471,38 @@ change put to him when it recorded 308 to 315:
      Otherwise it stays shown, with that answer beside it as input. This
      amends decision 303. *Rejected:* letting any answer file hide the
      file it names.
+
+Adam gave 321 to 324 on 2026-10-25, one for each question this change
+put to him when it recorded 316 to 320:
+
+321. **A pending answer no check brings back stays on the pending list
+     indefinitely:** one the surface refused for its text, such as one
+     too long; one held back because a new reply appeared in the thread
+     just before posting; or one given on a machine that does not
+     subscribe to its channel. That is acceptable because the person can always post,
+     edit or drop any pending answer. *Rejected:* returning such an
+     answer to the queue at the next opening.
+322. **Setup checks that the person's commits to lore questions branches
+     are signed,** with a key GitHub verifies for their account, and
+     warns, saying how to fix it, when they are not. An answer file with
+     no `answer_link` counts only through that signature (decision 318).
+     *Rejected:* treating a file a machine pushed as answered on that
+     machine alone.
+323. **An answer file replaced as a named file's answer is superseded in
+     filter 1's search too:** once a newer answer file names the same
+     file (decision 312), the older is labelled superseded there as well
+     and stops counting for its own words, the question it records,
+     which can differ from the newer file's and so sit in another hash
+     group. This amends decision 319.
+     *Rejected:* letting it go on counting in its hash group.
+324. **A later Igor run on an item, recording a person's answer to a
+     handback question, names a file in `answers` only when it knows that
+     file exactly,** from the Igor's handback comment, which names the
+     questions-branch log file the Igor pushed for the question.
+     Otherwise it writes no `answers`, and the earlier file stays shown
+     until the person answers it. This amends decision 303, under which
+     a later run named the files filter 1's search found. *Rejected:*
+     naming the files a search found by their words.
 
 ### Proposed by this change
 
@@ -3494,6 +3527,9 @@ settled by decisions 308 to 315.
 The five questions raised while recording decisions 308 to 315 are
 settled by decisions 316 to 320.
 
+The four questions raised while recording decisions 316 to 320 are
+settled by decisions 321 to 324.
+
 Open on igor PR #216's side, at the head last read, 59e7561, which records Adam's decisions
 up to 149 in #216's own numbering, decisions 244 and 245 among them as
 its decisions 92 and 97:
@@ -3508,6 +3544,10 @@ its decisions 92 and 97:
   it would push a handled file too, and a worker steered by item text
   could then close, on every machine and for good, whichever
   questions-branch file the planted `closes` names (decision 297).
+- **#216's Igor should name, in its handback comment, the questions-branch
+  log file it pushed for the question** (decision 324), so that a later
+  run can name that file in `answers`; without it, the run writes no
+  `answers`.
 - **#216's Igor should write `asked_in`** in a log file for a question it
   also asked in a post (decision 299), a Linear or Discord one only in a
   private lore repository (decision 302), and name in `answers` the file
@@ -3536,7 +3576,7 @@ its decisions 92 and 97:
   which App wrote a comment; until a measurement shows GitHub does, every
   `User says: ` comment is input.
 
-Tasks 0.15 to 0.23 measure facts the answer session relies on: what
+Tasks 0.15 to 0.24 measure facts the answer session relies on: what
 GitHub's notifications endpoint reports, how Linear and Discord show
 mentions and replies, how the Linear relay posts a comment, that a command the mod runs reaches no tool hook,
 that a mod keeps polling while its session is idle or in the
@@ -3544,7 +3584,8 @@ background, how setup checks a relay's access to each channel,
 whether GitHub reports which App wrote a comment, and whether a reader
 can read the pull request and the signature behind a relay file's last
 change, and whether the URL an asking agent records as `asked_in` is the
-one the answer session reads for that message. Each task says what the spec does until it is measured.
+one the answer session reads for that message, and how setup can tell
+that a questions-branch commit will be verified for the person. Each task says what the spec does until it is measured.
 
 The rest of this section has two lists. The first is the changes
 elsewhere that this change depends on:

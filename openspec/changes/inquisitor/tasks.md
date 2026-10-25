@@ -138,6 +138,12 @@ contradicts what design.md assumed.
       sides write and compare. Until measured, the asking agent records
       the URL its post command returns, and the answer session compares
       it as written
+- [ ] 0.24 How setup can tell ahead of time that a commit the script
+      pushes to a lore questions branch will be verified for the person
+      (decision 322): git's `commit.gpgsign` and `user.signingkey` in
+      the lore clone, the signing keys GitHub lists for the account, and
+      whether the committer email is a verified address there. Until
+      measured, setup shows the check as not checked
 
 ## 1. Shared post reader
 
@@ -236,7 +242,9 @@ contradicts what design.md assumed.
       visible than the repository it points into (decisions 299, 302
       and 315),
       an answer file naming the file it answers in `answers`, refused
-      when the named file is not on the branch (decisions 303 and 310),
+      when the named file is not on the branch or already holds an answer
+      (decisions 303 and 310), the Igor writing it for a later run only
+      for a file its handback comment names (decision 324),
       a handled file for a questions-branch question the answer session
       marks handled (only `handled` and `closes`, that file's name, with
       no body; decisions 273, 276, 277, 297 and 305), written
@@ -446,8 +454,10 @@ contradicts what design.md assumed.
       off and checked again at each opening, the Linear key in the
       keychain, `~/.local/bin/answer`, the pull request writing the
       person's `relays/<login>.yaml` in each serving lore repository
-      (decision 224), and the one adding `relay-notice.yml` where it is
-      missing. Filter 1, and every check that reads a comment's author,
+      (decision 224), the one adding `relay-notice.yml` where it is
+      missing, and the check that the person's commits to each lore
+      questions branch are signed, warning with how to fix it when not
+      (decision 322). Filter 1, and every check that reads a comment's author,
       reads that file from the lore clone's default branch, and counts it
       only when its last change came from its person (decision 225)
 - [ ] 6.3 Polling: the four sources, only while open, the catch-up on
@@ -524,10 +534,12 @@ contradicts what design.md assumed.
       passes its check, and posted only after the person approves it
       again, while another machine asks the question again (decisions
       311, 316 and 317); an answer kept for a reason no check covers, a
-      refused text or a reply that arrived, staying on the pending list,
-      where the person posts, edits or drops it; filter 1's search grouping every answer file by
-      hash, and among answer files naming one file the newest being its
-      answer (decisions 312 and 319); a named file still shown, with the
+      refused text, a reply that arrived or an unsubscribed channel,
+      staying on the pending list, and any pending answer posted, edited
+      or dropped by the person at any time (decision 321); filter 1's
+      search grouping every answer file by hash, among answer files
+      naming one file the newest being its answer, and the older one
+      superseded in the search too (decisions 312, 319 and 323); a named file still shown, with the
       answer beside it as input, when its answer file does not count
       (decision 320); the `log` command refusing an
       `answers` that names no file on the branch (decision 310); an answer file holding the question the person
