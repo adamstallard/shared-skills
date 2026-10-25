@@ -383,8 +383,8 @@ contradicts what design.md assumed.
       a corrected notice for a stopped post, a post the answer session holds back because a reply arrived in the thread since the person last read it. So it is the one
       base (decision 263). It includes declining and the list of
       questions answered or handled for the person. The mod takes its questions from the polls of task 6.3
-      instead of the prototype's made-up ones. Five rules decide what is
-      built: (a) to (d) by decision 254, and (e) by decision 311:
+      instead of the prototype's made-up ones. Four rules decide what is
+      built (decision 254):
       - (a) Keep the approved screens' layout and interaction: the band,
         the keys, the prompt-box flow and the declining screens. Changes
         needed to wire them to real data are fine; restyling or
@@ -425,8 +425,10 @@ contradicts what design.md assumed.
       - (c) A screen the spec needs that v0.1-33 lacks is designed at
         implementation, in this task, from the prototype's existing patterns, in no new visual style:
         setup, the lock message, the relay notice, a post's failure and
-        discord-bot's warnings, why no miss was logged, and a channel
-        that is off
+        discord-bot's warnings, why no miss was logged, a channel
+        that is off, and the pending list, which reuses the approved
+        queue's screens (decisions 311 and 317) and waits for no
+        prototype round of its own
       - (d) A screen Adam approves separately is taken from its own
         approved tag. Tag: `answer-session-ui-approved-v0.1-33` (decisions
         258 and 263), approved on 2026-10-24. It is also the base, so this
@@ -438,15 +440,6 @@ contradicts what design.md assumed.
         arrived. Each screen goes where the tagged
         build puts it. A later separately approved screen would come from
         its own tag the same way
-      - (e) Two screens wait for a prototype round of their own, which
-        Adam approves by use before they are built: the list of answers
-        held as answered, not relayed, and the "Answered on another
-        machine, not relayed" notice, with its relay, edit and answer
-        afresh choices (decision 311). The spec sets their behaviour;
-        the prototype sets their layout. Rule (c) does not cover them;
-        once approved, they come from their tag as rule (d) says. Only
-        these two screens wait for that round; the rest of this task
-        does not
 - [ ] 6.2 The `answer_session` section of `inquisitor.json`, and setup:
       the candidates, each relay check, saving the file with the person's
       own keys kept, a failed identity's surface or a failed channel left
@@ -527,17 +520,22 @@ contradicts what design.md assumed.
       match once mentions are removed, the days match in UTC, and neither
       matches any other file or message (decisions 307, 314 and 315); an
       answer that cannot reach its thread kept as answered, not relayed,
-      posted, once its channel passes its check, only after the person
-      confirms, and
-      offered as "Answered on another machine, not relayed" on a machine
-      that can post (decision 311); among answer files naming one file,
-      the newest counting (decision 312); the `log` command refusing an
+      returned to the queue, with the answer kept, once its channel
+      passes its check, and posted only after the person approves it
+      again, while another machine asks the question again (decisions
+      311, 316 and 317); an answer kept for a reason no check covers, a
+      refused text or a reply that arrived, staying on the pending list,
+      where the person posts, edits or drops it; filter 1's search grouping every answer file by
+      hash, and among answer files naming one file the newest being its
+      answer (decisions 312 and 319); a named file still shown, with the
+      answer beside it as input, when its answer file does not count
+      (decision 320); the `log` command refusing an
       `answers` that names no file on the branch (decision 310); an answer file holding the question the person
       saw and naming the file it answers; a second machine's miss pushed
       even when a matching one is on the branch; and a miss for a
       question a questions-branch file holds copying that file's
       `asked_from` (decisions 273, 274, 278, 282, 283, 291 and 297 to
-      315)
+      320)
 - [ ] 6.11 Decide at implementation, with no requirement added
       (decision 256), and record each choice in design.md while the
       change is open. Agreeing to a shown recorded answer is not among

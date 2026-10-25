@@ -17,7 +17,7 @@ are written down:
   turned on, on 2026-10-20, and how `check` reads it, on 2026-10-21.
 - 240 to 253, on 2026-10-21;
 - 254 to 284, on 2026-10-24;
-- 285 to 306 and 308 to 315, on 2026-10-25, with 307, which this
+- 285 to 306 and 308 to 320, on 2026-10-25, with 307, which this
   change proposed, confirmed by 314.
 
 Apart from 229 and 241 to 244, which he gave in the session reviewing
@@ -64,7 +64,9 @@ decision each, except that 289 settles two, and 292 to 295 the four raised with
 first and makes the next three moot, 299 answers the fifth and 298 the
 sixth. 300 to 306 answer the seven raised with 297 to 299, one
 decision each, and 308 to 315 the eight raised with 300 to 307, 314
-confirming 307 with a change.
+confirming 307 with a change. 316 to 320 settle the five raised with
+308 to 315, one each: 316 the first, by making it moot, 319 the second,
+320 the third, 318 the fourth and 317 the fifth.
 
 1. **Four filters run before any question reaches a person.**
    1. **Already answered:** the agent finds the earlier answer, cites where it
@@ -1441,7 +1443,7 @@ rules this change relies on:
      agent that kept replying could get filter 2's text, filter 4's, then
      filter 2's again with no person seeing it. This amends decision
      202's item 6.
-220. *Amended by Adam's decision 312: among answer files naming the same file in `answers`, the newest counts.* **Editing a relayed answer that decision 210 also logged pushes a
+220. *Amended by Adam's decisions 312 and 319: among answer files naming the same file in `answers`, the newest is that file's answer, while filter 1's search still groups every answer file by hash.* **Editing a relayed answer that decision 210 also logged pushes a
      new log file with the edited answer,** and the newest log file for
      that question counts. A file on a questions branch never changes
      (decision 140), so without a new file the branch would keep the
@@ -2354,7 +2356,7 @@ put to him when it recorded 297 to 299:
      merged; decision 307 states the criterion, and Adam confirmed 307
      with decision 314's change. *Rejected:* always
      writing the URL.
-303. *Guarded by Adam's decision 310: `answers` is written only when it names an unanswered file already on the branch.* **No hash matching for misses or answers:** a miss is pushed even
+303. *Amended by Adam's decision 319: answer files still group by hash in filter 1's search, and `answers` decides only which answer a named file has.* *Narrowed by Adam's decision 320: only an answer file that counts hides the file it names.* *Guarded by Adam's decision 310: `answers` is written only when it names an unanswered file already on the branch.* **No hash matching for misses or answers:** a miss is pushed even
      when one with the same question and `filter` is already on the
      branch, and an answer file names, in a new `answers` key, the file
      it answers, as `closes` does, instead of answering every file with
@@ -2399,7 +2401,7 @@ put to him when it recorded 300 to 307, and confirmed 307 as changed by
      itself, since #216 would then push only what the Igor writes; the
      *Still open* section below asks #216 for that.
      *Rejected:* accepting a planted `answers`.
-311. **An answer that cannot reach its thread is kept pending, not
+311. *Amended by Adam's decisions 316 to 318: no notice on another machine, which asks again as usual; pending answers return to the queue once the channel's check passes, from a list that reuses the queue's UI and needs no prototype round; the answer file is pushed at once.* **An answer that cannot reach its thread is kept pending, not
      lost:** when the relay lacks permission, the channel is off, the
      post is refused or fails, or the answer was given on a machine that
      does not read the thread's channel (decision 300). The state folder
@@ -2414,7 +2416,7 @@ put to him when it recorded 300 to 307, and confirmed 307 as changed by
      answer. The pending list and that notice are new screens, built
      only after a prototype round Adam approves by use (decision 261).
      *Rejected:* asking again on the machine that can post.
-312. **Among answer files naming the same file in `answers`, the newest
+312. *Amended by Adam's decision 319: filter 1's search groups every answer file by hash; `answers` decides only which answer a named file has.* **Among answer files naming the same file in `answers`, the newest
      counts.** Grouping by the same hash stays only for filter 1's search
      across askers, where a new asker has no file to name. This amends
      decision 220. *Rejected:* grouping every answer by hash.
@@ -2429,6 +2431,45 @@ put to him when it recorded 300 to 307, and confirmed 307 as changed by
      more private than the lore repository,** as decision 251 withholds
      a Linear or Discord one, and the file then merges as for Linear and
      Discord. This extends decision 302. *Rejected:* always writing it.
+
+Adam gave 316 to 320 on 2026-10-25, settling the five questions this
+change put to him when it recorded 308 to 315:
+
+316. **No "Answered on another machine, not relayed" notice.** While one
+     machine holds a pending answer, any other machine of the person's
+     asks the thread's question again as usual. The question this change
+     raised, whether two machines that merged one file with different
+     messages could show that notice in the wrong thread, is moot. This amends
+     decision 311. *Rejected:* the notice, offered only for a file
+     linked by `asked_in`.
+317. **Pending answers are kept in a separate pending list, which reuses
+     the main queue's UI almost exactly,** in Adam's words: the queue's
+     screens, holding pending answers. Once setup's check of posting in
+     a pending answer's own thread's channel passes, that answer leaves
+     the list and goes back into the queue, with the answer kept, for
+     the person to approve again. As under decision 311, it also leaves
+     the list once any machine's relay post naming the question appears
+     in the thread. Since the list reuses the queue's
+     approved patterns, it needs no prototype round of its own. This
+     amends decision 311. *Rejected:* showing pending answers as a state
+     in the list of questions answered and handled.
+318. **The answer file is pushed at once,** as decision 311 has it: when
+     a questions-branch file holds the question, its answer file is
+     pushed when the person confirms, with no `answer_link`. On GitHub a
+     relayed answer's file would carry the comment's link as proof; this
+     file gives that up and counts only through a signature. A dropped
+     pending answer leaves its file on the branch, still answering the
+     file it names. Adam accepts both. *Rejected:* pushing the file only
+     when the answer is relayed.
+319. **Filter 1's search groups every answer file by hash,** with or
+     without `answers`, and the newest counts. `answers` decides only
+     which answer a named file has. This amends decision 312.
+     *Rejected:* taking files with `answers` out of the hash grouping.
+320. **A file named in `answers` stops being shown only when the answer
+     file counts as the person's answer,** proven as filter 1 proves one.
+     Otherwise it stays shown, with that answer beside it as input. This
+     amends decision 303. *Rejected:* letting any answer file hide the
+     file it names.
 
 ### Proposed by this change
 
@@ -3449,6 +3490,9 @@ settled by decisions 300 to 306.
 
 The eight questions raised while recording decisions 300 to 307 are
 settled by decisions 308 to 315.
+
+The five questions raised while recording decisions 308 to 315 are
+settled by decisions 316 to 320.
 
 Open on igor PR #216's side, at the head last read, 59e7561, which records Adam's decisions
 up to 149 in #216's own numbering, decisions 244 and 245 among them as

@@ -635,15 +635,18 @@ with the same question, meaning the same hash of the text under its
 `## Question`, taken whole and reduced as *Two calls prove the filters
 ran* reduces a question in a post, and more than one of them would count as an
 answer by the rules above, only the newest SHALL count: the one whose
-proof is newest. Answer files that name the same file in `answers` are
-grouped by that name instead of by the hash: they answer that one file,
-whatever their questions' text, and only the newest of them counts
-(proposal decision 312). The hash still groups the files with no
-`answers`, because filter 1's search must find answers across askers,
-where a new asker has no file to name. A comment link's proof dates from the time GitHub gives
+proof is newest. A comment link's proof dates from the time GitHub gives
 for the comment's last edit, or its creation when it was never edited; a
 signature's proof dates from the signed commit's committer date. Each
-other SHALL be shown as input, labelled as superseded. A file that would not count, such
+other SHALL be shown as input, labelled as superseded.
+
+Filter 1's search groups every file this way, by hash, whether or not it
+holds `answers`. Separately, `answers` decides which answer a file it
+names has: the newest of the answer files naming it that would count
+(proposal decisions 312 and 319). A named file and its answer files can
+fall in different hash groups; the search shows each group's newest as
+that group's answer, and the answer session shows the named file's
+answer. A file that would not count, such
 as an `input` file, an unanswered one or an unproven one, supersedes
 nothing.
 
@@ -863,8 +866,9 @@ agent. The search SHALL never show a rejected candidate.
 - **WHEN** two answer files with different question text both name the
   same file in `answers`, each would count, and the second's proof is
   newer
-- **THEN** filter 1 treats the second as the answer to that file, and
-  shows the first as input, labelled as superseded
+- **THEN** the second is the named file's answer, and filter 1's search
+  counts each answer file in the group of its own question's hash, where
+  neither supersedes the other
 
 #### Scenario: A re-pushed copy of an older answer does not count
 

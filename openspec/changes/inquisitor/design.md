@@ -641,7 +641,7 @@ needs that v0.1-33 lacks follow its patterns (proposal decision
 254, task 6.1).
 The rules are in the `answer-session` spec, the decisions in proposal
 decisions 152 to 175, 184 to 203, 207 to 211, 215, 216, 219, 220,
-222 to 230, 234, 236, 238, 246 to 248, 250 to 252, 254 to 260 and 262 to 315.
+222 to 230, 234, 236, 238, 246 to 248, 250 to 252, 254 to 260 and 262 to 320.
 
 ### Polling while open, with the person's credentials
 
@@ -829,11 +829,18 @@ and a message posted in a thread after its question closed is shown as
 a new question (decisions 287 and 291).
 
 An answer file uses exact identity too, as a handled file's `closes`
-does: it names, in `answers`, the file it answers (decision 303). It
-records the question as the person saw it, not the file's own text, so
+does: it names, in `answers`, the file it answers (decision 303). The
+named file is hidden only when the answer file counts as the person's
+answer (decision 320). The answer file records the question as the person saw it, not the file's own text, so
 a log file whose `asked_in` points at an unrelated message never gets
 the person's answer recorded against words they did not see (decision
 301).
+
+Filter 1's search is different: when a later agent asks a question
+already answered, it has no log file of its own to name, so the search
+finds earlier answers by the hash of their question, and groups every
+answer file that way, `answers` or not, so that only the newest in each
+group counts (decision 319).
 
 Misses no longer match either: a miss file is pushed even when one with
 the same question and filter is already on the branch, since dropping it
@@ -856,15 +863,18 @@ one" test and are shown apart.
 An answer that cannot reach its thread is kept, not lost (decision 311),
 where a failed post would otherwise drop what the person typed. The
 state folder keeps it as answered, not relayed, and the machine holding
-it offers to post it again at each opening and once setup's check of
-posting in that channel passes. When a questions-branch file holds the
-question, through its `asked_in` or a merge, the answer file is pushed
-at once, so another machine that can post in the thread sees the answer
-and offers to relay it rather than ask the person again. Either way the
-person is told the asker has not got the answer yet. The two screens
-this needs, the list of answers kept this way and the other machine's
-notice, are UI, so they wait for a prototype round Adam approves by use,
-as every new screen here does.
+it lists it as pending; once setup's check of posting in that channel
+passes, the question goes back into the queue with the answer kept, for
+the person to approve again (decision 317). Another machine sees only
+the thread, so it asks the question again as usual (decision 316); if
+the person answers there too, the first relay post to reach the thread
+sets the question's state, and the pending answer leaves the list. When
+a questions-branch file holds the question, through its `asked_in` or a
+merge, the answer file is pushed at once (decision 318). Whether or not
+a file was pushed, the person is told the asker has not got the answer
+in the thread yet. The pending list
+reuses the approved queue's screens, so it needs no prototype round of
+its own.
 
 A relayed answer counts as the person's own for filter 1 (decision 184).
 Decision 78 proves a logged answer's writer only when GitHub gives the

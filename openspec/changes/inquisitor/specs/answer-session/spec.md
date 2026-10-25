@@ -65,6 +65,16 @@ Terms used throughout this spec:
   new.
 - **The queue** is the list of unanswered questions the answer session
   shows the person, one at a time.
+- **The pending list** is this machine's list of answers held as
+  answered, not relayed, as *An answer that cannot reach its thread is
+  kept pending* says. A question whose answer is on it is not in the
+  queue on this machine until the answer goes back there.
+- **An unanswered log file**, on a lore repository's questions branch,
+  is one that holds no answer and that no answer file counting as the
+  person's answer names in `answers`.
+- **The person's answer**, for an answer file, is one whose
+  `answered_by` is the person and which counts as an answer under the
+  inquisitor's *Only an answer with authority stops a question*.
 - **A question set aside for later** is one the person moved to the end of
   the queue on this machine, to come back to after the new ones.
 - **A channel's poll position** is the time of the newest message that
@@ -368,9 +378,11 @@ closed. An unclear one is shown (proposal decision 289).
    an issue in a subscribed team assigned to the person;
 4. a log file on the questions branch of a lore repository the inquisitor's
    configuration names, which holds no answer, whose question tags the
-   person, which no answered log file on that branch names in its
-   `answers` key, and which no handled file names (proposal decisions
-   273, 297 and 303). A handled file is never shown as a question of
+   person, which no handled file names, and which is not answered: no
+   answer file on that branch that counts as the person's answer names
+   it in `answers` (proposal decisions 273, 297, 303 and 320). A file
+   named only by answer files that do not count is shown with the newest
+   such answer beside it, as input. A handled file is never shown as a question of
    its own.
 
 The answer session SHALL show a question once: a log file of the fourth
@@ -739,16 +751,23 @@ has not been shown. The answer session SHALL tell
 the person, each time, that the asker has not got the answer yet, and
 show the answer so they can relay it by hand.
 
-The answer session SHALL list every answer this machine holds as
-answered, not relayed, apart from the queue. It SHALL offer to post each
-one each time the answer session opens and whenever setup's check of
-posting in that thread's channel passes, as *Setup checks each relay
-identity before its channels are used* runs it, and SHALL post it only once the person
+The answer session SHALL keep every answer this machine holds as
+answered, not relayed, on the pending list, apart from the queue
+(proposal decision 317). Once setup's check of posting in the channel
+of that answer's own thread passes, as *Setup checks each relay identity before its channels
+are used* runs it, each such answer SHALL go back
+into the queue with its question, the answer kept, for the person to
+approve again. The answer session SHALL post it only once the person
 confirms; the person can edit it first, or drop it, after which nothing
-is posted. An answer leaves the list once it is posted or dropped, or
-once a relay post naming the question appears in the thread, from any
-machine; the question's state is then read from its thread as for any
-answer.
+is posted. An answer kept for a reason no check covers, a refused text
+or a reply that arrived, stays on the pending list, where the person can
+post, edit or drop it. An answer leaves the pending list when it goes
+back into the queue, once it is posted or dropped, or once a relay post
+naming the question appears in the thread, from any machine; the question's state is then read from its
+thread as for any answer. Where no check can read whether the relay
+identity may post in a channel (task 0.20), the channel's posting check
+counts as passed once setup, at the next opening, runs the relay
+identity's own check again and it passes.
 
 For a question a questions-branch file holds, the answer session SHALL
 push the answer file when the person confirms the answer, without an
@@ -758,17 +777,9 @@ file; posting an edited text pushes a new answer file naming the same
 file, with the relay post's URL as its `answer_link`, as an edited
 answer does under *A relay post can be edited where it was posted*.
 
-On a machine that can post in the thread, a thread copy, the question
-as shown from its thread, is **answered on another machine, not
-relayed** when the questions-branch file holding it is named in
-`answers` by an answer file that counts as the person's answer under the
-inquisitor's *Only an answer with authority stops a question*, and no
-relay post in the thread names the question. The answer session SHALL
-show it so, offering three choices instead of asking again: relay that
-answer as the person's words, edit it before relaying, or answer afresh
-(proposal decision 311). Relaying it as it stands pushes no file.
-The list and this notice have no approved layout yet; they get one from
-a prototype round before they are built.
+While one machine holds an answer as answered, not relayed, every other
+machine of the person's reads the question's state from its thread
+alone, and so asks the question again as usual (proposal decision 316).
 
 #### Scenario: A refused answer is kept pending
 
@@ -798,31 +809,36 @@ a prototype round before they are built.
 
 - **WHEN** this machine holds an answer as answered, not relayed, and
   another machine relays it in the thread
-- **THEN** the answer leaves this machine's list, and the question shows
+- **THEN** the answer leaves this machine's pending list, and the question shows
   as answered
 
 #### Scenario: A dropped pending answer is never posted
 
-- **WHEN** the person drops an answer from the list of answers held as
-  answered, not relayed
+- **WHEN** the person drops an answer from the pending list
 - **THEN** the answer session posts nothing for it, and the question's
   state is read from its thread
 
-#### Scenario: A pending answer is posted once its channel passes its check
+#### Scenario: A pending answer returns to the queue once its channel passes its check
 
 - **WHEN** this machine holds an answer as answered, not relayed, for a
   channel that was off, and that channel's check then passes
-- **THEN** the answer session offers to post the answer, and posts it
-  once the person confirms
+- **THEN** the question goes back into the queue with the answer kept,
+  and the answer session posts it once the person approves it again
 
-#### Scenario: Another machine offers to relay an answer it did not post
+#### Scenario: Another machine asks again while an answer is pending
 
-- **WHEN** an answer file names a questions-branch file whose `asked_in`
-  links a GitHub message, no relay post in that thread holds the answer,
-  and a machine that can post there shows the thread copy
-- **THEN** that machine shows "Answered on another machine, not
-  relayed", offering to relay it, edit it, or answer afresh, and does not
-  ask the question again
+- **WHEN** one machine holds an answer as answered, not relayed, and
+  another machine reads the question's thread, which holds no relay
+  post naming the question
+- **THEN** the other machine shows the question as unanswered and asks
+  it as usual
+
+#### Scenario: An answer file that does not count leaves its file shown
+
+- **WHEN** an answer file with `authority: input` names a questions-branch
+  file in `answers`
+- **THEN** the answer session still shows the named file as a question,
+  with that answer beside it as input
 
 ### Requirement: A relay post can be edited where it was posted
 
@@ -930,15 +946,12 @@ closed on this machine:
 - **handled for the person:** it starts with `Inquisitor: `;
 - **waiting for the asker:** it starts with `User asks: `, and the asker
   has not replied since;
-- **answered on another machine, not relayed:** no such relay post, this
-  machine can post in the thread, and an answer file that counts as the
-  person's answer names the questions-branch file holding the question,
-  as *An answer that cannot reach its thread is kept pending* says;
 - otherwise, the question is unanswered.
 
-A question with a thread takes its state from three sources only: the
-relay posts in its thread, which every machine reads; for the state just
-above, the answer file; and this machine's state folder, as follows: a question declined with nothing posted is closed on this
+A question with a thread takes its state from two sources only: the
+relay posts in its thread, which every machine reads, and this machine's
+state folder, which adds two states. A question whose answer is on the
+pending list is held there, out of this machine's queue. A question declined with nothing posted is closed on this
 machine, whatever its thread holds, and unanswered on another machine,
 where the person can decline it again (proposal decision 297). A file a
 handled file closed is still unanswered, so an answer given to its
@@ -954,8 +967,8 @@ When the asker replies to the relay's `User asks: ` post while the
 person's question waits for it, the reply puts that question back in the
 queue, shown with the reply, whether or not the reply is itself a
 question. A question from a lore repository's questions branch is answered
-when that branch holds an answered log file naming it in its `answers`
-key (proposal decision 303).
+when that branch holds an answer file naming it in its `answers` key
+that counts as the person's answer (proposal decisions 303 and 320).
 
 #### Scenario: A relay reply marks the question answered on every machine
 
@@ -1018,8 +1031,9 @@ Before it posts an answer or a question to the asker, the answer session
 SHALL fetch the thread once more. It does the same before each automatic
 post. When the thread holds a relay post that answers or handles the
 question, it SHALL post nothing and show the question in that state. When the thread holds another reply that the person has not been
-shown, it SHALL post nothing and show that reply; the person relays again
-if they still want to.
+shown, it SHALL post nothing and show that reply. A held-back answer
+goes on the pending list, and the person can post it from there if they
+still want to.
 
 #### Scenario: Replies since the question are shown
 
