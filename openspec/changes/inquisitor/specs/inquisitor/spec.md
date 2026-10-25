@@ -241,8 +241,9 @@ Terms used throughout this spec:
   part of it.
 - **A miss** is a question a person said need not have been asked, or
   that an answer session judged clearly need not have been, and a
-  **citation file** records that filter 1 stopped a question with a lore
-  entry; *A question that should not have been asked is logged as a miss*
+  **citation file** records that a lore entry answered a question: filter
+  1 stopped the question with it, or the person answered in an answer
+  session by citing it (proposal decision 257); *A question that should not have been asked is logged as a miss*
   and *Every answer is recorded and every asked question logged* define
   them, and *A citation file has one format* gives a citation file's form.
 - **A relayed answer** is a GitHub comment that starts with `User says: `

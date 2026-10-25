@@ -227,7 +227,8 @@ contradicts what design.md assumed.
 - [ ] 2.4b `cite`, pushing a citation file in the format of *A citation
       file has one format* (`entry` and `date`, no `run`) to the
       lore repository's `questions` branch when filter 1 stops a question
-      with a lore entry, committed unsigned with `git -c
+      with a lore entry, or when the person answers in the answer session
+      by citing one (decision 257), committed unsigned with `git -c
       commit.gpgsign=false`. It sends none for a question with a
       category, and none to a lore repository more visible than the
       repository the question concerns. During an Igor's run it pushes
@@ -341,7 +342,33 @@ contradicts what design.md assumed.
       repository, `~/answer-session-prototype`). The tag includes
       declining and the list of questions answered or handled for the
       person. The mod takes its questions from the polls of task 6.3
-      instead of the prototype's made-up ones
+      instead of the prototype's made-up ones. Four rules decide what is
+      built (decision 254):
+      - (a) Keep the approved screens' layout and interaction: the band,
+        the keys, the prompt-box flow and the declining screens. Changes
+        needed to wire them to real data are fine; restyling or
+        reorganising them is not.
+      - (b) Where the prototype disagrees with the spec, the spec wins.
+        The known cases: `User asks: ` for a clarifying question; the
+        `Rephrased question: ` and `Discussion: ` lines in the relay
+        post; `Recorded answer: see the record below.` with
+        `Recorded in: <URL>`, quoting nothing; the fixed `Inquisitor: `
+        texts, and reason 3's line `The person chose this filter.`;
+        previews that show the `Re: <URL>` line; reason 1's wording, under
+        which only the asker's unthreaded follow-up stops counting;
+        reopening a declined question keeping its logged miss (decision
+        255); and the question that was on screen, kept in the state
+        folder so a restarted session opens on it, not in the mod's
+        `$.store`
+      - (c) A screen the spec needs that v0.1-30 lacks is designed at
+        implementation, in this task, from the prototype's existing patterns, in no new visual style:
+        setup, the lock message, the relay notice, a post's failure and
+        discord-bot's warnings, why no miss was logged, and a channel
+        that is off
+      - (d) A screen Adam approves separately is taken from its own
+        approved tag. One separately approved build, being prototyped,
+        will cover two screens: thread replies, and the recorded answer
+        shown beside the question
 - [ ] 6.2 The `answer_session` section of `inquisitor.json`, and setup:
       the candidates, each relay check, saving the file with the person's
       own keys kept, a failed identity's surface or a failed channel left
@@ -406,6 +433,24 @@ contradicts what design.md assumed.
       last line apart from a `Re: ` line says the person chose it, which
       reason 3's posts add (decision 234; the line is decision 239's
       item 6)
+- [ ] 6.11 Decide at implementation, with no requirement added
+      (decision 256), and record each choice in design.md while the
+      change is open: how a question's options are parsed from its
+      thread; `propose_reply`, the tool Claude calls to put a draft reply in the
+      prompt box, refusing a call from a subagent (Adam confirmed this);
+      a draft's privacy, beyond the existing rule that the draft is
+      written at the privacy of what the question concerns; an asker's
+      reply revising the options; what agreeing with a suggested verdict
+      and citing a lore entry post, each within the reserved-prefix rules
+      of *Four reserved prefixes mark the answer session's posts*, though
+      citing always also pushes a citation file (decision 257);
+      Claude's draft, through `propose_reply`, filling the place the person
+      gives when declining under reason 3 with filter 1, that is, the URL of
+      the record for the `Recorded in: ` line (Adam confirmed this,
+      since the draft lands in the prompt box for the person to confirm),
+      the post keeping its fixed form; and the relay notice's UI, the notice shown for the comment GitHub Actions
+      posts when a pull request changes the person's relay file,
+      under task 6.1's rule (c)
 
 ## 7. Archive
 

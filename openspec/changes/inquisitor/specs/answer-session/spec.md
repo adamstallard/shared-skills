@@ -1267,6 +1267,13 @@ the answer session SHALL record it in the state folder, and nowhere a
 second machine reads. A question declined under the third reason with a
 post takes its state from its thread, as any question does.
 
+The person SHALL be able to reopen a question they declined, which puts
+it back in their queue. What reopening does to a question declined under
+the third reason with a post, whose thread shows it handled, is in the
+proposal's Still open. A miss already logged for it SHALL stay as it
+is, and nothing SHALL record that the miss was withdrawn (proposal
+decisions 140 and 255).
+
 #### Scenario: Declining as over or as not a question posts nothing
 
 - **WHEN** the person declines a question asked on GitHub, because the
@@ -1295,6 +1302,13 @@ post takes its state from its thread, as any question does.
   over, and someone later writes in that thread a message that
   @-mentions the person
 - **THEN** the answer session shows that message as a question
+
+#### Scenario: Reopening a declined question keeps its miss
+
+- **WHEN** the person declined a question as not a question, so the
+  answer session logged a miss, and the person then reopens it
+- **THEN** the question is back in the person's queue, the miss file is
+  unchanged, and nothing is written to say it was withdrawn
 
 #### Scenario: Not a question logs a miss against its source
 
@@ -1385,7 +1399,10 @@ Otherwise, and for a question from a questions branch, it SHALL show the
 recorded answer to the person beside the question, and post only what the
 person relays. When the record is a lore entry, it SHALL push a citation
 file, as the inquisitor's *Every answer is recorded and every asked
-question logged* says. When it answers an agent's question by itself, it
+question logged* says. So SHALL it for the entry the person cites when
+they answer by citing a lore entry, under that requirement's citation
+rules (proposal decision 257). Which entries the person may cite, such
+as one that is not `active`, is in the proposal's Still open. When it answers an agent's question by itself, it
 SHALL log a miss against filter 1, as *The answer session logs its misses
 on the team's lore repository's questions branch* says; a person's
 question logs none. Before each automatic post, the answer session
@@ -1443,6 +1460,19 @@ once, and so does each recorded answer.
 - **WHEN** an active lore entry answers an incoming question with a thread
 - **THEN** the relay posts the recorded answer, and the script pushes a
   citation file to that lore repository's questions branch
+
+#### Scenario: Citing a lore entry sends a citation
+
+- **WHEN** the person answers a question about a private repository by
+  citing an active entry in a private lore repository
+- **THEN** the answer session pushes a citation file for that entry to
+  that lore repository's questions branch
+
+#### Scenario: Citing an entry in a more visible lore repository sends none
+
+- **WHEN** the person answers a question about a private repository by
+  citing an entry in a public lore repository
+- **THEN** no citation file is pushed
 
 #### Scenario: A reply to an automatic post is judged again
 

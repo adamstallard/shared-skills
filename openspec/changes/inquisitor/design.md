@@ -628,10 +628,14 @@ person's own on each surface, posts each answer in the question's thread.
 Its interface is a Claude Code mod that Adam approved by using its
 prototype, build v0.1-30, tagged `answer-session-ui-approved-v0.1-30`
 (proposal decisions 152 and 231). By decision 147, a UI approved that way
-is not specified, so nothing here describes how it looks.
+is not specified, so nothing here describes how it looks. The spec
+governs what the UI does and posts, and where the prototype does
+otherwise, the spec wins, and screens the spec
+needs that the prototype lacks follow its patterns (proposal decision
+254, task 6.1).
 The rules are in the `answer-session` spec, the decisions in proposal
 decisions 152 to 175, 184 to 203, 207 to 211, 215, 216, 219, 220,
-222 to 230, 234, 236, 238 and 246.
+222 to 230, 234, 236, 238, 246 to 248, 250 to 252 and 254 to 257.
 
 ### Polling while open, with the person's credentials
 

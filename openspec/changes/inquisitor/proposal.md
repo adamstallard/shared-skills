@@ -2,7 +2,7 @@
 
 ## Decisions
 
-### Decided by Adam (2026-10-19 to 2026-10-21)
+### Decided by Adam (2026-10-19 to 2026-10-24)
 
 Decisions 1 to 10 are recorded in the body of
 [igor #211](https://github.com/adamstallard/igor/issues/211). Adam gave the
@@ -15,7 +15,8 @@ are written down:
   196, 204 to 214, 216 to 221, 223 to 226, 229 and 231, on 2026-10-20;
 - 232 to 237, on 2026-10-21, and 238 in two parts: Message Content
   turned on, on 2026-10-20, and how `check` reads it, on 2026-10-21.
-- 240 to 253, on 2026-10-21.
+- 240 to 253, on 2026-10-21;
+- 254 to 257, on 2026-10-24.
 
 Apart from 229 and 241 to 244, which he gave in the session reviewing
 igor PR #216, and 238, which he gave in shared-skills PR #1, he gave those of 2026-10-19 to 2026-10-21 while reviewing this pull
@@ -41,7 +42,8 @@ answer. His decision 245 replaces the rule this change had proposed under
 that number, and his decision 246 settles 230's item 1. His decisions 247
 to 249 answer the three questions this change put to him when it
 recorded 245 and 246, and 250 to 253 answer the four it put to him when
-it recorded 247 to 249.
+it recorded 247 to 249. On 2026-10-24 he gave 254 to 257, after an audit
+of the approved prototype against the spec.
 
 1. **Four filters run before any question reaches a person.**
    1. **Already answered:** the agent finds the earlier answer, cites where it
@@ -1511,7 +1513,9 @@ aligns with it:
 
 Adam gave 231 on 2026-10-20 too, after testing the prototype:
 
-231. **The whole answer-session UI is approved by use.** The approved
+231. *Amended by Adam's decision 254: the spec wins where the prototype
+     disagrees with it.* **The whole answer-session UI is approved by
+     use.** The approved
      build is v0.1-30, commit c9c6eb5, tagged
      `answer-session-ui-approved-v0.1-30` on shared-skills
      (`ui-approved-v0.1-30` in Adam's local prototype repository). It
@@ -1797,6 +1801,53 @@ change put to him when it recorded 247 to 249:
      this adds a second condition. *Rejected:*
      archiving the rest and leaving the Igor-worker scenarios in an open
      change.
+
+Adam gave 254 to 257 on 2026-10-24, after an audit compared the approved
+prototype, `answer-session-ui-approved-v0.1-30`, with the answer-session
+spec:
+
+254. **The mod is built from the approved prototype, and the spec wins
+     where they differ.** Task 6.1 states the precedence:
+     1. The mod is built from `answer-session-ui-approved-v0.1-30`, and
+        keeps the approved screens' layout and interaction: the band, the
+        keys, the prompt-box flow and the declining screens. Changes
+        needed to wire them to real data are allowed; restyling or
+        reorganising them is not.
+     2. Wherever the prototype disagrees with the spec, the spec wins.
+        Task 6.1 lists the cases the audit found.
+     3. Screens the spec needs and v0.1-30 lacks are designed at
+        implementation from the prototype's existing patterns, in no new
+        visual style.
+     4. A screen Adam approves separately is taken from its own approved
+        tag. One such build is being prototyped, covering two screens:
+        thread replies, and the recorded answer shown beside the
+        question.
+     This amends decision 231, which approved the whole UI by use, by
+     saying how that approval meets the spec. Item 3 also amends
+     decision 147 for the screens task 6.1's rule (c) lists, which ship
+     with no prototype approved by use. Task 6.1's rules (a) to (d) are
+     items 1 to 4 here.
+255. **The person may reopen a question they declined.** Reopening puts
+     it back in their queue. A miss already logged for it stays, since a
+     miss file is never changed (decision 140), and nothing records that
+     the miss was withdrawn.
+256. **Some details of the answer session are decided at
+     implementation, not specified.** Task 6.11 lists them: how options
+     are parsed from a thread; `propose_reply`, the tool Claude calls to put a draft reply in the
+     prompt box, refusing a call from a subagent,
+     which Adam confirmed; a draft's privacy; an asker's reply revising
+     the options; what "agree" and "cite" post; Claude's draft, through `propose_reply`, filling the place the person
+     gives when declining under reason 3 with filter 1, that is, the URL of
+     the record for the `Recorded in: ` line,
+     which Adam confirmed, since the draft lands in the prompt box for
+     the person to confirm; and the relay notice's UI, the notice shown for the comment GitHub Actions
+     posts when a pull request changes the person's relay file, under task 6.1's rule (c). No requirement is added
+     for them. Decision 257 specifies one thing cite does beyond its post.
+257. **Answering with cite pushes a citation file.** When the person
+     answers by citing a lore entry, the answer session pushes a citation
+     file for that entry, as filter 1's automatic case does (decision
+     200's item 5), under the same visibility rules that withhold a
+     citation from a place less private than the question.
 
 ### Proposed by this change
 
@@ -2757,6 +2808,37 @@ this change's own:
 The archive waits for task 4.3 to tag every expected gap, which waits
 for igor to build `igor lore-search` and let a role's `commands` list
 the skill's script (decisions 249 and 253).
+
+The separately approved build of decision 254's item 4, covering thread
+replies and the recorded answer shown beside the question, has no tag
+yet. Four questions for Adam, raised while recording decisions 254 to
+257:
+- **If that build is not approved when gate two reaches those two
+  screens:** fall back to task 6.1's rule (c) and design them from the
+  prototype's patterns (recommended: gate two is not blocked, and an
+  approved build can replace them later); or wait for the approval.
+- **Which entries the person may cite.** The prototype offers cite on a
+  search hit that filter 1 found but did not count as an answer with
+  authority, labelled "Possibly answered already", and
+  igor PR #216 pushes a citation only for an `active` entry and defines a
+  citation as an agent's record that no person was asked. Options: a
+  citation is pushed only when the cited entry is `active` and in scope,
+  as for filter 1 (recommended: a citation then means the same thing
+  everywhere, and #216 only needs its definition widened to a person's
+  cite); or any cited entry gets one, and #216's review learns to tell
+  the two kinds apart.
+- **Reopening a question declined with a post.** A question declined
+  under reason 3 with a post takes its state from its thread, which then
+  shows it handled, so reopening cannot put it back in the queue as
+  decision 255 has it. Options: only a question declined with nothing
+  posted can be reopened (recommended: the thread stays the record); or
+  reopening puts it back in the queue on this machine, whatever the
+  thread shows.
+- **AGENTS.md's UI rule.** It says UI is prototyped and approved by use
+  before it is built, which decision 254's item 3 now waives for the
+  screens it names. Options: add that exception to AGENTS.md
+  (recommended: an agent reading the rule sees it); or leave AGENTS.md
+  as it is, the exception living only in this change.
 
 Open on igor PR #216's side, at d3b7740, which records Adam's decisions
 up to 101 in #216's own numbering, decisions 244 and 245 among them as
