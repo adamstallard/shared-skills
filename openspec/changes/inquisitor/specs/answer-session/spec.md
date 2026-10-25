@@ -704,6 +704,16 @@ question* says.
 - **THEN** the answer session finds the relay post in the question's thread
   and edits it
 
+#### Scenario: Editing an agreed recorded answer into the person's words pushes a log file
+
+- **WHEN** the person agreed to the recorded answer shown for a question
+  in a GitHub thread that an unanswered log file on the lore
+  repository's questions branch also holds, and then edits that post so
+  it starts with `User says: `
+- **THEN** the relay updates its post, and the script pushes a new log
+  file holding the question and the edited answer, which is the
+  question's first answer file there, since agreeing pushed none
+
 #### Scenario: Editing an answer the questions branch also logged pushes a new log file
 
 - **WHEN** the person edits a `User says: ` answer they relayed in a
@@ -1065,7 +1075,11 @@ relayed as the person's words* says, and also push the log file. It SHALL
 answer such a question by writing a new log file through the
 inquisitor script's `log` command, which pushes it to that same questions
 branch under the rules of the inquisitor's *Every answer is recorded and
-every asked question logged*. When the answer was also relayed in a
+every asked question logged*. One exception: when the person agrees to
+the recorded answer shown for a question shown from a thread, the
+answer session posts it as *Filter 1 runs on every incoming question*
+says, and pushes no log file; that post stands in the thread in place of
+a log file (proposal decision 266). When the answer was also relayed in a
 thread, the answer session SHALL pass the `log` command the URL of that
 relay post as the `answer_link`, which the command leaves out of a lore
 repository that is not private when it is a Linear or Discord URL, as
@@ -1418,12 +1432,12 @@ as for every filter under decline reason 3. For a record more private than the t
 SHALL first show the person that posting it shows the record exists, and
 SHALL post the recorded answer, in the form above, only once they confirm
 (proposal decision 264). On a question from a questions branch, agreeing
-posts nothing: the log file the answer session writes for it records the
-recorded answer's text, its `Recorded in: ` line included, as its
-answer, with its `authority` set as for an answer the person gave in the
-session. Four points on that file, among them a record more private
-than the lore repository, and whether agreeing on an agent's question
-logs a miss, are in the proposal's Still open. When the record is a lore entry, it SHALL push a citation
+posts nothing and writes no log file, and the question closes as
+handled for the person (proposal decision 266). What records that close,
+and whether it holds on another machine, is in the proposal's Still
+open. When the person agrees on an agent's question, the
+answer session SHALL log a miss against filter 1, as when it answers
+one by itself (proposal decision 267). When the record is a lore entry, it SHALL push a citation
 file, as the inquisitor's *Every answer is recorded and every asked
 question logged* says. A person **cites** a lore entry when they answer
 a question by naming that entry as its answer, when they agree to a
@@ -1602,13 +1616,29 @@ once, and so does each recorded answer.
   lore entry that is not `active`
 - **THEN** no citation file is pushed
 
-#### Scenario: Agreeing on a questions-branch question logs the recorded answer
+#### Scenario: Agreeing on a questions-branch question writes no log file
 
 - **WHEN** a question of the fourth source is answered by a decision
   document, and the person agrees to the shown recorded answer
-- **THEN** nothing is posted, and the log file the answer session pushes
-  records as its answer the `Recorded answer: ` text with its
-  `Recorded in: ` line
+- **THEN** nothing is posted, no log file is written, the question
+  closes as handled for the person, and a miss against filter 1 is
+  logged, since a log file of the fourth source is an agent's question
+  by this spec's definition
+
+#### Scenario: Agreeing in a thread on a questions-branch question pushes no log file
+
+- **WHEN** a question that an unanswered log file on the lore
+  repository's questions branch also holds is shown from its GitHub
+  thread, with a recorded answer more private than the thread shown
+  beside it, and the person agrees to it and confirms after the warning
+- **THEN** the relay posts the recorded answer in the thread, and no log
+  file is pushed to the questions branch
+
+#### Scenario: Agreeing on an agent's question logs a miss
+
+- **WHEN** the person agrees to the recorded answer shown beside an
+  agent's question
+- **THEN** the answer session logs a miss against filter 1
 
 #### Scenario: A questions-branch question's recorded answer is shown, not posted
 

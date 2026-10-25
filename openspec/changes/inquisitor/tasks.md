@@ -383,7 +383,12 @@ contradicts what design.md assumed.
         thread, whatever its prefix and whichever machine posted it,
         not only from the person's own `User says: ` post, with local
         state deciding only what the spec leaves to it, such as a
-        question declined with nothing posted; and the question that was on screen, kept in the state
+        question declined with nothing posted; agreeing to a recorded
+        answer on a questions-branch question, where v0.1-33 logs the
+        recorded answer in a new file and the spec writes no log file,
+        pushing only a miss against filter 1 and any citation (decisions
+        266 and 267);
+        and the question that was on screen, kept in the state
         folder so a restarted session opens on it, not in the mod's
         `$.store`
       - (c) A screen the spec needs that v0.1-33 lacks is designed at
@@ -468,7 +473,8 @@ contradicts what design.md assumed.
       item 6)
 - [ ] 6.11 Decide at implementation, with no requirement added
       (decision 256), and record each choice in design.md while the
-      change is open: how a question's options are parsed from its
+      change is open. Agreeing to a shown recorded answer is not among
+      them: decisions 264, 266 and 267 set it. The choices: how a question's options are parsed from its
       thread; `propose_reply`, the tool Claude calls to put a draft reply in the
       prompt box, refusing a call from a subagent (Adam confirmed this);
       a draft's privacy, beyond the existing rule that the draft is
@@ -477,9 +483,7 @@ contradicts what design.md assumed.
       and citing a lore entry post, each within the reserved-prefix rules
       of *Four reserved prefixes mark the answer session's posts*, though
       citing an `active` entry in scope also pushes a citation file
-      (decisions 257 and 259); agreeing to a shown recorded answer
-      follows decision 264, apart from the questions the proposal's
-      Still open lists;
+      (decisions 257 and 259);
       Claude's draft, through `propose_reply`, filling the place the person
       gives when declining under reason 3 with filter 1, that is, the URL of
       the record for the `Recorded in: ` line (Adam confirmed this,

@@ -200,9 +200,7 @@ Terms used throughout this spec:
   more visible place, except a recorded answer's link that the person
   confirms after being shown that posting it shows the record exists,
   as the `answer-session` spec's *Filter 1 runs on every incoming
-  question* allows (proposal decision 264). Whether a questions-branch
-  log file may carry such a record's link to a more visible branch is in
-  the proposal's Still open. A question about an organization or project is
+  question* allows (proposal decision 264). A question about an organization or project is
   bounded by the visibility of the repository the question concerns, which
   for such a question is the repository holding the current work; a
   question about one person's way of working is never posted. Wherever

@@ -638,7 +638,7 @@ needs that v0.1-33 lacks follow its patterns (proposal decision
 254, task 6.1).
 The rules are in the `answer-session` spec, the decisions in proposal
 decisions 152 to 175, 184 to 203, 207 to 211, 215, 216, 219, 220,
-222 to 230, 234, 236, 238, 246 to 248, 250 to 252, 254 to 260 and 262 to 265.
+222 to 230, 234, 236, 238, 246 to 248, 250 to 252, 254 to 260 and 262 to 267.
 
 ### Polling while open, with the person's credentials
 
@@ -776,7 +776,12 @@ that branch, as any session does for an answer the person gave in it
 question. When the same question was also asked in a post, the answer
 session shows it from the thread, relays the answer there, and pushes the
 log file too (decision 210), so neither the asker reading the thread nor
-an agent searching the branch misses the answer.
+an agent searching the branch misses the answer. When the person, rather
+than answering in their own words, agrees to the recorded answer shown
+beside the question, no log file is pushed (decision 266). An agent that
+searches later is then stopped by that record only when its own filter
+1 can read the record and counts it as an answer; otherwise it sees the
+question as unanswered.
 
 A relayed answer counts as the person's own for filter 1 (decision 184).
 Decision 78 proves a logged answer's writer only when GitHub gives the

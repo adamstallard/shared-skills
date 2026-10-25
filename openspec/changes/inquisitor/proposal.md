@@ -16,7 +16,7 @@ are written down:
 - 232 to 237, on 2026-10-21, and 238 in two parts: Message Content
   turned on, on 2026-10-20, and how `check` reads it, on 2026-10-21.
 - 240 to 253, on 2026-10-21;
-- 254 to 265, on 2026-10-24.
+- 254 to 267, on 2026-10-24.
 
 Apart from 229 and 241 to 244, which he gave in the session reviewing
 igor PR #216, and 238, which he gave in shared-skills PR #1, he gave those of 2026-10-19 to 2026-10-24 while reviewing this pull
@@ -46,9 +46,10 @@ it recorded 247 to 249. On 2026-10-24 he gave 254 to 257, after an audit
 of the approved prototype against the spec, 258 to 261, answering
 the four questions this change put to him when it recorded 254 to 257,
 262, answering the one it put to him when it recorded 258 to 261, and
-263, approving the prototype build that 258 required, and 264 and 265,
+263, approving the prototype build that 258 required, 264 and 265,
 answering the two questions this change put to him when it recorded
-263.
+263, and 266 and 267, answering the five it put to him when it recorded
+264 and 265.
 
 1. **Four filters run before any question reaches a person.**
    1. **Already answered:** the agent finds the earlier answer, cites where it
@@ -1938,16 +1939,16 @@ Adam gave 263 on 2026-10-24, approving the build decision 258 required:
 Adam gave 264 and 265 on 2026-10-24, answering the two questions this
 change put to him when it recorded 263:
 
-264. **The person may agree to a recorded answer more private than the
+264. *Amended by Adam's decision 266: agreeing on a questions-branch
+     question writes no log file.* **The person may agree to a recorded answer more private than the
      thread.** When a record is shown, not posted, because it is more
      private than the thread, agreeing to it posts `Recorded answer: see
      the record below.` with `Recorded in: <URL>`, after the screen warns
      that this shows the record exists and the person confirms. The same
-     holds under decline reason 3 with filter 1. Agreeing to a lore entry
+     holds under decline reason 3, "the inquisitor should have handled
+     it", when the person picks filter 1. Agreeing to a lore entry
      counts as citing it under decision 259's rule. On a question from a
-     questions branch, the log file's answer is the `Recorded answer: `
-     text, as the approved v0.1-33 build logs it; how that file is
-     written in four cases is in Still open. The automatic post's rule is unchanged:
+     questions branch, decision 266 has agreeing write no log file. The automatic post's rule is unchanged:
      the answer session posts a recorded answer by itself only when the
      record is no more private than the thread. This amends decision
      200's item 4. *Rejected:* not offering `(a)gree` for such a record.
@@ -1956,6 +1957,28 @@ change put to him when it recorded 263:
      sample question, its dot 12) and the stopped post's notice
      included, though the build's own notes, written before the tag,
      listed them as still to try.
+
+Adam gave 266 and 267 on 2026-10-24, answering the five questions this
+change put to him when it recorded 264 and 265:
+
+266. **On a questions-branch question, agreeing to a recorded answer
+     writes no new log file.** The question closes as handled for the
+     person, and a citation file is pushed when the record is an
+     `active` lore entry in scope (decision 259). No log file is
+     written: the record exists and filter 1 found it, so a file
+     pointing to it adds nothing. Since every questions-branch question
+     counts as an agent's question, decision 267's miss is still
+     logged. When the same question was also asked
+     in a thread, agreeing there posts the confirmed `Recorded answer: `
+     post of decision 264, and that post is the record in the thread.
+     This replaces the rule decision 264 first gave, that the log file's
+     answer is the `Recorded answer: ` text, and with it the four of the
+     five questions in Still open that were about that file. How the
+     close is recorded is a new question in Still open. *Rejected:* a log file whose answer points to the record.
+267. **Agreeing on an agent's question logs a miss against filter 1,** as
+     when the answer session answers one by itself, since filter 1
+     should have stopped the question either way. *Rejected:* logging
+     none.
 
 ### Proposed by this change
 
@@ -2921,39 +2944,34 @@ The archive waits for task 4.3 to tag every expected gap, which waits
 for igor to build `igor lore-search` and let a role's `commands` list
 the skill's script (decisions 249 and 253).
 
-Questions for Adam, raised while recording decisions 264 and 265, on
-agreeing to a recorded answer, the first four for a question on a
-questions branch:
-- **A lore entry as the record.** The log file would quote the
-  `Recorded in: ` line with the entry's URL, which holds its id, but no log file names a
-  lore entry by its id (the inquisitor's *Every answer is recorded and
-  every asked question logged*). Options: push the citation file only and give
-  the log file no answer (recommended: the citation already records that
-  the entry answered it); or make an exception to that rule.
-- **A record more private than the lore repository.** The log file would
-  put the record's repository and path on a more visible questions
-  branch, with no warning, since nothing is posted. Options: show the
-  same warning as decision 264 and write the answer only once the person
-  confirms (recommended: one rule for every disclosure); or write the
-  file with no answer.
-- **A questions-branch question that was also asked in a thread.** It is
-  shown from its thread, so the thread's rules apply: agreeing posts a
-  `Recorded answer: ` there, and decision 210 also pushes a log file, and the log file
-  would link that post, which the inquisitor spec calls the answer
-  session's automatic post and no one's answer. Options: the log file
-  records the agreement as the person's answer given in the session,
-  with no `answer_link`; under decision 250 a log file of an answer
-  given in the answer session counts as a decision when GitHub verifies
-  a signature on its commit (recommended); or it stays input.
-- **How filter 1 reads such a file later.** Its answer is only a
-  pointer to the record. Options: filter 1 follows the `Recorded in: `
-  URL and counts the file only as the record itself counts (recommended:
-  the record stays the authority); or the file counts as the decision.
-- **A miss for an agent's question the person agrees on.** When the
-  answer session answers an agent's question by itself it logs a miss
-  against filter 1, but nothing says so when the person agrees to the
-  shown record. Options: log the same miss (recommended: filter 1 should
-  have stopped the question either way); or log none.
+The five questions raised while recording decisions 264 and 265, on
+agreeing to a recorded answer, are settled by decisions 266 and 267.
+
+Two questions for Adam, raised while recording decisions 266 and 267:
+- **Nothing records that an agreed questions-branch question is closed.**
+  With no log file, its unanswered file still counts as a question of the
+  fourth source, the answer session's name for a questions-branch file, so it returns after a restart and on every other
+  machine, and no rule says whether it can be reopened or what its
+  miss's `said` is. Options: treat agreeing on a question with no thread
+  as declining it under reason 3 with filter 1, naming that record
+  (recommended: it removes agreeing as an outcome of its own beside
+  answering, declining and setting aside, and the decline
+  path already closes the question in the state folder, lets the person
+  reopen it, logs the filter 1 miss with its `said`, and cites a lore
+  entry; the cost, a close kept on one machine, is the one decision
+  202's item 1 accepted for declines); or give agreeing its own record
+  in the state folder and its own `said`.
+- **An agreed question asked in a thread can come back from the
+  questions branch.** Its file stays unanswered, and only being shown
+  from the thread hides it. A channel's first poll reads back 14 days
+  (decision 175's item 5), so a machine that first polls more than 14
+  days after the thread never reads that thread, so it shows the file as a
+  new question, and agreeing again could push a second citation file.
+  The automatic post and a reason 3 decline in a thread already leave
+  the same unanswered file. Options: accept it, as for those (recommended:
+  it adds no rule, and a second machine already pushes no second miss
+  for the same question and filter); or hide a
+  questions-branch file whenever any relay post names the same question.
 
 Open on igor PR #216's side, at 59e7561, which records Adam's decisions
 up to 149 in #216's own numbering, decisions 244 and 245 among them as
