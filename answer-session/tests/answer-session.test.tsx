@@ -1219,27 +1219,6 @@ test('a questions-branch question shows its recorded answer; agreeing or answeri
   await ui.unmount()
 })
 
-test('/answer layout and the button beside the replies switch where they go; nothing else changes', async ($, on) => {
-  const s = answerSession(on)
-  await s.open($)
-  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
-  await ui.press({ key: 'dot:9' })
-  await s.clock.advance(1_000)
-  await ui.redraw()
-  const layoutButton = async () => ((await ui.find({ key: 'layout' })) as { text?: string } | undefined)?.text
-  expect(await layoutButton()).toBe('⇄ move left')
-  expect((await slash($, 'answer', 'layout')).text).toBe('Layout: replies and the recorded answer under the question')
-  await ui.redraw()
-  expect(await layoutButton()).toBe('⇄ move right')
-  expect(await ui.find({ type: 'Text', text: /We settled this in #198/ })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /10 of 17/ })).toBeDefined()
-  await ui.press({ key: 'layout' })
-  await ui.redraw()
-  expect(await layoutButton()).toBe('⇄ move left')
-  expect(s.sent).toEqual([])
-  await ui.unmount()
-})
-
 test("a post tried before the thread's first read comes back reads it itself; the late read changes nothing", async ($, on) => {
   const s = answerSession(on)
   await s.open($)
@@ -1312,5 +1291,23 @@ test("a stopped post's notice goes with (l)ater, and with moving to another ques
   expect(await s.enter($, 'l')).toContain('Later')
   await ui.redraw()
   expect(await ui.find({ type: 'Text', text: notice })).toBeUndefined()
+  await ui.unmount()
+})
+
+test('replies sit beside the choices and the recorded answer under the question, with why and (a)gree beside it', async ($, on) => {
+  const s = answerSession(on)
+  await s.open($)
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  // Under the question: the record's own heading; beside the choices: why it was not posted, and (a)gree.
+  await ui.press({ key: 'dot:16' })
+  await ui.redraw()
+  expect(await ui.find({ type: 'Text', text: /^RECORDED ANSWER · FILTER 1$/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /^RECORDED ANSWER · FILTER 1 · SHOWN WITH THE QUESTION$/ })).toBeDefined()
+  expect(await ui.find({ key: 'record' })).toBeDefined()
+  expect(await ui.find({ key: 'view:record' })).toBeDefined()
+  // No switch is left: /answer toggles the session, as before.
+  expect(await ui.find({ key: 'layout' })).toBeUndefined()
+  expect((await slash($, 'answer', 'layout')).text).toBe('Answer session closed. /answer opens it again where you left off.')
+  expect(s.sent).toEqual([])
   await ui.unmount()
 })

@@ -1,0 +1,40 @@
+
+ ▐▛███▛█   Claude Code v2.1.310
+▝▜██████▀  Opus 5.5 · Claude Max
+ ▝▝   ▝▝   ~/shared-skills
+
+⚠ Ask rule Advisor matches no tool · check for typos
+
+❯ /answer
+  ⎿  answer-session: Answer session open: type in the prompt box, Enter answers. 1 answered and 1 handled for you: see the summary.
+
+
+
+
+
+
+
+
+
+
+
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── [-]
+Answer session  ○ ○ ○ ○ ◎ ○ ○ ○ ◈ ○ ○ ○ ○ ○ ○ ◉ ○  summary  16 of 17 · 15 new · 0 relayed · 0 for later · 2 done for you        v0.1-33
+GitHub  adamstallard/shared-skills #34  30m ago · no replies   │ ◎ RECORDED ANSWER · FILTER 1 · SHOWN WITH THE QUESTION
+claude asks, an agent via the inquisitor                       │ Not posted by itself: the record is private and this thread public.
+                                                               │ (a)gree posts its link, which shows the record exists.
+Should the github-app skill mint one installation token per    │   (a)gree: post the recorded answer
+repository, or one per owner?                                  │ OR ANSWER IT YOURSELF
+                                                               │   1: One per owner  ★ recommended
+◎ RECORDED ANSWER · FILTER 1   (v)iew all                      │      → One token covers every repository the App is installed on.
+D-41: Installation tokens are scoped to one repository         │
+adamstallard/igor-ops DECISIONS.md · private · adamstallard, … │   2: One per repository
+│ Every installation token is minted for the one repository    │      → A leaked token reaches one repository only.
+│ the work touches, never for the owner, so a leaked token     │
+│ reaches a single repository. Minting costs one API call per… │   Or type your own answer in the prompt box
+1–2: choose   (t)alk to Claude   (a)gree   (w)on't answer   (l)ater                                            (b)ack   (n)ext   (q)uit
+                                                                                                                        ◐ medium · /effort
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── shared-skills ─
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on (shift+tab to cycle) · ← for agents · a number, a key or your answer, then ⏎ · 5h 15% Sun 1:30a · 7d 65% ⇡ Sat 2a

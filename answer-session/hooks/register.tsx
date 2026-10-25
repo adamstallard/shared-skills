@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, ModelCompleteResult, Register, RenderElement } from 'claude-code'
 
-import type { Answer, Declining, Filter, Layout, Returned, Revision, ThreadSeen, Turn, WontReason } from '../types'
+import type { Answer, Declining, Filter, Returned, Revision, ThreadSeen, Turn, WontReason } from '../types'
 
 // Prototype only: the questions are fixed examples, and an answer is kept in
 // the session's state instead of being posted by the relay account.
@@ -607,7 +607,7 @@ const TONE: Record<Answer['kind'], string> = { answer: DONE, defer: LATER, wait:
 // Prototype only: shown in the top bar, so a tester can tell which build is
 // loaded. v0.1-N, N the number of commits in the prototype repository once
 // this build is committed.
-const BUILD = 'v0.1-32'
+const BUILD = 'v0.1-33'
 const PREFIX = 'User says: '
 // The tool the session's model calls to put a drafted reply in the prompt box.
 const PROPOSE_TOOL = 'mcp__answer-session__propose_reply'
@@ -635,7 +635,6 @@ const decliningAtom = atom({ plugin: 'answer-session', key: 'declining' } as con
 const threadsAtom = atom({ plugin: 'answer-session', key: 'threads' } as const, {} as Record<string, ThreadSeen>)
 const readingAtom = atom({ plugin: 'answer-session', key: 'reading' } as const, {} as Record<string, true>)
 const viewingAtom = atom({ plugin: 'answer-session', key: 'viewing' } as const, null as { id: string; page: number } | null)
-const layoutAtom = atom({ plugin: 'answer-session', key: 'layout' } as const, 'beside' as Layout)
 
 /** `text` cut to `width` cells, an ellipsis marking the cut. */
 function cut(text: string, width: number): string {
@@ -981,7 +980,6 @@ type ResumeRecord = {
   original: Record<string, boolean>
   returned: Record<string, Returned>
   threads?: Record<string, ThreadSeen>
-  layout?: Layout
 }
 
 /** Keeps the open answer session for the process the restart starts. */
@@ -997,7 +995,6 @@ async function saveForRestart($: EngineInterface): Promise<void> {
     original: await read($, originalAtom),
     returned: await read($, returnedAtom),
     threads: await read($, threadsAtom),
-    layout: await read($, layoutAtom),
   }
   await $.store.set(RESUME_KEY, record)
 }
@@ -1023,7 +1020,6 @@ async function takeRestart($: EngineInterface, cwd: string): Promise<ResumeRecor
   await update($, originalAtom, () => record.original ?? {})
   await update($, returnedAtom, () => record.returned ?? {})
   await update($, threadsAtom, () => record.threads ?? {})
-  await update($, layoutAtom, () => record.layout ?? 'beside')
   return record
 }
 
@@ -1067,7 +1063,6 @@ type Ctx = {
   isRead: boolean
   /** The replies and the record are shown in full: the page. */
   viewing?: number
-  layout: Layout
 }
 
 async function snapshot($: EngineInterface): Promise<Ctx> {
@@ -1076,8 +1071,7 @@ async function snapshot($: EngineInterface): Promise<Ctx> {
   const answers = await read($, answersAtom)
   const deferredAt = QUESTIONS.findIndex(one => answers[one.id]?.kind === 'defer')
   const base = QUESTIONS[at]
-  const layout = await read($, layoutAtom)
-  if (!base) return { at, open: false, posted: false, editing: false, talking: false, composing: false, hasReply: false, changed: false, deferredAt, replies: [], reading: false, isRead: false, layout }
+  if (!base) return { at, open: false, posted: false, editing: false, talking: false, composing: false, hasReply: false, changed: false, deferredAt, replies: [], reading: false, isRead: false }
   const seen = (await read($, threadsAtom))[base.id]
   const viewing = await read($, viewingAtom)
   const rephrased = (await read($, rephrasedAtom))[base.id]
@@ -1108,7 +1102,6 @@ async function snapshot($: EngineInterface): Promise<Ctx> {
     reading: !!(await read($, readingAtom))[base.id],
     isRead: !!seen,
     viewing: viewing?.id === base.id ? viewing.page : undefined,
-    layout,
   }
 }
 
@@ -1626,14 +1619,6 @@ async function morePages($: EngineInterface): Promise<string> {
   return 'The next page'
 }
 
-/** Prototype only: switches between the two designs, to compare them in place. */
-async function toggleLayout($: EngineInterface): Promise<string> {
-  let now: Layout = 'beside'
-  await update($, layoutAtom, l => (now = l === 'beside' ? 'under' : 'beside'))
-  const note = `Layout: replies and the recorded answer ${now === 'beside' ? 'beside the choices' : 'under the question'}`
-  await update($, flashAtom, () => note)
-  return note
-}
 
 /**
  * Puts what was posted (the answer, or the question to the asker) back in
@@ -2042,10 +2027,7 @@ export const register: Register = on => {
   // /answer opens the band, or closes it when it is open. The band needs no
   // room of its own: it is the strip above the prompt, as wide as the
   // terminal, in both layouts.
-  on('command.run', { command: 'answer' }, async ($, e) => {
-    // Prototype only: `/answer layout` switches between the two designs for
-    // the replies and the recorded answer, leaving the session as it is.
-    if (/^\s*layout\b/.test(e.args ?? '')) return { text: await toggleLayout($) }
+  on('command.run', { command: 'answer' }, async $ => {
     let isOpen = false
     await update($, openAtom, v => (isOpen = !v))
     if (!isOpen) return { text: 'Answer session closed. /answer opens it again where you left off.' }
@@ -2746,17 +2728,11 @@ export const register: Register = on => {
     // ── what came after the question: its thread's replies, filter 1's record ──
 
     const isNew = (r: Reply) => c.fresh !== undefined && c.replies.indexOf(r) >= c.fresh
-    // Beside what they open or move: everything in full, and (prototype
-    // only) the other of the two designs, to compare them in place.
-    const viewButton = (
-      <Box gap={2} flexShrink={0}>
-        <Button key="view" plain dimColor onPress={() => run(pressKey($, 'v'))}>
-          (v)iew all
-        </Button>
-        <Button key="layout" plain dimColor onPress={() => run(toggleLayout($))}>
-          {!isWide ? '⇄ move' : c.layout === 'beside' ? '⇄ move left' : '⇄ move right'}
-        </Button>
-      </Box>
+    // Beside what it opens: everything since the question, in full.
+    const viewButton = (key: string) => (
+      <Button key={key} plain dimColor onPress={() => run(pressKey($, 'v'))}>
+        (v)iew all
+      </Button>
     )
     const replyHead = (r: Reply): Row => (
       <Text wrap="truncate-end">
@@ -2813,7 +2789,7 @@ export const register: Register = on => {
               <Text dimColor>{more}</Text>
             </Text>
           </Box>
-          {viewButton}
+          {viewButton('view')}
         </Box>
       )
       if (t.replies === 'count') return [head(` · latest ${list[n - 1]!.who}`)]
@@ -2841,10 +2817,10 @@ export const register: Register = on => {
           <Box flexShrink={1}>
             <Text wrap="truncate-end">
               <Text color={DONE}>{GLYPH.recorded} </Text>
-              <Text dimColor>{part === 'act' ? 'RECORDED ANSWER · FILTER 1 · BESIDE THE QUESTION' : 'RECORDED ANSWER · FILTER 1'}</Text>
+              <Text dimColor>{part === 'act' ? 'RECORDED ANSWER · FILTER 1 · SHOWN WITH THE QUESTION' : 'RECORDED ANSWER · FILTER 1'}</Text>
             </Text>
           </Box>
-          {part === 'act' ? null : viewButton}
+          {part === 'act' ? null : viewButton('view:record')}
         </Box>
       )
       const record: Row[] = t.record === 'head' ? [] : [
@@ -2890,7 +2866,7 @@ export const register: Register = on => {
                 gree: {q.branch ? 'log it' : 'post it'}
               </Text>
             </Button>
-            {viewButton}
+            {viewButton('view:record')}
           </Box>,
         ]
       }
@@ -2898,13 +2874,14 @@ export const register: Register = on => {
       if (part === 'act') return [head, ...whyRows, ...agree]
       return [head, ...record, ...whyRows, ...agree]
     }
-    // Where they go: beside the choices (right), or under the question (left).
-    // Under the question, the right keeps why the record was not posted and agreeing to it.
+    // Where each goes (Adam, 2026-10-24): the replies beside the choices, on
+    // the right; the recorded answer under the question, on the left, where it
+    // has room, the right keeping why it was not posted and agreeing to it. In
+    // one column the record is one block, under the question.
     const evidence = (t: Trim, width: number, g: (gap: Gap) => number, side: 'left' | 'right'): Row[] => {
       const isOpen = open && !c.posted
-      if (side === 'left') return c.layout === 'under' ? stack([recordRows(t, width, 'record'), threadRows(t, width)], [g('thread')]) : []
-      if (c.layout === 'under') return isOpen ? recordRows(t, width, 'act') : []
-      return stack([recordRows(t, width, isOpen ? 'all' : 'record'), threadRows(t, width)], [g('thread')])
+      if (side === 'left') return recordRows(t, width, isWide || !isOpen ? 'record' : 'all')
+      return stack([isWide && isOpen ? recordRows(t, width, 'act') : [], threadRows(t, width)], [g('thread')])
     }
 
     const questionColumn = (t: Trim, width: number, g: (gap: Gap) => number): Row[] => {

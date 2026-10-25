@@ -82,13 +82,6 @@ export type ThreadSeen = {
   late?: true
 }
 
-/**
- * Where the replies since the question and filter 1's recorded answer go:
- * `beside` the choices, in the right column, or `under` the question, in the
- * left. Prototype only: two designs to compare, switched with /answer layout.
- */
-export type Layout = 'beside' | 'under'
-
 /** One message in a question's discussion. */
 export type Turn = {
   /** `you` is the person; `model` the reply its turn ended with; `error` what failed: a turn with no reply, a rephrasing or a draft. */
@@ -168,8 +161,6 @@ declare module 'claude-code' {
       reading: Record<string, true>
       /** The question whose replies and record are shown in full, and the page; null on the question view. */
       viewing: { id: string; page: number } | null
-      /** Where replies and the recorded answer go. */
-      layout: Layout
       /**
        * True while the answer session is open: the band above the prompt
        * shows it, and Enter in the prompt box acts in it (only a discussion
