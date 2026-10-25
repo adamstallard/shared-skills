@@ -638,7 +638,7 @@ needs that v0.1-33 lacks follow its patterns (proposal decision
 254, task 6.1).
 The rules are in the `answer-session` spec, the decisions in proposal
 decisions 152 to 175, 184 to 203, 207 to 211, 215, 216, 219, 220,
-222 to 230, 234, 236, 238, 246 to 248, 250 to 252, 254 to 260, 262 and 263.
+222 to 230, 234, 236, 238, 246 to 248, 250 to 252, 254 to 260 and 262 to 265.
 
 ### Polling while open, with the person's credentials
 
@@ -703,8 +703,10 @@ declines with nothing posted is closed in the state folder only (decision
 194): nothing in the thread can say so, and another machine shows it as
 open. A question declined because the inquisitor should have handled it,
 reason 3, gets a post, which the thread records like any other (decision
-209). It gets none only when it has no thread, has a category, or has a
-filter 1 record more private than its thread. The thread is read
+209). It gets none only when it has no thread or has a category. With a
+filter 1 record more private than its thread, it is posted only once the
+person confirms after a warning that posting shows the record exists
+(proposal decision 264). The thread is read
 again before a question is shown, when its poll is over a minute old, and
 before each post, so an answer relayed from another machine is never posted
 twice.

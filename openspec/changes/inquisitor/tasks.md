@@ -393,10 +393,13 @@ contradicts what design.md assumed.
         that is off
       - (d) A screen Adam approves separately is taken from its own
         approved tag. Tag: `answer-session-ui-approved-v0.1-33` (decisions
-        258 and 263), approved on 2026-10-24, which is also the base, so
-        this rule records which screens came from that second approval:
-        the thread's replies since the question, and filter 1's recorded
-        answer shown with the question. Each screen goes where the tagged
+        258 and 263), approved on 2026-10-24. It is also the base, so this
+        rule only records which screens that approval added: the thread's
+        replies since the question, and filter 1's recorded answer shown
+        with the question. The approval covers the whole build (decision
+        265), including the replies when the asker withdraws their
+        question, and the notice for a post held back because a reply
+        arrived. Each screen goes where the tagged
         build puts it. A later separately approved screen would come from
         its own tag the same way
 - [ ] 6.2 The `answer_session` section of `inquisitor.json`, and setup:
@@ -474,7 +477,9 @@ contradicts what design.md assumed.
       and citing a lore entry post, each within the reserved-prefix rules
       of *Four reserved prefixes mark the answer session's posts*, though
       citing an `active` entry in scope also pushes a citation file
-      (decisions 257 and 259);
+      (decisions 257 and 259); agreeing to a shown recorded answer
+      follows decision 264, apart from the questions the proposal's
+      Still open lists;
       Claude's draft, through `propose_reply`, filling the place the person
       gives when declining under reason 3 with filter 1, that is, the URL of
       the record for the `Recorded in: ` line (Adam confirmed this,

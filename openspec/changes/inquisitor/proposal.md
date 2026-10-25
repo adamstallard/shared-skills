@@ -16,7 +16,7 @@ are written down:
 - 232 to 237, on 2026-10-21, and 238 in two parts: Message Content
   turned on, on 2026-10-20, and how `check` reads it, on 2026-10-21.
 - 240 to 253, on 2026-10-21;
-- 254 to 263, on 2026-10-24.
+- 254 to 265, on 2026-10-24.
 
 Apart from 229 and 241 to 244, which he gave in the session reviewing
 igor PR #216, and 238, which he gave in shared-skills PR #1, he gave those of 2026-10-19 to 2026-10-24 while reviewing this pull
@@ -46,7 +46,9 @@ it recorded 247 to 249. On 2026-10-24 he gave 254 to 257, after an audit
 of the approved prototype against the spec, 258 to 261, answering
 the four questions this change put to him when it recorded 254 to 257,
 262, answering the one it put to him when it recorded 258 to 261, and
-263, approving the prototype build that 258 required.
+263, approving the prototype build that 258 required, and 264 and 265,
+answering the two questions this change put to him when it recorded
+263.
 
 1. **Four filters run before any question reaches a person.**
    1. **Already answered:** the agent finds the earlier answer, cites where it
@@ -1307,7 +1309,9 @@ confirmed 181 to 183 and 197 to 203, amended 199, changed four items of
      picked up by mistake. It no longer shares filter 3's name, "not a
      real question". A miss logged for it has `said: "not a question"`.
      This renames the reason in decisions 194 and 198 and in the spec.
-209. **Decline reason 3 is called "the inquisitor should have handled
+209. *Amended by Adam's decision 264: a filter 1 reply with a more
+     private record is posted on the person's confirmation, after a
+     warning.* **Decline reason 3 is called "the inquisitor should have handled
      it", and the answer session then answers for the inquisitor.** The
      person picks the filter that should have stopped the question: 1,
      already answered; 2, can wait; 3, one option has merit; or 4, cheap
@@ -1846,7 +1850,9 @@ spec:
      it back in their queue. A miss already logged for it stays, since a
      miss file is never changed (decision 140), and nothing records that
      the miss was withdrawn.
-256. **Some details of the answer session are decided at
+256. *Narrowed by Adam's decision 264, which fixes what agreeing to a
+     shown recorded answer posts; what agreeing with a suggested verdict
+     posts stays open.* **Some details of the answer session are decided at
      implementation, not specified.** Task 6.11 lists them: how options
      are parsed from a thread; `propose_reply`, the tool Claude calls to put a draft reply in the
      prompt box, refusing a call from a subagent,
@@ -1926,7 +1932,30 @@ Adam gave 263 on 2026-10-24, approving the build decision 258 required:
      these, so v0.1-33 contains all of v0.1-30 and task 6.1 builds from
      it alone. This meets decision 258's condition on the build, and
      task G.1 is done; Adam's approval of this spec, the other condition
-     before implementation, is still to come.
+     before implementation, is still to come. By decision 265 the
+     approval covers the whole build.
+
+Adam gave 264 and 265 on 2026-10-24, answering the two questions this
+change put to him when it recorded 263:
+
+264. **The person may agree to a recorded answer more private than the
+     thread.** When a record is shown, not posted, because it is more
+     private than the thread, agreeing to it posts `Recorded answer: see
+     the record below.` with `Recorded in: <URL>`, after the screen warns
+     that this shows the record exists and the person confirms. The same
+     holds under decline reason 3 with filter 1. Agreeing to a lore entry
+     counts as citing it under decision 259's rule. On a question from a
+     questions branch, the log file's answer is the `Recorded answer: `
+     text, as the approved v0.1-33 build logs it; how that file is
+     written in four cases is in Still open. The automatic post's rule is unchanged:
+     the answer session posts a recorded answer by itself only when the
+     record is no more private than the thread. This amends decision
+     200's item 4. *Rejected:* not offering `(a)gree` for such a record.
+265. **The v0.1-33 approval covers the whole build,** the asker
+     withdrawing their question in the thread (the prototype's twelfth
+     sample question, its dot 12) and the stopped post's notice
+     included, though the build's own notes, written before the tag,
+     listed them as still to try.
 
 ### Proposed by this change
 
@@ -2464,7 +2493,8 @@ confirmed each on 2026-10-20, amending 199 and changing items 2, 4, 6 and
      196 makes by itself off people's questions. This change took it
      under filter 3.
 200. **Confirmed by Adam (2026-10-20); item 1 amended by decision 239's
-     item 5, which he confirmed on 2026-10-21.** **What the answer session posts by itself:**
+     item 5, which he confirmed on 2026-10-21; item 4 amended by his
+     decision 264.** **What the answer session posts by itself:**
      1. A recorded answer is posted as `Recorded answer: see the record
         below.`, whatever the record, a log file included, then a line
         `Recorded in: <URL>` holding filter 1's hit, then, on GitHub, the
@@ -2489,7 +2519,9 @@ confirmed each on 2026-10-20, amending 199 and changing items 2, 4, 6 and
         record's repository is no more visible than the thread's; on
         Linear and Discord, only when the record's repository is public.
         Otherwise it shows the recorded answer to the person beside the
-        question, for them to relay or not.
+        question, for them to relay or not. *Amended by decision 264:*
+        the person may also agree to it, and then it is posted after a
+        warning that this shows the record exists.
      5. When a lore entry is the recorded answer, it pushes a citation
         file, as any session's filter 1 does.
 
@@ -2602,7 +2634,8 @@ confirmed all seven items on 2026-10-20:
         `said: "the inquisitor should have handled it"`. When the person
         picks filter 1 there, a question with no thread, or whose record
         is more private than its thread, closes once the recorded answer
-        is shown.
+        is shown. *Amended by decision 264:* a more private record's reply
+        is posted once the person confirms after a warning.
      6. On GitHub, a `User says: ` or `User asks: ` post from an App
         whose owner the answer session can't read counts as a relayed
         question, a person's, so it gets no automatic `Inquisitor: `
@@ -2888,36 +2921,39 @@ The archive waits for task 4.3 to tag every expected gap, which waits
 for igor to build `igor lore-search` and let a role's `commands` list
 the skill's script (decisions 249 and 253).
 
-Two questions for Adam, raised while recording decision 263:
-- **Agreeing to a recorded answer more private than the thread.** In
-  v0.1-33, when a record is only shown, not posted, because it is more
-  private than the thread, agreeing to it with `(a)gree` posts
-  `Recorded answer: see the record below.` and `Recorded in: <URL>`.
-  The build's screen warns that this shows the record exists. The spec
-  posts a `Recorded answer: ` by itself only when the record is no more
-  private than the thread; for a more private record it shows the
-  record to the person and posts only what the person relays as their
-  own words, and under decline reason 3 with filter 1 it posts nothing
-  for such a record.
-  Options: on the person's confirmation, the answer session may post
-  the `Recorded answer: ` with a more private record's URL, and the
-  same holds under decline reason 3 (recommended: the approved screen
-  already warns that posting shows the record exists, and the person
-  chooses it); or the spec wins, and `(a)gree` is not offered for such
-  a record. Two smaller points ride on it: whether agreeing to a lore
-  entry counts as citing it (recommended: yes, under decision 259's
-  rule, as decision 262 has it for a decline), and what the log file
-  records as the answer when the person agrees on a questions-branch
-  question (recommended: the `Recorded answer: ` text with its
-  `Recorded in: ` line, as the build logs it).
-- **What the v0.1-33 approval covers.** The build's own notes, written
-  before the tag, list the asker withdrawing their question (the
-  prototype's twelfth sample question, its dot 12) and the stopped
-  post's notice as still to try; the tag's note names the replies, the
-  recorded answer and the notice. Options: the approval covers the
-  whole build (recommended: Adam tagged it after using it, and tags
-  only what he approved); or it excludes the asker withdrawing, which
-  then goes under task 6.1's rule (c).
+Questions for Adam, raised while recording decisions 264 and 265, on
+agreeing to a recorded answer, the first four for a question on a
+questions branch:
+- **A lore entry as the record.** The log file would quote the
+  `Recorded in: ` line with the entry's URL, which holds its id, but no log file names a
+  lore entry by its id (the inquisitor's *Every answer is recorded and
+  every asked question logged*). Options: push the citation file only and give
+  the log file no answer (recommended: the citation already records that
+  the entry answered it); or make an exception to that rule.
+- **A record more private than the lore repository.** The log file would
+  put the record's repository and path on a more visible questions
+  branch, with no warning, since nothing is posted. Options: show the
+  same warning as decision 264 and write the answer only once the person
+  confirms (recommended: one rule for every disclosure); or write the
+  file with no answer.
+- **A questions-branch question that was also asked in a thread.** It is
+  shown from its thread, so the thread's rules apply: agreeing posts a
+  `Recorded answer: ` there, and decision 210 also pushes a log file, and the log file
+  would link that post, which the inquisitor spec calls the answer
+  session's automatic post and no one's answer. Options: the log file
+  records the agreement as the person's answer given in the session,
+  with no `answer_link`; under decision 250 a log file of an answer
+  given in the answer session counts as a decision when GitHub verifies
+  a signature on its commit (recommended); or it stays input.
+- **How filter 1 reads such a file later.** Its answer is only a
+  pointer to the record. Options: filter 1 follows the `Recorded in: `
+  URL and counts the file only as the record itself counts (recommended:
+  the record stays the authority); or the file counts as the decision.
+- **A miss for an agent's question the person agrees on.** When the
+  answer session answers an agent's question by itself it logs a miss
+  against filter 1, but nothing says so when the person agrees to the
+  shown record. Options: log the same miss (recommended: filter 1 should
+  have stopped the question either way); or log none.
 
 Open on igor PR #216's side, at 59e7561, which records Adam's decisions
 up to 149 in #216's own numbering, decisions 244 and 245 among them as

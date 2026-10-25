@@ -30,9 +30,11 @@ Terms used throughout this spec:
   `Recorded answer: ` or `Inquisitor: `. A relay identity's other posts
   are not relay posts, and nothing in this spec reads them.
 - **An automatic post** is a relay post that starts with
-  `Recorded answer: ` or `Inquisitor: `. The answer session makes one by
-  itself, or, when the person declines a question because the inquisitor
-  should have handled it, once the person confirms it.
+  `Recorded answer: ` or `Inquisitor: `, whose text the answer session
+  fixes rather than the person. The answer session makes one by itself,
+  or makes one only once the person confirms it: when they decline a question
+  because the inquisitor should have handled it, or agree to a recorded
+  answer shown beside the question.
 - **A question's thread** is where a reply to the question goes: the
   conversation of the GitHub issue or pull request that holds it, or the
   review thread when the question is a review comment; the comment thread
@@ -1179,7 +1181,9 @@ answer session SHALL post a text starting with `User says: ` or
 `User asks: ` only once the person has confirmed that whole text, and a
 text starting with `Recorded answer: ` or `Inquisitor: ` only as *Filter 1
 runs on every incoming question*, *Filters 2 to 4 judge every incoming
-question* and *The person can decline to answer* say. A relay identity may post for other work, but no post
+question* and *The person can decline to answer* say, including a
+recorded answer the person agrees to under *Filter 1 runs on every
+incoming question*. A relay identity may post for other work, but no post
 outside the answer session SHALL start with a reserved prefix. The
 skill's instructions SHALL say so, and on GitHub the inquisitor's post
 hook blocks such a post, as the inquisitor's *Questions in posts pass the
@@ -1252,8 +1256,11 @@ giving one of three reasons:
 
    When a filter 1 reply's record is more private than the question's
    thread, by the rule *Filter 1 runs on every incoming question* states,
-   or when the question has no thread, the answer session posts nothing,
-   shows the person the recorded answer, and the question closes. On a
+   the preview the person confirms SHALL also show that posting it shows
+   the record exists, so their one confirmation covers both (proposal
+   decision 264). When the question has no thread, the answer session
+   posts nothing, shows the person the recorded answer, and the question
+   closes. On a
    question with a category, it posts nothing for any filter, and the
    question closes. This reason applies to a person's question as to an
    agent's. The answer
@@ -1359,13 +1366,13 @@ was posted* says (proposal decision 260).
 - **THEN** nothing is posted, the person is shown the recorded answer,
   the question closes, and a miss against filter 1 is logged
 
-#### Scenario: A filter 1 reply with a more private record is shown, not posted
+#### Scenario: A filter 1 reply with a more private record is posted only after a warning
 
 - **WHEN** the person picks filter 1 for a question in a public
   repository, and the place it is decided is a private repository's
   `DECISIONS.md`
-- **THEN** nothing is posted, the person is shown the recorded answer, and
-  the question closes
+- **THEN** the answer session shows the person that posting the reply
+  shows the record exists, and posts it only once they confirm
 
 ### Requirement: Filter 1 runs on every incoming question
 
@@ -1405,13 +1412,26 @@ its repository's: the more private of its `repository` and `asked_from`,
 as the inquisitor's *More visible* defines it.
 Otherwise, and for a question from a questions branch, it SHALL show the
 recorded answer to the person beside the question, and post only what the
-person relays. When the record is a lore entry, it SHALL push a citation
+person relays or agrees to. The person may agree to the shown recorded
+answer, except on a question with a category, where nothing is posted,
+as for every filter under decline reason 3. For a record more private than the thread, the answer session
+SHALL first show the person that posting it shows the record exists, and
+SHALL post the recorded answer, in the form above, only once they confirm
+(proposal decision 264). On a question from a questions branch, agreeing
+posts nothing: the log file the answer session writes for it records the
+recorded answer's text, its `Recorded in: ` line included, as its
+answer, with its `authority` set as for an answer the person gave in the
+session. Four points on that file, among them a record more private
+than the lore repository, and whether agreeing on an agent's question
+logs a miss, are in the proposal's Still open. When the record is a lore entry, it SHALL push a citation
 file, as the inquisitor's *Every answer is recorded and every asked
 question logged* says. A person **cites** a lore entry when they answer
-a question by naming that entry as its answer, or declines a question
+a question by naming that entry as its answer, when they agree to a
+shown recorded answer whose record is that entry, or when they decline a
+question
 under the third reason of *The person can decline to answer*, "the
 inquisitor should have handled it", with filter 1, naming that entry as
-the record (proposal decision 262). The answer session SHALL
+the record (proposal decisions 262 and 264). The answer session SHALL
 push a citation file for the entry the person cites, under the citation rules of the
 inquisitor's *Every answer is recorded and every asked question logged*, but only when the entry is `active` and in scope for the
 question, as the inquisitor's *Filter 1 searches every place an answer
@@ -1558,6 +1578,37 @@ once, and so does each recorded answer.
   document in a private repository
 - **THEN** the answer session posts nothing by itself, and shows the
   person the question with the recorded answer beside it
+
+#### Scenario: Agreeing to a more private record posts it after a warning
+
+- **WHEN** a question in a public repository is answered by a decision
+  document in a private repository, and the person agrees to the shown
+  recorded answer
+- **THEN** the answer session shows the person that posting it shows the
+  record exists, and once they confirm, the relay posts
+  `Recorded answer: see the record below.` with `Recorded in: ` and the
+  record's URL
+
+#### Scenario: Agreeing to a lore entry's recorded answer cites it
+
+- **WHEN** the person agrees to a shown recorded answer whose record is
+  an `active` lore entry, in a private lore repository, whose scope
+  covers a question about a private repository
+- **THEN** the answer session pushes a citation file for that entry
+
+#### Scenario: Agreeing to an inactive lore entry's recorded answer cites nothing
+
+- **WHEN** the person agrees to a shown recorded answer whose record is a
+  lore entry that is not `active`
+- **THEN** no citation file is pushed
+
+#### Scenario: Agreeing on a questions-branch question logs the recorded answer
+
+- **WHEN** a question of the fourth source is answered by a decision
+  document, and the person agrees to the shown recorded answer
+- **THEN** nothing is posted, and the log file the answer session pushes
+  records as its answer the `Recorded answer: ` text with its
+  `Recorded in: ` line
 
 #### Scenario: A questions-branch question's recorded answer is shown, not posted
 
