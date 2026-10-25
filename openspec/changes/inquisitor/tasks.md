@@ -129,7 +129,8 @@ contradicts what design.md assumed.
       GitHub never verifies such a commit for someone who didn't make it,
       a signature GitHub made itself proves nothing
 - [ ] 0.23 That the URL an asking agent records as `asked_in` for its post
-      (decision 299) equals, character for character, the URL the answer
+      (decision 299), and the issue or pull request URL an Igor records
+      for its worker's question (decision 326), equals, character for character, the URL the answer
       session builds for that message from what it polls, on GitHub,
       Linear and Discord: an issue comment against a pull request
       comment, `html_url` against the notifications API's URL,
@@ -270,7 +271,7 @@ contradicts what design.md assumed.
       `questions` branch of the lore repository holding the entry, once,
       when filter 1 stops a question with a lore entry, or when the
       person answers in the answer session by citing an `active` entry
-      in scope, a decline under reason 3 with filter 1 naming such an
+      in scope, a decline under reason 2 with filter 1 naming such an
       entry included (decisions 257, 259, 262 and 275),
       committed unsigned with `git -c commit.gpgsign=false`. It sends none
       for a question with a category, none to a lore repository more
@@ -402,14 +403,17 @@ contradicts what design.md assumed.
         `Rephrased question: ` and `Discussion: ` lines in the relay
         post; `Recorded answer: see the record below.` with
         `Recorded in: <URL>`, quoting nothing; the fixed `Inquisitor: `
-        texts, and reason 3's line `The person chose this filter.`;
-        previews that show the `Re: <URL>` line; reason 1's wording, under
-        which declining as over closes only that question and every later
+        texts, and reason 2's line `The person chose this filter.`;
+        previews that show the `Re: <URL>` line; the decline reasons, two
+        where the prototype has three, its first two merged as reason 1,
+        "Nothing to answer: the conversation is over, or it isn't a
+        question" (decision 330), under which declining closes only that
+        question and every later
         message in its thread that the sources name is a new question,
         where the prototype ends the thread (decision 291);
         reopening offered only for a thread copy declined with nothing
         posted, on its own machine, where the
-        prototype offers it for any reason 1 or 2 decline (decisions
+        prototype offers it for any decline under its first two reasons (decisions
         255, 260, 274 and 297); the handled file the answer session
         pushes naming each questions-branch file that holds a question
         it closes, which the prototype does not write (decisions 273
@@ -424,7 +428,7 @@ contradicts what design.md assumed.
         question declined with nothing posted; agreeing to a recorded
         answer: v0.1-33 treats it as a path of its own and, on a
         questions-branch question, logs the recorded answer in a new
-        file, while the spec treats it as a decline under reason 3 with
+        file, while the spec treats it as a decline under reason 2 with
         filter 1 and writes no answer file, only the handled file
         (decisions 266, 270 and 273);
         and the question that was on screen, kept in the state
@@ -496,9 +500,9 @@ contradicts what design.md assumed.
       `answer-session-ui-approved-v0.1-30` on shared-skills
 - [ ] 6.10 Filter 1 on every incoming question and the `Recorded answer: `
       post; filters 2 to 4 and the three fixed `Inquisitor: ` texts;
-      declining with its three reasons, and reason 3's posts; the misses
-      on the questions branch, none for the second reason (decision
-      298), a miss against
+      declining with its two reasons, and reason 2's posts; the misses
+      on the questions branch, none for the first reason (decisions
+      298 and 330), a miss against
       filter 1 for an agent's question the answer session answers by
       itself; a recorded answer by itself on a
       relayed question, and no `Inquisitor: ` post on one (decision 223),
@@ -512,7 +516,7 @@ contradicts what design.md assumed.
       answer only once filter 1 counts its record, and an `Inquisitor: `
       reply only when it names filter 2, or names filter 3 or 4 and its
       last line apart from a `Re: ` line says the person chose it, which
-      reason 3's posts add (decision 234; the line is decision 239's
+      reason 2's posts add (decision 234; the line is decision 239's
       item 6). The tests also cover the answer session's handled file, pushed whenever it
       closes a question a questions-branch file holds, whether from that
       branch or linked to a thread message by its `asked_in`, which
@@ -521,9 +525,9 @@ contradicts what design.md assumed.
       following its thread message by `asked_in`; a later message in a
       closed question's thread, a follow-up or a reply, shown as a new
       question; a message that is not really a question ignored, and one
-      that reaches the queue declined under reason 2 with no miss, or
-      under reason 3 with filter 3's "not a question", posting nothing,
-      with a filter 3 miss on the agent's question; a log file whose link
+      that reaches the queue declined under reason 1 with no miss, or
+      under reason 2 with filter 3's "not a question", posting nothing,
+      with a filter 3 miss against the asking agent; a log file whose link
       this machine does not read shown on its own; a log file whose
       `asked_in` was withheld, on Linear, Discord or a more private
       GitHub repository, merged with its message only when the questions
@@ -539,7 +543,16 @@ contradicts what design.md assumed.
       or dropped by the person at any time (decision 321); filter 1's
       search grouping every answer file by hash, among answer files
       naming one file the newest being its answer, and the older one
-      superseded in the search too (decisions 312, 319 and 323); a named file still shown, with the
+      superseded in the search too, and only an answer file whose proof is
+      the person's and whose commit adds that answer file alone counting as a named
+      file's answer (decisions 312, 319, 323 and 328); the answer file
+      pushed with the relay post after the thread is checked, none for an
+      answer held back or dropped, and at once only for one whose thread
+      cannot be read (decision 325); an Igor worker's log file following
+      the assigned issue or pull request its `asked_in` links (decision
+      326); a later run naming a file only from the Igor's own record
+      (decision 327); declining with two reasons, the first, nothing to
+      answer, merging the old first two (decision 330); a named file still shown, with the
       answer beside it as input, when its answer file does not count
       (decision 320); the `log` command refusing an
       `answers` that names no file on the branch (decision 310); an answer file holding the question the person
@@ -562,7 +575,7 @@ contradicts what design.md assumed.
       citing an `active` entry in scope also pushes a citation file
       (decisions 257 and 259);
       Claude's draft, through `propose_reply`, filling the place the person
-      gives when declining under reason 3 with filter 1, that is, the URL of
+      gives when declining under reason 2 with filter 1, that is, the URL of
       the record for the `Recorded in: ` line (Adam confirmed this,
       since the draft lands in the prompt box for the person to confirm),
       the post keeping its fixed form; and the relay notice's UI, the notice shown for the comment GitHub Actions

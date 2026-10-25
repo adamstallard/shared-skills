@@ -642,13 +642,15 @@ other SHALL be shown as input, labelled as superseded.
 
 Filter 1's search groups every file this way, by hash, whether or not it
 holds `answers`. Separately, `answers` decides which answer a file it
-names has: the newest of the answer files naming it that would count
-(proposal decisions 312 and 319). An older answer file that a newer one
+names has: the newest of the answer files naming it that would count,
+whose proof, a comment link or a signature, is that of the person the
+named file asks, and whose commit adds that answer file alone (proposal
+decisions 312, 319 and 328). An older answer file that a newer one
 naming the same file replaces SHALL also be shown in the search as
 input, labelled as superseded, and SHALL stop counting for its own
-question, while still superseding the older files in its own hash
-group, which then has no answer that counts: the search shows all its
-files as input, labelled as superseded (proposal decision 323). Whether a named file is answered is
+question. It still supersedes the older files in its own hash group, so
+that group is left with no answer that counts, and the search shows all
+its files as input, labelled as superseded (proposal decision 323). Whether a named file is answered is
 decided only by the answer files naming it: a file that hash grouping
 supersedes for its words still counts as the answer of the file it
 names, unless a newer answer file naming that file replaces it. A named file and its answer files can
@@ -2146,7 +2148,10 @@ on that questions branch that holds no answer; otherwise it SHALL write
 nothing and say why (proposal decision 310). It SHALL also write
 nothing and say why for an
 `asked_in` that is not a github.com, Linear or Discord URL of the forms
-given for `answer_link` (proposal decision 302). The command does not check who passed such a
+given for `answer_link`, or, for an Igor worker's file, which the command
+writes in Igor-worker mode, a github.com
+issue or pull request URL with no fragment (proposal decisions 302 and
+326). The command does not check who passed such a
 link; it proves no writer whoever did. For an `answer_link` that is none
 of these, it SHALL write nothing and say why. In
 Igor-worker mode it SHALL read no comment: it writes the answer it was
@@ -2163,19 +2168,22 @@ No log file SHALL be written outside a repository, such as under
 A log file for a question that was asked SHALL hold the question as asked and the day it was
 asked. A questions-branch log file for a question also asked in a post
 SHALL hold that post's URL as `asked_in`, so the agent SHALL post the
-question before it writes the log file (proposal decision 299); the
+question before it writes the log file (proposal decision 299). An Igor
+worker's log file instead holds the URL of the assigned issue or pull
+request its question is shown from (proposal decision 326). The
 `log` command leaves the URL out where its rule for `asked_in`, above,
 withholds it (proposal decisions 302 and 315). A questions-branch file
 that answers a question an earlier file there logged unanswered SHALL
 name that file in `answers`, one answer file for each such file it
 knows exactly: the agent that pushed the earlier file has its name, and
-a later run has it only from the Igor's handback comment, which names
-the questions-branch log file the Igor pushed for that question, as igor
-PR #216 is asked to have it, and the Igor adds that `answers` itself.
-When no handback comment names such a file, or the file it names is not
-on the branch, the Igor SHALL write no `answers` for that run, and the earlier file
-stays shown until the person answers it (proposal decisions 303 and
-324). When the answer comes, it gains who answered (its `answered_by`),
+a later run has it only from the Igor's own record of the handback,
+which holds the name of the questions-branch log file the Igor pushed
+for that question, as igor PR #216 is asked to have it (#216's decision
+59); until #216 keeps such a record, no record names a file; the handback comment may show that name for people, but the run
+never reads it from there. The Igor adds that `answers` itself. When no
+such record names a file, or the file it names is not on the branch, the Igor SHALL write no `answers` for that run, and the earlier file
+stays shown until the person answers it (proposal decisions 303, 324
+and 327). When the answer comes, it gains who answered (its `answered_by`),
 the answer's `authority`, the answer, and where the
 question's answer is recorded, in the format *A log file and a miss file
 have one format* states. A questions-branch file pushed with its answer,
@@ -2528,16 +2536,26 @@ why.
   the answer to a question it logged there unanswered
 - **THEN** the new file names the unanswered file in `answers`
 
-#### Scenario: A later run names the file its handback comment names
+#### Scenario: A copied answer file does not take a named file over
+
+- **WHEN** someone pushes a copy of a proven answer file from another
+  question, naming an unanswered file in `answers`, in one commit with
+  other files
+- **THEN** the copy is not that file's answer, and the file stays shown
+  to the person
+
+#### Scenario: A later run names the file the Igor's record names
 
 - **WHEN** an Igor's later run records a person's answer to a handback
-  question whose comment names the questions-branch file the Igor pushed
+  question whose record, kept by the Igor, names the questions-branch
+  file the Igor pushed
 - **THEN** the Igor writes the answer file naming that file in `answers`
 
 #### Scenario: A later run with no named file writes no answers key
 
 - **WHEN** an Igor's later run records a person's answer to a handback
-  question whose comment names no questions-branch file
+  question whose record names no questions-branch file, though its
+  comment's text names one
 - **THEN** the answer file holds no `answers`, and the earlier file stays
   shown to the person
 
@@ -2593,7 +2611,9 @@ written.
   without its directory, as the `answer-session` spec's *A handled file closes
   a questions-branch question* says; and
   `asked_in`, only in a questions-branch log file for a question the
-  asking agent also asked in a post, the URL of that post, a Linear or
+  asking agent also asked in a post, the URL of that post, or, for an
+  Igor worker's question, the URL of the assigned issue or pull request
+  the question is shown from (proposal decision 326), a Linear or
   Discord URL being written only in a private lore repository, as for
   `answer_link`, and a github.com URL only in a lore repository no more
   visible than the repository it points into (proposal decisions 299,
@@ -3269,7 +3289,7 @@ one is due. It SHALL NOT log
 the post as a person's answer. When the post starts with `Inquisitor: `
 and names filter 2, or names filter 3 or 4 and holds, as its last line
 apart from a `Re: ` line, the line the `answer-session` spec adds when
-the person chose that filter under decline reason 3,
+the person chose that filter under decline reason 2,
 `The person chose this filter.` (proposal decision 239's item 6), the agent SHALL take
 that filter's action, as if its own filter had stopped the question, and
 record its choice where that filter says, but only when both of these

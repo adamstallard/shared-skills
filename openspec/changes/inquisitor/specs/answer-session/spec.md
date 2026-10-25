@@ -73,8 +73,10 @@ Terms used throughout this spec:
   is one that holds no answer and that no answer file counting as the
   person's answer names in `answers`.
 - **The person's answer**, for an answer file, is one whose
-  `answered_by` is the person and which counts as an answer under the
-  inquisitor's *Only an answer with authority stops a question*.
+  `answered_by` is the person, whose proof, a comment link or a
+  signature, is the person's, whose commit adds that answer file alone,
+  and which is the named file's answer under the inquisitor's *Only an
+  answer with authority stops a question* (proposal decision 328).
 - **A question set aside for later** is one the person moved to the end of
   the queue on this machine, to come back to after the new ones.
 - **A channel's poll position** is the time of the newest message that
@@ -410,7 +412,10 @@ that exact link. Whatever the answer session decides about the message,
 showing it, answering it, ignoring it as not a question or declining it,
 applies to the log file, which is not shown on its own. A log file with
 no `asked_in` is judged on its own as a question of the fourth source
-(proposal decision 299). A log file whose `asked_in` links a message
+(proposal decision 299). An Igor worker's log file links, in `asked_in`,
+the assigned issue or pull request its question is shown from under the
+third source, and follows that question as a file follows its thread
+message (proposal decision 326). A log file whose `asked_in` links a message
 this machine does not read, one in a channel it does not subscribe to
 or that is off, or on a surface it has turned off or cannot read, is
 shown on its own on
@@ -433,7 +438,9 @@ message this machine has polled, and the message with no other
 fourth-source file. Otherwise both are shown. The answer session judges
 this again at each poll, so a second matching message ends the merge and
 shows all of them; an answer already relayed or pushed for the merged
-entry stays (proposal decision 307). The merged entry is the message, and the file follows it as a
+entry stays, and an answer still on the pending list, once posted,
+still pushes a file naming the log file it was merged with (proposal
+decision 307). The merged entry is the message, and the file follows it as a
 file follows the message its `asked_in` links. Merging changes only what
 this machine shows (proposal decision 302).
 
@@ -448,7 +455,13 @@ changes a relay file mentions its person* gives it, is not a question: the
 answer session SHALL show it to the person as a notice, post nothing on
 it, and log no miss for it.
 
-A question the person declined as over stays closed on that machine. Every later message in its thread that the four sources name,
+Once an answer is posted, with its file pushed where a questions-branch
+file holds the question, the question is answered, and a later message
+in its thread is judged as the four sources and the ignore rule above
+judge any message, as for a declined question below (proposal decisions
+291 and 325).
+
+A question the person declined with nothing to answer stays closed on that machine. Every later message in its thread that the four sources name,
 unless the ignore rule above drops it, is shown on its own as a new question, on every machine, under whichever
 source names it: the asker's unthreaded follow-up after a relay post or
 a threaded reply to one under the second, a mention of the person under
@@ -799,12 +812,21 @@ counts as passed once setup, at the next opening, runs the relay
 identity's own check again and it passes.
 
 For a question a questions-branch file holds, the answer session SHALL
-push the answer file when the person confirms the answer, without an
-`answer_link`, its answer being the answer as the person confirmed it
-(proposal decision 240). Posting it later unedited pushes no second
-file; posting an edited text pushes a new answer file naming the same
-file, with the relay post's URL as its `answer_link`, as an edited
-answer does under *A relay post can be edited where it was posted*.
+push the answer file together with the relay post, once the fetch
+before the post finds no new message, so an answer that is held back,
+refused or fails pushes no file, and dropping it leaves none, even where
+the refusal turns its channel off. Only an answer kept because its
+thread could not be read when the person confirmed it, its channel
+already off or not subscribed on this machine, SHALL have its file
+pushed at once, unchecked,
+without an `answer_link`, its answer being the answer as the person
+confirmed it (proposal decisions 240, 318 and 325). For such an answer,
+posting it later unedited pushes no second file; posting an edited text
+pushes a new answer file naming the same file, with the relay post's
+URL as its `answer_link`, as an edited answer does under *A relay post
+can be edited where it was posted*; and editing then dropping it leaves
+the file with the original text as the person's answer (proposal
+decision 329).
 
 While one machine holds an answer as answered, not relayed, every other
 machine of the person's reads the question's state from its thread
@@ -820,10 +842,32 @@ alone, and so asks the question again as usual (proposal decision 316).
 #### Scenario: An answer to a questions-branch question is logged at once
 
 - **WHEN** the person confirms an answer to a thread copy that a
-  questions-branch file holds, and the relay post is refused
+  questions-branch file holds, and the thread's channel is off
 - **THEN** the inquisitor script's `log` command pushes an answer file naming that file, with no
   `answer_link`, holding the answer as the person confirmed it, and the
   answer is kept as answered, not relayed
+
+#### Scenario: An edited pending answer that is dropped leaves the original file
+
+- **WHEN** this machine holds, for a channel that was off, an answer whose
+  file it pushed, and the person edits it and then drops it
+- **THEN** nothing is posted, no new file is pushed, and the pushed file
+  with the original text stays the person's answer
+
+#### Scenario: An Igor's log file follows its assigned issue
+
+- **WHEN** an Igor worker's log file's `asked_in` is the URL of an issue
+  assigned to the person, and the person answers that issue's question
+- **THEN** the answer session relays the answer on the issue and pushes
+  an answer file naming the log file
+
+#### Scenario: An answer held back by a new message pushes no file
+
+- **WHEN** the person confirms an answer to a thread copy that a
+  questions-branch file holds, and the fetch before the post finds a
+  new message in the thread
+- **THEN** nothing is posted, no answer file is pushed, and the answer
+  is kept as answered, not relayed, until the person posts or drops it
 
 #### Scenario: An answer given where the thread is not read is kept pending
 
@@ -1404,7 +1448,7 @@ edit for a question of the fourth source.
 
 #### Scenario: A late answer on another machine answers a closed file
 
-- **WHEN** the person declined as over, on one machine, a thread copy that
+- **WHEN** the person declined with nothing to answer, on one machine, a thread copy that
   a questions-branch file holds, and then answers that thread copy on
   another machine
 - **THEN** the answer session relays the answer in the thread and pushes a
@@ -1507,7 +1551,7 @@ recorded and every asked question logged* says.
 
 #### Scenario: A thread copy declined with nothing posted shows again elsewhere
 
-- **WHEN** the person declines as over, on one machine, a question in a
+- **WHEN** the person declines with nothing to answer, on one machine, a question in a
   GitHub thread that a questions-branch file also holds
 - **THEN** a handled file closes the questions-branch file on every
   machine, the thread copy is closed on that machine only, and another
@@ -1515,7 +1559,7 @@ recorded and every asked question logged* says.
 
 #### Scenario: A failed post pushes no handled file
 
-- **WHEN** the person declines under the third reason a question in a
+- **WHEN** the person declines under the second reason a question in a
   GitHub thread that a questions-branch file also holds, and the post
   fails
 - **THEN** no handled file is pushed
@@ -1570,16 +1614,15 @@ answer session SHALL never show an automatic post as the person's words.
 ### Requirement: The person can decline to answer
 
 On any open question, the person SHALL be able to decline to answer it,
-giving one of three reasons:
+giving one of two reasons:
 
-1. **The conversation is over.** The answer session posts nothing, and the
-   question closes. That closes only this question: a later message in
-   its thread is shown as a new question, as *A question asked of the
-   person comes from one of four sources* says (proposal decision 291).
-2. **Not a question:** the message was picked up by mistake, the answer
-   session's own misjudgement. The answer session posts nothing, the
-   question closes, and no miss is logged (proposal decision 298).
-3. **The inquisitor should have handled it.** The person picks the filter
+1. **Nothing to answer:** the conversation is over, or it isn't a
+   question, such as a message picked up by mistake. The answer session
+   posts nothing, the question closes, and no miss is logged. That
+   closes only this question: a later message in its thread is shown as
+   a new question, as *A question asked of the person comes from one of
+   four sources* says (proposal decisions 291, 298 and 330).
+2. **The inquisitor should have handled it.** The person picks the filter
    that should have stopped the question: 1, already answered; 2, can
    wait; 3, one option has merit; or 4, cheap to reverse. The answer
    session SHALL show the person the exact post of that filter's reply,
@@ -1607,7 +1650,7 @@ giving one of three reasons:
    written, since filter 3 stops a rhetorical question in the inquisitor
    spec. Under "not a question" the answer session posts nothing, and
    the question closes (proposal decision 304). The person picks it,
-   rather than reason 2, when the asking agent erred, not the answer
+   rather than reason 1, when the asking agent erred, not the answer
    session. This reason applies to a person's question as to an
    agent's. The answer
    session logs a miss against the filter the person picked, whose `said`
@@ -1623,7 +1666,7 @@ giving one of three reasons:
 A question declined with nothing posted SHALL be recorded in the state
 folder. A thread copy is then closed on this machine only, and nothing a
 second machine reads records it; a questions-branch file the question's
-handled file names is closed everywhere (proposal decision 297). A question declined under the third reason with a
+handled file names is closed everywhere (proposal decision 297). A question declined under the second reason with a
 post takes its state from its thread, as any question does.
 
 The person SHALL be able to reopen, on this machine, a thread copy they
@@ -1634,10 +1677,10 @@ offer to reopen a question declined with a post; the person changes its
 handling by editing that post, as *A relay post can be edited where it
 was posted* says (proposal decision 260).
 
-#### Scenario: Declining as over or as not a question posts nothing
+#### Scenario: Declining with nothing to answer posts nothing
 
 - **WHEN** the person declines a question asked on GitHub under the
-  first reason, the conversation is over, or the second, not a question
+  first reason, nothing to answer
 - **THEN** nothing is posted in its thread, and the question leaves the
   queue
 
@@ -1660,7 +1703,7 @@ was posted* says (proposal decision 260).
 
 #### Scenario: A reply after a decline is a new question
 
-- **WHEN** the person declined under the second reason, not a question, a message in a GitHub
+- **WHEN** the person declined under the first reason, nothing to answer, a message in a GitHub
   thread, and the asker then replies in a review thread to an earlier
   relay post in that thread
 - **THEN** the answer session does not reopen the declined question, and
@@ -1675,14 +1718,14 @@ was posted* says (proposal decision 260).
 
 #### Scenario: A question declined with a post is not reopened
 
-- **WHEN** the person declined a question under the third reason, and
+- **WHEN** the person declined a question under the second reason, and
   the answer session posted that filter's reply
 - **THEN** the answer session offers no way to reopen the question, and
   the person can change the handling only by editing that post
 
 #### Scenario: A thread copy declined with nothing posted is reopened on its machine
 
-- **WHEN** the person declined a thread copy as over, with nothing
+- **WHEN** the person declined a thread copy with nothing to answer, with nothing
   posted, and then reopens it on the same machine
 - **THEN** the answer session puts it back in the queue on that machine
 
@@ -1693,11 +1736,11 @@ was posted* says (proposal decision 260).
 - **THEN** the answer session pushed a handled file naming that file,
   which closes it everywhere, and offers no way to reopen it
 
-#### Scenario: Not a question logs no miss
+#### Scenario: A message picked up by mistake logs no miss
 
 - **WHEN** the answer session showed, under the second source, a reply
   to the relay that was in fact meant for someone else, and the person
-  declines it as not a question
+  declines it under the first reason, nothing to answer
 - **THEN** the question closes, nothing is posted, and no miss file is
   logged
 
@@ -1782,7 +1825,7 @@ as the inquisitor's *More visible* defines it.
 Otherwise, and for a question from a questions branch, it SHALL show the
 recorded answer to the person beside the question, and post only what the
 person relays or confirms. The person may agree to the shown recorded
-answer. Agreeing is declining the question under the third reason of
+answer. Agreeing is declining the question under the second reason of
 *The person can decline to answer* with filter 1, naming that record,
 and the answer session SHALL handle it exactly as that requirement
 does, with its preview, its warning for a record more private than the
@@ -1795,7 +1838,7 @@ record is a lore entry, it SHALL push a citation file, as the
 inquisitor's *Every answer is recorded and every asked question logged*
 says. A person **cites** a lore entry when they answer
 a question by naming that entry as its answer, or when they decline a
-question, agreeing to a shown recorded answer included, under the third reason of *The person can decline to answer*, "the
+question, agreeing to a shown recorded answer included, under the second reason of *The person can decline to answer*, "the
 inquisitor should have handled it", with filter 1, naming that entry as
 the record (proposal decisions 262 and 270). The answer session SHALL
 push a citation file for the entry the person cites, under the citation rules of the
@@ -1877,7 +1920,7 @@ once, and so does each recorded answer.
 #### Scenario: Declining with filter 1 and a lore entry cites it
 
 - **WHEN** the person declines a question with no category, asked in a
-  GitHub thread of a private repository, under the third reason, picks
+  GitHub thread of a private repository, under the second reason, picks
   filter 1, and names as the record an `active` entry in a private lore
   repository whose scope covers the question
 - **THEN** the relay posts in the thread the `Recorded answer: ` reply
@@ -1886,7 +1929,7 @@ once, and so does each recorded answer.
 
 #### Scenario: A filter-1 decline with no thread still cites its entry
 
-- **WHEN** the person declines under the third reason, with filter 1, a
+- **WHEN** the person declines under the second reason, with filter 1, a
   question from a private lore repository's questions branch, which has
   no thread, naming as the record an `active` entry of that lore
   repository whose scope covers the question
@@ -2044,10 +2087,11 @@ as *A question asked of the person comes from one of four sources*
 says, so an agent's rhetorical message in a thread gets no post. When
 one reaches the person's queue anyway, because the session judged it
 unclear and showed it, the person declines it under whichever reason
-fits: the second, picked up by mistake, when the session misread it,
-which posts nothing and logs no miss; or the third, when the asking
-agent should not have written it, with filter 3's "not a question",
-which posts nothing and logs a filter 3 miss on the agent's question
+fits: the first, nothing to answer, when the session showed a message
+that is not a question, which
+posts nothing and logs no miss; or the second, when the asking agent
+should not have written it, with filter 3's "not a question",
+which posts nothing and logs a filter 3 miss against the asking agent
 (proposal decision 304). The ignore rule covers sources 1
 and 2 only, so a non-question from the third or fourth source reaches
 the queue without the session judging it (proposal decisions 289, 292,
@@ -2077,10 +2121,10 @@ question with its suggested verdict, and the person decides.
 - **THEN** the answer session shows nothing, posts nothing and closes
   nothing
 
-#### Scenario: A rhetorical message in the queue declined as picked up by mistake logs no miss
+#### Scenario: A rhetorical message in the queue declined with nothing to answer logs no miss
 
 - **WHEN** a rhetorical message, found under the first source, reaches
-  the person's queue, and the person declines it under the second
+  the person's queue, and the person declines it under the first
   reason
 - **THEN** nothing is posted, and no miss file is logged
 
@@ -2119,8 +2163,8 @@ states, pushed through the inquisitor script to the questions branch of
 the team's lore repository of the repository the question concerns, as
 that spec's *Every answer is recorded and every asked question logged*
 says a file is pushed there. Its `filter` is `"1"` to `"4"`, the filter
-that should have stopped the question. A decline under the second
-reason logs none (proposal decision 298). A
+that should have stopped the question. A decline under the first
+reason logs none (proposal decisions 298 and 330). A
 miss the answer session logs by itself, under *Filter 1 runs on every
 incoming question* or *Filters 2 to 4 judge every incoming question*, has
 `said` `answer session: clearly filter <n>`, so a review of misses can
@@ -2201,12 +2245,12 @@ decision 303).
   by itself
 - **THEN** the miss file's `said` is `answer session: clearly filter 2`
 
-#### Scenario: A non-question declined under reason 3 posts nothing
+#### Scenario: A non-question declined under reason 2 posts nothing
 
-- **WHEN** the person declines under the third reason, choosing filter 3's
+- **WHEN** the person declines under the second reason, choosing filter 3's
   "not a question", an agent's message in a GitHub thread
 - **THEN** the answer session posts nothing in the thread and logs a
-  filter 3 miss on the agent's question
+  filter 3 miss against the asking agent
 
 #### Scenario: A miss judged on two machines is pushed twice
 

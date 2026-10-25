@@ -641,7 +641,7 @@ needs that v0.1-33 lacks follow its patterns (proposal decision
 254, task 6.1).
 The rules are in the `answer-session` spec, the decisions in proposal
 decisions 152 to 175, 184 to 203, 207 to 211, 215, 216, 219, 220,
-222 to 230, 234, 236, 238, 246 to 248, 250 to 252, 254 to 260 and 262 to 324.
+222 to 230, 234, 236, 238, 246 to 248, 250 to 252, 254 to 260 and 262 to 330.
 
 ### Polling while open, with the person's credentials
 
@@ -705,8 +705,8 @@ same way, on every machine (decisions 195 and 196). A question the person
 declines with nothing posted is closed in the state folder only (decision
 194): nothing in the thread can say so, and another machine shows it as
 open. A question declined because the inquisitor should have handled it,
-reason 3, gets a post, which the thread records like any other (decision
-209). It gets none only when it has no thread or has a category. With a
+reason 2, gets a post, which the thread records like any other (decision
+209). It gets none only when it has no thread, has a category, one of the inquisitor's categories recorded by hash only, or is a non-question declined with filter 3's "not a question". With a
 filter 1 record more private than its thread, it is posted only once the
 person confirms after a warning that posting shows the record exists
 (proposal decision 264). The thread is read
@@ -781,7 +781,7 @@ it, the answer session shows it from the thread, relays the answer there, and pu
 log file too (decision 210), so neither the asker reading the thread nor
 an agent searching the branch misses the answer. When the person, rather
 than answering in their own words, agrees to the recorded answer shown
-beside the question, that is a decline under reason 3, "the inquisitor
+beside the question, that is a decline under reason 2, "the inquisitor
 should have handled it", with filter 1 (decision 270), and no log file
 holding an answer is pushed. So the questions branch holds nothing saying the
 question was answered, and an agent that searches later is stopped by
@@ -797,9 +797,13 @@ the thread a recorded answer or an `Inquisitor: ` reply (decision 278).
 A message that is not really a question is the asking agent's to
 rewrite, and the answer session ignores one it judges clearly not a
 question (decision 289); one that reaches the queue anyway is declined
-under reason 2, when the session misread it, with no miss, or under
-reason 3, when the asking agent should not have written it, with a miss
-against that agent (decisions 292 and 298). The ignore rule covers
+under reason 1, nothing to answer, when the session showed a message
+that is not a question, with no
+miss, or under reason 2, when the asking agent should not have written it, with a miss
+against that agent (decisions 292, 298 and 330). The two decline
+reasons are "nothing to answer", for a conversation that is over or a
+message that isn't a question, and "the inquisitor should have handled
+it" (decision 330). The ignore rule covers
 only sources 1 and 2 (decision 296), so a non-question from a review
 request or a questions-branch file reaches the queue without the
 session judging it.
@@ -846,10 +850,15 @@ fall in different hash groups; hash grouping alone would leave the
 older one counting in its own group. So an answer file that a newer one
 naming the same file has replaced is superseded in the search too, and
 the person's changed answer is the only one that counts (decision 323).
-A later Igor run on the same item, recording a person's answer to a
-handback question, names a file in `answers` only when the Igor's
-handback comment names it; it never names a file because a search found
-matching words (decision 324).
+Only an answer file whose proof is the person's, and whose commit adds
+that answer file alone, becomes a named file's answer, so a copy pushed
+in one commit with other files cannot (decision 328). A later Igor run on the same item, recording a person's answer to
+a handback question, names a file in `answers` only when the Igor's own
+record of the handback names it, never from the comment's text, which
+others can edit, and never because a search found matching words
+(decisions 324 and 327). An Igor worker's log file links, in
+`asked_in`, the issue or pull request its question is shown from, so it
+follows that question (decision 326).
 
 Misses no longer match either: a miss file is pushed even when one with
 the same question and filter is already on the branch, since dropping it
@@ -879,7 +888,12 @@ the thread, so it asks the question again as usual (decision 316); if
 the person answers there too, the first relay post to reach the thread
 sets the question's state, and the pending answer leaves the list. When
 a questions-branch file holds the question, through its `asked_in` or a
-merge, the answer file is pushed at once (decision 318). Whether or not
+merge, the answer file goes out with the relay post, after the fetch
+before the post finds no new message. When that fetch finds one, the
+session holds the answer back, and it leaves no file until it is
+posted; only an answer whose thread
+cannot be read has its file pushed at once (decisions 318 and 325).
+Whether or not
 a file was pushed, the person is told the asker has not got the answer
 in the thread yet. The pending list
 reuses the approved queue's screens, so it needs no prototype round of
@@ -987,9 +1001,9 @@ the spec answers each:
   filter 2's only to defer it, so that choice would still decide a
   question if the asking agent acted on any reply. The asking agent
   therefore acts by itself only on filter 2's reply. It acts on filter
-  3's or 4's only when the person chose that reply under decline reason 3,
-  which the reply's last line says, and which the answer session never
-  posts by itself (decision 234). When an
+  3's or 4's only when the person chose that reply under decline reason 2,
+  which the reply's last line, `The person chose this filter.`, says, and
+  which line the answer session never posts by itself (decision 234). When an
   agent replies to an automatic post, the answer session judges the reply
   again. A chain of replies runs from a reply back through the relay post
   it replies to, the question that relay post names (on GitHub, by its
@@ -1009,7 +1023,7 @@ the spec answers each:
   person's question (decisions 222 and 223): filter 1 can answer it by itself from
   a record, and filters 2 to 4 only suggest a verdict to the person. When the person declines a
   question because the inquisitor should have handled it, decline reason
-  3, they can choose an `Inquisitor: ` or `Recorded answer: ` post for any
+  2, they can choose an `Inquisitor: ` or `Recorded answer: ` post for any
   question, and see the exact post before it goes out (decision 209).
 - **A record can be more private than the thread.** A recorded answer is
   posted by itself only when its record is no more private than the

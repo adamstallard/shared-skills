@@ -17,7 +17,7 @@ are written down:
   turned on, on 2026-10-20, and how `check` reads it, on 2026-10-21.
 - 240 to 253, on 2026-10-21;
 - 254 to 284, on 2026-10-24;
-- 285 to 306 and 308 to 324, on 2026-10-25, with 307, which this
+- 285 to 306 and 308 to 330, on 2026-10-25, with 307, which this
   change proposed, confirmed by 314.
 
 Apart from 229 and 241 to 244, which he gave in the session reviewing
@@ -67,7 +67,8 @@ decision each, and 308 to 315 the eight raised with 300 to 307, 314
 confirming 307 with a change. 316 to 320 settle the five raised with
 308 to 315, one each: 316 the first, by making it moot, 319 the second,
 320 the third, 318 the fourth and 317 the fifth. 321 to 324 settle
-the four raised with 316 to 320, one each, in order.
+the four raised with 316 to 320, one each, in order. 325 to 330
+answer six of the seven raised with 321 to 324.
 
 1. **Four filters run before any question reaches a person.**
    1. **Already answered:** the agent finds the earlier answer, cites where it
@@ -1231,7 +1232,7 @@ it:
      `Inquisitor: ` the same way, for the posts the answer session makes
      by itself. This replaces decision 175's item 16. On GitHub only an
      App the relay file lists speaks for the person (decision 216).
-194. *Reason 1 changed by Adam with decision 202's item 2 and his
+194. *Reasons renumbered by Adam's decision 330: reasons 1 and 2 merge as "Nothing to answer", and reason 3 becomes reason 2. The notes below and the body use the old numbering.* *Reason 1 changed by Adam with decision 202's item 2 and his
      decisions 283 and 291; reasons 2 and 3 changed by his decisions 208,
      209 and 298; by 298, reason 2 logs no miss, so reason 2's lesson
      candidate below is no longer logged. For reason 1 now: declining as over closes only that
@@ -1271,7 +1272,7 @@ it:
      giving where the answer is recorded, never starting `User says: `.
      The question is listed for the person as answered for them, and they
      can edit that post as any relay post.
-196. *Amended by Adam's decision 298: a rhetorical message in the queue is declined under reason 2, logging no miss, or under reason 3 with the filter the asking agent should have applied, logging a miss against that agent.* *Amended by Adam's decisions 285 and 292: there is no rhetorical
+196. *Renumbered by Adam's decision 330: reason 2 here is now part of reason 1, and reason 3 is reason 2; the notes below use the old numbering.* *Amended by Adam's decision 298: a rhetorical message in the queue is declined under reason 2, logging no miss, or under reason 3 with the filter the asking agent should have applied, logging a miss against that agent.* *Amended by Adam's decisions 285 and 292: there is no rhetorical
      case; a rhetorical message in the queue is declined under reason 2,
      picked up by mistake.* *Amended by Adam's decision 234: the asking agent acts on an
      automatic `Inquisitor: ` reply only when it names filter 2, and on
@@ -1335,7 +1336,7 @@ confirmed 181 to 183 and 197 to 203, amended 199, changed four items of
      session logs a miss against filter 1,** since the agent's own filter
      1 should have found the record. A person's question logs none. This
      replaces decision 202's item 7.
-208. *Amended by Adam's decision 298: reason 2 logs no miss.* **Decline reason 2 is called "not a question":** the message was
+208. *Merged into reason 1, "Nothing to answer", by Adam's decision 330.* *Amended by Adam's decision 298: reason 2 logs no miss.* **Decline reason 2 is called "not a question":** the message was
      picked up by mistake. It no longer shares filter 3's name, "not a
      real question". A miss logged for it has `said: "not a question"`.
      This renames the reason in decisions 194 and 198 and in the spec.
@@ -2182,7 +2183,7 @@ put to him when it recorded 277 to 280:
 Adam gave 285 to 287 on 2026-10-25, settling the five questions this
 change put to him when it recorded 281 to 284:
 
-285. *Amended by Adam's decision 298: such a message is declined under reason 2, logging no miss, or reason 3, whichever fits.* *Changed by Adam's decision 292: a non-question in the queue is
+285. *Renumbered by Adam's decision 330: reason 2 here is now part of reason 1, and reason 3 is reason 2.* *Amended by Adam's decision 298: such a message is declined under reason 2, logging no miss, or reason 3, whichever fits.* *Changed by Adam's decision 292: a non-question in the queue is
      declined under reason 2, not reason 3 with filter 3.* *Extended by Adam's decision 289: the answer session ignores a
      message that is not a question too.* **"Rhetorical" is no longer a category.** An asking agent does not
      treat a message that is not really a question as one: the
@@ -2226,7 +2227,7 @@ put to him when it recorded 285 to 287, 289 settling two:
      repository, whatever its `asked_from`.
      Decision 286 holds as written, its "repository" being the topic
      repository. *Rejected:* dropping the repository condition.
-289. **Messages that are not questions are ignored:** not shown, nothing
+289. *This change notes, though decision 330 does not name 289, that its rejected option, declining a non-question under the old reason 1, is what Adam's decision 330 now does, reason 1 being "Nothing to answer".* **Messages that are not questions are ignored:** not shown, nothing
      posted, nothing closed, consistent with decision 285. Filter 3's
      automatic reply is only for a real question that did not need
      asking, so an agent's rhetorical message in a thread gets no post.
@@ -2250,7 +2251,7 @@ put to him when it recorded 285 to 287, 289 settling two:
 Adam gave 292 to 295 on 2026-10-25, one for each question this change
 put to him when it recorded 288 to 291:
 
-292. *Amended by Adam's decision 298: reason 2 logs no miss, and reason 3 applies where the asking agent should have filtered the message.* **A non-question that reaches the queue is declined under reason 2,
+292. *The Still open question it mentions was settled by Adam's decision 298.* *Renumbered by Adam's decision 330: reason 2 here is now part of reason 1, and reason 3 is reason 2.* *Amended by Adam's decision 298: reason 2 logs no miss, and reason 3 applies where the asking agent should have filtered the message.* **A non-question that reaches the queue is declined under reason 2,
      "picked up by mistake":** nothing is posted, and a miss is logged
      against the source. The asking agent's misreading, which decision
      285 logged as a filter 3 miss, is then logged nowhere; whether to
@@ -2310,7 +2311,7 @@ change put to him when it recorded 292 to 296:
      290 moot. Decisions 273, 274, 275, 278, 283 and 291 stand, and 287
      covers the thread's own later messages. *Rejected:* each matching
      rule above.
-298. *Amended by Adam's decision 304: reason 3 for a non-question posts nothing.* **Decline reason 2 logs no miss.** A message picked up by mistake
+298. *Reason 2 merged into reason 1 by Adam's decision 330.* *Amended by Adam's decision 304: reason 3 for a non-question posts nothing.* **Decline reason 2 logs no miss.** A message picked up by mistake
      is the answer session's own misjudgement, and no asker erred. A
      non-question that reaches the queue is declined under reason 2, or
      under reason 3 with the filter the asking agent should have applied,
@@ -2321,7 +2322,7 @@ change put to him when it recorded 292 to 296:
      decisions 196, 285 and 292 and retires 198's `"source <n>"` miss;
      208's `said: "not a question"` is no longer written. *Rejected:* a miss
      against the source.
-299. *Amended by Adam's decisions 300 to 302: a file whose link this machine never reads is shown on its own, an answer records the message's question, and a withheld Linear, Discord or, by decision 315, GitHub link is made up for by merging.* **A questions-branch log file follows its thread message by exact
+299. *For an Igor's question, Adam's decision 326 links the assigned issue or pull request.* *Amended by Adam's decisions 300 to 302: a file whose link this machine never reads is shown on its own, an answer records the message's question, and a withheld Linear, Discord or, by decision 315, GitHub link is made up for by merging.* **A questions-branch log file follows its thread message by exact
      link.** A log file for a question the asking agent also asked in a
      post holds that message's URL as `asked_in`, and what the
      answer session decides about that message applies to the file. A
@@ -2363,7 +2364,7 @@ put to him when it recorded 297 to 299:
      it answers, as `closes` does, instead of answering every file with
      the same question. This amends decisions 197 and 202's item 8.
      *Rejected:* keeping both rules.
-304. **Reason 3 for a non-question logs the miss against the asking
+304. *Renumbered by Adam's decision 330: this is now reason 2.* **Reason 3 for a non-question logs the miss against the asking
      agent and posts nothing,** since filter 3's fixed text tells the
      agent to take an option it does not have. This amends decision
      298. *Rejected:* posting filter 3's text.
@@ -2421,7 +2422,7 @@ put to him when it recorded 300 to 307, and confirmed 307 as changed by
      counts.** Grouping by the same hash stays only for filter 1's search
      across askers, where a new asker has no file to name. This amends
      decision 220. *Rejected:* grouping every answer by hash.
-313. **Both "not a question" labels stay,** though they share a name:
+313. *Superseded by Adam's decision 330: reasons 1 and 2 merge; filter 3's choice stays.* **Both "not a question" labels stay,** though they share a name:
      decline reason 2's, for the answer session's own error (decision
      298), and filter 3's choice under reason 3, for the asking agent's
      (decision 304).
@@ -2454,7 +2455,7 @@ change put to him when it recorded 308 to 315:
      approved patterns, it needs no prototype round of its own. This
      amends decision 311. *Rejected:* showing pending answers as a state
      in the list of questions answered and handled.
-318. **The answer file is pushed at once,** as decision 311 has it: when
+318. *Amended by Adam's decision 325: the answer file is pushed with the relay post, after the thread is checked; only an answer pending because its thread cannot be read is pushed at once.* **The answer file is pushed at once,** as decision 311 has it: when
      a questions-branch file holds the question, its answer file is
      pushed when the person confirms, with no `answer_link`. On GitHub a
      relayed answer's file would carry the comment's link as proof; this
@@ -2488,14 +2489,14 @@ put to him when it recorded 316 to 320:
      no `answer_link` counts only through that signature (decision 318).
      *Rejected:* treating a file a machine pushed as answered on that
      machine alone.
-323. **An answer file replaced as a named file's answer is superseded in
+323. *Guarded by Adam's decision 328: only an answer file whose proof is the person's and whose commit adds it alone counts as a named file's answer.* **An answer file replaced as a named file's answer is superseded in
      filter 1's search too:** once a newer answer file names the same
      file (decision 312), the older is labelled superseded there as well
      and stops counting for its own words, the question it records,
      which can differ from the newer file's and so sit in another hash
      group. This amends decision 319.
      *Rejected:* letting it go on counting in its hash group.
-324. **A later Igor run on an item, recording a person's answer to a
+324. *Amended by Adam's decision 327: the name comes from the Igor's own record of the handback, not the comment's text.* **A later Igor run on an item, recording a person's answer to a
      handback question, names a file in `answers` only when it knows that
      file exactly,** from the Igor's handback comment, which names the
      questions-branch log file the Igor pushed for the question.
@@ -2503,6 +2504,52 @@ put to him when it recorded 316 to 320:
      until the person answers it. This amends decision 303, under which
      a later run named the files filter 1's search found. *Rejected:*
      naming the files a search found by their words.
+
+Adam gave 325 to 330 on 2026-10-25, answering six of the seven questions
+this change put to him when it recorded 321 to 324:
+
+325. **The answer session checks the thread before it pushes the answer
+     file,** and the push and the relay post then go out together. An
+     answer the session holds back, because that check finds a new
+     message in the thread, pushes its file only when it is finally
+     posted, and dropping it leaves no file. Once the answer is
+     pushed and posted, the question is answered, and a later message in
+     the thread is judged like any new message, as decision 291 has it:
+     a new question if it asks the person something, ignored otherwise.
+     An answer that goes pending because its thread cannot be read is
+     still pushed at once, unchecked, as decision 318 has it. This
+     amends decision 318. *Rejected:* pushing every answer file at
+     confirmation.
+326. **An Igor worker's log file links, in `asked_in`, the assigned issue
+     or pull request its question is shown from,** not the handback
+     comment, so answering or declining it there applies to the log
+     file. This amends decision 299 for an Igor's question. *Rejected:*
+     showing such a file on its own.
+327. **The later run takes the file's name from the Igor's own record of
+     the handback** (igor PR #216's decision 59), not from the comment's
+     text, which anyone who can edit the comment could change; the
+     comment shows the name for people only. This amends decision 324.
+     *Rejected:* reading the comment's text.
+328. **An answer file counts as a named file's answer only when its proof,
+     a comment link or a signature, is the person's, and its commit adds
+     that answer file alone,** so a copy of another question's answer,
+     pushed in one commit with other files, cannot become a named file's
+     answer. This amends decisions 312 and 323.
+     *Rejected:* accepting the risk.
+329. **Edited and dropped pending answers, confirmed as this change had
+     written them in the spec:** posting
+     an edited pending answer pushes a new answer file with the relay
+     post's link, posting it unedited pushes nothing new, and editing
+     then dropping it leaves the original text as the person's answer.
+     *Rejected:* a dropped answer pushing a handled file.
+330. **Decline reasons 1 and 2 merge into one,** "Nothing to answer: the
+     conversation is over, or it isn't a question", keeping their shared
+     behaviour: nothing posted, closed on that machine only, reopenable
+     there, no miss. The reasons are renumbered, so "the inquisitor
+     should have handled it" becomes reason 2. Filter 3's "not a
+     question" choice under it stays. This amends decisions 194, 208,
+     298, 304 and 313. *Rejected:* keeping two reasons that behave
+     alike.
 
 ### Proposed by this change
 
@@ -3530,6 +3577,12 @@ settled by decisions 316 to 320.
 The four questions raised while recording decisions 316 to 320 are
 settled by decisions 321 to 324.
 
+Six of the seven questions raised while recording decisions 321 to 324
+are settled by decisions 325 to 330. The seventh, on signing in a project
+set up for a GitHub App, waits for Adam: there the script commits as
+the bot, unsigned (decision 105), so how can an answer file with no link
+be the person's answer?
+
 Open on igor PR #216's side, at the head last read, 59e7561, which records Adam's decisions
 up to 149 in #216's own numbering, decisions 244 and 245 among them as
 its decisions 92 and 97:
@@ -3544,12 +3597,15 @@ its decisions 92 and 97:
   it would push a handled file too, and a worker steered by item text
   could then close, on every machine and for good, whichever
   questions-branch file the planted `closes` names (decision 297).
-- **#216's Igor should name, in its handback comment, the questions-branch
-  log file it pushed for the question** (decision 324), so that a later
-  run can name that file in `answers`; without it, the run writes no
-  `answers`.
-- **#216's Igor should write `asked_in`** in a log file for a question it
-  also asked in a post (decision 299), a Linear or Discord one only in a
+- **#216's Igor should keep, in its own record of the handback (#216's
+  decision 59), the name of the questions-branch log file it pushed for
+  the question** (decisions 324 and 327), so that a later run can name
+  that file in `answers`; the handback comment may show the name for
+  people, but the run never reads it from there. Without the record, the
+  run writes no `answers`.
+- **#216's Igor should write `asked_in`** in a worker's log file as the
+  URL of the assigned issue or pull request the question is shown from,
+  not the handback comment (decision 326), a Linear or Discord one only in a
   private lore repository (decision 302), and name in `answers` the file
   an answer file answers (decision 303), adding `answers` itself and
   refusing a worker's file that holds it (decision 310). Without
@@ -3560,7 +3616,8 @@ its decisions 92 and 97:
   person's cite.** It defines a citation as an agent's record that a
   lore entry answered a question so that no person was asked. Decision
   259 has a person's cite of an `active` entry in scope push one too,
-  and decision 262 counts as a cite a decline under reason 3 with filter
+  and decision 262 counts as a cite a decline under reason 2 (reason 3
+  before decision 330) with filter
   1 naming such an entry, for a question that did reach the person.
 - **Two of #216's Still open items for this change are done.** It asks
   this change to amend 245 to match its decision 97, without a fixed
