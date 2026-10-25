@@ -9,9 +9,15 @@ Licensed under the [MIT License](LICENSE).
 ## Requirements
 
 - **macOS or Linux.** Skills are installed as symlinks. Windows is not tested.
-- **Python 3.8 or later**, as `python3`.
+- **Python 3.9 or later**, as `python3`. Check with `python3 --version`.
+  - macOS: `brew install python` (Homebrew), or `xcode-select --install`,
+    which installs Apple's Command Line Tools, including git and Python 3.9
+    (check git with `git --version`). Until those tools are installed and their
+    licence accepted, `/usr/bin/python3` is only a stub that prompts you to
+    install them.
+  - Linux: your distribution's `python3` package.
 - **git 2.32 or later.** In a repository that has a `pre-commit` hook,
-  `bug-hunter` and `prose` need git 2.36 or later; on an older git they refuse
+  `bug-hunter` and `prose` need git 2.36 or later; on an older git those skills refuse
   to commit there rather than skip the hook.
 
 ## Install

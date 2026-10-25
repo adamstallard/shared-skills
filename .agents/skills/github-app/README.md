@@ -52,8 +52,9 @@ One is on your machine:
 
 ## Setup
 
-You need **Python 3.8+**, **openssl** and **git 2.31+**, and someone who can
-create Apps for the account that owns the repositories. Allow about 10
+You need the minimum Python version in the
+[root README](../../../README.md#requirements), **openssl** and, for this skill, **git 2.31+**,
+and you or someone else who can create Apps for the account that owns the repositories. Allow about 10
 minutes per identity.
 
 ### 1. Create the App
