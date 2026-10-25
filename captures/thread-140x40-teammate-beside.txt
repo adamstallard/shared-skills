@@ -1,0 +1,40 @@
+
+⚠ Ask rule Advisor matches no tool · check for typos
+
+❯ /answer
+  ⎿  answer-session: Answer session open: type in the prompt box, Enter answers. 1 answered and 1 handled for you: see the summary.
+
+⏺ Prompt dropped by a hook: Question 2 of 17
+
+⏺ Prompt dropped by a hook: Relayed to GitHub adamstallard/shared-skills #34 as adam-relay[bot]
+
+⏺ Prompt dropped by a hook: Not posted: Sara Lind replied since you last read the thread. Read it, then ⏎ again.
+
+⏺ Prompt dropped by a hook: Relayed to Linear ENG-437 · Status page as adam-relay (Linear app)
+
+⏺ Prompt dropped by a hook: Everything since the question, in full
+
+⏺ Prompt dropped by a hook: Back to the question
+
+❯ /answer
+  ⎿  answer-session: Layout: replies and the recorded answer beside the choices
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── [-]
+Answer session  ○ ○ ○ ○ ◎ ○ ○ ○ ◈ ◉ ○ ○ ○ ○ ● ● ○  summary  10 of 17 · 13 new · 2 relayed · 0 for later · 2 done for you        v0.1-31
+GitHub  adamstallard/igor #220  25m ago · 1 reply              │ ↩ 1 REPLY SINCE IT WAS ASKED   (v)iew all  ⇄ move left
+claude asks, an agent via the inquisitor                       │ Priya Shah · 9m ago
+                                                               │ │ We settled this in #198: retry once after a rebase, then give up and
+                                                               │ │ log it. The code is already in push.go.
+Should a worker retry a failed lore push itself, or leave the  │ CHOOSE AN ANSWER
+citation to the next run?                                      │   1: Retry once after a rebase  ★ recommended
+                                                               │      → The citation lands in the same run; one more push per failure.
+                                                               │
+A push fails about once a day, when another worker pushed      │   2: Leave it to the next run
+first.                                                         │      → No retry code; the citation lands a run late.
+                                                               │
+                                                               │   Or type your own answer in the prompt box
+1–2: choose   (t)alk to Claude   (w)on't answer   (l)ater   ✓ Layout: replies and the recorded answer besid…   (b)ack   (n)ext   (q)uit
+
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── shared-skills ─
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on (shift+tab to cycle) · a number, a key or your answer, then ⏎ · 5h 8% Sun 1:30a · 7d 63% ⇡ Sat 2a

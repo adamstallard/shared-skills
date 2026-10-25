@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, ModelCompleteResult, Register, RenderElement } from 'claude-code'
 
-import type { Answer, Declining, Filter, Returned, Revision, Turn, WontReason } from '../types'
+import type { Answer, Declining, Filter, Layout, Returned, Revision, ThreadSeen, Turn, WontReason } from '../types'
 
 // Prototype only: the questions are fixed examples, and an answer is kept in
 // the session's state instead of being posted by the relay account.
@@ -9,6 +9,29 @@ import type { Answer, Declining, Filter, Returned, Revision, Turn, WontReason } 
 type Surface = 'github' | 'linear' | 'discord'
 
 type Option = { label: string; effect: string }
+
+/** A reply in a question's thread since the question: someone's, the asker's, or the person's own relay's. */
+type Reply = { who: string; role?: 'asker' | 'relay'; age: string; text: string }
+
+/**
+ * Filter 1's recorded answer, shown to the person beside the question rather
+ * than posted by itself: the record is more private than the thread
+ * (`private`), or the question is a questions-branch file with no thread
+ * (`branch`).
+ */
+type Record_ = {
+  why: 'private' | 'branch'
+  /** The repository holding the record, and the file. */
+  repo: string
+  file: string
+  visibility: 'public' | 'internal' | 'private'
+  url: string
+  /** The decision's heading, and what it says, as filter 1's hit quotes it. */
+  title: string
+  excerpt: string
+  /** Who decided it, and when. */
+  by: string
+}
 
 type Question = {
   id: string
@@ -43,6 +66,20 @@ type Question = {
    * the verdict is only suggested, with the reply agreeing would post.
    */
   verdict?: { filter: 2 | 3 | 4; why: string; reply: string }
+  /**
+   * Prototype only: the replies a read of the thread finds since the
+   * question, oldest first, and one more that lands the moment the person
+   * first tries to post (`late`), so the stop always shows.
+   */
+  thread?: { replies: Reply[]; late?: Reply }
+  /** Filter 1's recorded answer, shown for the person to relay or not. */
+  record?: Record_
+  /**
+   * A question of the fourth source: a log file on a lore repository's
+   * questions branch. It has no thread: an answer is a new log file there,
+   * and nothing posts; it offers no asking back and no edit.
+   */
+  branch?: { repo: string }
   relayAs: string
 }
 
@@ -200,6 +237,175 @@ const QUESTIONS: Question[] = [
     handled: { filter: 4 },
     relayAs: 'adam-relay#4127',
   },
+  // From here: replies in the thread since the question, and filter 1's
+  // recorded answer shown rather than posted.
+  {
+    id: 'igor-220-retry',
+    surface: 'github',
+    where: 'adamstallard/igor #220',
+    link: 'https://github.com/adamstallard/igor/pull/220',
+    asker: { name: 'claude', kind: 'agent', via: 'the inquisitor' },
+    age: '25m',
+    text: 'Should a worker retry a failed lore push itself, or leave the citation to the next run?',
+    context: 'A push fails about once a day, when another worker pushed first.',
+    options: [
+      { label: 'Retry once after a rebase', effect: 'The citation lands in the same run; one more push per failure.' },
+      { label: 'Leave it to the next run', effect: 'No retry code; the citation lands a run late.' },
+    ],
+    thread: {
+      replies: [
+        {
+          who: 'Priya Shah',
+          age: '9m',
+          text: "We settled this in #198: retry once after a rebase, then give up and log it. The code is already in push.go.",
+        },
+      ],
+    },
+    relayAs: 'adam-relay[bot]',
+  },
+  {
+    id: 'eng-431',
+    surface: 'linear',
+    where: 'ENG-431 · Billing export',
+    link: 'https://linear.app/example/issue/ENG-431',
+    asker: { name: 'Tom Reyes', kind: 'human' },
+    age: '1h',
+    text: 'Which format should the billing export default to: CSV or Parquet?',
+    context: 'Finance opens it in Excel; the data team loads it into the warehouse.',
+    thread: {
+      replies: [
+        { who: 'Maya Ortiz', age: '48m', text: 'Finance is the main user, so CSV.' },
+        { who: 'Dev Patel', age: '35m', text: 'Parquet is a tenth the size and keeps the types. The warehouse load breaks on CSV dates every quarter.' },
+        { who: 'Maya Ortiz', age: '20m', text: 'Fair. Could we ship both and default to CSV?' },
+        { who: 'Tom Reyes', role: 'asker', age: '6m', text: "Both is fine by me if it's one flag. Adam, your call on the default." },
+      ],
+    },
+    relayAs: 'adam-relay (Linear app)',
+  },
+  {
+    id: 'ops-cdn',
+    surface: 'discord',
+    where: '#ops',
+    link: 'https://discord.com/channels/example/ops',
+    asker: { name: 'Lena Fischer', kind: 'human' },
+    age: '50m',
+    text: 'Can I flush the CDN cache for the docs site now, or is someone mid-deploy?',
+    thread: {
+      replies: [
+        {
+          who: 'Lena Fischer',
+          role: 'asker',
+          age: '12m',
+          text: 'Never mind: the deploy lock in #deploys was free, so I flushed it. Ignore this one.',
+        },
+      ],
+    },
+    relayAs: 'adam-relay#4127',
+  },
+  {
+    id: 'skills-31-reverts',
+    surface: 'github',
+    where: 'adamstallard/shared-skills #31',
+    link: 'https://github.com/adamstallard/shared-skills/issues/31',
+    asker: { name: 'jlee', kind: 'human' },
+    age: '1h',
+    text: 'Is the prose skill meant to run on the commit message of a revert too?',
+    thread: {
+      replies: [
+        {
+          who: 'Priya Shah',
+          age: '15m',
+          text:
+            "Yes, and I think it matters more for reverts than for anything else. A revert's message is often the only record of why a change came out: the pull request that added it holds the discussion of why it went in, but the revert usually happens in a hurry, during an incident, by someone who wasn't on the original change. Six months later the next reader sees 'Revert \"Add retry budget\"' and nothing else, and puts the change back. The prose pass at least makes the author say what broke and where the incident is written up. The cost is a minute per revert, which during an incident is real, so maybe the skill could take a one-line reason and a link and skip the rest of the pass.",
+        },
+      ],
+    },
+    relayAs: 'adam-relay[bot]',
+  },
+  {
+    id: 'igor-221-release',
+    surface: 'github',
+    where: 'adamstallard/igor #221',
+    link: 'https://github.com/adamstallard/igor/issues/221',
+    asker: { name: 'Ben Okafor', kind: 'human' },
+    age: '2h',
+    text: 'Do we cut the 0.9 release from main, or from the hotfix branch?',
+    thread: {
+      replies: [
+        { who: 'Ben Okafor', role: 'asker', age: '40m', text: 'Bumping this: the release cut is at 3pm.' },
+        { who: 'adam-relay[bot]', role: 'relay', age: '3m', text: 'User says: Cut it from main; the hotfix branch merges first.' },
+      ],
+    },
+    relayAs: 'adam-relay[bot]',
+  },
+  {
+    id: 'eng-437',
+    surface: 'linear',
+    where: 'ENG-437 · Status page',
+    link: 'https://linear.app/example/issue/ENG-437',
+    asker: { name: 'Sara Lind', kind: 'human' },
+    age: '8m',
+    text: 'Should the status page show the degraded-performance banner for the EU region today?',
+    context: 'Latency in eu-west has been twice normal since 9:00, with no errors.',
+    thread: {
+      replies: [],
+      late: { who: 'Sara Lind', role: 'asker', age: 'just now', text: 'Update: eu-west latency is back to normal as of 10:40. Still want the banner?' },
+    },
+    relayAs: 'adam-relay (Linear app)',
+  },
+  {
+    id: 'skills-34-tokens',
+    surface: 'github',
+    where: 'adamstallard/shared-skills #34',
+    link: 'https://github.com/adamstallard/shared-skills/pull/34',
+    asker: { name: 'claude', kind: 'agent', via: 'the inquisitor' },
+    age: '30m',
+    text: 'Should the github-app skill mint one installation token per repository, or one per owner?',
+    options: [
+      { label: 'One per owner', effect: 'One token covers every repository the App is installed on.' },
+      { label: 'One per repository', effect: 'A leaked token reaches one repository only.' },
+    ],
+    thread: { replies: [] },
+    record: {
+      why: 'private',
+      repo: 'adamstallard/igor-ops',
+      file: 'DECISIONS.md',
+      visibility: 'private',
+      url: 'https://github.com/adamstallard/igor-ops/blob/main/DECISIONS.md#d-41',
+      title: 'D-41: Installation tokens are scoped to one repository',
+      excerpt:
+        'Every installation token is minted for the one repository the work touches, never for the owner, so a leaked token reaches a single repository. Minting costs one API call per repository an hour, which the token cache absorbs.',
+      by: 'adamstallard, 2026-09-30',
+    },
+    relayAs: 'adam-relay[bot]',
+  },
+  {
+    id: 'lore-q-jitter',
+    surface: 'github',
+    where: 'adamstallard/lore · questions branch',
+    link: 'https://github.com/adamstallard/lore/blob/questions/questions/2026-10-24-retry-jitter.md',
+    asker: { name: 'Igor (worker)', kind: 'agent', via: 'its inquisitor role' },
+    age: '40m',
+    text: 'Should retry backoff add jitter, and if so how much?',
+    context: "Logged by a worker on igor #219. Its handback tagged no one, so the question waits on the questions branch.",
+    options: [
+      { label: 'Full jitter', effect: 'Each retry waits a random time up to the capped delay.' },
+      { label: 'No jitter', effect: 'Retries stay predictable; workers that failed together retry together.' },
+    ],
+    record: {
+      why: 'branch',
+      repo: 'adamstallard/igor',
+      file: 'DECISIONS.md',
+      visibility: 'public',
+      url: 'https://github.com/adamstallard/igor/blob/main/DECISIONS.md#retry-jitter',
+      title: 'Retries back off exponentially, with full jitter',
+      excerpt:
+        "Every retry waits a random time between zero and the capped exponential delay, so workers that failed together don't retry together. The cap stays at 30 s.",
+      by: 'adamstallard, 2026-08-12',
+    },
+    branch: { repo: 'adamstallard/lore' },
+    relayAs: 'adamstallard',
+  },
 ]
 
 /** The inquisitor's filters, as the answer session names them and acts on them. */
@@ -252,6 +458,37 @@ const CLOSED: Record<1 | 2, { did: string; undo: string }> = {
 // posts on Adam's Enter, as "User says: ".
 const RECORDED = 'Recorded answer: '
 const INQUISITOR = 'Inquisitor: '
+
+/**
+ * What relaying filter 1's recorded answer says after its prefix: no answer
+ * quoted, only where it is recorded (PR #25 decision 200; the `Re: ` line
+ * every GitHub relay post ends with is left out here, as for every post).
+ */
+const recordPost = (r: Record_) => `see the record below.\nRecorded in: ${r.url}`
+
+// Reading a question's thread when it comes on screen: done once its last
+// read is about a minute old, and taking about this long (prototype: a timer
+// stands in for the fetch).
+const READ_STALE_MS = 60_000
+const READ_MS = 700
+
+/** "12m ago", or "just now" as it is. */
+const ago = (age: string) => (age === 'just now' ? age : `${age} ago`)
+
+/** The thread's replies a read finds now: the made-up ones, and the late one once it has landed. */
+function repliesOf(q: Question, seen?: ThreadSeen): Reply[] {
+  if (!q.thread) return []
+  return seen?.late && q.thread.late ? [...q.thread.replies, q.thread.late] : q.thread.replies
+}
+
+/** The replies the last read found, and so shown to the person: none before a read. */
+const shownOf = (q: Question, seen?: ThreadSeen) => (seen ? repliesOf(q, seen).slice(0, seen.shown) : [])
+
+/** The replies the person judges: all but the relay's own. */
+const others = (replies: Reply[]) => replies.filter(r => r.role !== 'relay')
+
+/** The relay's own post among them that answers the question, the latest. */
+const ownPost = (replies: Reply[]) => [...replies].reverse().find(r => r.role === 'relay' && r.text.startsWith(PREFIX))
 
 /**
  * What a filter's reply says after its prefix: for filter 1, where the
@@ -363,12 +600,14 @@ const LATER = 'warning'
 const RULE = 'subtle'
 /** Each state's dot, in the bar and the summary: ○ new, ◉ on screen and ◇ in a conversation are drawn beside these. */
 const GLYPH: Record<Answer['kind'], string> = { answer: '●', defer: '◐', wait: '◌', wont: '⊘', recorded: '◎', handled: '◈' }
+/** A recorded answer Adam chose to relay is his relay: ●. */
+const glyphOf = (a: Answer) => (a.kind === 'recorded' && a.chosen ? GLYPH.answer : GLYPH[a.kind])
 const TONE: Record<Answer['kind'], string> = { answer: DONE, defer: LATER, wait: ACCENT, wont: RULE, recorded: DONE, handled: DONE }
 
 // Prototype only: shown in the top bar, so a tester can tell which build is
 // loaded. v0.1-N, N the number of commits in the prototype repository once
 // this build is committed.
-const BUILD = 'v0.1-30'
+const BUILD = 'v0.1-31'
 const PREFIX = 'User says: '
 // The tool the session's model calls to put a drafted reply in the prompt box.
 const PROPOSE_TOOL = 'mcp__answer-session__propose_reply'
@@ -393,6 +632,10 @@ const editingAtom = atom({ plugin: 'answer-session', key: 'editing' } as const, 
 const returnedAtom = atom({ plugin: 'answer-session', key: 'returned' } as const, {} as Record<string, Returned>)
 const openAtom = atom({ plugin: 'answer-session', key: 'isOpen' } as const, false)
 const decliningAtom = atom({ plugin: 'answer-session', key: 'declining' } as const, null as Declining | null)
+const threadsAtom = atom({ plugin: 'answer-session', key: 'threads' } as const, {} as Record<string, ThreadSeen>)
+const readingAtom = atom({ plugin: 'answer-session', key: 'reading' } as const, {} as Record<string, true>)
+const viewingAtom = atom({ plugin: 'answer-session', key: 'viewing' } as const, null as { id: string; page: number } | null)
+const layoutAtom = atom({ plugin: 'answer-session', key: 'layout' } as const, 'beside' as Layout)
 
 /** `text` cut to `width` cells, an ellipsis marking the cut. */
 function cut(text: string, width: number): string {
@@ -410,8 +653,8 @@ function cut(text: string, width: number): string {
  * above the question, above its explanation, above the choices; then above
  * the post, an asker's reply and the related decision.
  */
-type Gap = 'question' | 'context' | 'choices' | 'preview' | 'reply' | 'related'
-const GAP_ORDER: Gap[] = ['question', 'context', 'choices', 'preview', 'reply', 'related']
+type Gap = 'question' | 'context' | 'choices' | 'preview' | 'reply' | 'related' | 'thread'
+const GAP_ORDER: Gap[] = ['question', 'context', 'choices', 'preview', 'reply', 'related', 'thread']
 
 type Trim = {
   /** How many of GAP_ORDER's gaps get a blank row before rows left over fill the rest. */
@@ -438,6 +681,18 @@ type Trim = {
   bubble: number
   /** The preview under its label, or the post alone in one row. */
   preview: 'full' | 'line'
+  /**
+   * The replies since the question: each in full (long ones cut); the
+   * earlier ones a row each and the latest in full; every one a row; or one
+   * row that counts them. `(v)iew all` shows them all, in full.
+   */
+  replies: 'full' | 'latest' | 'lines' | 'count'
+  /**
+   * Filter 1's recorded answer: its excerpt in a few lines, or in one; its
+   * heading alone; or, on the smallest band, only that there is one, with
+   * agreeing to it.
+   */
+  record: 'full' | 'short' | 'line' | 'head'
 }
 const TRIMS: Trim[] = (() => {
   let t: Trim = {
@@ -453,6 +708,8 @@ const TRIMS: Trim[] = (() => {
     reply: 'full',
     bubble: 6,
     preview: 'full',
+    replies: 'full',
+    record: 'full',
   }
   const steps: Partial<Trim>[] = [
     {},
@@ -460,22 +717,28 @@ const TRIMS: Trim[] = (() => {
     { label: false },
     { optionGap: false },
     { logNote: false },
+    { replies: 'latest' },
     // Adam's three gaps (question, context, choices) outlast the row the
     // hint line repeats, the context's second line and the related decision.
     { ownWords: false },
     { effects: 'line' },
+    { record: 'short' },
     { context: 'line' },
+    { replies: 'lines' },
     { related: false },
     { gaps: 2 },
     { gaps: 1 },
     { gaps: 0 },
     { provenance: 1 },
+    { record: 'line' },
+    { replies: 'count' },
     { reply: 'short' },
     { bubble: 2 },
     { effects: 'none' },
     { context: 'none' },
     { bubble: 1 },
     { preview: 'line' },
+    { record: 'head' },
     { provenance: 0 },
   ]
   return steps.map(step => (t = { ...t, ...step }))
@@ -504,6 +767,9 @@ function wrap(text: string, width: number): string[] {
   return lines
 }
 
+/** `wrap`, keeping the text's own line breaks. */
+const wrapLines = (text: string, width: number): string[] => text.split('\n').flatMap(line => wrap(line, width))
+
 /** A question as it now stands: rephrased after a discussion, revised by its asker, or as asked. */
 function view(base: Question, rephrased?: Revision, returned?: Returned, showOriginal?: boolean): Question {
   const revision = rephrased ?? returned?.revised
@@ -526,11 +792,11 @@ function nextFresh(from: number, answers: Record<string, Answer>): number {
 }
 
 /** Everything the model is told about the question it helps with: the system prompt of a rephrasing or a draft. */
-function systemPrompt(q: Question, returned?: Returned): string {
+function systemPrompt(q: Question, returned?: Returned, replies: Reply[] = []): string {
   return [
     "You are helping Adam think through one question that was relayed to him in his answer session. The answer is his to decide. Your job is to help him understand it and work out what he wants, and, when he asks, to draft the reply he describes.",
     '',
-    questionBlock(q, returned),
+    questionBlock(q, returned, replies),
     '',
     'How to help:',
     '- Explain what is being asked and why it matters, in plain words.',
@@ -543,7 +809,7 @@ function systemPrompt(q: Question, returned?: Returned): string {
 }
 
 /** The question itself, where and by whom, its options and what it rests on, for the model. */
-function questionBlock(q: Question, returned?: Returned): string {
+function questionBlock(q: Question, returned?: Returned, replies: Reply[] = []): string {
   const who =
     q.asker.kind === 'agent'
       ? `${q.asker.name}, an agent asking through ${q.asker.via ?? 'the inquisitor'}`
@@ -563,6 +829,21 @@ function questionBlock(q: Question, returned?: Returned): string {
   if (q.related) lines.push(`Related earlier decision: ${q.related}`)
   if (q.answered) lines.push(`${q.answered.hasAuthority ? 'Answered from a recorded answer with authority' : 'Possibly answered already by'}: ${q.answered.decision}`)
   if (q.verdict) lines.push(`The answer session suggests it ${FILTERS[q.verdict.filter].verdict} (the inquisitor's filter ${q.verdict.filter}): ${q.verdict.why}`)
+  if (q.record) {
+    const r = q.record
+    lines.push(
+      '',
+      `The inquisitor's filter 1 found a recorded answer: "${r.title}" in ${r.repo} ${r.file} (${r.visibility}; decided by ${r.by}; ${r.url}): "${r.excerpt}"`,
+      r.why === 'private'
+        ? 'It was not posted by itself: the record is more private than the thread, and posting its link would show that it exists. Adam relays it or not.'
+        : 'It was not posted by itself: the question is a file on a questions branch, with no thread. Relaying it logs it as the answer in a new file there.',
+    )
+  }
+  if (q.branch) lines.push(`The question is a log file on ${q.branch.repo}'s questions branch: an answer is a new log file there, and nothing posts.`)
+  if (replies.length) {
+    lines.push('', 'Replies in its thread since the question, oldest first:')
+    for (const r of replies) lines.push(`- ${r.who}${r.role === 'asker' ? ' (the asker)' : r.role === 'relay' ? " (Adam's relay account)" : ''}, ${ago(r.age)}: ${r.text}`)
+  }
   if (returned) lines.push('', `Adam asked the asker: "${returned.asked}"`, `They replied: "${returned.reply}"`)
   return lines.join('\n')
 }
@@ -572,11 +853,11 @@ function questionBlock(q: Question, returned?: Returned): string {
  * answer is recorded: he is answering for the inquisitor, and Claude helps
  * him find the place, which it may fill in with the draft tool.
  */
-function placeContext(q: Question, returned?: Returned): string {
+function placeContext(q: Question, returned?: Returned, replies: Reply[] = []): string {
   return [
     `[Answer session] Adam's message is about a question relayed to him (${q.link}). He won't answer it himself: the inquisitor's filter 1 (already answered) should have stopped it, so he is answering for the inquisitor with a post that says "${RECORDED}" and where the answer is recorded. He is talking to you to find that place.`,
     '',
-    questionBlock(q, returned),
+    questionBlock(q, returned, replies),
     '',
     'How to help:',
     '- Help him find where the answer is recorded: a decision, a spec, a doc, an earlier thread. You may read the thread, the code and the specs with your tools; say what you checked.',
@@ -592,13 +873,13 @@ function placeContext(q: Question, returned?: Returned): string {
  * how to help. The message goes to the session's own model, which may read
  * the thread, the code and the specs with its tools before it answers.
  */
-function discussionContext(q: Question, returned?: Returned, editing?: string): string {
+function discussionContext(q: Question, returned?: Returned, editing?: string, replies: Reply[] = []): string {
   return [
     editing === undefined
       ? `[Answer session] Adam's message is about a question relayed to him (${q.link}). He is talking to you about it before he answers: to understand it, to have you draft his reply, or both.`
       : `[Answer session] Adam's message is about a question relayed to him (${q.link}). He already posted in its thread and is editing that post, which now says: "${editing}". If he asks you to draft the new version, call the tool with the full replacement text.`,
     '',
-    systemPrompt(q, returned),
+    systemPrompt(q, returned, replies),
     '- You may read the thread, the code and the specs with your tools to check a fact; say what you checked.',
     '- Do not post, comment, push or change anything: Adam answers through his answer session, not through you.',
     `- If Adam asks you to write or draft his reply, call ${PROPOSE_TOOL} with exactly the text to post (no "User says:"). It puts the draft in his prompt box on the question, for him to confirm or edit; it posts nothing.`,
@@ -699,6 +980,8 @@ type ResumeRecord = {
   rephrased: Record<string, Revision>
   original: Record<string, boolean>
   returned: Record<string, Returned>
+  threads?: Record<string, ThreadSeen>
+  layout?: Layout
 }
 
 /** Keeps the open answer session for the process the restart starts. */
@@ -713,6 +996,8 @@ async function saveForRestart($: EngineInterface): Promise<void> {
     rephrased: await read($, rephrasedAtom),
     original: await read($, originalAtom),
     returned: await read($, returnedAtom),
+    threads: await read($, threadsAtom),
+    layout: await read($, layoutAtom),
   }
   await $.store.set(RESUME_KEY, record)
 }
@@ -737,6 +1022,8 @@ async function takeRestart($: EngineInterface, cwd: string): Promise<ResumeRecor
   await update($, rephrasedAtom, () => record.rephrased ?? {})
   await update($, originalAtom, () => record.original ?? {})
   await update($, returnedAtom, () => record.returned ?? {})
+  await update($, threadsAtom, () => record.threads ?? {})
+  await update($, layoutAtom, () => record.layout ?? 'beside')
   return record
 }
 
@@ -770,6 +1057,17 @@ type Ctx = {
   hasReply: boolean
   changed: boolean
   deferredAt: number
+  /** The thread's replies since the question, as the last read found them (none before a read). */
+  replies: Reply[]
+  /** Replies from this index on were found by the read before a post: new to the person. */
+  fresh?: number
+  /** The thread is being read. */
+  reading: boolean
+  /** The thread has been read since the session began. */
+  isRead: boolean
+  /** The replies and the record are shown in full: the page. */
+  viewing?: number
+  layout: Layout
 }
 
 async function snapshot($: EngineInterface): Promise<Ctx> {
@@ -778,7 +1076,10 @@ async function snapshot($: EngineInterface): Promise<Ctx> {
   const answers = await read($, answersAtom)
   const deferredAt = QUESTIONS.findIndex(one => answers[one.id]?.kind === 'defer')
   const base = QUESTIONS[at]
-  if (!base) return { at, open: false, posted: false, editing: false, talking: false, composing: false, hasReply: false, changed: false, deferredAt }
+  const layout = await read($, layoutAtom)
+  if (!base) return { at, open: false, posted: false, editing: false, talking: false, composing: false, hasReply: false, changed: false, deferredAt, replies: [], reading: false, isRead: false, layout }
+  const seen = (await read($, threadsAtom))[base.id]
+  const viewing = await read($, viewingAtom)
   const rephrased = (await read($, rephrasedAtom))[base.id]
   const returned = (await read($, returnedAtom))[base.id]
   const q = view(base, rephrased, returned, !!(await read($, originalAtom))[base.id])
@@ -802,6 +1103,12 @@ async function snapshot($: EngineInterface): Promise<Ctx> {
     hasReply: ((await read($, talksAtom))[base.id] ?? []).some(t => t.who === 'model'),
     changed: !!(rephrased ?? returned?.revised),
     deferredAt,
+    replies: shownOf(base, seen),
+    fresh: seen?.fresh,
+    reading: !!(await read($, readingAtom))[base.id],
+    isRead: !!seen,
+    viewing: viewing?.id === base.id ? viewing.page : undefined,
+    layout,
   }
 }
 
@@ -810,7 +1117,13 @@ async function snapshot($: EngineInterface): Promise<Ctx> {
  * One that `posts` is typed into the prompt box by a click, never done by
  * it: only Enter posts.
  */
-type Command = { key: string; what: string; posts?: true }
+type Command = {
+  key: string
+  what: string
+  posts?: true
+  /** Not in the key row: its button sits beside what it opens. */
+  aside?: true
+}
 
 /** The commands the screen offers now, in the order the key row shows them. */
 function commands(c: Ctx): Command[] {
@@ -822,11 +1135,14 @@ function commands(c: Ctx): Command[] {
   ]
   if (!q) return [...(c.deferredAt >= 0 ? [{ key: 'r', what: '(r)eview those for later' }] : []), ...nav, close]
   if (c.composing) return [{ key: 'b', what: 'go (b)ack to the discussion' }, close]
+  // Everything in full: more pages, if any (the key row shows (m)ore only then), and back.
+  if (c.viewing !== undefined) return [{ key: 'm', what: '(m)ore' }, { key: 'b', what: 'go (b)ack' }, close]
   // In a discussion the key sits inside the words, as Adam wrote them.
   if (c.talking) {
     // Rewording and asking the asker come before an answer: not during an
     // edit, nor while finding where an answer is recorded.
-    const asking = c.open && !c.editing && !c.declining && !c.busy
+    // A questions-branch question has no thread to ask back in.
+    const asking = c.open && !c.editing && !c.declining && !c.busy && !q.branch
     return [
       ...(asking && c.hasReply ? [{ key: 'r', what: '(r)eword the question' }] : []),
       ...(asking ? [{ key: 'a', what: '(a)sk the asker' }] : []),
@@ -851,6 +1167,8 @@ function commands(c: Ctx): Command[] {
     ]
   }
   const kind = c.answer?.kind
+  // The replies since the question and the recorded answer, in full.
+  const viewAll: Command[] = others(c.replies).length || q.record ? [{ key: 'v', what: '(v)iew all', aside: true }] : []
   const own: Command[] = c.editing
     ? [
         { key: 'h', what: '(h)elp me edit' },
@@ -863,13 +1181,15 @@ function commands(c: Ctx): Command[] {
         : c.open
           ? [
               talk,
-              ...(q.verdict ? [{ key: 'a', what: '(a)gree', posts: true as const }] : []),
+              ...(q.verdict || q.record ? [{ key: 'a', what: '(a)gree', posts: true as const }] : []),
               ...(q.answered && !q.answered.hasAuthority ? [{ key: 'c', what: '(c)ite the decision' }] : []),
               { key: 'w', what: "(w)on't answer" },
               { key: 'l', what: '(l)ater' },
             ]
-          : [{ key: 'e', what: kind === 'recorded' ? '(e)dit the post' : '(e)dit your post' }]
-  return [...own, ...(c.changed ? [{ key: 'o', what: '(o)riginal' }] : []), ...nav, close]
+          : q.branch
+            ? []
+            : [{ key: 'e', what: kind === 'recorded' ? '(e)dit the post' : '(e)dit your post' }]
+  return [...own, ...(c.changed ? [{ key: 'o', what: '(o)riginal' }] : []), ...viewAll, ...nav, close]
 }
 
 /** Does command `key` on the screen `c` describes, and says what it did. */
@@ -879,10 +1199,11 @@ async function runCommand($: EngineInterface, c: Ctx, key: string): Promise<stri
   // b and n sit side by side: back and next through the queue. In a
   // discussion, or while declining, b means back a step, so the queue's
   // keys act only outside them.
-  const inside = c.talking || c.composing || !!c.declining
+  const inside = c.talking || c.composing || !!c.declining || c.viewing !== undefined
   if (!inside && key === 'b') return stepBy($, c.at, -1)
   if (!inside && key === 'n') return stepBy($, c.at, 1)
   if (!q) return key === 'r' ? go($, c.deferredAt, 'Back to a deferred question') : ''
+  if (c.viewing !== undefined) return key === 'b' ? closeView($) : key === 'm' ? morePages($) : ''
   if (c.composing) return key === 'b' ? backToTalk($, q) : ''
   if (c.talking) {
     switch (key) {
@@ -913,7 +1234,9 @@ async function runCommand($: EngineInterface, c: Ctx, key: string): Promise<stri
     case 'h':
       return openTalk($, q)
     case 'a':
-      return q.verdict ? relay($, q, q.verdict.reply) : ''
+      return q.verdict ? relay($, q, q.verdict.reply) : q.record ? relayRecord($, q, q.record) : ''
+    case 'v':
+      return viewAll($, q)
     case 'c':
       return cite($, q)
     case 'w':
@@ -957,6 +1280,7 @@ function intent(c: Ctx, draft: string): Intent {
   if (command) return { kind: 'command', command }
   const q = c.q
   if (!q) return { kind: 'refused', why: 'Nothing to answer here: p or n moves to a question.' }
+  if (c.viewing !== undefined) return { kind: 'refused', why: 'Go (b)ack to answer: this shows the replies and the record in full.' }
   if (c.composing) return { kind: 'ask', text }
   if (c.talking) {
     // The choices are on the question, not here: go back to answer.
@@ -984,8 +1308,11 @@ function intent(c: Ctx, draft: string): Intent {
     const kind = c.answer?.kind
     return {
       kind: 'refused',
-      why:
-        kind === 'wait'
+      why: q.branch && (kind === 'answer' || kind === 'recorded')
+        ? 'This question is answered, in a log file on the questions branch, which takes no edits.'
+        : kind === 'recorded' && c.answer?.chosen
+          ? 'You posted the recorded answer: (e)dit the post to change it.'
+        : kind === 'wait'
           ? `This question waits for ${q.asker.name}'s reply: (e)dit your post to change it.`
           : kind === 'wont'
             ? "You won't answer this question: (r)eopen it to answer."
@@ -1013,9 +1340,10 @@ function enterHint(c: Ctx, it: Intent): string | undefined {
   switch (it.kind) {
     case 'option':
     case 'relay':
-      return q ? `⏎ relay to ${surface}` : undefined
+      return !q ? undefined : q.branch ? '⏎ log it on the questions branch; nothing posts' : `⏎ relay to ${surface}`
     case 'command':
       if (it.command.key === 'a' && q?.verdict) return `⏎ relay to ${surface}: ${FILTERS[q.verdict.filter].action}`
+      if (it.command.key === 'a' && q?.record) return q.branch ? '⏎ log the recorded answer on the questions branch; nothing posts' : `⏎ post the recorded answer on ${surface}`
       if (it.command.key === 'p' && c.declining?.stage === 'post') return `⏎ post on ${surface} for the inquisitor, with no note`
       if (it.command.key === 'w') return "⏎ choose why you won't answer"
       return it.command.key === 'l' ? '⏎ ask me later, after the new ones' : `⏎ ${it.command.what.replace(/[()]/g, '')}`
@@ -1121,8 +1449,139 @@ async function go($: EngineInterface, i: number, note: string): Promise<string> 
   // won't-answer whose reason is not yet recorded.
   await update($, editingAtom, () => ({}))
   await update($, decliningAtom, () => null)
+  await update($, viewingAtom, () => null)
   await update($, cursorAtom, () => i)
   await update($, flashAtom, () => null)
+  await arrive($, i)
+  return note
+}
+
+// ── the thread, read again ──────────────────────────────────────────────
+//
+// A question that comes on screen has its thread read once the last read is
+// about a minute old (the real skill: once its channel's last poll is), and
+// every reply since the question is shown with it. The relay's own reply
+// marks it answered; anyone else's is the person's to judge. Before a post
+// the thread is read once more: a reply the person has not been shown stops
+// the post, and is shown. Prototype only: a read reveals the question's
+// made-up replies, after READ_MS.
+
+/** Question `i` came on screen: its thread is read, unless that was done in the last minute. */
+async function arrive($: EngineInterface, i: number): Promise<void> {
+  const one = QUESTIONS[i]
+  // A questions-branch file has no thread.
+  if (!one || one.branch) return
+  const seen = (await read($, threadsAtom))[one.id]
+  if (seen && (await $.clock.now()) - seen.readAt < READ_STALE_MS) return
+  if ((await read($, readingAtom))[one.id]) return
+  await update($, readingAtom, r => ({ ...r, [one.id]: true as const }))
+  $.clock.after(READ_MS, () => void finishRead($, one.id))
+}
+
+/** The read is back: every reply since the question is shown; replies new since the last read are marked. */
+async function finishRead($: EngineInterface, id: string): Promise<void> {
+  const one = QUESTIONS.find(x => x.id === id)
+  // A post read the thread meanwhile, and showed what it found: nothing left to do.
+  if (!one || !(await read($, readingAtom))[id]) return
+  const now = await $.clock.now()
+  let seen: ThreadSeen | undefined
+  await update($, threadsAtom, t => {
+    const was = t[id]
+    const found = repliesOf(one, was).length
+    seen = {
+      readAt: now,
+      shown: found,
+      ...(was && found > was.shown ? { fresh: was.shown } : {}),
+      ...(was?.late ? { late: true as const } : {}),
+    }
+    return { ...t, [id]: seen }
+  })
+  await update($, readingAtom, r => without(r, id))
+  await fromThread($, one, repliesOf(one, seen))
+}
+
+/**
+ * The relay's own reply in the thread, posted from another machine, marks the
+ * question answered here; says whether it did.
+ */
+async function fromThread($: EngineInterface, one: Question, replies: Reply[]): Promise<boolean> {
+  const own = ownPost(replies)
+  if (!own) return false
+  let marked = false
+  await update($, answersAtom, a => {
+    const was = a[one.id]
+    if (was && was.kind !== 'defer') return a
+    marked = true
+    const answered: Answer = { kind: 'answer', text: own.text.slice(PREFIX.length), elsewhere: true }
+    return { ...a, [one.id]: answered }
+  })
+  if (marked) await update($, flashAtom, () => `Answered already: ${one.relayAs} posted your answer from another machine, ${ago(own.age)}`)
+  return marked
+}
+
+/** Says a post was stopped: shown in the warning's colour, not as done. */
+const NOT_POSTED = 'Not posted: '
+
+/**
+ * Reads the thread once more before a post. Returns why nothing may post: the
+ * question was answered from another machine, or someone replied since the
+ * person last saw the thread (those replies are then shown, marked new, and
+ * what was typed goes back in the box for a second Enter).
+ */
+async function recheck($: EngineInterface, one: Question): Promise<string | undefined> {
+  if (one.branch) return undefined
+  const now = await $.clock.now()
+  const was = (await read($, threadsAtom))[one.id]
+  // Prototype only: the late reply lands the moment a post is first tried.
+  const late = !!one.thread?.late
+  const replies = repliesOf(one, late ? { readAt: now, shown: 0, late: true } : undefined)
+  const shown = was?.shown ?? 0
+  const unseen = others(replies.slice(shown))
+  await update($, threadsAtom, t => ({
+    ...t,
+    [one.id]: {
+      readAt: now,
+      shown: replies.length,
+      ...(unseen.length ? { fresh: shown } : was?.fresh !== undefined ? { fresh: was.fresh } : {}),
+      ...(late ? { late: true as const } : {}),
+    },
+  }))
+  await update($, readingAtom, r => without(r, one.id))
+  let note: string | undefined
+  if (await fromThread($, one, replies)) note = `${NOT_POSTED}${one.relayAs} already answered it from another machine.`
+  else if (unseen.length) {
+    const names = [...new Set(unseen.map(r => r.who))].join(' and ')
+    note = `${NOT_POSTED}${names} replied since you last read the thread. Read it, then ⏎ again.`
+    // What was typed stays for that second Enter.
+    if (afterDrop) afterDrop.text = afterDrop.dropped
+  }
+  if (note) await update($, flashAtom, () => note!)
+  return note
+}
+
+/** The replies since the question and the recorded answer, in full, over the whole band. */
+async function viewAll($: EngineInterface, one: Question): Promise<string> {
+  await update($, viewingAtom, () => ({ id: one.id, page: 0 }))
+  await update($, flashAtom, () => null)
+  return 'Everything since the question, in full'
+}
+
+async function closeView($: EngineInterface): Promise<string> {
+  await update($, viewingAtom, () => null)
+  return 'Back to the question'
+}
+
+async function morePages($: EngineInterface): Promise<string> {
+  await update($, viewingAtom, v => (v ? { ...v, page: v.page + 1 } : v))
+  return 'The next page'
+}
+
+/** Prototype only: switches between the two designs, to compare them in place. */
+async function toggleLayout($: EngineInterface): Promise<string> {
+  let now: Layout = 'beside'
+  await update($, layoutAtom, l => (now = l === 'beside' ? 'under' : 'beside'))
+  const note = `Layout: replies and the recorded answer ${now === 'beside' ? 'beside the choices' : 'under the question'}`
+  await update($, flashAtom, () => note)
   return note
 }
 
@@ -1219,17 +1678,45 @@ async function settle($: EngineInterface, one: Question, answer: Answer, note: s
   await update($, answersAtom, a => (after = { ...a, [one.id]: answer }))
   await update($, talkingAtom, () => null)
   await update($, decliningAtom, () => null)
-  await update($, cursorAtom, () => nextFresh(QUESTIONS.findIndex(x => x.id === one.id), after))
+  await update($, viewingAtom, () => null)
+  const next = nextFresh(QUESTIONS.findIndex(x => x.id === one.id), after)
+  await update($, cursorAtom, () => next)
   await update($, flashAtom, () => note)
+  await arrive($, next)
   return note
 }
 
 async function relay($: EngineInterface, one: Question, text: string): Promise<string> {
   // Answering a question the session handled posts a reply of Adam's after
   // the session's own, which stays in the thread.
+  const stop = await recheck($, one)
+  if (stop) return stop
   const was = (await read($, answersAtom))[one.id]
   const over = was?.kind === 'handled' ? prefixOf(was) + was.text : undefined
-  return settle($, one, { kind: 'answer', text, ...(over ? { over } : {}) }, `Relayed to ${SURFACE_NAME[one.surface]} ${one.where} as ${one.relayAs}`)
+  return settle(
+    $,
+    one,
+    { kind: 'answer', text, ...(over ? { over } : {}) },
+    one.branch ? `Logged your answer on ${one.branch.repo}'s questions branch, in a new file; nothing posted` : `Relayed to ${SURFACE_NAME[one.surface]} ${one.where} as ${one.relayAs}`,
+  )
+}
+
+/**
+ * Relays filter 1's recorded answer, as Adam chose to: the fixed text and
+ * where it is recorded, quoting no answer. On a questions-branch question it
+ * is logged there instead, and nothing posts.
+ */
+async function relayRecord($: EngineInterface, one: Question, r: Record_): Promise<string> {
+  const stop = await recheck($, one)
+  if (stop) return stop
+  return settle(
+    $,
+    one,
+    { kind: 'recorded', chosen: true, text: recordPost(r) },
+    one.branch
+      ? `Logged the recorded answer on ${one.branch.repo}'s questions branch, in a new file; nothing posted`
+      : `Posted the recorded answer on ${SURFACE_NAME[one.surface]} ${one.where} as ${one.relayAs}`,
+  )
 }
 
 /** Won't answer: the band offers the reasons; nothing is recorded until one is chosen. */
@@ -1297,6 +1784,8 @@ async function setPlace($: EngineInterface, one: Question, place: string): Promi
  */
 async function answerForInquisitor($: EngineInterface, one: Question, d: Extract<Declining, { stage: 'post' }>, note: string): Promise<string> {
   if (d.filter === 1 && !d.place) return "There is no place for the recorded answer: without it, it can't post as filter 1."
+  const stop = await recheck($, one)
+  if (stop) return stop
   const said = note.trim()
   const answer: Answer = { kind: 'handled', filter: d.filter, chosen: true, text: filterReply(d.filter, d.place), ...(said ? { said } : {}) }
   return settle(
@@ -1397,7 +1886,7 @@ async function rephrase($: EngineInterface, one: Question): Promise<string> {
     const talks = (await read($, talksAtom))[one.id] ?? []
     const r = await complete(
       $,
-      systemPrompt(one, returned),
+      systemPrompt(one, returned, shownOf(one, (await read($, threadsAtom))[one.id])),
       `${transcript(talks)}\n\nThe discussion is over. Rewrite the question in light of it, so that Adam can answer it at once: keep what the asker needs to know, use the words the discussion made clear, and drop what confused him. Answer with JSON only, in this shape:\n${shape}`,
       1500,
     )
@@ -1427,7 +1916,7 @@ async function draftAsk($: EngineInterface, one: Question): Promise<string> {
     const talks = (await read($, talksAtom))[one.id] ?? []
     const r = await complete(
       $,
-      systemPrompt(one, returned),
+      systemPrompt(one, returned, shownOf(one, (await read($, threadsAtom))[one.id])),
       `${transcript(talks)}\n\nDraft the one clarifying question Adam should send back to ${one.asker.name} in the thread, about what the discussion shows is unclear. Write it as Adam would: one or two plain sentences addressed to them, no greeting, no sign-off, no quotation marks.`,
       300,
     )
@@ -1446,6 +1935,8 @@ async function draftAsk($: EngineInterface, one: Question): Promise<string> {
 }
 
 async function sendAsk($: EngineInterface, one: Question, text: string): Promise<string> {
+  const stop = await recheck($, one)
+  if (stop) return stop
   await update($, askingAtom, a => without(a, one.id))
   const note = await settle($, one, { kind: 'wait', text }, `Asked ${one.asker.name} on ${SURFACE_NAME[one.surface]}. Their question waits for the reply; nothing else does.`)
   // Prototype only: the asker "replies" after a while.
@@ -1490,14 +1981,20 @@ export const register: Register = on => {
     }
     // An answer session opens by /answer: typed, or given as the session's
     // first prompt (`claude '/answer'`). Only a restart reopens it unasked.
-    if (e.isInteractive && restored) await update($, openAtom, () => true)
+    if (e.isInteractive && restored) {
+      await update($, openAtom, () => true)
+      await arrive($, await read($, cursorAtom))
+    }
     return started
   })
 
   // /answer opens the band, or closes it when it is open. The band needs no
   // room of its own: it is the strip above the prompt, as wide as the
   // terminal, in both layouts.
-  on('command.run', { command: 'answer' }, async $ => {
+  on('command.run', { command: 'answer' }, async ($, e) => {
+    // Prototype only: `/answer layout` switches between the two designs for
+    // the replies and the recorded answer, leaving the session as it is.
+    if (/^\s*layout\b/.test(e.args ?? '')) return { text: await toggleLayout($) }
     let isOpen = false
     await update($, openAtom, v => (isOpen = !v))
     if (!isOpen) return { text: 'Answer session closed. /answer opens it again where you left off.' }
@@ -1519,6 +2016,8 @@ export const register: Register = on => {
             ? `${handled} handled for you`
             : ''
     if (done && !(await read($, flashAtom))) await update($, flashAtom, () => `${done}: see the summary`)
+    // The question on screen came on screen: its thread is read.
+    await arrive($, await read($, cursorAtom))
     return { text: `Answer session open: type in the prompt box, Enter answers.${done ? ` ${done[0]!.toUpperCase()}${done.slice(1)}: see the summary.` : ''}` }
   })
 
@@ -1617,7 +2116,8 @@ export const register: Register = on => {
       await update($, promptAtom, () => '')
       await recordSay($, q, it.text)
       // Finding where filter 1's answer is recorded, or talking it through.
-      const context = c.declining?.stage === 'place' ? placeContext(q, returned) : discussionContext(q, returned, c.editing ? c.answer?.text : undefined)
+      const context =
+        c.declining?.stage === 'place' ? placeContext(q, returned, c.replies) : discussionContext(q, returned, c.editing ? c.answer?.text : undefined, c.replies)
       return next({ ...e, context: [...(e.context ?? []), context] })
     }
     afterDrop = { dropped: e.text, text: '' }
@@ -1710,11 +2210,13 @@ export const register: Register = on => {
     const at = Math.min(Math.max(cursor, 0), N)
     const base = at < N ? QUESTIONS[at] : undefined
     const count = (kind: Answer['kind']) => QUESTIONS.filter(one => answers[one.id]?.kind === kind).length
-    const relayed = count('answer')
+    // A recorded answer Adam chose to relay counts as relayed, not as done for him.
+    const chosenRecords = QUESTIONS.filter(one => answers[one.id]?.kind === 'recorded' && answers[one.id]?.chosen).length
+    const relayed = count('answer') + chosenRecords
     const deferred = count('defer')
     const waiting = count('wait')
     const wont = count('wont')
-    const recorded = count('recorded')
+    const recorded = count('recorded') - chosenRecords
     // Handled by the session, or by Adam for the inquisitor (won't-answer reason 3).
     const mine = QUESTIONS.filter(one => answers[one.id]?.kind === 'handled' && answers[one.id]?.chosen).length
     const handledCount = count('handled') - mine
@@ -1734,7 +2236,13 @@ export const register: Register = on => {
     // row tall, so a view can count what it draws and give things up, in a
     // fixed order, until it fits.
     type Row = RenderElement
-    const blank = (): Row => <Text> </Text>
+    // Blank rows are known by identity, so a column cut can skip them.
+    const blanks = new WeakSet<object>()
+    const blank = (): Row => {
+      const row = <Text> </Text>
+      if (typeof row === 'object' && row !== null) blanks.add(row)
+      return row
+    }
     const plain = (text: string, style: { dim?: boolean; bold?: boolean; color?: string } = {}): Row => (
       <Text wrap="truncate-end" dimColor={style.dim} bold={style.bold} color={style.color}>
         {text || ' '}
@@ -1788,7 +2296,7 @@ export const register: Register = on => {
     // What the relay account posts, exactly: "User says: …" behind a bar, at
     // most `max` lines, the last cut with an ellipsis.
     const bubble = (text: string | undefined, color: string, width: number, max: number, prefix = PREFIX): Row[] => {
-      let lines = wrap(prefix + (text ?? '…'), Math.max(10, width - 2))
+      let lines = wrapLines(prefix + (text ?? '…'), Math.max(10, width - 2))
       if (lines.length > max) lines = [...lines.slice(0, Math.max(1, max) - 1), cut(lines.slice(Math.max(1, max) - 1).join(' '), width - 3)]
       // The prefix is dim, unless it is one of the session's own: those say
       // who posted, and stand out.
@@ -1812,7 +2320,7 @@ export const register: Register = on => {
 
     const dots = QUESTIONS.map((one, i) => {
       const a = answers[one.id]
-      const glyph = i === at && (!a || isTalking) ? (isTalking ? '◇' : '◉') : !a ? '○' : GLYPH[a.kind]
+      const glyph = i === at && (!a || isTalking) ? (isTalking ? '◇' : '◉') : !a ? '○' : glyphOf(a)
       const color = i === at ? ACCENT : !a ? RULE : TONE[a.kind]
       // A click on a dot opens that question.
       return (
@@ -1891,6 +2399,10 @@ export const register: Register = on => {
         <Text color={LATER} wrap="truncate-end">
           {it.why}
         </Text>
+      ) : flash?.startsWith(NOT_POSTED) ? (
+        <Text color={LATER} wrap="truncate-end">
+          {flash}
+        </Text>
       ) : flash ? (
         <Text color={DONE} wrap="truncate-end">
           ✓ {flash}
@@ -1898,11 +2410,16 @@ export const register: Register = on => {
       ) : null
     // Narrower than 100 columns the commands sit closer, so the row holds them all.
     const keyGap = cols >= 100 ? 3 : 2
-    const keys = (hints: [string, string][], shown: Command[]) => (
+    const keys = (allHints: [string, string][], shown: Command[]) => {
+      // The commands come first: where the row can't hold them all, the
+      // digits' hint gives way (a recorded answer's (a)gree on a narrow band).
+      const length = [...allHints.map(([key, what]) => `${key}: ${what}`), ...shown.filter(cmd => !cmd.aside).map(cmd => cmd.what)].reduce((n, w) => n + w.length + keyGap, 0)
+      const hints = length > cols ? [] : allHints
+      return (
       <Box height={1} overflow="hidden" justifyContent="space-between" width={cols} gap={keyGap}>
         <Box columnGap={keyGap} flexShrink={0}>
           {hints.map(([key, what]) => keyText(key, what))}
-          {shown.filter(cmd => !AT_RIGHT.includes(cmd.key)).map(keyButton)}
+          {shown.filter(cmd => !AT_RIGHT.includes(cmd.key) && !cmd.aside).map(keyButton)}
         </Box>
         {/* Back, next and quit always in the same place, at the right, for
             quick back and forth by click. */}
@@ -1914,7 +2431,8 @@ export const register: Register = on => {
           </Box>
         </Box>
       </Box>
-    )
+      )
+    }
 
     // The band at its full height; a body of fewer `rows` makes it shorter
     // and gives the conversation above the rest. The rule on top parts the
@@ -1972,7 +2490,7 @@ export const register: Register = on => {
       const whoWidth = Math.min(20, Math.max(...handled.map(x => x.one.asker.name.length), 0) + 2)
       const placeWidth = Math.min(36, Math.max(...handled.map(x => x.one.where.length), 0) + 2)
       const itemRow = ({ one, i, a }: (typeof handled)[number]): Row => {
-        const glyph = GLYPH[a!.kind]
+        const glyph = glyphOf(a!)
         const color = TONE[a!.kind]
         const who = cut(one.asker.name, whoWidth - 2).padEnd(whoWidth)
         const place = cut(one.where, placeWidth - 2).padEnd(placeWidth)
@@ -1984,7 +2502,7 @@ export const register: Register = on => {
               ? `│ asked: ${a!.text}`
               : a!.kind === 'wont'
                 ? `│ won't answer: ${REASONS[a!.reason ?? 1].label.toLowerCase()}`
-                : `│ ${a!.kind === 'handled' && a!.chosen ? 'you chose · ' : ''}${prefixOf(a!)}${a!.text}`
+                : `│ ${a!.chosen ? 'you chose · ' : a!.elsewhere ? 'from another machine · ' : ''}${one.branch && a!.kind === 'answer' ? 'logged · ' : prefixOf(a!)}${a!.text.replace(/\n/g, ' ')}`
         const room = Math.max(0, W - 2 - who.length - place.length)
         return (
           <Box height={1} overflow="hidden">
@@ -2031,11 +2549,15 @@ export const register: Register = on => {
     const open = c.open
     // `a` and Enter agree with a suggested verdict: the preview shows what it posts.
     const verdictChosen = it.kind === 'command' && it.command.key === 'a' && !!q.verdict
-    const message = it.kind === 'option' || it.kind === 'relay' ? it.text : verdictChosen ? q.verdict?.reply : undefined
+    // `a` and Enter relay filter 1's recorded answer: the preview shows it too.
+    const recordChosen = it.kind === 'command' && it.command.key === 'a' && !!q.record
+    const message =
+      it.kind === 'option' || it.kind === 'relay' ? it.text : verdictChosen ? q.verdict?.reply : recordChosen && q.record ? recordPost(q.record) : undefined
     const isHuman = !q.options
     const turns = talks[q.id] ?? []
     const busy = thinking[q.id]
-    const postsAs = `on ${SURFACE_NAME[q.surface]} as`
+    // A questions-branch question has no thread: its answer is a log file there.
+    const postsAs = q.branch ? 'on the questions branch as' : `on ${SURFACE_NAME[q.surface]} as`
 
     // Where it was asked (a link to it) and by whom: two rows, or one.
     const asked =
@@ -2051,8 +2573,28 @@ export const register: Register = on => {
       recorded: 'answered for you · ',
       handled: 'handled for you · ',
     }
-    const stateText = answer?.kind === 'handled' && answer.chosen ? 'handled by your choice · ' : answer ? STATE[answer.kind] : undefined
+    const stateText =
+      answer?.kind === 'handled' && answer.chosen
+        ? 'handled by your choice · '
+        : answer?.kind === 'recorded' && answer.chosen
+          ? q.branch
+            ? 'logged · '
+            : 'record posted · '
+          : answer
+            ? STATE[answer.kind]
+            : undefined
     const state = stateText ? <Text color={answer ? TONE[answer.kind] : undefined}>{stateText}</Text> : ''
+    // What reading the thread found, after the age: it is read as the question comes on screen.
+    const heard = others(c.replies).length
+    const threadNote = q.branch
+      ? ''
+      : c.reading
+        ? ' · reading the thread…'
+        : c.isRead
+          ? heard
+            ? ` · ${heard} ${heard === 1 ? 'reply' : 'replies'}`
+            : ' · no replies'
+          : ''
     const provenance = (lines: 0 | 1 | 2): Row[] => {
       if (lines === 0) return []
       const source = (
@@ -2067,7 +2609,7 @@ export const register: Register = on => {
             {source}
             <Text dimColor wrap="truncate-end">
               {state}
-              {q.age} ago
+              {q.age} ago{threadNote}
             </Text>
           </Box>,
           <Text wrap="truncate-end">
@@ -2088,7 +2630,7 @@ export const register: Register = on => {
             <Text dimColor>
               {' '}
               · {state}
-              {q.age} ago
+              {q.age} ago{threadNote}
             </Text>
           </Text>
         </Box>,
@@ -2120,7 +2662,7 @@ export const register: Register = on => {
     const postRows = (text: string, width: number, max: number, verb = 'Post', prefix = PREFIX): Row[] => {
       const where = `${verb} ${postsAs}`.toUpperCase()
       const head = `${where} ${q.relayAs}: `
-      let lines = wrap(head + prefix + text, Math.max(10, width))
+      let lines = wrapLines(head + prefix + text, Math.max(10, width))
       if (lines.length > max) lines = [...lines.slice(0, Math.max(1, max) - 1), cut(lines.slice(Math.max(1, max) - 1).join(' '), width)]
       return lines.map((line, i) =>
         i === 0 && line.startsWith(head) ? (
@@ -2138,6 +2680,170 @@ export const register: Register = on => {
         ),
       )
     }
+    // ── what came after the question: its thread's replies, filter 1's record ──
+
+    const isNew = (r: Reply) => c.fresh !== undefined && c.replies.indexOf(r) >= c.fresh
+    // Beside what they open or move: everything in full, and (prototype
+    // only) the other of the two designs, to compare them in place.
+    const viewButton = (
+      <Box gap={2} flexShrink={0}>
+        <Button key="view" plain dimColor onPress={() => run(pressKey($, 'v'))}>
+          (v)iew all
+        </Button>
+        <Button key="layout" plain dimColor onPress={() => run(toggleLayout($))}>
+          {!isWide ? '⇄ move' : c.layout === 'beside' ? '⇄ move left' : '⇄ move right'}
+        </Button>
+      </Box>
+    )
+    const replyHead = (r: Reply): Row => (
+      <Text wrap="truncate-end">
+        <Text bold color={isNew(r) ? ACCENT : undefined}>
+          {r.who}
+        </Text>
+        <Text dimColor>
+          {r.role === 'asker' ? ' · the asker' : ''} · {ago(r.age)}
+        </Text>
+        {isNew(r) ? <Text color={ACCENT}> · new</Text> : ''}
+      </Text>
+    )
+    // A reply's words behind a bar, as a quote: at most `max` lines, the last cut.
+    const replyBody = (r: Reply, width: number, max: number): Row[] => {
+      let lines = wrap(r.text, Math.max(10, width - 2))
+      if (lines.length > max) lines = [...lines.slice(0, Math.max(1, max) - 1), cut(lines.slice(Math.max(1, max) - 1).join(' '), width - 2)]
+      return lines.map(line => (
+        <Text wrap="truncate-end">
+          <Text dimColor>│ </Text>
+          {line}
+        </Text>
+      ))
+    }
+    // A reply in one row: who, then as much as fits.
+    const replyLine = (r: Reply): Row => (
+      <Text wrap="truncate-end">
+        <Text bold color={isNew(r) ? ACCENT : undefined}>
+          {r.who}
+        </Text>
+        <Text dimColor>{r.role === 'asker' ? ' (the asker)' : ''}: </Text>
+        {r.text}
+      </Text>
+    )
+    /** The replies since the question, oldest first, as many and as much as the trim allows. */
+    const threadRows = (t: Trim, width: number): Row[] => {
+      const list = others(c.replies)
+      const n = list.length
+      if (!n) return []
+      const fresh = list.filter(isNew).length
+      const words = `${n} ${n === 1 ? 'REPLY' : 'REPLIES'} SINCE IT WAS ASKED`
+      const head = (more = ''): Row => (
+        <Box height={1} overflow="hidden" gap={3}>
+          <Box flexShrink={1}>
+            <Text wrap="truncate-end">
+              <Text color={ACCENT}>↩ </Text>
+              <Text dimColor>{words}</Text>
+              {fresh ? (
+                <Text color={ACCENT} bold>
+                  {` · ${fresh} NEW`}
+                </Text>
+              ) : (
+                ''
+              )}
+              <Text dimColor>{more}</Text>
+            </Text>
+          </Box>
+          {viewButton}
+        </Box>
+      )
+      if (t.replies === 'count') return [head(` · latest ${list[n - 1]!.who}`)]
+      const last = list[n - 1]!
+      if (t.replies === 'lines') {
+        const shown = list.slice(-3)
+        return [head(), ...(n > shown.length ? [plain(`▸ ${n - shown.length} earlier`, { dim: true })] : []), ...shown.map(replyLine)]
+      }
+      if (t.replies === 'latest') return [head(), ...list.slice(0, -1).map(replyLine), replyHead(last), ...replyBody(last, width, 3)]
+      return [
+        head(),
+        ...list.flatMap((r, i) => [...(i > 0 && t.optionGap ? [blank()] : []), replyHead(r), ...replyBody(r, width, 6)]),
+      ]
+    }
+    /**
+     * Filter 1's recorded answer, shown rather than posted by itself: `record`
+     * is the record (its heading, a link; where; what it says), `act` why it
+     * was not posted and agreeing to relay it, `all` both.
+     */
+    const recordRows = (t: Trim, width: number, part: 'all' | 'record' | 'act'): Row[] => {
+      const r = q.record
+      if (!r) return []
+      const head = (
+        <Box height={1} overflow="hidden" gap={3}>
+          <Box flexShrink={1}>
+            <Text wrap="truncate-end">
+              <Text color={DONE}>{GLYPH.recorded} </Text>
+              <Text dimColor>{part === 'act' ? 'RECORDED ANSWER · FILTER 1 · BESIDE THE QUESTION' : 'RECORDED ANSWER · FILTER 1'}</Text>
+            </Text>
+          </Box>
+          {part === 'act' ? null : viewButton}
+        </Box>
+      )
+      const record: Row[] = t.record === 'head' ? [] : [
+        <Text wrap="truncate-end">
+          <Link href={r.url}>{r.title}</Link>
+        </Text>,
+        ...(t.record === 'line'
+          ? []
+          : [
+              plain(`${r.repo} ${r.file} · ${r.visibility} · ${r.by}`, { dim: true }),
+              ...replyBody({ who: '', age: '', text: r.excerpt }, width, t.record === 'full' ? 3 : 1),
+            ]),
+      ]
+      const why =
+        r.why === 'private'
+          ? 'Not posted by itself: the record is private and this thread public. (a)gree posts its link, which shows the record exists.'
+          : 'Not posted by itself: a questions-branch file has no thread. (a)gree logs it as the answer, in a new file there.'
+      // Why it was not posted outlasts the options' effects: for a private record it says what agreeing exposes.
+      const whyRows = t.record === 'head' ? [] : t.record === 'line' ? [plain(why, { dim: true })] : wrap(why, width).map(line => plain(line, { dim: true }))
+      const agree: Row[] =
+        open && answer?.kind !== 'recorded'
+          ? [
+              <Box height={1} overflow="hidden">
+                <Text color={ACCENT}>{recordChosen ? '▌ ' : '  '}</Text>
+                <Button key="record" plain onPress={() => run(putInBox($, 'a'))}>
+                  <Text color={ACCENT}>(a)</Text>
+                  <Text bold={recordChosen} color={recordChosen ? ACCENT : undefined} dimColor={!recordChosen}>
+                    gree: {q.branch ? 'log the recorded answer' : 'post the recorded answer'}
+                  </Text>
+                </Button>
+              </Box>,
+            ]
+          : []
+      // The smallest band: one row says there is one, and agrees to it.
+      if (t.record === 'head' && part !== 'record' && agree.length) {
+        return [
+          <Box height={1} overflow="hidden" gap={2}>
+            <Text color={DONE}>{GLYPH.recorded}</Text>
+            <Text dimColor>RECORDED ANSWER</Text>
+            <Button key="record" plain onPress={() => run(putInBox($, 'a'))}>
+              <Text color={ACCENT}>(a)</Text>
+              <Text bold={recordChosen} color={recordChosen ? ACCENT : undefined} dimColor={!recordChosen}>
+                gree: {q.branch ? 'log it' : 'post it'}
+              </Text>
+            </Button>
+            {viewButton}
+          </Box>,
+        ]
+      }
+      if (part === 'record') return [head, ...record]
+      if (part === 'act') return [head, ...whyRows, ...agree]
+      return [head, ...record, ...whyRows, ...agree]
+    }
+    // Where they go: beside the choices (right), or under the question (left).
+    // Under the question, the right keeps why the record was not posted and agreeing to it.
+    const evidence = (t: Trim, width: number, g: (gap: Gap) => number, side: 'left' | 'right'): Row[] => {
+      const isOpen = open && !c.posted
+      if (side === 'left') return c.layout === 'under' ? stack([recordRows(t, width, 'record'), threadRows(t, width)], [g('thread')]) : []
+      if (c.layout === 'under') return isOpen ? recordRows(t, width, 'act') : []
+      return stack([recordRows(t, width, isOpen ? 'all' : 'record'), threadRows(t, width)], [g('thread')])
+    }
+
     const questionColumn = (t: Trim, width: number, g: (gap: Gap) => number): Row[] => {
       // Beside an asker's reply the context matters less than the reply: it
       // gives way a step sooner, and the reply is never cut.
@@ -2197,7 +2903,10 @@ export const register: Register = on => {
             ]
           : []),
       ]
-      return stack([provenance(t.provenance), [...changeMark, ...questionRows(width)], context, reply, related], [g('question'), g('context'), g('reply'), g('related')])
+      return stack(
+        [provenance(t.provenance), [...changeMark, ...questionRows(width)], context, evidence(t, width, g, 'left'), reply, related],
+        [g('question'), g('context'), g('thread'), g('reply'), g('related')],
+      )
     }
 
     // The right column: the answers to choose from, then what will post; or
@@ -2207,21 +2916,22 @@ export const register: Register = on => {
       if (d?.stage === 'reason') return reasonsColumn(t, width)
       if (d?.stage === 'filter') return filtersColumn(t, width)
       if (d) return inquisitorColumn(d, t, width, g)
-      if (answer?.kind === 'wont') return wontColumn(answer, t, width)
-      if (answer && c.posted && (c.editing || answer.kind !== 'handled' || answer.chosen)) return postColumn(answer, t, width)
+      const seen = evidence(t, width, g, 'right')
+      if (answer?.kind === 'wont') return stack([seen, wontColumn(answer, t, width)], [g('thread')])
+      if (answer && c.posted && (c.editing || answer.kind !== 'handled' || answer.chosen)) return stack([seen, postColumn(answer, t, width)], [g('thread')])
       const choose = chooseColumn(t, width, g)
       // Handled for Adam: the session's reply, and he can still answer it himself.
-      if (answer?.kind === 'handled') return stack([postColumn(answer, t, width), choose], [g('related')])
-      return stack([q.verdict ? verdictRows(q.verdict, t, width) : [], choose], [g('related')])
+      if (answer?.kind === 'handled') return stack([seen, postColumn(answer, t, width), choose], [g('thread'), g('related')])
+      return stack([seen, q.verdict ? verdictRows(q.verdict, t, width) : [], choose], [g('thread'), g('related')])
     }
 
     // A post in the thread: Adam's relay, his question to the asker, or one
     // of the session's own; while it is edited, the new version under it.
     const postColumn = (a: Answer, t: Trim, width: number): Row[] => {
       const HEAD: Record<'answer' | 'wait' | 'recorded' | 'handled', [string, string]> = {
-        answer: ['✓', `Relayed ${postsAs}`],
+        answer: ['✓', q.branch ? `Logged ${postsAs}` : a.elsewhere ? `Relayed from another machine ${postsAs}` : `Relayed ${postsAs}`],
         wait: ['◌', `Waiting for ${q.asker.name}. Asked ${postsAs}`],
-        recorded: [GLYPH.recorded, `Answered for you ${postsAs}`],
+        recorded: [glyphOf(a), a.chosen ? `${q.branch ? 'Logged' : 'Posted'} the recorded answer ${postsAs}` : `Answered for you ${postsAs}`],
         handled: [GLYPH.handled, a.chosen ? `Handled by your choice ${postsAs}` : `Handled for you ${postsAs}`],
       }
       const [glyph, words] = HEAD[a.kind as keyof typeof HEAD] ?? HEAD.answer
@@ -2238,7 +2948,8 @@ export const register: Register = on => {
           <Link href={q.link}>{a.edited ? 'edited · view' : 'view'}</Link>
         </Box>
       )
-      const posted = bubble(a.text, c.editing ? RULE : TONE[a.kind], width, t.bubble, prefixOf(a))
+      // A questions-branch answer is a log file, not a relay post: no prefix.
+      const posted = bubble(a.text, c.editing ? RULE : TONE[a.kind], width, t.bubble, q.branch && a.kind === 'answer' ? '' : prefixOf(a))
       if (c.editing) {
         return [
           headRow,
@@ -2256,6 +2967,14 @@ export const register: Register = on => {
           ? `The real skill logs a miss against filter ${n} (${FILTERS[n].name})${a.said ? ', with what you said:' : '.'}`
           : a.edited
             ? ''
+            : a.kind === 'recorded' && a.chosen
+              ? q.branch
+                ? 'Nothing was posted: a new log file on the questions branch holds it as the answer.'
+                : 'You chose to post it: the link names the private record, which only people with access can open.'
+            : q.branch && a.kind === 'answer'
+              ? 'Nothing was posted: a new log file on the questions branch holds your answer, as you wrote it.'
+            : a.elsewhere
+              ? `Read from the thread: your relay posted it from another machine, ${ago(ownPost(c.replies)?.age ?? 'a while')}.`
             : a.kind === 'recorded'
               ? 'Filter 1 found a recorded answer with authority, so the session posted it for you.'
               : a.kind === 'handled'
@@ -2492,9 +3211,13 @@ export const register: Register = on => {
         ? [ownWords]
         : [...options, ...(t.ownWords || isWriting ? [...(t.optionGap ? [blank()] : []), ownWords] : [])]
       // What will post, exactly, once there is something to post.
-      const preview: Row[] = message ? [...postRows(message, width, t.preview === 'line' ? 1 : t.bubble), ...(t.logNote ? logNote(width) : [])] : []
-      // Under the session's own reply the label parts the two, so it stays as long as the related decision does.
-      const heading = answer?.kind === 'handled' ? (t.related ? [label('Or answer it yourself')] : []) : t.label && !isHuman ? [label('Choose an answer')] : []
+      // A recorded answer posts with its own prefix; a questions-branch answer is logged, with none.
+      const prefix = recordChosen ? RECORDED : q.branch ? '' : PREFIX
+      const preview: Row[] = message
+        ? [...postRows(message, width, t.preview === 'line' ? 1 : t.bubble, q.branch ? 'Log' : 'Post', prefix), ...(t.logNote ? logNote(width) : [])]
+        : []
+      // Under the session's own reply, or a recorded answer, the label parts the two, so it stays as long as the related decision does.
+      const heading = answer?.kind === 'handled' || q.record ? (t.related ? [label('Or answer it yourself')] : []) : t.label && !isHuman ? [label('Choose an answer')] : []
       return stack([heading, choose, preview], [0, g('preview')])
     }
     // What the real skill logs beside an answer to a changed question.
@@ -2504,6 +3227,71 @@ export const register: Register = on => {
       return wrap(`Logged with the answer in the real skill, not posted: the question as ${rephrased ? 'rephrased' : 'revised'}${summary}`, width - 2).map(line =>
         plain(`  ${line}`, { dim: true }),
       )
+    }
+
+    // ── everything since the question, in full ───────────────────────────
+    //
+    // The recorded answer and every reply, whole, over the whole band: on a
+    // wide strip in two columns, read down the left and on down the right;
+    // more than fits goes on (m)ore pages.
+    if (c.viewing !== undefined && !isTalking) {
+      const width = isWide ? Math.min(LW, RW) : cols
+      const r = q.record
+      const list = others(c.replies)
+      const rows: Row[] = [
+        ...questionRows(width),
+        ...(r
+          ? [
+              blank(),
+              <Text wrap="truncate-end">
+                <Text color={DONE}>{GLYPH.recorded} </Text>
+                <Text dimColor>RECORDED ANSWER · THE INQUISITOR'S FILTER 1</Text>
+              </Text>,
+              <Text wrap="truncate-end">
+                <Link href={r.url}>{r.title}</Link>
+              </Text>,
+              plain(`${r.repo} ${r.file} · ${r.visibility} · decided by ${r.by}`, { dim: true }),
+              ...replyBody({ who: '', age: '', text: r.excerpt }, width, 99),
+            ]
+          : []),
+        ...(list.length
+          ? [
+              blank(),
+              <Text wrap="truncate-end">
+                <Text color={ACCENT}>↩ </Text>
+                <Text dimColor>{`${list.length} ${list.length === 1 ? 'REPLY' : 'REPLIES'} SINCE IT WAS ASKED, OLDEST FIRST`}</Text>
+              </Text>,
+              ...list.flatMap((one, i) => [...(i > 0 ? [blank()] : []), replyHead(one), ...replyBody(one, width, 99)]),
+            ]
+          : []),
+      ]
+      // Cut into columns of the body's height, none starting on a blank row.
+      const chunks: Row[][] = []
+      let rest = rows
+      while (rest.length) {
+        const chunk = rest.slice(0, B - 1)
+        chunks.push(chunk)
+        rest = rest.slice(chunk.length)
+        while (rest.length && typeof rest[0] === 'object' && rest[0] !== null && blanks.has(rest[0])) rest = rest.slice(1)
+      }
+      const per = isWide ? 2 : 1
+      const pages = Math.max(1, Math.ceil(chunks.length / per))
+      const page = c.viewing % pages
+      const head: Row = (
+        <Text wrap="truncate-end">
+          <Text dimColor>{`${pages > 1 && !isWide ? `PAGE ${page + 1} OF ${pages} · ` : ''}EVERYTHING SINCE THE QUESTION · `}</Text>
+          <Link href={q.link}>{q.where}</Link>
+          <Text dimColor>
+            {' '}
+            · {q.asker.name} asked {ago(q.age)}
+          </Text>
+        </Text>
+      )
+      const left = [head, ...(chunks[page * per] ?? [])]
+      const right = [pages > 1 ? plain(`page ${page + 1} of ${pages} · (m)ore`, { dim: true }) : blank(), ...(chunks[page * per + 1] ?? [])]
+      const shown = cmds.filter(cmd => cmd.key !== 'm' || pages > 1)
+      const body = isWide ? columns(left, right, LW, RW, false) : <Box flexDirection="column">{left}</Box>
+      return frame(body, [], shown)
     }
 
     if (!isTalking) {

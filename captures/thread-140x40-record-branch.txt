@@ -1,0 +1,40 @@
+
+ ▐▛███▛█   Claude Code v2.1.310
+▝▜██████▀  Opus 5.5 · Claude Max
+ ▝▝   ▝▝   ~/shared-skills
+
+⚠ Ask rule Advisor matches no tool · check for typos
+
+❯ /answer
+  ⎿  answer-session: Answer session open: type in the prompt box, Enter answers. 1 answered and 1 handled for you: see the summary.
+
+
+
+
+
+
+
+
+
+
+
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── [-]
+Answer session  ○ ○ ○ ○ ◎ ○ ○ ○ ◈ ○ ○ ○ ○ ○ ○ ○ ◉  summary  17 of 17 · 15 new · 0 relayed · 0 for later · 2 done for you        v0.1-31
+GitHub  adamstallard/lore · questions branch  40m ago          │ ◎ RECORDED ANSWER · FILTER 1   (v)iew all  ⇄ move left
+Igor (worker) asks, an agent via its inquisitor role           │ Retries back off exponentially, with full jitter
+                                                               │ adamstallard/igor DECISIONS.md · public · adamstallard, 2026-08-12
+                                                               │ │ Every retry waits a random time between zero and the capped exponen…
+Should retry backoff add jitter, and if so how much?           │ Not posted by itself: a questions-branch file has no thread. (a)gree
+                                                               │ logs it as the answer, in a new file there.
+                                                               │   (a)gree: log the recorded answer
+Logged by a worker on igor #219. Its handback tagged no one,   │ OR ANSWER IT YOURSELF
+so the question waits on the questions branch.                 │   1: Full jitter  ★ recommended
+                                                               │      → Each retry waits a random time up to the capped delay.
+                                                               │   2: No jitter
+                                                               │      → Retries stay predictable; workers that failed together retry t…
+1–2: choose   (t)alk to Claude   (a)gree   (w)on't answer   (l)ater                                            (b)ack   (n)ext   (q)uit
+                                                                                                                        ◐ medium · /effort
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── shared-skills ─
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on (shift+tab to cycle) · ← for agents · a number, a key or your answer, then ⏎ · 5h 9% Sun 1:30a · 7d 63% ⇡ Sat 2a

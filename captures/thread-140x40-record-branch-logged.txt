@@ -1,0 +1,40 @@
+
+ ▐▛███▛█   Claude Code v2.1.310
+▝▜██████▀  Opus 5.5 · Claude Max
+ ▝▝   ▝▝   ~/shared-skills
+
+⚠ Ask rule Advisor matches no tool · check for typos
+
+❯ /answer
+  ⎿  answer-session: Answer session open: type in the prompt box, Enter answers. 1 answered and 1 handled for you: see the summary.
+
+⏺ Prompt dropped by a hook: Logged the recorded answer on adamstallard/lore's questions branch, in a new file; nothing posted
+
+
+
+
+
+
+
+
+
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── [-]
+Answer session  ○ ○ ○ ○ ◎ ○ ○ ○ ◈ ○ ○ ○ ○ ○ ○ ○ ●  summary  17 of 17 · 14 new · 1 relayed · 0 for later · 2 done for you        v0.1-31
+GitHub  adamstallard/lore · questions branch  logged · 40m ago │ ◎ RECORDED ANSWER · FILTER 1   (v)iew all  ⇄ move left
+Igor (worker) asks, an agent via its inquisitor role           │ Retries back off exponentially, with full jitter
+                                                               │ adamstallard/igor DECISIONS.md · public · adamstallard, 2026-08-12
+                                                               │ │ Every retry waits a random time between zero and the capped
+Should retry backoff add jitter, and if so how much?           │ │ exponential delay, so workers that failed together don't retry
+                                                               │ │ together. The cap stays at 30 s.
+                                                               │ ● LOGGED THE RECORDED ANSWER ON THE QUESTIONS BRANCH AS adamsta…  view
+Logged by a worker on igor #219. Its handback tagged no one,   │ │ Recorded answer: see the record below.
+so the question waits on the questions branch.                 │ │ Recorded in:
+                                                               │ │ https://github.com/adamstallard/igor/blob/main/DECISIONS.md#retry-ji
+                                                               │ │ tter
+                                                               │ Nothing was posted: a new log file on the questions branch holds it a…
+                                                                                                               (b)ack   (n)ext   (q)uit
+                                                                                                                        ◐ medium · /effort
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── shared-skills ─
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on (shift+tab to cycle) · ← for agents · a key or your answer, then ⏎ · 5h 9% Sun 1:30a · 7d 63% ⇡ Sat 2a

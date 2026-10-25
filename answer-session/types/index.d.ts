@@ -50,13 +50,44 @@ export type Answer = {
   reason?: 1 | 2
   /** For `handled`: the filter whose reply was posted. */
   filter?: Filter
-  /** For `handled`: true when Adam chose it (won't-answer reason 3) rather than the session. */
+  /**
+   * For `handled`: true when Adam chose it (won't-answer reason 3) rather than
+   * the session. For `recorded`: Adam relayed filter 1's recorded answer,
+   * shown to him rather than posted by itself.
+   */
   chosen?: true
   /** For a `handled` Adam chose: the note he typed with it, the miss's "what was said". */
   said?: string
   /** For an answer Adam relayed over the session's own post: that post, prefix included. */
   over?: string
+  /**
+   * For `answer`: read from the thread, not posted here. The relay's own
+   * reply was there already, posted from another machine.
+   */
+  elsewhere?: true
 }
+
+/**
+ * What the session knows of a question's thread from its last read. Prototype
+ * only: the replies are the question's made-up ones; reading reveals them.
+ */
+export type ThreadSeen = {
+  /** Clock time of the last read. A question on screen is read again once this is about a minute old. */
+  readAt: number
+  /** How many replies the person has been shown. A post finds more since: it stops, and shows them. */
+  shown: number
+  /** Replies from this index on were found by the read before a post: marked new. */
+  fresh?: number
+  /** Prototype only: the made-up late reply has landed in the thread. */
+  late?: true
+}
+
+/**
+ * Where the replies since the question and filter 1's recorded answer go:
+ * `beside` the choices, in the right column, or `under` the question, in the
+ * left. Prototype only: two designs to compare, switched with /answer layout.
+ */
+export type Layout = 'beside' | 'under'
 
 /** One message in a question's discussion. */
 export type Turn = {
@@ -131,6 +162,14 @@ declare module 'claude-code' {
       declining: Declining | null
       /** Askers' replies to clarifying questions, by question id. */
       returned: Record<string, Returned>
+      /** Each question's thread as last read, by question id. */
+      threads: Record<string, ThreadSeen>
+      /** Questions whose thread is being read, by id. */
+      reading: Record<string, true>
+      /** The question whose replies and record are shown in full, and the page; null on the question view. */
+      viewing: { id: string; page: number } | null
+      /** Where replies and the recorded answer go. */
+      layout: Layout
       /**
        * True while the answer session is open: the band above the prompt
        * shows it, and Enter in the prompt box acts in it (only a discussion

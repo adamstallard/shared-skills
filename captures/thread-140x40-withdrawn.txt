@@ -1,0 +1,40 @@
+
+⚠ Ask rule Advisor matches no tool · check for typos
+
+❯ /answer
+  ⎿  answer-session: Answer session open: type in the prompt box, Enter answers. 1 answered and 1 handled for you: see the summary.
+
+⏺ Prompt dropped by a hook: Question 2 of 17
+
+⏺ Prompt dropped by a hook: Relayed to GitHub adamstallard/shared-skills #34 as adam-relay[bot]
+
+⏺ Prompt dropped by a hook: Not posted: Sara Lind replied since you last read the thread. Read it, then ⏎ again.
+
+⏺ Prompt dropped by a hook: Relayed to Linear ENG-437 · Status page as adam-relay (Linear app)
+
+⏺ Prompt dropped by a hook: Everything since the question, in full
+
+⏺ Prompt dropped by a hook: Back to the question
+
+❯ /answer
+  ⎿  answer-session: Layout: replies and the recorded answer beside the choices
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── [-]
+Answer session  ○ ○ ○ ○ ◎ ○ ○ ○ ◈ ○ ○ ◉ ○ ○ ● ● ○  summary  12 of 17 · 13 new · 2 relayed · 0 for later · 2 done for you        v0.1-31
+                                                               │
+                                                               │
+Discord  #ops  50m ago · 1 reply                               │ ↩ 1 REPLY SINCE IT WAS ASKED   (v)iew all  ⇄ move left
+Lena Fischer asks                                              │ Lena Fischer · the asker · 12m ago
+                                                               │ │ Never mind: the deploy lock in #deploys was free, so I flushed it.
+                                                               │ │ Ignore this one.
+Can I flush the CDN cache for the docs site now, or is someone │
+mid-deploy?                                                    │
+                                                               │   Reply to Lena Fischer: type it in the prompt box
+                                                               │
+                                                               │
+                                                               │
+(h)elp me answer   (w)on't answer   (l)ater                                                                    (b)ack   (n)ext   (q)uit
+
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── shared-skills ─
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on (shift+tab to cycle) · a key or your answer, then ⏎ · 5h 8% Sun 1:30a · 7d 63% ⇡ Sat 2a

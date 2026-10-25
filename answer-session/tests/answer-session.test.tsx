@@ -129,7 +129,7 @@ for (const surface of SURFACES) {
     expect(await ui.find({ type: 'Text', text: /Relayed to GitHub/ })).toBeDefined()
 
     // Back to the first: it now shows what was relayed.
-    expect(await s.enter($, 'b')).toBe('Question 1 of 9')
+    expect(await s.enter($, 'b')).toBe('Question 1 of 17')
     await ui.redraw()
     expect(await ui.find({ type: 'Text', text: /RELAYED ON GITHUB AS/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /No, show them as input/ })).toBeDefined()
@@ -160,6 +160,24 @@ test('putting one off for later and relaying the rest ends on the summary', asyn
   // option. jlee's was answered for Adam and the last handled for him: the
   // queue passes them by.
   for (const text of ['ok', '1', '1', '1', 'ok', '1']) expect(await s.enter($, text)).toContain('Relayed')
+  // Then the ones whose threads hold replies, each read as it comes on
+  // screen: a teammate's answer, several replies, a withdrawal, a long reply.
+  for (const text of ['1', 'ok', 'ok', 'ok']) {
+    await s.clock.advance(1_000)
+    expect(await s.enter($, text)).toContain('Relayed')
+  }
+  // Ben's was answered from another machine: the read marks it, so n moves on.
+  await s.clock.advance(1_000)
+  expect(await s.enter($, 'ok')).toBe('This question is already relayed: (e)dit your post to change it.')
+  await s.enter($, 'n')
+  await s.clock.advance(1_000)
+  // Sara replies the moment a post is first tried: it stops, and the second Enter relays.
+  expect(await s.enter($, 'ok')).toContain('Not posted: Sara Lind replied')
+  expect(await s.enter($, 'ok')).toContain('Relayed')
+  // The recorded answers shown, not posted: answered in Adam's own words.
+  await s.clock.advance(1_000)
+  expect(await s.enter($, '2')).toContain('Relayed')
+  expect(await s.enter($, '1')).toContain("Logged your answer on adamstallard/lore's questions branch")
   await ui.redraw()
   expect(await ui.find({ type: 'Text', text: /Nothing new\. 1 for later\./ })).toBeDefined()
   await s.enter($, 'r')
@@ -287,7 +305,7 @@ test('a new session shows nothing until /answer', async ($, on) => {
 test('q, the close button and /answer close the band; /answer opens it again where it was', async ($, on) => {
   const s = answerSession(on)
   await s.open($)
-  expect(await s.enter($, 'n')).toBe('Question 2 of 9')
+  expect(await s.enter($, 'n')).toBe('Question 2 of 17')
   expect(await s.enter($, 'q')).toContain('Answer session closed')
   expect(await isShown($)).toBe(false)
   // Closed, a prompt reaches the model again.
@@ -296,7 +314,7 @@ test('q, the close button and /answer close the band; /answer opens it again whe
 
   await slash($, 'answer')
   const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
-  expect(await ui.find({ type: 'Text', text: /2 of 9/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /2 of 17/ })).toBeDefined()
   await ui.press({ key: 'cmd:q' })
   await ui.unmount()
   expect(await isShown($)).toBe(false)
@@ -313,12 +331,12 @@ test('a click on a dot opens that question; on summary, the summary; a summary r
   await ui.press({ key: 'dot:3' })
   await ui.redraw()
   expect(await ui.find({ type: 'Text', text: /Two lore entries disagree/ })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /4 of 9/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /4 of 17/ })).toBeDefined()
   // Enter acts on the question the dot opened.
   expect(await s.enter($, '2')).toContain('Relayed to Discord')
   await ui.press({ key: 'dot:summary' })
   await ui.redraw()
-  expect(await ui.find({ type: 'Text', text: /6 questions still new/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /14 questions still new/ })).toBeDefined()
   await ui.press({ key: 'sum:lore-backoff' })
   await ui.redraw()
   expect(await ui.find({ type: 'Text', text: /RELAYED ON DISCORD AS/ })).toBeDefined()
@@ -358,7 +376,7 @@ test('a click on an option puts its number in the box; Enter relays it', async (
   expect(await s.enter($, '1')).toContain('Relayed to GitHub')
   await ui.redraw()
   expect(await ui.find({ type: 'Text', text: /Reply to Maya Ortiz/ })).toBeDefined()
-  expect(await s.enter($, 'b')).toBe('Question 1 of 9')
+  expect(await s.enter($, 'b')).toBe('Question 1 of 17')
   await ui.redraw()
   expect(await ui.find({ type: 'Text', text: /Yes, filter them by the role's scope/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /RELAYED ON GITHUB AS/ })).toBeDefined()
@@ -402,7 +420,7 @@ test('a survey takes the band, and Enter answers nothing while it is up', async 
   expect(await s.enter($, '1')).toContain('A survey is above the prompt')
   await survey.unmount()
   const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
-  expect(await ui.find({ type: 'Text', text: /1 of 9/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /1 of 17/ })).toBeDefined()
   expect(await s.enter($, '1')).toContain('Relayed to GitHub')
   expect(s.sent).toEqual([])
   await ui.unmount()
@@ -506,8 +524,8 @@ test('rephrasing reads the discussion as it happened in the session, and keeps t
   expect(prompts[0]).toContain('You: It asks whether out-of-scope question files are hidden.')
   expect(await ui.find({ type: 'Text', text: /leave out questions-branch files/ })).toBeDefined()
   expect(await ui.find({ key: 'opt:igor-216-scope:0' })).toBeDefined()
-  // Same place in the queue: 1 of 9.
-  expect(await ui.find({ type: 'Text', text: /1 of 9/ })).toBeDefined()
+  // Same place in the queue: 1 of 17.
+  expect(await ui.find({ type: 'Text', text: /1 of 17/ })).toBeDefined()
 
   await s.enter($, 'o')
   await ui.redraw()
@@ -633,7 +651,7 @@ test('after the restart the band reopens by itself where it was', async ($, on) 
   await $.session.start({ cwd: '/work', surface: 'terminal', isInteractive: true })
   expect(store.has('reopen-after-restart')).toBe(false)
   const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
-  expect(await ui.find({ type: 'Text', text: /3 of 9/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /3 of 17/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /1 relayed/ })).toBeDefined()
   await ui.unmount()
 })
@@ -688,7 +706,7 @@ test("(w)on't answer offers three reasons; going back cancels; reason 1 records 
   expect(await s.enter($, 'b')).toBe("Kept claude's question open: nothing recorded")
   await ui.redraw()
   expect(await ui.find({ key: 'opt:igor-216-scope:0' })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /1 of 9/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /1 of 17/ })).toBeDefined()
 
   await s.enter($, 'w')
   await s.clock.advance(1_000)
@@ -701,7 +719,7 @@ test("(w)on't answer offers three reasons; going back cancels; reason 1 records 
   await ui.redraw()
   expect(await ui.find({ type: 'Text', text: /Reply to Maya Ortiz/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /1 won't answer/ })).toBeDefined()
-  expect(await s.enter($, 'b')).toBe('Question 1 of 9')
+  expect(await s.enter($, 'b')).toBe('Question 1 of 17')
   await ui.redraw()
   expect(await ui.find({ type: 'Text', text: /the thread is ended/ })).toBeDefined()
   expect(await ui.find({ key: 'cmd:r' })).toBeDefined()
@@ -769,7 +787,7 @@ test('reason 3 asks which filter should have stopped it; filter 4 previews the f
   )
   await ui.redraw()
   expect(await ui.find({ type: 'Text', text: /Reply to Maya Ortiz/ })).toBeDefined()
-  expect(await s.enter($, 'b')).toBe('Question 1 of 9')
+  expect(await s.enter($, 'b')).toBe('Question 1 of 17')
   await ui.redraw()
   expect(await ui.find({ type: 'Text', text: /HANDLED BY YOUR CHOICE ON GITHUB AS/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /handled by your choice/ })).toBeDefined()
@@ -901,7 +919,7 @@ test("for filter 1, Claude can help find where it is recorded and fill the place
   expect(await ui.find({ type: 'Text', text: /Claude filled in where it is recorded/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /Where is the answer recorded\?/ })).toBeDefined()
   // Nothing was posted yet; Enter takes the place, Enter again posts.
-  expect(await ui.find({ type: 'Text', text: /2 of 9/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /2 of 17/ })).toBeDefined()
   await s.enter($, 'the rollout runbook, flags under 25% need no review')
   expect(await s.enter($, 'p')).toContain("Answered Maya Ortiz's question for the inquisitor on Linear")
   expect(s.sent).toEqual(['Where did we decide this?'])
@@ -915,7 +933,7 @@ test('answering for the inquisitor posts nothing before Enter: clicks only type,
   const unchanged = async () => {
     await ui.press({ key: 'dot:summary' })
     await ui.redraw()
-    const same = await ui.find({ type: 'Text', text: /0 of 9 relayed this session · 1 answered for you · 1 handled for you$/ })
+    const same = await ui.find({ type: 'Text', text: /0 of 17 relayed this session · 1 answered for you · 1 handled for you$/ })
     await ui.press({ key: 'dot:0' })
     return same
   }
@@ -1020,7 +1038,7 @@ test("a person's question only shows a suggested verdict; agreeing is a key and 
   await ui.press({ key: 'verdict' })
   expect(s.filled).toEqual(['a', 'a'])
   await ui.redraw()
-  expect(await ui.find({ type: 'Text', text: /2 of 9/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /2 of 17/ })).toBeDefined()
   expect(await s.enter($, 'a')).toBe('Relayed to Linear ENG-412 · Onboarding flag as adam-relay (Linear app)')
   await s.enter($, 'b')
   await ui.redraw()
@@ -1046,11 +1064,11 @@ test("nothing posts or reaches the model without Enter, but the session's own tw
   await ui.press({ key: 'dot:summary' })
   await ui.redraw()
   // Posted: only what the session did itself, under its own two prefixes.
-  expect(await ui.find({ type: 'Text', text: /0 of 9 relayed this session · 1 answered for you · 1 handled for you$/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /0 of 17 relayed this session · 1 answered for you · 1 handled for you$/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /│ Recorded answer: See decision 10 in #216/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /│ Inquisitor: Filter 4 \(cheap to reverse\)/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /User says:/ })).toBeUndefined()
-  expect(await ui.find({ type: 'Text', text: /7 questions still new/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /15 questions still new/ })).toBeDefined()
   expect(s.sent).toEqual([])
   await ui.unmount()
 })
@@ -1068,4 +1086,169 @@ test("while the session is open the engine's prompt guesses stay out of the box,
   await s.clock.advance(1_000)
   expect(s.filled).not.toContain('next question')
   expect(s.sent).toEqual([])
+})
+
+test("a question's thread is read as it comes on screen: every reply since is shown, and the relay's own marks it answered", async ($, on) => {
+  const s = answerSession(on)
+  await s.open($)
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  // Priya answered in the thread: shown with the question, which stays open.
+  await ui.press({ key: 'dot:9' })
+  await ui.redraw()
+  expect(await ui.find({ type: 'Text', text: /reading the thread/ })).toBeDefined()
+  await s.clock.advance(1_000)
+  await ui.redraw()
+  expect(await ui.find({ type: 'Text', text: /1 REPLY SINCE IT WAS ASKED/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /We settled this in #198/ })).toBeDefined()
+  expect(await ui.find({ key: 'opt:igor-220-retry:0' })).toBeDefined()
+  // Read in the last minute: coming back reads nothing.
+  await ui.press({ key: 'dot:0' })
+  await ui.press({ key: 'dot:9' })
+  await ui.redraw()
+  expect(await ui.find({ type: 'Text', text: /reading the thread/ })).toBeUndefined()
+  // Ben's thread holds the relay's own answer, from another machine: answered.
+  await ui.press({ key: 'dot:13' })
+  await s.clock.advance(1_000)
+  await ui.redraw()
+  expect(await ui.find({ type: 'Text', text: /RELAYED FROM ANOTHER MACHINE ON GITHUB AS/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /Answered already: adam-relay\[bot\] posted your answer from another machine/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /Bumping this/ })).toBeDefined()
+  expect(await s.enter($, 'From main')).toBe('This question is already relayed: (e)dit your post to change it.')
+  expect(s.sent).toEqual([])
+  await ui.unmount()
+})
+
+test('many replies are trimmed to fit, and (v)iew all shows every one in full', async ($, on) => {
+  const s = answerSession(on)
+  await s.open($)
+  const short = await $.ui.mount({
+    ...BAND,
+    props: { ...BAND.props, maxRows: 7, bodyColumns: 85, scroll: { offset: 0, bodyRows: 6 } },
+    viewport: { columns: 90, rows: 24, isFullscreen: true },
+    surface: 'terminal',
+  })
+  await short.press({ key: 'dot:10' })
+  await s.clock.advance(1_000)
+  await short.redraw()
+  expect(await short.find({ type: 'Text', text: /4 REPLIES SINCE IT WAS ASKED/ })).toBeDefined()
+  expect(await short.find({ type: 'Text', text: /Finance is the main user/ })).toBeUndefined()
+  await short.unmount()
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  await ui.press({ key: 'view' })
+  await ui.redraw()
+  expect(await ui.find({ type: 'Text', text: /EVERYTHING SINCE THE QUESTION/ })).toBeDefined()
+  for (const words of [/Finance is the main user/, /Parquet is a tenth the size/, /Could we ship both/, /Adam, your call on the/]) {
+    expect(await ui.find({ type: 'Text', text: words })).toBeDefined()
+  }
+  expect(await s.enter($, 'CSV')).toBe('Go (b)ack to answer: this shows the replies and the record in full.')
+  expect(await s.enter($, 'b')).toBe('Back to the question')
+  expect(await s.enter($, 'CSV by default, Parquet behind a flag.')).toContain('Relayed to Linear')
+  expect(s.sent).toEqual([])
+  await ui.unmount()
+})
+
+test('a reply that lands while Adam writes stops the post until he has seen it; Enter again relays', async ($, on) => {
+  const s = answerSession(on)
+  await s.open($)
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  await ui.press({ key: 'dot:14' })
+  await s.clock.advance(1_000)
+  await ui.redraw()
+  expect(await ui.find({ type: 'Text', text: /no replies/ })).toBeDefined()
+  expect(await s.enter($, 'Yes, keep the banner up.')).toBe('Not posted: Sara Lind replied since you last read the thread. Read it, then ⏎ again.')
+  await ui.redraw()
+  expect(await ui.find({ type: 'Text', text: /back to normal as of 10:40/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: / · 1 NEW/ })).toBeDefined()
+  // What was typed goes back in the box, for the second Enter.
+  await s.clock.advance(1_000)
+  expect(s.filled.slice(-1)).toEqual(['Yes, keep the banner up.'])
+  expect(await s.enter($, 'No banner, then.')).toBe('Relayed to Linear ENG-437 · Status page as adam-relay (Linear app)')
+  expect(s.sent).toEqual([])
+  await ui.unmount()
+})
+
+test("a record more private than the thread is shown, not posted; (a)gree posts the recorded answer's fixed text and its link", async ($, on) => {
+  const s = answerSession(on)
+  await s.open($)
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  await ui.press({ key: 'dot:15' })
+  await s.clock.advance(1_000)
+  await ui.redraw()
+  expect(await ui.find({ type: 'Text', text: /RECORDED ANSWER · FILTER 1/ })).toBeDefined()
+  expect(await ui.find({ type: 'Link', text: /D-41: Installation tokens are scoped to one repository/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /the record is private and this thread public/ })).toBeDefined()
+  // Nothing posted by itself; a click on (a)gree only types it.
+  await ui.press({ key: 'record' })
+  expect(s.filled.slice(-1)).toEqual(['a'])
+  await ui.redraw()
+  expect(await ui.find({ type: 'Text', text: /^POST ON GITHUB AS$/ })).toBeDefined()
+  expect(await s.enter($, 'a')).toBe('Posted the recorded answer on GitHub adamstallard/shared-skills #34 as adam-relay[bot]')
+  await ui.press({ key: 'dot:15' })
+  await ui.redraw()
+  expect(await ui.find({ type: 'Text', text: /POSTED THE RECORDED ANSWER ON GITHUB AS/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /^Recorded answer: $/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /Recorded in:/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /https:\/\/github\.com\/adamstallard\/igor-ops\/blob\/main\/DECISIONS\.md#d-41/ })).toBeDefined()
+  await ui.press({ key: 'dot:summary' })
+  await ui.redraw()
+  expect(await ui.find({ type: 'Text', text: /^1 of 17 relayed this session/ })).toBeDefined()
+  expect(s.sent).toEqual([])
+  await ui.unmount()
+})
+
+test('a questions-branch question shows its recorded answer; agreeing or answering logs it there, with no asking back and no edit', async ($, on) => {
+  const s = answerSession(on)
+  await s.open($)
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  await ui.press({ key: 'dot:16' })
+  await ui.redraw()
+  expect(await ui.find({ type: 'Text', text: /a questions-branch file has no thread/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /reading the thread/ })).toBeUndefined()
+  // Talking to Claude offers no asking back: there is no thread to ask in.
+  await s.enter($, 't')
+  await ui.redraw()
+  expect(await ui.find({ key: 'cmd:a' })).toBeUndefined()
+  await s.enter($, 'b')
+  expect(await s.enter($, 'a')).toBe("Logged the recorded answer on adamstallard/lore's questions branch, in a new file; nothing posted")
+  await ui.press({ key: 'dot:16' })
+  await ui.redraw()
+  expect(await ui.find({ type: 'Text', text: /LOGGED THE RECORDED ANSWER ON THE QUESTIONS BRANCH AS/ })).toBeDefined()
+  expect(await ui.find({ key: 'cmd:e' })).toBeUndefined()
+  expect(await s.enter($, 'e')).toBe('This question is answered, in a log file on the questions branch, which takes no edits.')
+  expect(s.sent).toEqual([])
+  await ui.unmount()
+})
+
+test('/answer layout and the button beside the replies switch where they go; nothing else changes', async ($, on) => {
+  const s = answerSession(on)
+  await s.open($)
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  await ui.press({ key: 'dot:9' })
+  await s.clock.advance(1_000)
+  await ui.redraw()
+  const layoutButton = async () => ((await ui.find({ key: 'layout' })) as { text?: string } | undefined)?.text
+  expect(await layoutButton()).toBe('⇄ move left')
+  expect((await slash($, 'answer', 'layout')).text).toBe('Layout: replies and the recorded answer under the question')
+  await ui.redraw()
+  expect(await layoutButton()).toBe('⇄ move right')
+  expect(await ui.find({ type: 'Text', text: /We settled this in #198/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /10 of 17/ })).toBeDefined()
+  await ui.press({ key: 'layout' })
+  await ui.redraw()
+  expect(await layoutButton()).toBe('⇄ move left')
+  expect(s.sent).toEqual([])
+  await ui.unmount()
+})
+
+test("a post tried before the thread's first read comes back reads it itself; the late read changes nothing", async ($, on) => {
+  const s = answerSession(on)
+  await s.open($)
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  await ui.press({ key: 'dot:14' })
+  expect(await s.enter($, 'Yes, keep the banner up.')).toContain('Not posted: Sara Lind replied')
+  await s.clock.advance(1_000)
+  await ui.redraw()
+  expect(await ui.find({ type: 'Text', text: / · 1 NEW/ })).toBeDefined()
+  expect(await s.enter($, 'No banner, then.')).toContain('Relayed to Linear')
+  await ui.unmount()
 })

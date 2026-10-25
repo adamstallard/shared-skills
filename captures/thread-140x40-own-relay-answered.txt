@@ -1,0 +1,40 @@
+
+
+⏺ Prompt dropped by a hook: Question 2 of 17
+
+⏺ Prompt dropped by a hook: Relayed to GitHub adamstallard/shared-skills #34 as adam-relay[bot]
+
+⏺ Prompt dropped by a hook: Not posted: Sara Lind replied since you last read the thread. Read it, then ⏎ again.
+
+⏺ Prompt dropped by a hook: Relayed to Linear ENG-437 · Status page as adam-relay (Linear app)
+
+⏺ Prompt dropped by a hook: Everything since the question, in full
+
+⏺ Prompt dropped by a hook: Back to the question
+
+❯ /answer
+  ⎿  answer-session: Layout: replies and the recorded answer beside the choices
+
+⏺ Prompt dropped by a hook: Everything since the question, in full
+
+⏺ Prompt dropped by a hook: Back to the question
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── [-]
+Answer session  ○ ○ ○ ○ ◎ ○ ○ ○ ◈ ○ ○ ○ ○ ● ● ● ○  summary  14 of 17 · 12 new · 3 relayed · 0 for later · 2 done for you        v0.1-31
+                                                               │
+GitHub  adamstallard/igor #221  2h ago · 1 reply               │ ↩ 1 REPLY SINCE IT WAS ASKED   (v)iew all  ⇄ move left
+Ben Okafor asks                                                │ Ben Okafor · the asker · 40m ago
+                                                               │ │ Bumping this: the release cut is at 3pm.
+                                                               │
+Do we cut the 0.9 release from main, or from the hotfix        │
+branch?                                                        │ ✓ RELAYED FROM ANOTHER MACHINE ON GITHUB AS adam-relay[bot]  view
+                                                               │ │ User says: Cut it from main; the hotfix branch merges first.
+                                                               │ Read from the thread: your relay posted it from another machine, 3m
+                                                               │ ago.
+                                                               │
+                                                               │
+(e)dit your post         ✓ Answered already: adam-relay[bot] posted your answer from another machine, 3m ago   (b)ack   (n)ext   (q)uit
+
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── shared-skills ─
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on (shift+tab to cycle) · a key or your answer, then ⏎ · 5h 8% Sun 1:30a · 7d 63% ⇡ Sat 2a

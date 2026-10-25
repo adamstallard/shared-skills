@@ -11,6 +11,8 @@ const renderHook = Object.entries(hooks).find(([k]) => k.startsWith('ui.render')
 const submitHook = hooks['prompt.submit']
 // The session is open, as after /answer; the prompt box is the store's copy.
 __store.set('isOpen', true)
+// LAYOUT=under draws the replies and the recorded answer under the question.
+if (process.env.LAYOUT) __store.set('layout', process.env.LAYOUT)
 // MAIN=1 draws the main screen, where the band may take the terminal's height;
 // otherwise fullscreen, where it gets what half the screen leaves above the prompt.
 const isMain = !!process.env.MAIN
@@ -36,7 +38,7 @@ const $: any = {
       return { isAnswered: true, text: REPLIES[replyN++ % REPLIES.length] }
     },
   },
-  clock: { after: (_ms: number, fn: () => void) => { timers.push(fn); return { cancel() {} } } },
+  clock: { now: async () => Date.now(), after: (_ms: number, fn: () => void) => { timers.push(fn); return { cancel() {} } } },
   prompt: {
     read: async () => ({ text: (__store.get('prompt') as string) ?? '', cursor: 0 }),
     fill: async (a: any) => { __store.set('prompt', a.text); log.push('fill ' + a.text); return { isFilled: true } },

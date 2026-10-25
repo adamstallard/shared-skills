@@ -1,0 +1,40 @@
+
+ ▐▛███▛█   Claude Code v2.1.310
+▝▜██████▀  Opus 5.5 · Claude Max
+ ▝▝   ▝▝   ~/shared-skills
+
+⚠ Ask rule Advisor matches no tool · check for typos
+
+❯ /answer
+  ⎿  answer-session: Answer session open: type in the prompt box, Enter answers. 1 answered and 1 handled for you: see the summary.
+
+⏺ Prompt dropped by a hook: Relayed to GitHub adamstallard/igor #216 as adam-relay[bot]
+
+⏺ Prompt dropped by a hook: Posted the recorded answer on GitHub adamstallard/shared-skills #34 as adam-relay[bot]
+
+
+
+
+
+
+
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── [-]
+Answer session  ● ○ ○ ○ ◎ ○ ○ ○ ◈ ○ ○ ○ ○ ○ ○ ● ○  summary  16 of 17 · 13 new · 2 relayed · 0 for later · 2 done for you        v0.1-31
+GitHub  adamstallard/shared-skills #34  record posted · 30m a… │ ◎ RECORDED ANSWER · FILTER 1   (v)iew all  ⇄ move left
+claude asks, an agent via the inquisitor                       │ D-41: Installation tokens are scoped to one repository
+                                                               │ adamstallard/igor-ops DECISIONS.md · private · adamstallard, 2026-09-…
+                                                               │ │ Every installation token is minted for the one repository the work
+Should the github-app skill mint one installation token per    │ │ touches, never for the owner, so a leaked token reaches a single
+repository, or one per owner?                                  │ │ repository. Minting costs one API call per repository an hour, whic…
+                                                               │ ● POSTED THE RECORDED ANSWER ON GITHUB AS adam-relay[bot]  view
+                                                               │ │ Recorded answer: see the record below.
+                                                               │ │ Recorded in:
+                                                               │ │ https://github.com/adamstallard/igor-ops/blob/main/DECISIONS.md#d-41
+                                                               │ You chose to post it: the link names the private record, which only
+                                                               │ people with access can open.
+(e)dit the post                                                                                                (b)ack   (n)ext   (q)uit
+                                                                                                                        ◐ medium · /effort
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── shared-skills ─
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on (shift+tab to cycle) · ← for agents · a key or your answer, then ⏎ · 5h 9% Sun 1:30a · 7d 63% ⇡ Sat 2a

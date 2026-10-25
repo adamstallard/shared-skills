@@ -1,0 +1,40 @@
+
+ ▐▛███▛█   Claude Code v2.1.310
+▝▜██████▀  Opus 5.5 · Claude Max
+ ▝▝   ▝▝   ~/shared-skills
+
+⚠ Ask rule Advisor matches no tool · check for typos
+
+❯ /answer
+  ⎿  answer-session: Answer session open: type in the prompt box, Enter answers. 1 answered and 1 handled for you: see the summary.
+
+❯ /answer
+  ⎿  answer-session: Layout: replies and the recorded answer under the question
+
+
+
+
+
+
+
+
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── [-]
+Answer session  ○ ○ ○ ○ ◎ ○ ○ ○ ◈ ○ ○ ○ ○ ○ ○ ◉ ○  summary  16 of 17 · 15 new · 0 relayed · 0 for later · 2 done for you        v0.1-31
+GitHub  adamstallard/shared-skills #34  30m ago · no replies   │ ◎ RECORDED ANSWER · FILTER 1 · BESIDE THE QUESTION
+claude asks, an agent via the inquisitor                       │ Not posted by itself: the record is private and this thread public.
+                                                               │ (a)gree posts its link, which shows the record exists.
+Should the github-app skill mint one installation token per    │ ▌ (a)gree: post the recorded answer
+repository, or one per owner?                                  │   1: One per owner  ★ recommended
+                                                               │      → One token covers every repository the App is installed on.
+◎ RECORDED ANSWER · FILTER 1   (v)iew all  ⇄ move right        │   2: One per repository
+D-41: Installation tokens are scoped to one repository         │      → A leaked token reaches one repository only.
+adamstallard/igor-ops DECISIONS.md · private · adamstallard, … │ POST ON GITHUB AS adam-relay[bot]: Recorded answer: see the record
+│ Every installation token is minted for the one repository    │ below.
+│ the work touches, never for the owner, so a leaked token     │ Recorded in:
+│ reaches a single repository. Minting costs one API call per… │ https://github.com/adamstallard/igor-ops/blob/main/DECISIONS.md#d-41
+1–2: choose   (t)alk to Claude   (a)gree   (w)on't answer   (l)ater   ✓ Layout: replies and the recorded an…   (b)ack   (n)ext   (q)uit
+                                                                                                                        ◐ medium · /effort
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── shared-skills ─
+❯ a
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on (shift+tab to cycle) · ⏎ post the recorded answer on GitHub · 5h 8% Sun 1:30a · 7d 63% ⇡ Sat 2a
