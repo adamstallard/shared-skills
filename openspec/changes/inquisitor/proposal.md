@@ -16,7 +16,7 @@ are written down:
 - 232 to 237, on 2026-10-21, and 238 in two parts: Message Content
   turned on, on 2026-10-20, and how `check` reads it, on 2026-10-21.
 - 240 to 253, on 2026-10-21;
-- 254 to 262, on 2026-10-24.
+- 254 to 263, on 2026-10-24.
 
 Apart from 229 and 241 to 244, which he gave in the session reviewing
 igor PR #216, and 238, which he gave in shared-skills PR #1, he gave those of 2026-10-19 to 2026-10-24 while reviewing this pull
@@ -45,7 +45,8 @@ recorded 245 and 246, and 250 to 253 answer the four it put to him when
 it recorded 247 to 249. On 2026-10-24 he gave 254 to 257, after an audit
 of the approved prototype against the spec, 258 to 261, answering
 the four questions this change put to him when it recorded 254 to 257,
-and 262, answering the one it put to him when it recorded 258 to 261.
+262, answering the one it put to him when it recorded 258 to 261, and
+263, approving the prototype build that 258 required.
 
 1. **Four filters run before any question reaches a person.**
    1. **Already answered:** the agent finds the earlier answer, cites where it
@@ -1011,15 +1012,17 @@ prototype and once he had approved its user interface. They are the answer
 session's, which the `answer-session` spec covers; its interface is not
 specified, by decision 147:
 
-152. **The answer session is where a person does nothing but answer the
+152. *The tag it is built from is v0.1-33 since Adam's decision 263.*
+     **The answer session is where a person does nothing but answer the
      questions asked of them.** Questions reach it from the channels the
      person subscribes to, on GitHub, Linear and Discord, asked by agents
      running the inquisitor or by people. Each answer is posted in the
      question's thread by that surface's relay identity, a bot that posts
      for the person, and starts with `User says: `. Its interface is a
      Claude Code mod. Adam approved it on 2026-10-20 by using the
-     prototype, and it is built at gate two from the tag his decision 231
-     names.
+     prototype, and it is built at gate two from the tag task 6.1 names:
+     the one decision 231 named, v0.1-30, until decision 263 made it
+     v0.1-33.
 153. **The answer session's configuration is a section of
      `inquisitor.json`:** its subscriptions, which are GitHub repositories
      or owners, Linear teams and Discord channels, and, for each surface, a
@@ -1519,15 +1522,17 @@ aligns with it:
 
 Adam gave 231 on 2026-10-20 too, after testing the prototype:
 
-231. *Amended by Adam's decision 254: the spec wins where the prototype
-     disagrees with it.* **The whole answer-session UI is approved by
+231. *Amended by Adam's decisions 254, under which the spec wins where
+     the prototype disagrees with it, and 263, under which the mod is
+     built from v0.1-33, a descendant of this build.* **The whole answer-session UI is approved by
      use.** The approved
      build is v0.1-30, commit c9c6eb5, tagged
      `answer-session-ui-approved-v0.1-30` on shared-skills
      (`ui-approved-v0.1-30` in Adam's local prototype repository). It
      includes declining, with its three reasons and reason 3 answering
      for the inquisitor, and the list of questions answered or handled
-     for the person. Gate two builds the mod from that tag, which replaces
+     for the person. Gate two was to build the mod from that tag, until
+     decision 263 named v0.1-33, which descends from it. The tag replaces
      the earlier `answer-session-ui-approved` (f964903), which lacked
      those screens. Task 6.9 is done.
 
@@ -1814,21 +1819,23 @@ spec:
 
 254. **The mod is built from the approved prototype, and the spec wins
      where they differ.** Task 6.1 states the precedence:
-     1. The mod is built from `answer-session-ui-approved-v0.1-30`, and
+     1. *Amended by decision 263: the base is v0.1-33, which descends
+        from v0.1-30.* The mod is built from `answer-session-ui-approved-v0.1-30`, and
         keeps the approved screens' layout and interaction: the band, the
         keys, the prompt-box flow and the declining screens. Changes
         needed to wire them to real data are allowed; restyling or
         reorganising them is not.
      2. Wherever the prototype disagrees with the spec, the spec wins.
         Task 6.1 lists the cases the audit found.
-     3. Screens the spec needs and v0.1-30 lacks are designed at
+     3. Screens the spec needs and the base build lacks are designed at
         implementation from the prototype's existing patterns, in no new
         visual style.
-     4. *Amended by Adam's decision 258: the tag is named before gate one
-        is approved.* A screen Adam approves separately is taken from its own approved
-        tag. One such build covers two screens: thread replies, and the
-        recorded answer shown beside the question. It is still being
-        prototyped, and task G.1 tracks its approval.
+     4. *Amended by Adam's decisions 258 and 263: the tag is named
+        before gate one is approved, and it is
+        `answer-session-ui-approved-v0.1-33`.* A screen Adam approves separately is taken from its own approved
+        tag. One separately approved build covers two screens: thread
+        replies, and the recorded answer shown beside the question. Adam approved it as
+        build v0.1-33 (decision 263), and task G.1 is done.
      This amends decision 231, which approved the whole UI by use, by
      saying how that approval meets the spec. Item 3 also amends
      decision 147 for the screens task 6.1's rule (c) lists, which ship
@@ -1901,6 +1908,25 @@ him when it recorded 258 to 261:
      asking agent's rule (decision 215's item 3) is unchanged: it pushes
      no citation for an entry a `Recorded answer: ` post names. *Rejected:* having the
      asking agent push the citation when it acts on the post.
+
+Adam gave 263 on 2026-10-24, approving the build decision 258 required:
+
+263. **Prototype build v0.1-33 is approved by use, and is the mod's one
+     base.** Adam approved build v0.1-33 on 2026-10-24, tagged
+     `answer-session-ui-approved-v0.1-33` on shared-skills (commit
+     fc3c35f; `ui-approved-v0.1-33` in his prototype repository). It
+     covers the two screens of decision 254's item 4: the thread's
+     replies since the question, and filter 1's recorded answer shown
+     with the question, for a question from a questions branch as well
+     as one in a thread. The replies and the recorded answer each have
+     one place on screen, the one the tag shows, with no switch between
+     layouts. The build also corrects the wording and placement of the
+     notice for a stopped post, a post the answer session holds back because a reply arrived in the thread since the person last read it. It descends from v0.1-30, the
+     whole UI decision 231 approved, and its three commits add only
+     these, so v0.1-33 contains all of v0.1-30 and task 6.1 builds from
+     it alone. This meets decision 258's condition on the build, and
+     task G.1 is done; Adam's approval of this spec, the other condition
+     before implementation, is still to come.
 
 ### Proposed by this change
 
@@ -2862,9 +2888,36 @@ The archive waits for task 4.3 to tag every expected gap, which waits
 for igor to build `igor lore-search` and let a role's `commands` list
 the skill's script (decisions 249 and 253).
 
-Before Adam approves this change's spec, he approves the new prototype
-build of decision 254's item 4, and task 6.1's rule (d) names its tag
-(decision 258). Until then rule (d) names no tag.
+Two questions for Adam, raised while recording decision 263:
+- **Agreeing to a recorded answer more private than the thread.** In
+  v0.1-33, when a record is only shown, not posted, because it is more
+  private than the thread, agreeing to it with `(a)gree` posts
+  `Recorded answer: see the record below.` and `Recorded in: <URL>`.
+  The build's screen warns that this shows the record exists. The spec
+  posts a `Recorded answer: ` by itself only when the record is no more
+  private than the thread; for a more private record it shows the
+  record to the person and posts only what the person relays as their
+  own words, and under decline reason 3 with filter 1 it posts nothing
+  for such a record.
+  Options: on the person's confirmation, the answer session may post
+  the `Recorded answer: ` with a more private record's URL, and the
+  same holds under decline reason 3 (recommended: the approved screen
+  already warns that posting shows the record exists, and the person
+  chooses it); or the spec wins, and `(a)gree` is not offered for such
+  a record. Two smaller points ride on it: whether agreeing to a lore
+  entry counts as citing it (recommended: yes, under decision 259's
+  rule, as decision 262 has it for a decline), and what the log file
+  records as the answer when the person agrees on a questions-branch
+  question (recommended: the `Recorded answer: ` text with its
+  `Recorded in: ` line, as the build logs it).
+- **What the v0.1-33 approval covers.** The build's own notes, written
+  before the tag, list the asker withdrawing their question (the
+  prototype's twelfth sample question, its dot 12) and the stopped
+  post's notice as still to try; the tag's note names the replies, the
+  recorded answer and the notice. Options: the approval covers the
+  whole build (recommended: Adam tagged it after using it, and tags
+  only what he approved); or it excludes the asker withdrawing, which
+  then goes under task 6.1's rule (c).
 
 Open on igor PR #216's side, at 59e7561, which records Adam's decisions
 up to 149 in #216's own numbering, decisions 244 and 245 among them as
@@ -3157,7 +3210,7 @@ None.
 
 - New: `.agents/skills/inquisitor/` with its scripts, hooks and tests, and
   the answer session's mod, built from the prototype tagged
-  `answer-session-ui-approved-v0.1-30` (decision 231).
+  `answer-session-ui-approved-v0.1-33` (decisions 231 and 263).
 - The answer session posts through the github-app, linear-app and
   discord-bot skills, so it needs shared-skills PR #1, which adds
   discord-bot, merged first. setup writes `~/.local/bin/answer`.

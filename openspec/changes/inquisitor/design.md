@@ -626,16 +626,19 @@ The answer session gives a person one place to answer the questions asked
 of them on GitHub, Linear and Discord. A relay identity, a bot of the
 person's own on each surface, posts each answer in the question's thread.
 Its interface is a Claude Code mod that Adam approved by using its
-prototype, build v0.1-30, tagged `answer-session-ui-approved-v0.1-30`
-(proposal decisions 152 and 231). By decision 147, a UI approved that way
+prototype: build v0.1-30, tagged `answer-session-ui-approved-v0.1-30`
+(proposal decisions 152 and 231), and build v0.1-33, which descends from
+it and adds the thread's replies and filter 1's recorded answer, tagged
+`answer-session-ui-approved-v0.1-33` (proposal decision 263). The mod is
+built from v0.1-33 alone. By decision 147, a UI approved that way
 is not specified, so nothing here describes how it looks. The spec
-governs what the UI does and posts, and where the prototype does
-otherwise, the spec wins, and screens the spec
-needs that the prototype lacks follow its patterns (proposal decision
+governs what the UI does and posts, and where v0.1-33 does otherwise,
+the spec wins, and screens the spec
+needs that v0.1-33 lacks follow its patterns (proposal decision
 254, task 6.1).
 The rules are in the `answer-session` spec, the decisions in proposal
 decisions 152 to 175, 184 to 203, 207 to 211, 215, 216, 219, 220,
-222 to 230, 234, 236, 238, 246 to 248, 250 to 252, 254 to 260 and 262.
+222 to 230, 234, 236, 238, 246 to 248, 250 to 252, 254 to 260, 262 and 263.
 
 ### Polling while open, with the person's credentials
 

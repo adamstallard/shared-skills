@@ -1,8 +1,10 @@
 ## Before gate one is approved
 
-- [ ] G.1 Adam approves the prototype build covering thread replies and
+- [x] G.1 Adam approves the prototype build covering thread replies and
       the recorded answer shown beside the question, and task 6.1's rule
-      (d) names its tag (decision 258)
+      (d) names its tag (decision 258). Done: Adam approved build v0.1-33
+      by use on 2026-10-24, tagged `answer-session-ui-approved-v0.1-33`
+      (decision 263)
 
 Gate two: the tasks below follow on this branch once Adam approves the
 spec.
@@ -348,11 +350,16 @@ contradicts what design.md assumed.
       with mention rewriting on, as discord-bot always posts (decisions
       230 and 246)
 - [ ] 6.1 The mod, built into the inquisitor skill from the tag
-      `answer-session-ui-approved-v0.1-30` on shared-skills (build v0.1-30,
-      commit c9c6eb5; `ui-approved-v0.1-30` in Adam's local prototype
-      repository, `~/answer-session-prototype`). The tag includes
-      declining and the list of questions answered or handled for the
-      person. The mod takes its questions from the polls of task 6.3
+      `answer-session-ui-approved-v0.1-33` on shared-skills (build v0.1-33,
+      commit fc3c35f; `ui-approved-v0.1-33` in Adam's local prototype
+      repository, `~/answer-session-prototype`). That build descends from
+      v0.1-30 (`answer-session-ui-approved-v0.1-30`, commit c9c6eb5), the
+      whole UI Adam approved on 2026-10-20, so it contains all of
+      v0.1-30. Its only additions are rule (d)'s two screens, the
+      recorded answer one covering a questions-branch question too, and
+      a corrected notice for a stopped post, a post the answer session holds back because a reply arrived in the thread since the person last read it. So it is the one
+      base (decision 263). It includes declining and the list of
+      questions answered or handled for the person. The mod takes its questions from the polls of task 6.3
       instead of the prototype's made-up ones. Four rules decide what is
       built (decision 254):
       - (a) Keep the approved screens' layout and interaction: the band,
@@ -368,21 +375,30 @@ contradicts what design.md assumed.
         previews that show the `Re: <URL>` line; reason 1's wording, under
         which only the asker's unthreaded follow-up stops counting;
         reopening offered only for a question declined with nothing
-        posted, keeping its logged miss (decisions 255 and 260); and the question that was on screen, kept in the state
+        posted, keeping its logged miss (decisions 255 and 260); a
+        recorded answer the person agreed to and posted, whose question
+        the spec shows as answered for the person, where the prototype
+        shows it as answered by the person's own relay post;
+        a question's state read from the latest relay post in its
+        thread, whatever its prefix and whichever machine posted it,
+        not only from the person's own `User says: ` post, with local
+        state deciding only what the spec leaves to it, such as a
+        question declined with nothing posted; and the question that was on screen, kept in the state
         folder so a restarted session opens on it, not in the mod's
         `$.store`
-      - (c) A screen the spec needs that v0.1-30 lacks is designed at
+      - (c) A screen the spec needs that v0.1-33 lacks is designed at
         implementation, in this task, from the prototype's existing patterns, in no new visual style:
         setup, the lock message, the relay notice, a post's failure and
         discord-bot's warnings, why no miss was logged, and a channel
         that is off
       - (d) A screen Adam approves separately is taken from its own
-        approved tag. One separately approved build covers two screens:
-        thread replies, and the recorded answer shown beside the
-        question. That build is still being prototyped. Adam approves it
-        before he approves this spec, and this rule names its tag then,
-        before gate one is approved (decision 258). Tag: not yet named,
-        since the build is not yet approved
+        approved tag. Tag: `answer-session-ui-approved-v0.1-33` (decisions
+        258 and 263), approved on 2026-10-24, which is also the base, so
+        this rule records which screens came from that second approval:
+        the thread's replies since the question, and filter 1's recorded
+        answer shown with the question. Each screen goes where the tagged
+        build puts it. A later separately approved screen would come from
+        its own tag the same way
 - [ ] 6.2 The `answer_session` section of `inquisitor.json`, and setup:
       the candidates, each relay check, saving the file with the person's
       own keys kept, a failed identity's surface or a failed channel left
