@@ -16,7 +16,7 @@ are written down:
 - 232 to 237, on 2026-10-21, and 238 in two parts: Message Content
   turned on, on 2026-10-20, and how `check` reads it, on 2026-10-21.
 - 240 to 253, on 2026-10-21;
-- 254 to 272, on 2026-10-24.
+- 254 to 276, on 2026-10-24.
 
 Apart from 229 and 241 to 244, which he gave in the session reviewing
 igor PR #216, and 238, which he gave in shared-skills PR #1, he gave those of 2026-10-19 to 2026-10-24 while reviewing this pull
@@ -49,7 +49,9 @@ the four questions this change put to him when it recorded 254 to 257,
 263, approving the prototype build that 258 required. Each later group
 answers the questions this change put to him when it recorded the group
 before: 264 and 265 answer two, 266 and 267 answer five, 268 and 269
-answer two, and 270 to 272 answer the three raised with 268 and 269.
+answer two, 270 to 272 answer the three raised with 268 and 269, and
+273 to 275 answer the three raised with 270 to 272, and in 276 Adam
+confirmed two details this change had chosen.
 
 1. **Four filters run before any question reaches a person.**
    1. **Already answered:** the agent finds the earlier answer, cites where it
@@ -1889,7 +1891,8 @@ change put to him when it recorded 254 to 257:
      PR #216 should widen its definition of a citation to include a
      person's cite (Still open). *Rejected:* a citation for any cited
      entry.
-260. **Reopening is offered only for a question declined with nothing
+260. *Narrowed by Adam's decision 274: not for a question a
+     questions-branch file holds.* **Reopening is offered only for a question declined with nothing
      posted.** After a post, the thread records how the question was
      handled, and the person changes that by editing the post. This
      amends decision 255. *Rejected:* reopening a question on this
@@ -1989,7 +1992,9 @@ change put to him when it recorded 264 and 265:
 Adam gave 268 and 269 on 2026-10-24, answering the two questions this
 change put to him when it recorded 266 and 267:
 
-268. *Widened by Adam's decision 270 to every question.* **On a question with no thread, agreeing to the shown recorded
+268. *Widened by Adam's decision 270 to every question; amended by his
+     decisions 273 and 274: a question with no thread closes everywhere,
+     by its handled file, and cannot be reopened.* **On a question with no thread, agreeing to the shown recorded
      answer is declining it under reason 3 with filter 1, naming that
      record.** The decline path does the rest: nothing is posted, the
      question closes in the state folder (on one machine only, as
@@ -1999,10 +2004,10 @@ change put to him when it recorded 266 and 267:
      decision 266's case of a question with no thread into the decline
      path instead of keeping a separate path for agreeing. *Rejected:*
      a record and a `said` of agreeing's own.
-269. *Retired by Adam's decision 272 for a `Recorded answer: ` post
-     and a decline's post: the asking agent marks the questions-branch
-     file handled, so it no longer comes back. After an automatic
-     `Inquisitor: ` post the limit still holds; see Still open.* **A known limit, accepted: an agreed question asked in a thread can
+269. *Retired by Adam's decision 273: the answer session pushes a
+     handled file on every decline, recorded answer and `Inquisitor: `
+     reply on a questions-branch question, so the file no longer comes
+     back.* **A known limit, accepted: an agreed question asked in a thread can
      come back from the questions branch.** Its questions-branch file
      stays unanswered, and the answer session hides it only while it
      shows the same question from the thread, which nothing durable
@@ -2017,7 +2022,9 @@ change put to him when it recorded 266 and 267:
 Adam gave 270 to 272 on 2026-10-24, answering the three questions this
 change put to him when it recorded 268 and 269:
 
-270. **Agreeing to a recorded answer is always declining the question
+270. *Amended by Adam's decision 273: a decline of a question a
+     questions-branch file holds pushes a handled file, the one log file
+     a decline pushes.* **Agreeing to a recorded answer is always declining the question
      under reason 3 with filter 1, naming that record,** in a thread as
      with no thread. Agreeing is no longer a path of its own: the decline
      path shows the exact post, warns before a record more private than
@@ -2028,13 +2035,14 @@ change put to him when it recorded 268 and 269:
      decisions 264, 266, 267 and 268 into the decline path, and settles
      which `said` the miss carries. *Rejected:* a `said` of agreeing's
      own.
-271. **A decline's citation is pushed only when its miss is pushed.** A
+271. *Reverted by Adam's decision 275.* **A decline's citation is pushed only when its miss is pushed.** A
      miss already on the branch for the same question and filter stops
      a second miss, so it also stops a second citation when the person
      agrees again, after reopening or on another machine. *Rejected:* no
      citation for a filter 1 decline of a question with no thread, the
      one case where agreeing again was then possible.
-272. **The asking agent marks its questions-branch file handled** when it
+272. *Replaced by Adam's decision 273: the answer session, not the
+     asking agent, writes the handled file.* **The asking agent marks its questions-branch file handled** when it
      reads, in the question's thread, a `Recorded answer: ` post or a
      post the answer session made on a decline, at the point where it
      would record a `User says: ` answer. Handled means closed, with no
@@ -2046,6 +2054,41 @@ change put to him when it recorded 268 and 269:
      machine. This retires decision 269's known limit for those posts;
      after an automatic `Inquisitor: ` post it still holds.
      *Rejected:* widening that limit to a restart on the same machine.
+
+Adam gave 273 to 276 on 2026-10-24, answering the three questions this
+change put to him when it recorded 270 to 272:
+
+273. **The answer session writes the handled file itself.** Whenever it
+     declines a question, agreeing included (decision 270), or posts a
+     recorded answer or an `Inquisitor: ` reply on it, and a
+     questions-branch file holds that question, it pushes the handled
+     file: `repository`, `asked`, `handled` and the question, with no
+     answer and no authority, with a thread or without. The asking agent
+     writes none. So decision 272's check of a post's author, which had
+     to wait for task 0.21 to measure whether GitHub reports which App
+     wrote a comment, goes. An Igor worker could still put a file with a
+     `handled` key in its report for the Igor to push; the script's
+     `log` command writes one only under an option the answer session
+     alone passes, and Still open asks igor PR #216 to refuse such a
+     file from a worker. A questions-branch question is
+     then closed on every machine, which retires decision 269's limit
+     fully, after `Inquisitor: ` posts too. The handled file is the
+     stated exception to decision 270's "no log file". This replaces
+     decision 272. *Rejected:* the asking agent marking the file.
+274. **A declined questions-branch question can no longer be reopened,**
+     since its handled file closes it everywhere, whether it came from
+     that branch or was shown from a thread. Reopening (decision 260)
+     stays for a question with a thread, declined with nothing posted,
+     that no questions-branch file holds.
+275. **Decision 271 is reverted.** A decline's citation is pushed once,
+     whether or not a miss is, to the entry's own lore repository, under
+     decision 259's rule for an `active` entry in scope. No duplicate can
+     arise from reopening or from a later machine, since the handled file
+     closes the question everywhere, and a decline with a post in a
+     thread cannot be reopened; two machines with the same question open
+     at once are in Still open.
+276. **Two details are Adam's:** the `handled` key holds the day, and
+     filter 1 shows a handled file to a searching agent as unanswered.
 
 ### Proposed by this change
 
@@ -2627,7 +2670,9 @@ confirmed each on 2026-10-20, amending 199 and changing items 2, 4, 6 and
      cheap to reverse, taken under filter 4:
      1. A declined question, and a rhetorical question the answer session
         handled with no reply, are kept closed in the state folder, per
-        machine. The spec lists the rhetorical one as handled for the
+        machine. *Amended by decision 273:* a declined question that a
+        questions-branch file holds is also closed everywhere by its
+        handled file. The spec lists the rhetorical one as handled for the
         person, as item 10 has it, and keeps it out of the queue.
      2. *Changed by Adam.* Under decision 194's first reason, any
         threaded reply to a relay post, such as a Discord reply to it,
@@ -3020,53 +3065,54 @@ settled by decisions 268 and 269.
 The three questions raised while recording decisions 268 and 269 are
 settled by decisions 270 to 272.
 
-Three questions for Adam, raised while recording decisions 270 to 272:
-- **Who writes the handled file.** With the asking agent writing it,
-  four edges appear: an agent whose own filter 1 does not count the
-  record still closes the file on every machine; the agent must check
-  that the post came from the relay App of the person asked, so on
-  GitHub nothing is marked until task 0.21 shows GitHub reports which
-  App wrote a comment; an Igor worker's handled file passes igor PR
-  #216's checks as an unanswered file, so a worker steered by item text
-  could close any question; an automatic `Inquisitor: ` post marks
-  nothing, so decision 269's limit still holds after one. Two details
-  this change chose also need his word either way: the `handled` key
-  holds the day, and filter 1 shows a handled file to a searching agent
-  as unanswered, so it never stops a question. Options: the answer session pushes the handled file
-  itself, whenever its decline post, recorded-answer post or automatic
-  post goes out on a question a questions-branch file also holds, and
-  the asking agent writes none (recommended: it removes the agent's
-  read-and-mark step, and with it all four edges, since only the answer
-  session knows it made the post; the cost is that decision 270's "pushes
-  no log file in a thread" gains this one file); or keep the asking
-  agent marking, with the author check and the task 0.21 wait now
-  written, and ask #216 to check a worker's handled file.
-- **Citations tied to misses lose some.** A decline pushes a miss only
-  to the lore repository of the repository the question concerns, and
-  only when that is no more visible than the thread, while a citation
-  goes to the lore repository holding the entry. So tying the citation
-  to the miss drops citations decisions 259 and 262 allow: on Linear or
-  Discord with a public lore repository, where the thread counts as
-  more private, so no miss goes, after an earlier filter 1 miss
-  for the same question named another record, and whenever the two lore
-  repositories differ. Options: a decline under reason 3, agreeing
-  included, pushes no citation (recommended: it removes the step; igor's
-  count of an entry's citations stays a true lower bound; and no other
-  check could replace the miss's, since a citation file holds nothing
-  about the question); or keep decision 271 and accept those
-  lost citations as the same undercount.
-- **A declined questions-branch question with no thread closes on one
-  machine only.** Nothing is posted, so no handled file is written, and
-  it comes back on every other machine. Options: the answer session
-  pushes a handled file when it closes such a question (recommended with
-  the first question's first option: one rule closes a questions-branch
-  question everywhere; the cost is that it can no longer be reopened,
-  decision 260); or keep the close per machine, as decision 202's item 1
-  accepts for declines.
+The three questions raised while recording decisions 270 to 272 are
+settled by decisions 273 to 276.
 
-Open on igor PR #216's side, at 59e7561, which records Adam's decisions
+Four questions for Adam, raised while recording decisions 273 to 276:
+- **A handled file copies the question's text.** It cannot carry the
+  original file's `asked_from`, so igor's search would count a handled
+  file for a private item's question as public and could return its text
+  to a worker on a public item; and for a question with a category, one
+  the inquisitor keeps by hash only, such as a question holding a
+  secret, it writes the text again in readable form, which the
+  inquisitor's records never hold. Options: a handled file holds the question's hash, not its
+  text (recommended: it removes the copying step and both problems;
+  "same question" is already a hash match, and filter 1 shows a handled
+  file as unanswered, so a search needs nothing in it but the hash); or the handled file copies the original's
+  `asked_from`, and none is written for a question with a category.
+- **A rhetorical question closes on one machine only.** Filter 3's
+  rhetorical case gets no post and no decline, so no handled file is
+  written, and its questions-branch file comes back elsewhere. Options:
+  the answer session pushes a handled file whenever it closes a question
+  a questions-branch file holds (recommended: it ties the file to the
+  close rather than to a post, so no closing path is left out); or keep
+  the rhetorical case per machine, as decision 202's item 1 has it.
+- **Two machines can both cite.** Nothing re-reads the questions branch
+  before a decline with no thread pushes its citation, so two machines
+  with the same question open can each push one, and citations, unlike
+  misses, have no check. Options: accept it (recommended: it needs the
+  same question open on two machines at once, and adds no rule); re-read
+  the questions branch before a decline's pushes and push nothing if a
+  handled file is there; or have a reason 3 decline push no citation.
+- **A record the asker's filter 1 does not count still closes the file.**
+  The asking agent treats such a `Recorded answer: ` post as input and
+  its question stands, but the handled file closes the question in the
+  person's queue on every machine. Options: accept it (recommended: the
+  handled file only closes the person's queue, the asker's question
+  still stands in its thread, and the asker can ask again); or have the
+  asking agent decide the close, as decision 272 had it, so that its own
+  filter 1 reading of the record decides whether the file is marked.
+
+Open on igor PR #216's side, at the head last read, 59e7561, which records Adam's decisions
 up to 149 in #216's own numbering, decisions 244 and 245 among them as
 its decisions 92 and 97:
+- **#216 should refuse a worker's file holding `handled`,** as it refuses
+  one holding `asked_from`. Only an answer session writes a handled file
+  (decision 273), but #216 pushes any file a worker reports that holds
+  no `authority` as an unanswered question file, so it would push a
+  handled file too, and a worker steered by
+  item text could then close any question with the same hash on every
+  machine.
 - **#216 should widen its definition of a citation to include a
   person's cite.** It defines a citation as an agent's record that a
   lore entry answered a question so that no person was asked. Decision

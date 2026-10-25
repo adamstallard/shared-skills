@@ -638,7 +638,7 @@ needs that v0.1-33 lacks follow its patterns (proposal decision
 254, task 6.1).
 The rules are in the `answer-session` spec, the decisions in proposal
 decisions 152 to 175, 184 to 203, 207 to 211, 215, 216, 219, 220,
-222 to 230, 234, 236, 238, 246 to 248, 250 to 252, 254 to 260 and 262 to 272.
+222 to 230, 234, 236, 238, 246 to 248, 250 to 252, 254 to 260 and 262 to 276.
 
 ### Polling while open, with the person's credentials
 
@@ -780,14 +780,22 @@ an agent searching the branch misses the answer. When the person, rather
 than answering in their own words, agrees to the recorded answer shown
 beside the question, that is a decline under reason 3, "the inquisitor
 should have handled it", with filter 1 (decision 270), and no log file
-is pushed. So the questions branch holds nothing saying the question was
-answered, and an agent that searches later is stopped by the record the
-person agreed to only when its own filter 1 can read that record and
-counts it as an answer. The asking agent, reading the decline's post in
-the thread, marks its questions-branch file handled, so the answer
-session does not show the question again from the branch, on any
-machine (decision 272). An asker that marks nothing, such as a person,
-leaves the file to come back.
+holding an answer is pushed. So the questions branch holds nothing saying the
+question was answered, and an agent that searches later is stopped by
+the record the person agreed to, the decision document or lore entry
+filter 1 had found, only when its own filter 1 can read that record and
+counts it as an answer. The answer session does push one other file to
+the branch, a handled file: a new log file marking the question closed,
+with no answer. It closes the question only in the person's queue, and
+filter 1 still shows the question to a searching agent as unanswered.
+The answer session pushes one whenever it declines a question that a
+questions-branch file holds, or posts a recorded answer or an
+`Inquisitor: ` reply in the thread where that same question was also
+asked. Before decision 273, nothing on the branch recorded that the
+person had declined or answered for the question, so it would reappear
+in the person's queue on another machine, or after a restart; the
+handled file stops that, whether a person or an agent asked (decision
+273).
 
 A relayed answer counts as the person's own for filter 1 (decision 184).
 Decision 78 proves a logged answer's writer only when GitHub gives the

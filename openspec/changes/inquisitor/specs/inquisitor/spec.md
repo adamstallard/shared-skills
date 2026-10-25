@@ -2077,6 +2077,16 @@ message `inquisitor: log <file>`, and SHALL carry no prose or bug-hunter
 trailer. A citation file is not a log file, and the search never shows
 one. No log file names a lore entry by its id.
 
+An agent SHALL write no handled file: only an answer session writes
+one, as the `answer-session` spec's *A handled file closes a
+questions-branch question* says. The script's `log` command SHALL write
+a handled file only when called with its handled option, and SHALL
+refuse a `handled` key passed without that option. The command cannot
+check who calls it: only the answer session passes the option, and the
+skill's instructions tell an agent never to, which keeps an agent from
+writing one by mistake. igor PR #216's refusal, in the proposal's Still
+open, covers a worker steered into passing it (proposal decision 273).
+
 The skill's script SHALL write every log file and miss file through its
 `log` command, which takes the file's place, its keys and its body
 sections in a file, never as arguments. That file SHALL be outside any
@@ -2471,10 +2481,12 @@ written.
   fetches and written only in a private lore repository (proposal
   decisions 248 and 251): on Discord
   `https://discord.com/channels/<id>/<id>/<id>` with decimal ids, and on
-  Linear a URL starting `https://linear.app/`; `handled`, only in a
-  questions-branch file holding no `answered_by`, `authority` or answer,
-  the day, as `yyyy-mm-dd`, the asking agent marked the question handled
-  (proposal decision 272); and
+  Linear a URL starting `https://linear.app/`; `handled`, the day on
+  which an answer session marked the question handled, as `yyyy-mm-dd`, held only
+  in a **handled file**: a questions-branch file holding `repository`,
+  `asked`, `handled` and the question, and no `answered_by`,
+  `authority`, `recorded_in` or answer (proposal decisions 273 and 276);
+  and
   `asked_from`, only in a questions-branch file an Igor pushes, whether
   its worker reported it or the Igor's own inquisitor run wrote it. Its body
   is the question under `## Question`, and, once the answer comes, the
@@ -3131,22 +3143,6 @@ outside a run.
 
 ### Requirement: An answer session's automatic reply is a verdict, not a person's answer
 
-When the agent's question has a log file on a lore repository's
-`questions` branch, and the agent reads, in the question's thread, a
-`Recorded answer: ` post or a post the answer session made when the
-person declined the question, such as an `Inquisitor: ` post holding
-the line `The person chose this filter.`, the agent SHALL mark that file
-handled, whether or not its own filter 1 counts the record, at the step
-where it reads its question's thread and would log a person's
-`User says: ` answer: it pushes a new log file holding the question and
-`handled`, and no answer, as *Every answer is recorded and every asked
-question logged* has it for a file on that branch. It marks the file
-only when the post's author is the relay App of the person the question
-asked, so on GitHub it marks nothing until task 0.21 shows that GitHub
-reports which App wrote a comment. In an Igor's run the handled file
-goes in the worker's report, as any log file does (proposal decision
-272).
-
 When an agent reads, in reply to its question, a post from a person's
 answer session that starts with `Recorded answer: `, it SHALL check the
 place the post's `Recorded in: ` line names through filter 1, and act on
@@ -3184,31 +3180,17 @@ treats the post as input, and its question stands.
 - **THEN** the agent reads that file through filter 1, acts on the
   decision it holds, and logs no answer from the person
 
-#### Scenario: A recorded answer marks the questions-branch file handled
-
-- **WHEN** an agent's question about an organization, which is logged on
-  the lore repository's questions branch, and also asked in a post, gets
-  a reply starting `Recorded answer: ` from the relay App of the person asked,
-  after task 0.21 has shown that GitHub reports which App wrote a
-  comment
-- **THEN** the agent pushes a new log file there holding the question
-  and `handled`, with no `authority` and no answer, and the answer
-  session no longer shows the question as a question of the fourth
-  source on any machine
-
-#### Scenario: A decline's post marks the questions-branch file handled
+#### Scenario: An asking agent writes no handled file
 
 - **WHEN** an agent's question about an organization, logged on the
-  lore repository's questions branch and asked in a post, gets the
-  answer session's reply starting `Inquisitor: filter 4` with the line
-  `The person chose this filter.`, from the relay App of the person
-  asked, after task 0.21 has shown that GitHub reports which App wrote a
-  comment
-- **THEN** the agent pushes a handled file for that question
+  lore repository's questions branch and asked in a post, gets a reply
+  starting `Recorded answer: `
+- **THEN** the agent pushes no handled file; the answer session that
+  made the post pushes it
 
 #### Scenario: A handled file's keys
 
-- **WHEN** an agent marks a questions-branch file handled
+- **WHEN** an answer session marks a questions-branch file handled
 - **THEN** the new file holds `repository`, `asked` and `handled`, the
   last as the day in `yyyy-mm-dd`, the question under `## Question`, and
   no `answered_by`, `authority`, `recorded_in` or answer

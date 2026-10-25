@@ -222,7 +222,10 @@ contradicts what design.md assumed.
       `authority` of `decision`, `input` or `agent`, and `answered_by: agent` for an agent's choice,
       a handled file, holding `repository`, `asked`, `handled` and the
       question, with no answer and no authority, for a questions-branch
-      question the asking agent marks handled (decision 272),
+      question the answer session marks handled, written only through
+      the command's handled option, which only the answer session
+      passes, with a `handled` key refused without it; the command does
+      not check its caller (decisions 273 and 276),
       an answer with a github.com `answer_link` read from the linked
       comment and recorded word for word (decision 236), an answer with
       a Linear or Discord `answer_link` recorded as given, its link
@@ -239,11 +242,11 @@ contradicts what design.md assumed.
       visibility refusal; `misses`, listing the misses by filter for a review
 - [ ] 2.4b `cite`, pushing a citation file in the format of *A citation
       file has one format* (`entry` and `date`, no `run`) to the
-      lore repository's `questions` branch when filter 1 stops a question
-      with a lore entry, or when the person answers in the answer session
-      by citing an `active` entry in scope, a decline under reason 3
-      with filter 1 naming such an entry included, a decline's citation
-      going only with its miss (decisions 257, 259, 262 and 271),
+      `questions` branch of the lore repository holding the entry, once,
+      when filter 1 stops a question with a lore entry, or when the
+      person answers in the answer session by citing an `active` entry
+      in scope, a decline under reason 3 with filter 1 naming such an
+      entry included (decisions 257, 259, 262 and 275),
       committed unsigned with `git -c commit.gpgsign=false`. It sends none
       for a question with a category, none to a lore repository more
       visible than the repository the question concerns, and none for a
@@ -378,7 +381,12 @@ contradicts what design.md assumed.
         previews that show the `Re: <URL>` line; reason 1's wording, under
         which only the asker's unthreaded follow-up stops counting;
         reopening offered only for a question declined with nothing
-        posted, keeping its logged miss (decisions 255 and 260); a
+        posted that no questions-branch file holds, keeping its logged
+        miss, where the
+        prototype offers it for any reason 1 or 2 decline (decisions
+        255, 260 and 274); the handled file the answer session pushes
+        for a question a questions-branch file holds, which the
+        prototype does not write (decision 273); a
         recorded answer the person agreed to and posted, whose question
         the spec shows as answered for the person, where the prototype
         shows it as answered by the person's own relay post;
@@ -390,7 +398,8 @@ contradicts what design.md assumed.
         answer: v0.1-33 treats it as a path of its own and, on a
         questions-branch question, logs the recorded answer in a new
         file, while the spec treats it as a decline under reason 3 with
-        filter 1 and writes no log file (decisions 266 and 270);
+        filter 1 and writes no answer file, only the handled file
+        (decisions 266, 270 and 273);
         and the question that was on screen, kept in the state
         folder so a restarted session opens on it, not in the mod's
         `$.store`
@@ -473,14 +482,15 @@ contradicts what design.md assumed.
       reply only when it names filter 2, or names filter 3 or 4 and its
       last line apart from a `Re: ` line says the person chose it, which
       reason 3's posts add (decision 234; the line is decision 239's
-      item 6); and that on a `Recorded answer: ` post or a decline's post
-      from the relay App of the person asked, in the thread of a
-      question it logged on a questions branch, it marks that file
-      handled (decision 272)
+      item 6). Also the answer session's handled file, pushed on every
+      decline, recorded answer and `Inquisitor: ` reply on a question a
+      questions-branch file holds, whether from that branch or shown
+      from a thread, and no reopening of such a question once declined
+      (decisions 273 and 274)
 - [ ] 6.11 Decide at implementation, with no requirement added
       (decision 256), and record each choice in design.md while the
       change is open. Agreeing to a shown recorded answer is not among
-      them: decisions 264, 266 and 270 to 272 set it, 270 having folded 267 and 268 in. The choices: how a question's options are parsed from its
+      them: decisions 264, 266, 270 and 273 to 275 set it; 270 also folds in 267 and 268. The choices: how a question's options are parsed from its
       thread; `propose_reply`, the tool Claude calls to put a draft reply in the
       prompt box, refusing a call from a subagent (Adam confirmed this);
       a draft's privacy, beyond the existing rule that the draft is
