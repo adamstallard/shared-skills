@@ -17,7 +17,7 @@ are written down:
   turned on, on 2026-10-20, and how `check` reads it, on 2026-10-21.
 - 240 to 253, on 2026-10-21;
 - 254 to 284, on 2026-10-24;
-- 285 to 299, on 2026-10-25.
+- 285 to 306, on 2026-10-25.
 
 Apart from 229 and 241 to 244, which he gave in the session reviewing
 igor PR #216, and 238, which he gave in shared-skills PR #1, he gave those of 2026-10-19 to 2026-10-25 while reviewing this pull
@@ -61,7 +61,8 @@ decision each, except that 289 settles two, and 292 to 295 the four raised with
 288 to 291; in 296 he confirmed three choices this change had made.
 297 to 299 settle the six raised with 292 to 296: 297 answers the
 first and makes the next three moot, 299 answers the fifth and 298 the
-sixth.
+sixth. 300 to 306 answer the seven raised with 297 to 299, one
+decision each.
 
 1. **Four filters run before any question reaches a person.**
    1. **Already answered:** the agent finds the earlier answer, cites where it
@@ -1355,7 +1356,7 @@ confirmed 181 to 183 and 197 to 203, amended 199, changed four items of
      model's follow-up question, which asked which filter and why: it
      supersedes decision 202's item 4, and decision 174's exception no
      longer needs to cover it.
-210. *Amended by Adam's decision 299: the file is shown with the post only when its `asked_in` links it.* **A questions-branch question that was also asked in a post is
+210. *Amended by Adam's decisions 299 and 302: the file is shown once, from the post, only when its `asked_in` links the post, or when the machine showing them merges them under decision 307.* **A questions-branch question that was also asked in a post is
      answered in its thread too.** The answer session shows it once, from
      the thread (decision 175's item 11), relays the person's answer there
      as usual, and pushes the log file that records the answer to the
@@ -1821,7 +1822,7 @@ change put to him when it recorded 247 to 249:
      Discord, Linear or Slack, which stay input until igor's scribe
      records them. *Rejected:* keeping decision 109 whole, so that every
      answer relayed off GitHub was input.
-251. **A Linear or Discord `answer_link` is written only when the lore
+251. *Extended by Adam's decision 302 to `asked_in`.* **A Linear or Discord `answer_link` is written only when the lore
      repository is private.** Otherwise the log file is written without
      an `answer_link`, and still records the answer. A Discord URL holds
      the server's and channel's ids, and a Linear URL the workspace,
@@ -2079,9 +2080,10 @@ change put to him when it recorded 268 and 269:
 Adam gave 273 to 276 on 2026-10-24, answering the three questions this
 change put to him when it recorded 270 to 272:
 
-273. *Amended by Adam's decisions 278 and 297: the file is written on
-     every close and names, in `closes`, the one questions-branch file it
-     closes.* **The answer session writes the handled file itself.** Whenever it
+273. *Amended by Adam's decisions 278, 297 and 305: the handled file is
+     written on every close and holds only `handled` and `closes`, which
+     names the one questions-branch file it closes; the keys listed
+     below are superseded.* **The answer session writes the handled file itself.** Whenever it
      declines a question, agreeing included (decision 270), or posts a
      recorded answer or an `Inquisitor: ` reply on it, and a
      questions-branch file holds that question, it pushes the handled
@@ -2117,7 +2119,7 @@ change put to him when it recorded 270 to 272:
 Adam gave 277 to 280 on 2026-10-24, one for each question this change
 put to him when it recorded 273 to 276:
 
-277. *Superseded in part by Adam's decision 297: a handled file holds no hash, but names the file it closes in `closes`; it still holds no question text.* **A handled file holds the question's hash, not its text.** "Same
+277. *Superseded in part by Adam's decisions 297 and 305: a handled file holds no hash and no `repository`, only `handled` and `closes`, naming the file it closes; it still holds no question text.* **A handled file holds the question's hash, not its text.** "Same
      question" is already a hash match, and filter 1 reads a handled file
      as unanswered, so nothing needs the text. So a handled file never
      carries a private item's question into igor's search under a
@@ -2285,7 +2287,7 @@ put to him when it recorded 288 to 291:
 Adam gave 297 to 299 on 2026-10-25, settling the six questions this
 change put to him when it recorded 292 to 296:
 
-297. **Closing works by exact identity, never by matching.** A handled
+297. *Amended by Adam's decision 305: a handled file holds only `handled` and `closes`.* **Closing works by exact identity, never by matching.** A handled
      file names, in its `closes` key, the one questions-branch file it
      closes, by that file's unique name, and closes that file on every
      machine for good. A thread copy, a question shown from its thread,
@@ -2303,7 +2305,7 @@ change put to him when it recorded 292 to 296:
      290 moot. Decisions 273, 274, 275, 278, 283 and 291 stand, and 287
      covers the thread's own later messages. *Rejected:* each matching
      rule above.
-298. **Decline reason 2 logs no miss.** A message picked up by mistake
+298. *Amended by Adam's decision 304: reason 3 for a non-question posts nothing.* **Decline reason 2 logs no miss.** A message picked up by mistake
      is the answer session's own misjudgement, and no asker erred. A
      non-question that reaches the queue is declined under reason 2, or
      under reason 3 with the filter the asking agent should have applied,
@@ -2314,7 +2316,7 @@ change put to him when it recorded 292 to 296:
      decisions 196, 285 and 292 and retires 198's `"source <n>"` miss;
      208's `said: "not a question"` is no longer written. *Rejected:* a miss
      against the source.
-299. **A questions-branch log file follows its thread message by exact
+299. *Amended by Adam's decisions 300 to 302: a file whose link this machine never reads is shown on its own, an answer records the message's question, and a withheld Linear or Discord link is made up for by merging.* **A questions-branch log file follows its thread message by exact
      link.** A log file for a question the asking agent also asked in a
      post holds that message's URL as `asked_in`, and what the
      answer session decides about that message applies to the file. A
@@ -2322,6 +2324,51 @@ change put to him when it recorded 292 to 296:
      the fourth source. This replaces the show-once rule of decision
      175's item 11 and decision 210. *Rejected:*
      judging every log file on its own, and hiding it by matching words.
+
+Adam gave 300 to 306 on 2026-10-25, one for each question this change
+put to him when it recorded 297 to 299:
+
+300. **A log file whose `asked_in` links a message this machine never
+     reads is shown on its own,** as a question of the fourth source:
+     a message in a channel this machine does not subscribe to, or on a
+     surface it has turned off or cannot read. This amends decision 299. *Rejected:* showing it nowhere on that
+     machine.
+301. **An answer to a linked message records the message's question as
+     the person saw it,** not the question the log file holds. A log
+     file whose `asked_in` points at an unrelated message would otherwise
+     get the person's answer recorded, as a decision, against its own
+     words, which the person never saw; now the answer file pairs the
+     answer with the words they answered. *Rejected:* showing the file's question beside the
+     message.
+302. **Decision 251's rule applies to `asked_in`:** a Linear or Discord
+     `asked_in` is written only when the lore repository is private.
+     Where the URL is withheld, the answer session merges the log file
+     and the thread message into one entry where it can tell they are
+     the same question, and shows them twice where it cannot. Merging
+     changes only what one machine shows, so it is not the matching
+     decision 297 removed, and answering the merged entry records the
+     answer against both. Adam left the merge criterion to this change,
+     kept narrow so that two askers' questions in the same words are not
+     merged; decision 307 proposes it. *Rejected:* always
+     writing the URL.
+303. **No hash matching for misses or answers:** a miss is pushed even
+     when one with the same question and `filter` is already on the
+     branch, and an answer file names, in a new `answers` key, the file
+     it answers, as `closes` does, instead of answering every file with
+     the same question. This amends decisions 197 and 202's item 8.
+     *Rejected:* keeping both rules.
+304. **Reason 3 for a non-question logs the miss against the asking
+     agent and posts nothing,** since filter 3's fixed text tells the
+     agent to take an option it does not have. This amends decision
+     298. *Rejected:* posting filter 3's text.
+305. **A handled file holds only `handled` and `closes`;** `repository`
+     and `asked` go, since they served matching decision 297 removed.
+     This amends decisions 273 and 297. *Rejected:* keeping `repository`
+     for the visibility checks.
+306. **A late answer still counts:** a file another machine's decline
+     closed is still unanswered, so an answer given to its thread copy
+     pushes a log file answering it, as the spec already says.
+     *Rejected:* pushing no answer file for a file a handled file names.
 
 ### Proposed by this change
 
@@ -2342,7 +2389,8 @@ it item by item, except items 4 and 5, which his decisions 232 and 235
 replace. Decision 239 came from this change too, and Adam confirmed it
 item by item, except item 2, which his decision 240 changes. Decision
 245 came from this change too, and Adam replaced it with his own decision
-245, recorded above.
+245, recorded above. Decision 307 came from this change too, and waits
+for Adam.
 
 16. **Confirmed by Adam (2026-10-19).** **A prepared question** states the recommended answer, what changes under
     the other answer, and a link to any related earlier decision, so that most
@@ -2670,7 +2718,7 @@ from Adam's decisions 152 to 169. Adam confirmed each on 2026-10-20:
      *Rejected:* new frontmatter keys, since every frontmatter value is one
      quoted line and a question's text is not. This change took it under
      filter 4.
-173. **Confirmed by Adam (2026-10-20), and amended by his decision 210.** **A question from a lore repository's questions branch is answered
+173. *Amended by Adam's decision 303: the new file names the file it answers in `answers`.* **Confirmed by Adam (2026-10-20), and amended by his decision 210.** **A question from a lore repository's questions branch is answered
      by pushing a new log file there,** holding the question and the
      answer, under the rules for an answer the person gave in the session
      (decisions 94 and 140). Such a file has no thread to relay to, and
@@ -2805,7 +2853,7 @@ the answer session's requirements. Each is this change's own. Adam
 confirmed each on 2026-10-20, amending 199 and changing items 2, 4, 6 and
 7 of 202:
 
-197. **Confirmed by Adam (2026-10-20).** **A miss the answer session logs goes to the questions branch of the
+197. *Amended by Adam's decision 303: a miss is pushed even when a matching one is already on the branch.* **Confirmed by Adam (2026-10-20).** **A miss the answer session logs goes to the questions branch of the
      team's lore repository,** pushed directly by the script, as decision
      173's answers are. Its `repository` is the repository the question
      concerns, which the session's model judges as the inquisitor's spec
@@ -2943,7 +2991,7 @@ confirmed each on 2026-10-20, amending 199 and changing items 2, 4, 6 and
      7. *Replaced by Adam's decision 207,* which logs a miss against
         filter 1 for an agent's question that filter 1 answers by itself.
         This item logged none.
-     8. *Its use for decision 175's item 11 ended with Adam's decision 299; the reduction still serves "the same question" in the rule against a second miss and the rule that a later answered file answers a question.* A log file's question is reduced as a post's question is, without
+     8. *Its use for decision 175's item 11 ended with Adam's decision 299, and its use for misses and answers with his decision 303; the reduction still serves "the same question" in decision 302's merge and in filter 1's search.* A log file's question is reduced as a post's question is, without
         list marker or inline markup and with its whitespace joined,
         before it is hashed, so decision 175's item 11 finds a question
         logged from a thread. Before this, a log file's question was
@@ -3286,6 +3334,19 @@ this change's own:
         on fetching under `igor run` and the hashed record of handback
         questions, contradict nothing here.
 
+307. **Proposed: the merge criterion of decision 302.** A log file with
+     no `asked_in` is merged with a thread message on one machine only
+     when the file is on a lore repository that is not private, the
+     message is on Linear or Discord, the two questions are the same once
+     every mention is removed (a file tags `@login`, a Linear or Discord
+     message mentions the person's user on that surface), the file's
+     `asked` day is the message's day in UTC, and the file matches no
+     other message this machine has polled and the message no other
+     file. It is judged again at each poll; a merge that ends shows both
+     again and leaves any answer already given in place.
+     *Rejected:* merging on the same question alone, which joins two
+     askers' questions in the same words.
+
 **Still open:**
 
 The archive waits for task 4.3 to tag every expected gap, which waits
@@ -3322,6 +3383,12 @@ settled by decisions 292 to 295.
 The six questions raised while recording decisions 292 to 296 are
 settled by decisions 297 to 299.
 
+The seven questions raised while recording decisions 297 to 299 are
+settled by decisions 300 to 306.
+
+Decision 307, the merge criterion this change proposes, waits for
+Adam.
+
 Open on igor PR #216's side, at the head last read, 59e7561, which records Adam's decisions
 up to 149 in #216's own numbering, decisions 244 and 245 among them as
 its decisions 92 and 97:
@@ -3337,9 +3404,10 @@ its decisions 92 and 97:
   could then close, on every machine and for good, whichever
   questions-branch file the planted `closes` names (decision 297).
 - **#216's Igor should write `asked_in`** in a log file for a question it
-  also asked in a post or thread (decision 299). Without it, the answer
-  session shows that file as a question of its own, beside the thread
-  copy.
+  also asked in a post (decision 299), a Linear or Discord one only in a
+  private lore repository (decision 302), and name in `answers` the file
+  an answer file answers (decision 303). Without `answers`, the answer
+  session keeps showing the answered file as unanswered.
 - **#216 should widen its definition of a citation to include a
   person's cite.** It defines a citation as an agent's record that a
   lore entry answered a question so that no person was asked. Decision

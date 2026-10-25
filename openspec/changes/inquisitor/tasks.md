@@ -231,11 +231,13 @@ contradicts what design.md assumed.
       format of *A log file and a miss file have one format*, with an
       `authority` of `decision`, `input` or `agent`, and `answered_by: agent` for an agent's choice,
       a log file for a question also asked in a post holding that
-      post's URL as `asked_in` (decision 299),
+      post's URL as `asked_in`, a Linear or Discord one only in a private
+      lore repository (decisions 299 and 302),
+      an answer file naming the file it answers in `answers` (decision
+      303),
       a handled file for a questions-branch question the answer session
-      marks handled (`handled`, `closes`, that file's name, and
-      `repository` and `asked` copied from it, with no question text,
-      answer or authority; decisions 273, 276, 277 and 297), written
+      marks handled (only `handled` and `closes`, that file's name, with
+      no body; decisions 273, 276, 277, 297 and 305), written
       only through the command's handled option, which only the answer
       session passes, a `handled` or `closes` key being refused without
       it, the command not checking its caller,
@@ -483,8 +485,8 @@ contradicts what design.md assumed.
       declining with its three reasons, and reason 3's posts; the misses
       on the questions branch, none for the second reason (decision
       298), a miss against
-      filter 1 for an agent's question it answers by itself, and no
-      second miss for the same question; a recorded answer by itself on a
+      filter 1 for an agent's question the answer session answers by
+      itself; a recorded answer by itself on a
       relayed question, and no `Inquisitor: ` post on one (decision 223),
       and no automatic post that repeats an automatic post made earlier in
       its chain of replies (decision 219); a
@@ -506,9 +508,17 @@ contradicts what design.md assumed.
       closed question's thread, a follow-up or a reply, shown as a new
       question; a message that is not really a question ignored, and one
       that reaches the queue declined under reason 2 with no miss, or
-      under reason 3 with a miss against the filter the person picks; and a miss for a question a questions-branch file holds
-      copying that file's `asked_from` (decisions 273, 274, 278, 282,
-      283, 291 and 297 to 299)
+      under reason 3 with filter 3's "not a question", posting nothing,
+      with a filter 3 miss on the agent's question; a log file whose link
+      this machine does not read shown on its own; once Adam confirms
+      decision 307, a log file with a withheld Linear or Discord link
+      merged with its message only when neither matches any other file
+      or message; an answer file holding the question the person
+      saw and naming the file it answers; a second machine's miss pushed
+      even when a matching one is on the branch; and a miss for a
+      question a questions-branch file holds copying that file's
+      `asked_from` (decisions 273, 274, 278, 282, 283, 291 and 297 to
+      306)
 - [ ] 6.11 Decide at implementation, with no requirement added
       (decision 256), and record each choice in design.md while the
       change is open. Agreeing to a shown recorded answer is not among

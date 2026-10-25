@@ -78,7 +78,8 @@ Terms used throughout this spec:
   it.
 - **A thread copy** is a question shown from a thread. A questions-branch
   log file **holds** a thread copy when the file's `asked_in` links that
-  thread message (proposal decision 299).
+  thread message, or when this machine merged the file with that message
+  (proposal decisions 299 and 302).
 - **A Claude Code background session** is one with no terminal attached,
   such as a session picker starts.
 - **The state folder** is
@@ -367,9 +368,9 @@ closed. An unclear one is shown (proposal decision 289).
    an issue in a subscribed team assigned to the person;
 4. a log file on the questions branch of a lore repository the inquisitor's
    configuration names, which holds no answer, whose question tags the
-   person, for which that branch holds no later log file with the same
-   question that is answered, and which no handled file names (proposal
-   decisions 273 and 297). A handled file is never shown as a question of
+   person, which no answered log file on that branch names in its
+   `answers` key, and which no handled file names (proposal decisions
+   273, 297 and 303). A handled file is never shown as a question of
    its own.
 
 The answer session SHALL show a question once: a log file of the fourth
@@ -379,8 +380,27 @@ showing it, answering it, ignoring it as not a question or declining it,
 applies to the log file, which is not shown on its own. A log file with
 no `asked_in` is judged on its own as a question of the fourth source
 (proposal decision 299). A log file whose `asked_in` links a message
-this machine does not read, as in a channel it does not subscribe to, is
-not shown on this machine. A question of the third source is answered by a comment
+this machine does not read, one in a channel it does not subscribe to
+or on a surface it has turned off or cannot read, is shown on its own on
+this machine, as a question of the fourth source
+(proposal decision 300).
+
+A log file of the fourth source with no `asked_in` SHALL be merged with
+a thread message into one entry on this machine when all of these hold:
+the file is on the questions branch of a lore repository that is not
+private; the message is on Linear or Discord; the two questions are the
+same question once every mention, an `@login` or a Linear or Discord
+user mention, is removed from each; the file's `asked` day is the day,
+in UTC, the message was posted; and the file meets these with no other
+message this machine has polled, and the message with no other
+fourth-source file. Otherwise both are shown. The answer session judges
+this again at each poll, so a second matching message ends the merge and
+shows all of them; an answer already relayed or pushed for the merged
+entry stays (proposal decision 307). The merged entry is the message, and the file follows it as a
+file follows the message its `asked_in` links. Merging changes only what
+this machine shows (proposal decision 302).
+
+A question of the third source is answered by a comment
 on that pull request or issue. An Igor worker's handback comment tags no
 one, so its question is shown only through the third source, when its
 item is assigned to the person.
@@ -444,6 +464,30 @@ the first (proposal decisions 283, 287 and 291).
   `asked_in` is that post's URL
 - **THEN** the answer session shows the question once, from the post's
   thread
+
+#### Scenario: A log file linking a message this machine does not read is shown on its own
+
+- **WHEN** a questions-branch log file's `asked_in` links a Discord
+  message in a channel this machine does not subscribe to
+- **THEN** the answer session shows the log file on its own, as a
+  question of the fourth source
+
+#### Scenario: A log file whose Discord link was withheld is merged with the message
+
+- **WHEN** a lore repository that is not private holds a log file with no
+  `asked_in` whose question tags `@adamstallard`, and the one Discord
+  message this machine has polled whose question is the same once its
+  mention of the person is removed was posted on the file's `asked` day
+- **THEN** the answer session shows one entry, from the message, and an
+  answer to it is relayed in the thread and pushed as a log file naming
+  the file in `answers`
+
+#### Scenario: Two messages with the same words are not merged
+
+- **WHEN** a log file with no `asked_in` has the same question as two
+  Discord messages posted on its `asked` day
+- **THEN** the answer session merges none of them, and shows the file and
+  both messages
 
 #### Scenario: Ignoring the linked message ignores the file
 
@@ -680,8 +724,10 @@ new post is.
 session also push a log file when it answers, in a thread, a question
 that an unanswered log file on a lore repository's questions branch
 holds. When an edit leaves a `User says: ` answer to such a question, the
-answer session SHALL push a new log file holding the question and the
-edited answer, as that requirement pushes one: it passes the edited
+answer session SHALL push a new log file holding the edited answer, the
+question the earlier answer file holds, or, when none was pushed, the
+question as the person saw it, and naming the unanswered file in
+`answers`, as that requirement pushes one: it passes the edited
 post's URL as the `answer_link`, which the `log` command leaves out of a
 lore repository that is not private for a Linear or Discord post. It
 SHALL leave every earlier file
@@ -789,8 +835,8 @@ When the asker replies to the relay's `User asks: ` post while the
 person's question waits for it, the reply puts that question back in the
 queue, shown with the reply, whether or not the reply is itself a
 question. A question from a lore repository's questions branch is answered
-when that branch holds a later log file with the same question and an
-answer.
+when that branch holds an answered log file naming it in its `answers`
+key (proposal decision 303).
 
 #### Scenario: A relay reply marks the question answered on every machine
 
@@ -1088,11 +1134,12 @@ Apart from the handled file of *A handled file closes a questions-branch
 question*, the answer session SHALL write no log file, except to answer
 a question that an unanswered log file on a lore repository's questions
 branch holds: a question of the fourth source, or a question shown from
-a thread whose message that file's `asked_in` links. For a question shown
+a thread whose message that file's `asked_in` links or this machine
+merged with that file. For a question shown
 from a thread, it SHALL relay the answer in the thread, as *An answer is
 relayed as the person's words* says, and also push the log file. It SHALL
-answer such a question by writing a new log file through the
-inquisitor script's `log` command, which pushes it to that same questions
+answer such a question by writing a new log file, naming the answered
+file in its `answers` key, through the inquisitor script's `log` command, which pushes it to that same questions
 branch under the rules of the inquisitor's *Every answer is recorded and
 every asked question logged*. When the answer was also relayed in a
 thread, the answer session SHALL pass the `log` command the URL of that
@@ -1113,7 +1160,9 @@ includes the post's `Rephrased question: ` and `Discussion: ` lines
 (proposal decision 239's item 8). When the answer was not relayed in a thread, the file's answer
 is the answer the person confirmed in the answer session, word for word
 (proposal decision 240). The file also
-holds the question, its `authority` by the rules the inquisitor's *Every
+holds the question, which, for a question shown from a thread, is the
+message's question as the person saw it, not the text of the file it
+answers (proposal decision 301), its `authority` by the rules the inquisitor's *Every
 answer is recorded and every asked question logged* sets for an answer
 the person gave in the session, and any rephrasing and summary. Its
 `authority` is set that way whatever surface relayed the answer. Whether
@@ -1149,8 +1198,8 @@ edit for a question of the fourth source.
 - **WHEN** the person answers a question of the fourth source
 - **THEN** the script pushes a new log file holding the question and the
   answer to that branch, in a commit with the message
-  `inquisitor: log <file>`, posts nothing, and leaves the earlier file
-  unchanged
+  `inquisitor: log <file>`, naming the earlier file in `answers`, posts
+  nothing, and leaves the earlier file unchanged
 
 #### Scenario: A questions-branch question asked in a post is answered in both places
 
@@ -1160,6 +1209,21 @@ edit for a question of the fourth source.
   `User says: `, and the script pushes a new log file holding the question
   and, as its answer, that relay post's text word for word, to that
   branch, whose `answer_link` is that relay post's URL
+
+#### Scenario: An answer records the question the person saw
+
+- **WHEN** a log file's `asked_in` links a GitHub message whose question
+  differs from the file's own, and the person answers the message
+- **THEN** the new log file holds the message's question and the answer,
+  and names the earlier file in `answers`
+
+#### Scenario: A late answer on another machine answers a closed file
+
+- **WHEN** the person declined as over, on one machine, a thread copy that
+  a questions-branch file holds, and then answers that thread copy on
+  another machine
+- **THEN** the answer session relays the answer in the thread and pushes a
+  log file naming the closed file in `answers`
 
 #### Scenario: A Linear link is left out of a lore repository that is not private
 
@@ -1205,12 +1269,14 @@ edit for a question of the fourth source.
 
 ### Requirement: A handled file closes a questions-branch question
 
-Whenever the answer session closes a question, it SHALL push a
-**handled file** naming each unanswered log file on a lore repository's
+Whenever the answer session closes a question, it SHALL push one
+**handled file** for each unanswered log file on a lore repository's
 questions branch that holds the question and that no handled file names
 yet, through the inquisitor script's `log` command, with a thread or
-without. A file holds the question when it is the question, one of the
-fourth source, or when its `asked_in` links the closed thread message. A
+without, each naming one such file. A file holds the question when the
+question was shown from that file, as one of the fourth source, when its
+`asked_in` links the closed thread message, or when this machine merged
+it with that message. A
 handled file closes exactly the file it names, on every machine, and
 nothing else (proposal decisions 273, 278 and 297). The answer session
 closes a question in two ways: it declines the question, agreeing to a
@@ -1351,7 +1417,13 @@ giving one of three reasons:
    posts nothing for any filter, shows the person the recorded answer
    for filter 1, and the question closes. On a
    question with a category, it posts nothing for any filter, and the
-   question closes. This reason applies to a person's question as to an
+   question closes. Filter 3 offers two choices: its fixed reply, or
+   "not a question", for a message the asking agent should not have
+   written, since filter 3 stops a rhetorical question in the inquisitor
+   spec. Under "not a question" the answer session posts nothing, and
+   the question closes (proposal decision 304). The person picks it,
+   rather than reason 2, when the asking agent erred, not the answer
+   session. This reason applies to a person's question as to an
    agent's. The answer
    session logs a miss against the filter the person picked, whose `said`
    is the note the person typed, or `the inquisitor should have handled
@@ -1789,8 +1861,9 @@ one reaches the person's queue anyway, because the session judged it
 unclear and showed it, the person declines it under whichever reason
 fits: the second, picked up by mistake, when the session misread it,
 which posts nothing and logs no miss; or the third, when the asking
-agent should not have written it, with the filter the person picks,
-which logs a miss against the agent. The ignore rule covers sources 1
+agent should not have written it, with filter 3's "not a question",
+which posts nothing and logs a filter 3 miss on the agent's question
+(proposal decision 304). The ignore rule covers sources 1
 and 2 only, so a non-question from the third or fourth source reaches
 the queue without the session judging it (proposal decisions 289, 292,
 296 and 298).
@@ -1885,9 +1958,9 @@ than the question's thread, which on GitHub means more visible than the
 thread's repository, and on Linear and Discord means any lore repository
 that is not private. For a question with no thread, the questions-branch
 file's own visibility, as the inquisitor's *More visible* defines it,
-stands in for the thread's. It SHALL push no miss whose question is the
-same question as a miss file already on that branch with the same
-`filter`.
+stands in for the thread's. A miss is pushed even when a miss file with
+the same question and `filter` is already on that branch (proposal
+decision 303).
 
 #### Scenario: A miss goes to the questions branch
 
@@ -1943,8 +2016,15 @@ same question as a miss file already on that branch with the same
   by itself
 - **THEN** the miss file's `said` is `answer session: clearly filter 2`
 
-#### Scenario: A miss judged on two machines is pushed once
+#### Scenario: A non-question declined under reason 3 posts nothing
 
-- **WHEN** the answer session on a second machine would log a miss whose
+- **WHEN** the person declines under the third reason, choosing filter 3's
+  "not a question", an agent's message in a GitHub thread
+- **THEN** the answer session posts nothing in the thread and logs a
+  filter 3 miss on the agent's question
+
+#### Scenario: A miss judged on two machines is pushed twice
+
+- **WHEN** the answer session on a second machine logs a miss whose
   question and filter match a miss file already on the branch
-- **THEN** it pushes no second miss file
+- **THEN** it pushes its miss file too

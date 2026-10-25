@@ -641,7 +641,7 @@ needs that v0.1-33 lacks follow its patterns (proposal decision
 254, task 6.1).
 The rules are in the `answer-session` spec, the decisions in proposal
 decisions 152 to 175, 184 to 203, 207 to 211, 215, 216, 219, 220,
-222 to 230, 234, 236, 238, 246 to 248, 250 to 252, 254 to 260 and 262 to 299.
+222 to 230, 234, 236, 238, 246 to 248, 250 to 252, 254 to 260 and 262 to 306.
 
 ### Polling while open, with the person's credentials
 
@@ -827,6 +827,28 @@ were closed, and exact identity cannot disagree (decisions 277, 281,
 reopens a questions-branch file a handled file closed (decision 283),
 and a message posted in a thread after its question closed is shown as
 a new question (decisions 287 and 291).
+
+An answer file uses exact identity too, as a handled file's `closes`
+does: it names, in `answers`, the file it answers (decision 303). It
+records the question as the person saw it, not the file's own text, so
+a log file whose `asked_in` points at an unrelated message never gets
+the person's answer recorded against words they did not see (decision
+301).
+
+Misses no longer match either: a miss file is pushed even when one with
+the same question and filter is already on the branch, since dropping it
+would again mean matching on words (decision 303).
+
+A Linear or Discord `asked_in` is withheld from a lore repository that
+is not private, as an `answer_link` is (decisions 251 and 302). A log
+file without it has no link to the message that also asked it, so the
+answer session merges the two into one entry only when it is sure:
+the same question once mentions are removed, asked the same day, and
+exactly one file and one message that fit. That criterion is decision
+307, which this change proposes and Adam has not yet confirmed. A merge
+changes only what one machine shows. Two askers' questions in the same
+words, both read by one machine, fail the "exactly one" test and are
+shown apart.
 
 A relayed answer counts as the person's own for filter 1 (decision 184).
 Decision 78 proves a logged answer's writer only when GitHub gives the

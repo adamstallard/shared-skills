@@ -2106,7 +2106,12 @@ nothing, and SHALL record the answer it was given, word for word
 which logs only to a lore repository's questions branch. The command
 SHALL write the link only when it reads that lore repository's
 visibility as private, and otherwise SHALL write the file without an
-`answer_link` (proposal decision 251). The command does not check who passed such a
+`answer_link` (proposal decision 251). Likewise it SHALL write a Linear
+or Discord `asked_in` only when it reads the lore repository's
+visibility as private, SHALL write the file without it otherwise, and
+SHALL write nothing and say why for an
+`asked_in` that is not a github.com, Linear or Discord URL of the forms
+given for `answer_link` (proposal decision 302). The command does not check who passed such a
 link; it proves no writer whoever did. For an `answer_link` that is none
 of these, it SHALL write nothing and say why. In
 Igor-worker mode it SHALL read no comment: it writes the answer it was
@@ -2123,7 +2128,14 @@ No log file SHALL be written outside a repository, such as under
 A log file for a question that was asked SHALL hold the question as asked and the day it was
 asked. A questions-branch log file for a question also asked in a post
 SHALL hold that post's URL as `asked_in`, so the agent SHALL post the
-question before it writes the log file (proposal decision 299). When the answer comes, it gains who answered (its `answered_by`),
+question before it writes the log file (proposal decision 299); the
+`log` command leaves a Linear or Discord URL out of a lore repository
+that is not private (proposal decision 302). A questions-branch file
+that answers a question an earlier file there logged unanswered SHALL
+name that file in `answers`, one answer file for each such file it
+knows of: the agent that pushed the earlier file has its name, and a
+later run has the names of the files filter 1's search found (proposal
+decision 303). When the answer comes, it gains who answered (its `answered_by`),
 the answer's `authority`, the answer, and where the
 question's answer is recorded, in the format *A log file and a miss file
 have one format* states. A questions-branch file pushed with its answer,
@@ -2451,6 +2463,18 @@ why.
 - **THEN** the agent records the answer only in the question's log file,
   with `authority: input`, and does not write it into the spec
 
+#### Scenario: A Discord link is left out of a lore repository that is not private
+
+- **WHEN** an agent asks a question in a Discord message and logs it on
+  the questions branch of a lore repository that is not private
+- **THEN** the log file holds no `asked_in`
+
+#### Scenario: An answer file names the file it answers
+
+- **WHEN** an agent records, on the lore repository's questions branch,
+  the answer to a question it logged there unanswered
+- **THEN** the new file names the unanswered file in `answers`
+
 #### Scenario: A question logged and asked in a post links the post
 
 - **WHEN** an agent asks a question in a post and logs it on the lore
@@ -2477,10 +2501,11 @@ written.
 - **Encoding:** UTF-8 with LF line ends: YAML frontmatter between two `---`
   lines, every value a double-quoted YAML string, then a markdown body. The
   frontmatter SHALL hold no key but those below, so never `conditions`.
-- **A log file's keys:** `repository`, the repository the question
+- **A log file's keys** (a handled file holds only `handled` and
+  `closes`, both below): `repository`, the repository the question
   concerns, as `owner/repo`; `asked`, the day the question was asked, or,
   for a question never asked, the day the agent decided it, as
-  `yyyy-mm-dd`; and, once the answer comes, or from the start in a
+  `yyyy-mm-dd` in UTC; and, once the answer comes, or from the start in a
   questions-branch file pushed with its answer, `answered_by`, a GitHub login
   or `agent`; `authority`, `decision`, `input` or `agent`; `recorded_in`,
   where the question's answer is recorded, as a path from that
@@ -2494,17 +2519,20 @@ written.
   Linear a URL starting `https://linear.app/`; `handled`, the day, as
   `yyyy-mm-dd` in UTC, on which an answer session closed the question,
   even when the push itself succeeds on a later poll, held only
-  in a **handled file**: a questions-branch file holding `handled`,
-  `closes`, and `repository` and `asked` copied from the file it closes,
-  and no body, no question text, and no `answered_by`, `authority`,
-  `recorded_in` or answer (proposal decisions 273, 276, 277 and 297);
+  in a **handled file**: a questions-branch file holding `handled` and
+  `closes` and no other key, and no body (proposal decisions 273, 276,
+  277, 297 and 305);
   `closes`, only in a handled file, the file name of the one
   questions-branch file it closes, `<date>-<slug>-<6 hex digits>.md`,
   without its directory, as the `answer-session` spec's *A handled file closes
   a questions-branch question* says; and
   `asked_in`, only in a questions-branch log file for a question the
-  asking agent also asked in a post, the URL of that post (proposal
-  decision 299);
+  asking agent also asked in a post, the URL of that post, a Linear or
+  Discord URL being written only in a private lore repository, as for
+  `answer_link` (proposal decisions 299 and 302);
+  `answers`, only in a questions-branch file holding an answer, the file
+  name of the unanswered questions-branch file it answers, written as
+  `closes` is (proposal decision 303);
   `asked_from`, only in a questions-branch file an Igor pushes, whether
   its worker reported it or the Igor's own inquisitor run wrote it, or in
   a miss an answer session logs for a question such a file holds. Its body
@@ -2529,7 +2557,7 @@ written.
 - **A miss file's keys:** `repository` and `asked`, as in its question's
   log file, or, for a miss an answer session logs, the repository the
   question concerns and the day the question was asked; `filter`, `"1"` to `"4"`, the filter that should have stopped
-  the question, `"source <n>"` being retired by proposal decision 298; and `said`, what the person said, in their words or in one
+  the question; and `said`, what the person said, in their words or in one
   sentence, with any place they named, such as a spec's path, or, for a
   miss an answer session logs by itself or with no note from the person,
   the fixed text the `answer-session` spec gives; and `asked_from`, as in
@@ -3211,10 +3239,8 @@ treats the post as input, and its question stands.
 #### Scenario: A handled file's keys
 
 - **WHEN** an answer session marks a questions-branch file handled
-- **THEN** the new file holds `repository` and `asked`, copied from the
-  file it closes, `handled`, as the day in `yyyy-mm-dd`, and `closes`,
-  that file's name, and no body, no question text, and no
-  `answered_by`, `authority`, `recorded_in` or answer
+- **THEN** the new file holds only `handled`, as the day in
+  `yyyy-mm-dd`, and `closes`, that file's name, and no body
 
 #### Scenario: A handled file never stops a question
 
