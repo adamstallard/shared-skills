@@ -2494,7 +2494,8 @@ written.
   prove the filters ran* reduces a question in a post, the same hash that decides whether two log files hold the same
   question; and
   `asked_from`, only in a questions-branch file an Igor pushes, whether
-  its worker reported it or the Igor's own inquisitor run wrote it. Its body
+  its worker reported it or the Igor's own inquisitor run wrote it, or in
+  a miss an answer session logs for a question such a file holds. Its body
   is the question under `## Question`, and, once the answer comes, the
   answer under `## Answer`: for an answer with a github.com
   `answer_link`, the comment's own text word for word, as *Only an answer
@@ -2531,7 +2532,9 @@ written.
   refusing any such file that already holds one, as
   igor PR #216's *An Igor publishes the questions-branch files its worker
   reports* says. A citation file never holds it.
-  The skill's script never writes it. A file holding it is as private as
+  The skill's script never writes it, except that a miss an answer session
+  logs for a question a questions-branch file holds copies that file's
+  `asked_from` (proposal decision 282). A file holding it is as private as
   the more private of its two repositories, as *More visible* says.
 - **Reading a log file:** it is answered when its frontmatter holds
   `authority`, and only then; nothing in its body decides it. It is
@@ -2623,7 +2626,8 @@ written.
 - **WHEN** an Igor pushes, for its worker on an item in `o/web`, a log file
   whose `repository` key is `o/api`
 - **THEN** its frontmatter also holds `asked_from: "o/web"`, and a file
-  the script writes outside an Igor holds no `asked_from`
+  the script writes outside an Igor holds no `asked_from`, unless it is a
+  miss an answer session logs for a question such a file holds
 
 #### Scenario: A file from the Igor's own inquisitor run names where it was asked from
 

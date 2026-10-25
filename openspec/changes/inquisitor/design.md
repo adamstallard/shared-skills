@@ -518,7 +518,10 @@ A log or miss file an Igor pushes also names, in `asked_from`, the
 repository of the item the run worked (decision 221), whether its worker
 reported the file or the Igor's own inquisitor run wrote it (decision
 239). The worker, or the script in the Igor's own run, writes
-`repository`, and the Igor writes `asked_from`. A
+`repository`, and the Igor writes `asked_from`. The only other writer of
+`asked_from` is an answer session: when it logs a miss for a question a
+questions-branch file holds, the miss copies that file's `asked_from`
+(decision 282). A
 worker steered by its item's text could put a private repository's
 details in a file whose `repository` names a public one, but
 `asked_from` would still name the private one. Every reader judges the file by the more private of its two
@@ -638,7 +641,7 @@ needs that v0.1-33 lacks follow its patterns (proposal decision
 254, task 6.1).
 The rules are in the `answer-session` spec, the decisions in proposal
 decisions 152 to 175, 184 to 203, 207 to 211, 215, 216, 219, 220,
-222 to 230, 234, 236, 238, 246 to 248, 250 to 252, 254 to 260 and 262 to 280.
+222 to 230, 234, 236, 238, 246 to 248, 250 to 252, 254 to 260 and 262 to 284.
 
 ### Polling while open, with the person's credentials
 
@@ -789,17 +792,24 @@ the branch, a handled file: a new log file marking the question closed,
 with no answer. It closes the question only in the person's queue, and
 filter 1 still shows the question to a searching agent as unanswered.
 The answer session pushes one whenever it closes a question that a
-questions-branch file holds: when it declines it, posts a recorded
-answer or an `Inquisitor: ` reply in the thread where that same question
-was also asked, or handles it as rhetorical, filter 3's case of a
-question that needs no reply (decision 278). The file holds the
+questions-branch file holds: when it declines it, or when it posts in
+the thread where that same question was also asked a recorded answer or
+an `Inquisitor: ` reply, one of the four fixed texts for filters 2, 3
+and 4 and filter 3's rhetorical case (decisions 278 and 284). Decision
+284 also closes a rhetorical question with no thread by itself, which
+conflicts with the person deciding a questions-branch question; Still
+open asks Adam about it. The file holds the
 question's hash, not its text (decision 277). Before decision 273,
 nothing on the branch recorded that the person had declined or answered
 for the question, so its questions-branch copy would reappear in the
 person's queue on another machine, or after a restart; the handled file
-stops that, whether a person or an agent asked (decision 273). Whether
-it also keeps the thread copy of such a question out of another
-machine's queue is in the proposal's Still open.
+stops that, whether a person or an agent asked (decision 273). The
+handled file keeps every copy of the question with the same hash, the
+thread copy included, out of the queue on every machine, and nothing
+reopens it (decisions 281 and 283), so a closed question cannot come
+back through a reply; Still open asks whether that reply should then be
+shown on its own, and whether the same words asked elsewhere should be
+closed too.
 
 A relayed answer counts as the person's own for filter 1 (decision 184).
 Decision 78 proves a logged answer's writer only when GitHub gives the
@@ -894,8 +904,9 @@ only what needs them. Posting without the person raises two risks, and
 the spec answers each:
 
 - **A thread's text reaches the model that judges it.** The model writes
-  no word of an automatic post: an `Inquisitor: ` post is one of three
-  fixed texts, and a recorded answer only points to filter 1's hit and
+  no word of an automatic post: an `Inquisitor: ` post is one of four
+  fixed texts, those for filters 2, 3 and 4 and filter 3's rhetorical
+  text, and a recorded answer only points to filter 1's hit and
   quotes nothing from it (decision 200's item 1, as decision 239's item 5
   amends it). So a crafted question can at
   worst choose which canned reply or which record is posted. Filter 3's

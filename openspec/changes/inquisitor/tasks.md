@@ -465,7 +465,7 @@ contradicts what design.md assumed.
       v0.1-30 by use on 2026-10-20 (decision 231), tagged
       `answer-session-ui-approved-v0.1-30` on shared-skills
 - [ ] 6.10 Filter 1 on every incoming question and the `Recorded answer: `
-      post; filters 2 to 4 and the three fixed `Inquisitor: ` texts;
+      post; filters 2 to 4 and the four fixed `Inquisitor: ` texts;
       declining with its three reasons, and reason 3's posts; the misses
       on the questions branch, with `filter: "source <n>"` and
       `said: "not a question"` for the second reason, a miss against
@@ -485,9 +485,10 @@ contradicts what design.md assumed.
       reason 3's posts add (decision 234; the line is decision 239's
       item 6). The tests also cover the answer session's handled file, pushed whenever it
       closes a question a questions-branch file holds, whether from that
-      branch or shown from a thread, a rhetorical question included, and
-      no reopening of such a question once declined (decisions 273, 274
-      and 278)
+      branch or shown from a thread, a rhetorical question included,
+      closing every copy with the same hash for good; filter 3's
+      rhetorical text; and a miss for a question a questions-branch file
+      holds copying that file's `asked_from` (decisions 273, 274, 278 and 281 to 284)
 - [ ] 6.11 Decide at implementation, with no requirement added
       (decision 256), and record each choice in design.md while the
       change is open. Agreeing to a shown recorded answer is not among

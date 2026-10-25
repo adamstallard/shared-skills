@@ -16,7 +16,7 @@ are written down:
 - 232 to 237, on 2026-10-21, and 238 in two parts: Message Content
   turned on, on 2026-10-20, and how `check` reads it, on 2026-10-21.
 - 240 to 253, on 2026-10-21;
-- 254 to 280, on 2026-10-24.
+- 254 to 284, on 2026-10-24.
 
 Apart from 229 and 241 to 244, which he gave in the session reviewing
 igor PR #216, and 238, which he gave in shared-skills PR #1, he gave those of 2026-10-19 to 2026-10-24 while reviewing this pull
@@ -52,7 +52,8 @@ before: 264 and 265 answer two, 266 and 267 answer five, 268 and 269
 answer two, 270 to 272 answer the three raised with 268 and 269, and
 273 to 275 answer the three raised with 270 to 272, and in 276 Adam
 confirmed two details this change had chosen. 277 to 280 answer the four
-raised with 273 to 276, one decision each.
+raised with 273 to 276, and 281 to 284 the four raised with 277 to 280,
+one decision each.
 
 1. **Four filters run before any question reaches a person.**
    1. **Already answered:** the agent finds the earlier answer, cites where it
@@ -1217,7 +1218,8 @@ it:
      by itself. This replaces decision 175's item 16. On GitHub only an
      App the relay file lists speaks for the person (decision 216).
 194. *Reason 1 changed by Adam with decision 202's item 2, and reasons 2
-     and 3 by his decisions 208 and 209.* **The person can decline to
+     and 3 by his decisions 208 and 209; by his decision 283, a threaded
+     reply no longer reopens a question a handled file closed.* **The person can decline to
      answer.** On any open question they can choose not to answer. They
      give one of three reasons:
      1. **The conversation is over.** Nothing is posted, and the question
@@ -1225,7 +1227,8 @@ it:
         relay post, such as an unthreaded follow-up in a GitHub
         conversation, stop counting as questions. A threaded reply to a
         relay post, such as a Discord reply to it, still counts, and
-        reopens the question.
+        reopens the question, unless a handled file closed it (decision
+        283).
      2. **Not a question:** the message was picked up by mistake. Nothing
         is posted, the question closes, and a lesson candidate is logged
         against the way the answer session found the message, meaning the
@@ -1249,7 +1252,8 @@ it:
      giving where the answer is recorded, never starting `User says: `.
      The question is listed for the person as answered for them, and they
      can edit that post as any relay post.
-196. *Amended by Adam's decision 234: the asking agent acts on an
+196. *Amended by Adam's decision 284: a rhetorical question gets filter
+     3's rhetorical text.* *Amended by Adam's decision 234: the asking agent acts on an
      automatic `Inquisitor: ` reply only when it names filter 2, and on
      filter 3's or 4's reply only when the person chose it under decline
      reason 3.* **The answer
@@ -1260,7 +1264,8 @@ it:
        answer, list the question as not done, and file an issue if it
        outlives the work; under filter 3, take the option that has merit
        and record it; under filter 4, pick one and record what and why. A
-       rhetorical question gets no reply. The answer session also logs a
+       rhetorical question gets filter 3's rhetorical text (decision 284;
+       as first written, it got no reply). The answer session also logs a
        miss against that filter, and lists the question for the person as
        handled for them;
      - for a person's question, it only shows the person its suggested
@@ -2103,10 +2108,13 @@ put to him when it recorded 273 to 276:
      public `repository`. For the same reason its file name's slug is
      always `handled`. Holding no question text, it is never matched by
      filter 1's search, which is how "read as unanswered" holds: it never
-     stops a question. The miss a close pushes can still carry the text;
-     see Still open. *Rejected:* copying the text with the original's
-     `asked_from`, and writing none for a question with a category.
-278. **A handled file is written whenever the answer session closes a
+     stops a question. The miss a close pushes still carries the text,
+     and decision 282 has it copy the file's `asked_from`. *Rejected,
+     for the handled file:* copying the question's text into it with the
+     original's `asked_from`, and writing no handled file for a question
+     with a category, one the inquisitor records by hash only.
+278. *Amended by Adam's decision 284: a rhetorical close posts filter 3's
+     rhetorical text.* **A handled file is written whenever the answer session closes a
      question a questions-branch file holds,** not only when it posts
      or declines. A rhetorical question closed under filter 3 with no
      reply is included. This amends decision 273. *Rejected:* keeping
@@ -2120,6 +2128,31 @@ put to him when it recorded 273 to 276:
      still closes the question in the person's queue.** The asker's question
      still stands in its thread, and the asker can ask again. *Rejected:*
      having the asking agent decide the close, as decision 272 had it.
+
+Adam gave 281 to 284 on 2026-10-24, one for each question this change
+put to him when it recorded 277 to 280:
+
+281. **A handled file closes every copy of its question with the same
+     hash,** thread copies included, on every machine. *Rejected:* thread
+     copies kept per machine.
+282. **The miss a close logs copies the questions-branch file's
+     `asked_from`,** so the visibility rules apply to it as to the file.
+     It is an exception to "the script never writes `asked_from`", stated
+     in the inquisitor spec's definition of `asked_from`. *Rejected:* no miss for a question whose file holds
+     `asked_from`.
+283. **A handled file is final:** nothing reopens a question it closed, a
+     threaded reply under decline reason 1 included. This amends decision
+     194's reason 1. *Rejected:* a reply reopening the thread copy on one
+     machine.
+284. **A rhetorical close posts filter 3's `Inquisitor: ` reply with a
+     fixed rhetorical text,** which the person can edit like any post. The
+     rule that a rhetorical question gets no reply is removed, amending
+     decision 202's item 10 and decision 278. With no thread, as for a
+     question only on a questions branch, nothing is posted and the
+     handled file alone closes it; that close has no post to edit, which
+     Still open asks about. The text's wording is this change's; see
+     Still open. *Rejected:* a rhetorical close with no post in a thread,
+     which the person could not undo.
 
 ### Proposed by this change
 
@@ -2699,12 +2732,12 @@ confirmed each on 2026-10-20, amending 199 and changing items 2, 4, 6 and
      `Inquisitor: ` replies to filter 2's, or filter 3's or 4's the person
      chose.** **Details the spec fixes,** each
      cheap to reverse, taken under filter 4:
-     1. A declined question, and a rhetorical question the answer session
-        handled with no reply, are kept closed in the state folder, per
-        machine. *Amended by decisions 273 and 278:* a declined or
-        rhetorical question that a questions-branch file holds is also
-        closed everywhere by its handled file. The spec lists the rhetorical one as handled for the
-        person, as item 10 has it, and keeps it out of the queue.
+     1. *Amended by decisions 273, 278, 281 and 284.* A declined question
+        is kept closed in the state folder, per machine, and one that a
+        questions-branch file holds is closed everywhere, every copy of
+        it, by its handled file. As first written, a rhetorical question
+        handled with no reply was kept closed the same way; decision 284
+        gives it filter 3's rhetorical text instead.
      2. *Changed by Adam.* Under decision 194's first reason, any
         threaded reply to a relay post, such as a Discord reply to it,
         reopens the closed question. The reason stops
@@ -2748,8 +2781,9 @@ confirmed each on 2026-10-20, amending 199 and changing items 2, 4, 6 and
         characters, nothing is posted, the person is told why, and the
         question keeps its state. An automatic post that fails sends its
         question to the person.
-     10. A rhetorical question handled with no reply is recorded in the
-         state folder as handled for the person, on that machine.
+     10. *Replaced by Adam's decision 284.* A rhetorical question handled
+         with no reply was recorded in the state folder as handled for the
+         person, on that machine; it now gets filter 3's rhetorical text.
 
 203. **Confirmed by Adam (2026-10-20).** **The inquisitor's post hook blocks a tool-call post on GitHub that
      starts with a reserved prefix.** The answer session posts through a
@@ -3102,47 +3136,51 @@ settled by decisions 273 to 276.
 The four questions raised while recording decisions 273 to 276 are
 settled by decisions 277 to 280.
 
-Four questions for Adam, raised while recording decisions 277 to 280,
+The four questions raised while recording decisions 277 to 280 are
+settled by decisions 281 to 284.
+
+Five questions for Adam, raised while recording decisions 281 to 284,
 one decision each:
-- **Should a handled file also close the thread copy of its question?**
-  Decisions 273 and 274 say a handled file closes the question
-  everywhere, but as the spec reads, it hides only the questions-branch
-  copy. Another machine
-  still shows the same question from its thread when the thread holds
-  no post, as after a decline under reason 1, "the conversation is
-  over", or reason 2, "not a question", or a rhetorical close, so decision 278 changes nothing another machine
-  shows for those. Recommended: yes, a handled file closes any question
-  with the same hash, thread copies included, so every close of a
-  questions-branch question holds on every machine. Alternative: keep
-  thread copies per machine, as decision 202's item 1 has them.
-- **Should the miss a close pushes carry the questions-branch file's
-  `asked_from`?** Each close also logs a miss holding the question's
-  text and no `asked_from`, so an Igor's question from a private item,
-  about a public repository, still reaches igor's search as public
-  through the miss, the leak decision 277 closed for the handled file.
-  Recommended: yes, the answer session's miss copies the `asked_from` of
-  the questions-branch file it closes, an exception to the rule that
-  the script never writes that key. Alternative: log no miss for a
-  question whose questions-branch file holds `asked_from`.
-- **Should a handled file be final?** Under reason 1, a threaded reply to
-  a relay post reopens the question on this machine by itself (decision
-  194's reason 1), even when a handled file has closed it everywhere;
-  decision 274 bars only the person's own reopening. Recommended: yes, nothing
-  reopens a question a handled file closes; with the first question's
-  recommendation this follows anyway. Alternative: let a threaded reply
-  reopen the thread copy on this machine.
-- **How can the person undo a rhetorical close?** The model's own
-  rhetorical verdict, with no person confirming it, now closes a shared
-  question everywhere, and nothing lets the person undo it: reopening
-  covers declines, and editing needs a post. Recommended: give a
-  rhetorical question filter 3's `Inquisitor: ` reply with a fixed
-  rhetorical text, which the person can edit like any automatic post;
-  it removes the no-reply step. Alternative: accept it, since the model
-  judges a question rhetorical only when it clearly is.
+- **The rhetorical text's wording.** Decision 284 asks for a fixed text.
+  Recommended: `Inquisitor: filter 3, rhetorical. This needs no answer;
+  carry on.`, which names the filter and its case as the other fixed
+  texts do. Alternative: another wording of Adam's.
+- **A rhetorical question with no thread.** Decision 284 closes it by
+  itself, with a handled file and nothing posted, but an agent's
+  questions-branch question gets only a suggestion that the person
+  decides, and such a close has no post to edit and cannot be reopened,
+  the kind of close 284 rejected for a thread. Recommended: drop that case; a rhetorical question
+  with no thread is shown with filter 3 as its suggested verdict, and its
+  handled file is pushed only when the person declines it, so the
+  rhetorical text applies only where the general rule already posts by
+  itself: a thread, and no category, a category being one of the three
+  kinds of question the inquisitor records by hash only. Alternative: keep the automatic
+  close with no thread.
+- **Questions with the same words elsewhere.** "The same question" is
+  only a hash of the reduced text, so a handled file also closes, for
+  good, the same words asked again later, or in another thread or
+  repository, such as a stock "ready to merge?", which decision 280's
+  remedy, asking again, then cannot reach. Recommended: a handled file
+  closes only a copy in the repository its `repository` names, asked no
+  later than its `handled` day. Alternative: keep the hash alone.
+- **What happens to a reply after a handled file closed its question.**
+  Reason 1's reopening by reply no longer applies, but the spec does
+  not say whether the reply itself is shown. Recommended: such a reply
+  is a new question of the second source, a reply to a relay post,
+  shown on its own, as decision
+  202's item 6 treats a reply to an automatic post. Alternative: drop it.
+- **Which filter 3 text decline reason 3 posts.** Filter 3 now has two
+  fixed texts, "not a real question" and the rhetorical one. Recommended: when the person picks filter 3, the preview
+  offers both, and they choose. Alternative: reason 3 always posts "not
+  a real question".
 
 Open on igor PR #216's side, at the head last read, 59e7561, which records Adam's decisions
 up to 149 in #216's own numbering, decisions 244 and 245 among them as
 its decisions 92 and 97:
+- **#216 says only an Igor writes `asked_from`.** Decision 282 adds a
+  second writer: an answer session's miss copies the `asked_from` of the
+  questions-branch file it closes. #216's push conditions and its
+  decision 42 should allow for that.
 - **#216 should refuse a worker's file holding `handled`,** as it refuses
   one holding `asked_from`. Only an answer session writes a handled file
   (decision 273), but #216 pushes any file a worker reports that holds
