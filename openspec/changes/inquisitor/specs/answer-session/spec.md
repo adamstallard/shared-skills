@@ -175,9 +175,12 @@ types `/answer setup`. Setup SHALL:
   Discord relay passes (proposal decision 247);
 - check that each relay identity can post in each of its surface's
   subscribed channels;
-- check that the person's commits to each configured lore repository's
-  questions branch are signed with a key GitHub verifies for their
-  account, and, when they are not, warn, saying how to fix it (proposal
+- check, by resolving the identity and signing the `log` command would
+  commit with once the `GIT_AUTHOR_*` and `GIT_COMMITTER_*` variables and the `GIT_CONFIG_*` entries that github-app sets are removed, that the answer session's
+  commits to each configured lore repository's questions branch use the
+  person's git identity, never a GitHub App's, even in a project set up
+  for an App (proposal decision 331), and are signed with a key GitHub
+  verifies for their account; when either is not so, warn, saying how to fix it (proposal
   decision 322). When setup cannot tell, as offline, it SHALL show the
   check as not checked, never as passed. The warning turns nothing off,
   and setup runs the check again each time it opens until it passes;
@@ -252,6 +255,14 @@ never ran.
   branch would not be signed
 - **THEN** setup warns that their answer files without a link will not
   count, says how to turn on signing, and saves the rest
+
+#### Scenario: Answer files are committed as the person in an App project
+
+- **WHEN** the answer session runs in a Claude Code session whose
+  environment sets `GIT_AUTHOR_NAME` to a GitHub App's bot and turns
+  signing off through `GIT_CONFIG_*`
+- **THEN** the `log` command commits the answer file as the person,
+  signed, with those variables removed
 
 #### Scenario: A signing key GitHub does not verify gets a warning
 
@@ -399,7 +410,8 @@ closed. An unclear one is shown (proposal decision 289).
    an issue in a subscribed team assigned to the person;
 4. a log file on the questions branch of a lore repository the inquisitor's
    configuration names, which holds no answer, whose question tags the
-   person, which no handled file names, and which is not answered: no
+   person (or, for an Igor's log file shown on its own to the item's
+   assignee as below, tags no one), which no handled file names, and which is not answered: no
    answer file on that branch that counts as the person's answer names
    it in `answers` (proposal decisions 273, 297, 303 and 320). A file
    named only by answer files that do not count is shown with the newest
@@ -415,7 +427,15 @@ no `asked_in` is judged on its own as a question of the fourth source
 (proposal decision 299). An Igor worker's log file links, in `asked_in`,
 the assigned issue or pull request its question is shown from under the
 third source, and follows that question as a file follows its thread
-message (proposal decision 326). A log file whose `asked_in` links a message
+message (proposal decision 326). So it is shown only to the item's
+assignee: to no one while the item is assigned to no one, and never to
+this person while it is assigned to someone else. One exception: a log
+file the person has not answered, on an item whose thread already holds
+a relay post answering an earlier question there, is shown on its own, as a question of the fourth source, to
+the person the item is assigned to, though it tags no one (proposal
+decision 333). An Igor's log file is never shown on its own because this
+machine does not read its item, under the rule in the next sentence,
+since only the item's assignee may see it. A log file whose `asked_in` links a message
 this machine does not read, one in a channel it does not subscribe to
 or that is off, or on a surface it has turned off or cannot read, is
 shown on its own on
@@ -446,8 +466,10 @@ this machine shows (proposal decision 302).
 
 A question of the third source is answered by a comment
 on that pull request or issue. An Igor worker's handback comment tags no
-one, so its question is shown only through the third source, when its
-item is assigned to the person.
+one, so its question is shown through the third source, when its item
+is assigned to the person, or, for a log file on an item whose thread
+already holds an answer to an earlier question, on its own as above
+(proposal decision 333).
 
 A GitHub comment from `github-actions[bot]` whose first line is the relay
 notice's fixed first line, as the inquisitor's *A pull request that
@@ -812,8 +834,19 @@ counts as passed once setup, at the next opening, runs the relay
 identity's own check again and it passes.
 
 For a question a questions-branch file holds, the answer session SHALL
-push the answer file together with the relay post, once the fetch
-before the post finds no new message, so an answer that is held back,
+post the relay post first, once the fetch before it finds no new
+message, and then push the answer file, with that post's URL as its
+`answer_link`; when the push fails, it SHALL try it again at each poll
+until it succeeds, as for a handled file (proposal decision 332), but
+SHALL drop the retry once a newer answer file names the same file, and
+SHALL NOT retry a push the `log` command refuses for a reason that will
+not change, such as lack of access, a relay post the command cannot
+read, or an answer whose words the lore repository is too visible to
+hold: it SHALL tell the person the
+answer was relayed but not logged, and why. The
+answer session SHALL commit the file with the person's git identity and
+signing, never a GitHub App's, running the `log` command with the `GIT_AUTHOR_*` and `GIT_COMMITTER_*` variables and the `GIT_CONFIG_*` entries that github-app sets removed from its environment
+(proposal decision 331). So an answer that is held back,
 refused or fails pushes no file, and dropping it leaves none, even where
 the refusal turns its channel off. Only an answer kept because its
 thread could not be read when the person confirmed it, its channel
@@ -860,6 +893,33 @@ alone, and so asks the question again as usual (proposal decision 316).
   assigned to the person, and the person answers that issue's question
 - **THEN** the answer session relays the answer on the issue and pushes
   an answer file naming the log file
+
+#### Scenario: A failed answer-file push is retried
+
+- **WHEN** the relay post of an answer to a thread copy that a
+  questions-branch file holds goes out, and the push of its answer file
+  then fails
+- **THEN** the answer session tries the push again at each poll until it
+  succeeds, with the post's URL as the file's `answer_link`
+
+#### Scenario: A later Igor question on an answered item is shown on its own
+
+- **WHEN** the person answered an Igor's question on an assigned issue,
+  and a later run on that issue writes a new log file linking it
+- **THEN** the answer session shows the new log file on its own, as a
+  question of the fourth source, to the person the issue is assigned to
+
+#### Scenario: An Igor log file on someone else's item is not shown
+
+- **WHEN** an Igor's log file links an issue assigned to someone else
+- **THEN** this person's answer session shows neither the issue nor the
+  log file
+
+#### Scenario: An Igor log file on an unassigned item is shown to no one
+
+- **WHEN** an Igor's log file links an issue assigned to no one
+- **THEN** no answer session shows it until someone is assigned the
+  issue
 
 #### Scenario: An answer held back by a new message pushes no file
 
@@ -1646,10 +1706,12 @@ giving one of two reasons:
    for filter 1, and the question closes. On a
    question with a category, it posts nothing for any filter, and the
    question closes. Filter 3 offers two choices: its fixed reply, or
-   "not a question", for a message the asking agent should not have
-   written, since filter 3 stops a rhetorical question in the inquisitor
-   spec. Under "not a question" the answer session posts nothing, and
-   the question closes (proposal decision 304). The person picks it,
+   "the agent shouldn't have asked", for a message the asking agent
+   should not have written (proposal decision 336). Under that choice the
+   answer session posts nothing, and, as for any decline with nothing
+   posted, the question closes on this machine, while a handled file
+   closes any questions-branch file holding it everywhere (proposal
+   decision 304). The person picks it,
    rather than reason 1, when the asking agent erred, not the answer
    session. This reason applies to a person's question as to an
    agent's. The answer
@@ -2090,7 +2152,7 @@ unclear and showed it, the person declines it under whichever reason
 fits: the first, nothing to answer, when the session showed a message
 that is not a question, which
 posts nothing and logs no miss; or the second, when the asking agent
-should not have written it, with filter 3's "not a question",
+should not have written it, with filter 3's "the agent shouldn't have asked",
 which posts nothing and logs a filter 3 miss against the asking agent
 (proposal decision 304). The ignore rule covers sources 1
 and 2 only, so a non-question from the third or fourth source reaches
@@ -2248,7 +2310,7 @@ decision 303).
 #### Scenario: A non-question declined under reason 2 posts nothing
 
 - **WHEN** the person declines under the second reason, choosing filter 3's
-  "not a question", an agent's message in a GitHub thread
+  "the agent shouldn't have asked", an agent's message in a GitHub thread
 - **THEN** the answer session posts nothing in the thread and logs a
   filter 3 miss against the asking agent
 

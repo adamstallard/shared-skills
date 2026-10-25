@@ -641,7 +641,7 @@ needs that v0.1-33 lacks follow its patterns (proposal decision
 254, task 6.1).
 The rules are in the `answer-session` spec, the decisions in proposal
 decisions 152 to 175, 184 to 203, 207 to 211, 215, 216, 219, 220,
-222 to 230, 234, 236, 238, 246 to 248, 250 to 252, 254 to 260 and 262 to 330.
+222 to 230, 234, 236, 238, 246 to 248, 250 to 252, 254 to 260 and 262 to 336.
 
 ### Polling while open, with the person's credentials
 
@@ -706,7 +706,7 @@ declines with nothing posted is closed in the state folder only (decision
 194): nothing in the thread can say so, and another machine shows it as
 open. A question declined because the inquisitor should have handled it,
 reason 2, gets a post, which the thread records like any other (decision
-209). It gets none only when it has no thread, has a category, one of the inquisitor's categories recorded by hash only, or is a non-question declined with filter 3's "not a question". With a
+209). It gets none only when it has no thread, when it has a category (one of the inquisitor's categories, whose record is kept as a hash only), or when the person picks filter 3's choice "the agent shouldn't have asked" under reason 2 for a message that is not a question. With a
 filter 1 record more private than its thread, it is posted only once the
 person confirms after a warning that posting shows the record exists
 (proposal decision 264). The thread is read
@@ -852,13 +852,23 @@ naming the same file has replaced is superseded in the search too, and
 the person's changed answer is the only one that counts (decision 323).
 Only an answer file whose proof is the person's, and whose commit adds
 that answer file alone, becomes a named file's answer, so a copy pushed
-in one commit with other files cannot (decision 328). A later Igor run on the same item, recording a person's answer to
-a handback question, names a file in `answers` only when the Igor's own
-record of the handback names it, never from the comment's text, which
-others can edit, and never because a search found matching words
-(decisions 324 and 327). An Igor worker's log file links, in
-`asked_in`, the issue or pull request its question is shown from, so it
-follows that question (decision 326).
+in one commit with other files cannot (decision 328).
+
+An Igor asks a person through a handback comment on the issue or pull
+request it works, its item. The worker's log file links, in `asked_in`,
+that item, so the file follows the item's question and is shown only to
+the item's assignee. A log file written while the item's thread already
+holds the person's answer to an earlier question is shown on its own, as
+its own question, to that assignee (decisions 326 and 333). When the
+Igor later records the person's answer, it names the earlier log file in
+`answers` only when it finds that file on the branch by the 6-hex-digit
+suffix and date of its name, which the Igor's own record of the handback
+holds; it never reads a name from the handback comment's text, which
+others can edit, and never names a file because a search found matching
+words (decisions 324, 327 and 334). Such a file tags no one, so the
+person whose answer counts for it is the account the answer file's
+signature or linked comment proves: the answer session's user, or for
+an Igor's file the assignee who answered (decision 335).
 
 Misses no longer match either: a miss file is pushed even when one with
 the same question and filter is already on the branch, since dropping it
@@ -888,10 +898,13 @@ the thread, so it asks the question again as usual (decision 316); if
 the person answers there too, the first relay post to reach the thread
 sets the question's state, and the pending answer leaves the list. When
 a questions-branch file holds the question, through its `asked_in` or a
-merge, the answer file goes out with the relay post, after the fetch
-before the post finds no new message. When that fetch finds one, the
-session holds the answer back, and it leaves no file until it is
-posted; only an answer whose thread
+merge, the session fetches the thread and posts the relay post only when
+that fetch finds no new message; the answer file is pushed next with the post's
+link, retried at each poll if the push fails (decision 332). The file is
+committed as the person, signed, never as a GitHub App (decision 331).
+When that fetch finds a new message, the session holds the answer back
+on the pending list, so the person sees the new message first, and it
+leaves no file until the person posts it; only an answer whose thread
 cannot be read has its file pushed at once (decisions 318 and 325).
 Whether or not
 a file was pushed, the person is told the asker has not got the answer

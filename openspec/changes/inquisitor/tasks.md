@@ -144,7 +144,9 @@ contradicts what design.md assumed.
       (decision 322): git's `commit.gpgsign` and `user.signingkey` in
       the lore clone, the signing keys GitHub lists for the account, and
       whether the committer email is a verified address there. Until
-      measured, setup shows the check as not checked
+      measured, setup shows the check as not checked. Also measure that
+      the `log` command, run with the `GIT_AUTHOR_*` and `GIT_COMMITTER_*` variables and the `GIT_CONFIG_*` entries that github-app sets removed, commits
+      as the person in a project wired for an App (decision 331)
 
 ## 1. Shared post reader
 
@@ -459,9 +461,12 @@ contradicts what design.md assumed.
       keychain, `~/.local/bin/answer`, the pull request writing the
       person's `relays/<login>.yaml` in each serving lore repository
       (decision 224), the one adding `relay-notice.yml` where it is
-      missing, and the check that the person's commits to each lore
-      questions branch are signed, warning with how to fix it when not
-      (decision 322). Filter 1, and every check that reads a comment's author,
+      missing, and the check, made by resolving what the `log` command
+      would commit with once the github-app variables are removed, that
+      the answer session's commits to each lore questions branch use the
+      person's identity, never an App's,
+      and are signed, warning with how to fix it when not (decisions 322
+      and 331). Filter 1, and every check that reads a comment's author,
       reads that file from the lore clone's default branch, and counts it
       only when its last change came from its person (decision 225)
 - [ ] 6.3 Polling: the four sources, only while open, the catch-up on
@@ -493,7 +498,8 @@ contradicts what design.md assumed.
       the answer session's starts with a reserved prefix
 - [x] 6.9 Adam's approval, by use, of the screens prototyped after the
       first approved build (decisions 147 and 226): declining a question,
-      with its three reasons, reason 3's choice of filter and the exact
+      with its three reasons as approved then (decision 330 has since
+      merged the first two), reason 3's choice of filter and the exact
       post shown before it goes out (decision 209), and the list of
       questions answered and handled for the person. Adam approved build
       v0.1-30 by use on 2026-10-20 (decision 231), tagged
@@ -526,7 +532,7 @@ contradicts what design.md assumed.
       closed question's thread, a follow-up or a reply, shown as a new
       question; a message that is not really a question ignored, and one
       that reaches the queue declined under reason 1 with no miss, or
-      under reason 2 with filter 3's "not a question", posting nothing,
+      under reason 2 with filter 3's "the agent shouldn't have asked", posting nothing,
       with a filter 3 miss against the asking agent; a log file whose link
       this machine does not read shown on its own; a log file whose
       `asked_in` was withheld, on Linear, Discord or a more private
@@ -546,12 +552,20 @@ contradicts what design.md assumed.
       superseded in the search too, and only an answer file whose proof is
       the person's and whose commit adds that answer file alone counting as a named
       file's answer (decisions 312, 319, 323 and 328); the answer file
-      pushed with the relay post after the thread is checked, none for an
+      pushed only after the thread is checked, none for an
       answer held back or dropped, and at once only for one whose thread
       cannot be read (decision 325); an Igor worker's log file following
       the assigned issue or pull request its `asked_in` links (decision
       326); a later run naming a file only from the Igor's own record
-      (decision 327); declining with two reasons, the first, nothing to
+      (decision 327); the relay post first, then the answer file's push,
+      retried at each poll (decision 332); an Igor log file on an item whose
+      thread already holds an answer to an earlier question shown on its
+      own to the assignee, one on an
+      unassigned item shown to no one, and one on an item assigned to
+      someone else never shown to this person (decision 333); the record's
+      file-name suffix and date finding the file (decision 334); a file
+      that tags no one answered by the answer session's user or the
+      Igor item's assignee (decision 335); declining with two reasons, the first, nothing to
       answer, merging the old first two (decision 330); a named file still shown, with the
       answer beside it as input, when its answer file does not count
       (decision 320); the `log` command refusing an

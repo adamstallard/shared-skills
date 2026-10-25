@@ -645,7 +645,11 @@ holds `answers`. Separately, `answers` decides which answer a file it
 names has: the newest of the answer files naming it that would count,
 whose proof, a comment link or a signature, is that of the person the
 named file asks, and whose commit adds that answer file alone (proposal
-decisions 312, 319 and 328). An older answer file that a newer one
+decisions 312, 319 and 328). For a named file that tags no one, that
+person is the user of the answer session that pushed the answer, by its
+configured login, and for an Igor's file, the assignee who answered; a
+reader knows that person as the account the answer file's signature or
+linked comment proves (proposal decision 335). An older answer file that a newer one
 naming the same file replaces SHALL also be shown in the search as
 input, labelled as superseded, and SHALL stop counting for its own
 question. It still supersedes the older files in its own hash group, so
@@ -871,6 +875,14 @@ agent. The search SHALL never show a rejected candidate.
   was added, and the second's comment is newer than the first's
 - **THEN** filter 1 treats the second as the answer, and shows the first
   as input, labelled as superseded
+
+#### Scenario: An untagged file's answer from the session's user counts
+
+- **WHEN** a questions-branch file that tags no one is named in `answers`
+  by an answer file the answer session of `alice` pushed, whose commit
+  carries a signature GitHub verifies for `alice`, the account that
+  identifies the session's user to any reader
+- **THEN** that answer file is the named file's answer
 
 #### Scenario: The newest answer naming a file counts
 
@@ -2176,12 +2188,16 @@ withholds it (proposal decisions 302 and 315). A questions-branch file
 that answers a question an earlier file there logged unanswered SHALL
 name that file in `answers`, one answer file for each such file it
 knows exactly: the agent that pushed the earlier file has its name, and
-a later run has it only from the Igor's own record of the handback,
-which holds the name of the questions-branch log file the Igor pushed
-for that question, as igor PR #216 is asked to have it (#216's decision
-59); until #216 keeps such a record, no record names a file; the handback comment may show that name for people, but the run
+a later Igor run on the item has it only from the Igor's own record of
+the handback,
+which holds the 6-hex-digit suffix and the date in the name of the
+questions-branch log file the Igor pushed for that question, and no
+question text; the run finds the file on the branch by them, and when
+more than one file matches, it names none (proposal decision 334), as igor PR #216 is asked to have it (#216's decision
+59). Until #216 keeps such a record, the run finds no record and
+writes no `answers`; both states are built and tested; the handback comment may show that name for people, but the run
 never reads it from there. The Igor adds that `answers` itself. When no
-such record names a file, or the file it names is not on the branch, the Igor SHALL write no `answers` for that run, and the earlier file
+record holds them, or no file on the branch matches them, the Igor SHALL write no `answers` for that run, and the earlier file
 stays shown until the person answers it (proposal decisions 303, 324
 and 327). When the answer comes, it gains who answered (its `answered_by`),
 the answer's `authority`, the answer, and where the
@@ -2544,18 +2560,18 @@ why.
 - **THEN** the copy is not that file's answer, and the file stays shown
   to the person
 
-#### Scenario: A later run names the file the Igor's record names
+#### Scenario: A later run finds the file by the Igor's record
 
 - **WHEN** an Igor's later run records a person's answer to a handback
-  question whose record, kept by the Igor, names the questions-branch
-  file the Igor pushed
+  question whose record, kept by the Igor, holds the suffix and date of
+  the questions-branch file the Igor pushed
 - **THEN** the Igor writes the answer file naming that file in `answers`
 
 #### Scenario: A later run with no named file writes no answers key
 
 - **WHEN** an Igor's later run records a person's answer to a handback
-  question whose record names no questions-branch file, though its
-  comment's text names one
+  question whose record holds no suffix and date, though its comment's
+  text names a file
 - **THEN** the answer file holds no `answers`, and the earlier file stays
   shown to the person
 

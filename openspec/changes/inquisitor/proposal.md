@@ -17,7 +17,7 @@ are written down:
   turned on, on 2026-10-20, and how `check` reads it, on 2026-10-21.
 - 240 to 253, on 2026-10-21;
 - 254 to 284, on 2026-10-24;
-- 285 to 306 and 308 to 330, on 2026-10-25, with 307, which this
+- 285 to 306 and 308 to 336, on 2026-10-25, with 307, which this
   change proposed, confirmed by 314.
 
 Apart from 229 and 241 to 244, which he gave in the session reviewing
@@ -68,7 +68,9 @@ confirming 307 with a change. 316 to 320 settle the five raised with
 308 to 315, one each: 316 the first, by making it moot, 319 the second,
 320 the third, 318 the fourth and 317 the fifth. 321 to 324 settle
 the four raised with 316 to 320, one each, in order. 325 to 330
-answer six of the seven raised with 321 to 324.
+answer six of the seven raised with 321 to 324. 331 answers the
+seventh, and 332 to 336 the five raised with 325 to 330, one each, in
+order.
 
 1. **Four filters run before any question reaches a person.**
    1. **Already answered:** the agent finds the earlier answer, cites where it
@@ -625,7 +627,7 @@ eleventh consistency read:
      extends decision 71.
 104. **A question with a category sends no citation;** an ordinary one
      does. This amends decision 87.
-105. **In a project set up for a GitHub App, a `questions`-branch decision
+105. *For the answer session's answer files, Adam's decision 331 has the answer session commit as the person, signed, never as the App, so the comment-link proof this decision requires is not their only proof.* **In a project set up for a GitHub App, a `questions`-branch decision
      needs the comment-link proof** (decision 78's first), since the
      github-app skill commits as the bot, unsigned.
 106. **From the igor side:** the Igor pushes a run's citations when the run
@@ -1222,7 +1224,7 @@ it:
      decision 175's item 17 says, and shared-skills PR #1's README, the
      `discord-bot` skill's, should say how to turn it on. That is PR #1's
      to add.
-192. **A handback question reaches the person only through an
+192. *Amended by Adam's decision 333: a log file written after the person answered an earlier question on the item is shown on its own, to whoever the item's question would go to, its assignee.* **A handback question reaches the person only through an
      assignment.** An Igor worker's handback comment tags no one, so its
      question is shown only when its item is assigned to the person.
 193. **Only the prefix is reserved.** A relay identity may be used for
@@ -2358,13 +2360,13 @@ put to him when it recorded 297 to 299:
      merged; decision 307 states the criterion, and Adam confirmed 307
      with decision 314's change. *Rejected:* always
      writing the URL.
-303. *Amended by Adam's decision 324: a later run names only a file it knows exactly, from the Igor's handback comment.* *Amended by Adam's decision 319: answer files still group by hash in filter 1's search, and `answers` decides only which answer a named file has.* *Narrowed by Adam's decision 320: only an answer file that counts hides the file it names.* *Guarded by Adam's decision 310: `answers` is written only when it names an unanswered file already on the branch.* **No hash matching for misses or answers:** a miss is pushed even
+303. *Amended by Adam's decisions 324, 327 and 334: a later run names only a file it finds by the suffix and date in the Igor's own record of the handback.* *Amended by Adam's decision 319: answer files still group by hash in filter 1's search, and `answers` decides only which answer a named file has.* *Narrowed by Adam's decision 320: only an answer file that counts hides the file it names.* *Guarded by Adam's decision 310: `answers` is written only when it names an unanswered file already on the branch.* **No hash matching for misses or answers:** a miss is pushed even
      when one with the same question and `filter` is already on the
      branch, and an answer file names, in a new `answers` key, the file
      it answers, as `closes` does, instead of answering every file with
      the same question. This amends decisions 197 and 202's item 8.
      *Rejected:* keeping both rules.
-304. *Renumbered by Adam's decision 330: this is now reason 2.* **Reason 3 for a non-question logs the miss against the asking
+304. *The filter 3 choice this decision describes is renamed "the agent shouldn't have asked" by Adam's decision 336.* *Renumbered by Adam's decision 330: this is now reason 2.* **Reason 3 for a non-question logs the miss against the asking
      agent and posts nothing,** since filter 3's fixed text tells the
      agent to take an option it does not have. This amends decision
      298. *Rejected:* posting filter 3's text.
@@ -2403,7 +2405,7 @@ put to him when it recorded 300 to 307, and confirmed 307 as changed by
      itself, since #216 would then push only what the Igor writes; the
      *Still open* section below asks #216 for that.
      *Rejected:* accepting a planted `answers`.
-311. *Amended by Adam's decisions 316 to 318: no notice on another machine, which asks again as usual; pending answers return to the queue once the channel's check passes, from a list that reuses the queue's UI and needs no prototype round; the answer file is pushed at once.* **An answer that cannot reach its thread is kept pending, not
+311. *Amended by Adam's decisions 316 to 318, 325 and 332: no notice on another machine, which asks again as usual; pending answers return to the queue once the channel's check passes, from a list that reuses the queue's UI and needs no prototype round; the answer file is pushed after the relay post, and at once only when the thread cannot be read.* **An answer that cannot reach its thread is kept pending, not
      lost:** when the relay lacks permission, the channel is off, the
      post is refused or fails, or the answer was given on a machine that
      does not read the thread's channel (decision 300). The state folder
@@ -2455,7 +2457,7 @@ change put to him when it recorded 308 to 315:
      approved patterns, it needs no prototype round of its own. This
      amends decision 311. *Rejected:* showing pending answers as a state
      in the list of questions answered and handled.
-318. *Amended by Adam's decision 325: the answer file is pushed with the relay post, after the thread is checked; only an answer pending because its thread cannot be read is pushed at once.* **The answer file is pushed at once,** as decision 311 has it: when
+318. *Amended by Adam's decisions 325 and 332: the answer file is pushed after the relay post, once the thread is checked; only an answer pending because its thread cannot be read is pushed at once.* **The answer file is pushed at once,** as decision 311 has it: when
      a questions-branch file holds the question, its answer file is
      pushed when the person confirms, with no `answer_link`. On GitHub a
      relayed answer's file would carry the comment's link as proof; this
@@ -2508,7 +2510,7 @@ put to him when it recorded 316 to 320:
 Adam gave 325 to 330 on 2026-10-25, answering six of the seven questions
 this change put to him when it recorded 321 to 324:
 
-325. **The answer session checks the thread before it pushes the answer
+325. *Amended by Adam's decision 332: the post goes first, then the push, retried at each poll.* **The answer session checks the thread before it pushes the answer
      file,** and the push and the relay post then go out together. An
      answer the session holds back, because that check finds a new
      message in the thread, pushes its file only when it is finally
@@ -2520,17 +2522,17 @@ this change put to him when it recorded 321 to 324:
      still pushed at once, unchecked, as decision 318 has it. This
      amends decision 318. *Rejected:* pushing every answer file at
      confirmation.
-326. **An Igor worker's log file links, in `asked_in`, the assigned issue
+326. *Limited by Adam's decision 333: a log file written after the person answered an earlier question on the item is shown on its own; while the item is unassigned its log file is shown to no one, and while it is assigned to someone else, only to them.* **An Igor worker's log file links, in `asked_in`, the assigned issue
      or pull request its question is shown from,** not the handback
      comment, so answering or declining it there applies to the log
      file. This amends decision 299 for an Igor's question. *Rejected:*
      showing such a file on its own.
-327. **The later run takes the file's name from the Igor's own record of
+327. *Amended by Adam's decision 334: the record holds only the file name's suffix and date.* **The later run takes the file's name from the Igor's own record of
      the handback** (igor PR #216's decision 59), not from the comment's
      text, which anyone who can edit the comment could change; the
      comment shows the name for people only. This amends decision 324.
      *Rejected:* reading the comment's text.
-328. **An answer file counts as a named file's answer only when its proof,
+328. *Extended by Adam's decision 335 to a file that tags no one.* **An answer file counts as a named file's answer only when its proof,
      a comment link or a signature, is the person's, and its commit adds
      that answer file alone,** so a copy of another question's answer,
      pushed in one commit with other files, cannot become a named file's
@@ -2550,6 +2552,50 @@ this change put to him when it recorded 321 to 324:
      question" choice under it stays. This amends decisions 194, 208,
      298, 304 and 313. *Rejected:* keeping two reasons that behave
      alike.
+
+Adam gave 331 to 336 on 2026-10-25: 331 answers the seventh question
+raised with 321 to 324, and 332 to 336 the five raised with 325 to 330.
+He also set a rule, not numbered, that guides which questions this
+change raises about cross-machine cases: where the worst outcome is a
+question shown twice or asked again, it is accepted and not raised as a
+question; one that could record a wrong answer, close a question wrongly,
+leak private content or lose an answer is still raised.
+
+331. **The answer session commits questions-branch answer files as the
+     person,** with their git identity and signing, never a GitHub App's,
+     even in a project set up for an App (decision 105), and setup checks
+     both the identity and the signing, warning as decision 322 has it.
+     This amends decision 105 for the answer session, and widens 322's
+     check to the identity.
+     *Rejected:* warning that such answers do not count.
+332. **The relay post goes first, then the answer file is pushed with its
+     `answer_link`; a failed push is retried at each poll until it
+     succeeds,** as a handled file's is. This amends decision 325.
+     *Rejected:* accepting a thread answered with no file.
+333. **An Igor log file follows its item, with these limits:**
+     - a log file a later Igor run writes after the person already
+       answered an earlier question on the item is shown on its own, as
+       its own question, to whoever the item's question would go to,
+       its assignee;
+     - when igor's graceful handoff assigns no one, the log file is shown
+       to no one until someone is assigned the item, and then follows it
+       as usual;
+     - an item assigned to someone else is theirs and never appears in
+       this person's queue.
+     This amends decision 326. *Rejected:* linking the handback comment.
+334. **The Igor's record of a handback holds only the log file name's
+     6-hex-digit suffix and its date,** never question text, and the
+     later run finds the file on the branch by them. The slug in file
+     names stays, so a file name still carries some of the question's
+     words; the record holds none. This amends decision 327. *Rejected:* dropping the slug
+     from file names.
+335. **For a file that tags no one, "the person" is the user of the answer
+     session that pushed the answer,** by its configured login; for an
+     Igor's file, the assignee who answered. This amends decision 328.
+     *Rejected:* answering such files only by hash in filter 1's search.
+336. **Filter 3's "not a question" choice is renamed "the agent shouldn't
+     have asked",** so only reason 1 says "not a question". This amends
+     decisions 304 and 330. *Rejected:* keeping both labels.
 
 ### Proposed by this change
 
@@ -3578,10 +3624,10 @@ The four questions raised while recording decisions 316 to 320 are
 settled by decisions 321 to 324.
 
 Six of the seven questions raised while recording decisions 321 to 324
-are settled by decisions 325 to 330. The seventh, on signing in a project
-set up for a GitHub App, waits for Adam: there the script commits as
-the bot, unsigned (decision 105), so how can an answer file with no link
-be the person's answer?
+are settled by decisions 325 to 330, and the seventh by decision 331.
+
+The five questions raised while recording decisions 325 to 330 are
+settled by decisions 332 to 336.
 
 Open on igor PR #216's side, at the head last read, 59e7561, which records Adam's decisions
 up to 149 in #216's own numbering, decisions 244 and 245 among them as
@@ -3598,8 +3644,9 @@ its decisions 92 and 97:
   could then close, on every machine and for good, whichever
   questions-branch file the planted `closes` names (decision 297).
 - **#216's Igor should keep, in its own record of the handback (#216's
-  decision 59), the name of the questions-branch log file it pushed for
-  the question** (decisions 324 and 327), so that a later run can name
+  decision 59), the 6-hex-digit suffix and the date of the name of the
+  questions-branch log file it pushed for the question, and no question
+  text** (decisions 324, 327 and 334), so that a later run can name
   that file in `answers`; the handback comment may show the name for
   people, but the run never reads it from there. Without the record, the
   run writes no `answers`.
