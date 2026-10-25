@@ -478,10 +478,11 @@ unstaged changes, so what is checked is what is committed.
   `prose check` refuses to sign while that file is staged with a blob other
   than the base's, the base being HEAD's blob (HEAD's parent's with
   `--amend`), and lacks either record for its staged id with `before` equal
-  to the base's id, as `git ls-tree` lists it. Each refusal names the
+  to the snapshot's start, until the compaction retires on commit (below)
+  or is abandoned. Each refusal names the
   missing step: "<file> was compacted but not verified; run `prose compact
   --verify <file>`", or "<file> was compacted but its review was not
-  completed; ...". Its first call lists the same lines. No new trailer, hook
+  completed; ...". `prose check`'s first call lists the same lines. No new trailer, hook
   or `Prose:` format.
 - **Only a compaction started with `prose compact` is gated** (Adam,
   2026-10-25). A safety net that also gated any current-state file shrunk
@@ -492,9 +493,7 @@ unstaged changes, so what is checked is what is committed.
   compaction by hand takes an agent deliberately skipping the tool.
 - **`prose compact <file>` starts from the committed file.** It refuses a file whose
   staged blob differs from HEAD's, so the snapshot is always of the base.
-  Running it again on an already-compacted copy is refused, and a snapshot
-  from a compaction already committed no longer matches the base, so it
-  gates nothing.
+  Running it again on an already-compacted copy is refused.
 - **A snapshot belongs to its work tree.** Linked work trees share the git
   directory, so each snapshot names its root, and only this work tree's
   snapshots gate its commits.
@@ -513,25 +512,77 @@ unstaged changes, so what is checked is what is committed.
 - **A symlink is skipped by its mode,** 120000: it holds no prose, and
   hashing its target would never match the link's blob.
 - **`--abandon` ends a compaction that will not be finished.** Without it,
-  a compaction started and then dropped would block that file's ordinary
-  commits for the 7 days the snapshot lasts, with no way out but deleting
-  the snapshot by hand. It deletes the file's snapshot, the review file
+  a compaction started and then dropped would keep blocking that file's
+  ordinary commits, with no way out but deleting the snapshot by hand. It deletes the file's snapshot, the review file
   beside it, and the `--verify` and review records whose path and starting
   blob are the file's, so the gate treats the file as ordinary again.
   Records are named by blob id and shared by every work tree, so a record
-  is kept while any surviving snapshot starts from its blob: another work
+  is kept while any surviving snapshot starts from the record's `before`
+  blob: another work
   tree's snapshot of the same file, or a snapshot of a file with the same
   content. A file deleted from the work tree, its compacted copy still
   staged, can still be abandoned. It refuses when nothing was started, so
   a mistyped path is not taken for success, and it touches no other file's
   compaction. Each gate refusal names it.
 - **Known gap, accepted** (Adam, 2026-10-24): a file renamed and changed in
-  the same commit is not gated, since its new path has no base.
-- **Snapshots and records live 7 days.** A later step refuses a snapshot
-  older than that, as SKILL.md says, and writing a record deletes records
-  older than that. Records sit in subdirectories of prose's pass directory:
-  prose deletes the files there older than two hours, the life of a pass
-  token, but leaves subdirectories alone.
+  the same commit is not gated, since its snapshot names the old path,
+  which the commit deletes.
+- **Snapshots and records do not expire.** A compaction stays gated until
+  it is finished and committed, or abandoned, and the later steps accept a
+  snapshot of any age. An expiry would let a compaction left unfinished be
+  signed, unverified and unreviewed, once it lapsed. Snapshots are named
+  for the file's path in its work tree, so step 1 on a file replaces that
+  file's snapshot rather than adding one. Records sit in subdirectories of
+  prose's pass directory, so they outlive prose's cleanup there, which
+  deletes top-level files older than two hours (the life of a pass token)
+  and leaves subdirectories alone.
+- **A finished compaction retires on commit** (2026-10-25). The gate reads
+  no history. The next `prose check` deletes the snapshot when the base
+  (HEAD, or its parent with `--amend`) holds a blob for the file that
+  meets three conditions: this snapshot's own `--verify` and `--reviewed`
+  passed it, both records for it still stand, and it is not the start.
+  What is committed was then checked, so deleting the snapshot cannot let
+  an unchecked copy through. The
+  snapshot lists the blobs it passed itself; a record alone is not enough,
+  since records are shared by every compaction that reaches the same
+  content, and another compaction's checked result must not retire this
+  one. Each step changes the snapshot under a lock, re-reading it first,
+  so steps run at once keep each other's changes, and a step finishing
+  after a new step 1 leaves the new snapshot alone and fails, saying to
+  run it again. Retirement reads the snapshot again under the lock and
+  keeps it if a new step 1 replaced it, and `--abandon` deletes under the
+  lock, so no step can write a snapshot back after it. Each draft of a
+  snapshot or review file is written and renamed under the lock, so a
+  draft another step finds in the snapshot directory was left by a killed
+  step, and is
+  deleted with no check on whether its process runs.
+  The gate itself retires the compaction, so nothing runs after the commit
+  and nothing needs wiring. It reads the base rather than HEAD because an
+  amend replaces HEAD. A compaction committed without its records keeps
+  gating until abandoned. A revert after retirement does not re-arm it.
+  Retirement needs a check while the base holds the checked copy. A work
+  tree switched to a branch with the old copy before such a check keeps
+  gating the file there, until a check on a branch holding the checked
+  copy or `--abandon` clears it.
+- **The lock holds only where `fcntl` exists** (macOS, Linux). On Windows
+  it does nothing, so the rules above for steps run at once do not hold
+  there; one step of a compaction at a time is safe. A Windows lock was
+  not added.
+- **An amend after retirement is an ordinary edit** (2026-10-25). Once a
+  compaction retires, its file is ordinary, so an amend that later
+  replaces the compaction's commit is not gated. A tombstone kept to gate
+  that amend was rejected: it would add more shared state, the source of
+  most of this gate's bugs.
+- **Rejected: ending a compaction by its history.** Two ways were tried.
+  One searched every ref for the finished result; an amend, a kept stash
+  or a second compaction from the same start satisfied it with the staged
+  file unchecked, and it fetched blobs in a partial clone. The other kept
+  the commit step 1 ran at and gated while it stayed an ancestor of the
+  base; an amend or rewrite of that commit ended the gate unchecked.
+- **A removed work tree's snapshot stays.** Snapshots live in the shared
+  git directory and match a work tree by its path, so a new work tree at
+  the same path inherits one not abandoned first. SKILL.md says to abandon
+  before removing.
 - **Partial clones work offline.** Trees are listed without sizes, and a
   size is read by blob id only where a check needs it, so a blobless or
   sparse clone is neither refused nor made to fetch on every check.

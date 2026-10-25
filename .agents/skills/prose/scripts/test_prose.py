@@ -20,6 +20,7 @@ import re
 import shlex
 import shutil
 import subprocess
+import time
 import sys
 import tempfile
 import types
@@ -4745,18 +4746,23 @@ class GivenReferrers(unittest.TestCase):
         self.assertEqual(result.returncode, 2, result.stdout)
         self.assertIn("ref.md: could not read it", result.stderr)
 
-    def test_a_snapshot_older_than_its_lifetime_is_refused(self):
-        folder = self.folder({"DECISIONS.md": self.DOC})
+    def test_a_snapshot_of_any_age_is_still_used(self):
+        folder = self.folder({"DECISIONS.md": self.DOC, "r.md": self.LINK})
         env = dict(os.environ, XDG_STATE_HOME=str(folder / "state"))
         run([sys.executable, str(SCRIPT), "compact", "DECISIONS.md"], cwd=folder, env=env)
         for snapshot in (folder / "state/prose/compact").iterdir():
+            if snapshot.name.startswith("."):
+                continue
             fields = json.loads(snapshot.read_text())
-            fields["saved"] -= compact.SNAPSHOT_LIFETIME + 60
+            fields["saved"] -= 30 * 24 * 60 * 60
             snapshot.write_text(json.dumps(fields))
-        result = run([sys.executable, str(SCRIPT), "compact", "DECISIONS.md", "--verify"],
-                     cwd=folder, env=env)
-        self.assertEqual(result.returncode, 2, result.stdout)
-        self.assertIn("no snapshot of DECISIONS.md from the last 7 days", result.stderr)
+            old = fields["saved"]
+            os.utime(snapshot, (old, old))
+        (folder / "DECISIONS.md").write_text(self.AFTER)
+        result = run([sys.executable, str(SCRIPT), "compact", "DECISIONS.md", "--verify", "--",
+                      "r.md"], cwd=folder, env=env)
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn("r.md:1 links to", result.stdout)
 
     def test_the_doc_named_in_another_case_or_by_a_hard_link_is_not_a_referrer(self):
         folder = self.folder({"DECISIONS.md": self.DOC})
@@ -5029,7 +5035,7 @@ class CompactionGate(unittest.TestCase):
         self.assertEqual(self.repo.prose("compact", "DECISIONS.md").returncode, 4)
         directory = self.repo.path / ".git/prose/compact"
         for snapshot in directory.iterdir():
-            if not snapshot.suffix:
+            if not snapshot.suffix and not snapshot.name.startswith("."):
                 fields = json.loads(snapshot.read_text())
                 fields["root"] = "/elsewhere"
                 snapshot.write_text(json.dumps(fields))
@@ -5097,6 +5103,307 @@ class CompactionGate(unittest.TestCase):
         result = self.repo.prose("compact", "DECISIONS.md")
         self.assertEqual(result.returncode, 2, result.stdout)
         self.assertIn("has changes that are not staged", result.stderr)
+
+    def test_a_snapshot_older_than_seven_days_still_gates(self):
+        self.assertEqual(self.repo.prose("compact", "DECISIONS.md").returncode, 4)
+        month = 30 * 24 * 60 * 60
+        for snapshot in (self.repo.path / ".git/prose/compact").iterdir():
+            if snapshot.name.startswith("."):
+                continue
+            fields = json.loads(snapshot.read_text())
+            fields["saved"] -= month
+            snapshot.write_text(json.dumps(fields))
+            os.utime(snapshot, (fields["saved"], fields["saved"]))
+        self.repo.write("DECISIONS.md", self.AFTER)
+        self.assertEqual(len(self.pending()), 2)
+        # Starting a compaction of another file deletes no old snapshot,
+        # however old.
+        self.repo.write("SKILL.md", "# S\n\n## Another section entirely\n\nA long paragraph.\n")
+        self.repo.git("commit", "-q", "-m", "skill", "--", "SKILL.md")
+        self.assertEqual(self.repo.prose("compact", "SKILL.md").returncode, 4)
+        self.assertEqual(len(self.pending()), 2)
+        # The later steps accept the month-old snapshot of DECISIONS.md,
+        # and finishing it clears the gate.
+        reply = self.write(".reply", self.CLEAN)
+        self.assertEqual(self.repo.prose("compact", "DECISIONS.md", "--verify").returncode, 0)
+        self.assertEqual(self.repo.prose("compact", "DECISIONS.md", "--review").returncode, 4)
+        self.assertEqual(self.repo.prose("compact", "DECISIONS.md", "--reviewed", reply).returncode, 0)
+        self.assertEqual(self.pending(), [])
+
+    def test_a_committed_compaction_stops_gating(self):
+        # The check after the commit retires the compaction, so a later
+        # revert or a switch to a branch without it finds an ordinary file.
+        for way in ("revert", "branch"):
+            with self.subTest(way=way):
+                self.setUp()
+                self.repo.git("branch", "-M", "main")
+                self.repo.git("checkout", "-q", "-b", "feature")
+                self.repo.write("OTHER.md", "x\n")
+                self.repo.commit("other\n")
+                self.assertEqual(self.compaction().returncode, 0)
+                self.repo.git("commit", "-q", "-m", "compact")
+                self.assertEqual(self.pending(), [])
+                if way == "branch":
+                    self.repo.git("checkout", "-q", "main")
+                else:
+                    self.repo.git("revert", "--no-edit", "HEAD")
+                self.repo.write("DECISIONS.md", self.DOC + "\nA new decision.\n")
+                self.assertEqual(self.pending(), [])
+
+    def test_a_snapshot_deleted_while_the_gate_lists_them_is_skipped(self):
+        # Another file's compaction is abandoned, or retired by another check
+        # in this work tree, between the gate's listing and its read.
+        self.repo.write("OTHER.md", "# O\n\nSome text here.\n")
+        self.repo.commit("other\n")
+        self.assertEqual(self.repo.prose("compact", "OTHER.md").returncode, 4)
+        real, done = pathlib.Path.read_bytes, []
+
+        def racing(path):
+            if not done and path.parent.name == "compact" and not path.name.startswith("."):
+                done.append(path)
+                path.unlink()
+            return real(path)
+
+        pathlib.Path.read_bytes = racing
+        self.addCleanup(setattr, pathlib.Path, "read_bytes", real)
+        found = self.pending()
+        pathlib.Path.read_bytes = real
+        self.assertTrue(done)
+        self.assertEqual(found, [])
+
+    def test_a_committed_finished_compaction_retires_its_snapshot(self):
+        self.assertEqual(self.compaction().returncode, 0)
+        snapshots = lambda: [e for e in (self.repo.path / ".git/prose/compact").iterdir()
+                             if not e.name.startswith(".")]
+        self.assertTrue(snapshots())
+        self.repo.git("commit", "-q", "-m", "compact")
+        self.assertEqual(self.pending(), [])
+        self.assertEqual(snapshots(), [])
+        # Reverted, the file is an ordinary one: nothing re-arms the gate.
+        self.repo.git("revert", "--no-edit", "HEAD")
+        self.repo.write("DECISIONS.md", self.AFTER + "\nAn edit.\n")
+        self.assertEqual(self.pending(), [])
+
+    def test_another_compactions_records_do_not_retire_this_one(self):
+        # A compaction finished on another branch from the same start must
+        # not retire this snapshot when the base comes to hold its result.
+        self.repo.git("branch", "-M", "main")
+        self.repo.git("checkout", "-q", "-b", "b1")
+        self.assertEqual(self.compaction().returncode, 0)
+        self.repo.git("commit", "-q", "-m", "compact")
+        b1 = self.repo.git("rev-parse", "HEAD").strip()
+        self.repo.git("checkout", "-q", "main")
+        self.assertEqual(self.repo.prose("compact", "DECISIONS.md").returncode, 4)
+        self.repo.write("DECISIONS.md", self.AFTER + "\nUnchecked.\n")
+        self.assertEqual(len(self.pending()), 2)
+        self.repo.git("reset", "-q", "--soft", b1)
+        self.assertEqual(len(self.pending()), 2)
+
+    def test_a_stale_load_does_not_drop_another_steps_list(self):
+        # A step that loaded the snapshot before another step wrote to it
+        # changes only its own list.
+        self.repo.prose("compact", "DECISIONS.md")
+        state = self.repo.path / ".git/prose/compact"
+        here = os.getcwd()
+        os.chdir(self.repo.path)
+        try:
+            where = compact.target("DECISIONS.md")
+            stale = compact._load_snapshot(where, "DECISIONS.md", None)
+            fresh = compact._load_snapshot(where, "DECISIONS.md", None)
+            compact._note_in_snapshot(where, None, fresh, "reviewed", "a" * 40, True)
+            compact._note_in_snapshot(where, None, stale, "verified", "a" * 40, True)
+            saved = compact._load_snapshot(where, "DECISIONS.md", None)
+        finally:
+            os.chdir(here)
+        self.assertEqual((saved["verified"], saved["reviewed"]), (["a" * 40], ["a" * 40]))
+        self.assertTrue(state.exists())
+
+    def test_retirement_leaves_a_snapshot_a_new_step_1_wrote_meanwhile(self):
+        # A new step 1 lands between the unlocked read and the lock taken
+        # to retire: the new compaction keeps gating.
+        self.assertEqual(self.compaction().returncode, 0)
+        self.repo.git("commit", "-q", "-m", "compact")
+        real, calls = compact._snapshot_lock, []
+
+        def interleaved(directory):
+            if not calls:
+                calls.append(1)
+                self.assertEqual(self.repo.prose("compact", "DECISIONS.md").returncode, 4)
+            return real(directory)
+
+        compact._snapshot_lock = interleaved
+        self.addCleanup(setattr, compact, "_snapshot_lock", real)
+        self.pending()
+        compact._snapshot_lock = real
+        self.repo.write("DECISIONS.md", self.AFTER + "\nUnchecked edit.\n")
+        self.assertEqual(len(self.pending()), 2)
+
+    def test_abandon_is_not_undone_by_a_step_writing_at_the_same_time(self):
+        # --abandon runs while a step is between reading the snapshot and
+        # writing it back; the abandon must win.
+        self.repo.prose("compact", "DECISIONS.md")
+        self.repo.write("DECISIONS.md", self.AFTER)
+        here = os.getcwd()
+        os.chdir(self.repo.path)
+        self.addCleanup(os.chdir, here)
+        where = compact.target("DECISIONS.md")
+        loaded = compact._load_snapshot(where, "DECISIONS.md", None)
+        real, started = compact._write_snapshot, []
+
+        def interleaved(path, fields):
+            started.append(subprocess.Popen(
+                [sys.executable, str(SCRIPT), "compact", "DECISIONS.md", "--abandon"],
+                cwd=self.repo.path, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
+            time.sleep(1)
+            real(path, fields)
+
+        compact._write_snapshot = interleaved
+        self.addCleanup(setattr, compact, "_write_snapshot", real)
+        compact._note_in_snapshot(where, None, loaded, "verified", "a" * 40, True)
+        compact._write_snapshot = real
+        self.assertEqual(started[0].wait(timeout=30), 0)
+        os.chdir(here)
+        self.assertEqual(self.pending(), [])
+
+    def test_a_late_review_of_an_older_compaction_leaves_the_new_one_alone(self):
+        self.repo.prose("compact", "DECISIONS.md")
+        self.repo.write("DECISIONS.md", self.AFTER)
+        here = os.getcwd()
+        os.chdir(self.repo.path)
+        self.addCleanup(os.chdir, here)
+        real = compact.changes
+
+        def late(before, after):
+            found = real(before, after)
+            # A new compaction starts and is reviewed meanwhile.
+            compact.changes = real
+            self.assertEqual(self.repo.prose("compact", "DECISIONS.md", "--abandon").returncode, 0)
+            self.repo.write("DECISIONS.md", self.DOC)
+            self.assertEqual(self.repo.prose("compact", "DECISIONS.md").returncode, 4)
+            self.repo.write("DECISIONS.md", self.AFTER + "\nNewer.\n")
+            self.assertEqual(self.repo.prose("compact", "DECISIONS.md", "--review").returncode, 4)
+            return found
+
+        newer = None
+        compact.changes = late
+        self.addCleanup(setattr, compact, "changes", real)
+        self.repo.write("DECISIONS.md", self.AFTER)
+        with self.assertRaisesRegex(ValueError, "changed while --review ran"):
+            with contextlib.redirect_stdout(io.StringIO()):
+                compact.review("DECISIONS.md", None)
+        for review in (self.repo.path / ".git/prose/compact").glob("*.review.md"):
+            newer = review.read_text()
+        self.assertIn("Newer.", newer)
+        self.assertEqual(list((self.repo.path / ".git/prose/compact").glob(".*.review.md.*")), [])
+
+    def test_drafts_left_by_a_killed_step_are_cleared(self):
+        # Drafts exist only while the lock is held, so any found under it
+        # are deleted, whatever their process id; nothing probes processes.
+        self.repo.prose("compact", "DECISIONS.md")
+        directory = self.repo.path / ".git/prose/compact"
+        key = next(e.name for e in directory.iterdir()
+                   if not e.suffix and not e.name.startswith("."))
+        drafts = [directory / f".{key}.review.md.{os.getpid()}",
+                  directory / f".{key}.{os.getppid()}"]
+        for draft in drafts:
+            draft.write_text("left\n")
+        self.assertEqual(self.repo.prose("compact", "DECISIONS.md", "--abandon").returncode, 0)
+        self.assertEqual([d for d in drafts if d.exists()], [])
+
+    def test_review_writes_its_draft_only_under_the_lock(self):
+        self.repo.prose("compact", "DECISIONS.md")
+        self.repo.write("DECISIONS.md", self.AFTER)
+        directory = self.repo.path / ".git/prose/compact"
+        here = os.getcwd()
+        os.chdir(self.repo.path)
+        self.addCleanup(os.chdir, here)
+        real, seen = compact._snapshot_lock, []
+
+        @contextlib.contextmanager
+        def watched(where):
+            seen.append(sorted(e.name for e in where.glob(".*.review.md.*")))
+            with real(where):
+                yield
+
+        compact._snapshot_lock = watched
+        self.addCleanup(setattr, compact, "_snapshot_lock", real)
+        with contextlib.redirect_stdout(io.StringIO()):
+            compact.review("DECISIONS.md", None)
+        compact._snapshot_lock = real
+        self.assertTrue(seen)
+        self.assertEqual([names for names in seen if names], [])
+        self.assertEqual(list(directory.glob(".*.review.md.*")), [])
+
+    def test_verify_fails_when_its_snapshot_was_replaced_meanwhile(self):
+        self.repo.prose("compact", "DECISIONS.md")
+        self.repo.write("DECISIONS.md", self.AFTER)
+        real = compact._note_in_snapshot
+        compact._note_in_snapshot = lambda *args: False
+        self.addCleanup(setattr, compact, "_note_in_snapshot", real)
+        here = os.getcwd()
+        os.chdir(self.repo.path)
+        self.addCleanup(os.chdir, here)
+        with self.assertRaisesRegex(ValueError, "changed while --verify ran"):
+            with contextlib.redirect_stdout(io.StringIO()):
+                compact.verify("DECISIONS.md", None, prose.pass_dir)
+
+    def test_a_list_of_another_shape_counts_as_empty(self):
+        self.repo.prose("compact", "DECISIONS.md")
+        for snapshot in (self.repo.path / ".git/prose/compact").iterdir():
+            if not snapshot.suffix and not snapshot.name.startswith("."):
+                fields = json.loads(snapshot.read_text())
+                fields["verified"] = None
+                snapshot.write_text(json.dumps(fields))
+        self.repo.write("DECISIONS.md", self.AFTER)
+        result = self.repo.prose("compact", "DECISIONS.md", "--verify")
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_a_compaction_committed_without_its_records_keeps_gating(self):
+        self.repo.prose("compact", "DECISIONS.md")
+        self.repo.write("DECISIONS.md", self.AFTER)
+        self.repo.git("commit", "-q", "-m", "by hand")
+        self.repo.write("DECISIONS.md", self.AFTER + "\nAn edit.\n")
+        found = self.pending()
+        self.assertEqual(len(found), 2, found)
+        self.assertIn("--abandon", found[0])
+        self.assertEqual(self.repo.prose("compact", "DECISIONS.md", "--abandon").returncode, 0)
+        self.assertEqual(self.pending(), [])
+
+    def test_a_commit_of_other_files_keeps_the_compaction_gated(self):
+        self.repo.prose("compact", "DECISIONS.md")
+        self.repo.write("OTHER.md", "x\n")
+        self.repo.git("commit", "-q", "-m", "other", "--", "OTHER.md")
+        self.repo.write("DECISIONS.md", self.AFTER)
+        self.assertEqual(len(self.pending()), 2)
+
+    def test_amending_a_committed_compaction_with_new_edits_is_gated(self):
+        self.assertEqual(self.compaction().returncode, 0)
+        self.repo.git("commit", "-q", "-m", "compact")
+        self.repo.write("DECISIONS.md", self.AFTER + "\nUnreviewed edit.\n")
+        here = os.getcwd()
+        os.chdir(self.repo.path)
+        try:
+            found = compact.unverified(str(self.repo.path), True, self.repo.path / self.PASSES)
+        finally:
+            os.chdir(here)
+        self.assertEqual(len(found), 2, found)
+
+    def test_a_new_compaction_after_one_landed_elsewhere_is_gated(self):
+        self.repo.git("branch", "-M", "main")
+        self.repo.git("checkout", "-q", "-b", "feature")
+        self.assertEqual(self.compaction().returncode, 0)
+        self.repo.git("commit", "-q", "-m", "compact")
+        self.repo.git("checkout", "-q", "main")
+        self.assertEqual(self.repo.prose("compact", "DECISIONS.md").returncode, 4)
+        self.repo.write("DECISIONS.md", self.AFTER + "\nA different result.\n")
+        self.assertEqual(len(self.pending()), 2)
+
+    def test_a_stashed_finished_compaction_edited_again_is_gated(self):
+        self.assertEqual(self.compaction().returncode, 0)
+        self.repo.git("stash", "-q")
+        self.repo.git("stash", "apply", "-q", "--index")
+        self.repo.write("DECISIONS.md", self.AFTER + "\nEdited after the review.\n")
+        self.assertEqual(len(self.pending()), 2)
 
     def test_abandon_clears_the_block(self):
         self.assertEqual(self.repo.prose("compact", "DECISIONS.md").returncode, 4)
@@ -5195,7 +5502,7 @@ class CompactionGate(unittest.TestCase):
         self.repo.commit("skill\n")
         self.assertEqual(self.repo.prose("compact", "SKILL.md").returncode, 4)
         for snapshot in (self.repo.path / ".git/prose/compact").iterdir():
-            if not snapshot.suffix:
+            if not snapshot.suffix and not snapshot.name.startswith("."):
                 fields = json.loads(snapshot.read_text())
                 fields["before"] = [fields["before"]]
                 snapshot.write_text(json.dumps(fields))

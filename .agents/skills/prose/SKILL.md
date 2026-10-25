@@ -181,10 +181,15 @@ reads the working file.
 
 **The commit gate.** A passing `--verify` and a completed review (step 7)
 are each recorded for the file's staged content. Once step 1 has run on a
-file, for 7 days after it and while the base (HEAD, or HEAD's parent with
-`--amend`) still holds the copy step 1 started from, `prose check` refuses
-to sign while that file is staged with other content and lacks either
-record, whatever kind of file it is. Nothing else is gated: always compact
+file, `prose check` refuses to sign while that file is staged with content
+other than the base's (HEAD's, or HEAD's parent's with `--amend`) and
+lacks either record, whatever kind of file it is. It does not lapse with
+time. The compaction retires once it is committed as checked: the first
+`prose check` run once the base holds a copy that this compaction's own
+`--verify` and `--reviewed` passed, with both records still standing,
+deletes its saved copy, and the file is ordinary again, so a later revert does not
+gate it. A compaction committed some other way, without the records, keeps
+gating until you abandon it (below). Nothing else is gated: always compact
 with `prose compact`, never by hand. Each refusal names the step:
 - `<file> was compacted but not verified; run prose compact --verify <file>`
 - `<file> was compacted but its review was not completed; ...`
@@ -193,9 +198,9 @@ Either refusal means the content staged is not the content that passed that
 step: the file changed after it, or the step never ran. Run the named step
 on the file as staged and sign again. Never change the file after its last
 `--verify` and `--reviewed`. Each refusal also names `prose compact
---abandon <file>`, for a compaction you will not finish (see below). Step 1 refuses a file whose staged copy
-differs from HEAD's, so every compaction starts from the committed file:
-commit the change you were making first. A symlink holds no prose and is
+--abandon <file>`, for a compaction you will not finish (see below). Step 1
+refuses a file whose staged copy differs from HEAD's, so every compaction
+starts from the committed file: commit the change you were making first. A symlink holds no prose and is
 not gated. A file renamed and shrunk in the same commit is not gated
 either. Outside git there is no commit to gate, so running `--verify` is up
 to you; the brief names it as the required last step.
@@ -205,10 +210,12 @@ to you; the brief names it as the required last step.
 or to discard the attempt and start again from step 1. It deletes the saved
 copy, the review file and the file's `--verify` and review records, so the
 commit gate treats the file as an ordinary one again; without it, the gate
-refuses that file's commits for the 7 days the saved copy lasts. It leaves
+keeps refusing that file's commits. It leaves
 the file itself as it is: restore the committed copy yourself if you mean
 to discard the edits too. It exits 0, or 2 when no compaction was started
-on the file.
+on the file. Abandon before removing a work tree you compacted in: its
+saved copy is kept with the repository's other git data, and a new work
+tree at the same path would inherit it and its gate.
 
 **Name every compaction** in your report and in the pull request body, with
 the file's size before and after, as `--verify` prints it: for example,
@@ -255,9 +262,12 @@ commands and may then run its own checks on the result:
 - Each call exits 2, with the reason on stderr, when the file is missing or
   has unstaged changes, when a later step has no saved copy, or when a file
   to search cannot be read. Step 1, `prose.py compact <file>`, saves that
-  copy in the repository's git directory, and the later steps refuse a copy
-  older than 7 days, so any agent in the same work tree can finish within
-  that time.
+  copy in the repository's git directory, where it stays, however long the
+  compaction takes, until the compaction retires on commit, `--abandon`
+  deletes it, or the next step 1 on the file replaces it, so any agent in
+  the same work tree can finish it. Steps run at once on one file are safe
+  only where Python has `fcntl` (macOS, Linux); on Windows, run one at a
+  time.
 
 ### Which files refer to the doc
 

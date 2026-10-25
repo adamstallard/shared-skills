@@ -15,6 +15,7 @@ Read ../DECISIONS.md (*Compaction*) before changing a default here.
 
 import bisect
 import collections
+import contextlib
 import difflib
 import hashlib
 import json
@@ -26,6 +27,11 @@ import stat
 import subprocess
 import time
 from typing import NamedTuple, Optional
+
+try:
+    import fcntl
+except ImportError:  # Windows: the lock does nothing, see _snapshot_lock
+    fcntl = None
 
 HERE = pathlib.Path(__file__).resolve().parent
 BRIEF = HERE.parent / "compact.md"
@@ -47,9 +53,6 @@ HISTORY_DEPTH = 500
 ATTR_DECLARE = "prose-compact"
 ATTR_BUDGET = "prose-compact-budget"
 ATTR_GROWTH = "prose-compact-growth"
-
-# How long a snapshot from `prose compact <file>` waits for `--verify`.
-SNAPSHOT_LIFETIME = 7 * 24 * 60 * 60
 
 # Exit codes of `prose compact`: the brief was printed (the step is the
 # caller's to do), the result passed, the result failed a check.
@@ -1011,9 +1014,9 @@ def brief(name, state_home, command, given=Given(), stdin=None):
     # what the commit gate matches against the base's.
     start = staged(where, "the first call") if where.root is not None else None
     if start is not None:
-        # A compaction starts from the committed file, so the snapshot's
-        # blob is the base's, which is how the gate knows this compaction is
-        # the one to check: commit the change being made first.
+        # A compaction starts from the committed file. From an uncommitted
+        # edit, the gate would refuse to commit that edit alone, since it
+        # differs from the base and has no records: commit it first.
         head = tree_entries(where.root, "HEAD").get(where.rel)
         if head is None or head[1] != start.oid:
             raise ValueError(f"{where.rel} as staged differs from HEAD's; commit the change you "
@@ -1021,23 +1024,20 @@ def brief(name, state_home, command, given=Given(), stdin=None):
                              f"call on the committed file")
     text = start.text if start else _lf(where.file.read_text(encoding="utf-8"))
     now = time.time()
+    # Snapshots do not expire: a compaction stays started until it retires
+    # on commit (in started()) or is abandoned. Each is named for its file's path,
+    # so there is one per file.
     directory = snapshot_dir(where.root, state_home)
     directory.mkdir(mode=0o700, parents=True, exist_ok=True)
-    for entry in directory.iterdir():
-        try:
-            if now - entry.stat().st_mtime > SNAPSHOT_LIFETIME:
-                entry.unlink()
-        except OSError:
-            pass
     found = references(where.rel, heading_texts(text), anchors(text), "", where.root, referrers)
     snapshot = _snapshot_path(where, state_home)
-    draft = snapshot.with_name(f".{snapshot.name}.{os.getpid()}")
     fields = {"path": str(where.file), "rel": where.rel, "root": where.root, "text": text,
               "saved": now}
     if start is not None:
         fields["before"] = start.oid
-    draft.write_text(json.dumps(fields), encoding="utf-8")
-    os.replace(draft, snapshot)
+    with _snapshot_lock(snapshot.parent):
+        _clear_drafts(snapshot)
+        _write_snapshot(snapshot, fields)
 
     markers = history_markers(text)
     held = {}
@@ -1269,16 +1269,24 @@ def review(name, state_home, command="prose.py"):
             parts.append("### Before\n\n" + "\n\n".join(change.old) + "\n")
         if change.new:
             parts.append("### After\n\n" + "\n\n".join(change.new) + "\n")
-    path.write_text("\n".join(parts), encoding="utf-8")
+    # Written only under the lock, after the snapshot is found to be the
+    # one loaded, so a --review of an older compaction finishing late cannot
+    # replace a newer one's changes. The draft exists only while the lock is
+    # held, so any draft another step finds was left by a killed one.
+    draft = path.with_name(f".{path.name}.{os.getpid()}")
     # The snapshot notes the review: the blob it was of, and how many
     # changes the reviewer must answer, which --reviewed checks its reply
     # against.
-    saved["review"] = {"oid": current.oid if current else None, "changes": len(found),
-                       "printed": time.time()}
-    snapshot = _snapshot_path(where, state_home)
-    draft = snapshot.with_name(f".{snapshot.name}.{os.getpid()}")
-    draft.write_text(json.dumps(saved), encoding="utf-8")
-    os.replace(draft, snapshot)
+    review = {"oid": current.oid if current else None, "changes": len(found),
+              "printed": time.time()}
+
+    def change(fields):
+        draft.write_text("\n".join(parts), encoding="utf-8")
+        os.replace(draft, path)
+        fields["review"] = review
+
+    if not _update_snapshot(where, state_home, saved, change):
+        raise ValueError(f"the snapshot of {name} changed while --review ran; run it again")
     print("=== compaction review brief ===")
     print(REVIEW_BRIEF.read_text(encoding="utf-8").rstrip("\n"))
     print(f"\nThe changes: {path}")
@@ -1295,19 +1303,90 @@ def review(name, state_home, command="prose.py"):
     return BRIEF_PRINTED
 
 
+@contextlib.contextmanager
+def _snapshot_lock(directory):
+    """Hold the lock on the snapshot directory, so steps of one compaction
+    run at once never write over each other's changes to a snapshot. Only
+    where fcntl exists (macOS, Linux); on Windows it does nothing, and
+    steps run at once may overwrite each other's changes."""
+    directory.mkdir(mode=0o700, parents=True, exist_ok=True)
+    with open(directory / ".lock", "a", encoding="utf-8") as handle:
+        if fcntl is not None:
+            fcntl.flock(handle, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            if fcntl is not None:
+                fcntl.flock(handle, fcntl.LOCK_UN)
+
+
+def _clear_drafts(snapshot):
+    """Delete this snapshot's drafts: files named `.<name>.*`, where name
+    is the snapshot's file name, which its review file's name starts
+    with. Called under the lock; every draft of the snapshot or its
+    review file is written and renamed under it, so a draft found here was
+    left by a killed step. Without fcntl (Windows) there is no lock, and a
+    step running at the same time may lose its draft and exit 2."""
+    for draft in snapshot.parent.glob(f".{snapshot.name}.*"):
+        try:
+            draft.unlink()
+        except FileNotFoundError:
+            pass
+
+
+def _write_snapshot(path, fields):
+    """Write a snapshot whole, by rename, so no reader sees half of one."""
+    draft = path.with_name(f".{path.name}.{os.getpid()}")
+    draft.write_text(json.dumps(fields), encoding="utf-8")
+    os.replace(draft, path)
+
+
+def _update_snapshot(where, state_home, loaded, change):
+    """Apply change to the snapshot as it is now, under the lock, and save
+    it. Returns False, changing nothing, when the snapshot is no longer the
+    one loaded: a new step 1 replaced it, or it is gone."""
+    snapshot = _snapshot_path(where, state_home)
+    with _snapshot_lock(snapshot.parent):
+        try:
+            current = json.loads(snapshot.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return False
+        if not isinstance(current, dict) \
+                or current.get("saved") != loaded.get("saved") \
+                or current.get("before") != loaded.get("before"):
+            return False
+        change(current)
+        _write_snapshot(snapshot, current)
+    loaded.clear()
+    loaded.update(current)
+    return True
+
+
+def _note_in_snapshot(where, state_home, saved, key, oid, passed):
+    """Add oid to, or with passed False remove it from, the snapshot's list
+    under key ("verified" or "reviewed"). The lists say which blobs this
+    compaction itself checked, which is what retires it (in started()): records
+    are shared by every compaction that reaches the same content, the lists
+    are not. A list of another shape counts as empty."""
+    def change(current):
+        listed = current.get(key)
+        oids = [item for item in (listed if isinstance(listed, list) else [])
+                if isinstance(item, str) and item != oid]
+        if passed:
+            oids.append(oid)
+        current[key] = oids
+    return _update_snapshot(where, state_home, saved, change)
+
+
 def _load_snapshot(where, name, state_home):
-    """The snapshot the first call saved. One older than SNAPSHOT_LIFETIME
-    is refused, as SKILL.md says, even before a later first call deletes
-    it."""
+    """The snapshot `compact <file>` saved, however old."""
     try:
         saved = json.loads(_snapshot_path(where, state_home).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         saved = None
-    if not isinstance(saved, dict) or not isinstance(saved.get("saved"), (int, float)) \
-            or time.time() - saved["saved"] > SNAPSHOT_LIFETIME:
-        raise ValueError(f"no snapshot of {name} from the last {SNAPSHOT_LIFETIME // 86400} "
-                         f"days: run 'compact {command_path(name)}' first, before the file is "
-                         f"changed")
+    if not isinstance(saved, dict) or not isinstance(saved.get("text"), str):
+        raise ValueError(f"no snapshot of {name}: run 'compact {command_path(name)}' first, "
+                         f"before the file is changed")
     return saved
 
 
@@ -1336,6 +1415,7 @@ def verify(name, state_home, passes=None, given=Given(), stdin=None):
                 record.unlink()
             except FileNotFoundError:
                 pass
+            _note_in_snapshot(where, state_home, saved, "verified", current.oid, False)
         print(f"\nFailed ({len(report.failures)}):")
         for failure in report.failures:
             print(f"  {failure}")
@@ -1344,6 +1424,10 @@ def verify(name, state_home, passes=None, given=Given(), stdin=None):
     if record is not None:
         _write_record(record, {"path": where.rel, "verified": time.time(),
                                "before": saved.get("before")})
+        if not _note_in_snapshot(where, state_home, saved, "verified", current.oid, True):
+            raise ValueError(f"the snapshot of {name} changed while --verify ran, by a new "
+                             f"step 1 or --abandon; if a compaction is still started, run "
+                             f"--verify again on it")
     print("\nVerified. Ask the person before committing if the compactor listed a conclusion "
           "it would drop.")
     return VERIFIED
@@ -1456,6 +1540,10 @@ def reviewed(name, state_home, passes, reply, dispositions=""):
                       {"path": where.rel, "reviewed": time.time(), "before": saved.get("before"),
                        "review_of": review_of.get("oid"), "lost": counted[0],
                        "false": counted[1]})
+        if not _note_in_snapshot(where, state_home, saved, "reviewed", current.oid, True):
+            raise ValueError(f"the snapshot of {name} changed while --reviewed ran, by a new "
+                             f"step 1 or --abandon; if a compaction is still started, run "
+                             f"--review and --reviewed again on it")
     print(f"Review of {where.rel} complete: {counted[0]} lost, {counted[1]} false, "
           f"{sum(a == 'fixed' for a in answers.values())} fixed, "
           f"{sum(a == 'kept' for a in answers.values())} kept.")
@@ -1470,14 +1558,14 @@ def reviewed(name, state_home, passes, reply, dispositions=""):
 # pass directory, named by the staged blob's id as `git ls-files -s` lists
 # it. `prose check` refuses to sign while a file `prose compact` was started
 # on is staged with a blob other than the base's and lacks either record for
-# its staged blob, with
-# `before` the base's blob.
+# its staged blob with `before` equal to the compaction's start, until the
+# compaction retires on commit or is abandoned.
 
 def verified_dir(passes):
     """Where the records of passes of --verify live: a directory inside
     prose's pass directory. prose deletes the files there older than two
     hours, the life of a pass token, but leaves directories alone, so the
-    records last their 7 days."""
+    records stay as long as the snapshots they were made for."""
     return passes / "compacted"
 
 
@@ -1489,13 +1577,6 @@ def reviewed_dir(passes):
 def _write_record(record, fields):
     directory = record.parent
     directory.mkdir(mode=0o700, parents=True, exist_ok=True)
-    now = time.time()
-    for entry in directory.iterdir():
-        try:
-            if now - entry.stat().st_mtime > SNAPSHOT_LIFETIME:
-                entry.unlink()
-        except OSError:
-            pass
     draft = record.with_name(f".{record.name}.{os.getpid()}")
     draft.write_text(json.dumps(fields), encoding="utf-8")
     os.replace(draft, record)
@@ -1517,12 +1598,18 @@ def _size(oid, root):
     return int(out.strip())
 
 
-def started(root):
+def started(root, head=None, passes=None):
     """{path: {the blob ids compactions started from}} for every snapshot
-    taken in this work tree, root, still within SNAPSHOT_LIFETIME. Linked
-    work trees share the git directory, so each snapshot names its own work
-    tree's root."""
-    out, now, here = {}, time.time(), os.path.realpath(root)
+    taken in this work tree, root, however old. Linked work trees share the
+    git directory, so each snapshot names its own work tree's root.
+
+    A finished compaction retires here: when head, the base commit's tree
+    as tree_entries gives it, holds a blob for the file that this snapshot's
+    own --verify and --reviewed passed, with both records still standing,
+    the compaction is committed as checked, so its snapshot and review file are
+    deleted and it gates nothing more. That needs no step after the commit:
+    the next prose check, on any later commit, does it."""
+    out, here = {}, os.path.realpath(root)
     try:
         entries = list(snapshot_dir(root, None).iterdir())
     except FileNotFoundError:
@@ -1533,10 +1620,14 @@ def started(root):
         if entry.name.startswith(".") or entry.suffix:
             continue
         # A snapshot that cannot be read may be of a file this commit
-        # compacts, so it is an error. One that is not JSON of the expected
-        # shape is not a snapshot: they are written whole, by rename.
+        # compacts, so it is an error. One gone since the listing was
+        # abandoned or retired, and gates nothing. One that is not JSON of
+        # the expected shape is not a snapshot: snapshots are written whole,
+        # by rename, so bad JSON is never a half-written one.
         try:
             data = entry.read_bytes()
+        except FileNotFoundError:
+            continue
         except OSError as error:
             raise ValueError(f"could not read the compaction snapshot {entry}: "
                              f"{error.strerror}")
@@ -1544,40 +1635,76 @@ def started(root):
             fields = json.loads(data.decode("utf-8"))
         except ValueError:
             continue
-        if isinstance(fields, dict) and isinstance(fields.get("rel"), str) \
-                and isinstance(fields.get("before"), str) \
-                and isinstance(fields.get("saved"), (int, float)) \
-                and isinstance(fields.get("root"), str) \
-                and os.path.realpath(fields["root"]) == here \
-                and now - fields["saved"] <= SNAPSHOT_LIFETIME:
-            out.setdefault(fields["rel"], set()).add(fields["before"])
+        if not (isinstance(fields, dict) and isinstance(fields.get("rel"), str)
+                and isinstance(fields.get("before"), str)
+                and isinstance(fields.get("root"), str)
+                and os.path.realpath(fields["root"]) == here):
+            continue
+        rel, before = fields["rel"], fields["before"]
+        held = (head or {}).get(rel)
+        # Retired only by a blob this compaction itself checked, as its own
+        # snapshot lists, and whose records still stand: a record alone may
+        # come from another compaction of the same start.
+        def mine(key):
+            return held is not None and isinstance(fields.get(key), list) \
+                and held[1] in fields[key]
+        if held is not None and passes is not None and held[1] != before \
+                and mine("verified") and mine("reviewed") \
+                and _record(verified_dir(passes), held[1], before) \
+                and _record(reviewed_dir(passes), held[1], before):
+            try:
+                with _snapshot_lock(entry.parent):
+                    # Read again under the lock: a new step 1 on the file
+                    # may have replaced the snapshot since the read above,
+                    # and that new compaction must keep gating.
+                    try:
+                        again = entry.read_bytes()
+                    except FileNotFoundError:
+                        again = None
+                    if again is not None and again != data:
+                        try:
+                            newer = json.loads(again.decode("utf-8"))
+                        except ValueError:
+                            newer = None
+                        out.setdefault(rel, set()).add(before)
+                        if isinstance(newer, dict) and isinstance(newer.get("before"), str):
+                            out[rel].add(newer["before"])
+                        continue
+                    for path in (entry, entry.with_suffix(".review.md")):
+                        try:
+                            path.unlink()
+                        except FileNotFoundError:
+                            pass
+                    _clear_drafts(entry)
+            except OSError as error:
+                raise ValueError(f"could not retire the compaction snapshot {entry}: "
+                                 f"{error.strerror}")
+            continue
+        out.setdefault(rel, set()).add(before)
     return out
 
 
 def unverified(root, amend, passes):
-    """The refusals for the staged compactions, each one started from the
-    base's blob (HEAD's, or its parent's with amend), that lack a record of a
-    passing --verify, or of a completed review, for their staged blob. Gated: every file `prose compact` was started on from the
-    base, whatever kind of file, once its staged blob differs from the
-    base's; nothing else. Symlinks, mode 120000, hold no prose and are
-    skipped. A file renamed in the same commit is new at its path, so it is
-    not gated."""
+    """The refusals for the staged files a compaction was started on, in
+    this work tree and not yet retired (see started()), whose staged blob differs
+    from the base's (HEAD's, or its parent's with amend) and lacks a record
+    of a passing --verify, or of a completed review, from the compaction's
+    start. Nothing else is gated, and the gate reads no history: a
+    compaction gates its file until it retires or is abandoned. Symlinks,
+    mode 120000, hold no prose and are skipped."""
     if root is None:
         return []
     base = "HEAD^" if amend else "HEAD"
     try:
         tree, index = tree_entries(root, base), index_entries(root)
-        begun = started(root)
+        # Retire against the base, not HEAD: with amend, HEAD is the commit
+        # being replaced, so a checked copy there is about to go.
+        begun = started(root, tree, passes)
     except ValueError as error:
         return [f"could not tell which staged files were compacted ({error}); fix that, then "
                 f"sign again"]
-    gated = [path for path, starts in sorted(begun.items())
-             if path in tree and tree[path][1] in starts]
     out = []
-    for path in gated:
-        old = tree[path]
-        if old[0] not in REGULAR:
-            continue
+    for path, starts in sorted(begun.items()):
         entries = index.get(path, [])
         if not entries:
             continue
@@ -1591,13 +1718,14 @@ def unverified(root, amend, passes):
             out.append(f"{path} is unmerged, so whether it was compacted cannot be told; resolve "
                        f"it first{drop}")
             continue
-        if entries[0].mode not in REGULAR or entries[0].oid == old[1]:
+        old = tree.get(path)
+        if entries[0].mode not in REGULAR or (old is not None and entries[0].oid == old[1]):
             continue
         oid = entries[0].oid
-        if not _record(verified_dir(passes), oid, old[1]):
+        if not any(_record(verified_dir(passes), oid, before) for before in starts):
             out.append(f"{path} was compacted but not verified; run "
                        f"`prose compact --verify {quoted}`{drop}")
-        if not _record(reviewed_dir(passes), oid, old[1]):
+        if not any(_record(reviewed_dir(passes), oid, before) for before in starts):
             out.append(f"{path} was compacted but its review was not completed; run "
                        f"`prose compact --review {quoted}`, answer the reviewer's findings, then "
                        f"`prose compact --reviewed <reply> {quoted}`{drop}")
@@ -1638,86 +1766,91 @@ def abandon(name, state_home, passes=None):
     own = _snapshot_path(where, state_home)
     # The snapshot named for this path, and inside a repository any other
     # one this work tree took of the same file. The name comes from the
-    # path with its directory resolved, and a directory that is gone cannot
-    # be resolved as it was, so a file deleted with its directory may name
+    # path with symlinks in its directory resolved (realpath), and a
+    # directory that is gone cannot be resolved as it was, so a file deleted with its directory may name
     # its snapshot differently; matching the path and the work tree's root
     # finds it anyway.
-    found = {}
-    try:
-        entries = list(directory.iterdir())
-    except FileNotFoundError:
-        entries = []
-    except OSError as error:
-        raise ValueError(f"could not read the compaction snapshots: {error}")
-    here = os.path.realpath(where.root) if where.root is not None else None
-    for entry in entries:
-        if entry.name.startswith(".") or entry.suffix:
-            continue
+    # Under the lock, so a step updating the snapshot at the same time
+    # cannot write it back after it is deleted.
+    with _snapshot_lock(directory):
+        found = {}
         try:
-            fields = json.loads(entry.read_bytes().decode("utf-8"))
+            entries = list(directory.iterdir())
+        except FileNotFoundError:
+            entries = []
         except OSError as error:
-            raise ValueError(f"could not read the compaction snapshot {entry}: "
-                             f"{error.strerror}")
-        except ValueError:
-            continue
-        if not isinstance(fields, dict):
-            continue
-        if entry == own or (here is not None and fields.get("rel") == where.rel
-                            and isinstance(fields.get("root"), str)
-                            and os.path.realpath(fields["root"]) == here):
-            found[entry] = fields
-    if not found:
-        raise ValueError(f"{name}: no compaction was started on it, so there is nothing to "
-                         f"abandon")
-    for entry in found:
-        for path in (entry, entry.with_suffix(".review.md")):
-            try:
-                path.unlink()
-            except FileNotFoundError:
-                pass
-    # The records of this file's compaction, matched by its path and the
-    # blob it started from. A record is named by its staged blob and holds
-    # the path of whichever file wrote it last, so it can serve another
-    # file with the same content, or this file in another work tree. The
-    # gate reads a record only for a snapshot that starts from the record's
-    # blob, so a record is kept while any surviving snapshot does.
-    removed = 0
-    if where.root is not None and passes is not None:
-        starts = {fields.get("before") for fields in found.values()
-                  if isinstance(fields.get("before"), str)}
-        surviving = set()
-        for entry in (directory.iterdir() if directory.exists() else []):
+            raise ValueError(f"could not read the compaction snapshots: {error}")
+        here = os.path.realpath(where.root) if where.root is not None else None
+        for entry in entries:
             if entry.name.startswith(".") or entry.suffix:
                 continue
             try:
                 fields = json.loads(entry.read_bytes().decode("utf-8"))
-            except (OSError, ValueError):
-                # A snapshot that cannot be read might need any record.
-                surviving = starts
-                break
+            except OSError as error:
+                raise ValueError(f"could not read the compaction snapshot {entry}: "
+                                 f"{error.strerror}")
+            except ValueError:
+                continue
             if not isinstance(fields, dict):
                 continue
-            if not isinstance(fields.get("before"), str):
-                # A snapshot of an unknown shape might need any record.
-                surviving = starts
-                break
-            surviving.add(fields["before"])
-        starts = starts - surviving
-        for records in (verified_dir(passes(where.root)), reviewed_dir(passes(where.root))):
-            try:
-                items = list(records.iterdir())
-            except FileNotFoundError:
-                continue
-            for record in items:
+            if entry == own or (here is not None and fields.get("rel") == where.rel
+                                and isinstance(fields.get("root"), str)
+                                and os.path.realpath(fields["root"]) == here):
+                found[entry] = fields
+        if not found:
+            raise ValueError(f"{name}: no compaction was started on it, so there is nothing to "
+                             f"abandon")
+        for entry in found:
+            for path in (entry, entry.with_suffix(".review.md")):
                 try:
-                    fields = json.loads(record.read_text(encoding="utf-8"))
-                except (OSError, ValueError):
+                    path.unlink()
+                except FileNotFoundError:
+                    pass
+            _clear_drafts(entry)
+        # The records of this file's compaction, matched by its path and the
+        # blob it started from. A record is named by its staged blob and holds
+        # the path of whichever file wrote it last, so it can serve another
+        # file with the same content, or this file in another work tree. The
+        # gate reads a record only for a snapshot whose start is the record's
+        # `before`, so a record is kept while any surviving snapshot starts
+        # from that blob.
+        removed = 0
+        if where.root is not None and passes is not None:
+            starts = {fields.get("before") for fields in found.values()
+                      if isinstance(fields.get("before"), str)}
+            surviving = set()
+            for entry in (directory.iterdir() if directory.exists() else []):
+                if entry.name.startswith(".") or entry.suffix:
                     continue
-                if isinstance(fields, dict) and fields.get("path") == where.rel \
-                        and isinstance(fields.get("before"), str) \
-                        and fields["before"] in starts:
-                    record.unlink()
-                    removed += 1
+                try:
+                    fields = json.loads(entry.read_bytes().decode("utf-8"))
+                except (OSError, ValueError):
+                    # A snapshot that cannot be read might need any record.
+                    surviving = starts
+                    break
+                if not isinstance(fields, dict):
+                    continue
+                if not isinstance(fields.get("before"), str):
+                    # A snapshot of an unknown shape might need any record.
+                    surviving = starts
+                    break
+                surviving.add(fields["before"])
+            starts = starts - surviving
+            for records in (verified_dir(passes(where.root)), reviewed_dir(passes(where.root))):
+                try:
+                    items = list(records.iterdir())
+                except FileNotFoundError:
+                    continue
+                for record in items:
+                    try:
+                        fields = json.loads(record.read_text(encoding="utf-8"))
+                    except (OSError, ValueError):
+                        continue
+                    if isinstance(fields, dict) and fields.get("path") == where.rel \
+                            and isinstance(fields.get("before"), str) \
+                            and fields["before"] in starts:
+                        record.unlink()
+                        removed += 1
     print(f"Abandoned the compaction of {where.rel}: removed its snapshot"
           + (f" and {removed} record{'' if removed == 1 else 's'}" if removed else "")
           + ". The commit gate treats it as an ordinary file again.")
