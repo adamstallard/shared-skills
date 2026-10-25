@@ -1,0 +1,40 @@
+
+ ▐▛███▛█   Claude Code v2.1.310
+▝▜██████▀  Opus 5.5 · Claude Max
+ ▝▝   ▝▝   ~/shared-skills
+
+⚠ Ask rule Advisor matches no tool · check for typos
+
+❯ /answer
+  ⎿  answer-session: Answer session open: type in the prompt box, Enter answers. 1 answered and
+     1 handled for you: see the summary.
+
+⏺ Prompt dropped by a hook: Not posted: Sara Lind replied since you last read the
+  thread. Read it, then ⏎ again.
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────── [-]
+Answer session  ○ ○ ○ ○ ◎ ○ ○ ○ ◈ ○ ○ ○ ○ ○ ◉ ○ ○  summary  15 of 17               v0.1-32
+Linear  ENG-437 · Status page  8m ago · 1 reply
+Sara Lind asks
+
+Should the status page show the degraded-performance banner for the EU region today?
+
+Latency in eu-west has been twice normal since 9:00, with no errors.
+
+↩ 1 REPLY SINCE IT WAS ASKED · 1 NEW   (v)iew all  ⇄ move
+Sara Lind · the asker · just now · new
+│ Update: eu-west latency is back to normal as of 10:40. Still want the banner?
+▌ Reply to Sara Lind: type it in the prompt box
+POST ON LINEAR AS adam-relay (Linear app): User says: Yes, keep the banner up.
+(h)elp me answer  (w)on't answer  (l)ater  Not posted: a new reply  (b)ack  (n)ext  (q)uit
+                                                                           ◐ medium · /effort
+─────────────────────────────────────────────────────────────────────────────── shared-skills ─
+❯ Yes, keep the banner up.
+───────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on (shift+tab to cycle) · ⏎ relay to Linear · 5h 13% Sun 1:30a · 7d 64% ⇡ Sa…

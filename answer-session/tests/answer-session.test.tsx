@@ -1252,3 +1252,65 @@ test("a post tried before the thread's first read comes back reads it itself; th
   expect(await s.enter($, 'No banner, then.')).toContain('Relayed to Linear')
   await ui.unmount()
 })
+
+test("a stopped post's notice fits the key row in whole words, and goes once the post goes through or Adam moves on", async ($, on) => {
+  const s = answerSession(on)
+  await s.open($)
+  const at = (columns: number) => ({
+    ...BAND,
+    props: { ...BAND.props, bodyColumns: columns - 5 },
+    viewport: { columns, rows: 40, isFullscreen: true },
+    surface: 'terminal' as const,
+  })
+  const notice = /^Not posted: /
+  const stop = async () => {
+    await s.enter($, 'n')
+    expect(await s.enter($, 'Yes, keep the banner up.')).toBe('Not posted: Sara Lind replied since you last read the thread. Read it, then ⏎ again.')
+  }
+  // Sara's question, dot 15: the first post is stopped.
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  await ui.press({ key: 'dot:13' })
+  await stop()
+  for (const [columns, words] of [
+    [140, 'Not posted: Sara Lind replied. Read it, then ⏎ again.'],
+    [120, 'Not posted: Sara Lind replied'],
+    [95, 'Not posted: a new reply'],
+  ] as const) {
+    const band = await $.ui.mount(at(columns))
+    expect(((await band.find({ type: 'Text', text: notice })) as { text?: string } | undefined)?.text).toBe(words)
+    await band.unmount()
+  }
+  // The second Enter posts: the notice is gone, here and back on her question.
+  expect(await s.enter($, 'No banner, then.')).toContain('Relayed to Linear')
+  await ui.redraw()
+  expect(await ui.find({ type: 'Text', text: notice })).toBeUndefined()
+  await ui.press({ key: 'dot:14' })
+  await ui.redraw()
+  expect(await ui.find({ type: 'Text', text: notice })).toBeUndefined()
+  // Her reply is no longer marked new either.
+  expect(await ui.find({ type: 'Text', text: / · 1 NEW/ })).toBeUndefined()
+  expect(await ui.find({ type: 'Text', text: /back to normal as of 10:40/ })).toBeDefined()
+  await ui.unmount()
+})
+
+test("a stopped post's notice goes with (l)ater, and with moving to another question", async ($, on) => {
+  const s = answerSession(on)
+  await s.open($)
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  const notice = /^Not posted: /
+  await ui.press({ key: 'dot:14' })
+  expect(await s.enter($, 'Yes, keep the banner up.')).toContain('Not posted')
+  await ui.redraw()
+  expect(await ui.find({ type: 'Text', text: notice })).toBeDefined()
+  await ui.press({ key: 'dot:13' })
+  await ui.redraw()
+  expect(await ui.find({ type: 'Text', text: notice })).toBeUndefined()
+  // Back on Sara's question, her reply already shown: it posts, so stop the next one another way.
+  await ui.press({ key: 'dot:14' })
+  await ui.redraw()
+  expect(await ui.find({ type: 'Text', text: notice })).toBeUndefined()
+  expect(await s.enter($, 'l')).toContain('Later')
+  await ui.redraw()
+  expect(await ui.find({ type: 'Text', text: notice })).toBeUndefined()
+  await ui.unmount()
+})

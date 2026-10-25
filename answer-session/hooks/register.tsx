@@ -607,7 +607,7 @@ const TONE: Record<Answer['kind'], string> = { answer: DONE, defer: LATER, wait:
 // Prototype only: shown in the top bar, so a tester can tell which build is
 // loaded. v0.1-N, N the number of commits in the prototype repository once
 // this build is committed.
-const BUILD = 'v0.1-31'
+const BUILD = 'v0.1-32'
 const PREFIX = 'User says: '
 // The tool the session's model calls to put a drafted reply in the prompt box.
 const PROPOSE_TOOL = 'mcp__answer-session__propose_reply'
@@ -1427,6 +1427,7 @@ async function putInBox($: EngineInterface, text: string): Promise<void> {
   await $.prompt.fill({ text, mode: 'replace' })
   // The mod's own fill skips its own prompt.change hook: keep the copy here.
   await update($, promptAtom, () => text)
+  await boxChanged($, text)
 }
 
 /** Applies what the box should hold after a drop; `isPutBack` when the engine just put the prompt back. */
@@ -1450,6 +1451,8 @@ async function go($: EngineInterface, i: number, note: string): Promise<string> 
   await update($, editingAtom, () => ({}))
   await update($, decliningAtom, () => null)
   await update($, viewingAtom, () => null)
+  const was = QUESTIONS[await read($, cursorAtom)]
+  if (was) await seenAll($, was.id)
   await update($, cursorAtom, () => i)
   await update($, flashAtom, () => null)
   await arrive($, i)
@@ -1465,6 +1468,16 @@ async function go($: EngineInterface, i: number, note: string): Promise<string> 
 // the thread is read once more: a reply the person has not been shown stops
 // the post, and is shown. Prototype only: a read reveals the question's
 // made-up replies, after READ_MS.
+
+/** Adam has moved past a stop: replies found by the read before a post are no longer marked new. */
+async function seenAll($: EngineInterface, id: string): Promise<void> {
+  await update($, threadsAtom, t => {
+    const seen = t[id]
+    if (seen?.fresh === undefined) return t
+    const { fresh: _fresh, ...rest } = seen
+    return { ...t, [id]: rest }
+  })
+}
 
 /** Question `i` came on screen: its thread is read, unless that was done in the last minute. */
 async function arrive($: EngineInterface, i: number): Promise<void> {
@@ -1523,6 +1536,42 @@ async function fromThread($: EngineInterface, one: Question, replies: Reply[]): 
 const NOT_POSTED = 'Not posted: '
 
 /**
+ * A stopped post's notice, longest first, for the key row to take the
+ * longest that fits: the transcript's drop row keeps the whole of it.
+ */
+function noticeForms(note: string): string[] {
+  const replied = /^Not posted: (.+?) replied since/.exec(note)
+  if (replied) {
+    const who = replied[1]!
+    const first = who.includes(' and ') ? undefined : who.split(' ')[0]
+    return [
+      note,
+      `${NOT_POSTED}${who} replied. Read it, then ⏎ again.`,
+      `${NOT_POSTED}${who} replied. ⏎ again to post.`,
+      `${NOT_POSTED}${who} replied`,
+      ...(first && first !== who ? [`${NOT_POSTED}${first} replied`] : []),
+      `${NOT_POSTED}a new reply`,
+    ]
+  }
+  if (/already answered it from another machine/.test(note)) return [note, `${NOT_POSTED}already answered from another machine`, `${NOT_POSTED}answered elsewhere`]
+  return [note]
+}
+
+/**
+ * What the box held when a post was stopped. Once the box holds something
+ * else (another answer typed, another option chosen), Adam has moved past
+ * the stop and its notice goes.
+ */
+let stoppedWith: string | undefined
+
+/** The box changed to `text`: a stop's notice goes once it holds something else. */
+async function boxChanged($: EngineInterface, text: string): Promise<void> {
+  if (stoppedWith === undefined || !text.trim() || text.trim() === stoppedWith) return
+  stoppedWith = undefined
+  await update($, flashAtom, f => (f?.startsWith(NOT_POSTED) ? null : f))
+}
+
+/**
  * Reads the thread once more before a post. Returns why nothing may post: the
  * question was answered from another machine, or someone replied since the
  * person last saw the thread (those replies are then shown, marked new, and
@@ -1554,6 +1603,7 @@ async function recheck($: EngineInterface, one: Question): Promise<string | unde
     note = `${NOT_POSTED}${names} replied since you last read the thread. Read it, then ⏎ again.`
     // What was typed stays for that second Enter.
     if (afterDrop) afterDrop.text = afterDrop.dropped
+    stoppedWith = afterDrop?.dropped.trim()
   }
   if (note) await update($, flashAtom, () => note!)
   return note
@@ -1679,6 +1729,7 @@ async function settle($: EngineInterface, one: Question, answer: Answer, note: s
   await update($, talkingAtom, () => null)
   await update($, decliningAtom, () => null)
   await update($, viewingAtom, () => null)
+  await seenAll($, one.id)
   const next = nextFresh(QUESTIONS.findIndex(x => x.id === one.id), after)
   await update($, cursorAtom, () => next)
   await update($, flashAtom, () => note)
@@ -2069,13 +2120,19 @@ export const register: Register = on => {
   // recalled history entry, a clear).
   on('prompt.edit', async ($, e, next) => {
     const box = await next(e)
-    if (await read($, openAtom)) await update($, promptAtom, () => box.text)
+    if (await read($, openAtom)) {
+      await update($, promptAtom, () => box.text)
+      await boxChanged($, box.text)
+    }
     return box
   })
   on('prompt.change', async ($, e, next) => {
     const changed = await next(e)
     if (afterDrop && e.origin.kind === 'engine' && e.text === afterDrop.dropped) await settleBox($, true)
-    else if (await read($, openAtom)) await update($, promptAtom, () => e.text)
+    else if (await read($, openAtom)) {
+      await update($, promptAtom, () => e.text)
+      await boxChanged($, e.text)
+    }
     return changed
   })
 
@@ -2394,14 +2451,15 @@ export const register: Register = on => {
       </Button>
     )
     // The last thing done, or why Enter would refuse what is typed.
-    const status =
+    // A stopped post's notice in the longest wording that fits `room`, never cut mid-word.
+    const status = (room: number) =>
       it.kind === 'refused' ? (
         <Text color={LATER} wrap="truncate-end">
           {it.why}
         </Text>
       ) : flash?.startsWith(NOT_POSTED) ? (
         <Text color={LATER} wrap="truncate-end">
-          {flash}
+          {noticeForms(flash).find(form => form.length <= room) ?? NOT_POSTED.trim().replace(/:$/, '')}
         </Text>
       ) : flash ? (
         <Text color={DONE} wrap="truncate-end">
@@ -2415,6 +2473,11 @@ export const register: Register = on => {
       // digits' hint gives way (a recorded answer's (a)gree on a narrow band).
       const length = [...allHints.map(([key, what]) => `${key}: ${what}`), ...shown.filter(cmd => !cmd.aside).map(cmd => cmd.what)].reduce((n, w) => n + w.length + keyGap, 0)
       const hints = length > cols ? [] : allHints
+      // What the status has left: the row less the commands and the gaps around them.
+      const left = [...hints.map(([key, what]) => `${key}: ${what}`), ...shown.filter(cmd => !AT_RIGHT.includes(cmd.key) && !cmd.aside).map(cmd => cmd.what)]
+      const right = AT_RIGHT.flatMap(key => shown.filter(cmd => cmd.key === key)).map(cmd => cmd.what)
+      const used = [...left, ...right].reduce((n, w) => n + w.length, 0) + keyGap * (left.length - 1 + right.length - 1 + 2)
+      const said = status(Math.max(0, cols - used))
       return (
       <Box height={1} overflow="hidden" justifyContent="space-between" width={cols} gap={keyGap}>
         <Box columnGap={keyGap} flexShrink={0}>
@@ -2425,7 +2488,7 @@ export const register: Register = on => {
             quick back and forth by click. */}
         <Box gap={keyGap} flexShrink={1} justifyContent="flex-end">
           {/* The status gives way to the commands, never the other way round. */}
-          {status ? <Box flexShrink={1}>{status}</Box> : null}
+          {said ? <Box flexShrink={1}>{said}</Box> : null}
           <Box gap={keyGap} flexShrink={0}>
             {AT_RIGHT.flatMap(key => shown.filter(cmd => cmd.key === key)).map(keyButton)}
           </Box>
