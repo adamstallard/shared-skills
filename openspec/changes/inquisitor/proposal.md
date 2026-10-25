@@ -17,7 +17,8 @@ are written down:
   turned on, on 2026-10-20, and how `check` reads it, on 2026-10-21.
 - 240 to 253, on 2026-10-21;
 - 254 to 284, on 2026-10-24;
-- 285 to 306, on 2026-10-25.
+- 285 to 306 and 308 to 315, on 2026-10-25, with 307, which this
+  change proposed, confirmed by 314.
 
 Apart from 229 and 241 to 244, which he gave in the session reviewing
 igor PR #216, and 238, which he gave in shared-skills PR #1, he gave those of 2026-10-19 to 2026-10-25 while reviewing this pull
@@ -62,7 +63,8 @@ decision each, except that 289 settles two, and 292 to 295 the four raised with
 297 to 299 settle the six raised with 292 to 296: 297 answers the
 first and makes the next three moot, 299 answers the fifth and 298 the
 sixth. 300 to 306 answer the seven raised with 297 to 299, one
-decision each.
+decision each, and 308 to 315 the eight raised with 300 to 307, 314
+confirming 307 with a change.
 
 1. **Four filters run before any question reaches a person.**
    1. **Already answered:** the agent finds the earlier answer, cites where it
@@ -1439,7 +1441,7 @@ rules this change relies on:
      agent that kept replying could get filter 2's text, filter 4's, then
      filter 2's again with no person seeing it. This amends decision
      202's item 6.
-220. **Editing a relayed answer that decision 210 also logged pushes a
+220. *Amended by Adam's decision 312: among answer files naming the same file in `answers`, the newest counts.* **Editing a relayed answer that decision 210 also logged pushes a
      new log file with the edited answer,** and the newest log file for
      that question counts. A file on a questions branch never changes
      (decision 140), so without a new file the branch would keep the
@@ -2316,7 +2318,7 @@ change put to him when it recorded 292 to 296:
      decisions 196, 285 and 292 and retires 198's `"source <n>"` miss;
      208's `said: "not a question"` is no longer written. *Rejected:* a miss
      against the source.
-299. *Amended by Adam's decisions 300 to 302: a file whose link this machine never reads is shown on its own, an answer records the message's question, and a withheld Linear or Discord link is made up for by merging.* **A questions-branch log file follows its thread message by exact
+299. *Amended by Adam's decisions 300 to 302: a file whose link this machine never reads is shown on its own, an answer records the message's question, and a withheld Linear, Discord or, by decision 315, GitHub link is made up for by merging.* **A questions-branch log file follows its thread message by exact
      link.** A log file for a question the asking agent also asked in a
      post holds that message's URL as `asked_in`, and what the
      answer session decides about that message applies to the file. A
@@ -2328,7 +2330,7 @@ change put to him when it recorded 292 to 296:
 Adam gave 300 to 306 on 2026-10-25, one for each question this change
 put to him when it recorded 297 to 299:
 
-300. **A log file whose `asked_in` links a message this machine never
+300. *Extended by Adam's decision 311: an answer given there is kept pending until it can be relayed.* **A log file whose `asked_in` links a message this machine never
      reads is shown on its own,** as a question of the fourth source:
      a message in a channel this machine does not subscribe to, or on a
      surface it has turned off or cannot read. This amends decision 299. *Rejected:* showing it nowhere on that
@@ -2340,7 +2342,7 @@ put to him when it recorded 297 to 299:
      words, which the person never saw; now the answer file pairs the
      answer with the words they answered. *Rejected:* showing the file's question beside the
      message.
-302. **Decision 251's rule applies to `asked_in`:** a Linear or Discord
+302. *Extended by Adam's decision 315 to a GitHub `asked_in` into a more private repository.* **Decision 251's rule applies to `asked_in`:** a Linear or Discord
      `asked_in` is written only when the lore repository is private.
      Where the URL is withheld, the answer session merges the log file
      and the thread message into one entry where it can tell they are
@@ -2349,9 +2351,10 @@ put to him when it recorded 297 to 299:
      decision 297 removed, and answering the merged entry records the
      answer against both. Adam left the merge criterion to this change,
      kept narrow so that two askers' questions in the same words are not
-     merged; decision 307 proposes it. *Rejected:* always
+     merged; decision 307 states the criterion, and Adam confirmed 307
+     with decision 314's change. *Rejected:* always
      writing the URL.
-303. **No hash matching for misses or answers:** a miss is pushed even
+303. *Guarded by Adam's decision 310: `answers` is written only when it names an unanswered file already on the branch.* **No hash matching for misses or answers:** a miss is pushed even
      when one with the same question and `filter` is already on the
      branch, and an answer file names, in a new `answers` key, the file
      it answers, as `closes` does, instead of answering every file with
@@ -2369,6 +2372,63 @@ put to him when it recorded 297 to 299:
      closed is still unanswered, so an answer given to its thread copy
      pushes a log file answering it, as the spec already says.
      *Rejected:* pushing no answer file for a file a handled file names.
+
+Adam gave 308 to 315 on 2026-10-25, one for each question this change
+put to him when it recorded 300 to 307, and confirmed 307 as changed by
+314:
+
+308. **Accepted: a merge can differ between machines.** Each machine
+     judges decision 307's condition, that the file matches no other
+     message and the message no other file, by what it polls, so two machines
+     reading different channels can merge one file with different
+     messages. *Rejected:* never merging.
+309. **An answer file always records the message's words,** as decision
+     301 says, with no rule of its own for a lore repository more
+     visible than the thread. Such a case barely arises: under decision
+     315 an `asked_in` link, and so the message it points to, is written
+     only where the lore repository is no more visible than the thread,
+     and a merge needs the file's own words to match the message's, so
+     the answer file adds no words the file did not already hold. The one
+     case left is a lore repository made more public later, which
+     publishes everything already in it, so the answer file adds nothing
+     worse. *Rejected:* generalising the message's words, and relaying
+     only in the thread.
+310. **The `log` command writes `answers` only when it names an
+     unanswered file already on the branch,** and igor PR #216 should
+     refuse a worker's file holding `answers`, so the Igor adds the key
+     itself, since #216 would then push only what the Igor writes; the
+     *Still open* section below asks #216 for that.
+     *Rejected:* accepting a planted `answers`.
+311. **An answer that cannot reach its thread is kept pending, not
+     lost:** when the relay lacks permission, the channel is off, the
+     post is refused or fails, or the answer was given on a machine that
+     does not read the thread's channel (decision 300). The state folder
+     keeps it as answered, not relayed; the machine holding it lists it
+     as pending and posts it once setup's check of posting in that channel passes, after the
+     person confirms. Where an answer file was pushed, a machine that can
+     post in the thread shows "Answered on another machine, not relayed",
+     offering to relay it, edit it or answer afresh, instead of asking
+     again. The person is always told the asker has not got the answer
+     yet, so they can relay it by hand. This amends the rule that a
+     failed post leaves its question as it was, which dropped the typed
+     answer. The pending list and that notice are new screens, built
+     only after a prototype round Adam approves by use (decision 261).
+     *Rejected:* asking again on the machine that can post.
+312. **Among answer files naming the same file in `answers`, the newest
+     counts.** Grouping by the same hash stays only for filter 1's search
+     across askers, where a new asker has no file to name. This amends
+     decision 220. *Rejected:* grouping every answer by hash.
+313. **Both "not a question" labels stay,** though they share a name:
+     decline reason 2's, for the answer session's own error (decision
+     298), and filter 3's choice under reason 3, for the asking agent's
+     (decision 304).
+314. **Decision 307 is confirmed with one change:** "the message is on
+     Linear or Discord" becomes "a message whose `asked_in` would be
+     withheld", so a GitHub message decision 315 withholds merges too.
+315. **A GitHub `asked_in` is withheld when the thread's repository is
+     more private than the lore repository,** as decision 251 withholds
+     a Linear or Discord one, and the file then merges as for Linear and
+     Discord. This extends decision 302. *Rejected:* always writing it.
 
 ### Proposed by this change
 
@@ -2389,8 +2449,8 @@ it item by item, except items 4 and 5, which his decisions 232 and 235
 replace. Decision 239 came from this change too, and Adam confirmed it
 item by item, except item 2, which his decision 240 changes. Decision
 245 came from this change too, and Adam replaced it with his own decision
-245, recorded above. Decision 307 came from this change too, and waits
-for Adam.
+245, recorded above. Decision 307 came from this change too, and Adam
+confirmed it with the change his decision 314 makes.
 
 16. **Confirmed by Adam (2026-10-19).** **A prepared question** states the recommended answer, what changes under
     the other answer, and a link to any related earlier decision, so that most
@@ -3334,10 +3394,11 @@ this change's own:
         on fetching under `igor run` and the hashed record of handback
         questions, contradict nothing here.
 
-307. **Proposed: the merge criterion of decision 302.** A log file with
-     no `asked_in` is merged with a thread message on one machine only
-     when the file is on a lore repository that is not private, the
-     message is on Linear or Discord, the two questions are the same once
+307. **Confirmed by Adam (2026-10-25), with "on Linear or Discord"
+     replaced by his decision 314.** **The merge criterion of decision
+     302.** A log file with no `asked_in` is merged with a thread message
+     on one machine only when the file is on a lore repository that is
+     not private, the message is on Linear or Discord, the two questions are the same once
      every mention is removed (a file tags `@login`, a Linear or Discord
      message mentions the person's user on that surface), the file's
      `asked` day is the message's day in UTC, and the file matches no
@@ -3386,8 +3447,8 @@ settled by decisions 297 to 299.
 The seven questions raised while recording decisions 297 to 299 are
 settled by decisions 300 to 306.
 
-Decision 307, the merge criterion this change proposes, waits for
-Adam.
+The eight questions raised while recording decisions 300 to 307 are
+settled by decisions 308 to 315.
 
 Open on igor PR #216's side, at the head last read, 59e7561, which records Adam's decisions
 up to 149 in #216's own numbering, decisions 244 and 245 among them as
@@ -3406,8 +3467,11 @@ its decisions 92 and 97:
 - **#216's Igor should write `asked_in`** in a log file for a question it
   also asked in a post (decision 299), a Linear or Discord one only in a
   private lore repository (decision 302), and name in `answers` the file
-  an answer file answers (decision 303). Without `answers`, the answer
-  session keeps showing the answered file as unanswered.
+  an answer file answers (decision 303), adding `answers` itself and
+  refusing a worker's file that holds it (decision 310). Without
+  `answers`, the answer session keeps showing the answered file as
+  unanswered. A GitHub `asked_in` is withheld when the thread's
+  repository is more private than the lore repository (decision 315).
 - **#216 should widen its definition of a citation to include a
   person's cite.** It defines a citation as an agent's record that a
   lore entry answered a question so that no person was asked. Decision

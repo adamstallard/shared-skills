@@ -196,7 +196,10 @@ Terms used throughout this spec:
   `INTERNAL`), then public. A repository
   the question concerns whose visibility cannot be read counts as private;
   a lore repository, or the repository a post goes to, whose visibility
-  cannot be read counts as public. Nothing about one repository goes to a
+  cannot be read counts as public; and a repository an `asked_in` URL
+  points into, whose visibility cannot be read, counts as private. Each
+  default makes the more cautious choice: nothing is sent somewhere that
+  might be more visible. Nothing about one repository goes to a
   more visible place, except a recorded answer's link that the person
   confirms after being shown that posting it shows the record exists,
   as the `answer-session` spec's *Filter 1 runs on every incoming
@@ -632,7 +635,12 @@ with the same question, meaning the same hash of the text under its
 `## Question`, taken whole and reduced as *Two calls prove the filters
 ran* reduces a question in a post, and more than one of them would count as an
 answer by the rules above, only the newest SHALL count: the one whose
-proof is newest. A comment link's proof dates from the time GitHub gives
+proof is newest. Answer files that name the same file in `answers` are
+grouped by that name instead of by the hash: they answer that one file,
+whatever their questions' text, and only the newest of them counts
+(proposal decision 312). The hash still groups the files with no
+`answers`, because filter 1's search must find answers across askers,
+where a new asker has no file to name. A comment link's proof dates from the time GitHub gives
 for the comment's last edit, or its creation when it was never edited; a
 signature's proof dates from the signed commit's committer date. Each
 other SHALL be shown as input, labelled as superseded. A file that would not count, such
@@ -849,6 +857,14 @@ agent. The search SHALL never show a rejected candidate.
   was added, and the second's comment is newer than the first's
 - **THEN** filter 1 treats the second as the answer, and shows the first
   as input, labelled as superseded
+
+#### Scenario: The newest answer naming a file counts
+
+- **WHEN** two answer files with different question text both name the
+  same file in `answers`, each would count, and the second's proof is
+  newer
+- **THEN** filter 1 treats the second as the answer to that file, and
+  shows the first as input, labelled as superseded
 
 #### Scenario: A re-pushed copy of an older answer does not count
 
@@ -2108,8 +2124,15 @@ SHALL write the link only when it reads that lore repository's
 visibility as private, and otherwise SHALL write the file without an
 `answer_link` (proposal decision 251). Likewise it SHALL write a Linear
 or Discord `asked_in` only when it reads the lore repository's
-visibility as private, SHALL write the file without it otherwise, and
-SHALL write nothing and say why for an
+visibility as private, and a github.com `asked_in` only when the lore
+repository is no more visible than the repository the URL points into,
+as *More visible* defines it; otherwise it SHALL write the file without
+the `asked_in` (proposal decision 315).
+
+The command SHALL write `answers` only when it names a log file already
+on that questions branch that holds no answer; otherwise it SHALL write
+nothing and say why (proposal decision 310). It SHALL also write
+nothing and say why for an
 `asked_in` that is not a github.com, Linear or Discord URL of the forms
 given for `answer_link` (proposal decision 302). The command does not check who passed such a
 link; it proves no writer whoever did. For an `answer_link` that is none
@@ -2129,8 +2152,8 @@ A log file for a question that was asked SHALL hold the question as asked and th
 asked. A questions-branch log file for a question also asked in a post
 SHALL hold that post's URL as `asked_in`, so the agent SHALL post the
 question before it writes the log file (proposal decision 299); the
-`log` command leaves a Linear or Discord URL out of a lore repository
-that is not private (proposal decision 302). A questions-branch file
+`log` command leaves the URL out where its rule for `asked_in`, above,
+withholds it (proposal decisions 302 and 315). A questions-branch file
 that answers a question an earlier file there logged unanswered SHALL
 name that file in `answers`, one answer file for each such file it
 knows of: the agent that pushed the earlier file has its name, and a
@@ -2463,6 +2486,19 @@ why.
 - **THEN** the agent records the answer only in the question's log file,
   with `authority: input`, and does not write it into the spec
 
+#### Scenario: A GitHub link into a more private repository is left out
+
+- **WHEN** an agent asks, in a private repository's issue, a question
+  about a public repository, and logs it on the questions branch of a
+  public lore repository serving that public repository
+- **THEN** the log file holds no `asked_in`
+
+#### Scenario: An answers key naming no file on the branch is refused
+
+- **WHEN** the `log` command is asked to write an answer file whose
+  `answers` names a file the questions branch does not hold
+- **THEN** it writes nothing and says why
+
 #### Scenario: A Discord link is left out of a lore repository that is not private
 
 - **WHEN** an agent asks a question in a Discord message and logs it on
@@ -2529,10 +2565,13 @@ written.
   `asked_in`, only in a questions-branch log file for a question the
   asking agent also asked in a post, the URL of that post, a Linear or
   Discord URL being written only in a private lore repository, as for
-  `answer_link` (proposal decisions 299 and 302);
+  `answer_link`, and a github.com URL only in a lore repository no more
+  visible than the repository it points into (proposal decisions 299,
+  302 and 315);
   `answers`, only in a questions-branch file holding an answer, the file
   name of the unanswered questions-branch file it answers, written as
-  `closes` is (proposal decision 303);
+  `closes` is, and only when that file is on the branch (proposal
+  decisions 303 and 310);
   `asked_from`, only in a questions-branch file an Igor pushes, whether
   its worker reported it or the Igor's own inquisitor run wrote it, or in
   a miss an answer session logs for a question such a file holds. Its body

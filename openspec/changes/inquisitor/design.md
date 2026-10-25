@@ -641,7 +641,7 @@ needs that v0.1-33 lacks follow its patterns (proposal decision
 254, task 6.1).
 The rules are in the `answer-session` spec, the decisions in proposal
 decisions 152 to 175, 184 to 203, 207 to 211, 215, 216, 219, 220,
-222 to 230, 234, 236, 238, 246 to 248, 250 to 252, 254 to 260 and 262 to 306.
+222 to 230, 234, 236, 238, 246 to 248, 250 to 252, 254 to 260 and 262 to 315.
 
 ### Polling while open, with the person's credentials
 
@@ -840,15 +840,31 @@ the same question and filter is already on the branch, since dropping it
 would again mean matching on words (decision 303).
 
 A Linear or Discord `asked_in` is withheld from a lore repository that
-is not private, as an `answer_link` is (decisions 251 and 302). A log
+is not private, as an `answer_link` is, and a GitHub one from a lore
+repository more visible than the repository it points into (decisions
+251, 302 and 315). A log
 file without it has no link to the message that also asked it, so the
 answer session merges the two into one entry only when it is sure:
 the same question once mentions are removed, asked the same day, and
-exactly one file and one message that fit. That criterion is decision
-307, which this change proposes and Adam has not yet confirmed. A merge
-changes only what one machine shows. Two askers' questions in the same
-words, both read by one machine, fail the "exactly one" test and are
-shown apart.
+exactly one file and one message that fit (decisions 307 and 314). A
+merge changes only what one machine shows, and each machine judges
+whether a file and a message match nothing else by what it polls, so two machines can merge one file with
+different messages; Adam accepts that (decision 308). Two askers'
+questions in the same words, both read by one machine, fail the "exactly
+one" test and are shown apart.
+
+An answer that cannot reach its thread is kept, not lost (decision 311),
+where a failed post would otherwise drop what the person typed. The
+state folder keeps it as answered, not relayed, and the machine holding
+it offers to post it again at each opening and once setup's check of
+posting in that channel passes. When a questions-branch file holds the
+question, through its `asked_in` or a merge, the answer file is pushed
+at once, so another machine that can post in the thread sees the answer
+and offers to relay it rather than ask the person again. Either way the
+person is told the asker has not got the answer yet. The two screens
+this needs, the list of answers kept this way and the other machine's
+notice, are UI, so they wait for a prototype round Adam approves by use,
+as every new screen here does.
 
 A relayed answer counts as the person's own for filter 1 (decision 184).
 Decision 78 proves a logged answer's writer only when GitHub gives the

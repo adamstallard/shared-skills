@@ -381,14 +381,17 @@ applies to the log file, which is not shown on its own. A log file with
 no `asked_in` is judged on its own as a question of the fourth source
 (proposal decision 299). A log file whose `asked_in` links a message
 this machine does not read, one in a channel it does not subscribe to
-or on a surface it has turned off or cannot read, is shown on its own on
+or that is off, or on a surface it has turned off or cannot read, is
+shown on its own on
 this machine, as a question of the fourth source
 (proposal decision 300).
 
 A log file of the fourth source with no `asked_in` SHALL be merged with
 a thread message into one entry on this machine when all of these hold:
-the file is on the questions branch of a lore repository that is not
-private; the message is on Linear or Discord; the two questions are the
+the `asked_in` linking that message would be withheld from the file's
+lore repository: a Linear or Discord message where that repository is not
+private, or a GitHub message in a repository more private than it
+(proposal decisions 314 and 315); the two questions are the
 same question once every mention, an `@login` or a Linear or Discord
 user mention, is removed from each; the file's `asked` day is the day,
 in UTC, the message was posted; and the file meets these with no other
@@ -481,6 +484,14 @@ the first (proposal decisions 283, 287 and 291).
 - **THEN** the answer session shows one entry, from the message, and an
   answer to it is relayed in the thread and pushed as a log file naming
   the file in `answers`
+
+#### Scenario: A log file whose GitHub link was withheld is merged with the message
+
+- **WHEN** a public lore repository holds a log file with no `asked_in`
+  whose question tags `@adamstallard`, and the one comment this machine has polled with the same question,
+  once mentions are removed, is in a private repository's issue and was
+  posted on the file's `asked` day
+- **THEN** the answer session shows one entry, from the comment
 
 #### Scenario: Two messages with the same words are not merged
 
@@ -627,9 +638,11 @@ person every warning in discord-bot's result (proposal decisions 247 and
 When a post fails, because the surface refuses it, such as a Discord
 message over 2,000 characters, or because its command fails, the answer
 session SHALL tell the person that nothing was posted and why, as the
-surface or the skill reports it, and the question SHALL keep the state it
-had. When an automatic post fails, the answer session SHALL show its
-question to the person as unanswered. A refused post can also turn its
+surface or the skill reports it. A failed answer is kept pending, as *An
+answer that cannot reach its thread is kept pending* says; a failed
+question to the asker leaves its question in the state it had; and when
+an automatic post fails, the answer session SHALL show its question to
+the person as unanswered. A refused post can also turn its
 channel off, as *Setup checks each relay identity before its channels are
 used* says.
 
@@ -696,18 +709,120 @@ used* says.
 - **WHEN** the person's answer holds `$(rm -rf ~)` and a backtick
 - **THEN** the relay post holds that text as written, and no shell runs it
 
-#### Scenario: A post the surface refuses leaves the question open
+#### Scenario: A post the surface refuses keeps the answer pending
 
 - **WHEN** the person relays a Discord answer of 2,500 characters, and
   Discord refuses it
 - **THEN** the answer session says that nothing was posted and gives
-  Discord's reason, and the question is still unanswered
+  Discord's reason, and keeps the answer as answered, not relayed
 
 #### Scenario: An answer holding a credential is not posted
 
 - **WHEN** the person's answer holds a string shaped like a GitHub access
   token
 - **THEN** the answer session posts nothing, and says why
+
+### Requirement: An answer that cannot reach its thread is kept pending
+
+When the person confirms an answer that cannot be posted in its
+question's thread, the answer session SHALL keep it in the state folder
+as **answered, not relayed**, with the thread and the answer as the
+person confirmed it, and SHALL NOT drop it. An answer cannot be posted
+when the thread's channel is off, when the post is refused or fails, as
+when the relay lacks permission or the text is too long, or when the
+answer was given on a machine that does not read the thread's channel,
+as for a log file shown on its own under proposal decision 300. An
+answer held back because a reply arrived in the thread is kept the same
+way, when the fetch before a post, under *The thread is read again
+before a question is shown and before a post*, finds a reply the person
+has not been shown. The answer session SHALL tell
+the person, each time, that the asker has not got the answer yet, and
+show the answer so they can relay it by hand.
+
+The answer session SHALL list every answer this machine holds as
+answered, not relayed, apart from the queue. It SHALL offer to post each
+one each time the answer session opens and whenever setup's check of
+posting in that thread's channel passes, as *Setup checks each relay
+identity before its channels are used* runs it, and SHALL post it only once the person
+confirms; the person can edit it first, or drop it, after which nothing
+is posted. An answer leaves the list once it is posted or dropped, or
+once a relay post naming the question appears in the thread, from any
+machine; the question's state is then read from its thread as for any
+answer.
+
+For a question a questions-branch file holds, the answer session SHALL
+push the answer file when the person confirms the answer, without an
+`answer_link`, its answer being the answer as the person confirmed it
+(proposal decision 240). Posting it later unedited pushes no second
+file; posting an edited text pushes a new answer file naming the same
+file, with the relay post's URL as its `answer_link`, as an edited
+answer does under *A relay post can be edited where it was posted*.
+
+On a machine that can post in the thread, a thread copy, the question
+as shown from its thread, is **answered on another machine, not
+relayed** when the questions-branch file holding it is named in
+`answers` by an answer file that counts as the person's answer under the
+inquisitor's *Only an answer with authority stops a question*, and no
+relay post in the thread names the question. The answer session SHALL
+show it so, offering three choices instead of asking again: relay that
+answer as the person's words, edit it before relaying, or answer afresh
+(proposal decision 311). Relaying it as it stands pushes no file.
+The list and this notice have no approved layout yet; they get one from
+a prototype round before they are built.
+
+#### Scenario: A refused answer is kept pending
+
+- **WHEN** the person confirms an answer and Discord refuses the relay
+  post
+- **THEN** the answer session keeps the answer as answered, not relayed,
+  tells the person the asker has not got it yet, and shows its text
+
+#### Scenario: An answer to a questions-branch question is logged at once
+
+- **WHEN** the person confirms an answer to a thread copy that a
+  questions-branch file holds, and the relay post is refused
+- **THEN** the inquisitor script's `log` command pushes an answer file naming that file, with no
+  `answer_link`, holding the answer as the person confirmed it, and the
+  answer is kept as answered, not relayed
+
+#### Scenario: An answer given where the thread is not read is kept pending
+
+- **WHEN** a log file's `asked_in` links a Discord message, and the person
+  answers the log file on a machine that does not subscribe to that
+  message's channel
+- **THEN** the inquisitor script's `log` command pushes an answer file naming the log file, and the
+  answer is kept as answered, not relayed, and the person is told the
+  asker has not got it
+
+#### Scenario: A relay from another machine clears a pending answer
+
+- **WHEN** this machine holds an answer as answered, not relayed, and
+  another machine relays it in the thread
+- **THEN** the answer leaves this machine's list, and the question shows
+  as answered
+
+#### Scenario: A dropped pending answer is never posted
+
+- **WHEN** the person drops an answer from the list of answers held as
+  answered, not relayed
+- **THEN** the answer session posts nothing for it, and the question's
+  state is read from its thread
+
+#### Scenario: A pending answer is posted once its channel passes its check
+
+- **WHEN** this machine holds an answer as answered, not relayed, for a
+  channel that was off, and that channel's check then passes
+- **THEN** the answer session offers to post the answer, and posts it
+  once the person confirms
+
+#### Scenario: Another machine offers to relay an answer it did not post
+
+- **WHEN** an answer file names a questions-branch file whose `asked_in`
+  links a GitHub message, no relay post in that thread holds the answer,
+  and a machine that can post there shows the thread copy
+- **THEN** that machine shows "Answered on another machine, not
+  relayed", offering to relay it, edit it, or answer afresh, and does not
+  ask the question again
 
 ### Requirement: A relay post can be edited where it was posted
 
@@ -815,11 +930,15 @@ closed on this machine:
 - **handled for the person:** it starts with `Inquisitor: `;
 - **waiting for the asker:** it starts with `User asks: `, and the asker
   has not replied since;
+- **answered on another machine, not relayed:** no such relay post, this
+  machine can post in the thread, and an answer file that counts as the
+  person's answer names the questions-branch file holding the question,
+  as *An answer that cannot reach its thread is kept pending* says;
 - otherwise, the question is unanswered.
 
-A question with a thread takes its state only from the relay posts in
-its thread, which every machine reads, and from this machine's state
-folder: a question declined with nothing posted is closed on this
+A question with a thread takes its state from three sources only: the
+relay posts in its thread, which every machine reads; for the state just
+above, the answer file; and this machine's state folder, as follows: a question declined with nothing posted is closed on this
 machine, whatever its thread holds, and unanswered on another machine,
 where the person can decline it again (proposal decision 297). A file a
 handled file closed is still unanswered, so an answer given to its
@@ -928,7 +1047,10 @@ The answer session SHALL keep its working state in the state folder, and
 nowhere else: the questions set aside for later, the closed questions,
 each open question's discussion record, each channel's and the GitHub
 notifications feed's poll position, each check's last result, the ids of
-relay posts, the question on screen, and the lock.
+relay posts, the question on screen, the answers held as answered, not
+relayed, and the lock. An answer held as answered, not relayed, stays
+until it is posted or dropped, whatever becomes of its question's
+discussion record.
 Filter 1 SHALL never search the state folder. The answer session SHALL
 delete a question's discussion record once the question is answered,
 answered or handled for the person, or closed. The state is per machine: a
@@ -1451,8 +1573,8 @@ was posted* says (proposal decision 260).
 
 #### Scenario: Declining as over or as not a question posts nothing
 
-- **WHEN** the person declines a question asked on GitHub, because the
-  conversation is over or because it is not a question
+- **WHEN** the person declines a question asked on GitHub under the
+  first reason, the conversation is over, or the second, not a question
 - **THEN** nothing is posted in its thread, and the question leaves the
   queue
 
@@ -1475,7 +1597,7 @@ was posted* says (proposal decision 260).
 
 #### Scenario: A reply after a decline is a new question
 
-- **WHEN** the person declined, as not a question, a message in a GitHub
+- **WHEN** the person declined under the second reason, not a question, a message in a GitHub
   thread, and the asker then replies in a review thread to an earlier
   relay post in that thread
 - **THEN** the answer session does not reopen the declined question, and

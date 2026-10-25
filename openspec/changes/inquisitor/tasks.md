@@ -232,9 +232,11 @@ contradicts what design.md assumed.
       `authority` of `decision`, `input` or `agent`, and `answered_by: agent` for an agent's choice,
       a log file for a question also asked in a post holding that
       post's URL as `asked_in`, a Linear or Discord one only in a private
-      lore repository (decisions 299 and 302),
-      an answer file naming the file it answers in `answers` (decision
-      303),
+      lore repository and a GitHub one only in a lore repository no more
+      visible than the repository it points into (decisions 299, 302
+      and 315),
+      an answer file naming the file it answers in `answers`, refused
+      when the named file is not on the branch (decisions 303 and 310),
       a handled file for a questions-branch question the answer session
       marks handled (only `handled` and `closes`, that file's name, with
       no body; decisions 273, 276, 277, 297 and 305), written
@@ -381,8 +383,8 @@ contradicts what design.md assumed.
       a corrected notice for a stopped post, a post the answer session holds back because a reply arrived in the thread since the person last read it. So it is the one
       base (decision 263). It includes declining and the list of
       questions answered or handled for the person. The mod takes its questions from the polls of task 6.3
-      instead of the prototype's made-up ones. Four rules decide what is
-      built (decision 254):
+      instead of the prototype's made-up ones. Five rules decide what is
+      built: (a) to (d) by decision 254, and (e) by decision 311:
       - (a) Keep the approved screens' layout and interaction: the band,
         the keys, the prompt-box flow and the declining screens. Changes
         needed to wire them to real data are fine; restyling or
@@ -436,6 +438,15 @@ contradicts what design.md assumed.
         arrived. Each screen goes where the tagged
         build puts it. A later separately approved screen would come from
         its own tag the same way
+      - (e) Two screens wait for a prototype round of their own, which
+        Adam approves by use before they are built: the list of answers
+        held as answered, not relayed, and the "Answered on another
+        machine, not relayed" notice, with its relay, edit and answer
+        afresh choices (decision 311). The spec sets their behaviour;
+        the prototype sets their layout. Rule (c) does not cover them;
+        once approved, they come from their tag as rule (d) says. Only
+        these two screens wait for that round; the rest of this task
+        does not
 - [ ] 6.2 The `answer_session` section of `inquisitor.json`, and setup:
       the candidates, each relay check, saving the file with the person's
       own keys kept, a failed identity's surface or a failed channel left
@@ -510,15 +521,23 @@ contradicts what design.md assumed.
       that reaches the queue declined under reason 2 with no miss, or
       under reason 3 with filter 3's "not a question", posting nothing,
       with a filter 3 miss on the agent's question; a log file whose link
-      this machine does not read shown on its own; once Adam confirms
-      decision 307, a log file with a withheld Linear or Discord link
-      merged with its message only when neither matches any other file
-      or message; an answer file holding the question the person
+      this machine does not read shown on its own; a log file whose
+      `asked_in` was withheld, on Linear, Discord or a more private
+      GitHub repository, merged with its message only when the questions
+      match once mentions are removed, the days match in UTC, and neither
+      matches any other file or message (decisions 307, 314 and 315); an
+      answer that cannot reach its thread kept as answered, not relayed,
+      posted, once its channel passes its check, only after the person
+      confirms, and
+      offered as "Answered on another machine, not relayed" on a machine
+      that can post (decision 311); among answer files naming one file,
+      the newest counting (decision 312); the `log` command refusing an
+      `answers` that names no file on the branch (decision 310); an answer file holding the question the person
       saw and naming the file it answers; a second machine's miss pushed
       even when a matching one is on the branch; and a miss for a
       question a questions-branch file holds copying that file's
       `asked_from` (decisions 273, 274, 278, 282, 283, 291 and 297 to
-      306)
+      315)
 - [ ] 6.11 Decide at implementation, with no requirement added
       (decision 256), and record each choice in design.md while the
       change is open. Agreeing to a shown recorded answer is not among
