@@ -2081,8 +2081,7 @@ An agent SHALL write no handled file: only an answer session writes
 one, as the `answer-session` spec's *A handled file closes a
 questions-branch question* says. The script's `log` command SHALL write
 a handled file only when called with its handled option, and SHALL
-refuse a `handled`, `over` or `question_hash` key passed without that
-option. The command cannot
+refuse a `handled` or `closes` key passed without that option. The command cannot
 check who calls it: only the answer session passes the option, and the
 skill's instructions tell an agent never to, which keeps an agent from
 writing one by mistake. igor PR #216's refusal, in the proposal's Still
@@ -2122,7 +2121,9 @@ No log file SHALL be written outside a repository, such as under
 `~/.config/`.
 
 A log file for a question that was asked SHALL hold the question as asked and the day it was
-asked. When the answer comes, it gains who answered (its `answered_by`),
+asked. A questions-branch log file for a question also asked in a post
+SHALL hold that post's URL as `asked_in`, so the agent SHALL post the
+question before it writes the log file (proposal decision 299). When the answer comes, it gains who answered (its `answered_by`),
 the answer's `authority`, the answer, and where the
 question's answer is recorded, in the format *A log file and a miss file
 have one format* states. A questions-branch file pushed with its answer,
@@ -2450,6 +2451,12 @@ why.
 - **THEN** the agent records the answer only in the question's log file,
   with `authority: input`, and does not write it into the spec
 
+#### Scenario: A question logged and asked in a post links the post
+
+- **WHEN** an agent asks a question in a post and logs it on the lore
+  repository's questions branch
+- **THEN** the log file holds the post's URL as `asked_in`
+
 ### Requirement: A log file and a miss file have one format
 
 Every log file and miss file SHALL take this format, wherever it is
@@ -2487,19 +2494,17 @@ written.
   Linear a URL starting `https://linear.app/`; `handled`, the day, as
   `yyyy-mm-dd` in UTC, on which an answer session closed the question,
   even when the push itself succeeds on a later poll, held only
-  in a **handled file**: a questions-branch file holding `repository`,
-  a topic repository: the closed questions-branch file's own, or, when
-  the closing answer session's topic repository for the copy it closed
-  matches none, that one; `asked`; `handled`; `question_hash`; and
-  `over` when the close was a decline under the answer session's first
-  reason, "the conversation is over"; and no body, no question
-  text, and no `answered_by`, `authority`, `recorded_in` or answer
-  (proposal decisions 273, 276, 277, 293 and 295); `over`, only in a
-  handled file, `"true"`; `question_hash`, only in a handled file,
-  the SHA-256, in lowercase hex, of the question it closes: the whole
-  text under the closed file's `## Question`, reduced as *Two calls
-  prove the filters ran* reduces a question in a post, the same hash that decides whether two log files hold the same
-  question; and
+  in a **handled file**: a questions-branch file holding `handled`,
+  `closes`, and `repository` and `asked` copied from the file it closes,
+  and no body, no question text, and no `answered_by`, `authority`,
+  `recorded_in` or answer (proposal decisions 273, 276, 277 and 297);
+  `closes`, only in a handled file, the file name of the one
+  questions-branch file it closes, `<date>-<slug>-<6 hex digits>.md`,
+  without its directory, as the `answer-session` spec's *A handled file closes
+  a questions-branch question* says; and
+  `asked_in`, only in a questions-branch log file for a question the
+  asking agent also asked in a post, the URL of that post (proposal
+  decision 299);
   `asked_from`, only in a questions-branch file an Igor pushes, whether
   its worker reported it or the Igor's own inquisitor run wrote it, or in
   a miss an answer session logs for a question such a file holds. Its body
@@ -2524,9 +2529,7 @@ written.
 - **A miss file's keys:** `repository` and `asked`, as in its question's
   log file, or, for a miss an answer session logs, the repository the
   question concerns and the day the question was asked; `filter`, `"1"` to `"4"`, the filter that should have stopped
-  the question, or, for a miss an answer session logs against how it
-  found a message picked up by mistake, `"source 1"` to `"source 4"`, the
-  `answer-session` spec's source that found it; and `said`, what the person said, in their words or in one
+  the question, `"source <n>"` being retired by proposal decision 298; and `said`, what the person said, in their words or in one
   sentence, with any place they named, such as a spec's path, or, for a
   miss an answer session logs by itself or with no note from the person,
   the fixed text the `answer-session` spec gives; and `asked_from`, as in
@@ -2546,11 +2549,10 @@ written.
 - **Reading a log file:** it is answered when its frontmatter holds
   `authority`, and only then; nothing in its body decides it. It is
   **handled** when its frontmatter holds `handled`: closed, with no
-  answer and no authority. A handled file has no body; the question it
-  closes is the one whose hash is its `question_hash`. Since it holds no
-  question text, filter 1's search never matches a handled file, so a
-  handled file never stops a question, just as an unanswered file does
-  not. Any other log file's body is read from the end, skipping blank lines after the last line that is not
+  answer and no authority. A handled file has no body; it closes the one
+  file its `closes` key names. Since it holds no question text, filter
+  1's search never matches a handled file, so a handled file never stops
+  a question, just as an unanswered file does not. Any other log file's body is read from the end, skipping blank lines after the last line that is not
   blank: in an answered file the answer is the longest run of quote lines
   at the end, each line starting with `>`, read with its `> ` or `>`
   dropped, and the line before that run is `## Answer`; in a file holding
@@ -3209,13 +3211,10 @@ treats the post as input, and its question stands.
 #### Scenario: A handled file's keys
 
 - **WHEN** an answer session marks a questions-branch file handled
-- **THEN** the new file holds `repository`, the closed file's own,
-  `asked`, copied from the file it closes, `over` only when the close was a
-  decline under the first reason,
-  `handled`, as the day in `yyyy-mm-dd`, and
-  `question_hash`, the hash of the question it
-  closes, and no body, no question text, and no `answered_by`,
-  `authority`, `recorded_in` or answer
+- **THEN** the new file holds `repository` and `asked`, copied from the
+  file it closes, `handled`, as the day in `yyyy-mm-dd`, and `closes`,
+  that file's name, and no body, no question text, and no
+  `answered_by`, `authority`, `recorded_in` or answer
 
 #### Scenario: A handled file never stops a question
 

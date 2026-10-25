@@ -128,6 +128,16 @@ contradicts what design.md assumed.
       be read, only a signature proves the file. Until this task shows
       GitHub never verifies such a commit for someone who didn't make it,
       a signature GitHub made itself proves nothing
+- [ ] 0.23 That the URL an asking agent records as `asked_in` for its post
+      (decision 299) equals, character for character, the URL the answer
+      session builds for that message from what it polls, on GitHub,
+      Linear and Discord: an issue comment against a pull request
+      comment, `html_url` against the notifications API's URL,
+      `discord.com` against `discordapp.com`, and a Linear URL after the
+      issue is renamed. Where they differ, define one canonical form both
+      sides write and compare. Until measured, the asking agent records
+      the URL its post command returns, and the answer session compares
+      it as written
 
 ## 1. Shared post reader
 
@@ -220,15 +230,15 @@ contradicts what design.md assumed.
 - [ ] 2.4 The `log` command, writing one file per question or miss in the
       format of *A log file and a miss file have one format*, with an
       `authority` of `decision`, `input` or `agent`, and `answered_by: agent` for an agent's choice,
-      a handled file (for a questions-branch question the answer
-      session marks handled: `repository`, the closed file's or the
-      closing machine's topic repository, `asked`,
-      `handled`, `question_hash`, and `over` after a decline as over,
-      with no question text, answer or authority;
-      written only through the command's handled option, which only the
-      answer session passes, a `handled` key being refused without it;
-      the command does not check its caller; decisions 273, 276, 277,
-      293, 295 and 296),
+      a log file for a question also asked in a post holding that
+      post's URL as `asked_in` (decision 299),
+      a handled file for a questions-branch question the answer session
+      marks handled (`handled`, `closes`, that file's name, and
+      `repository` and `asked` copied from it, with no question text,
+      answer or authority; decisions 273, 276, 277 and 297), written
+      only through the command's handled option, which only the answer
+      session passes, a `handled` or `closes` key being refused without
+      it, the command not checking its caller,
       an answer with a github.com `answer_link` read from the linked
       comment and recorded word for word (decision 236), an answer with
       a Linear or Discord `answer_link` recorded as given, its link
@@ -385,13 +395,13 @@ contradicts what design.md assumed.
         which declining as over closes only that question and every later
         message in its thread that the sources name is a new question,
         where the prototype ends the thread (decision 291);
-        reopening offered only for a question declined with nothing
-        posted that no questions-branch file holds, keeping its logged
-        miss, where the
+        reopening offered only for a thread copy declined with nothing
+        posted, on its own machine, where the
         prototype offers it for any reason 1 or 2 decline (decisions
-        255, 260 and 274); the handled file the answer session pushes
-        for a question a questions-branch file holds, which the
-        prototype does not write (decision 273); a
+        255, 260, 274 and 297); the handled file the answer session
+        pushes naming each questions-branch file that holds a question
+        it closes, which the prototype does not write (decisions 273
+        and 297); a
         recorded answer the person agreed to and posted, whose question
         the spec shows as answered for the person, where the prototype
         shows it as answered by the person's own relay post;
@@ -471,8 +481,8 @@ contradicts what design.md assumed.
 - [ ] 6.10 Filter 1 on every incoming question and the `Recorded answer: `
       post; filters 2 to 4 and the three fixed `Inquisitor: ` texts;
       declining with its three reasons, and reason 3's posts; the misses
-      on the questions branch, with `filter: "source <n>"` and
-      `said: "not a question"` for the second reason, a miss against
+      on the questions branch, none for the second reason (decision
+      298), a miss against
       filter 1 for an agent's question it answers by itself, and no
       second miss for the same question; a recorded answer by itself on a
       relayed question, and no `Inquisitor: ` post on one (decision 223),
@@ -489,16 +499,16 @@ contradicts what design.md assumed.
       reason 3's posts add (decision 234; the line is decision 239's
       item 6). The tests also cover the answer session's handled file, pushed whenever it
       closes a question a questions-branch file holds, whether from that
-      branch or shown from a thread, which closes for good every copy
-      with the same hash about the handled file's topic repository,
-      wherever asked, before its commit time, except that one from a
-      decline as over closes only the questions-branch files that hold
-      the question, whoever asked them; a later message in a
+      branch or linked to a thread message by its `asked_in`, which
+      closes exactly the file it names, for good; a thread copy declined
+      with nothing posted closed on that machine only; a log file
+      following its thread message by `asked_in`; a later message in a
       closed question's thread, a follow-up or a reply, shown as a new
       question; a message that is not really a question ignored, and one
-      that reaches the queue declined under reason 2; and a miss for a
-      question a questions-branch file holds copying that file's
-      `asked_from` (decisions 273, 274, 278, 281 to 283 and 286 to 295)
+      that reaches the queue declined under reason 2 with no miss, or
+      under reason 3 with a miss against the filter the person picks; and a miss for a question a questions-branch file holds
+      copying that file's `asked_from` (decisions 273, 274, 278, 282,
+      283, 291 and 297 to 299)
 - [ ] 6.11 Decide at implementation, with no requirement added
       (decision 256), and record each choice in design.md while the
       change is open. Agreeing to a shown recorded answer is not among

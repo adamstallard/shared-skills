@@ -59,9 +59,9 @@ Terms used throughout this spec:
   question is **a person's question**: a relayed question, and one an
   agent posted with a person's own credentials, included.
 - **A closed question** is one the person declined on this machine with
-  nothing posted, as *The person can decline to answer* says, or one a
-  handled file closes, as *The thread is the durable record of an
-  answer* says. A closed question is shown neither in the queue nor as
+  nothing posted, as *The person can decline to answer* says, or a
+  questions-branch file that a handled file names, as *A handled file
+  closes a questions-branch question* says. A closed question is shown neither in the queue nor as
   new.
 - **The queue** is the list of unanswered questions the answer session
   shows the person, one at a time.
@@ -75,8 +75,10 @@ Terms used throughout this spec:
   inquisitor spec defines a question's text and its hash for a question
   in a post; for a log file, the question is the one the inquisitor
   spec's *Only an answer with authority stops a question* reads from
-  it; and for a handled file, the hash is its `question_hash`. So a question logged from a thread has the
-  same hash as the thread's.
+  it.
+- **A thread copy** is a question shown from a thread. A questions-branch
+  log file **holds** a thread copy when the file's `asked_in` links that
+  thread message (proposal decision 299).
 - **A Claude Code background session** is one with no terminal attached,
   such as a session picker starts.
 - **The state folder** is
@@ -365,15 +367,20 @@ closed. An unclear one is shown (proposal decision 289).
    an issue in a subscribed team assigned to the person;
 4. a log file on the questions branch of a lore repository the inquisitor's
    configuration names, which holds no answer, whose question tags the
-   person, and for which that branch holds no later log file with the same
-   question that is answered, or a handled file that closes it, as
-   *The thread is the durable record of an answer* says (proposal
-   decisions 273 and 286). A handled file is never shown as a question of its own; it
-   only hides the unanswered file whose question's hash it holds.
+   person, for which that branch holds no later log file with the same
+   question that is answered, and which no handled file names (proposal
+   decisions 273 and 297). A handled file is never shown as a question of
+   its own.
 
 The answer session SHALL show a question once: a log file of the fourth
-source whose question is the same question as one it shows from a thread
-SHALL not be shown. A question of the third source is answered by a comment
+source whose `asked_in` links a thread message follows that message, by
+that exact link. Whatever the answer session decides about the message,
+showing it, answering it, ignoring it as not a question or declining it,
+applies to the log file, which is not shown on its own. A log file with
+no `asked_in` is judged on its own as a question of the fourth source
+(proposal decision 299). A log file whose `asked_in` links a message
+this machine does not read, as in a channel it does not subscribe to, is
+not shown on this machine. A question of the third source is answered by a comment
 on that pull request or issue. An Igor worker's handback comment tags no
 one, so its question is shown only through the third source, when its
 item is assigned to the person.
@@ -384,8 +391,7 @@ changes a relay file mentions its person* gives it, is not a question: the
 answer session SHALL show it to the person as a notice, post nothing on
 it, and log no miss for it.
 
-A question the person declined as over, or one a handled file closed,
-stays closed. Every later message in its thread that the four sources name,
+A question the person declined as over stays closed on that machine. Every later message in its thread that the four sources name,
 unless the ignore rule above drops it, is shown on its own as a new question, on every machine, under whichever
 source names it: the asker's unthreaded follow-up after a relay post or
 a threaded reply to one under the second, a mention of the person under
@@ -427,26 +433,23 @@ the first (proposal decisions 283, 287 and 291).
 #### Scenario: A questions-branch file that tags the person is a question
 
 - **WHEN** a configured lore repository's questions branch holds an
-  unanswered log file whose question tags the person, and no subscribed
-  thread holds the same question
+  unanswered log file whose question tags the person, and that holds no
+  `asked_in`
 - **THEN** the answer session shows it as a question asked of the person
 
-#### Scenario: A question in a thread and on the questions branch is shown once
+#### Scenario: A questions-branch file follows the message it links
 
 - **WHEN** an agent's post in a subscribed repository tags the person, and
-  the lore repository's questions branch holds a log file with the same
-  question
+  the lore repository's questions branch holds a log file whose
+  `asked_in` is that post's URL
 - **THEN** the answer session shows the question once, from the post's
   thread
 
-#### Scenario: A logged question with markup is the same question as the post's
+#### Scenario: Ignoring the linked message ignores the file
 
-- **WHEN** an agent's post tags the person in the list item
-  `- **Should retries back off?** @adamstallard`, and the questions
-  branch holds a log file whose `## Question` is that item, wrapped over
-  two lines with its emphasis kept
-- **THEN** the answer session shows the question once, from the post's
-  thread
+- **WHEN** the answer session ignores, as not a question, a message that
+  a questions-branch log file's `asked_in` links
+- **THEN** it shows the log file neither on its own nor with the message
 
 #### Scenario: A message in an unsubscribed channel is not a question
 
@@ -768,41 +771,17 @@ closed on this machine:
   has not replied since;
 - otherwise, the question is unanswered.
 
-Besides a question closed on this machine by the state folder, a second
-kind of closed question holds on every machine: one whose hash
-a handled file on a configured lore repository's questions branch
-holds, provided the copy is about the repository that file's
-`repository` names and was posted before the handled file's commit
-time: the author date of the handled file's commit, set once when the
-answer session closes the question and kept when a retry commits it
-again. For a questions-branch copy, the time it was posted is the author
-date of the commit that added it. A handled file's `repository` is a
-topic repository, as *A handled file closes a questions-branch question*
-gives it. For a thread copy, the time it was posted is its message's
-timestamp on its surface. What a copy is about is its topic
-repository: the repository the question concerns, as this machine's
-answer session works it out, or, for a questions-branch copy, its own
-`repository` key; a machine that cannot work out a copy's topic
-repository matches it on hash and time alone. This holds wherever the
-copy was asked and whatever its thread holds: a Linear or Discord
-thread, another GitHub repository, an Igor question with another
-`asked_from`, or another questions-branch file (proposal decisions 286,
-288, 293 and 294). The same words asked after the handled file's
-commit, a word-for-word repeat included, or about another repository,
-are a new question. A handled file from a decline under the first
-reason, "the conversation is over", holds `over`, and closes only the
-questions-branch files that hold the question, whoever asked them, under
-the same topic-repository and time conditions; it closes no thread copy
-(proposal decision 295). So the copy declined is closed on the declining
-machine only, by its state folder, and another machine shows it as
-unanswered; the proposal's Still open asks whether that should change. Nothing reopens a question a handled file closed (proposal
-decisions 281, 283 and 286). It is not in the queue, but when its thread holds a relay
-post, whether `User says: `, `Recorded answer: ` or `Inquisitor: `, it is
-still listed by that post's state with the questions answered or
-handled, so the person can edit that post. Any
-other closed question stays closed on this machine whatever its thread
-holds, and is unanswered on another machine whose state folder does not
-close it. The answer session SHALL list the questions answered and
+A question with a thread takes its state only from the relay posts in
+its thread, which every machine reads, and from this machine's state
+folder: a question declined with nothing posted is closed on this
+machine, whatever its thread holds, and unanswered on another machine,
+where the person can decline it again (proposal decision 297). A file a
+handled file closed is still unanswered, so an answer given to its
+thread copy on another machine still pushes a log file answering it. A
+questions-branch file is closed, on every machine and for good, only by
+a handled file that names it, as *A handled file closes a
+questions-branch question* says; nothing else closes it, and nothing
+reopens it. The answer session SHALL list the questions answered and
 handled for the person, apart from the queue, so the person can see and
 edit what was posted for them.
 
@@ -811,8 +790,7 @@ person's question waits for it, the reply puts that question back in the
 queue, shown with the reply, whether or not the reply is itself a
 question. A question from a lore repository's questions branch is answered
 when that branch holds a later log file with the same question and an
-answer. A handled file closes the copies of the question that the
-paragraph above names, from the branch or from a thread.
+answer.
 
 #### Scenario: A relay reply marks the question answered on every machine
 
@@ -1109,8 +1087,8 @@ miss file have one format* states.
 Apart from the handled file of *A handled file closes a questions-branch
 question*, the answer session SHALL write no log file, except to answer
 a question that an unanswered log file on a lore repository's questions
-branch holds: a question of the fourth source, or a question shown from a thread
-whose question is the same question as that file's. For a question shown
+branch holds: a question of the fourth source, or a question shown from
+a thread whose message that file's `asked_in` links. For a question shown
 from a thread, it SHALL relay the answer in the thread, as *An answer is
 relayed as the person's words* says, and also push the log file. It SHALL
 answer such a question by writing a new log file through the
@@ -1227,23 +1205,24 @@ edit for a question of the fourth source.
 
 ### Requirement: A handled file closes a questions-branch question
 
-Whenever the answer session closes a question, and an unanswered log
-file on a lore repository's questions branch holds that question, it
-SHALL push a **handled file** there through the inquisitor script's
-`log` command, with a thread or without, one for each distinct topic
-repository among the questions-branch files that hold it, each holding
-its file's `repository`. When the closing machine's topic repository
-for the copy it closed matches none of those, it pushes one more,
-holding that topic repository and the closed copy's day as `asked` (proposal decisions 273, 278, 288, 293 and 296). The answer session closes a question in two ways: it declines
-the question, agreeing to a shown recorded answer included, or it posts
-a recorded answer or an `Inquisitor: ` reply on it. The handled file is as the inquisitor's *A log file and
-a miss file have one format* gives it: the question's hash, not its
-text (proposal decision 277). It SHALL push the handled file once the
-close takes effect: once the post that leads to it has gone out, or,
-when nothing is posted, once the person has confirmed the decline. When the push
-fails, the answer session SHALL try it again at each poll until it
-succeeds. A handled file closes the question in the person's queue
-without answering it, and never stops a question for a searching agent. The answer session writes the file only through the
+Whenever the answer session closes a question, it SHALL push a
+**handled file** naming each unanswered log file on a lore repository's
+questions branch that holds the question and that no handled file names
+yet, through the inquisitor script's `log` command, with a thread or
+without. A file holds the question when it is the question, one of the
+fourth source, or when its `asked_in` links the closed thread message. A
+handled file closes exactly the file it names, on every machine, and
+nothing else (proposal decisions 273, 278 and 297). The answer session
+closes a question in two ways: it declines the question, agreeing to a
+shown recorded answer included, or it posts a recorded answer or an
+`Inquisitor: ` reply on it. The handled file is as the inquisitor's *A
+log file and a miss file have one format* gives it. It SHALL push the
+handled file once the close takes effect: once the post that leads to
+it has gone out, or, when nothing is posted, once the person has
+confirmed the decline. When the push fails, the answer session SHALL
+try it again at each poll until it succeeds. A handled file closes the
+file it names without answering it, and never stops a question for a
+searching agent. The answer session writes the file only through the
 `log` command's handled option, as the inquisitor's *Every answer is
 recorded and every asked question logged* says.
 
@@ -1252,59 +1231,36 @@ recorded and every asked question logged* says.
 - **WHEN** the answer session posts filter 4's `Inquisitor: ` reply by
   itself on a question in a GitHub thread that an unanswered log file on
   the lore repository's questions branch also holds
-- **THEN** it pushes a handled file for that question
+- **THEN** it pushes a handled file naming that log file
 
 #### Scenario: A handled file closes a questions-branch question
 
 - **WHEN** a lore repository's questions branch holds an unanswered log
-  file whose question tags the person, and a later handled file with
-  the same question
-- **THEN** the answer session shows neither file as a question
+  file whose question tags the person, and a handled file naming it
+- **THEN** the answer session shows neither file as a question, on any
+  machine
 
-#### Scenario: A handled file closes a Discord copy about its repository
+#### Scenario: A handled file closes only the file it names
 
-- **WHEN** a handled file with `repository: "o/api"` closed a question,
-  and the same question, about `o/api`, was asked earlier that day in a
-  Discord thread
-- **THEN** the answer session shows the Discord copy on no machine
+- **WHEN** a handled file names one questions-branch file, and another
+  questions-branch file, or a thread, holds the same words
+- **THEN** the answer session still shows the other file and the thread
+  copy
 
-#### Scenario: A handled file closes a copy asked in another repository
-
-- **WHEN** a handled file with `repository: "o/api"` closed a question,
-  and the same question, about `o/api`, was asked earlier that day in a
-  thread in `o/web`
-- **THEN** the answer session shows the `o/web` copy on no machine
-
-#### Scenario: Two questions-branch files about different repositories get two handled files
+#### Scenario: Two questions-branch files get two handled files
 
 - **WHEN** the person declines a question that two unanswered
-  questions-branch files hold, one with `repository: "o/api"` and one
-  with `repository: "o/web"`
-- **THEN** the answer session pushes two handled files, one for each
-  repository
+  questions-branch files hold
+- **THEN** the answer session pushes two handled files, each naming one
+  of them
 
-#### Scenario: The same words asked later are a new question
+#### Scenario: A thread copy declined with nothing posted shows again elsewhere
 
-- **WHEN** a handled file closed a question about `o/api`, and the same
-  words are asked about `o/api` after the handled file's commit, even
-  the same day, or about `o/web`
-- **THEN** the answer session shows the later question in the queue
-
-#### Scenario: A decline as over closes only its questions-branch file, not other askers' copies
-
-- **WHEN** the person declines as over a question in a GitHub thread
-  that a questions-branch file also holds, and another asker asked the
-  same question about the same repository earlier in a Discord thread
-- **THEN** the answer session pushes a handled file holding `over`,
-  which closes the questions-branch file, and the Discord copy is still
-  shown
-
-#### Scenario: A machine that cannot tell the topic repository matches on hash and time
-
-- **WHEN** a handled file with `repository: "o/api"` closed a question,
-  and another machine shows the same question, asked earlier in a
-  Discord thread, whose topic repository it cannot work out
-- **THEN** that machine treats the Discord copy as closed
+- **WHEN** the person declines as over, on one machine, a question in a
+  GitHub thread that a questions-branch file also holds
+- **THEN** a handled file closes the questions-branch file on every
+  machine, the thread copy is closed on that machine only, and another
+  machine shows the thread copy, which the person can decline again
 
 #### Scenario: A failed post pushes no handled file
 
@@ -1369,10 +1325,9 @@ giving one of three reasons:
    question closes. That closes only this question: a later message in
    its thread is shown as a new question, as *A question asked of the
    person comes from one of four sources* says (proposal decision 291).
-2. **Not a question:** the message was picked up by mistake. The answer
-   session posts nothing, the question closes, and the answer session logs
-   a miss against the source that found it, as *The answer session logs
-   its misses on the team's lore repository's questions branch* says.
+2. **Not a question:** the message was picked up by mistake, the answer
+   session's own misjudgement. The answer session posts nothing, the
+   question closes, and no miss is logged (proposal decision 298).
 3. **The inquisitor should have handled it.** The person picks the filter
    that should have stopped the question: 1, already answered; 2, can
    wait; 3, one option has merit; or 4, cheap to reverse. The answer
@@ -1409,21 +1364,15 @@ giving one of three reasons:
    pushes a miss (proposal decision 275).
 
 A question declined with nothing posted SHALL be recorded in the state
-folder. A question that a questions-branch file holds, with a thread or
-without, is then closed everywhere by its handled file. Two kinds are
-closed on this machine only, and nothing a second machine reads records
-them: a thread copy declined under the first reason, as *The thread is
-the durable record of an answer* says, and any question no
-questions-branch file holds; and nothing a second machine reads records
-it. A question declined under the third reason with a
+folder. A thread copy is then closed on this machine only, and nothing a
+second machine reads records it; a questions-branch file the question's
+handled file names is closed everywhere (proposal decision 297). A question declined under the third reason with a
 post takes its state from its thread, as any question does.
 
-The person SHALL be able to reopen a question they declined with
-nothing posted, which puts it back in their queue, unless a
-questions-branch file holds it: a declined question that such a file
-holds SHALL NOT be offered for reopening (proposal decision 274). A miss already logged
-for it SHALL stay as it is, and nothing SHALL record that the miss was
-withdrawn (proposal decisions 140 and 255). The answer session SHALL NOT
+The person SHALL be able to reopen, on this machine, a thread copy they
+declined with nothing posted, which puts it back in their queue. A
+questions-branch file a handled file names SHALL NOT be offered for
+reopening (proposal decisions 260, 274 and 297). The answer session SHALL NOT
 offer to reopen a question declined with a post; the person changes its
 handling by editing that post, as *A relay post can be edited where it
 was posted* says (proposal decision 260).
@@ -1452,15 +1401,13 @@ was posted* says (proposal decision 260).
 - **THEN** the answer session shows the reply as a new question, and the
   declined question stays closed
 
-#### Scenario: A reply does not reopen a question a handled file closed
+#### Scenario: A reply after a decline is a new question
 
-- **WHEN** the person declined as not a question a question in a GitHub
-  thread that a questions-branch file also holds, so a handled file was
-  pushed, and the asker then replies in a review thread to an earlier
+- **WHEN** the person declined, as not a question, a message in a GitHub
+  thread, and the asker then replies in a review thread to an earlier
   relay post in that thread
-- **THEN** the answer session does not reopen the question, on this
-  machine or any other, and shows the reply on its own as a new
-  question
+- **THEN** the answer session does not reopen the declined question, and
+  shows the reply on its own as a new question
 
 #### Scenario: A mention after a closed conversation is a question
 
@@ -1469,13 +1416,6 @@ was posted* says (proposal decision 260).
   @-mentions the person
 - **THEN** the answer session shows that message as a question
 
-#### Scenario: Reopening a declined question keeps its miss
-
-- **WHEN** the person declined a question as not a question, so the
-  answer session logged a miss, and the person then reopens it
-- **THEN** the question is back in the person's queue, the miss file is
-  unchanged, and nothing is written to say it was withdrawn
-
 #### Scenario: A question declined with a post is not reopened
 
 - **WHEN** the person declined a question under the third reason, and
@@ -1483,21 +1423,26 @@ was posted* says (proposal decision 260).
 - **THEN** the answer session offers no way to reopen the question, and
   the person can change the handling only by editing that post
 
-#### Scenario: A declined questions-branch question is not offered for reopening
+#### Scenario: A thread copy declined with nothing posted is reopened on its machine
 
-- **WHEN** the person declined, as not a question, a question that a
-  questions-branch file holds, whether it came from that branch or was
-  shown from a thread
-- **THEN** the answer session pushed a handled file for it, which closes
-  the question everywhere, and offers no way to reopen the question
+- **WHEN** the person declined a thread copy as over, with nothing
+  posted, and then reopens it on the same machine
+- **THEN** the answer session puts it back in the queue on that machine
 
-#### Scenario: Not a question logs a miss against its source
+#### Scenario: A declined questions-branch file is not offered for reopening
+
+- **WHEN** the person declined, because the conversation is over, a
+  question from a lore repository's questions branch
+- **THEN** the answer session pushed a handled file naming that file,
+  which closes it everywhere, and offers no way to reopen it
+
+#### Scenario: Not a question logs no miss
 
 - **WHEN** the answer session showed, under the second source, a reply
   to the relay that was in fact meant for someone else, and the person
   declines it as not a question
-- **THEN** the question closes, and a miss file whose `filter` is
-  `"source 2"` and whose `said` is `not a question` is logged
+- **THEN** the question closes, nothing is posted, and no miss file is
+  logged
 
 #### Scenario: The inquisitor's reply is posted once the person confirms it
 
@@ -1773,8 +1718,8 @@ once, and so does each recorded answer.
   fourth source), which has no thread, is answered by a decision
   document, and the person agrees to the shown recorded answer
 - **THEN** nothing is posted, the answer session pushes a handled file
-  for the question, the question is then closed on every machine and
-  cannot be reopened, and a miss against filter 1 is logged with
+  naming the questions-branch file, which is then closed on every
+  machine and cannot be reopened, and a miss against filter 1 is logged with
   `said: "the inquisitor should have handled it"`
 
 #### Scenario: Agreeing in a thread on a questions-branch question pushes only a handled file
@@ -1784,8 +1729,8 @@ once, and so does each recorded answer.
   thread, with a recorded answer more private than the thread shown
   beside it, and the person agrees to it and confirms after the warning
 - **THEN** the relay posts the recorded answer in the thread, and the
-  answer session pushes a handled file for the question and no answer
-  file to the questions branch, besides the miss the decline logs
+  answer session pushes a handled file naming that log file and no
+  answer file to the questions branch, besides the miss the decline logs
 
 #### Scenario: Agreeing logs a miss on any question
 
@@ -1841,9 +1786,14 @@ A message that is not a question gets no automatic post: it is ignored,
 as *A question asked of the person comes from one of four sources*
 says, so an agent's rhetorical message in a thread gets no post. When
 one reaches the person's queue anyway, because the session judged it
-unclear and showed it, the person declines it under the second reason,
-picked up by mistake: nothing is posted, and a miss is logged against
-the source that found it (proposal decisions 289 and 292).
+unclear and showed it, the person declines it under whichever reason
+fits: the second, picked up by mistake, when the session misread it,
+which posts nothing and logs no miss; or the third, when the asking
+agent should not have written it, with the filter the person picks,
+which logs a miss against the agent. The ignore rule covers sources 1
+and 2 only, so a non-question from the third or fourth source reaches
+the queue without the session judging it (proposal decisions 289, 292,
+296 and 298).
 For each agent's question the answer session handles by itself, it
 SHALL log a miss against the filter the question failed, as *The
 answer session logs its misses on the team's lore repository's questions
@@ -1869,13 +1819,12 @@ question with its suggested verdict, and the person decides.
 - **THEN** the answer session shows nothing, posts nothing and closes
   nothing
 
-#### Scenario: A rhetorical message in the queue is declined as picked up by mistake
+#### Scenario: A rhetorical message in the queue declined as picked up by mistake logs no miss
 
 - **WHEN** a rhetorical message, found under the first source, reaches
   the person's queue, and the person declines it under the second
   reason
-- **THEN** nothing is posted, and a miss file whose `filter` is
-  `"source 1"`, the source that found it, is logged
+- **THEN** nothing is posted, and no miss file is logged
 
 #### Scenario: A person's question only gets a suggestion
 
@@ -1911,9 +1860,9 @@ format the inquisitor's *A log file and a miss file have one format*
 states, pushed through the inquisitor script to the questions branch of
 the team's lore repository of the repository the question concerns, as
 that spec's *Every answer is recorded and every asked question logged*
-says a file is pushed there. Its `filter` is `"1"` to `"4"` for a filter,
-or `"source <n>"` for a miss against the source `<n>`, 1 to 4, that
-found a message picked up by mistake, whose `said` is `not a question`. A
+says a file is pushed there. Its `filter` is `"1"` to `"4"`, the filter
+that should have stopped the question. A decline under the second
+reason logs none (proposal decision 298). A
 miss the answer session logs by itself, under *Filter 1 runs on every
 incoming question* or *Filters 2 to 4 judge every incoming question*, has
 `said` `answer session: clearly filter <n>`, so a review of misses can
@@ -1956,8 +1905,8 @@ same question as a miss file already on that branch with the same
 
 #### Scenario: A question about no repository gets no miss
 
-- **WHEN** the person declines, as not a question, a Discord message that
-  concerns no repository
+- **WHEN** the person declines, as one the inquisitor should have
+  handled, a Discord message that concerns no repository
 - **THEN** no miss file is written, the person is told why, and the
   question still closes
 
@@ -1978,7 +1927,7 @@ same question as a miss file already on that branch with the same
 
 - **WHEN** a questions-branch file holds a question, the file holds
   `asked_from: "o/private-item"`, and the person declines the question
-  as not a question
+  as one the inquisitor should have handled, picking filter 4
 - **THEN** the miss file the answer session pushes holds
   `asked_from: "o/private-item"`
 

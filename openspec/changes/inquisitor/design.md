@@ -641,7 +641,7 @@ needs that v0.1-33 lacks follow its patterns (proposal decision
 254, task 6.1).
 The rules are in the `answer-session` spec, the decisions in proposal
 decisions 152 to 175, 184 to 203, 207 to 211, 215, 216, 219, 220,
-222 to 230, 234, 236, 238, 246 to 248, 250 to 252, 254 to 260 and 262 to 296.
+222 to 230, 234, 236, 238, 246 to 248, 250 to 252, 254 to 260 and 262 to 299.
 
 ### Polling while open, with the person's credentials
 
@@ -776,8 +776,8 @@ A question from a lore repository's questions branch has no thread to
 relay to, so the answer session answers it by pushing a new log file to
 that branch, as any session does for an answer the person gave in it
 (decision 173). Asking the asker and editing are not offered for such a
-question. When the same question was also asked in a post, the answer
-session shows it from the thread, relays the answer there, and pushes the
+question. When the log file's `asked_in` links the post that also asked
+it, the answer session shows it from the thread, relays the answer there, and pushes the
 log file too (decision 210), so neither the asker reading the thread nor
 an agent searching the branch misses the answer. When the person, rather
 than answering in their own words, agrees to the recorded answer shown
@@ -793,34 +793,40 @@ with no answer. It closes the question only in the person's queue, and
 filter 1 still shows the question to a searching agent as unanswered.
 The answer session pushes one whenever it closes a question that a
 questions-branch file holds: when it declines it, or when it posts in
-the thread where that same question was also asked a recorded answer or
-an `Inquisitor: ` reply, one of the three fixed texts for filters 2, 3
-and 4 (decision 278). Before decision 285, the spec also had the answer
-session close a rhetorical question by itself; it no longer does. A
-message that is
-not really a question is the asking agent's to rewrite, and the answer
-session ignores one it judges clearly not a question (decision 289); one
-that reaches the queue anyway is a miss the person declines under
-decline reason 2, picked up by mistake (decision 292). The handled file
-holds the question's hash, not its text (decision 277). Before decision
-273, nothing on the branch recorded that the person had declined or
-answered for the question, so its questions-branch copy would reappear
-in the person's queue on another machine, or after a restart; the
-handled file stops that, whether a person or an agent asked (decision
-273). The handled file holds, in its `repository` key, a topic
-repository, the one the question concerns, which the answer session
-works out from the question's thread and text. On every machine the
-handled file keeps out of the queue each copy of the question with the
-same hash about that repository, provided the copy was asked before the
-file's commit, wherever it was asked (decisions 281, 286, 288, 293 and
-294). A handled file from a decline under reason 1, "the conversation
-is over", closes only the questions-branch files that hold the
-question, whoever asked them, and no thread copy, so that one asker's
-closed conversation does not close another asker's thread (decision
-295). Nothing reopens a copy it closed
-(decision 283): a later message in its thread is shown as a new
-question (decisions 287 and 291), and the same words asked after the
-commit, or about another repository, are a new question too.
+the thread a recorded answer or an `Inquisitor: ` reply (decision 278).
+A message that is not really a question is the asking agent's to
+rewrite, and the answer session ignores one it judges clearly not a
+question (decision 289); one that reaches the queue anyway is declined
+under reason 2, when the session misread it, with no miss, or under
+reason 3, when the asking agent should not have written it, with a miss
+against that agent (decisions 292 and 298). The ignore rule covers
+only sources 1 and 2 (decision 296), so a non-question from a review
+request or a questions-branch file reaches the queue without the
+session judging it.
+
+Closing works by exact identity, never by matching (decision 297). A
+handled file names, in its `closes` key, the one questions-branch file
+it closes, and closes that file on every machine and nothing else. A
+questions-branch file whose question the agent also asked in a thread
+message names that message in its `asked_in` key, and follows it by
+that exact link: what the answer session decides about the message
+applies to the file (decision 299). A thread copy, the question as
+shown from its thread, is closed on every machine only by a relay post
+in that thread, which every machine reads. A decline that posts nothing
+is kept in this machine's state folder alone: the thread copy is closed
+here, where the person can reopen it, and another machine shows it
+again for the person to decline there too, while the file it links is
+closed everywhere by its handled file. A handled file closes a file
+without answering it, so an answer the person later gives to that
+thread copy, on any machine, still pushes a log file answering the
+file. Three earlier rules matched copies: on the question's words, on
+each machine's own judgement of its topic repository, and on commit
+times. Each kept producing machines that disagreed about which copies
+were closed, and exact identity cannot disagree (decisions 277, 281,
+286, 288, 290 and 293 to 295, which decision 297 replaces). Nothing
+reopens a questions-branch file a handled file closed (decision 283),
+and a message posted in a thread after its question closed is shown as
+a new question (decisions 287 and 291).
 
 A relayed answer counts as the person's own for filter 1 (decision 184).
 Decision 78 proves a logged answer's writer only when GitHub gives the
@@ -961,11 +967,11 @@ question by itself, go to the questions branch of the team's lore
 repository (decisions 197, 207 and 209).
 The answer session can't see where the asker logged the question, which
 is often an unmerged branch, and the questions branch takes a direct push,
-so no miss needs a pull request. When the person declines a message
-picked up by mistake, the miss is against the source of questions that
-found it: `filter: "source <n>"`, where `<n>` is that source's number, and
-`said: "not a question"` (decisions 198 and 208). The review of misses
-finds it with the rest.
+so no miss needs a pull request. A miss is a lesson about an asking
+agent, so a message the answer session picked up by mistake, its own
+misjudgement, logs none (decision 298, which retires the miss against
+one of the answer session's four sources of questions that decisions
+198 and 208 had logged).
 
 ### The session's model
 
