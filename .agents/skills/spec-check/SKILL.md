@@ -55,8 +55,8 @@ errors to fix. Exit 2: it could not run, and says why.
 | `citation` | error, or check | A `path:line` with a `/` whose line is in neither the base branch nor the change is an error. Any other citation finding is a check: a bare name such as `config.py:50`, or a line only the change adds. Text in a code fence, and addresses such as `0.0.0.0:8080`, are skipped |
 | `decisions-first` | error, or check, as `openspec/spec-check.yaml` says | `enforce`: an error when the proposal does not open with a decisions section, or the section lists none. `off`: not checked. No file: no proposal is checked, and one check says the repository has not decided. A file holding anything else: one check naming the problem |
 | `openspec-validate` | error, or check when validation passed | An issue `openspec validate --strict` reported |
-| `stack` | error | A `Builds on:` line that cannot be read, a dependency that cannot be fetched or does not apply, or one already archived (see [Stacked changes](#stacked-changes)) |
-| `drift` | error | A stacked change modifies, removes or renames a requirement that main plus its dependencies no longer define, or keeps a sentence its dependency has since reworded |
+| `stack` | error, or check | Error: a `Builds on:` line that cannot be read or is listed twice; a change that names itself; the OpenSpec CLI missing from PATH; a pull request that holds no change of that name; a dependency that cannot be read, or whose deltas `openspec archive` refuses; a merged dependency whose result your branch does not hold; a dependency that builds on a change this one does not list before it, whose result your tree lacks. Check: a dependency whose result your tree already holds, so its line should be removed; one only partly there; one whose version a later dependency replaces without building on it; one whose pull request was closed without merging (see [Stacked changes](#stacked-changes)) |
+| `drift` | error, or check | Error: a stacked change modifies, removes or renames a requirement that main plus its dependencies no longer define, or `openspec archive` refuses the stacked change itself on top of its dependencies (the error quotes the CLI). Check, quoting both texts: a modified requirement keeps a sentence its dependency has since replaced, or a requirement a dependency adds is already in your tree with another text |
 
 A **check** is a heuristic: judge it, and fix it or leave it. An `openspec
 validate` result of "not run" means it was not checked, never that it passed;
@@ -90,24 +90,74 @@ The syntax is exactly `Builds on: <change> (<owner>/<repo>#<number>)`, alone
 on its line with no markup: the change's directory name under
 `openspec/changes/`, then its pull request in the same repository. For a
 chain, where this change builds on B and B builds on C, list both, in the
-order they apply to main: C's line first, then B's.
+order they apply to main: C's line first, then B's. Leaving out C's line
+is a `stack` error, unless your tree already holds C's result, as it does
+once C has merged and you have merged main.
 
 `check` then reads each dependency's change from its pull request's head
-commit (with `gh pr view` and `git fetch`; nothing is checked out). It
-applies the dependencies to the specs in memory, in the order of the lines,
-and runs every check against that combined state. It also reports `drift`.
-A dependency that cannot be read is a `stack` error, never a pass. The
-duplicate and drift checks then do not run for the change, and the error
-says so; the other checks still run.
+commit (with `gh pr view` and `git fetch`; nothing is checked out), and
+handles it by its pull request's state:
 
-**Remove the line once the dependency is archived.** When the dependency's
-pull request has merged and an archive in the tree has the same proposal.md
-as the pull request's head, `check` gives a `stack` error saying that
-main's specs now hold its result. An archive of the same name with a
-different proposal is an older change and is ignored. If the matching
-archive is on the base branch but not in the tree you are checking, rebase
-before removing the line: until then, your tree's specs lack the
-dependency's result.
+- **Open, or closed without merging.** `check` copies your tree's specs
+  into a temporary directory. In the order of the lines, it archives each
+  such dependency into that copy with one run of the real `openspec
+  archive`. First it drops the deltas the copy already shows: an addition
+  there with the same text, a removal already absent, a modification with
+  the same text, and a delta's renames when, read in order, every one is
+  already done. When an addition is in your tree with another text, your
+  tree's text is kept, and a `drift` check quotes both. A closed pull
+  request also gets a `stack` check, since its change may never land.
+- **Merged.** Its result is already in main, so it is never archived
+  again. Instead, `check` looks for that result in your tree by
+  requirement name: each requirement it adds or modifies must be there,
+  with any text (main may have reworded it since), each it removes absent,
+  and its renames, read in order, done. Another merged dependency, listed
+  after this one or building on it, may have changed those names since. A
+  name the later dependency removes or renames away need not be there, and
+  a name the later dependency adds or renames onto need not be absent. When the
+  result shows, a `stack` check says the line is stale: remove it. When it
+  does not, a `stack` error names what is missing: merge main into your
+  branch. One exception: a dependency that has merged but is still open in
+  your tree, with the same deltas, because it is not archived yet, is
+  handled as an open one.
+
+Every check then runs against the result.
+
+**Stacked changes need the OpenSpec CLI on PATH,** since the dependencies
+are archived with it. Without it, the change gets a `stack` error.
+
+**What stops the check.** Each of these is a `stack` error, never a pass:
+a dependency that cannot be read; a pull request that holds no change of
+the name on the line, which means the line names the wrong change or the
+wrong pull request; a delta with no requirement header spec-check can
+read; and deltas `openspec archive` refuses, where the error quotes the
+CLI and names the dependency. Requirement headers are matched
+case-insensitively, as OpenSpec matches them: `### requirement:` is a
+header too. After any of these errors, the duplicate and drift checks do
+not run for the change, and the error says so; the other checks still run.
+
+**The change itself is archived last,** on top of its dependencies. Each
+refusal, such as an ADDED of a name already there, a RENAMED onto one, or
+a MODIFIED that drops a scenario, is a `drift` error at that requirement,
+quoting the CLI. A refusal about a whole delta file is reported at line 0
+of that file.
+
+**Remove the line once the dependency is in your tree.** When all of an
+open or closed dependency's deltas are already in your specs, a `stack`
+check says your tree already holds its result: remove the line. When only some
+are, a check names which deltas were already there and which were
+archived.
+
+**Two dependencies that set the same requirement.** The one listed later
+replaces the earlier one's version. When the later one does not build on
+the earlier one, a check says the earlier version is left out: make sure
+the later text includes what your change needs.
+
+**A `drift` check** quotes a sentence your change kept from an earlier text
+of the dependency's requirement, and the sentences the dependency has now
+instead. If your change was written against the earlier text, restate the
+requirement from the dependency's current text. If you kept the sentence on
+purpose, leave it.
 
 **The hint.** A `duplicate` error against a main requirement that an open
 pull request removes or renames ends with the line to add, for example:
@@ -116,8 +166,8 @@ your change really applies on top of that pull request, add the line. If it
 does not, the duplicate is real: state the rule once. The hint does not
 clear the error; only the line does.
 
-`sign` checks a stacked change the same way, so it needs `gh` and the
-network too.
+`sign` checks a stacked change the same way, so it needs `gh`, the
+network and the OpenSpec CLI too.
 
 ## 2. The consistency read, by a fresh subagent
 
