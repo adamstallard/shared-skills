@@ -641,7 +641,7 @@ needs that v0.1-33 lacks follow its patterns (proposal decision
 254, task 6.1).
 The rules are in the `answer-session` spec, the decisions in proposal
 decisions 152 to 175, 184 to 203, 207 to 211, 215, 216, 219, 220,
-222 to 230, 234, 236, 238, 246 to 248, 250 to 252, 254 to 260 and 262 to 287.
+222 to 230, 234, 236, 238, 246 to 248, 250 to 252, 254 to 260 and 262 to 291.
 
 ### Polling while open, with the person's credentials
 
@@ -797,23 +797,25 @@ the thread where that same question was also asked a recorded answer or
 an `Inquisitor: ` reply, one of the three fixed texts for filters 2, 3
 and 4 (decision 278). An earlier version also closed a rhetorical
 question by itself; decision 285 removed that case. A message that is
-not really a question is the asking agent's to rewrite, and one that
-reaches the queue anyway is a miss the person declines under decline
-reason 3, picking filter 3 (decision 285). The file holds the
-question's hash, not its text (decision 277). Before decision 273,
-nothing on the branch recorded that the person had declined or answered
-for the question, so its questions-branch copy would reappear in the
-person's queue on another machine, or after a restart; the handled file
-stops that, whether a person or an agent asked (decision 273). The
-handled file holds the day the answer session closed the question. It
-keeps every copy of the question with the same hash, asked in the
-repository its `repository` names on or before that day, the thread copy
-included, out of the queue on every machine (decisions 281 and 286).
-Which repository a Linear or Discord thread copy counts as being in is
-in the proposal's Still open. Nothing
-reopens it (decision 283): a later reply is shown as a new question
-(decision 287), and the same words asked later or elsewhere are a new
-question too.
+not really a question is the asking agent's to rewrite, and the answer
+session ignores one it judges clearly not a question (decision 289); one
+that reaches the queue anyway is a miss the person declines under
+decline reason 3, picking filter 3 (decision 285). The handled file
+holds the question's hash, not its text (decision 277). Before decision
+273, nothing on the branch recorded that the person had declined or
+answered for the question, so its questions-branch copy would reappear
+in the person's queue on another machine, or after a restart; the
+handled file stops that, whether a person or an agent asked (decision
+273). The handled file holds the day the answer session closed the
+question and the topic repository, the one the question concerns, in
+its `repository` key. On every machine it keeps out of the queue each
+copy of the question with the same hash about that repository, asked on
+or before that day, wherever the copy was asked (decisions 281, 286 and
+288). Nothing reopens a copy it closed (decision 283): a later message
+in its thread is shown as a new question (decisions 287 and 291), and
+the same words asked on a later day, or about another repository, are a
+new question too. A copy asked after the close but on the same day is
+closed with it, an accepted limit (decision 290).
 
 A relayed answer counts as the person's own for filter 1 (decision 184).
 Decision 78 proves a logged answer's writer only when GitHub gives the

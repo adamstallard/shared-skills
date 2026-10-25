@@ -380,7 +380,9 @@ contradicts what design.md assumed.
         `Recorded in: <URL>`, quoting nothing; the fixed `Inquisitor: `
         texts, and reason 3's line `The person chose this filter.`;
         previews that show the `Re: <URL>` line; reason 1's wording, under
-        which only the asker's unthreaded follow-up stops counting;
+        which declining as over closes only that question and every later
+        message in its thread that the sources name is a new question,
+        where the prototype ends the thread (decision 291);
         reopening offered only for a question declined with nothing
         posted that no questions-branch file holds, keeping its logged
         miss, where the
@@ -486,10 +488,12 @@ contradicts what design.md assumed.
       item 6). The tests also cover the answer session's handled file, pushed whenever it
       closes a question a questions-branch file holds, whether from that
       branch or shown from a thread, which closes for good every copy
-      with the same hash asked in the handled file's repository on or
-      before its day; a later reply, shown as a new question; and a miss for a question a questions-branch file
-      holds copying that file's `asked_from` (decisions 273, 274, 278,
-      281 to 283, 286 and 287)
+      with the same hash about the handled file's topic repository,
+      wherever asked, on or before its day; a later message in a closed
+      question's thread, a follow-up or a reply, shown as a new question;
+      a message that is not really a question ignored; and a miss for a
+      question a questions-branch file holds copying that file's
+      `asked_from` (decisions 273, 274, 278, 281 to 283 and 286 to 291)
 - [ ] 6.11 Decide at implementation, with no requirement added
       (decision 256), and record each choice in design.md while the
       change is open. Agreeing to a shown recorded answer is not among

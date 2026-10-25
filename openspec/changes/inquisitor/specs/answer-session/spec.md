@@ -346,7 +346,11 @@ opens the answer session.
 ### Requirement: A question asked of the person comes from one of four sources
 
 The answer session SHALL show, as a question asked of the person, each of
-these that is unanswered, and nothing else:
+these that is unanswered, and nothing else. A message of the first or
+second source that is clearly not a question at all, such as a
+rhetorical one or a thank-you, as the session's model judges it, SHALL
+be ignored: it is not shown, nothing is posted on it, and nothing is
+closed. An unclear one is shown (proposal decision 289).
 
 1. a message in a subscribed channel that mentions the person, as `@login`
    on GitHub, or as a mention of their Linear user or Discord user, whoever
@@ -380,17 +384,12 @@ changes a relay file mentions its person* gives it, is not a question: the
 answer session SHALL show it to the person as a notice, post nothing on
 it, and log no miss for it.
 
-In a thread where the person closed a question as over, under *The
-person can decline to answer*, the asker's next comment after a relay post
-in a GitHub issue or pull request conversation is not a question under the
-second source: that comment is an unthreaded follow-up. Every other
-message the four sources name still is. A threaded reply to a relay post
-in that thread, meaning a Discord reply to it, a Linear comment after it
-in its comment thread, or a GitHub reply to it in a review thread,
-reopens the closed question: it is open again on this machine, and the
-reply is shown with it. When a handled file closed the question, the
-reply reopens nothing, and is shown on its own as a new question of the
-second source (proposal decisions 283 and 287).
+A question the person closed, as over or by a handled file, stays
+closed. Every later message in its thread that the four sources name is
+shown on its own as a new question, on every machine, under whichever
+source names it: the asker's unthreaded follow-up after a relay post or
+a threaded reply to one under the second, a mention of the person under
+the first (proposal decisions 283, 287 and 291).
 
 #### Scenario: A relay notice is shown, never answered
 
@@ -772,12 +771,19 @@ closed on this machine:
 Besides a question closed on this machine by the state folder, a second
 kind of closed question holds on every machine: one whose hash
 a handled file on a configured lore repository's questions branch
-holds, asked in the repository that file's `repository` names, on or
-before its `handled` day in UTC, whatever its thread holds. Which
-repository a Linear or Discord thread copy counts as being in is in the
-proposal's Still open. The same words asked
-later, or in another repository, are a new question. Nothing reopens a
-closed one (proposal decisions 281, 283 and 286). It is not in the queue, but when its thread holds a relay
+holds, provided the copy is about the repository that file's
+`repository` names and was posted on or before its `handled` day in UTC.
+What a copy is about is its topic repository: the repository the
+question concerns, as the answer session works it out, or, for a
+questions-branch copy, its own `repository` key. This holds wherever the
+copy was asked and whatever its thread holds: a Linear or Discord
+thread, another GitHub repository, an Igor question with another
+`asked_from`, or another questions-branch file (proposal decisions 286
+and 288). The same words asked later, or about another repository, are
+a new question; asked again on the handled day about the same
+repository, they are closed with the earlier copy (proposal decision
+290). Nothing reopens a question a handled file closed (proposal
+decisions 281, 283 and 286). It is not in the queue, but when its thread holds a relay
 post, whether `User says: `, `Recorded answer: ` or `Inquisitor: `, it is
 still listed by that post's state with the questions answered or
 handled, so the person can edit that post. Any
@@ -787,9 +793,10 @@ close it. The answer session SHALL list the questions answered and
 handled for the person, apart from the queue, so the person can see and
 edit what was posted for them.
 
-When the asker replies to a question to them, the reply is a question
-asked of the person under the second source, shown with the question it
-answers. A question from a lore repository's questions branch is answered
+When the asker replies to the relay's `User asks: ` question to them,
+while the question it asks about waits, the reply returns the
+question it answers to the queue, shown with the reply, whether or not
+the reply is itself a question. A question from a lore repository's questions branch is answered
 when that branch holds a later log file with the same question and an
 answer. A handled file closes the copies of the question that the
 paragraph above names, from the branch or from a thread.
@@ -1210,8 +1217,9 @@ edit for a question of the fourth source.
 Whenever the answer session closes a question, and an unanswered log
 file on a lore repository's questions branch holds that question, it
 SHALL push a **handled file** there through the inquisitor script's
-`log` command, with a thread or without (proposal decisions 273 and
-278). The answer session closes a question in two ways: it declines
+`log` command, with a thread or without, one for each distinct
+`repository` among the files that hold it (proposal decisions 273, 278
+and 288). The answer session closes a question in two ways: it declines
 the question, agreeing to a shown recorded answer included, or it posts
 a recorded answer or an `Inquisitor: ` reply on it. The handled file is as the inquisitor's *A log file and
 a miss file have one format* gives it: the question's hash, not its
@@ -1238,10 +1246,32 @@ recorded and every asked question logged* says.
   the same question
 - **THEN** the answer session shows neither file as a question
 
+#### Scenario: A handled file closes a Discord copy about its repository
+
+- **WHEN** a handled file with `repository: "o/api"` closed a question,
+  and the same question, about `o/api`, was asked earlier that day in a
+  Discord thread
+- **THEN** the answer session shows the Discord copy on no machine
+
+#### Scenario: A handled file closes a copy asked in another repository
+
+- **WHEN** a handled file with `repository: "o/api"` closed a question,
+  and the same question, about `o/api`, was asked earlier that day in a
+  thread in `o/web`
+- **THEN** the answer session shows the `o/web` copy on no machine
+
+#### Scenario: Two questions-branch files about different repositories get two handled files
+
+- **WHEN** the person declines a question that two unanswered
+  questions-branch files hold, one with `repository: "o/api"` and one
+  with `repository: "o/web"`
+- **THEN** the answer session pushes two handled files, one for each
+  repository
+
 #### Scenario: The same words asked later are a new question
 
-- **WHEN** a handled file closed a question in `o/api` on a day, and the
-  same words are asked in `o/api` a day later, or in `o/web`
+- **WHEN** a handled file closed a question about `o/api` on a day, and
+  the same words are asked about `o/api` a day later, or about `o/web`
 - **THEN** the answer session shows the later question in the queue
 
 #### Scenario: A failed post pushes no handled file
@@ -1304,13 +1334,9 @@ On any open question, the person SHALL be able to decline to answer it,
 giving one of three reasons:
 
 1. **The conversation is over.** The answer session posts nothing, and the
-   question closes. In its thread, the asker's unthreaded follow-up after
-   a relay post in a GitHub conversation stops counting as a question, and
-   a threaded reply to a relay post reopens the question, as *A question
-   asked of the person comes from one of four sources* says, unless a
-   handled file closed it (proposal decision 283). A message that @-mentions
-   the person or a relay identity, a review request and an assignment are
-   still questions.
+   question closes. That closes only this question: a later message in
+   its thread is shown as a new question, as *A question asked of the
+   person comes from one of four sources* says (proposal decision 291).
 2. **Not a question:** the message was picked up by mistake. The answer
    session posts nothing, the question closes, and the answer session logs
    a miss against the source that found it, as *The answer session logs
@@ -1374,20 +1400,22 @@ was posted* says (proposal decision 260).
 - **THEN** nothing is posted in its thread, and the question leaves the
   queue
 
-#### Scenario: A closed conversation stops counting the asker's follow-up
+#### Scenario: A follow-up after a closed conversation is a new question
 
-- **WHEN** the person declines a question in a GitHub issue's
-  conversation because the conversation is over, and the asker then
-  comments again in that conversation without an @-mention
-- **THEN** the answer session does not show the comment as a question
+- **WHEN** the person declines, because the conversation is over, a
+  question in a GitHub issue's conversation where the relay had posted
+  before it, and the asker then comments again in that conversation
+  without an @-mention
+- **THEN** the answer session shows the comment as a new question, on
+  every machine, and the declined question stays closed
 
-#### Scenario: A reply to a relay post reopens a closed conversation
+#### Scenario: A reply to a relay post after a closed conversation is a new question
 
 - **WHEN** the person declined a question because the conversation is
-  over, and the asker then replies on Discord to the relay's last post in
+  over, and the asker then replies on Discord to an earlier relay post in
   that thread, without an @-mention
-- **THEN** the answer session shows the reply as a question, and the
-  declined question is open again on this machine
+- **THEN** the answer session shows the reply as a new question, and the
+  declined question stays closed
 
 #### Scenario: A reply does not reopen a question a handled file closed
 
@@ -1430,8 +1458,9 @@ was posted* says (proposal decision 260).
 
 #### Scenario: Not a question logs a miss against its source
 
-- **WHEN** the person declines a reply that thanks the relay, found under
-  the second source, as not a question
+- **WHEN** the answer session showed, under the second source, a reply
+  to the relay that was in fact meant for someone else, and the person
+  declines it as not a question
 - **THEN** the question closes, and a miss file whose `filter` is
   `"source 2"` and whose `said` is `not a question` is logged
 
@@ -1773,13 +1802,13 @@ filter's fixed text, which the session's model does not write:
 - filter 4: `Inquisitor: filter 4, cheap to reverse. Pick one, and record
   what you chose and why.`
 
-The answer session has no case of its own for a message that is not
-really a question, such as a rhetorical one, and builds nothing new for
-it. When one reaches the person's queue, the person declines it under
-the third reason with filter 3, which posts filter 3's fixed text above
-and logs the miss (proposal decision 285). Whether an agent's rhetorical
-message in a thread is instead answered by itself under filter 3, as
-the paragraph above would have it, is in the proposal's Still open.
+A message that is not a question gets no automatic post: it is ignored,
+as *A question asked of the person comes from one of four sources*
+says, so an agent's rhetorical message in a thread gets no post. When one reaches the person's queue anyway, because
+the session judged it unclear and showed it, the person declines it
+under the third reason with filter 3, which posts
+filter 3's fixed text above and logs the miss (proposal decisions 285
+and 289).
 For each agent's question the answer session handles by itself, it
 SHALL log a miss against the filter the question failed, as *The
 answer session logs its misses on the team's lore repository's questions
@@ -1797,6 +1826,13 @@ question with its suggested verdict, and the person decides.
 - **THEN** the relay posts, naming the question, the filter 2 text
   starting `Inquisitor: filter 2`, a miss against filter 2 is logged, and
   the question is listed as handled for the person
+
+#### Scenario: An agent's rhetorical message gets no post
+
+- **WHEN** an agent's message in a GitHub thread mentions the person
+  with a rhetorical question
+- **THEN** the answer session shows nothing, posts nothing and closes
+  nothing
 
 #### Scenario: A rhetorical message in the queue is declined under filter 3
 

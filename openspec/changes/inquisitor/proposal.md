@@ -17,7 +17,7 @@ are written down:
   turned on, on 2026-10-20, and how `check` reads it, on 2026-10-21.
 - 240 to 253, on 2026-10-21;
 - 254 to 284, on 2026-10-24;
-- 285 to 287, on 2026-10-25.
+- 285 to 291, on 2026-10-25.
 
 Apart from 229 and 241 to 244, which he gave in the session reviewing
 igor PR #216, and 238, which he gave in shared-skills PR #1, he gave those of 2026-10-19 to 2026-10-25 while reviewing this pull
@@ -56,7 +56,8 @@ confirmed two details this change had chosen. 277 to 280 answer the four
 raised with 273 to 276, and 281 to 284 the four raised with 277 to 280,
 one decision each. On 2026-10-25 he gave 285 to 287, settling the five
 raised with 281 to 284: 285 answers three of them by removing the case
-they were about.
+they were about. 288 to 291 answer the five raised with 285 to 287, one
+decision each, 289 settling two.
 
 1. **Four filters run before any question reaches a person.**
    1. **Already answered:** the agent finds the earlier answer, cites where it
@@ -1220,18 +1221,22 @@ it:
      `Inquisitor: ` the same way, for the posts the answer session makes
      by itself. This replaces decision 175's item 16. On GitHub only an
      App the relay file lists speaks for the person (decision 216).
-194. *Reason 1 changed by Adam with decision 202's item 2, and reasons 2
-     and 3 by his decisions 208 and 209; by his decision 283, a threaded
-     reply no longer reopens a question a handled file closed.* **The person can decline to
+194. *Reason 1 changed by Adam with decision 202's item 2 and his
+     decisions 283 and 291; reasons 2 and 3 changed by his decisions 208
+     and 209. For reason 1 now: declining as over closes only that
+     question, and every later message in its thread that the answer
+     session's four sources of questions name is a new question.* **The person can decline to
      answer.** On any open question they can choose not to answer. They
      give one of three reasons:
-     1. **The conversation is over.** Nothing is posted, and the question
+     1. *Superseded by decision 291; as first written:* **The
+        conversation is over.** Nothing is posted, and the question
         closes. The asker's later comments in its thread that reply to no
         relay post, such as an unthreaded follow-up in a GitHub
         conversation, stop counting as questions. A threaded reply to a
         relay post, such as a Discord reply to it, still counts, and
         reopens the question, unless a handled file closed it (decision
-        283).
+        283). *Since decision 291, every later message the sources name
+        is a new question, and nothing reopens the declined one.*
      2. **Not a question:** the message was picked up by mistake. Nothing
         is posted, the question closes, and a lesson candidate is logged
         against the way the answer session found the message, meaning the
@@ -2164,7 +2169,8 @@ put to him when it recorded 277 to 280:
 Adam gave 285 to 287 on 2026-10-25, settling the five questions this
 change put to him when it recorded 281 to 284:
 
-285. **"Rhetorical" is no longer a category.** An asking agent does not
+285. *Extended by Adam's decision 289: the answer session ignores a
+     message that is not a question too.* **"Rhetorical" is no longer a category.** An asking agent does not
      treat a message that is not really a question as one: the
      inquisitor already has it rewrite such a message as a statement
      (decision 107's item 3), so nothing is shown, posted or
@@ -2179,7 +2185,8 @@ change put to him when it recorded 281 to 284:
      case with no thread. The existing categories, the decline reasons and
      filters 2 to 4, already cover a question that needs no answer.
      *Rejected:* a rhetorical text of filter 3's own.
-286. **A handled file closes only copies of its question in its own
+286. *"Repository" here means the topic repository, by Adam's decision
+     288.* **A handled file closes only copies of its question in its own
      `repository`, asked no later than its `handled` day,** so asking
      again later, or elsewhere, reaches the person. This narrows decision
      281. *Rejected:* closing every copy with the same hash.
@@ -2188,6 +2195,39 @@ change put to him when it recorded 281 to 284:
      to a relay post,** as
      decision 202's item 6 treats a reply to an automatic post. *Rejected:*
      dropping the reply.
+
+Adam gave 288 to 291 on 2026-10-25, one for each question this change
+put to him when it recorded 285 to 287, 289 settling two:
+
+288. **A handled file closes every copy whose topic repository matches
+     its `repository`,**
+     the repository the question concerns, which the answer session
+     already works out, wherever the copy was asked: a Linear or Discord
+     thread, another GitHub repository, or an Igor question with another
+     `asked_from`. Likewise a handled file closes another
+     questions-branch file with the same question about the same topic
+     repository, whatever its `asked_from`.
+     Decision 286 holds as written, its "repository" being the topic
+     repository. *Rejected:* dropping the repository condition.
+289. **Messages that are not questions are ignored:** not shown, nothing
+     posted, nothing closed, consistent with decision 285. Filter 3's
+     automatic reply is only for a real question that did not need
+     asking, so an agent's rhetorical message in a thread gets no post.
+     When one reaches the queue anyway, the existing decline reason 3,
+     with filter 3, covers it as a miss. *Rejected:* filter 3's
+     automatic reply on a rhetorical message, and declining such a
+     message under reason 1.
+290. **Accepted as a limit: the same words asked again on the handled
+     day, about the same topic repository, are closed with the earlier
+     copy.** *Rejected:* comparing by the handled file's commit time.
+291. **Declining under reason 1 closes only that question.** The asker's
+     unthreaded follow-up is treated like a reply (decision 287): shown
+     as a new question on every machine, and a threaded reply no longer
+     reopens the declined question either. This amends decision 202's
+     item 2 and decision 194's reason 1. *Rejected:* a follow-up that
+     counts on one machine and not another, as when a reason 1 decline,
+     held in each machine's own state folder, stopped it counting only
+     there.
 
 ### Proposed by this change
 
@@ -2767,14 +2807,16 @@ confirmed each on 2026-10-20, amending 199 and changing items 2, 4, 6 and
      `Inquisitor: ` replies to filter 2's, or filter 3's or 4's the person
      chose.** **Details the spec fixes,** each
      cheap to reverse, taken under filter 4:
-     1. *Amended by decisions 273, 278, 281, 284, 285 and 286.* A declined
-        question is kept closed in the state folder, per machine, and one
-        that a questions-branch file holds is closed everywhere by its
-        handled file, every copy in that file's repository asked no later
-        than its day. As first written, a rhetorical question
+     1. *Amended by decisions 273, 278, 281, 284, 285, 286 and 288.* A
+        declined question is kept closed in the state folder, per
+        machine, and one that a questions-branch file holds is closed
+        everywhere by its handled file: every copy about that file's
+        topic repository, wherever asked, no later than its day. As first written, a rhetorical question
         handled with no reply was kept closed the same way; decision 285
         removed that case.
-     2. *Changed by Adam.* Under decision 194's first reason, any
+     2. *Changed by Adam, and again by his decision 291, under which a
+        later message in the thread, a follow-up or a reply, is a new
+        question and reopens nothing. As this item first read:* Under decision 194's first reason, any
         threaded reply to a relay post, such as a Discord reply to it,
         reopens the closed question. The reason stops
         counting only the asker's other later comments, such as an
@@ -3178,46 +3220,45 @@ settled by decisions 281 to 284.
 The five questions raised while recording decisions 281 to 284 are
 settled by decisions 285 to 287.
 
-Five questions for Adam, raised while recording decisions 285 to 287,
+The five questions raised while recording decisions 285 to 287 are
+settled by decisions 288 to 291.
+
+Four questions for Adam, raised while recording decisions 288 to 291,
 one decision each:
-- **A thread copy asked outside the handled file's repository.** A
-  handled file's `repository` is the repository the question concerns,
-  not where it was asked, so a Linear or Discord thread copy, a GitHub
-  copy asked in another repository, and an Igor question whose
-  `asked_from` differs from the handled file's `repository` are never
-  closed by it; declined with nothing
-  posted, such a copy comes back on every other machine. The same holds
-  when two questions-branch files with the same question name different
-  repositories. Recommended: match a thread copy on the repository the
-  question concerns, which the answer session already works out for
-  every question, so decision 286 holds as written. Alternative: drop the
-  repository condition and keep only the day, which removes the step but
-  closes the same words asked elsewhere that day.
-- **An agent's rhetorical message in a thread.** The answer session judges
-  filters 2 to 4 as the inquisitor states them, under which a rhetorical
-  question fails filter 3, so for an agent's rhetorical message in a
-  thread the answer session posts filter 3's text by itself and closes
-  it. Recommended: accept that, since filter 3 is the existing category
-  that covers it, and decision 285 reads as being about the asking
-  agent's side. Alternative: the answer session leaves such a message to
-  the person.
-- **Filter 3's text on a rhetorical message.** The text tells the asker
-  to take the option that has merit and record its choice, which a
-  rhetorical message does not have. Recommended: accept it; the asker
-  records that the message needed no answer. Alternative: decline such a
-  message under reason 1, "the conversation is over", which posts
-  nothing but logs no miss.
-- **The same words asked again on the handled day.** They are closed
-  with the earlier copy. Recommended: accept it as a limit. Alternative:
-  compare by the time of the handled file's commit.
-- **The asker's unthreaded follow-up after a decline under reason 1,
-  "the conversation is over".** On the
-  declining machine it stops counting as a question; on every other
-  machine, which knows only the handled file, it is shown. Recommended:
-  declining as over closes only the question and stops no later message
-  from counting, so a follow-up is treated like a reply (decision 287)
-  on every machine; this reverses part of decision 202's item 2.
-  Alternative: keep the per-machine difference.
+- **Which reason declines a non-question that reaches the queue?**
+  Decision 285 has the person decline it under reason 3 with filter 3,
+  which posts filter 3's text, telling the asker to take the option that
+  has merit and record it, and adds "The person chose this filter.", on
+  which the asking agent acts. Since decision 289, such a message reaches
+  the queue only when the answer session's own judgment let it through,
+  which is decline reason 2's meaning, "picked up by mistake".
+  Recommended: decline it under reason 2, which posts nothing and logs a
+  miss against the source; this removes filter 3's post and its line
+  "The person chose this filter.". Alternative: keep reason
+  3 with filter 3.
+- **The topic repository is a judgment, made on each machine.** A thread
+  copy matches a handled file only when this machine's model works out
+  the same topic repository the closing machine did, so a declined copy
+  can come back on a machine that judges differently. Recommended: the
+  handled file's `repository` is the topic repository the closing
+  machine worked out for the copy it closed, and a machine that cannot
+  work out a copy's topic repository matches on hash and day alone.
+  Alternative: match on hash and day alone everywhere, decision 288's
+  rejected option, which removes the judgment.
+- **A same-day repeat in a closed question's thread.** Decision 291 shows
+  a later message in the thread as a new question, but decision 290
+  closes the same words asked again that day. An asking agent whose
+  filter 1 cannot count a recorded answer is likely to ask again in the
+  same words, and is then closed until the next day. Recommended: a handled file closes
+  only copies asked before its commit, decision 290's rejected option,
+  which ends the conflict. Alternative: decision 290 wins for a same-day
+  repeat.
+- **A reason 1 decline closes other askers' copies.** Declining as over
+  pushes a handled file, which closes the same question about that
+  repository asked by anyone, anywhere, on every machine, with nothing
+  posted to them. Recommended: a handled file from a reason 1 decline
+  closes only the questions-branch files and the copy declined.
+  Alternative: keep it closing every matching copy.
 
 Open on igor PR #216's side, at the head last read, 59e7561, which records Adam's decisions
 up to 149 in #216's own numbering, decisions 244 and 245 among them as
@@ -3231,8 +3272,9 @@ its decisions 92 and 97:
   (decision 273), but #216 pushes any file a worker reports that holds
   no `authority` as an unanswered question file, so it would push a
   handled file too, and a worker steered by
-  item text could then close any question with the same hash, in that
-  repository, on every machine.
+  item text could then close, on every machine, any question with the
+  same hash about the repository the planted file's `repository` names, wherever it was asked, Linear and
+  Discord included.
 - **#216 should widen its definition of a citation to include a
   person's cite.** It defines a citation as an agent's record that a
   lore entry answered a question so that no person was asked. Decision
