@@ -1437,6 +1437,8 @@ def decide(dep, caps):
                 d.third.append((i, r))
             elif i.kind in ("ADDED", "MODIFIED"):
                 d.kept.append(i)
+                # The dependency's version now stands under this name, so a later item
+                # naming it is compared (r.block == i.text()) with this text, not the old one.
                 names[i.name] = i.req
     return d
 
