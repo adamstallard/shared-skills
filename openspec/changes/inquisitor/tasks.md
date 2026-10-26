@@ -129,8 +129,8 @@ contradicts what design.md assumed.
       GitHub never verifies such a commit for someone who didn't make it,
       a signature GitHub made itself proves nothing
 - [ ] 0.23 That the URL an asking agent records as `asked_in` for its post
-      (decision 299), and the issue or pull request URL an Igor records
-      for its worker's question (decision 326), equals, character for character, the URL the answer
+      (decision 299), and the handback comment URL an Igor records for
+      its worker's question (decisions 326 and 345), equals, character for character, the URL the answer
       session builds for that message from what it polls, on GitHub,
       Linear and Discord: an issue comment against a pull request
       comment, `html_url` against the notifications API's URL,
@@ -246,8 +246,10 @@ contradicts what design.md assumed.
       and 315),
       an answer file naming the file it answers in `answers`, refused
       when the named file is not on the branch or already holds an answer
-      (decisions 303 and 310), the Igor writing it for a later run only
-      for a file its handback comment names (decision 324),
+      (decisions 303 and 310), the Igor writing `answers` for a later run only
+      for a file it finds by its own record's suffix and date (decisions
+      324, 327 and 334), which igor builds and this task does not, and
+      no `asked_in` in Igor-worker mode (decision 345),
       a handled file for a questions-branch question the answer session
       marks handled (only `handled` and `closes`, that file's name, with
       no body; decisions 273, 276, 277, 297 and 305), written
@@ -535,10 +537,9 @@ contradicts what design.md assumed.
       under reason 2 with filter 3's "the agent shouldn't have asked", posting nothing,
       with a filter 3 miss against the asking agent; a log file whose link
       this machine does not read shown on its own; a log file whose
-      `asked_in` was withheld, on Linear, Discord or a more private
-      GitHub repository, merged with its message only when the questions
+      `asked_in` was withheld, on Linear or Discord (decision 344), merged with its message only when the questions
       match once mentions are removed, the days match in UTC, and neither
-      matches any other file or message (decisions 307, 314 and 315); an
+      matches any other file or message (decisions 307 and 344); an
       answer that cannot reach its thread kept as answered, not relayed,
       returned to the queue, with the answer kept, once its channel
       passes its check, and posted only after the person approves it
@@ -554,28 +555,32 @@ contradicts what design.md assumed.
       file's answer (decisions 312, 319, 323 and 328); the answer file
       pushed only after the thread is checked, none for an
       answer held back or dropped, and at once only for one whose thread
-      cannot be read (decision 325); an Igor worker's log file following
-      the assigned issue or pull request its `asked_in` links (decision
-      326); a later run naming a file only from the Igor's own record
+      cannot be read (decision 325); a later run naming a file only from the Igor's own record
       (decision 327); the relay post first, then the answer file's push,
       retried at each poll and each opening, the owed push recorded in
       the state folder before the post (decisions 332 and 338); a
       github.com `answer_link` withheld where the lore repository is more
-      visible than the repository it points into (decision 337); an Igor
-      log file on an item whose thread already holds an answer to an
-      earlier question following the run's new handback comment, one on
-      an unassigned item shown to no one, and one on an item assigned to
-      someone else never shown to this person (decisions 333 and 339);
+      visible than the repository it points into (decision 337); every
+      Igor log file following its own handback comment.
+      For Igor items the tests also cover: an item shown only through its
+      newest handback, an older unanswered handback passed over with
+      nothing written and its file never shown again; a bot's message
+      reaching only the first person it mentions, a person's message
+      reaching each, and a handback that mentions no one reaching the
+      assignee; a handback that mentions no one on an unassigned item
+      shown to no one, and one on an
+      item assigned to someone else never shown to this person (decisions
+      333, 339, 345 and 346). The remaining tests cover
       the Igor's record's file-name suffix and date finding the file, and more
       than one match naming none (decisions 334 and 342); a file that
       tags no one answered only by an account with write access to the
-      lore repository (decision 340); an Igor handback comment shown under
-      the second source only to the item's assignee, and followed only
-      when it is in the item's thread from an `igor-` App (decision 339);
-      an owed push recorded before the post, its post's URL added once
-      the post goes out, and dropped when the
-      post never went out (decision 338); a GitHub message merged only
-      with a file of its own repository (decision 341); declining with two reasons, the first, nothing to
+      lore repository (decision 340); an Igor's handback link followed
+      only from an `igor-` App's comment in the file's repository
+      (decisions 339 and 345);
+      the relay post's URL added to the owed push record once the post
+      goes out, and
+      the record dropped when the post never went out (decision 338);
+      declining with two reasons, the first, nothing to
       answer, merging the old first two (decision 330); a named file still shown, with the
       answer beside it as input, when its answer file does not count
       (decision 320); the `log` command refusing an

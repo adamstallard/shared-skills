@@ -17,7 +17,7 @@ are written down:
   turned on, on 2026-10-20, and how `check` reads it, on 2026-10-21.
 - 240 to 253, on 2026-10-21;
 - 254 to 284, on 2026-10-24;
-- 285 to 306 and 308 to 343, on 2026-10-25, with 307, which this
+- 285 to 306 and 308 to 346, on 2026-10-25, with 307, which this
   change proposed, confirmed by 314.
 
 Apart from 229 and 241 to 244, which he gave in the session reviewing
@@ -71,7 +71,10 @@ the four raised with 316 to 320, one each, in order. 325 to 330
 answer six of the seven raised with 321 to 324. 331 answers the
 seventh, and 332 to 336 the five raised with 325 to 330, one each, in
 order. 337 to 341 answer the five raised with 331 to 336, and 342 and
-343 confirm two choices this change made then.
+343 confirm two choices this change made then. 344 follows this
+change's note that the GitHub part of the merge rule could never apply,
+345 settles the question raised with 337 to 343, and 346 adds a routing
+rule.
 
 1. **Four filters run before any question reaches a person.**
    1. **Already answered:** the agent finds the earlier answer, cites where it
@@ -1225,7 +1228,7 @@ it:
      decision 175's item 17 says, and shared-skills PR #1's README, the
      `discord-bot` skill's, should say how to turn it on. That is PR #1's
      to add.
-192. *Amended by Adam's decision 333: a log file written after the person answered an earlier question on the item is shown on its own, to whoever the item's question would go to, its assignee.* **A handback question reaches the person only through an
+192. *Its rule and reason replaced by Adam's decisions 345 and 346: a bot's question reaches only the first person it mentions, and an Igor's handback that mentions no one reaches the assignee; by decision 345 the item is shown only through its newest handback.* **A handback question reaches the person only through an
      assignment.** An Igor worker's handback comment tags no one, so its
      question is shown only when its item is assigned to the person.
 193. **Only the prefix is reserved.** A relay identity may be used for
@@ -2325,7 +2328,7 @@ change put to him when it recorded 292 to 296:
      decisions 196, 285 and 292 and retires 198's `"source <n>"` miss;
      208's `said: "not a question"` is no longer written. *Rejected:* a miss
      against the source.
-299. *For an Igor's question, Adam's decisions 326 and 339 make its `asked_in` link the assigned issue or pull request, or, on an already answered item, that later run's new handback comment.* *Amended by Adam's decisions 300 to 302: a file whose link this machine never reads is shown on its own, an answer records the message's question, and a withheld Linear, Discord or, by decision 315, GitHub link is made up for by merging.* **A questions-branch log file follows its thread message by exact
+299. *For an Igor's question, Adam's decision 345 makes its `asked_in` link the handback comment that asks it.* *Amended by Adam's decisions 300 to 302 and 344: a file whose link this machine never reads is shown on its own, an answer records the message's question, and a withheld Linear or Discord link is made up for by merging.* **A questions-branch log file follows its thread message by exact
      link.** A log file for a question the asking agent also asked in a
      post holds that message's URL as `asked_in`, and what the
      answer session decides about that message applies to the file. A
@@ -2400,7 +2403,8 @@ put to him when it recorded 300 to 307, and confirmed 307 as changed by
      publishes everything already in it, so the answer file adds nothing
      worse. *Rejected:* generalising the message's words, and relaying
      only in the thread.
-310. **The `log` command writes `answers` only when it names an
+310. *"Unanswered" here means the named file holds no answer inside it, whatever answer files name it, so later answer files naming it are still written.* **The `log`
+     command writes `answers` only when it names an
      unanswered file already on the branch,** and igor PR #216 should
      refuse a worker's file holding `answers`, so the Igor adds the key
      itself, since #216 would then push only what the Igor writes; the
@@ -2429,10 +2433,10 @@ put to him when it recorded 300 to 307, and confirmed 307 as changed by
      decline reason 2's, for the answer session's own error (decision
      298), and filter 3's choice under reason 3, for the asking agent's
      (decision 304).
-314. **Decision 307 is confirmed with one change:** "the message is on
+314. *Narrowed back by Adam's decision 344: GitHub messages no longer merge, so the change 314 made to 307 is undone; Linear and Discord merge as before.* **Decision 307 is confirmed with one change:** "the message is on
      Linear or Discord" becomes "a message whose `asked_in` would be
      withheld", so a GitHub message decision 315 withholds merges too.
-315. **A GitHub `asked_in` is withheld when the thread's repository is
+315. *Its merge half withdrawn by Adam's decision 344; the withholding stays.* **A GitHub `asked_in` is withheld when the thread's repository is
      more private than the lore repository,** as decision 251 withholds
      a Linear or Discord one, and the file then merges as for Linear and
      Discord. This extends decision 302. *Rejected:* always writing it.
@@ -2523,7 +2527,7 @@ this change put to him when it recorded 321 to 324:
      still pushed at once, unchecked, as decision 318 has it. This
      amends decision 318. *Rejected:* pushing every answer file at
      confirmation.
-326. *For an already answered item, Adam's decision 339 links the new handback comment instead.* *Limited by Adam's decision 333: while the item is unassigned its log file is shown to no one, and while it is assigned to someone else, only to them. 333's "shown on its own" case is replaced by decision 339.* **An Igor worker's log file links, in `asked_in`, the assigned issue
+326. *Its rule is replaced by Adam's decisions 339 and 345: every Igor log file links its own handback comment, not the item. Decision 333's assignee limits still apply.* **An Igor worker's log file links, in `asked_in`, the assigned issue
      or pull request its question is shown from,** not the handback
      comment, so answering or declining it there applies to the log
      file. This amends decision 299 for an Igor's question. *Rejected:*
@@ -2573,7 +2577,7 @@ leak private content or lose an answer is still raised.
      `answer_link`; a failed push is retried at each poll until it
      succeeds,** as a handled file's is. This amends decision 325.
      *Rejected:* accepting a thread answered with no file.
-333. *Amended by Adam's decision 339: a file on an already answered item follows the new handback comment; the assignee rules stay. Its "written after" is defined without clocks by decision 343.* **An Igor log file follows its item, with these limits:**
+333. *Amended by Adam's decisions 339 and 345: every Igor log file follows its own handback comment, and the item is shown only through its newest handback, open until a relay post answers it, or handles it with a `Recorded answer: ` or `Inquisitor: ` post; the assignee rules stay.* **An Igor log file follows its item, with these limits:**
      - a log file a later Igor run writes after the person already
        answered an earlier question on the item is shown on its own, as
        its own question, to whoever the item's question would go to,
@@ -2614,7 +2618,7 @@ and 343 confirm two choices this change made while recording them:
      the push does not lose the answer file. This amends decision 332.
      *Rejected:* any machine pushing an answer file for a relay post it
      finds without one.
-339. **A log file for a new Igor question on an item whose earlier
+339. *Generalised by Adam's decision 345: every Igor log file links its own handback comment.* **A log file for a new Igor question on an item whose earlier
      question is already answered follows that run's new handback
      comment,** which reaches the person as a new message in an answered
      thread (decision 291), so the answer is relayed on the item and
@@ -2630,7 +2634,7 @@ and 343 confirm two choices this change made while recording them:
      Both specs, the answer-session and inquisitor specs, use this one
      test, which replaces decision 335's wording. *Rejected:* answering such files
      only through filter 1's hash search.
-341. **A GitHub message merges with a log file only when the file's
+341. *Withdrawn by Adam's decision 344, with the GitHub part of the merge rule.* **A GitHub message merges with a log file only when the file's
      `repository` equals the message's repository;** otherwise there is
      no merge, and the question is shown twice, which Adam's unnumbered
      rule above accepts. This narrows decision 307. *Rejected:* accepting
@@ -2639,8 +2643,61 @@ and 343 confirm two choices this change made while recording them:
 342. **Confirmed: when more than one file matches the record's suffix and
      date, the run names none.** The 6 random hex digits make a name
      unique, so a second match can only be a planted look-alike.
-343. **Confirmed: no clocks.** "Written after the item was answered" means
+343. *Since Adam's decision 345 links every Igor log file to its own handback comment, 343's test no longer decides anything for any file.* **Confirmed: no clocks.** "Written after the item was answered" means
      the item's thread already holds an answer to an earlier question.
+
+Adam gave 344 to 346 on 2026-10-25. 344 follows this change's note,
+made when it recorded 337 to 343, that the GitHub part of the merge rule
+could never apply. 345 settles the question it raised then: whether one
+answer could close the log files of two Igor handbacks on one item. 346
+is a rule of his own, which he amended the same day, as its rejected
+option records.
+
+344. **The GitHub part of the merge rule is removed.** A GitHub merge
+     needs the thread's repository to be more private than the lore
+     repository. Decision 341 requires the thread's repository to be the
+     file's own `repository`, and the script never logs a file to a lore
+     repository more visible than its own `repository`, so the first
+     condition could never hold. Merging covers only Linear and Discord messages. This
+     withdraws the merge half of decision 315 and decision 341, and
+     narrows 314.
+345. **When an Igor posts a newer handback on an item that still holds an
+     older unanswered one, only the newest counts as open.** The older
+     one is superseded by a reading rule each answer session applies to
+     what it reads in the thread, with no coordination between them; nothing is written for it, no post, edit or handled
+     file, and it drops out of the queue. Its log file stays on the
+     questions branch, unanswered, and is never shown again; if the
+     blocker still matters, the Igor asks it again on its next run. An
+     answer to the newest handback names only that handback's log file.
+     Adam's reasons: a newer handback can only follow once the person
+     returns the item to the Igor without answering the older one, so it
+     is rare, and the newest handback says
+     where the Igor is blocked now. Adam asked this change to choose the
+     mechanism, the simplest that guarantees it, and it chose this: every Igor log file links its own
+     handback comment in `asked_in`, and an item assigned to the person
+     is shown only through its newest handback, so each file follows
+     exactly one comment. This amends decisions 326, 333 and 339, and
+     makes 343's test unneeded for Igor files. *Rejected:* both options
+     this change offered, a new file linking its own handback only while
+     an earlier one was unanswered, and an answer naming only the oldest
+     unanswered file.
+346. **A bot's question reaches only the first person it mentions.** A
+     message by a bot or agent, an Igor, an agent running the
+     inquisitor or any other bot, reaches only the first person it
+     mentions; the bot is expected to order its mentions by importance,
+     for an Igor operator, assignee, creator (igor #229). The answer
+     session does not know who an operator is and needs no rule about
+     it. A message by a person reaches each person it mentions, as
+     before. An Igor's handback that mentions no one reaches the item's
+     assignee, under the answer session's third source of questions, an
+     item assigned to the person. So on an item assigned to the
+     person, a bot's message that mentions people reaches the person only
+     if they are mentioned first. This replaces decision 192's "tags no
+     one" reasoning. Adam's reasons: one owner per bot question, so two
+     people cannot give a bot conflicting answers, and the inquisitor
+     never needs to know an operator. *Rejected:* a handback reaching
+     the assignee unless it mentions someone else and not them, the
+     rule as first given.
 
 ### Proposed by this change
 
@@ -3606,7 +3663,7 @@ this change's own:
         on fetching under `igor run` and the hashed record of handback
         questions, contradict nothing here.
 
-307. *Narrowed by Adam's decision 341: a GitHub message merges only with a file of its own repository.* **Confirmed by Adam (2026-10-25), with "on Linear or Discord"
+307. *Narrowed by Adam's decision 344 back to Linear and Discord messages, so the body's wording below is current again; decision 341's GitHub rule is withdrawn with it.* **Confirmed by Adam (2026-10-25), with "on Linear or Discord"
      replaced by his decision 314.** **The merge criterion of decision
      302.** A log file with no `asked_in` is merged with a thread message
      on one machine only when the file is on a lore repository that is
@@ -3677,6 +3734,9 @@ settled by decisions 332 to 336.
 The five questions raised while recording decisions 331 to 336 are
 settled by decisions 337 to 341.
 
+The question raised while recording decisions 337 to 343 is settled by
+decision 345.
+
 Open on igor PR #216's side, at the head last read, 59e7561, which records Adam's decisions
 up to 149 in #216's own numbering, decisions 244 and 245 among them as
 its decisions 92 and 97:
@@ -3698,17 +3758,20 @@ its decisions 92 and 97:
   that file in `answers`; the handback comment may show the name for
   people, but the run never reads it from there. Without the record, the
   run writes no `answers`.
+- **igor issue [igor #229](https://github.com/adamstallard/igor/issues/229) should have each Igor order the people it
+  mentions by importance, operator, assignee, creator** (decision 346),
+  since only the first person mentioned gets a bot's question.
 - **#216's Igor should write `asked_in`** in a worker's log file as the
-  URL of the assigned issue or pull request the question is shown from
-  (decision 326), or, when the item's thread already holds an answer to
-  an earlier question, as the URL of that later run's new handback comment
-  (decision 339), a Linear or Discord one only in a
-  private lore repository (decision 302), and name in `answers` the file
-  an answer file answers (decision 303), adding `answers` itself and
-  refusing a worker's file that holds it (decision 310). Without
-  `answers`, the answer session keeps showing the answered file as
-  unanswered. A GitHub `asked_in` is withheld when the thread's
-  repository is more private than the lore repository (decision 315).
+  URL of the handback comment that asks it, once it has posted that
+  comment (decisions 326, 339 and 345), withheld when the item's
+  repository is more private than the lore repository (decision 315),
+  and name in `answers` the file an answer file answers (decision 303),
+  adding `answers` itself and refusing a worker's file that holds it
+  (decision 310). Without `answers`, the answer session keeps showing
+  the answered file as unanswered. Its handback comments should be
+  recognisable as handbacks among its other comments, since the answer
+  session shows an item only through its newest handback (task 0.6;
+  decision 345).
 - **#216 should widen its definition of a citation to include a
   person's cite.** It defines a citation as an agent's record that a
   lore entry answered a question so that no person was asked. Decision
@@ -3751,6 +3814,9 @@ elsewhere that this change depends on:
 - igor PR #153, signed publishing (decision 124);
 - in bug-hunter, a rule for a vulnerability fix's regression test
   (decisions 108 and 205);
+- igor issue [#229](https://github.com/adamstallard/igor/issues/229),
+  under which each Igor orders the people it mentions by importance,
+  which routing to the first person mentioned relies on (decision 346);
 - shared-skills PR #1, merged, which turns Discord's Message Content
   intent on and reports it in `check` (decision 238), and posts with no
   header line unless a header option is given (decision 246);

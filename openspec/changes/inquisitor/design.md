@@ -641,7 +641,7 @@ needs that v0.1-33 lacks follow its patterns (proposal decision
 254, task 6.1).
 The rules are in the `answer-session` spec, the decisions in proposal
 decisions 152 to 175, 184 to 203, 207 to 211, 215, 216, 219, 220,
-222 to 230, 234, 236, 238, 246 to 248, 250 to 252, 254 to 260 and 262 to 343.
+222 to 230, 234, 236, 238, 246 to 248, 250 to 252, 254 to 260 and 262 to 346.
 
 ### Polling while open, with the person's credentials
 
@@ -856,13 +856,19 @@ in one commit with other files cannot (decision 328).
 
 An Igor asks a person through a handback comment on the issue or pull
 request it works, its item. The worker's log file links, in `asked_in`,
-that item, so the file follows the item's question and is shown only to
-the item's assignee. A log file for a new question on an item whose
-thread already holds the person's answer to an earlier question links
-that later run's new handback comment instead: a file following the item
-would read as already answered, while the comment reaches the person as
-a new message in that thread, so the answer is relayed on the item and
-logged against the file (decisions 326, 333, 339 and 343). When the
+that handback comment, so each file follows exactly one comment and an
+answer names only its file. The item is shown only through its newest
+handback, since that one says where the Igor is blocked now. Every older
+handback is passed over: each machine works this out from the thread
+alone and writes nothing, the older handback is never shown again, and
+its file stays unanswered and unshown (decisions 326, 333, 339 and 345). A bot's message, an
+Igor's handback included, reaches only the first person it mentions,
+so each bot question has one owner and two people cannot give a bot
+conflicting answers; a handback that mentions no one reaches the item's
+assignee. Each Igor orders its mentions by importance, operator,
+assignee, creator, its operator being the person who runs that Igor,
+as igor issue #229 asks, so the answer session never
+needs to know who an operator is (decision 346). When the
 Igor later records the person's answer, it names the earlier log file in
 `answers` only when it finds that file on the branch by the 6-hex-digit
 suffix and date of its name, which the Igor's own record of the handback
@@ -871,9 +877,9 @@ others can edit, and never names a file because a search found matching
 words (decisions 324, 327 and 334); when more than one file matches, it
 names none: the six digits are random, so two genuine files almost never
 share them and a date, and a second match can only be a planted
-look-alike (decision 342). An Igor's file tags no one, since its
-handback comment tags no one, so no tagged person's proof can be asked
-for; instead an answer counts for it only when the account the answer
+look-alike (decision 342). An Igor's handback that mentions no one is
+routed by assignment and tags no one, so no tagged person's proof can be asked for;
+instead an answer counts for a file that tags no one only when the account the answer
 file's signature or linked comment proves has the write
 access filter 1 requires of a `decision` entry on a questions branch,
 write access to the lore repository (decision 340).
@@ -883,10 +889,15 @@ the same question and filter is already on the branch, since dropping it
 would again mean matching on words (decision 303).
 
 A Linear or Discord `asked_in` is withheld from a lore repository that
-is not private, as an `answer_link` is, and a GitHub one from a lore
-repository more visible than the repository it points into (decisions
-251, 302 and 315). A log
-file without it has no link to the message that also asked it, so the
+is not private, as an `answer_link` is (decisions 251 and 302). A GitHub
+`asked_in` is withheld from a lore repository more visible than the
+repository it points into (decision 315), but a file whose GitHub link
+was withheld never merges: such a link is withheld only when the
+thread's repository is more private than the lore repository, and the
+merge rule required that repository to be the file's own, which the
+script never logs to a more visible lore repository, so merging now
+covers only Linear and Discord messages (decision 344). A
+Linear or Discord log file without an `asked_in` has no link to the message that also asked it, so the
 answer session merges the two into one entry only when it is sure:
 the same question once mentions are removed, asked the same day, and
 exactly one file and one message that fit (decisions 307 and 314). A

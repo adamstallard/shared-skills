@@ -2176,13 +2176,11 @@ on that questions branch that holds no answer; otherwise it SHALL write
 nothing and say why (proposal decision 310). It SHALL also write
 nothing and say why for an
 `asked_in` that is not a github.com, Linear or Discord URL of the forms
-given for `answer_link`, or, for an Igor worker's file, which the command
-writes in Igor-worker mode, a github.com
-issue or pull request URL with no fragment, or a comment URL in the form
-given for `answer_link`, which the answer session checks is an Igor's
-handback comment
-(proposal decisions 302, 326 and 339). The command does not check who passed such a
-link; it proves no writer whoever did. For an `answer_link` that is none
+given for `answer_link`. In Igor-worker mode the command writes no
+`asked_in`: the worker cannot know its handback comment's URL, so the
+Igor adds the key once it has posted that comment (proposal decisions
+326, 339 and 345). The command does not check who passed an `asked_in`
+or an `answer_link`; such a link proves no writer, whoever passed it. For an `answer_link` that is none
 of these, it SHALL write nothing and say why. In
 Igor-worker mode it SHALL read no comment: it writes the answer it was
 given, which only identifies the comment, and the Igor replaces it.
@@ -2199,10 +2197,11 @@ A log file for a question that was asked SHALL hold the question as asked and th
 asked. A questions-branch log file for a question also asked in a post
 SHALL hold that post's URL as `asked_in`, so the agent SHALL post the
 question before it writes the log file (proposal decision 299). An Igor
-worker's log file instead holds the URL of the assigned issue or pull
-request its question is shown from (proposal decision 326), or, when
-the item's thread already holds an answer to an earlier question, the
-URL of that later run's new handback comment (proposal decision 339). The
+worker's log file instead holds the URL of the handback comment that
+asks its question, which the Igor writes after it has posted that
+comment and before it pushes the file, applying the `log` command's
+withholding rule itself
+(proposal decisions 326, 339 and 345). The
 `log` command leaves the URL out where its rule for `asked_in`, above,
 withholds it (proposal decisions 302 and 315). A questions-branch file
 that answers a question an earlier file there logged unanswered SHALL
@@ -2213,8 +2212,7 @@ the handback,
 which holds the 6-hex-digit suffix and the date in the name of the
 questions-branch log file the Igor pushed for that question, and no
 question text; the run finds the file on the branch by them, and when
-more than one file matches, it names none, two genuine files sharing
-both being a near impossibility (proposal decisions 334 and
+more than one file matches, it names none (proposal decisions 334 and
 342), as igor PR #216 is asked to have it (#216's decision
 59). Until #216 keeps such a record, the run finds no record and
 writes no `answers`; both states are built and tested; the handback comment may show that name for people, but the run
@@ -2652,9 +2650,8 @@ written.
   a questions-branch question* says; and
   `asked_in`, only in a questions-branch log file for a question the
   asking agent also asked in a post, the URL of that post, or, for an
-  Igor worker's question, the URL of the assigned issue or pull request
-  the question is shown from, or of the later run's new handback comment
-  on an item whose thread already holds an answer to an earlier question (proposal decisions 326 and 339), a Linear or
+  Igor worker's question, the URL of the handback comment that asks it
+  (proposal decisions 326, 339 and 345), a Linear or
   Discord URL being written only in a private lore repository, as for
   `answer_link`, and a github.com URL only in a lore repository no more
   visible than the repository it points into (proposal decisions 299,

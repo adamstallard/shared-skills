@@ -401,19 +401,38 @@ closed. An unclear one is shown (proposal decision 289).
 
 1. a message in a subscribed channel that mentions the person, as `@login`
    on GitHub, or as a mention of their Linear user or Discord user, whoever
-   wrote it, agents running the inquisitor included;
+   wrote it, agents running the inquisitor included; a message whose
+   author is a bot account, an agent's or an Igor's, reaches the person
+   only when they are the first person it mentions, a bot account being
+   one as *An agent's question* defines it; a person's message, an agent's
+   posted under a person's own account included, reaches each person it
+   mentions (proposal decision 346);
 2. a message in a subscribed channel that mentions one of the person's
    relay identities, or that replies to a relay post: a Discord reply to it,
    a Linear comment after it in the same comment thread, a GitHub reply to
    it in a review thread, or the asker's next comment after it in a GitHub
-   issue or pull request conversation; and an Igor's handback comment on
-   an item assigned to the person, posted after a relay post there
-   answered an earlier question, the Igor counting as the asker of its
-   item, whatever comments came between that relay post and the handback
-   comment (proposal decision 339);
+   issue or pull request conversation;
 3. on GitHub, a pull request in a subscribed channel that requests the
    person's review, or an issue there assigned to the person; on Linear,
-   an issue in a subscribed team assigned to the person;
+   an issue in a subscribed team assigned to the person. An item an Igor
+   handed back, and assigned to the person, is shown only through its
+   newest **handback**, an Igor's comment that asks a person something
+   (task 0.6 measures how one is told from the Igor's other comments;
+   until it is measured, an Igor comment counts as a handback when it
+   holds a question, as the inquisitor finds a question in a post).
+   Every older handback on the item is **passed over**: each machine
+   works this out from the thread alone, writes nothing, and never
+   shows it again, even once the newest is answered. The newest
+   handback is **open** until a relay post whose `Re: ` line holds its
+   URL answers or handles it; while a `User asks: ` post names it, it
+   waits for the asker and leaves the queue, as any question does. A
+   handback that mentions no one reaches the person through this
+   source; one that mentions people reaches only the first one
+   mentioned, under the first source, and the item is then not shown to
+   its assignee unless that is the first one mentioned. A mention is an
+   `@login` of a user, outside code spans, code blocks, quoted lines and
+   links; a team mention is skipped when finding the first person. A review request alone does not make such an item a
+   question (proposal decisions 345 and 346; igor issue [igor #229](https://github.com/adamstallard/igor/issues/229));
 4. a log file on the questions branch of a lore repository the inquisitor's
    configuration names, which holds no answer, whose question tags the
    person, which no handled file names, and which is not answered: no
@@ -430,43 +449,35 @@ showing it, answering it, ignoring it as not a question or declining it,
 applies to the log file, which is not shown on its own. A log file with
 no `asked_in` is judged on its own as a question of the fourth source
 (proposal decision 299). An Igor worker's log file links, in `asked_in`,
-the assigned issue or pull request its question is shown from under the
-third source, and follows that question as a file follows its thread
-message (proposal decision 326). So it is shown only to the item's
-assignee: to no one while the item is assigned to no one, and never to
-this person while it is assigned to someone else (proposal decision
-333). An item's thread **holds an answer to an earlier question** when
-it holds a relay post, of any prefix, naming an earlier question there
-(proposal decision 343). A log file for a new question on such an item
-links, in `asked_in`, the new handback comment of the later run that
-asks it instead, and
-follows it: the comment reaches the person under the second source,
-only while the item is assigned to them, so the answer is relayed on
-the item and logged against the file (proposal decision 339). The
-answer session SHALL follow such a link only when the comment is on an
-issue or pull request in the log file's `repository` and its author is
-an App whose slug starts with `igor-`; otherwise it shows the log file
-on its own. Apart from that case, an Igor's log file, one holding
-`asked_from`, is never shown on its own because this machine does not
-read its item, under the rule in the next sentence, since only the
-item's assignee may see it. A log file whose `asked_in` links a message
-this machine does not read, one in a channel it does not subscribe to
-or that is off, or on a surface it has turned off or cannot read, is
-shown on its own on
-this machine, as a question of the fourth source
-(proposal decision 300).
+the handback comment that asks its question, and follows it as a file
+follows its thread message, so an answer to that handback names only
+that file (proposal decisions 326, 339 and 345). It is shown only while
+that comment is its item's newest handback. When the comment mentions
+no one, it is shown under the third source: to no one while the item is
+assigned to no one, and never to this person while it is assigned to
+someone else. When it mentions people, it is shown to the first one
+mentioned, under the first source. Once a newer handback passes it over,
+it is never shown again, in which case it stays on the questions branch,
+unanswered (proposal decisions 333, 345 and 346). The answer session SHALL follow such a link
+only when the comment is on an issue or pull request in the log file's
+`repository` and its author is an App whose slug starts with `igor-`;
+otherwise it shows the log file on its own. A log file whose `asked_in`
+links a message this machine does not read, one in a channel it does
+not subscribe to or that is off, or on a surface it has turned off or
+cannot read, is shown on its own on this machine, as a question of the
+fourth source (proposal decision 300). That rule does not apply to an
+Igor's log file, one holding `asked_from`, whose link is followed: such
+a file is never shown on its own because this machine does not read its
+item.
 
 A log file with no `asked_in` that is of the fourth source, or that this
 machine had merged before a handled file named it, so that a late
 answer there still pushes a file answering it (proposal decision 306),
 SHALL be merged with
 a thread message into one entry on this machine when all of these hold:
-the `asked_in` linking that message would be withheld from the file's
-lore repository: a Linear or Discord message where that repository is not
-private, or a GitHub message in a repository more private than it
-(proposal decisions 314 and 315); for a GitHub message, the file's
-`repository` is the message's repository (proposal decision 341); the
-two questions are the
+the message is on Linear or Discord, and the file's lore repository is
+not private, so the `asked_in` linking that message was withheld
+(proposal decisions 314 and 344); the two questions are the
 same question once every mention, an `@login` or a Linear or Discord
 user mention, is removed from each; the file's `asked` day is the day,
 in UTC, the message was posted; and the file meets these with no other
@@ -481,11 +492,10 @@ file follows the message its `asked_in` links. Merging changes only what
 this machine shows (proposal decision 302).
 
 A question of the third source is answered by a comment
-on that pull request or issue. An Igor worker's handback comment tags no
-one, so its question is shown through the third source, when its item
-is assigned to the person, or, on an item whose thread already holds an
-answer to an earlier question, as a new message in that thread (proposal
-decision 339).
+on that pull request or issue. An Igor's handback that mentions no one
+reaches the person through the third source, as the item's open
+handback, when its item is assigned to them; one that mentions people
+reaches the first one mentioned (proposal decision 346).
 
 A GitHub comment from `github-actions[bot]` whose first line is the relay
 notice's fixed first line, as the inquisitor's *A pull request that
@@ -504,6 +514,86 @@ unless the ignore rule above drops it, is shown on its own as a new question, on
 source names it: the asker's unthreaded follow-up after a relay post or
 a threaded reply to one under the second, a mention of the person under
 the first (proposal decisions 283, 287 and 291).
+
+#### Scenario: An Igor's log file follows its handback comment
+
+- **WHEN** an Igor worker's log file's `asked_in` is the URL of its
+  handback comment on an issue assigned to the person, and the person
+  answers that handback
+- **THEN** the answer session relays the answer on the issue and pushes
+  an answer file naming the log file
+
+#### Scenario: A failed answer-file push is retried
+
+- **WHEN** the relay post of an answer goes out, for a thread copy (a
+  question shown from its thread) that a questions-branch file holds
+  through `asked_in`, and the push of its answer file
+  then fails
+- **THEN** the answer session tries the push again at each poll until it
+  succeeds, with the post's URL as the file's `answer_link`
+
+#### Scenario: A later Igor question on an answered item follows its handback comment
+
+- **WHEN** the person answered an Igor's question on an assigned issue,
+  and a later run on that issue posts a new handback comment and writes
+  a new log file whose `asked_in` is that comment's URL, and the person
+  answers the new handback
+- **THEN** the answer session shows the new handback as the issue's open
+  handback, relays the person's answer on the issue, and pushes an answer
+  file naming the new log file
+
+#### Scenario: A newer handback passes over an older unanswered one
+
+- **WHEN** an issue assigned to the person holds an Igor's handback no
+  relay post names, and the Igor posts a newer handback on it
+- **THEN** every answer session shows only the newer handback, writes
+  nothing for the older, never shows the older one's log file again, and
+  an answer to the newer handback names only the newer one's log file
+
+#### Scenario: A bot's message reaches only the first person it mentions
+
+- **WHEN** an Igor's handback on an issue assigned to the person mentions
+  `@maya` first and then the person
+- **THEN** the person's answer session does not show it, and Maya's does,
+  if she subscribes to that repository
+
+#### Scenario: A handback that mentions the assignee first reaches them
+
+- **WHEN** an Igor's handback on an issue assigned to the person mentions
+  the person first and then `@maya`
+- **THEN** the person's answer session shows it
+
+#### Scenario: A person's message reaches everyone it mentions
+
+- **WHEN** a person's comment mentions `@maya` and then the person
+- **THEN** the person's answer session shows it as a question
+
+#### Scenario: A handback that mentions no one reaches the assignee
+
+- **WHEN** an Igor's handback on an issue assigned to the person mentions
+  no one
+- **THEN** the person's answer session shows it under the third source
+
+#### Scenario: An Igor log file on someone else's item is not shown
+
+- **WHEN** an Igor's log file links a handback comment that mentions no
+  one, on an issue assigned to someone else
+- **THEN** this person's answer session shows neither the issue nor the
+  log file
+
+#### Scenario: An Igor log file on an unassigned item is shown to no one
+
+- **WHEN** an Igor's log file links a handback comment on an issue
+  assigned to no one
+- **THEN** no answer session shows the handback or its log file until
+  someone is assigned the issue, and then only the assignee's
+
+#### Scenario: A handback link from another App is not followed
+
+- **WHEN** a log file's `asked_in` links a comment whose author is not an
+  App with an `igor-` slug
+- **THEN** the answer session shows the log file on its own, and does
+  not follow the comment
 
 #### Scenario: A relay notice is shown, never answered
 
@@ -569,21 +659,6 @@ the first (proposal decisions 283, 287 and 291).
 - **THEN** the answer session shows one entry, from the message, and an
   answer to it is relayed in the thread and pushed as a log file naming
   the file in `answers`
-
-#### Scenario: A log file whose GitHub link was withheld is merged with the message
-
-- **WHEN** a public lore repository holds a log file with no `asked_in`
-  whose question tags `@adamstallard`, and the one comment this machine has polled with the same question,
-  once mentions are removed, is in a private repository's issue and was
-  posted on the file's `asked` day
-- **THEN** the answer session shows one entry, from the comment
-
-#### Scenario: A GitHub message in another repository is not merged
-
-- **WHEN** a log file with no `asked_in` has `repository: o/api`, and the
-  one GitHub comment this machine has polled with the same question, on
-  the file's `asked` day, is in `o/web`
-- **THEN** the answer session merges neither, and shows both
 
 #### Scenario: Two messages with the same words are not merged
 
@@ -699,7 +774,8 @@ comment thread; on GitHub, as a reply in the review thread when the
 question is a review comment, and otherwise as a comment on the issue or
 pull request whose last line is `Re: <the URL of the question's comment>`,
 or `Re: <the URL of the issue or pull request>` when the question is its
-description, a review request or an assignment. The post SHALL start with `User says: `,
+description, a review request or an assignment; for an Igor's handback,
+the `Re: ` line holds the handback comment's URL. The post SHALL start with `User says: `,
 followed by the person's answer exactly as they confirmed it. The answer
 session SHALL keep each relay post's id in the state folder.
 
@@ -930,42 +1006,6 @@ alone, and so asks the question again as usual (proposal decision 316).
   file it pushed, and the person edits it and then drops it
 - **THEN** nothing is posted, no new file is pushed, and the pushed file
   with the original text stays the person's answer
-
-#### Scenario: An Igor's log file follows its assigned issue
-
-- **WHEN** an Igor worker's log file's `asked_in` is the URL of an issue
-  assigned to the person, and the person answers that issue's question
-- **THEN** the answer session relays the answer on the issue and pushes
-  an answer file naming the log file
-
-#### Scenario: A failed answer-file push is retried
-
-- **WHEN** the relay post of an answer to a thread copy that a
-  questions-branch file holds goes out, and the push of its answer file
-  then fails
-- **THEN** the answer session tries the push again at each poll until it
-  succeeds, with the post's URL as the file's `answer_link`
-
-#### Scenario: A later Igor question on an answered item follows its handback comment
-
-- **WHEN** the person answered an Igor's question on an assigned issue,
-  and a later run on that issue posts a new handback comment and writes
-  a new log file whose `asked_in` is that comment's URL
-- **THEN** the answer session shows the comment as a new question in the
-  thread, relays the person's answer on the issue, and pushes an answer
-  file naming the new log file
-
-#### Scenario: An Igor log file on someone else's item is not shown
-
-- **WHEN** an Igor's log file links an issue assigned to someone else
-- **THEN** this person's answer session shows neither the issue nor the
-  log file
-
-#### Scenario: An Igor log file on an unassigned item is shown to no one
-
-- **WHEN** an Igor's log file links an issue assigned to no one
-- **THEN** no answer session shows it until someone is assigned the
-  issue
 
 #### Scenario: An answer held back by a new message pushes no file
 
