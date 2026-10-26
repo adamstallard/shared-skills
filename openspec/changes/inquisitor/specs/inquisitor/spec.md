@@ -113,9 +113,10 @@ Terms used throughout this spec:
 - **A post** is a pull request description, review or comment, or an issue
   or issue comment, sent through `gh` or a GitHub MCP tool. The comment an
   Igor, one of the AI teammates of the igor project, posts when it hands an
-  item back is not a post in this spec, and nothing here vets, batches or
-  tags it. When the post hook cannot tell such a comment from other posts,
-  it treats the comment as a post.
+  item back is not a post in this spec, and nothing here batches or tags
+  it; an Igor posts it through its own code, which the post hook never
+  sees, and any post the hook does see is vetted, whatever marker it
+  carries (proposal decision 350).
 - **The person running the session's login** is the GitHub login the
   inquisitor's configuration names, when it equals the login of the account
   `gh` is logged in as, read by the script running as the person. When they
@@ -1773,19 +1774,12 @@ as a private key or a GitHub access token.
   the shared post reader reports as unreadable
 - **THEN** the hook blocks the command
 
-#### Scenario: An Igor's handback comment is not vetted
+#### Scenario: A post carrying igor's handback marker is still vetted
 
-- **WHEN** an Igor hands an item back with a comment that asks its question,
-  and the post hook can tell that the comment is a handback comment
-- **THEN** the post hook lets the comment through, and the agent neither
-  batches the question with others nor tags anyone in it
-
-#### Scenario: A handback comment the hook cannot recognise is vetted as a post
-
-- **WHEN** an Igor hands an item back with a comment that asks an unvetted
-  question, and the post hook cannot tell that it is a handback comment
-- **THEN** the post hook blocks it, as it blocks any post with an unvetted
-  question
+- **WHEN** an agent's post that the post hook sees carries igor's handback
+  marker, in the form task 0.6 records, and asks an unvetted question
+- **THEN** the post hook blocks it, as it blocks any post with an
+  unvetted question (proposal decision 350)
 
 #### Scenario: A post with a stale verdict is blocked
 

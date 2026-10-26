@@ -327,9 +327,8 @@ contradicts what design.md assumed.
       with a category (by the spec's *Some questions are recorded by hash
       only*), blocking a post with a question when it can't read
       its records, passing a `deferred` question that tags no one in an
-      open-questions section or a new issue, and letting through, with no
-      question checks, a handback comment the hook recognises by igor's
-      fixed marker (decision 347)
+      open-questions section or a new issue, and vetting every post it
+      sees, one carrying igor's handback marker included (decision 350)
 - [ ] 3.3 `hook.json` with both hooks, `"default": "enabled"`
 
 ## 4. Tests
@@ -422,8 +421,9 @@ contradicts what design.md assumed.
         posted, on its own machine, where the
         prototype offers it for any decline under its first two reasons (decisions
         255, 260, 274 and 297); the handled file the answer session
-        pushes naming each questions-branch file that holds a question
-        it closes, which the prototype does not write (decisions 273
+        pushes naming each questions-branch file a closed question was
+        shown from, or that holds it through `asked_in`, but no merged
+        file (decision 351), which the prototype does not write (decisions 273
         and 297); a
         recorded answer the person agreed to and posted, whose question
         the spec shows as answered for the person, where the prototype
@@ -542,7 +542,9 @@ contradicts what design.md assumed.
       this machine does not read shown on its own; a log file whose
       `asked_in` was withheld, on Linear or Discord (decision 344), merged with its message only when the questions
       match once mentions are removed, the days match in UTC, and neither
-      matches any other file or message (decisions 307 and 344); an
+      matches any other file or message (decisions 307 and 344), and a
+      declined merged entry closed on this machine only, with no handled
+      file (decision 351); an
       answer that cannot reach its thread kept as answered, not relayed,
       returned to the queue, with the answer kept, once its channel
       passes its check, and posted only after the person approves it

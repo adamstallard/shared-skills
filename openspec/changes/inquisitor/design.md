@@ -641,7 +641,7 @@ needs that v0.1-33 lacks follow its patterns (proposal decision
 254, task 6.1).
 The rules are in the `answer-session` spec, the decisions in proposal
 decisions 152 to 175, 184 to 203, 207 to 211, 215, 216, 219, 220,
-222 to 230, 234, 236, 238, 246 to 248, 250 to 252, 254 to 260 and 262 to 349.
+222 to 230, 234, 236, 238, 246 to 248, 250 to 252, 254 to 260 and 262 to 351.
 
 ### Polling while open, with the person's credentials
 
@@ -907,7 +907,13 @@ Linear or Discord log file without an `asked_in` has no link to the message that
 answer session merges the two into one entry only when it is sure:
 the same question once mentions are removed, asked the same day, and
 exactly one file and one message that fit (decisions 307 and 314). A
-merge changes only what one machine shows, and each machine judges
+merge decides what one machine shows and closes: closing a merged entry,
+by a decline or an automatic post, closes both the message and the file
+on that machine alone, pushing no handled file. A wrong merge, pairing
+the message with a file another asker logged in the same words, would
+otherwise close that asker's question everywhere (decision 351). Only an
+answer to a merged entry, recorded against the file, reaches other
+machines (decision 302). Each machine judges
 whether a file and a message match nothing else by what it polls, so two machines can merge one file with
 different messages; Adam accepts that (decision 308). Two askers'
 questions in the same words, both read by one machine, fail the "exactly

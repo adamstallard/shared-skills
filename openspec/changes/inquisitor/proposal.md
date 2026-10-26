@@ -17,7 +17,7 @@ are written down:
   turned on, on 2026-10-20, and how `check` reads it, on 2026-10-21.
 - 240 to 253, on 2026-10-21;
 - 254 to 284, on 2026-10-24;
-- 285 to 306 and 308 to 349, on 2026-10-25, with 307, which this
+- 285 to 306 and 308 to 351, on 2026-10-25, with 307, which this
   change proposed, confirmed by 314.
 
 Apart from 229 and 241 to 244, which he gave in the session reviewing
@@ -76,7 +76,7 @@ change's note that the GitHub part of the merge rule could never apply,
 345 settles the question raised with 337 to 343, and 346 adds a routing
 rule. 347 and 348 answer the two raised with 344 to 346, and 349 is the
 general rule Adam gave with them: not to design for igor states before
-a change lands.
+a change lands. 350 and 351 answer the two raised with 347 to 349.
 
 1. **Four filters run before any question reaches a person.**
    1. **Already answered:** the agent finds the earlier answer, cites where it
@@ -214,7 +214,7 @@ questions that spec-check's consistency reads raised:
 39. **A question in one of decision 34's categories is asked only through
     the picker,** or, for a vulnerability, in the repository's private
     security advisory. The post hook blocks a post that holds one.
-40. **An Igor's handback comment is outside this change.** The comment an
+40. *Amended by Adam's decision 350: the post hook vets every post it sees, one carrying igor's handback marker included; an Igor's real handback never reaches the hook, since it is posted through igor's own code.* **An Igor's handback comment is outside this change.** The comment an
     Igor posts when it hands an item back is governed by igor #211. Its
     decision 9 says that in a team that runs no Igor inquisitor role,
     nothing posts that comment to a discussion, batches it or tags anyone;
@@ -2094,10 +2094,7 @@ change put to him when it recorded 268 and 269:
 Adam gave 273 to 276 on 2026-10-24, answering the three questions this
 change put to him when it recorded 270 to 272:
 
-273. *Amended by Adam's decisions 278, 297 and 305: the handled file is
-     written on every close and holds only `handled` and `closes`, which
-     names the one questions-branch file it closes; the keys listed
-     below are superseded.* **The answer session writes the handled file itself.** Whenever it
+273. *Amended by Adam's decisions 278, 297, 305 and 351: the handled file is written on every close of a file shown directly as the question, or holding it through `asked_in`, never for a merged file, and holds only `handled` and `closes`, which names the one questions-branch file it closes; the keys listed below are superseded.* **The answer session writes the handled file itself.** Whenever it
      declines a question, agreeing included (decision 270), or posts a
      recorded answer or an `Inquisitor: ` reply on it, and a
      questions-branch file holds that question, it pushes the handled
@@ -2301,7 +2298,7 @@ put to him when it recorded 288 to 291:
 Adam gave 297 to 299 on 2026-10-25, settling the six questions this
 change put to him when it recorded 292 to 296:
 
-297. *Amended by Adam's decision 305: a handled file holds only `handled` and `closes`.* **Closing works by exact identity, never by matching.** A handled
+297. *For a merged log file, Adam's decision 351 pushes no handled file on a decline.* *Amended by Adam's decision 305: a handled file holds only `handled` and `closes`.* **Closing works by exact identity, never by matching.** A handled
      file names, in its `closes` key, the one questions-branch file it
      closes, by that file's unique name, and closes that file on every
      machine for good. A thread copy, a question shown from its thread,
@@ -2354,7 +2351,7 @@ put to him when it recorded 297 to 299:
      words, which the person never saw; now the answer file pairs the
      answer with the words they answered. *Rejected:* showing the file's question beside the
      message.
-302. *Extended by Adam's decision 315 to a GitHub `asked_in` into a more private repository.* **Decision 251's rule applies to `asked_in`:** a Linear or Discord
+302. *Amended by Adam's decision 351: a decline of a merged entry closes it on this machine only, pushing no handled file.* *Extended by Adam's decision 315 to a GitHub `asked_in` into a more private repository.* **Decision 251's rule applies to `asked_in`:** a Linear or Discord
      `asked_in` is written only when the lore repository is private.
      Where the URL is withheld, the answer session merges the log file
      and the thread message into one entry where it can tell they are
@@ -2709,7 +2706,7 @@ one uses igor yet, so until it has real users this change does not
 design for interim situations. It specifies the end state of anything
 that depends on an igor change and records what igor must provide.
 
-347. **A handback is identified by a fixed marker igor gives its handback
+347. *Narrowed by Adam's decision 350: only the answer session reads the marker; the post hook does not.* **A handback is identified by a fixed marker igor gives its handback
      comments.** The interim rule, that an Igor comment counted as a
      handback when it held a question, is dropped. Igor chooses the
      marker's form; Still open asks igor PR #216 for it, and task 0.6
@@ -2719,7 +2716,7 @@ that depends on an igor change and records what igor must provide.
      no interim routing by assignment alone; igor issue #229 provides the
      ordering. *Rejected:* routing an Igor's handback by assignment until
      #229 lands.
-349. **Clauses that exist only for igor states before a change lands are
+349. *Amended by Adam's decision 350: its kept guard, "a handback comment the post hook cannot recognise being vetted as a post", is now the general rule, since the hook vets every post it sees.* **Clauses that exist only for igor states before a change lands are
      removed,** each replaced by its end state, with what igor must
      provide recorded in Still open. A clause that also guards against
      misuse in the end state stays. Removed: the inquisitor spec's "Until
@@ -2736,6 +2733,28 @@ that depends on an igor change and records what igor must provide.
      record writing no `answers`, a command that fails searching no
      lore, and a handback comment the post hook cannot recognise being
      vetted as a post.
+
+Adam gave 350 and 351 on 2026-10-25, one for each question this change
+put to him when it recorded 347 to 349:
+
+350. **The post hook has no exemption for an Igor's handback.** It vets
+     every post it sees, and only the answer session reads igor's
+     marker. A marker any agent can add would let a post bypass vetting,
+     and an exemption would never help a real handback, since an Igor
+     posts its handbacks through its own code, which the hook never
+     sees. This amends decisions 40 and 349 and narrows 347.
+     *Rejected:* recognising a handback by the marker and an `igor-` App
+     author together.
+351. **A decline of a merged entry closes it on this machine only.** No
+     handled file is pushed for the merged log file, so other machines
+     may show it again, which Adam's rule that a question shown twice is
+     accepted allows. A handled file's only
+     benefit is that other machines stop showing the file, while a wrong
+     merge would close someone else's question everywhere. A merge thus
+     changes only what one machine shows and closes; only an answer to a
+     merged entry, recorded against the file, reaches other machines.
+     This amends decisions 273, 297 and 302. *Rejected:* accepting the wrong
+     close.
 
 ### Proposed by this change
 
@@ -3777,6 +3796,9 @@ decision 345.
 
 The two questions raised while recording decisions 344 to 346 are
 settled by decisions 347 and 348.
+
+The two questions raised while recording decisions 347 to 349 are
+settled by decisions 350 and 351.
 
 Open on igor PR #216's side, at the head last read, 59e7561, which records Adam's decisions
 up to 149 in #216's own numbering, decisions 244 and 245 among them as

@@ -93,7 +93,9 @@ Terms used throughout this spec:
 - **A thread copy** is a question shown from a thread. A questions-branch
   log file **holds** a thread copy when the file's `asked_in` links that
   thread message, or when this machine merged the file with that message
-  (proposal decisions 299 and 302).
+  (proposal decisions 299 and 302). When the thread copy closes, a file
+  holding it through `asked_in` gets a handled file, and a merged file
+  does not (proposal decision 351).
 - **A Claude Code background session** is one with no terminal attached,
   such as a session picker starts.
 - **The state folder** is
@@ -493,8 +495,11 @@ shows all of them; an answer already relayed or pushed for the merged
 entry stays, and an answer still on the pending list, once posted,
 still pushes a file naming the log file it was merged with (proposal
 decision 307). The merged entry is the message, and the file follows it as a
-file follows the message its `asked_in` links. Merging changes only what
-this machine shows (proposal decision 302).
+file follows the message its `asked_in` links. A merge decides only what
+this machine shows and closes: any close of the merged entry, a decline
+or an automatic post, closes the message and the file here alone, and only an answer to the merged entry, recorded
+against the file, reaches other machines (proposal decisions 302 and
+351).
 
 A question of the third source is answered by a comment
 on that pull request or issue. An Igor's handback that mentions no one
@@ -685,6 +690,14 @@ the first (proposal decisions 283, 287 and 291).
 - **THEN** the answer session shows one entry, from the message, and an
   answer to it is relayed in the thread and pushed as a log file naming
   the file in `answers`
+
+#### Scenario: Declining a merged entry closes it on this machine only
+
+- **WHEN** the person declines, with nothing to answer, an entry this
+  machine merged from a Discord message and a log file with no
+  `asked_in`
+- **THEN** the answer session closes both on this machine, in the state
+  folder, and pushes no handled file for the log file
 
 #### Scenario: Two messages with the same words are not merged
 
@@ -1679,12 +1692,14 @@ Whenever the answer session closes a question, it SHALL push one
 **handled file** for each unanswered log file on a lore repository's
 questions branch that holds the question and that no handled file names
 yet, through the inquisitor script's `log` command, with a thread or
-without, each naming one such file. A file holds the question when the
-question was shown from that file, as one of the fourth source, when its
-`asked_in` links the closed thread message, or when this machine merged
-it with that message. A
+without, each naming one such file. A file holds the question here when
+the question was shown from that file, as one of the fourth source, or
+when its `asked_in` links the closed thread message. A file this machine merged
+with the closed message is closed on this machine only, in the state
+folder, and gets no handled file, so another machine may show it again
+(proposal decision 351). A
 handled file closes exactly the file it names, on every machine, and
-nothing else (proposal decisions 273, 278 and 297). The answer session
+nothing else (proposal decisions 273, 278, 297 and 351). The answer session
 closes a question in two ways: it declines the question, agreeing to a
 shown recorded answer included, or it posts a recorded answer or an
 `Inquisitor: ` reply on it. The handled file is as the inquisitor's *A
@@ -1829,7 +1844,8 @@ giving one of two reasons:
    should not have written (proposal decision 336). Under that choice the
    answer session posts nothing, and, as for any decline with nothing
    posted, the question closes on this machine, while a handled file
-   closes any questions-branch file holding it everywhere (proposal
+   closes everywhere any questions-branch file the question was shown
+   from, or that holds it through `asked_in` (proposal
    decision 304). The person picks it,
    rather than reason 1, when the asking agent erred, not the answer
    session. This reason applies to a person's question as to an
@@ -1853,7 +1869,9 @@ post takes its state from its thread, as any question does.
 The person SHALL be able to reopen, on this machine, a thread copy they
 declined with nothing posted, which puts it back in their queue. A
 questions-branch file a handled file names SHALL NOT be offered for
-reopening (proposal decisions 260, 274 and 297). The answer session SHALL NOT
+reopening (proposal decisions 260, 274 and 297). Reopening a merged
+entry declined on this machine reopens its log file here too, since no
+handled file names it (proposal decision 351). The answer session SHALL NOT
 offer to reopen a question declined with a post; the person changes its
 handling by editing that post, as *A relay post can be edited where it
 was posted* says (proposal decision 260).
