@@ -641,7 +641,7 @@ needs that v0.1-33 lacks follow its patterns (proposal decision
 254, task 6.1).
 The rules are in the `answer-session` spec, the decisions in proposal
 decisions 152 to 175, 184 to 203, 207 to 211, 215, 216, 219, 220,
-222 to 230, 234, 236, 238, 246 to 248, 250 to 252, 254 to 260 and 262 to 346.
+222 to 230, 234, 236, 238, 246 to 248, 250 to 252, 254 to 260 and 262 to 349.
 
 ### Polling while open, with the person's credentials
 
@@ -855,7 +855,13 @@ that answer file alone, becomes a named file's answer, so a copy pushed
 in one commit with other files cannot (decision 328).
 
 An Igor asks a person through a handback comment on the issue or pull
-request it works, its item. The worker's log file links, in `asked_in`,
+request it works, its item. Igor marks each handback with a fixed
+marker that no text an Igor quotes from its item can produce, so the
+answer session can tell a handback from the Igor's other comments
+(decision 347). No one uses igor yet, so for the marker, the handback
+record and `asked_in`, which this paragraph relies on, the spec states
+only the end state and Still open asks igor #216 for them, with no rule
+for the time before igor provides them (decision 349). The worker's log file links, in `asked_in`,
 that handback comment, so each file follows exactly one comment and an
 answer names only its file. The item is shown only through its newest
 handback, since that one says where the Igor is blocked now. Every older

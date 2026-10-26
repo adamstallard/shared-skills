@@ -54,8 +54,9 @@ Terms used throughout this spec:
   serves, when the question holds beyond that one repository; or one
   person's way of working. The agent judges which.
 - **A decision document** is a `DECISIONS.md` file, an OpenSpec spec or
-  change, a decision record under `docs/decisions/`, an issue's decision
-  block, or a lore entry, and nothing else.
+  change, a decision record igor's scribe writes, at the path igor PR
+  #202 sets, which this change adopts, an issue's decision block, or a lore entry, and nothing else
+  (proposal decision 349).
 - **An issue's decision block** is the start of the issue's body, before its
   first heading, or the first of its sections whose heading starts with
   "Decision". It states what is decided.
@@ -680,9 +681,9 @@ the file's `repository` key still names where a linked comment may be.
 An answer typed directly on another surface, such as a Discord thread, a
 Slack message or a Linear comment, SHALL be input until a decision
 document that the list above counts records it. One such document is the
-`accepted` decision record igor's scribe (igor PR #202) writes in a place
-filter 1 searches, such as `docs/decisions/` on the default branch of the
-repository the question concerns. An answer the person typed in an
+`accepted` decision record igor's scribe writes at the path igor PR #202
+sets, in the repository the question concerns or in the lore repository,
+both of which filter 1 searches at that path (proposal decision 349). An answer the person typed in an
 answer session, which the session relayed on such a surface and logged,
 is not an answer typed there: its questions-branch log file can count
 through a signature on the commit that added it, the second of the two
@@ -2208,14 +2209,13 @@ that answers a question an earlier file there logged unanswered SHALL
 name that file in `answers`, one answer file for each such file it
 knows exactly: the agent that pushed the earlier file has its name, and
 a later Igor run on the item has it only from the Igor's own record of
-the handback,
+the handback, the record igor PR #216 is asked to keep (#216's decision
+59),
 which holds the 6-hex-digit suffix and the date in the name of the
 questions-branch log file the Igor pushed for that question, and no
 question text; the run finds the file on the branch by them, and when
 more than one file matches, it names none (proposal decisions 334 and
-342), as igor PR #216 is asked to have it (#216's decision
-59). Until #216 keeps such a record, the run finds no record and
-writes no `answers`; both states are built and tested; the handback comment may show that name for people, but the run
+342); the handback comment may show that name for people, but the run
 never reads it from there. The Igor adds that `answers` itself. When no
 record holds them, or no file on the branch matches them, the Igor SHALL write no `answers` for that run, and the earlier file
 stays shown until the person answers it (proposal decisions 303, 324
@@ -2657,12 +2657,14 @@ written.
   visible than the repository it points into (proposal decisions 299,
   302 and 315);
   `answers`, only in a questions-branch file holding an answer, the file
-  name of the unanswered questions-branch file it answers, written as
+  name of the questions-branch file it answers, one that holds no answer
+  inside it, written as
   `closes` is, and only when that file is on the branch (proposal
   decisions 303 and 310);
   `asked_from`, only in a questions-branch file an Igor pushes, whether
   its worker reported it or the Igor's own inquisitor run wrote it, or in
-  a miss an answer session logs for a question such a file holds. Its body
+  a miss or an answer file an answer session logs for a question such a
+  file holds. Its body
   is the question under `## Question`, and, once the answer comes, the
   answer under `## Answer`: for an answer with a github.com
   `answer_link`, the comment's own text word for word, as *Only an answer

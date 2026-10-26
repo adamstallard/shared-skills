@@ -404,9 +404,14 @@ closed. An unclear one is shown (proposal decision 289).
    wrote it, agents running the inquisitor included; a message whose
    author is a bot account, an agent's or an Igor's, reaches the person
    only when they are the first person it mentions, a bot account being
-   one as *An agent's question* defines it; a person's message, an agent's
-   posted under a person's own account included, reaches each person it
-   mentions (proposal decision 346);
+   a GitHub App, a Linear app user, or a Discord bot or webhook, as *An
+   agent's question* defines it; a person's message, an agent's
+   posted under a person's own account and a relayed question included,
+   reaches each person it mentions (proposal decision 346). A mention is,
+   on GitHub, an `@login` of a user, and on Linear or Discord, a mention
+   of a user, in each case outside code spans, code blocks, quoted lines
+   and links; a team mention is skipped when finding the first person, and
+   a message whose only mentions are of teams mentions no one;
 2. a message in a subscribed channel that mentions one of the person's
    relay identities, or that replies to a relay post: a Discord reply to it,
    a Linear comment after it in the same comment thread, a GitHub reply to
@@ -416,10 +421,11 @@ closed. An unclear one is shown (proposal decision 289).
    person's review, or an issue there assigned to the person; on Linear,
    an issue in a subscribed team assigned to the person. An item an Igor
    handed back, and assigned to the person, is shown only through its
-   newest **handback**, an Igor's comment that asks a person something
-   (task 0.6 measures how one is told from the Igor's other comments;
-   until it is measured, an Igor comment counts as a handback when it
-   holds a question, as the inquisitor finds a question in a post).
+   newest **handback**, a comment by an App whose slug starts with
+   `igor-` that holds the fixed marker igor gives its handback comments,
+   one that text the Igor quotes from the item cannot produce, as igor PR
+   #216 is asked to provide; the form is igor's, and task 0.6 records it
+   (proposal decision 347).
    Every older handback on the item is **passed over**: each machine
    works this out from the thread alone, writes nothing, and never
    shows it again, even once the newest is answered. The newest
@@ -429,9 +435,8 @@ closed. An unclear one is shown (proposal decision 289).
    handback that mentions no one reaches the person through this
    source; one that mentions people reaches only the first one
    mentioned, under the first source, and the item is then not shown to
-   its assignee unless that is the first one mentioned. A mention is an
-   `@login` of a user, outside code spans, code blocks, quoted lines and
-   links; a team mention is skipped when finding the first person. A review request alone does not make such an item a
+   its assignee unless that is the first one mentioned, who then sees it
+   under the first source, still as the item's open handback. A review request alone does not make such an item a
    question (proposal decisions 345 and 346; igor issue [igor #229](https://github.com/adamstallard/igor/issues/229));
 4. a log file on the questions branch of a lore repository the inquisitor's
    configuration names, which holds no answer, whose question tags the
@@ -459,9 +464,9 @@ someone else. When it mentions people, it is shown to the first one
 mentioned, under the first source. Once a newer handback passes it over,
 it is never shown again, in which case it stays on the questions branch,
 unanswered (proposal decisions 333, 345 and 346). The answer session SHALL follow such a link
-only when the comment is on an issue or pull request in the log file's
-`repository` and its author is an App whose slug starts with `igor-`;
-otherwise it shows the log file on its own. A log file whose `asked_in`
+only when the comment is a handback, on an issue or pull request in the
+repository the log file's `asked_from` names, or its `repository` when it
+has no `asked_from`; otherwise it shows the log file on its own. A log file whose `asked_in`
 links a message this machine does not read, one in a channel it does
 not subscribe to or that is off, or on a surface it has turned off or
 cannot read, is shown on its own on this machine, as a question of the
@@ -549,6 +554,27 @@ the first (proposal decisions 283, 287 and 291).
 - **THEN** every answer session shows only the newer handback, writes
   nothing for the older, never shows the older one's log file again, and
   an answer to the newer handback names only the newer one's log file
+
+#### Scenario: An Igor comment without the handback marker is not a handback
+
+- **WHEN** an Igor posts, on an issue assigned to the person, a comment
+  without the fixed handback marker, after a handback no relay post
+  names
+- **THEN** the answer session still shows the earlier handback, and does
+  not treat the new comment as one
+
+#### Scenario: A log file linking an Igor comment without the marker is shown on its own
+
+- **WHEN** a log file's `asked_in` links a comment by an `igor-` App that
+  holds no handback marker
+- **THEN** the answer session shows the log file on its own
+
+#### Scenario: An Igor question about another repository follows its handback
+
+- **WHEN** an Igor's log file has `repository: o/api` and `asked_from:
+  o/web`, and its `asked_in` links a handback on an issue in `o/web`
+- **THEN** the answer session follows the link, and an answer to that
+  handback names the log file
 
 #### Scenario: A bot's message reaches only the first person it mentions
 
@@ -943,7 +969,9 @@ record that holds no post's URL is settled from the thread at the next
 poll or opening: when the thread holds a relay post naming the question
 whose text is this answer, the retry uses its URL; otherwise the answer was never posted, the record is dropped, and
 the answer is kept as answered, not relayed. The answer session
-SHALL drop the retry once a newer answer file names the same file, and
+SHALL drop the retry once an answer file that counts as the person's
+answer names the same file, one this machine first sees at a fetch made
+after it recorded the owed push, and
 SHALL NOT retry a push the `log` command refuses for a reason that will
 not change, such as lack of access, a relay post the command cannot
 read, or an answer whose words the lore repository is too visible to
@@ -1516,7 +1544,9 @@ merged with that file. For a question shown
 from a thread, it SHALL relay the answer in the thread, as *An answer is
 relayed as the person's words* says, and also push the log file. It SHALL
 answer such a question by writing a new log file, naming the answered
-file in its `answers` key, through the inquisitor script's `log` command, which pushes it to that same questions
+file in its `answers` key and copying that file's `asked_from`, when it
+has one, as *The answer session logs its misses on the team's lore
+repository's questions branch* has a miss copy it, through the inquisitor script's `log` command, which pushes it to that same questions
 branch under the rules of the inquisitor's *Every answer is recorded and
 every asked question logged*. When the answer was also relayed in a
 thread, the answer session SHALL pass the `log` command the URL of that

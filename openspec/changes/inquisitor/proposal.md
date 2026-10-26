@@ -17,7 +17,7 @@ are written down:
   turned on, on 2026-10-20, and how `check` reads it, on 2026-10-21.
 - 240 to 253, on 2026-10-21;
 - 254 to 284, on 2026-10-24;
-- 285 to 306 and 308 to 346, on 2026-10-25, with 307, which this
+- 285 to 306 and 308 to 349, on 2026-10-25, with 307, which this
   change proposed, confirmed by 314.
 
 Apart from 229 and 241 to 244, which he gave in the session reviewing
@@ -74,7 +74,9 @@ order. 337 to 341 answer the five raised with 331 to 336, and 342 and
 343 confirm two choices this change made then. 344 follows this
 change's note that the GitHub part of the merge rule could never apply,
 345 settles the question raised with 337 to 343, and 346 adds a routing
-rule.
+rule. 347 and 348 answer the two raised with 344 to 346, and 349 is the
+general rule Adam gave with them: not to design for igor states before
+a change lands.
 
 1. **Four filters run before any question reaches a person.**
    1. **Already answered:** the agent finds the earlier answer, cites where it
@@ -364,7 +366,7 @@ consistency read:
     3. For a question about an organization or project, write access to
        what the question concerns means write access to the team's lore
        repository.
-63. **Filter 1 keeps searching `docs/decisions/` for decision records
+63. *Amended by Adam's decision 349: filter 1 searches the scribe's records where igor PR #202 puts them; #202 must say where.* **Filter 1 keeps searching `docs/decisions/` for decision records
     until igor PR #202 settles where igor's scribe,** the Igor role that
     writes a discussion's decisions down, **keeps its records,** and this
     change then follows it.
@@ -2527,7 +2529,7 @@ this change put to him when it recorded 321 to 324:
      still pushed at once, unchecked, as decision 318 has it. This
      amends decision 318. *Rejected:* pushing every answer file at
      confirmation.
-326. *Its rule is replaced by Adam's decisions 339 and 345: every Igor log file links its own handback comment, not the item. Decision 333's assignee limits still apply.* **An Igor worker's log file links, in `asked_in`, the assigned issue
+326. *Its rule is replaced by Adam's decisions 339 and 345: every Igor log file links its own handback comment, not the item. Decision 333's assignee limits still apply to a handback that mentions no one; one that mentions people reaches the first one mentioned (decisions 346 and 348).* **An Igor worker's log file links, in `asked_in`, the assigned issue
      or pull request its question is shown from,** not the handback
      comment, so answering or declining it there applies to the log
      file. This amends decision 299 for an Igor's question. *Rejected:*
@@ -2577,7 +2579,7 @@ leak private content or lose an answer is still raised.
      `answer_link`; a failed push is retried at each poll until it
      succeeds,** as a handled file's is. This amends decision 325.
      *Rejected:* accepting a thread answered with no file.
-333. *Amended by Adam's decisions 339 and 345: every Igor log file follows its own handback comment, and the item is shown only through its newest handback, open until a relay post answers it, or handles it with a `Recorded answer: ` or `Inquisitor: ` post; the assignee rules stay.* **An Igor log file follows its item, with these limits:**
+333. *Amended by Adam's decisions 339 and 345: every Igor log file follows its own handback comment, and the item is shown only through its newest handback, open until a relay post answers it, or handles it with a `Recorded answer: ` or `Inquisitor: ` post; the assignee rules stay for a handback that mentions no one, by decisions 346 and 348.* **An Igor log file follows its item, with these limits:**
      - a log file a later Igor run writes after the person already
        answered an earlier question on the item is shown on its own, as
        its own question, to whoever the item's question would go to,
@@ -2588,7 +2590,7 @@ leak private content or lose an answer is still raised.
      - an item assigned to someone else is theirs and never appears in
        this person's queue.
      This amends decision 326. *Rejected:* linking the handback comment.
-334. *Confirmed by Adam's decision 342: more than one match names none.* **The Igor's record of a handback holds only the log file name's
+334. *The spec's interim clause built on it, "until #216 keeps such a record", removed by Adam's decision 349.* *Confirmed by Adam's decision 342: more than one match names none.* **The Igor's record of a handback holds only the log file name's
      6-hex-digit suffix and its date,** never question text, and the
      later run finds the file on the branch by them. The slug in file
      names stays, so a file name still carries some of the question's
@@ -2618,7 +2620,7 @@ and 343 confirm two choices this change made while recording them:
      the push does not lose the answer file. This amends decision 332.
      *Rejected:* any machine pushing an answer file for a relay post it
      finds without one.
-339. *Generalised by Adam's decision 345: every Igor log file links its own handback comment.* **A log file for a new Igor question on an item whose earlier
+339. *Generalised by Adam's decision 345: every Igor log file links its own handback comment. Its assignee rules hold only for a handback that mentions no one, by decisions 346 and 348.* **A log file for a new Igor question on an item whose earlier
      question is already answered follows that run's new handback
      comment,** which reaches the person as a new message in an answered
      thread (decision 291), so the answer is relayed on the item and
@@ -2661,7 +2663,7 @@ option records.
      condition could never hold. Merging covers only Linear and Discord messages. This
      withdraws the merge half of decision 315 and decision 341, and
      narrows 314.
-345. **When an Igor posts a newer handback on an item that still holds an
+345. *A handback is identified by igor's fixed marker, by Adam's decision 347.* **When an Igor posts a newer handback on an item that still holds an
      older unanswered one, only the newest counts as open.** The older
      one is superseded by a reading rule each answer session applies to
      what it reads in the thread, with no coordination between them; nothing is written for it, no post, edit or handled
@@ -2681,7 +2683,7 @@ option records.
      this change offered, a new file linking its own handback only while
      an earlier one was unanswered, and an answer naming only the oldest
      unanswered file.
-346. **A bot's question reaches only the first person it mentions.** A
+346. *Adam's decision 348 confirms it applies to Igors with no interim routing by assignment alone.* **A bot's question reaches only the first person it mentions.** A
      message by a bot or agent, an Igor, an agent running the
      inquisitor or any other bot, reaches only the first person it
      mentions; the bot is expected to order its mentions by importance,
@@ -2698,6 +2700,42 @@ option records.
      never needs to know an operator. *Rejected:* a handback reaching
      the assignee unless it mentions someone else and not them, the
      rule as first given.
+
+Adam gave 347 to 349 on 2026-10-25. The two questions this change put
+to him when it recorded 344 to 346 were which Igor comments count as
+handbacks, and how to route an Igor's handback before igor #229 lands.
+347 and 348 answer them under a general rule, recorded as 349: no
+one uses igor yet, so until it has real users this change does not
+design for interim situations. It specifies the end state of anything
+that depends on an igor change and records what igor must provide.
+
+347. **A handback is identified by a fixed marker igor gives its handback
+     comments.** The interim rule, that an Igor comment counted as a
+     handback when it held a question, is dropped. Igor chooses the
+     marker's form; Still open asks igor PR #216 for it, and task 0.6
+     records the form #216 sets. *Rejected:*
+     counting every comment by an `igor-` App.
+348. **Decision 346's first-mention rule applies to Igors directly,** with
+     no interim routing by assignment alone; igor issue #229 provides the
+     ordering. *Rejected:* routing an Igor's handback by assignment until
+     #229 lands.
+349. **Clauses that exist only for igor states before a change lands are
+     removed,** each replaced by its end state, with what igor must
+     provide recorded in Still open. A clause that also guards against
+     misuse in the end state stays. Removed: the inquisitor spec's "Until
+     #216 keeps such a record, the run finds no record and writes no
+     `answers`; both states are built and tested"; the answer-session
+     spec's interim handback rule (decision 347); task 7.0's "Until #202
+     says so, filter 1 searches `docs/decisions/` … and no lore
+     repository's decision records", now filter 1 searching where #202
+     puts the scribe's records (amending decision 63); and Still open's
+     "until this change adopts that way, a worker searches no lore" and
+     "Until igor builds the command and lets a worker run the script, a
+     worker searches no lore", now stated as what igor must provide.
+     Kept, as guards in the end state: a `log` file with no matching
+     record writing no `answers`, a command that fails searching no
+     lore, and a handback comment the post hook cannot recognise being
+     vetted as a post.
 
 ### Proposed by this change
 
@@ -3737,6 +3775,9 @@ settled by decisions 337 to 341.
 The question raised while recording decisions 337 to 343 is settled by
 decision 345.
 
+The two questions raised while recording decisions 344 to 346 are
+settled by decisions 347 and 348.
+
 Open on igor PR #216's side, at the head last read, 59e7561, which records Adam's decisions
 up to 149 in #216's own numbering, decisions 244 and 245 among them as
 its decisions 92 and 97:
@@ -3768,10 +3809,8 @@ its decisions 92 and 97:
   and name in `answers` the file an answer file answers (decision 303),
   adding `answers` itself and refusing a worker's file that holds it
   (decision 310). Without `answers`, the answer session keeps showing
-  the answered file as unanswered. Its handback comments should be
-  recognisable as handbacks among its other comments, since the answer
-  session shows an item only through its newest handback (task 0.6;
-  decision 345).
+  the answered file as unanswered. Its handback comments carry the
+  fixed marker that a later item in this list asks for.
 - **#216 should widen its definition of a citation to include a
   person's cite.** It defines a citation as an agent's record that a
   lore entry answered a question so that no person was asked. Decision
@@ -3966,19 +4005,20 @@ item on Igor-worker mode.
   picker and no hooks, and can't read the lore checkout. By decision 144,
   filter 1 in a worker calls igor's read-only search command instead,
   `igor lore-search`, which igor PR #216 specifies and igor has not built.
-  #216's task 4.5 has yet to measure whether a worker can give the
-  command its standard input. If it can't, #216 gives the command another
-  way to take the text, and until this change adopts that way, a worker
-  searches no lore, as this change's spec says for a command that fails. The skill's script must also be one the worker can run,
-  which today means a role's `commands` lists it. Until igor builds the
-  command and lets a worker run the script, a worker searches no lore, as
-  the spec's fallback says, and gate two builds everything else.
-- **Can the post hook tell an Igor's handback comment from other posts?**
-  Igor's own code might post it outside any tool call, where no hook sees
-  it, or an agent might post it with `gh`. If the hook can't tell, it would
-  block an unvetted question in such a comment, against decision 40, until
-  the Igor inquisitor role's work marks the comment.
-- **igor PR #202, the scribe's records.** Two of its open points decide
+  #216's task 4.5 measures whether a worker can give the command its
+  standard input; if it can't, #216 gives the command another way to
+  take the text, and this change adopts it. Igor must also let a worker
+  run the skill's script, which today means a role's `commands` lists
+  it. The spec's rule that a command that fails searches no lore stays,
+  as a guard (decision 349).
+- **#216 should give every handback comment a fixed marker** (decision
+  347), one that text the Igor quotes from its item cannot produce, which
+  the answer session reads to tell a handback from the Igor's other
+  comments. Igor chooses its form, and task 0.6 records it.
+- **igor PR #202, the scribe's records.** #202 must say where the
+  scribe's records live, in the repository a question concerns and in
+  the lore repository, since filter 1 searches them there (decision 349).
+  Two of its open points decide
   when decision 109 can apply:
   - #202 has not settled how the scribe recognises an approval given off
     GitHub. Until it does, the scribe can't mark a record of an answer
@@ -3988,9 +4028,8 @@ item on Igor-worker mode.
     such as one on the default branch of the repository the question
     concerns.
   - #202's spec puts a decision about several repositories in the lore
-    repository. Filter 1 reads the lore repository's decision records once
-    #202 says where they live there (decision 66, task 7.0). Until then,
-    a scribe's record can answer only a question about one repository.
+    repository. Filter 1 reads the lore repository's decision records
+    where #202 puts them (decisions 66 and 349, task 7.0).
 - **Not planned here: proving an answer by a link to a message on another
   surface,** such as Discord, with that surface's API vouching for the
   message's author, and a file in the lore repository mapping the author

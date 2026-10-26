@@ -28,8 +28,11 @@ contradicts what design.md assumed.
       found from the repository's commits on GitHub, such as the
       `author.login` that `gh api repos/<owner>/<repo>/commits?path=<file>`
       returns, or the script must skip that candidate
-- [ ] 0.6 How an Igor posts its handback comment, and whether the post hook
-      can tell that comment from other posts
+- [ ] 0.6 Record, from igor PR #216, the form of the fixed marker igor
+      chooses for its handback comments
+      (decision 347), one that text the Igor quotes from its item cannot
+      produce, by which the answer session tells a handback from the
+      Igor's other comments
 - [ ] 0.7 How the script can learn which login a post goes out as, when the
       agent posts through the github-app skill's script
 - [ ] 0.8 Whether the script can find the approver of the pull request that
@@ -324,9 +327,9 @@ contradicts what design.md assumed.
       with a category (by the spec's *Some questions are recorded by hash
       only*), blocking a post with a question when it can't read
       its records, passing a `deferred` question that tags no one in an
-      open-questions section or a new issue, and letting an Igor's handback comment through as
-      far as task 0.6 finds the hook can tell that comment apart from other
-      posts
+      open-questions section or a new issue, and letting through, with no
+      question checks, a handback comment the hook recognises by igor's
+      fixed marker (decision 347)
 - [ ] 3.3 `hook.json` with both hooks, `"default": "enabled"`
 
 ## 4. Tests
@@ -575,8 +578,9 @@ contradicts what design.md assumed.
       than one match naming none (decisions 334 and 342); a file that
       tags no one answered only by an account with write access to the
       lore repository (decision 340); an Igor's handback link followed
-      only from an `igor-` App's comment in the file's repository
-      (decisions 339 and 345);
+      only from a marked `igor-` App handback in the repository the file's
+      `asked_from` names, which an Igor's file always holds (decisions
+      339, 345 and 347);
       the relay post's URL added to the owed push record once the post
       goes out, and
       the record dropped when the post never went out (decision 338);
@@ -614,14 +618,13 @@ contradicts what design.md assumed.
 ## 7. Archive
 
 - [ ] 7.0 Archive only after igor PR #216 has merged, since filter 1's
-      search in an Igor worker depends on it, and after task 4.3 has
+      search in an Igor worker depends on it, after igor PR #202 has set
+      the path of the scribe's records, and after task 4.3 has
       tagged every expected gap, since spec-trace's CI fails on an
-      untagged scenario once archived (decision 253). If igor PR #202 has by then
-      said where the scribe's records live, both in the repository a
-      question concerns and in the lore repository, make filter 1 search
-      those places (decisions 63, 66 and 109). Until #202 says so, filter 1
-      searches `docs/decisions/` in the repository a question concerns,
-      and no lore repository's decision records. Once #216 has merged,
+      untagged scenario once archived (decision 253). Make filter 1
+      search the scribe's records where igor PR #202 puts them, in the
+      repository a question concerns and in the lore repository
+      (decisions 63, 66, 109 and 349). Once #216 has merged,
       point the spec's links to *An Igor publishes the citations its worker
       reports*, *An Igor publishes the questions-branch files its worker
       reports* and *An Igor runs its worker's lore searches* at igor's
