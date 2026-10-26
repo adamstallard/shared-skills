@@ -17,7 +17,7 @@ are written down:
   turned on, on 2026-10-20, and how `check` reads it, on 2026-10-21.
 - 240 to 253, on 2026-10-21;
 - 254 to 284, on 2026-10-24;
-- 285 to 306 and 308 to 351, on 2026-10-25, with 307, which this
+- 285 to 306 and 308 to 352, on 2026-10-25, with 307, which this
   change proposed, confirmed by 314.
 
 Apart from 229 and 241 to 244, which he gave in the session reviewing
@@ -76,7 +76,9 @@ change's note that the GitHub part of the merge rule could never apply,
 345 settles the question raised with 337 to 343, and 346 adds a routing
 rule. 347 and 348 answer the two raised with 344 to 346, and 349 is the
 general rule Adam gave with them: not to design for igor states before
-a change lands. 350 and 351 answer the two raised with 347 to 349.
+a change lands. 350 and 351 answer the two raised with 347 to 349, and
+352 drops merging, of a log file with no `asked_in` and a thread message
+with the same words, which makes the two raised with 350 and 351 moot.
 
 1. **Four filters run before any question reaches a person.**
    1. **Already answered:** the agent finds the earlier answer, cites where it
@@ -1370,7 +1372,7 @@ confirmed 181 to 183 and 197 to 203, amended 199, changed four items of
      model's follow-up question, which asked which filter and why: it
      supersedes decision 202's item 4, and decision 174's exception no
      longer needs to cover it.
-210. *Amended by Adam's decisions 299 and 302: the file is shown once, from the post, only when its `asked_in` links the post, or when the machine showing them merges them under decision 307.* **A questions-branch question that was also asked in a post is
+210. *Amended by Adam's decisions 299 and 302: the file is shown once, from the post, only when its `asked_in` links the post.* **A questions-branch question that was also asked in a post is
      answered in its thread too.** The answer session shows it once, from
      the thread (decision 175's item 11), relays the person's answer there
      as usual, and pushes the log file that records the answer to the
@@ -2094,7 +2096,7 @@ change put to him when it recorded 268 and 269:
 Adam gave 273 to 276 on 2026-10-24, answering the three questions this
 change put to him when it recorded 270 to 272:
 
-273. *Amended by Adam's decisions 278, 297, 305 and 351: the handled file is written on every close of a file shown directly as the question, or holding it through `asked_in`, never for a merged file, and holds only `handled` and `closes`, which names the one questions-branch file it closes; the keys listed below are superseded.* **The answer session writes the handled file itself.** Whenever it
+273. *Amended by Adam's decisions 278, 297 and 305: the handled file is written on every close of a file shown directly as the question, or holding it through `asked_in`, and holds only `handled` and `closes`, which names the one questions-branch file it closes; the keys listed below are superseded.* **The answer session writes the handled file itself.** Whenever it
      declines a question, agreeing included (decision 270), or posts a
      recorded answer or an `Inquisitor: ` reply on it, and a
      questions-branch file holds that question, it pushes the handled
@@ -2298,7 +2300,7 @@ put to him when it recorded 288 to 291:
 Adam gave 297 to 299 on 2026-10-25, settling the six questions this
 change put to him when it recorded 292 to 296:
 
-297. *For a merged log file, Adam's decision 351 pushes no handled file on a decline.* *Amended by Adam's decision 305: a handled file holds only `handled` and `closes`.* **Closing works by exact identity, never by matching.** A handled
+297. *Amended by Adam's decision 305: a handled file holds only `handled` and `closes`.* **Closing works by exact identity, never by matching.** A handled
      file names, in its `closes` key, the one questions-branch file it
      closes, by that file's unique name, and closes that file on every
      machine for good. A thread copy, a question shown from its thread,
@@ -2327,7 +2329,7 @@ change put to him when it recorded 292 to 296:
      decisions 196, 285 and 292 and retires 198's `"source <n>"` miss;
      208's `said: "not a question"` is no longer written. *Rejected:* a miss
      against the source.
-299. *For an Igor's question, Adam's decision 345 makes its `asked_in` link the handback comment that asks it.* *Amended by Adam's decisions 300 to 302 and 344: a file whose link this machine never reads is shown on its own, an answer records the message's question, and a withheld Linear or Discord link is made up for by merging.* **A questions-branch log file follows its thread message by exact
+299. *With merging dropped by Adam's decision 352, a log file with no `asked_in` is judged on its own, as a question of the fourth source.* *For an Igor's question, Adam's decision 345 makes its `asked_in` link the handback comment that asks it.* *Amended by Adam's decisions 300 to 302: a file whose link this machine never reads is shown on its own, and an answer records the message's question.* **A questions-branch log file follows its thread message by exact
      link.** A log file for a question the asking agent also asked in a
      post holds that message's URL as `asked_in`, and what the
      answer session decides about that message applies to the file. A
@@ -2351,7 +2353,7 @@ put to him when it recorded 297 to 299:
      words, which the person never saw; now the answer file pairs the
      answer with the words they answered. *Rejected:* showing the file's question beside the
      message.
-302. *Amended by Adam's decision 351: a decline of a merged entry closes it on this machine only, pushing no handled file.* *Extended by Adam's decision 315 to a GitHub `asked_in` into a more private repository.* **Decision 251's rule applies to `asked_in`:** a Linear or Discord
+302. *Its merge half superseded by Adam's decision 352; the withholding of `asked_in` stands.* *Amended by Adam's decision 351, itself superseded by 352: a decline of a merged entry closed it on this machine only.* *Extended by Adam's decision 315 to a GitHub `asked_in` into a more private repository.* **Decision 251's rule applies to `asked_in`:** a Linear or Discord
      `asked_in` is written only when the lore repository is private.
      Where the URL is withheld, the answer session merges the log file
      and the thread message into one entry where it can tell they are
@@ -2386,12 +2388,12 @@ Adam gave 308 to 315 on 2026-10-25, one for each question this change
 put to him when it recorded 300 to 307, and confirmed 307 as changed by
 314:
 
-308. **Accepted: a merge can differ between machines.** Each machine
+308. *Superseded by Adam's decision 352: merging is dropped.* **Accepted: a merge can differ between machines.** Each machine
      judges decision 307's condition, that the file matches no other
      message and the message no other file, by what it polls, so two machines
      reading different channels can merge one file with different
      messages. *Rejected:* never merging.
-309. **An answer file always records the message's words,** as decision
+309. *Its merge case, and the reasoning about it below, are gone with Adam's decision 352; the rule stands for a file linked by `asked_in`, where the 315 reasoning alone holds.* **An answer file always records the message's words,** as decision
      301 says, with no rule of its own for a lore repository more
      visible than the thread. Such a case barely arises: under decision
      315 an `asked_in` link, and so the message it points to, is written
@@ -2432,7 +2434,7 @@ put to him when it recorded 300 to 307, and confirmed 307 as changed by
      decline reason 2's, for the answer session's own error (decision
      298), and filter 3's choice under reason 3, for the asking agent's
      (decision 304).
-314. *Narrowed back by Adam's decision 344: GitHub messages no longer merge, so the change 314 made to 307 is undone; Linear and Discord merge as before.* **Decision 307 is confirmed with one change:** "the message is on
+314. *Superseded by Adam's decision 352: merging is dropped.* *Narrowed back by Adam's decision 344: GitHub messages no longer merge, so the change 314 made to 307 is undone; Linear and Discord merge as before.* **Decision 307 is confirmed with one change:** "the message is on
      Linear or Discord" becomes "a message whose `asked_in` would be
      withheld", so a GitHub message decision 315 withholds merges too.
 315. *Its merge half withdrawn by Adam's decision 344; the withholding stays.* **A GitHub `asked_in` is withheld when the thread's repository is
@@ -2633,7 +2635,7 @@ and 343 confirm two choices this change made while recording them:
      Both specs, the answer-session and inquisitor specs, use this one
      test, which replaces decision 335's wording. *Rejected:* answering such files
      only through filter 1's hash search.
-341. *Withdrawn by Adam's decision 344, with the GitHub part of the merge rule.* **A GitHub message merges with a log file only when the file's
+341. *Superseded by Adam's decision 352: merging is dropped.* *Withdrawn by Adam's decision 344, with the GitHub part of the merge rule.* **A GitHub message merges with a log file only when the file's
      `repository` equals the message's repository;** otherwise there is
      no merge, and the question is shown twice, which Adam's unnumbered
      rule above accepts. This narrows decision 307. *Rejected:* accepting
@@ -2652,7 +2654,7 @@ answer could close the log files of two Igor handbacks on one item. 346
 is a rule of his own, which he amended the same day, as its rejected
 option records.
 
-344. **The GitHub part of the merge rule is removed.** A GitHub merge
+344. *Superseded by Adam's decision 352: merging is dropped altogether.* **The GitHub part of the merge rule is removed.** A GitHub merge
      needs the thread's repository to be more private than the lore
      repository. Decision 341 requires the thread's repository to be the
      file's own `repository`, and the script never logs a file to a lore
@@ -2745,7 +2747,7 @@ put to him when it recorded 347 to 349:
      sees. This amends decisions 40 and 349 and narrows 347.
      *Rejected:* recognising a handback by the marker and an `igor-` App
      author together.
-351. **A decline of a merged entry closes it on this machine only.** No
+351. *Superseded by Adam's decision 352: with no merging, there is no merged entry to close.* **A decline of a merged entry closes it on this machine only.** No
      handled file is pushed for the merged log file, so other machines
      may show it again, which Adam's rule that a question shown twice is
      accepted allows. A handled file's only
@@ -2755,6 +2757,25 @@ put to him when it recorded 347 to 349:
      merged entry, recorded against the file, reaches other machines.
      This amends decisions 273, 297 and 302. *Rejected:* accepting the wrong
      close.
+
+Adam gave 352 on 2026-10-25:
+
+352. **Merging is dropped.** A log file with no `asked_in`, whether
+     withheld for privacy or never written, is always shown as its own
+     question; the answer session never pairs a file with a thread
+     message by matching text. On Linear and Discord, where a link is
+     withheld from a lore repository that is not private, the person may
+     see such a question twice, which Adam's unnumbered rule that a
+     question shown twice is accepted allows. Merging's only
+     benefit was avoiding a duplicate, which Adam ruled low priority; its
+     cost was a series of wrong-close and wrong-answer cases (decisions
+     307, 308, 314, 341 and 351). The two questions this change put to
+     him when it recorded 350 and 351, whether 351 covers every close of
+     a merged entry and what an answer does once a merge has ended, are
+     moot. This supersedes 302's merge half, 307, 308, 314, 341, 344 and
+     351; 302's withholding of `asked_in`, 315's withholding (not its
+     merge half) and 337 stand.
+     *Rejected:* keeping merging with more guards.
 
 ### Proposed by this change
 
@@ -2776,7 +2797,8 @@ replace. Decision 239 came from this change too, and Adam confirmed it
 item by item, except item 2, which his decision 240 changes. Decision
 245 came from this change too, and Adam replaced it with his own decision
 245, recorded above. Decision 307 came from this change too, and Adam
-confirmed it with the change his decision 314 makes.
+confirmed it with the change his decision 314 makes; his decision 352
+later superseded both.
 
 16. **Confirmed by Adam (2026-10-19).** **A prepared question** states the recommended answer, what changes under
     the other answer, and a link to any related earlier decision, so that most
@@ -3377,7 +3399,7 @@ confirmed each on 2026-10-20, amending 199 and changing items 2, 4, 6 and
      7. *Replaced by Adam's decision 207,* which logs a miss against
         filter 1 for an agent's question that filter 1 answers by itself.
         This item logged none.
-     8. *Its use for decision 175's item 11 ended with Adam's decision 299, and its use for misses and answers with his decision 303; the reduction still serves "the same question" in decision 302's merge and in filter 1's search.* A log file's question is reduced as a post's question is, without
+     8. *Its use for decision 175's item 11 ended with Adam's decision 299, and its use for misses and answers with his decision 303; the reduction still serves "the same question" in filter 1's search.* A log file's question is reduced as a post's question is, without
         list marker or inline markup and with its whitespace joined,
         before it is hashed, so decision 175's item 11 finds a question
         logged from a thread. Before this, a log file's question was
@@ -3720,7 +3742,7 @@ this change's own:
         on fetching under `igor run` and the hashed record of handback
         questions, contradict nothing here.
 
-307. *Narrowed by Adam's decision 344 back to Linear and Discord messages, so the body's wording below is current again; decision 341's GitHub rule is withdrawn with it.* **Confirmed by Adam (2026-10-25), with "on Linear or Discord"
+307. *Superseded by Adam's decision 352: merging is dropped, so none of the notes below or the body is current.* *Narrowed by Adam's decision 344 back to Linear and Discord messages; decision 341's GitHub rule is withdrawn with it.* **Confirmed by Adam (2026-10-25), with "on Linear or Discord"
      replaced by his decision 314.** **The merge criterion of decision
      302.** A log file with no `asked_in` is merged with a thread message
      on one machine only when the file is on a lore repository that is
@@ -3799,6 +3821,9 @@ settled by decisions 347 and 348.
 
 The two questions raised while recording decisions 347 to 349 are
 settled by decisions 350 and 351.
+
+The two questions raised while recording decisions 350 and 351 are moot
+under decision 352.
 
 Open on igor PR #216's side, at the head last read, 59e7561, which records Adam's decisions
 up to 149 in #216's own numbering, decisions 244 and 245 among them as

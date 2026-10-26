@@ -92,10 +92,7 @@ Terms used throughout this spec:
   it.
 - **A thread copy** is a question shown from a thread. A questions-branch
   log file **holds** a thread copy when the file's `asked_in` links that
-  thread message, or when this machine merged the file with that message
-  (proposal decisions 299 and 302). When the thread copy closes, a file
-  holding it through `asked_in` gets a handled file, and a merged file
-  does not (proposal decision 351).
+  thread message (proposal decision 299).
 - **A Claude Code background session** is one with no terminal attached,
   such as a session picker starts.
 - **The state folder** is
@@ -449,13 +446,18 @@ closed. An unclear one is shown (proposal decision 289).
    such answer beside it, as input. A handled file is never shown as a question of
    its own.
 
-The answer session SHALL show a question once: a log file of the fourth
-source whose `asked_in` links a thread message follows that message, by
-that exact link. Whatever the answer session decides about the message,
+A log file of the fourth source whose `asked_in` links a thread message
+SHALL follow that message, by that exact link. Whatever the answer session decides about the message,
 showing it, answering it, ignoring it as not a question or declining it,
 applies to the log file, which is not shown on its own. A log file with
-no `asked_in` is judged on its own as a question of the fourth source
-(proposal decision 299). An Igor worker's log file links, in `asked_in`,
+no `asked_in`, whether its link was withheld for privacy or never
+written, is judged on its own as a question of the fourth source
+(proposal decision 299). The answer session SHALL NOT pair a log file
+with a thread message by matching their text, so a question whose
+`asked_in` was withheld, a Linear or Discord one logged in a lore
+repository that is not private, or a GitHub one logged in a lore
+repository more visible than its thread, may be shown twice (proposal
+decision 352). An Igor worker's log file links, in `asked_in`,
 the handback comment that asks its question, and follows it as a file
 follows its thread message, so an answer to that handback names only
 that file (proposal decisions 326, 339 and 345). It is shown only while
@@ -476,30 +478,6 @@ fourth source (proposal decision 300). That rule does not apply to an
 Igor's log file, one holding `asked_from`, whose link is followed: such
 a file is never shown on its own because this machine does not read its
 item.
-
-A log file with no `asked_in` that is of the fourth source, or that this
-machine had merged before a handled file named it, so that a late
-answer there still pushes a file answering it (proposal decision 306),
-SHALL be merged with
-a thread message into one entry on this machine when all of these hold:
-the message is on Linear or Discord, and the file's lore repository is
-not private, so the `asked_in` linking that message was withheld
-(proposal decisions 314 and 344); the two questions are the
-same question once every mention, an `@login` or a Linear or Discord
-user mention, is removed from each; the file's `asked` day is the day,
-in UTC, the message was posted; and the file meets these with no other
-message this machine has polled, and the message with no other
-fourth-source file. Otherwise both are shown. The answer session judges
-this again at each poll, so a second matching message ends the merge and
-shows all of them; an answer already relayed or pushed for the merged
-entry stays, and an answer still on the pending list, once posted,
-still pushes a file naming the log file it was merged with (proposal
-decision 307). The merged entry is the message, and the file follows it as a
-file follows the message its `asked_in` links. A merge decides only what
-this machine shows and closes: any close of the merged entry, a decline
-or an automatic post, closes the message and the file here alone, and only an answer to the merged entry, recorded
-against the file, reaches other machines (proposal decisions 302 and
-351).
 
 A question of the third source is answered by a comment
 on that pull request or issue. An Igor's handback that mentions no one
@@ -681,30 +659,14 @@ the first (proposal decisions 283, 287 and 291).
 - **THEN** the answer session shows the log file on its own, as a
   question of the fourth source
 
-#### Scenario: A log file whose Discord link was withheld is merged with the message
+#### Scenario: A log file whose Discord link was withheld is shown on its own
 
 - **WHEN** a lore repository that is not private holds a log file with no
-  `asked_in` whose question tags `@adamstallard`, and the one Discord
-  message this machine has polled whose question is the same once its
-  mention of the person is removed was posted on the file's `asked` day
-- **THEN** the answer session shows one entry, from the message, and an
-  answer to it is relayed in the thread and pushed as a log file naming
-  the file in `answers`
-
-#### Scenario: Declining a merged entry closes it on this machine only
-
-- **WHEN** the person declines, with nothing to answer, an entry this
-  machine merged from a Discord message and a log file with no
-  `asked_in`
-- **THEN** the answer session closes both on this machine, in the state
-  folder, and pushes no handled file for the log file
-
-#### Scenario: Two messages with the same words are not merged
-
-- **WHEN** a log file with no `asked_in` has the same question as two
-  Discord messages posted on its `asked` day
-- **THEN** the answer session merges none of them, and shows the file and
-  both messages
+  `asked_in` whose question tags `@adamstallard`, and a Discord message
+  this machine has polled that mentions the person's Discord user asks
+  the same question, its text the same once mentions are removed
+- **THEN** the answer session shows the log file and the message as two
+  questions, and pairs neither with the other
 
 #### Scenario: Ignoring the linked message ignores the file
 
@@ -1552,8 +1514,7 @@ Apart from the handled file of *A handled file closes a questions-branch
 question*, the answer session SHALL write no log file, except to answer
 a question that an unanswered log file on a lore repository's questions
 branch holds: a question of the fourth source, or a question shown from
-a thread whose message that file's `asked_in` links or this machine
-merged with that file. For a question shown
+a thread whose message that file's `asked_in` links. For a question shown
 from a thread, it SHALL relay the answer in the thread, as *An answer is
 relayed as the person's words* says, and also push the log file. It SHALL
 answer such a question by writing a new log file, naming the answered
@@ -1694,12 +1655,9 @@ questions branch that holds the question and that no handled file names
 yet, through the inquisitor script's `log` command, with a thread or
 without, each naming one such file. A file holds the question here when
 the question was shown from that file, as one of the fourth source, or
-when its `asked_in` links the closed thread message. A file this machine merged
-with the closed message is closed on this machine only, in the state
-folder, and gets no handled file, so another machine may show it again
-(proposal decision 351). A
+when its `asked_in` links the closed thread message. A
 handled file closes exactly the file it names, on every machine, and
-nothing else (proposal decisions 273, 278, 297 and 351). The answer session
+nothing else (proposal decisions 273, 278 and 297). The answer session
 closes a question in two ways: it declines the question, agreeing to a
 shown recorded answer included, or it posts a recorded answer or an
 `Inquisitor: ` reply on it. The handled file is as the inquisitor's *A
@@ -1869,9 +1827,7 @@ post takes its state from its thread, as any question does.
 The person SHALL be able to reopen, on this machine, a thread copy they
 declined with nothing posted, which puts it back in their queue. A
 questions-branch file a handled file names SHALL NOT be offered for
-reopening (proposal decisions 260, 274 and 297). Reopening a merged
-entry declined on this machine reopens its log file here too, since no
-handled file names it (proposal decision 351). The answer session SHALL NOT
+reopening (proposal decisions 260, 274 and 297). The answer session SHALL NOT
 offer to reopen a question declined with a post; the person changes its
 handling by editing that post, as *A relay post can be edited where it
 was posted* says (proposal decision 260).

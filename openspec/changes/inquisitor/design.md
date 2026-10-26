@@ -641,7 +641,7 @@ needs that v0.1-33 lacks follow its patterns (proposal decision
 254, task 6.1).
 The rules are in the `answer-session` spec, the decisions in proposal
 decisions 152 to 175, 184 to 203, 207 to 211, 215, 216, 219, 220,
-222 to 230, 234, 236, 238, 246 to 248, 250 to 252, 254 to 260 and 262 to 351.
+222 to 230, 234, 236, 238, 246 to 248, 250 to 252, 254 to 260 and 262 to 352.
 
 ### Polling while open, with the person's credentials
 
@@ -897,27 +897,15 @@ would again mean matching on words (decision 303).
 A Linear or Discord `asked_in` is withheld from a lore repository that
 is not private, as an `answer_link` is (decisions 251 and 302). A GitHub
 `asked_in` is withheld from a lore repository more visible than the
-repository it points into (decision 315), but a file whose GitHub link
-was withheld never merges: such a link is withheld only when the
-thread's repository is more private than the lore repository, and the
-merge rule required that repository to be the file's own, which the
-script never logs to a more visible lore repository, so merging now
-covers only Linear and Discord messages (decision 344). A
-Linear or Discord log file without an `asked_in` has no link to the message that also asked it, so the
-answer session merges the two into one entry only when it is sure:
-the same question once mentions are removed, asked the same day, and
-exactly one file and one message that fit (decisions 307 and 314). A
-merge decides what one machine shows and closes: closing a merged entry,
-by a decline or an automatic post, closes both the message and the file
-on that machine alone, pushing no handled file. A wrong merge, pairing
-the message with a file another asker logged in the same words, would
-otherwise close that asker's question everywhere (decision 351). Only an
-answer to a merged entry, recorded against the file, reaches other
-machines (decision 302). Each machine judges
-whether a file and a message match nothing else by what it polls, so two machines can merge one file with
-different messages; Adam accepts that (decision 308). Two askers'
-questions in the same words, both read by one machine, fail the "exactly
-one" test and are shown apart.
+repository it points into (decision 315). A log file without an
+`asked_in` has no link to the message that also asked it, and the
+answer session shows it as its own question, never pairing it with a
+message by matching text, so the person may see such a question twice.
+Merging, showing such a file and a message with the same words as one
+entry, was tried in several forms and dropped. Its only benefit was
+avoiding that duplicate. Each form could pair the message with a file
+another asker logged in the same words, and then a decline closed that
+asker's question, or an answer was recorded against it (decision 352).
 
 An answer that cannot reach its thread is kept, not lost (decision 311),
 where a failed post would otherwise drop what the person typed. The
@@ -927,11 +915,13 @@ passes, the question goes back into the queue with the answer kept, for
 the person to approve again (decision 317). Another machine sees only
 the thread, so it asks the question again as usual (decision 316); if
 the person answers there too, the first relay post to reach the thread
-sets the question's state, and the pending answer leaves the list. When
-a questions-branch file holds the question, through its `asked_in` or a
-merge, the session fetches the thread and posts the relay post only when
-that fetch finds no new message; the answer file is pushed next with the post's
-link. The owed push of the answer file is recorded in the state folder
+sets the question's state, and the pending answer leaves the list. For
+every answer to a question a questions-branch file holds through its
+`asked_in`, the session fetches the thread and posts the relay post only
+when that fetch finds no message the person has not seen. The relay
+post goes first, and the answer file is pushed after it, with the
+post's link; only when the thread cannot be read is the file pushed at
+once, without one. The owed push of the answer file is recorded in the state folder
 before the post and
 retried at each poll and each opening, so a crash between them loses
 nothing (decisions 332 and 338). The answer file's github.com

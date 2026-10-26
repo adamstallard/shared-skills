@@ -422,8 +422,7 @@ contradicts what design.md assumed.
         prototype offers it for any decline under its first two reasons (decisions
         255, 260, 274 and 297); the handled file the answer session
         pushes naming each questions-branch file a closed question was
-        shown from, or that holds it through `asked_in`, but no merged
-        file (decision 351), which the prototype does not write (decisions 273
+        shown from, or that holds it through `asked_in`, which the prototype does not write (decisions 273
         and 297); a
         recorded answer the person agreed to and posted, whose question
         the spec shows as answered for the person, where the prototype
@@ -539,12 +538,9 @@ contradicts what design.md assumed.
       that reaches the queue declined under reason 1 with no miss, or
       under reason 2 with filter 3's "the agent shouldn't have asked", posting nothing,
       with a filter 3 miss against the asking agent; a log file whose link
-      this machine does not read shown on its own; a log file whose
-      `asked_in` was withheld, on Linear or Discord (decision 344), merged with its message only when the questions
-      match once mentions are removed, the days match in UTC, and neither
-      matches any other file or message (decisions 307 and 344), and a
-      declined merged entry closed on this machine only, with no handled
-      file (decision 351); an
+      this machine does not read shown on its own; a log file with no
+      `asked_in` always shown as its own question, never paired with a
+      message (decision 352); an
       answer that cannot reach its thread kept as answered, not relayed,
       returned to the queue, with the answer kept, once its channel
       passes its check, and posted only after the person approves it
