@@ -23,6 +23,26 @@ Before an agent commits, or opens a pull request for, anything under
      enforces that rule (see Setup).
 
    It also runs `openspec validate --strict` and includes the result.
+
+   A **stacked change**, one that applies on top of another open change, says
+   so in its proposal with a line such as `Builds on: seat-files
+   (adamstallard/igor#171)`. The checks then run against main plus that
+   change. `check` reads the change from its pull request and archives it
+   into a scratch copy of your specs with `openspec archive`, so stacked
+   changes need the OpenSpec CLI. A dependency whose pull request has
+   merged is not archived again. Instead, `check` looks for its result in
+   your specs: when the result is there, it says to remove the line, and
+   when it is not, to merge main.
+
+   The stacked change fails as `drift` when it edits a requirement its
+   dependency has since renamed or removed, or when `openspec archive`
+   refuses any part of it on top of its dependencies, such as an ADDED of
+   a name a dependency already adds. A sentence the stacked change kept
+   after its dependency reworded it gets a `drift` check, which quotes both
+   texts for you to judge. A dependency that cannot be read fails the check
+   with a `stack` error. When a duplicate matches a main requirement that
+   an open pull request removes or renames, the error suggests the
+   `Builds on:` line to add.
 2. **Has a fresh subagent read the change** against every spec, every other
    open change, every open pull request touching the same specs, and your
    architecture docs. Findings come with quotes from both sides.
@@ -121,7 +141,9 @@ python3 ~/.agents/skills/manage-skills/scripts/skills.py disable-hook spec-check
 ## Troubleshooting
 
 - **`openspec validate --strict: not run`.** The `openspec` CLI is not on
-  `PATH`. The other checks still ran; validation did not.
+  `PATH`. The other checks still ran; validation did not. A stacked change
+  also gets a `stack` error, since its dependencies are archived with the
+  same CLI.
 - **A citation is reported missing, but the file exists.** The check reads
   the base branch (`origin/HEAD`, then `origin/main`, then `main`) and the
   change's own copy of the file (the working tree, the branch named with
@@ -134,5 +156,45 @@ python3 ~/.agents/skills/manage-skills/scripts/skills.py disable-hook spec-check
 - **The agent cannot make the trailer.** `spec_check.py sign`, which prints
   the `Spec-check:` line, refuses while errors remain, and prints them. For
   work in progress, the agent commits with `Spec-check: skipped (<reason>)`.
+- **A `stack` error says the openspec CLI is not on PATH.** A change with a
+  `Builds on:` line is checked by archiving its dependencies with
+  `openspec archive`. Install OpenSpec (`npm install -g
+  @fission-ai/openspec`) and run it again.
+- **A `stack` error quotes `openspec archive` refusing a dependency's
+  deltas.** The dependency does not fit your tree with the dependencies
+  listed before it archived: a requirement it modifies or renames is not
+  there, or a name it renames to is taken. Usually a `Builds on:` line is missing or out
+  of order, or your branch is behind main.
+- **A `stack` error says a dependency cannot be read.** `check` reads each
+  `Builds on:` pull request with `gh` and fetches it with `git`, so it needs
+  both, signed in, and the network. Fix that and run it again. Until a run
+  can read every dependency, it does not check the change for duplicates or
+  drift.
+- **`check` says every delta of a dependency is already in the tree, or
+  that a merged dependency's result is.** This is a check, and does not
+  fail the run. Your branch's specs already hold the dependency's result:
+  remove its `Builds on:` line.
+- **`check` says some of an open dependency's deltas are already in the
+  tree.** It archived the rest and names each. Usually another change has
+  landed part of the same edit.
+- **A `stack` error says a dependency builds on a change this one does not
+  list.** That dependency's own proposal has a `Builds on:` line for a change
+  whose result your tree does not hold. Add that change's line before the
+  dependency's.
+- **A `stack` error says a dependency has merged, but this branch does not
+  hold its result.** A merged dependency is never archived again, so your
+  specs must show it: each requirement it adds or modifies present by name,
+  each it removes absent, its renames done. The error names what is
+  missing. Merge main into your branch. A merged change that a dependency
+  builds on must show in your specs the same way.
+- **`check` says a later dependency sets again what an earlier one sets,
+  without building on it.** The earlier dependency's version of that
+  requirement is left out. Check that the later one's text includes what
+  your change needs, or ask its author to stack it on the earlier one.
+- **`check` says a pull request holds no change of that name.** The
+  `Builds on:` line names the wrong change or the wrong pull request.
+- **`check` says it cannot read a pull request's full file list.** `gh`
+  lists only the first 100 files, and reading the rest from GitHub failed.
+  Check that `gh` is signed in and run it again.
 - **`check` says `openspec/spec-check.yaml` must hold one line.** Run
   `setup` or `setup --decline`, which rewrites it.
