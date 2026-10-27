@@ -104,13 +104,16 @@ only when the rewrite would drop a conclusion.
 
 You can ask your agent to:
 - compact a specific file now, whether or not it is due;
+- mark a file as read often, so it's checked for compaction;
 - exempt a file from compaction;
 - drop "who decided" credits, such as "(Adam, 2026-10-24)", when files are
   compacted;
 - change when compaction is due.
 
-For the last three, the agent proposes a line for the repository's
-`.gitattributes`, and you confirm it.
+For all but the first, the agent edits the repository's `.gitattributes`,
+in a commit of its own. When you ask for one of them, it makes the edit
+directly. It never adds such a line unasked: when it thinks one would help,
+it proposes the line, and once you confirm, the agent makes the edit.
 
 ## What is enforced where
 

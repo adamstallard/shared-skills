@@ -332,9 +332,27 @@ openspec/specs/**/spec.md prose-compact-reads=10
 Declarations reach the triggers and the compactor's brief only. Prose's
 writing rules still apply only to docs.
 
-Never add or change a setting yourself. Each one changes when the trigger
-fires or what a compaction keeps, so propose the line and let the person
-decide.
+Never add or change a setting on your own initiative. Each one changes when
+the trigger fires or what a compaction keeps, and one added among other edits
+would change that without the person noticing. So propose the line and let
+the person decide. When the person asks for a setting, make the edit
+yourself, with no proposal first; when they confirm a line you proposed,
+make that edit. Either way, commit it on its own so it stays visible, never
+folded into a commit of other edits.
+
+When to propose which setting:
+- `-prose-compact` for a doc that comes up due but shouldn't be rewritten,
+  such as a changelog or a generated or vendored file.
+- `prose-compact` for a doc agents read often that the list under *When it
+  is due* doesn't cover.
+- `prose-compact-attribution=drop` when the person says they don't want
+  "who decided" credits kept.
+- A higher `prose-compact-flagged`, `prose-compact-growth` or
+  `prose-compact-growth-bytes` for a doc that keeps coming up due while its
+  compactions cut little.
+- A higher `prose-compact-reads` for such a doc when it counts as read often
+  only by its count of reads (the last case under *When it is due*),
+  so it stops counting as read often.
 
 **Called by another skill.** A skill that keeps docs of its own compact, such
 as spec-check for a change's `proposal.md` and `design.md`, runs the same

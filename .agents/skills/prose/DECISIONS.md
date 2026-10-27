@@ -464,10 +464,12 @@ compaction repays its 300k to 500k tokens; size does not.
   the writing rules still apply only to docs.
 - **Settings live in `.gitattributes`:** committed, matched by path, read by
   one `git check-attr` call.
-- **The person adds or changes a setting, never an agent.** Each can keep
-  the trigger quiet or change what a compaction keeps, so an agent could
-  slip one into a commit of other edits. The agent proposes the line
-  instead.
+- **An agent never adds or changes a setting on its own initiative.** Each
+  can keep the trigger quiet or change what a compaction keeps. One slipped
+  into a commit of other edits would change that without the person
+  noticing, so the agent proposes the line instead. When the person asks for
+  a setting, or confirms a proposed line, the agent makes the edit itself,
+  in a commit of its own so it stays visible, never folded into other edits.
 - **Credits are kept by default:** a "who decided" credit is information a
   team may rely on. `prose-compact-attribution=drop` drops them per file;
   shared-skills sets it on its skills' DECISIONS.md files.
