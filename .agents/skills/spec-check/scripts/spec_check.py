@@ -1855,10 +1855,10 @@ def stack_onto(change, corpus, repo, deps, findings, stack, complete, blocker, s
             if earlier.change not in rests_on(dep, deps):
                 hits.setdefault(earlier.label, (earlier, []))[1].append(what)
         for earlier, whats in hits.values():
-            stop(earlier, f"{dep.label}, listed after it, sets again what it " + "; ".join(whats) +
-                          f" without building on it, so {earlier.change}'s version is left out: check "
-                          f"that {dep.change}'s text includes what this change needs from {earlier.change}",
-                 "check")
+            stop(earlier, f"{dep.label}, listed after {earlier.label}, sets again what {earlier.change} "
+                          f"did ({'; '.join(whats)}) without building on it, so {earlier.change}'s version "
+                          f"is left out: check that {dep.change}'s text includes what this change needs "
+                          f"from {earlier.change}", "check")
         for i in d.kept:
             if i.kind in ("ADDED", "MODIFIED"):
                 put.append((dep, i.cap, i.text(), i.what))
