@@ -1092,8 +1092,9 @@ def check_result(before, after, rel, root, budget=DEFAULT_BUDGET, referrers=None
     elif share < COMPACTED_SHARE and size_after > budget:
         lines.append(f"It shrank by less than {COMPACTED_SHARE}% and is still over its budget of "
                      f"{budget:,} bytes, so the size trigger will fire again on its next change. "
-                     f"If it is meant to be this long, give it its own budget in .gitattributes, "
-                     f"such as '{rel} {ATTR_BUDGET}={size_after * 3 // 2}'.")
+                     f"If it is meant to be this long, propose its own budget to the person, a "
+                     f"line in .gitattributes such as '{rel} {ATTR_BUDGET}={size_after * 3 // 2}'; "
+                     f"the person decides, since a budget silences the trigger.")
 
     gone = gone_headings(before, after)
     # Each removed heading's anchor is searched even when a kept heading

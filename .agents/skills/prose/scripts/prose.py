@@ -2814,10 +2814,14 @@ def main(argv=None):
             # (DECISIONS: Compaction).
             pending = compact.unverified(root, args.amend, pass_dir(args.repo))
 
-            if pending and args.token:
-                raise Refused("; ".join(pending))
             if args.token:
                 cold, result = cold_items(assigned), None
+                # The cold read of a compacted file comes before its reviews,
+                # so they check its fixes. While a compaction is unfinished,
+                # a call without --cold-read still prints the brief; a call
+                # with it, or with nothing to read cold, is refused.
+                if pending and (args.report or not cold):
+                    raise Refused("; ".join(pending))
                 if args.report:
                     record = pass_record(args.token, args.repo)
                     refuse_unbriefed(cold, record)
@@ -2832,6 +2836,13 @@ def main(argv=None):
                     record_brief(args.token, cold,
                                  {item.path: staged_text(item.path, args.repo) for item in cold},
                                  args.repo)
+                    if pending:
+                        print("prose: the signing call with --cold-read will refuse until each "
+                              "of these is done; fix what the cold reader finds first, so the "
+                              "review checks it:\n")
+                        for line in pending:
+                            print(f"  {line}")
+                        print()
                     print_cold_read(args.token, cold, next_check(
                         args.token, args.message_file, args.amend, args.repo, REPORT_FILE,
                         DISPOSITIONS_FILE),
@@ -2857,7 +2868,12 @@ def main(argv=None):
             compact.print_due(compact.due(staged_paths, root), _prose_command())
 
             if pending:
-                print("\nThe signing call will refuse until each of these is done:\n")
+                # With nothing in the commit to read cold, as when a compaction
+                # only removed lines, the signing call prints no brief and
+                # refuses.
+                print("\nThe signing call can print its cold-read brief now, but signs only once each "
+                      "of these is done:\n" if cold_items(assigned) else
+                      "\nThe signing call will refuse until each of these is done:\n")
                 for line in pending:
                     print(f"  {line}")
             print()

@@ -144,12 +144,30 @@ reads the working file.
    until it exits 0. It exits 2 when the file has unstaged changes, or when
    it could not read a file it was to search; fix that, or narrow the paths,
    and run it again.
-4. Run `python3 $S/prose.py compact <file> --review`, with the file staged.
+4. Have the compacted file read cold, before any review. Run both calls of
+   `prose check` for the compaction's commit, as *Two calls* says: the
+   first call gives a pass token, and the signing call (`--pass <token>`)
+   prints the cold-read brief although the reviews have not run, listing
+   the compaction steps still to do. Then follow *The cold read*: a new
+   subagent writes a report from the brief, the compactor fixes what it
+   found, and you answer each finding in the cold read's dispositions file.
+   Stage the file and run `--verify` again. Keep the token, the report and
+   that dispositions file for step 10. The reviews then check these fixes
+   too.
+
+   A compaction that only removed lines has nothing to read cold. Its
+   signing call prints no brief and refuses, listing the steps left: go on
+   to step 5.
+
+   The token lasts 2 hours from the first call. If it expires before step
+   10, start step 4 again with a new first call. That cold read's fixes
+   change the file, so run step 3 and steps 5 to 8 again after it.
+5. Run `python3 $S/prose.py compact <file> --review`, with the file staged.
    It writes every change to a file, removed and rewritten text side by side,
    headed by the code spans, flags, constants, paths and headings the new
    file no longer has. It prints a brief between `=== compaction review
    brief ===` lines that names that file, and exits 4.
-5. Start another new subagent, on the same model as the compactor, never a
+6. Start another new subagent, on the same model as the compactor, never a
    cheaper one, and give it that brief exactly as printed. The brief is
    [compact-review.md](compact-review.md). For each removal, the reviewer
    answers superseded, folded in (and where) or lost. It checks that every
@@ -157,12 +175,13 @@ reads the working file.
    or added sentence, it answers whether the claim holds against the code and
    docs. It ends with `Totals: <n> lost, <m> false`. Save its reply to a
    file.
-6. Send each `lost` and `false` line back to the compactor, which restores
+7. Send each `lost` and `false` line back to the compactor, which restores
    the conclusion or corrects the claim. Stage the file and run `--verify`
-   again. When the first review found anything, run steps 4 and 5 once more
+   again. When the first review found anything, run steps 5 and 6 once more
    with a fresh reviewer, and fix what it finds. Never run more than two
-   reviews. Report whatever the second one still finds.
-7. Record the last review as complete:
+   reviews, except as step 9 says. Report whatever the second one still
+   finds.
+8. Record the last review as complete:
    `python3 $S/prose.py compact <file> --reviewed <reply file> --dispositions <answers file>`.
    It checks that the reply gives every change a verdict and that its
    `Totals:` line matches them. The answers file holds one line for each
@@ -171,15 +190,18 @@ reads the working file.
    reviewed, or `Change <n>: kept: <reason>`. With nothing fixed, the staged
    file must be the one reviewed. A reply with no findings needs no answers
    file. It exits 0, or 2 with what is missing.
-8. Ask the person, through your host's picker, about each reviewer line
+9. Ask the person, through your host's picker, about each reviewer line
    whose text starts `ask:` and each `Would drop:` line from the compactor,
    and act on the answer. When you cannot ask, leave the conclusion in, and
    put the line in your result for your caller. If the answer changes the
-   file, stage it and run steps 3 to 7 again: the commit gate needs a
-   review of the file as staged, so this review runs even after two.
-9. Commit as usual, with both calls of `prose check`.
+   file, stage it and run step 3 and steps 5 to 8 again: the commit gate
+   needs a review of the file as staged, so this review runs even after two.
+10. Run step 4's signing call again and commit. Add `--cold-read <report>`
+    and `--dispositions <file>`, giving the cold read's report and
+    dispositions file from step 4, not step 8's answers file. With nothing
+    read cold, add neither.
 
-**The commit gate.** A passing `--verify` and a completed review (step 7)
+**The commit gate.** A passing `--verify` and a completed review (step 8)
 are each recorded for the file's staged content. Once step 1 has run on a
 file, `prose check` refuses to sign while that file is staged with content
 other than the base's (HEAD's, or HEAD's parent's with `--amend`) and
@@ -238,9 +260,10 @@ docs/architecture.md prose-compact-budget=150000 prose-compact-growth=30
 Declarations reach the triggers only. Prose's writing rules still apply
 only to docs.
 
-A doc that is meant to stay over budget gets its own budget. `--verify`
-suggests one when a compaction cut less than a tenth of a doc that is still
-over its budget.
+Never add or loosen a setting yourself: an exemption, a budget or a growth
+share. Each one silences the trigger, so propose the line and let the
+person decide. `--verify` suggests a budget when a compaction cut less than
+a tenth of a doc that is still over its budget.
 
 **Called by another skill.** A skill that keeps docs of its own compact, such
 as spec-check for a change's `proposal.md` and `design.md`, runs the same

@@ -307,6 +307,14 @@ its reason, since a decision without its reason invites the next editor to
 undo it. The compactor restores and corrects. A second review runs only if the
 first found something, and never a third.
 
+**A compacted file is read cold before its reviews.** This is the cold read
+`prose check` asks for before it signs the compaction's commit, and the
+reviews then check the fixes it leads to. The commit gate, below, needs
+`--verify` and the review recorded for the exact file staged, so a fix made
+after the reviews would need one more review, a third. So the signing call
+prints the cold-read brief while the compaction lacks those records, and signs
+only once both are recorded.
+
 **The compactor drafts each section fresh.** Measured with skill-creator's
 benchmark harness on five docs, each seeded with three conclusions hidden in
 history or repetition: this file before and after #31, bug-hunter's
@@ -379,6 +387,11 @@ sizes, in milliseconds per doc.
 - **Settings live in `.gitattributes`:** committed, matched by path, read by
   one `git check-attr` call. The one line `* prose-compact-budget=60000`
   sets the budget for every file.
+- **The person adds or loosens a setting, never an agent:** an exemption, a
+  budget or a growth share. Each can keep the trigger quiet, so an agent
+  could slip one into a commit of other edits to avoid compacting a growing
+  doc. The agent proposes the line instead, as `--verify`'s budget suggestion
+  does.
 
 **`--verify` blocks on any reference to what was removed.** A removed heading
 or anchor counts as still referenced when its heading text appears anywhere in

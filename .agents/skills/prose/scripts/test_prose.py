@@ -4215,6 +4215,9 @@ class CompactCommand(unittest.TestCase):
     def test_a_small_cut_on_a_doc_over_budget_suggests_its_own_budget(self):
         report = compact.check_result("x" * 1000, "x" * 950, "DECISIONS.md", None, budget=500)
         self.assertIn("DECISIONS.md prose-compact-budget=1425", " ".join(report.lines))
+        # A setting silences the trigger, so the person decides on it.
+        self.assertIn("propose", " ".join(report.lines))
+        self.assertIn("the person decides", " ".join(report.lines))
         report = compact.check_result("x" * 1000, "x" * 950, "DECISIONS.md", None, budget=5000)
         self.assertNotIn("prose-compact-budget", " ".join(report.lines))
 
@@ -4868,6 +4871,44 @@ class CompactionGate(unittest.TestCase):
         self.assertIn("DECISIONS.md was compacted but not verified; run "
                       "`prose compact --verify DECISIONS.md`", result.stderr)
         self.assertIn("DECISIONS.md was compacted but its review was not completed", result.stderr)
+
+    def test_the_cold_read_brief_comes_before_the_review_and_signing_waits_for_it(self):
+        # SKILL.md: the cold read of a compacted file runs before its reviews,
+        # so the reviews check the cold read's fixes.
+        self.assertEqual(self.repo.prose("compact", "DECISIONS.md").returncode, 4)
+        # A rewritten line, so the compacted file has a passage to read cold.
+        self.repo.write("DECISIONS.md", self.AFTER.replace("B.", "B, now clearer."))
+        self.assertEqual(self.repo.prose("compact", "DECISIONS.md", "--verify").returncode, 0)
+        (self.repo.path / ".msg").write_text("DOCS(x): compact\n")
+        first = self.repo.prose("check", "-F", ".msg", "--goals", "review it")
+        token = pass_token(first.stdout)
+        sign = lambda *extra: self.repo.prose("check", "-F", ".msg", "--goals", "review it",
+                                              "--pass", token, *extra)
+        needed = sign()
+        self.assertEqual(needed.returncode, prose.COLD_READ_NEEDED, needed.stderr)
+        self.assertIn("=== cold-read brief ===", needed.stdout)
+        self.assertIn("DECISIONS.md was compacted but its review was not completed",
+                      needed.stdout)
+        flags = straight_report(needed.stdout)
+        refused = sign(*flags)
+        self.assertEqual(refused.returncode, 2, refused.stdout)
+        self.assertIn("its review was not completed", refused.stderr)
+        self.assertEqual(self.repo.prose("compact", "DECISIONS.md", "--review").returncode, 4)
+        done = self.repo.prose("compact", "DECISIONS.md", "--reviewed",
+                               self.write(".reply", self.CLEAN))
+        self.assertEqual(done.returncode, 0, done.stderr)
+        signed = sign(*flags)
+        self.assertEqual(signed.returncode, 0, signed.stderr)
+
+    def test_a_compaction_with_nothing_to_read_cold_promises_no_brief(self):
+        # Only lines removed: no passage to read cold, so the first call must
+        # not say the signing call can print a brief.
+        self.assertEqual(self.repo.prose("compact", "DECISIONS.md").returncode, 4)
+        self.repo.write("DECISIONS.md", self.AFTER)
+        first = self.repo.prose("check", "-F", "-", "--goals", "g", stdin="DOCS(x): c\n")
+        self.assertEqual(first.returncode, 4, first.stderr)
+        self.assertIn("DECISIONS.md was compacted but not verified", first.stdout)
+        self.assertNotIn("cold-read brief now", first.stdout)
 
     def test_a_verified_and_reviewed_compaction_signs(self):
         done = self.compaction()
