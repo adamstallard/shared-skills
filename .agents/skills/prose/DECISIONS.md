@@ -269,7 +269,8 @@ closes a way poor blocks get through:
 ## Compaction keeps docs read before work compact
 
 `prose check`'s first call prints `compaction due for <file>: <why>` for a
-changed current-state doc over its size budget or holding history markers.
+changed doc agents read often that holds enough flagged text, or has grown
+by half and by 2,000 bytes since its last compaction.
 The agent compacts it in a commit of its own in the same pull request:
 `prose compact <file>` prints a brief for a fresh compactor
 ([compact.md](compact.md)), `--verify` checks the result mechanically, and
@@ -345,53 +346,203 @@ human review restored or corrected. It missed one rejected alternative, one
 reason and two wrong statements, and found 23 more, 14 of them real.
 
 **The triggers are a script.** They read the index, git history and blob
-sizes, in milliseconds per doc.
-- **Size: 40,000 bytes** (about 10,000 tokens), or 50% growth since the last
-  compaction. Docs under it cut 6 to 13%, saving under 1,000 tokens per read,
-  so their reviewed compactions, at 265k to 350k tokens, take hundreds of
-  reads to repay. igor's architecture doc, 125 KB, cut 15 KB: about 3,800
-  tokens on each of its 249 reads. The last compaction is the newest commit
-  behind HEAD, merged branches included, that shrank the file by 10% or more,
-  read from blob sizes, so it needs no marker.
-- **Known gap: a squash merge** leaves one commit with the pull request's net
-  change. If that shrank the file by less than a tenth, the compaction inside
-  it is not found, and the doc is flagged again on its next change.
-- **History markers,** at any size: a dated revision note or span, a
-  "History:" or "Update:" label, "previously" (not "a previously issued"),
-  "originally", "formerly", "was changed to". Over 26 docs here and in igor
-  they fire on 8 lines of the pre-#31 file, on igor's architecture doc,
-  bug-hunter's DECISIONS.md and an igor design, and on none of the nine
-  SKILL.md files, rules.md, the post-#31 file or seven other DECISIONS.md
-  files. They miss history phrased as "an earlier version", which the
-  reviewer catches.
-- **The marker scan skips fenced code and quoted text** by a simple rule: a
-  line starting with three backticks or tildes opens or closes a block, and
-  text in inline code, double quotes or guillemets is skipped. Prose's own
-  docs quote Before and After specimens, which would otherwise fire the
-  trigger constantly. A false trigger costs a full reviewed compaction, 300k
-  to 500k tokens; a miss only waits for the next marker or the size trigger,
-  which counts every byte, and a block the simple rule misjudges costs at
-  most one extra "compaction due" line. Like `--verify`, the trigger errs the
-  cheap way: for a trigger that means staying quiet, for `--verify` blocking.
-  `--verify` itself detects no fences.
-- **Defaults:** `DECISIONS.md`, `SKILL.md`, `AGENTS.md`, `CLAUDE.md`,
-  `architecture*.md`, and OpenSpec specs, proposals and designs outside the
-  archive.
-- **A declaration works on any file.** `prose check` reads the
-  `prose-compact` declaration, the `-prose-compact` exemption and the
-  `prose-compact-budget` and `prose-compact-growth` settings for every staged
-  path. A declared file of any type joins both triggers, since the size check
-  counts bytes and the marker scan reads text. A file git treats as binary, by
-  `-diff` (which `binary` sets) or a NUL byte, is skipped. Declarations reach
-  the triggers only; the writing rules still apply only to docs.
+sizes, in well under a second for a commit's docs. A doc is due when it is
+read often and either its flagged text or its growth passes a threshold.
+How often a doc is read, and how much bloat it holds, decide whether a
+compaction repays its 300k to 500k tokens; size does not.
+- **Rejected: a fixed size budget** (it was 40,000 bytes). Compacting
+  prose's own DECISIONS.md under it cost about half a million tokens and cut
+  2%: the file is rarely read and held little history. Its compactor also
+  copied 11 of 33 sections word for word, and nothing caught it, which is
+  why every flagged passage now needs an answer.
+- **Read often** is declared, never inferred from content:
+  - by place: every `CLAUDE.md`, `AGENTS.md` and `SKILL.md`; a file a
+    `SKILL.md` or `AGENTS.md` links in a paragraph asking to read it first or
+    before something; and an open change's `proposal.md` and `design.md`.
+    "Read it before changing this file" does not count: that read happens
+    only when the skill changes, which the commit count measures;
+  - by `prose-compact` in `.gitattributes`;
+  - or by the commits since the doc's last compaction, each counting as one
+    read of the docs a fixed map gives it. A commit changing a file in a
+    skill's directory counts as a read of its `SKILL.md` and read-first
+    files. A `Bug-hunter:`, `Prose:` or `Spec-check:` trailer counts as a
+    read of that skill's `SKILL.md`, and `Spec-check:` also of the main
+    specs and open changes. The log is capped at 300 commits. So in practice
+    this path makes a main spec read often; a `DECISIONS.md` or
+    architecture doc not linked to be read first gains no reads, and is read
+    often only when declared.
+- **The last compaction** is the newest commit behind HEAD, merged
+  branches included, whose `Prose:` trailer lists the file after
+  `compacted:`, or that shrank it by 10% or more, or that committed a copy
+  `--reviewed` passed in this clone.
+- **A compaction is recorded in the `Prose:` trailer.** The signing call
+  appends `; compacted: <path>, ...` for each staged file whose `--verify`
+  and review records cover its staged blob, minted with the rest of the
+  value. A compaction that cuts under a tenth, such as one that keeps
+  justified passages, is otherwise seen only in the clone that ran it: every other
+  clone would count its kept passages as new and flag the file on its next
+  edit, again and again. The commit script refuses a listed file this
+  clone did not compact, and the commit hook a listed file the commit did
+  not change. The cut and the local review record stay as backups, for a
+  compaction committed without the trailer.
+- **Flagged text counts since the last compaction:** the bytes flagged now,
+  less those flagged in the copy the last compaction left. Passages a
+  compaction kept with a reason then never make the doc due again. A doc
+  never compacted counts all of its flagged text. Rejected: the fewest
+  flagged bytes in any recent version as the baseline. Text a doc held from
+  the start then never counted, and bug-hunter's SKILL.md was not due.
+- **Growth** is measured only from the last compaction. Rejected: measuring
+  a doc never compacted from the version that added it. Drafting grows a doc
+  fast without bloating it: #25's proposal had grown 2,151% and prose's
+  SKILL.md 443%.
+- **The trigger never fetches.** Its git calls run with
+  `GIT_NO_LAZY_FETCH=1`, so in a partial clone a blob not present counts as
+  unknown, and an offline check does not wait on the network. A shallow
+  clone whose history stops before the doc's add, or a log git cannot read,
+  counts as unknown too. An unknown baseline gives no flagged-text reason,
+  never a baseline of 0.
+- **Known gap: git older than 2.44** ignores `GIT_NO_LAZY_FETCH`, so there a
+  partial clone fetches the blobs the trigger reads: slow, not wrong.
+- **An error in the trigger warns** and `prose check`'s first call goes on
+  without the advice, since the trigger only advises. The commit gate is
+  separate and unaffected.
+- **Known gaps in reading history, recorded rather than fixed.** The
+  trigger only advises: a wrong answer is one `compaction due` line printed
+  or missed, and the commit gate reads no history. So these stay, and new
+  ones of the kind are added here:
+  - a squash merge whose message drops the compaction's trailer and whose
+    net cut is under a tenth;
+  - a doc renamed (`--no-renames`), or a symlink turned into a file
+    (status `T`), starts a new history;
+  - a side branch that deleted the doc, merged back with the doc kept, can
+    come before an earlier compaction in topological order, and the delete
+    then ends the walk;
+  - history past 500 changes of the file, or reads past 300 commits, are
+    not read;
+  - `--topo-order` sorts the whole history before printing, about a second
+    per 300,000 commits in a repository with no commit-graph;
+  - a path holding `, `, `;` or a line break is never listed after
+    `compacted:`, so only its cut or a local record marks its compaction;
+  - an amend of a compaction commit that also edits the doc is an ordinary
+    edit once a plain `prose check` has retired the compaction, deleting its
+    local snapshot because the compaction is committed; that amend's
+    trailer then drops `compacted:` for the doc.
+- **Growth needs 2,000 bytes as well as half.** Without a floor, igor's
+  2,268-byte `AGENTS.md` was due at 70% growth, 941 bytes, since its last
+  cut; a compaction costs far more than such a doc wastes per read.
+- **The thresholds, measured** with the shipped detectors on shared-skills
+  (this branch, and `origin/spec/inquisitor` for #25) and on igor:
+
+  | Doc | Flagged | Read often | Due |
+  |---|---|---|---|
+  | #25's `proposal.md` | 47,988 bytes (17%) | open change; 57 reads | yes |
+  | bug-hunter's `SKILL.md` | 1,050 bytes (1%), 7 repetitions | SKILL.md; 131 reads | yes |
+  | igor's `lore-from-reviews/design.md` | 1,123 bytes (4%) | open change | yes |
+  | prose's `SKILL.md` | 1,022 bytes (2%) | SKILL.md; 110 reads | yes |
+  | prose's `DECISIONS.md` | 5,346 bytes (8%); grown 70% since 469ffc2 | 0 reads | no |
+  | igor's main specs | up to 4,139 bytes (12%) | 6 reads each | no |
+
+  - **Flagged text: 1,000 bytes,** about 250 tokens on every read. Among
+    docs read often, the SKILL.md files flag 0 to 1,050 bytes; the two read
+    on every commit, bug-hunter's and prose's, pass 1,000 on real
+    repetition.
+  - **Reads: 20.** Skill files took 2 to 131 reads in shared-skills' 140
+    commits; igor's main specs took 6 in its last 300.
+  - **Growth: 50%** and **2,000 bytes**, about 500 tokens a read.
+
+  They are constants in `compact.py`, and a repository overrides them per
+  file in `.gitattributes`. They are revisited if real use shows them off.
+- **Candidates** are the files the trigger looks at, before the read-often
+  and due tests: `DECISIONS.md`, `SKILL.md`, `AGENTS.md`, `CLAUDE.md`,
+  `architecture*.md`, OpenSpec specs, proposals and designs outside the
+  archive, every read-first file, and every file declared `prose-compact`.
+- **A declaration works on any file.** `prose check` reads `prose-compact`,
+  `-prose-compact`, `prose-compact-growth`, `prose-compact-growth-bytes`,
+  `prose-compact-flagged`, `prose-compact-reads` and
+  `prose-compact-attribution` for every staged path. A file git treats as binary, by `-diff` (which `binary` sets) or a
+  NUL byte, is skipped. Declarations reach the triggers and the brief only;
+  the writing rules still apply only to docs.
 - **Settings live in `.gitattributes`:** committed, matched by path, read by
-  one `git check-attr` call. The one line `* prose-compact-budget=60000`
-  sets the budget for every file.
-- **The person adds or loosens a setting, never an agent:** an exemption, a
-  budget or a growth share. Each can keep the trigger quiet, so an agent
-  could slip one into a commit of other edits to avoid compacting a growing
-  doc. The agent proposes the line instead, as `--verify`'s budget suggestion
-  does.
+  one `git check-attr` call.
+- **The person adds or changes a setting, never an agent.** Each can keep
+  the trigger quiet or change what a compaction keeps, so an agent could
+  slip one into a commit of other edits. The agent proposes the line
+  instead.
+- **Credits are kept by default:** a "who decided" credit is information a
+  team may rely on. `prose-compact-attribution=drop` drops them per file;
+  shared-skills sets it on its skills' DECISIONS.md files.
+
+**Bloat detectors** flag sentences and paragraphs, each with a line range and
+a kind, from the file alone: history, repetition, amendment notes, long
+rejected alternatives, stale references, narrative words and filler. They
+are plain patterns, chosen to be predictable: a false flag costs the
+compactor one `kept:` line, and the reviewer judges it.
+- **Repetition** follows spec-check's duplicate check: a normalised sentence
+  of 10 or more words stated twice, or 8 words in a row that two sentences
+  share. At 12 words, bug-hunter's SKILL.md showed none of the eight
+  restatements that 8 words find.
+- **A rejected alternative** may take the sentence naming it and one
+  sentence of reason, the form compact.md asks for. Flagging every two-sentence one
+  flagged 55 of the 63 passages in this file.
+- **A stale reference's path** is checked only when its first directory is
+  the repository's own, since skills describe paths in the repositories they
+  work on; without that rule, spec-trace's SKILL.md flagged 20. A flag or
+  `function()` is stale when no tracked file other than Markdown and the doc
+  holds it. A flag of another tool, such as `rg --hidden`, is a known false
+  flag.
+- **Filler** follows rule 9 and the cheat list: a "Note:" line, "it is worth
+  noting", "note that", "as mentioned above", "in other words" opening a
+  sentence, "basically", "essentially".
+- **Every passage needs an answer.** The brief lists each, and the compactor
+  writes `removed`, `rewritten` or `kept: <reason>` for it to an answers file
+  in the git directory. `--verify` searches the new file for each passage,
+  comparing text normalised as for removed headings (below): one answered
+  removed or rewritten must appear fewer times than before. The reviewer answers
+  `justified` or `unjustified` for each kept reason, and the agent answers
+  each unjustified one in `--reviewed`'s dispositions.
+- **The answers are a copy `--verify` stores.** A passing `--verify` copies
+  the answers it checked into the snapshot, beside the blob it passed.
+  `--review`, `--reviewed` and the commit gate read only the staged blob's
+  copy, never the live file, so an edit counts
+  only once `--verify` runs again. One rule then binds the steps: every
+  passage the stored copy keeps was judged, with the same reason, by the
+  review that wrote the gate's record. Rejected: comparing digests of the
+  live file at each step, which needed a separate agreement rule per step,
+  and a new bug in each over six bug-hunter iterations.
+- **A person's request runs every detector with no threshold:** `prose
+  compact <file>` lists and enforces every passage, however few. Thresholds
+  gate only the `compaction due` line.
+- **History markers:** a dated revision note or span, a "History:" or
+  "Update:" label, "previously" (not "a previously issued"), "originally",
+  "formerly", "was changed to". Over 26 docs here and in igor they fire on 8
+  lines of this DECISIONS.md as it was before pull request #31, on igor's
+  architecture doc, bug-hunter's DECISIONS.md and an igor design. They fire
+  on none of the nine SKILL.md files, rules.md, this file after #31 or
+  seven other DECISIONS.md files. They miss
+  history phrased as "an earlier version", which the reviewer catches.
+  `--verify` fails on one left in the file, unless its passage was answered
+  `kept:`; the reviewer then judges the reason, as for any kind.
+- **The scans skip fenced code and quoted text** by one shared rule, so
+  every scanner agrees on what is code. A line of three or more backticks or
+  tildes, after any list or quote markers, opens a block, unless a backtick
+  fence's line holds another backtick. A bare fence of the same character, at
+  least as long and indented at most 3 beyond the opener, closes it. Text in
+  inline code, double quotes or guillemets is skipped too. Prose's own docs
+  quote Before and After specimens, which would otherwise be flagged
+  constantly. `--verify`'s check for removed headings detects no fences:
+  it reads every heading-shaped line, code blocks included.
+- **Known gaps in masking code, recorded rather than fixed.** The detectors
+  only flag, so a misread block costs one extra `kept:` line or one missed
+  passage, never a blocked or unchecked commit; the commit gate does not
+  depend on them. So these stay, and new ones of the kind are added here:
+  - fences inside nested containers beyond a list item holding a quote,
+    such as a quote inside a quote inside a list;
+  - a fence opened in a block quote or list item that ends without a
+    closer runs on, where CommonMark closes it with its container;
+  - indented code blocks (four spaces, no fence) are not masked;
+  - a quotation that wraps over more than one line break, or an inline
+    code span over more than one, is not masked;
+  - setext headings and HTML blocks are read as prose.
 
 **`--verify` blocks on any reference to what was removed.** A removed heading
 or anchor counts as still referenced when its heading text appears anywhere in
@@ -492,8 +643,8 @@ what is checked is what is committed.
   retires on commit or is abandoned. Each refusal names the missing step:
   "<file> was compacted but not verified; run `prose compact --verify
   <file>`", or "<file> was compacted but its review was not completed; ...".
-  `prose check`'s first call lists the same lines. No new trailer, hook or
-  `Prose:` format.
+  `prose check`'s first call lists the same lines. No new trailer or hook;
+  the `Prose:` value gains only `compacted:`, described above.
 - **Only a compaction started with `prose compact` is gated.** A compaction by
   hand takes an agent deliberately skipping the tool, and the gate stops
   accidents, not deliberate evasion. Rejected: gating any
@@ -621,9 +772,6 @@ file before or after #31; the other three docs lost no referenced heading.
   matching rules over three runs, each fix exposing the next case, and was
   still finding them at its cap. The review of #31's compaction checked links
   the same way, by grep.
-- **Firing at every commit over budget.** A doc that stays long after a
-  compaction would be flagged forever. It gets its own budget instead, which
-  `--verify` suggests.
 - **A marker in the compaction commit.** An agent has to remember it, and a
   squash merge can drop it.
 - **"No longer", "used to", "an earlier version" as markers.** Here they fire

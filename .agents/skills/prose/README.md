@@ -90,19 +90,27 @@ docs/api.md: call the API correctly
 
 ## Docs agents read before working stay compact
 
-Agents reread docs such as `DECISIONS.md`, `SKILL.md` and architecture docs
-before every task, so history left in them costs tokens on every read. When a
-commit changes one that is over its size budget, or that holds history such
-as a dated "revised" note, prose prints `compaction due for <file>`. The
-agent then has a fresh subagent rewrite the file to what is current, and
-runs a script that checks no link into it broke. A second fresh subagent then checks
+Agents reread docs such as `SKILL.md`, `AGENTS.md` and open OpenSpec
+proposals before every task, so history, repetition and padding left in them
+cost tokens on every read. When a commit changes a doc agents read often,
+and the doc holds about a page of such text or has grown by half since it
+was last compacted, prose prints `compaction due for <file>`. The agent then
+has a fresh subagent rewrite the file to what is current, answering for
+every passage a script flagged, and runs a script that checks those answers
+and that no link into the file broke. A second fresh subagent then checks
 every removal against the old text and the code, and anything lost is put
 back. The agent commits the result in a commit of its own, and asks you first
 only when the rewrite would drop a conclusion.
 
-The budget is 40,000 bytes by default. A repository changes it with one line
-in `.gitattributes`, such as `* prose-compact-budget=60000`; SKILL.md lists
-the other settings.
+You can ask your agent to:
+- compact a specific file now, whether or not it is due;
+- exempt a file from compaction;
+- drop "who decided" credits, such as "(Adam, 2026-10-24)", when files are
+  compacted;
+- change when compaction is due.
+
+For the last three, the agent proposes a line for the repository's
+`.gitattributes`, and you confirm it.
 
 ## What is enforced where
 

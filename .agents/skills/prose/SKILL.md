@@ -86,21 +86,54 @@ of [rules.md](rules.md), *What is, not how it got here*, to a whole file, not
 only to the lines a change touched. `$S` below is this skill's scripts
 directory, as *Two calls* defines it.
 
-**When it is due.** `prose check`'s first call measures each changed
-current-state file. By default that is every `DECISIONS.md`, `SKILL.md`,
-`AGENTS.md` and `CLAUDE.md`, every `architecture*.md`, and every OpenSpec
-`spec.md`, `proposal.md` and `design.md` outside `openspec/changes/archive/`.
-A `prose-compact` declaration in `.gitattributes` adds any other text file,
-of any type; a file git treats as binary (`-diff`, `binary`, or a NUL byte)
-is skipped. For each one due, it prints `compaction due for <file>: <why>`.
-A file is due when either holds:
-- **Size:** it is over its budget, 40,000 bytes by default, and either was
-  never compacted or has grown by half since it was. Its last compaction is
-  the newest commit behind HEAD, merged branches included, that shrank it by
-  a tenth or more.
-- **History markers,** at any size: a dated revision note such as
-  "Revised 2026-09-30" or "dropped on 2026-09-28", a "History:" or "Update:"
-  label, "previously", "originally", "formerly", or "was changed to".
+**When it is due.** `prose check`'s first call checks each changed doc that
+agents read often, and prints `compaction due for <file>: <why>` for each one
+due. A doc is read often when it is:
+- a `CLAUDE.md`, `AGENTS.md` or `SKILL.md`;
+- a file a `SKILL.md` or `AGENTS.md` links in a paragraph that asks for it to
+  be read first, or read before something other than changing the skill;
+- an open OpenSpec change's `proposal.md` or `design.md`;
+- declared with `prose-compact` in `.gitattributes`;
+- or, for a `DECISIONS.md`, `architecture*.md` or OpenSpec `spec.md` that
+  none of the above covers, read at least 20 times since its last
+  compaction, as the commits behind HEAD imply. Each commit counts as one
+  read of the docs it implies. A commit changing a file in a skill's
+  directory implies its `SKILL.md` and read-first files. A `Bug-hunter:`,
+  `Prose:` or `Spec-check:` trailer implies that skill's `SKILL.md`, and
+  `Spec-check:` also the main specs and open changes. Only the last 300
+  commits are read. In practice this makes a main spec read often; a
+  `DECISIONS.md` or architecture doc not linked to be read first gains no
+  reads, and is read often only when declared.
+
+A doc read often is due when either holds:
+- **Flagged text:** the passages the detectors flag hold at least 1,000
+  bytes more than they did at its last compaction.
+- **Growth:** it has grown by half, and by 2,000 bytes or more, since its
+  last compaction. A doc never compacted has no growth to measure.
+
+Its last compaction is the newest commit behind HEAD, merged branches
+included, whose `Prose:` trailer lists it after `compacted:`, or that shrank
+it by a tenth or more. The signing call adds `; compacted: <path>` to the
+trailer for each staged file whose compaction `--verify` and `--reviewed`
+passed, so every clone sees a compaction that cut little.
+
+The detectors flag sentences and paragraphs outside code and quotations:
+- history: a dated revision note such as "Revised 2026-09-30", a
+  "History:" or "Update:" label, "previously", "originally", "formerly" or
+  "was changed to";
+- repetition: a sentence of 10 or more words stated twice, or 8 words in a
+  row that two sentences share;
+- amendment notes: "Amended by", "Superseded by", "Withdrawn", "as first
+  written";
+- long rejected alternatives: a "Rejected" paragraph or list item longer
+  than the sentence naming the alternative and one sentence of reason, or a
+  "Rejected" section longer than one sentence;
+- stale references: a path, flag or function in a code span that the
+  repository no longer has. A path counts only when its first directory is
+  the repository's own;
+- narrative: "initially", "at first", "we tried", "turned out", "ended up";
+- filler: a "Note:" line, "it is worth noting", "note that", "as mentioned
+  above", "basically".
 
 **On that line, just compact.** Don't ask first. Commit the change you were
 making, then compact in a commit of its own in the same pull request, so a
@@ -124,28 +157,39 @@ reads the working file.
    file named on the `Brief file:` line after them, and exits 4.
 2. Start a new subagent and give it only that file's path, telling it to
    read the file and follow it. Don't copy the brief into its prompt: a
-   retyped brief can drop or repeat lines. The brief is [compact.md](compact.md), then the compacted doc's path, the history markers
-   found, and the headings other files link to or name. The subagent rewrites
-   the file in place and replies `Would drop: none`, or one `Would drop:` line
+   retyped brief can drop or repeat lines. The brief is
+   [compact.md](compact.md), then the compacted doc's path, the headings
+   other files link to or name, whether to keep "who decided" credits, the
+   answers file, and every passage the detectors flagged, with its lines,
+   kind and text. The subagent rewrites the file in place and writes one line
+   per flagged passage to the answers file: `removed`, `rewritten`, or
+   `kept: <reason>`. It replies `Would drop: none`, or one `Would drop:` line
    for each conclusion it left in place but believes is no longer true.
 3. Stage the file (`git add <file>`), then run
    `python3 $S/prose.py compact <file> --verify`, with the same referrers as
    step 1. It compares the staged file with the saved copy. It prints the
-   size before and after, what it searched, the headings removed, and the
-   names that are gone. It fails, exiting 1, when:
+   size before and after, what it searched, the headings removed, the code
+   spans, flags, constants and paths that are gone, and the answers to the
+   flagged passages. It fails, exiting
+   1, when:
    - a removed heading is still referenced: its `#anchor` appears in the
      file itself or in a file searched, or its text (16 characters or more)
      appears in another file searched, in any context. Text is compared with
      case, backticks, `*` and `_` ignored, and with line breaks and the
      comment or quote markers (`#`, `//`, `*`, `>`) starting a line read as
      one space, so a citation wrapped in a comment counts;
-   - a history marker is left;
+   - a flagged passage has no answer, or appears, compared the same way, as
+     many times as before without a `kept:` answer;
+   - a history marker is left, outside a passage answered `kept:`;
    - the file grew, or is empty.
 
    Have the compactor fix what it names, stage it, and run `--verify` again
    until it exits 0. It exits 2 when the file has unstaged changes, or when
    it could not read a file it was to search; fix that, or narrow the paths,
-   and run it again.
+   and run it again. A passing `--verify` stores the answers it checked for
+   the staged file, and the later steps and the commit gate read only that
+   copy: an edit to the
+   answers file counts only once `--verify` runs again.
 4. Have the compacted file read cold, before any review. Run both calls of
    `prose check` for the compaction's commit, as *Two calls* says: the
    first call gives a pass token, and the signing call (`--pass <token>`)
@@ -177,23 +221,28 @@ reads the working file.
    answers superseded, folded in (and where) or lost. It checks that every
    decision the new text keeps still carries its reason. For each rewritten
    or added sentence, it answers whether the claim holds against the code and
-   docs. It ends with `Totals: <n> lost, <m> false`. Save its reply to a
+   docs. For each flagged passage kept, it answers whether the reason is
+   justified. It ends with `Totals: <n> lost, <m> false`. Save its reply to a
    file.
-7. Send each `lost` and `false` line back to the compactor, which restores
-   the conclusion or corrects the claim. Stage the file and run `--verify`
+7. Send each `lost`, `false` and `unjustified` line back to the compactor,
+   which restores the conclusion, corrects the claim, or removes or shortens
+   the passage and updates its answer. Stage the file and run `--verify`
    again. When the first review found anything, run steps 5 and 6 once more
    with a fresh reviewer, and fix what it finds. Never run more than two
    reviews, except as step 9 says. Report whatever the second one still
    finds.
 8. Record the last review as complete:
-   `python3 $S/prose.py compact <file> --reviewed <reply file> --dispositions <answers file>`.
-   It checks that the reply gives every change a verdict and that its
-   `Totals:` line matches them. The answers file holds one line for each
-   change with a `lost` or `false` finding: `Change <n>: fixed` when the
-   compactor fixed it, which needs the staged file to differ from the one
-   reviewed, or `Change <n>: kept: <reason>`. With nothing fixed, the staged
-   file must be the one reviewed. A reply with no findings needs no answers
-   file. It exits 0, or 2 with what is missing.
+   `python3 $S/prose.py compact <file> --reviewed <reply file> --dispositions <dispositions file>`.
+   It checks that the reply gives every change and every kept passage a
+   verdict and that its `Totals:` line matches them. The dispositions file
+   is one you write, separate from the compactor's answers file. It holds
+   one line for each change with a `lost` or `false` finding, and each
+   passage found `unjustified`: `Change <n>: fixed` or `Passage <n>: fixed`
+   when the compactor fixed it, which needs the staged file to differ from
+   the one reviewed, or `Change <n>: kept: <reason>` or `Passage <n>: kept:
+   <reason>`. With nothing fixed, the staged
+   file must be the one reviewed. A reply with no findings needs no
+   dispositions file. It exits 0, or 2 with what is missing.
 9. Ask the person, through your host's picker, about each reviewer line
    whose text starts `ask:` and each `Would drop:` line from the compactor,
    and act on the answer. When you cannot ask, leave the conclusion in, and
@@ -202,7 +251,7 @@ reads the working file.
    needs a review of the file as staged, so this review runs even after two.
 10. Run step 4's signing call again and commit. Add `--cold-read <report>`
     and `--dispositions <file>`, giving the cold read's report and
-    dispositions file from step 4, not step 8's answers file. With nothing
+    dispositions file from step 4, not step 8's dispositions file. With nothing
     read cold, add neither.
 
 **The commit gate.** A passing `--verify` and a completed review (step 8)
@@ -247,27 +296,45 @@ tree at the same path would inherit it and its gate.
 the file's size before and after, as `--verify` prints it: for example,
 "Compacted DECISIONS.md: 107,341 -> 61,020 bytes (-43%)".
 
-**Settings** go in `.gitattributes`, one line each:
+**A person's request works on any file.** `prose compact <file>` runs on a
+file whether or not it is due, read often or a doc at all. The detectors
+always run in step 1, with no threshold: the brief lists every flagged
+passage, however few, and `--verify` requires an answer to each, exactly as
+for a doc that was due. The thresholds only decide when `prose check` prints
+`compaction due`.
+
+**Settings** go in `.gitattributes`, one line each. Patterns are git's own,
+read through `git check-attr`: `*` stays within one directory, `**/` spans
+directories, a pattern without a slash matches that name anywhere, and a
+later line overrides an earlier one.
 
 ```text
-* prose-compact-budget=60000
 docs/runbook.md prose-compact
 CHANGELOG.md -prose-compact
-docs/architecture.md prose-compact-budget=150000 prose-compact-growth=30
+docs/architecture.md prose-compact-growth=30 prose-compact-flagged=2000
+openspec/specs/**/spec.md prose-compact-reads=10
+.agents/skills/*/DECISIONS.md prose-compact-attribution=drop
 ```
 
-- `prose-compact-budget=<bytes>` replaces the budget.
+- `prose-compact` declares a file read often, of any type; a file git treats
+  as binary (`-diff`, `binary`, or a NUL byte) is skipped.
+- `-prose-compact` exempts a file from the triggers.
 - `prose-compact-growth=<percent>` replaces the growth share, 50 by default.
-- `prose-compact` declares a file current-state.
-- `-prose-compact` exempts a file.
+- `prose-compact-growth-bytes=<bytes>` replaces the bytes of growth also
+  needed, 2,000 by default.
+- `prose-compact-flagged=<bytes>` replaces the flagged text that makes a doc
+  due, 1,000 bytes by default.
+- `prose-compact-reads=<n>` replaces the reads that make a doc read often,
+  20 by default.
+- `prose-compact-attribution=drop` has the compactor drop "who decided"
+  credits, such as "(Adam, 2026-10-24)". Without it, they are kept.
 
-Declarations reach the triggers only. Prose's writing rules still apply
-only to docs.
+Declarations reach the triggers and the compactor's brief only. Prose's
+writing rules still apply only to docs.
 
-Never add or loosen a setting yourself: an exemption, a budget or a growth
-share. Each one silences the trigger, so propose the line and let the
-person decide. `--verify` suggests a budget when a compaction cut less than
-a tenth of a doc that is still over its budget.
+Never add or change a setting yourself. Each one changes when the trigger
+fires or what a compaction keeps, so propose the line and let the person
+decide.
 
 **Called by another skill.** A skill that keeps docs of its own compact, such
 as spec-check for a change's `proposal.md` and `design.md`, runs the same
@@ -275,12 +342,13 @@ commands and may then run its own checks on the result:
 - `prose.py compact <file> [--paths-from <file|-> [-0]] [-- <path>...]` exits
   4 and prints the brief on stdout between `=== compaction brief ===` and
   `=== end compaction brief ===`, then the `Brief file: <path>` line naming
-  the file the brief is also saved in. A caller may add its own
-  instructions to the subagent's prompt, after the instruction to read that
-  file.
+  the file the brief is also saved in. The brief lists every flagged
+  passage and names the answers file the compactor writes. A caller may add
+  its own instructions to the subagent's prompt, after the instruction to
+  read that file.
 - `prose.py compact <file> --verify [--paths-from <file|-> [-0]] [-- <path>...]`
-  exits 0 when the result passes and 1 when it fails, with the report on
-  stdout.
+  exits 0 when the result passes, the answer to every flagged passage
+  included, and 1 when it fails, with the report on stdout.
 - `prose.py compact <file> --review` exits 4 and prints the reviewer's brief
   between `=== compaction review brief ===` and `=== end compaction review
   brief ===`, then its `Brief file:` line.
@@ -637,7 +705,8 @@ asks.
 Every commit carries `Prose: ✓ <tree>:<message>`, because every commit has a
 message a reviewer reads. The two hashes bind it to the staged files and the
 final message as they were when the signing `prose check` ran. After a cold
-read, the value ends with its counts (see [The cold read](#the-cold-read)).
+read, the value ends with its counts (see [The cold read](#the-cold-read)),
+and, for a compaction, with the files compacted (see *Compaction*).
 
 Commit through the shared commit script, with nothing staged or edited
 between the signing call and the commit. Pass the block's `Prose:` value (the text

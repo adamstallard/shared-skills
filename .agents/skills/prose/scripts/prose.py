@@ -98,7 +98,8 @@ HALF = 12
 # print. A value without the understood part is accepted too: commits signed
 # before cold readers wrote understood lines carry none.
 TRAILER = re.compile(r"✓ ([0-9a-f]{%d}):([0-9a-f]{%d})"
-                     r"(?:; cold read: ([^;]*)(?:; understood: ([^;]*))?)?" % (HALF, HALF))
+                     r"(?:; cold read: ([^;]*)(?:; understood: ([^;]*))?)?"
+                     r"(?:; compacted: ([^;\n]+))?" % (HALF, HALF))
 FOOTER_LENGTH = 6
 FOOTER = re.compile(r"^prose ✓ ([0-9a-f]{%d})$" % FOOTER_LENGTH)
 
@@ -811,6 +812,21 @@ def verify_staged(line, message, root):
     if not counts_valid(found.group(4), found.group(5)):
         return False, f"unrecognised: {line.strip()}"
     tree = git(["write-tree"], root).strip()
+    if found.group(6) is not None:
+        # Each file listed as compacted is one whose compaction this clone
+        # verified and reviewed for the staged blob: the value was minted by
+        # the signing call, not added by hand.
+        listed = found.group(6).split(", ")
+        compact = compactor()
+        checked = compact.compacted_paths(
+            git(["rev-parse", "--show-toplevel"], root).rstrip("\n"),
+            False, pass_dir(root))
+        if listed != sorted(set(listed)) or not set(listed) <= set(checked):
+            return False, (
+                f"tree: the {KEY}: trailer lists as compacted a file whose staged copy was not "
+                f"verified and reviewed with `prose compact`; run both calls of `prose check` "
+                f"again"
+            )
     if message_half != message_hash(message):
         return False, (
             f"mismatch: the {KEY}: trailer does not match the commit message; the message "
@@ -861,6 +877,14 @@ def verify_commit(sha, root):
     found = TRAILER.fullmatch(value)
     if not found or not counts_valid(found.group(3), found.group(4)):
         return False, f"unrecognised: {KEY}: {value}"
+    if found.group(5) is not None:
+        # A file listed as compacted must be one this commit changed.
+        listed = found.group(5).split(", ")
+        changed = set(filter(None, git(["diff-tree", "--root", "--no-commit-id", "-r", "-z",
+                                        "--name-only", "--no-renames", sha], root).split("\0")))
+        if listed != sorted(set(listed)) or not set(listed) <= changed:
+            return False, (f"tree: the {KEY}: trailer lists as compacted a file this commit "
+                           f"did not change: {found.group(5)}")
     tree_half, message_half = found.group(1), found.group(2)
     message = git(["log", "-1", "--format=%B", sha], root)
     if not committed_message_matches(message, message_half):
@@ -2851,6 +2875,12 @@ def main(argv=None):
                         DISPOSITIONS_FILE),
                         root=git(["rev-parse", "--show-toplevel"], args.repo).rstrip("\n"))
                     return COLD_READ_NEEDED
+                # Each staged file compacted with `prose compact` is named in
+                # the trailer, so every clone's trigger sees the compaction,
+                # however little it cut (DECISIONS: Compaction).
+                compacted = compact.compacted_paths(root, args.amend, pass_dir(args.repo))
+                if compacted:
+                    trailer += "; compacted: " + ", ".join(compacted)
                 # The signing call prints only the result block. It is built
                 # before the token is spent, so a block that cannot be built
                 # leaves the token for the same call to run again.
@@ -2868,7 +2898,17 @@ def main(argv=None):
                 staged_paths = compact.changed_paths(root, args.amend)
             except ValueError:
                 staged_paths = []
-            compact.print_due(compact.due(staged_paths, root), _prose_command())
+            # The pass directory holds the completed-review records that mark
+            # a compaction which cut little (DECISIONS: Compaction).
+            # The trigger only advises: an error in it warns, and the first
+            # call goes on without the advice. The commit gate is separate.
+            try:
+                due = compact.due(staged_paths, root, pass_dir(args.repo))
+            except Exception as error:  # noqa: BLE001 - any trigger bug only advises
+                due = []
+                print(f"prose: warning: the compaction trigger failed, so no compaction advice "
+                      f"is given this time: {type(error).__name__}: {error}", file=sys.stderr)
+            compact.print_due(due, _prose_command())
 
             if pending:
                 # With nothing in the commit to read cold, as when a compaction

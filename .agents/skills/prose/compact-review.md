@@ -2,7 +2,9 @@
 
 Another agent compacted a document that agents read before they work. It was
 meant to remove only history, superseded reasoning, repetition and examples
-that teach nothing a rule doesn't, and to keep every live conclusion. You
+that teach nothing a rule doesn't, and to keep every live conclusion. It
+answered for each passage a script flagged, and gave a reason for each one
+it kept. You
 check that it did. A compactor that checks its own work misses losses, so
 you are the check.
 
@@ -39,7 +41,16 @@ The changes file starts with the names (code spans, flags, constants, paths
 and headings) that the old file has and the new one doesn't. Account for each
 one in a verdict.
 
-**Reply** with one or more lines per change, and nothing else:
+**For each flagged passage the compactor kept,** under *Flagged passages
+kept* in the changes file, judge its reason. A script flagged it as
+history, repetition, an amendment note, a long rejected alternative, a stale
+reference, narrative or filler. The reason is justified when the flag was
+wrong, or when the passage, word for word, is still the best way to state a
+live conclusion. It is unjustified when the passage could be removed or said
+in fewer words without losing a conclusion.
+
+**Reply** with one or more lines per change, one line per kept passage, and
+nothing else:
 
 ```text
 Change <n>: superseded
@@ -47,6 +58,8 @@ Change <n>: folded in: <where>
 Change <n>: lost: <the conclusion, as the document should state it again>
 Change <n>: holds
 Change <n>: false: <the claim> — <what is true, and the file that shows it>
+Passage <n>: justified
+Passage <n>: unjustified: <what to remove or shorten, and why>
 Totals: <lost> lost, <false> false
 ```
 

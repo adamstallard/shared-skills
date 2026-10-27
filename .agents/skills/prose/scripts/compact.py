@@ -1,14 +1,19 @@
 """Compaction: rule 8 ("what is, not how it got here") over a whole file.
 
-Two parts, both standard library only:
+Three parts, all standard library only:
 
+- `passages()`: the bloat detectors. They flag passages a compaction should
+  answer for: history, repetition, amendment notes, long rejected
+  alternatives, stale references, narrative words and filler.
 - `due()`: the cheap triggers `prose check` runs on each changed doc. A doc
-  agents read before working is due for compaction when it is over its size
-  budget and was never compacted or has grown past its growth share since,
-  or when it holds history markers.
+  agents read often is due for compaction when, since its last compaction,
+  its flagged text has grown by a set number of bytes, or the doc has grown
+  by both a set share and a set number of bytes.
 - `brief()`, `verify()` and `review()`: `prose compact <file>` prints the
-  brief a compactor subagent works from, `--verify` checks the result, and
-  `--review` prints the brief for a reviewer of each removal and rewrite.
+  brief a compactor subagent works from, listing every flagged passage;
+  `--verify` checks the result, including the compactor's answer for each
+  passage; and `--review` prints the brief for a reviewer of each removal,
+  rewrite and kept passage.
 
 Read ../DECISIONS.md (*Compaction*) before changing a default here.
 """
@@ -37,23 +42,37 @@ except ImportError:  # Windows: the lock does nothing, see _snapshot_lock
 HERE = pathlib.Path(__file__).resolve().parent
 BRIEF = HERE.parent / "compact.md"
 
-# The size above which a doc agents read before working is due for
-# compaction, in bytes of the staged file (about 10,000 tokens).
-DEFAULT_BUDGET = 40_000
-# Once compacted, a doc over budget is due again when it has grown by this
-# share, in percent, since its last compaction.
+# A doc agents read often is due for compaction when the passages the
+# detectors flag hold at least this many bytes more than they did at its last
+# compaction (about 250 tokens, paid on every read).
+DEFAULT_FLAGGED = 1_000
+# Once compacted, it is also due when it has grown by this share, in
+# percent, since its last compaction.
 DEFAULT_GROWTH = 50
+# ... and only when it has also grown by at least this many bytes, so a
+# small doc is not due for a few added lines.
+DEFAULT_GROWTH_BYTES = 2_000
+# A doc that its name, place, read-first link or declaration does not make
+# read often is read often when commits since its last compaction imply at
+# least this many reads of it.
+DEFAULT_READS = 20
 # A commit that shrinks a file by at least this share, in percent, counts as
 # a compaction of it.
 COMPACTED_SHARE = 10
 # How far back, in commits that changed the file, to look for the last
 # compaction.
 HISTORY_DEPTH = 500
+# How many commits back from HEAD the read count looks, so the trigger stays
+# cheap on every commit.
+READS_DEPTH = 300
 
 # The .gitattributes names a repository sets to override the defaults.
 ATTR_DECLARE = "prose-compact"
-ATTR_BUDGET = "prose-compact-budget"
 ATTR_GROWTH = "prose-compact-growth"
+ATTR_GROWTH_BYTES = "prose-compact-growth-bytes"
+ATTR_FLAGGED = "prose-compact-flagged"
+ATTR_READS = "prose-compact-reads"
+ATTR_ATTRIBUTION = "prose-compact-attribution"
 
 # Exit codes of `prose compact`: the brief was printed (the step is the
 # caller's to do), the result passed, the result failed a check.
@@ -95,9 +114,14 @@ def default_current(path):
 
 class Settings(NamedTuple):
     current: bool
-    budget: int
     growth: int
     binary: bool = False
+    declared: bool = False      # `prose-compact`: read often, whatever its name
+    flagged: int = DEFAULT_FLAGGED
+    reads: int = DEFAULT_READS
+    drop_attribution: bool = False  # `prose-compact-attribution=drop`
+    exempt: bool = False        # `-prose-compact`
+    growth_bytes: int = DEFAULT_GROWTH_BYTES
 
 
 def _number(value, default):
@@ -106,12 +130,14 @@ def _number(value, default):
 
 def settings(paths, root):
     """{path: Settings} from the staged .gitattributes, falling back to the
-    defaults. `prose-compact` declares a doc current-state, `-prose-compact`
-    exempts one, and the two numeric attributes replace the budget and the
-    growth share. Outside a repository, or when git fails, every path gets
-    the defaults."""
+    defaults. `prose-compact` declares a doc read often, `-prose-compact`
+    exempts one, the numeric attributes replace the growth share, the
+    bytes of growth, the flagged bytes and the reads needed, and `prose-compact-attribution=drop`
+    has the compactor drop "who decided" credits. Outside a repository, or
+    when git fails, every path gets the defaults."""
     found = {path: {} for path in paths}
-    names = [ATTR_DECLARE, ATTR_BUDGET, ATTR_GROWTH, "diff"]
+    names = [ATTR_DECLARE, ATTR_GROWTH, ATTR_GROWTH_BYTES, ATTR_FLAGGED, ATTR_READS,
+             ATTR_ATTRIBUTION, "diff"]
     if paths and root is not None:
         try:
             result = subprocess.run(
@@ -132,9 +158,13 @@ def settings(paths, root):
         current = default_current(path) if declared is None else declared != "unset"
         # `-diff`, or `binary`, which sets it, is how a repository tells git
         # a file is binary.
-        out[path] = Settings(current, _number(attrs.get(ATTR_BUDGET), DEFAULT_BUDGET),
-                             _number(attrs.get(ATTR_GROWTH), DEFAULT_GROWTH),
-                             attrs.get("diff") == "unset")
+        out[path] = Settings(current, _number(attrs.get(ATTR_GROWTH), DEFAULT_GROWTH),
+                             attrs.get("diff") == "unset",
+                             declared is not None and declared != "unset",
+                             _number(attrs.get(ATTR_FLAGGED), DEFAULT_FLAGGED),
+                             _number(attrs.get(ATTR_READS), DEFAULT_READS),
+                             attrs.get(ATTR_ATTRIBUTION) == "drop", declared == "unset",
+                             _number(attrs.get(ATTR_GROWTH_BYTES), DEFAULT_GROWTH_BYTES))
     return out
 
 
@@ -184,34 +214,70 @@ QUOTED = re.compile(r"\"[^\"\n]*(?:\n[^\"\n]*)?\"|“[^”\n]*(?:\n[^”\n]*)?�
 
 
 def masked_lines(text):
-    """The text's lines with what is quoted rather than said blanked: fenced
-    blocks, inline code, and text in double quotes or guillemets. A doc that
-    names a marker, such as this skill's rules, is quoting it."""
-    lines = _unfenced_code(text)
-    joined = QUOTED.sub(lambda m: re.sub(r"[^\n]", " ", m.group(0)), "\n".join(lines))
-    return joined.split("\n")
+    """The text's lines with what is quoted rather than said blanked, as the
+    bloat detectors read them (_mask): fenced blocks, YAML front matter,
+    inline code, and text in double quotes or guillemets. Quoted text is
+    blanked because a doc that names a marker, such as this skill's rules,
+    is quoting it, not using it."""
+    return _mask(_lf(text)).split("\n")
 
 
 def _unfenced_code_kept(text):
     """The text's lines with fenced blocks blanked and inline code kept.
-    The history-marker scan reads it through _unfenced_code, which then
-    blanks inline code too; gone_terms reads it directly, to find the code
-    spans. --verify never uses it: it reads every heading-shaped line, code
-    blocks included."""
+    gone_terms calls this to find code spans, and _unfenced_code calls it
+    and then blanks inline code too. --verify's heading check does not call
+    it: that check reads every heading-shaped line, code blocks included."""
+    lines = text.split("\n")
+    return ["" if code else line for line, code in zip(lines, _fenced(lines))]
+
+
+def _indent(text):
+    """The width of text's leading whitespace, a tab counted as four."""
+    return len(text[:len(text) - len(text.lstrip())].expandtabs(4))
+
+
+# A list marker with a block quote after it, as in "- > text".
+LIST_QUOTE = re.compile(r"^[ \t]*(?:[-*+]|[0-9]{1,9}[.)])[ \t]+(?=>)")
+
+
+def _opens(unquoted):
+    """(fence, column) when unquoted, a line without its quote markers,
+    opens a fenced block: the fence's characters and the column they start
+    at, after any indentation and list marker; else None. A fence after a
+    list marker and a quote marker, "- > ```sh", opens at the column left
+    once both markers are removed. Its closer, "  > ```", sits at the same
+    column once its quote marker is removed, so it closes the block."""
+    unquoted = _unquoted(LIST_QUOTE.sub("", unquoted, count=1))
+    opening = FENCE.match(unquoted.lstrip())
+    return (opening.group(1), _indent(unquoted) + opening.start(1)) if opening else None
+
+
+def _closes(fence, unquoted):
+    """True when unquoted, a line without its quote markers, closes the
+    fenced block fence, as _opens gave it: the fence's character alone, at
+    least as many as opened it, indented at most three columns more than
+    the opener. "```python" inside a ``` block is code, and so is a ``` line
+    indented four more, as in a docstring's example. _fenced and
+    _paragraphs both close fences here, so they agree."""
+    marker, column = fence
+    return _indent(unquoted) - column <= 3 and bool(
+        re.fullmatch(re.escape(marker[0]) + "{%d,}[ \t]*" % len(marker), unquoted.lstrip()))
+
+
+def _fenced(lines):
+    """[bool] for each line: True when it opens, closes or sits in a fenced
+    block. A fence may open after a list marker or inside a block quote, as
+    _paragraphs reads it, so every scanner agrees on what is code."""
     out, fence = [], None
-    for line in text.split("\n"):
-        stripped = line.lstrip()
+    for line in lines:
+        unquoted = _unquoted(line)
         if fence:
-            if stripped.startswith(fence):
+            if _closes(fence, unquoted):
                 fence = None
-            out.append("")
+            out.append(True)
             continue
-        opening = re.match(r"(`{3,}|~{3,})", stripped)
-        if opening:
-            fence = opening.group(1)
-            out.append("")
-            continue
-        out.append(line)
+        fence = _opens(unquoted)
+        out.append(bool(fence))
     return out
 
 
@@ -220,23 +286,465 @@ def _unfenced_code(text):
     return [re.sub(r"`[^`]*`", "``", line) for line in _unfenced_code_kept(text)]
 
 
-def history_markers(text):
-    """[Marker] for each line a marker starts on, at most one per line. The
-    patterns run over the whole masked text, so a marker that wrapped onto
-    the next line is still found."""
-    joined = "\n".join(masked_lines(text))
-    best = {}  # line: (pattern rank, Marker)
+def _marker_hits(joined):
+    """(rank, name, offset, words) for each history marker in joined, a
+    masked text. The offset is the marker's first word, past the full stop,
+    bracket, emphasis or `#` a label's pattern starts with, so it falls in
+    the marker's own sentence."""
     for rank, (name, pattern) in enumerate(MARKERS):
         for match in pattern.finditer(joined):
-            start = match.start()
+            found = match.group(0)
+            start = match.start() + len(found) - len(found.lstrip(".(*# \t"))
             if name == "previously" and DETERMINER.search(joined[max(0, start - 40):start]):
                 continue
-            number = joined.count("\n", 0, start) + 1
-            if number in best and best[number][0] <= rank:
-                continue
-            words = " ".join(match.group(0).split()).strip(" .(*#")
-            best[number] = (rank, Marker(number, name, words))
+            yield rank, name, start, " ".join(match.group(0).split()).strip(" .(*#")
+
+
+def history_markers(text, exempt=()):
+    """[Marker] for each line a marker starts on, at most one per line. The
+    patterns run over the whole masked text, so a marker that wrapped onto
+    the next line is still found. A marker starting inside one of exempt,
+    [(start, end)] offsets into text, is left out."""
+    joined = "\n".join(masked_lines(text))
+    best = {}  # line: (pattern rank, Marker)
+    for rank, name, start, words in _marker_hits(joined):
+        if any(low <= start < high for low, high in exempt):
+            continue
+        number = joined.count("\n", 0, start) + 1
+        if number in best and best[number][0] <= rank:
+            continue
+        best[number] = (rank, Marker(number, name, words))
     return [best[number][1] for number in sorted(best)]
+
+
+# ---------------------------------------------------------------------------
+# Bloat detectors
+# ---------------------------------------------------------------------------
+#
+# Each detector flags passages, sentences or whole paragraphs, that a
+# compaction should answer for: remove, rewrite shorter, or keep with a
+# reason. They are simple patterns, predictable over cleverness: a false flag
+# costs the compactor one `kept:` line. Fenced code, inline code and quoted
+# text are skipped, as by the history-marker scan.
+
+class Passage(NamedTuple):
+    start: int    # first line, from 1
+    end: int      # last line
+    kinds: tuple  # the detectors that flagged it, in KINDS order
+    text: str     # as the file has it
+    note: str = ""
+
+
+KINDS = ("history", "repetition", "amendment", "rejected", "stale reference", "narrative",
+         "filler")
+
+AMENDMENT = re.compile(
+    r"\b(?:amended|superseded|withdrawn)\s+(?:by|in|on)\b"
+    r"|\bwithdrawn\b"
+    r"|\bas (?:first|originally|initially) (?:written|drafted|proposed|stated|specified)\b"
+    r"|\b(?:amendment|erratum|errata)\b", re.I)
+
+NARRATIVE = re.compile(
+    r"\b(?:initially|at first|originally|turned out|ended up|back then|used to be)\b"
+    r"|\b(?:we|I|they)\s+(?:first\s+|then\s+|later\s+)?(?:tried|attempted)\b"
+    r"|\bpreviously\b", re.I)
+
+# Prose's rule 9 cuts filler and throat-clearing, and its list of how agents
+# cheat names a "Note:" line added in place of a rewrite.
+FILLER = re.compile(
+    r"(?:^|(?<=[.!?]\s)|(?<=^[-*+]\s))(?:\*\*|_)?(?:Note|NB|Clarification|Important)(?:\*\*|_)?:"
+    r"|\b(?:it is|it's) (?:worth|important to) (?:noting|note|mentioning|mention|remembering)\b"
+    r"|\bit should be noted\b|\bnote that\b|\bneedless to say\b|\bit goes without saying\b"
+    r"|\bas (?:mentioned|noted|described|discussed|stated|explained) (?:above|earlier|before)\b"
+    r"|(?:^|(?<=[.!?]\s))(?-i:In other words)\b|\bbasically\b|\bessentially\b", re.I | re.M)
+
+REJECTED = re.compile(r"^[ \t]*(?:[-*+]|[0-9]{1,9}[.)])?[ \t]*(?:\*\*|__)?Rejected\b")
+LABEL_ONLY = re.compile(r"[ \t]*(?:\*\*|__)?Rejected[.:]?(?:\*\*|__)?[.:]?[ \t]*")
+ITEM = re.compile(r"^[ \t]*(?:[-*+]|[0-9]{1,9}[.)])[ \t]+")
+SENTENCE_END = re.compile(r"[.!?][)\]*_\"”»']*\s+")
+SENTENCE_START = re.compile(r"[A-Z`*(\"«“\[_]")
+
+# Repetition, as spec-check's duplicate check: a sentence of at least
+# REPEAT_WORDS words stated twice, once normalised; or any run of
+# OVERLAP_WORDS words two sentences share.
+REPEAT_WORDS = 10
+OVERLAP_WORDS = 8
+
+BACKTICKS = re.compile(r"`+")
+FUNCTION = re.compile(r"([A-Za-z_][\w]*(?:\.[A-Za-z_]\w*)*)\([^()]*\)")
+PATH_SPAN = re.compile(r"[\w.-]*(?:/[\w.-]+)+/?")
+
+
+def _code_spans(text):
+    """[(start, end)] of each inline code span in text, as CommonMark reads
+    one: a run of backticks opens it and the next run of exactly as many
+    closes it. A span may wrap onto one more line, as quotations may, never
+    across a blank one; a run with no close is literal backticks."""
+    out, pos = [], 0
+    while True:
+        opening = BACKTICKS.search(text, pos)
+        if opening is None:
+            return out
+        pos = opening.end()
+        # The span ends by the end of the next line.
+        first = text.find("\n", pos)
+        limit = len(text) if first < 0 else text.find("\n", first + 1)
+        limit = len(text) if limit < 0 else limit
+        closing = BACKTICKS.search(text, pos, limit)
+        while closing is not None and len(closing.group(0)) != len(opening.group(0)):
+            closing = BACKTICKS.search(text, closing.end(), limit)
+        if closing is not None:
+            out.append((opening.start(), closing.end()))
+            pos = closing.end()
+
+
+def _mask(text, inline_code=True, fill=" ", quotes=True):
+    """text with what is quoted rather than said blanked to spaces, each line
+    keeping its length, so offsets into it are offsets into text: fenced
+    blocks, YAML front matter, with inline_code, inline code, and, with
+    quotes, text in double quotes or guillemets. With fill "x", inline code
+    and quotations are filled with "x" instead of spaces. That is the
+    structure view: a line holding only code still belongs to its
+    paragraph, and a sentence can start with code or a quotation."""
+    out, lines = [], text.split("\n")
+    # Front matter is a first line of `---` and a closing one; a lone `---`
+    # on the first line is a horizontal rule.
+    end = next((n for n in range(1, len(lines)) if lines[n].strip() == "---"), None) \
+        if lines[:1] == ["---"] else None
+    end = -1 if end is None else end
+    # Fences are read after the front matter, so a fence-like line in it
+    # opens nothing.
+    code = [False] * (end + 1) + _fenced(lines[end + 1:])
+    for number, line in enumerate(lines):
+        out.append(" " * len(line) if number <= end or code[number] else line)
+    joined = "\n".join(out)
+    if inline_code:
+        # A code span may wrap onto one more line, never across a blank one.
+        pieces, last = [], 0
+        for start, end in _code_spans(joined):
+            pieces += [joined[last:start], re.sub(r"[^\n]", fill, joined[start:end])]
+            last = end
+        joined = "".join(pieces) + joined[last:]
+    if not quotes:
+        return joined
+    return QUOTED.sub(lambda m: re.sub(r"[^\n]", fill, m.group(0)), joined)
+
+
+class _Unit(NamedTuple):
+    start: int  # offset in the text
+    end: int
+
+
+def _blocks(masked):
+    """[_Unit] for each paragraph, list item, heading and table row of the
+    masked text. A list item's continuation lines belong to it."""
+    out, start, pos = [], None, 0
+    for line in masked.split("\n"):
+        end = pos + len(line)
+        alone = HEADING.match(line) or line.lstrip().startswith("|")
+        if not line.strip() or alone or ITEM.match(line):
+            if start is not None:
+                out.append(_Unit(start, last))
+                start = None
+            if alone:
+                out.append(_Unit(pos, end))
+            elif line.strip():
+                start, last = pos, end
+        else:
+            if start is None:
+                start = pos
+            last = end
+        pos = end + 1
+    if start is not None:
+        out.append(_Unit(start, last))
+    return out
+
+
+def _sentences(text, masked, block):
+    """[_Unit] for each sentence of block: split after a full stop, question
+    or exclamation mark outside code and quotes, before a capital letter,
+    code span or opening mark. masked is the structure view (_mask with
+    fill "x"), where code and quotations are not whitespace."""
+    out, start = [], block.start
+    for match in SENTENCE_END.finditer(masked, block.start, block.end):
+        if match.end() < block.end and SENTENCE_START.match(text, match.end()):
+            out.append(_Unit(start, match.end()))
+            start = match.end()
+    out.append(_Unit(start, block.end))
+    return [unit for unit in out if text[unit.start:unit.end].strip()]
+
+
+def _normal_words(text):
+    """The words of text as repetition compares them: case folded, code
+    marks and emphasis dropped, and punctuation at the ends of each word."""
+    words = re.sub(r"[`*_]", "", text.casefold()).split()
+    return [word.strip(".,;:!?()[]\"'«»“”") for word in words if word.strip(".,;:!?()[]\"'«»“”")]
+
+
+def _tracked(root):
+    out = _git(["ls-files", "-z"], root)
+    return set(filter(None, (out or "").split("\0")))
+
+
+# The last tracked set _lookup read, its size then, and what it built from it.
+_LOOKUP = [None, -1, None]
+
+
+def _lookup(tracked):
+    """(folders, by_name) for the tracked set: every folder holding a
+    tracked file, and {last part of a path: [tracked file or folder]}, so a
+    name is compared only with the paths that end in the same part. Built
+    once for the same set, which due() passes for every doc it checks."""
+    if _LOOKUP[0] is tracked and _LOOKUP[1] == len(tracked):
+        return _LOOKUP[2]
+    folders = set()
+    for name in tracked:
+        cut = name.rfind("/")
+        while cut > 0 and name[:cut] not in folders:
+            folders.add(name[:cut])
+            cut = name.rfind("/", 0, cut)
+    by_name = {}
+    for item in tracked | folders:
+        by_name.setdefault(item[item.rfind("/") + 1:], []).append(item)
+    _LOOKUP[:] = [tracked, len(tracked), (folders, by_name)]
+    return folders, by_name
+
+
+def _stale(spans, path, root, tracked):
+    """The code spans, of [(offset, span)], that name a path, flag or
+    function the repository no longer has. A path is checked only when its
+    first directory is one the repository has, at its root or beside the
+    doc, so a path in another repository a doc describes is not flagged; it
+    is stale when no tracked file or directory has it, from the root, from
+    the doc's directory, or as the end of a tracked path. A flag or a
+    function call is stale when no tracked file other than a Markdown file
+    or the doc itself holds it."""
+    if root is None:
+        return []
+    folders, by_name = _lookup(tracked)
+    here = str(pathlib.PurePosixPath(path).parent)
+
+    def local(name):
+        return os.path.normpath(os.path.join(here, name))
+
+    def ours(name):
+        first = name.split("/", 1)[0]
+        return first in folders or local(first) in folders
+
+    def known(name):
+        """True when a tracked file or folder is name, or ends with it
+        after a `/`."""
+        return any(item == name or item.endswith("/" + name)
+                   for item in by_name.get(name[name.rfind("/") + 1:], ()))
+
+    def exists(name):
+        name = name.rstrip("/")
+        return known(name) or known(local(name))
+
+    found, needles = [], {}
+    for offset, span in spans:
+        span = " ".join(span.split())  # a span may wrap onto a second line
+        if " " not in span and not re.search(r"[<>*?{}$~\\]|^/|^\.git/|://", span):
+            target = re.sub(r"(?:#.*|:[0-9]+(?:-[0-9]+)?)$", "", span)
+            if "/" in target and PATH_SPAN.fullmatch(target) and ours(target) \
+                    and not exists(target):
+                found.append((offset, span))
+                continue
+        flag = FLAG.match(span)
+        if flag:
+            needles.setdefault(flag.group(0), []).append((offset, span))
+            continue
+        call = FUNCTION.fullmatch(span)
+        if call:
+            needles.setdefault(call.group(1).rsplit(".", 1)[-1] + "(", []).append((offset, span))
+    if needles:
+        # Set against the user's config, as in _grep, so each output line is
+        # the matched text alone, with no line number or column before it.
+        args = ["git", "-c", "core.quotePath=false", "-c", "grep.lineNumber=false",
+                "-c", "grep.column=false", "-c", "color.grep=never", "grep", "--cached", "-h",
+                "-o", "-I", "-F", "--no-color"]
+        for needle in sorted(needles):
+            args += ["-e", needle]
+        args += ["--", ".", ":(exclude)*.md", ":(exclude)*.MD", f":(exclude,literal){path}"]
+        try:
+            result = subprocess.run(args, cwd=root, capture_output=True, check=False)
+        except OSError:
+            result = None
+        # git grep exits 1 when nothing matched; anything else is a failure,
+        # and a check that could not run flags nothing.
+        if result is not None and result.returncode in (0, 1):
+            held = set(result.stdout.decode("utf-8", "surrogateescape").split("\n"))
+            for needle, places in needles.items():
+                if needle not in held:
+                    found.extend(places)
+    return sorted(found)
+
+
+def passages(text, path="", root=None, tracked=None):
+    """[Passage] for every passage the detectors flag in text, the file at
+    path in the repository at root (None outside one, which skips the
+    stale-reference check), in order. Passages that overlap are merged, so
+    each line belongs to at most one."""
+    text = _lf(text)
+    # The patterns read masked, where code and quotations are spaces; the
+    # paragraphs and sentences are read from structure, where they are not.
+    masked, structure = _mask(text), _mask(text, fill="x")
+    starts = [0] + [index + 1 for index, char in enumerate(text) if char == "\n"]
+    blocks = _blocks(structure)
+    sentences = [unit for block in blocks for unit in _sentences(text, structure, block)]
+    sentence_starts = [unit.start for unit in sentences]
+    hits = {}  # (start, end): [kinds], note
+
+    def flag(unit, kind, note=""):
+        entry = hits.setdefault((unit.start, unit.end), [[], ""])
+        if kind not in entry[0]:
+            entry[0].append(kind)
+        if note and not entry[1]:
+            entry[1] = note
+
+    def sentence_at(offset):
+        index = bisect.bisect_right(sentence_starts, offset) - 1
+        if index >= 0 and offset < sentences[index].end:
+            return sentences[index]
+        return None
+
+    def line_of(offset):
+        return bisect.bisect_right(starts, offset)
+
+    def pattern_hits(kind, pattern, veto=None):
+        for match in pattern.finditer(masked):
+            if veto and veto(match):
+                continue
+            unit = sentence_at(match.start())
+            if unit is not None:
+                flag(unit, kind)
+
+    for _, _, offset, _ in _marker_hits(masked):
+        unit = sentence_at(offset)
+        if unit is not None:
+            flag(unit, "history")
+
+    def determiner(match):
+        return match.group(0).lower() == "previously" and \
+            DETERMINER.search(masked[max(0, match.start() - 40):match.start()])
+
+    pattern_hits("amendment", AMENDMENT)
+    pattern_hits("narrative", NARRATIVE, determiner)
+    pattern_hits("filler", FILLER)
+
+    # Repetition: a whole sentence again, or a long run of words again. The
+    # words are read masked, so code and quotations repeat nothing.
+    seen, shingles = {}, {}
+    for index, unit in enumerate(sentences):
+        if HEADING.match(text[unit.start:unit.end]):
+            continue
+        words = _normal_words(masked[unit.start:unit.end])
+        key = " ".join(words)
+        if len(words) >= REPEAT_WORDS and key in seen:
+            flag(unit, "repetition", f"same as line {line_of(sentences[seen[key]].start)}")
+            continue
+        seen.setdefault(key, index)
+        earlier = None
+        for at in range(len(words) - OVERLAP_WORDS + 1):
+            run = " ".join(words[at:at + OVERLAP_WORDS])
+            first = shingles.setdefault(run, index)
+            if first != index and earlier is None:
+                earlier = first
+        if earlier is not None:
+            flag(unit, "repetition", f"overlaps line {line_of(sentences[earlier].start)}")
+
+    # Long rejected alternatives: a "Rejected" paragraph or item, or each
+    # item of a list a "Rejected" label opens, holding more than its first
+    # sentence, which names the alternative, and one sentence of reason; or
+    # a "Rejected" section, whose heading names it, of more than one
+    # sentence.
+    def long(units, allowed=2):
+        return sum(len(_sentences(text, structure, unit)) for unit in units) > allowed
+
+    def close(section):
+        if section and long(section, 1):
+            flag(_Unit(section[0].start, section[-1].end), "rejected")
+
+    section, under_label = None, False
+    for block in blocks:
+        body = masked[block.start:block.end]
+        heading = HEADING.match(body)
+        if heading:
+            close(section)
+            section = [] if re.match(r"(?:\*\*|__)?Rejected\b", heading.group(1)) else None
+            under_label = False
+            continue
+        if section is not None:
+            section.append(block)
+            continue
+        item = ITEM.match(body)
+        if REJECTED.match(body):
+            if not item and LABEL_ONLY.fullmatch(body):
+                under_label = True
+            elif long([block]):
+                flag(block, "rejected")
+            continue
+        if under_label and item:
+            if long([block]):
+                flag(block, "rejected")
+            continue
+        under_label = False
+    close(section)
+
+    # Stale references: a path, flag or function in a code span that the
+    # repository no longer has.
+    # Read as _mask reads them: code spans first, then quotations outside
+    # them, so a quote mark inside code pairs with nothing.
+    plain = _mask(text, inline_code=False, quotes=False)
+    # Code as "x", quotations as spaces: a span whose first backtick is a
+    # space here sits inside a quotation.
+    unquoted = QUOTED.sub(lambda m: re.sub(r"[^\n]", " ", m.group(0)),
+                          _mask(text, fill="x", quotes=False))
+    spans = [(start, plain[start:end].strip("`")) for start, end in _code_spans(plain)
+             if unquoted[start] != " "]
+    spans = [(start, span) for start, span in spans if span.strip()]
+    if spans and root is not None:
+        for offset, _ in _stale(spans, path, root, _tracked(root) if tracked is None else tracked):
+            unit = sentence_at(offset)
+            if unit is not None:
+                flag(unit, "stale reference")
+    return _merge(text, hits, starts)
+
+
+def _merge(text, hits, starts):
+    """[Passage] for hits, {(start, end): [kinds, note]}, overlapping ones
+    merged, each trimmed of the whitespace around it."""
+    merged = []
+    for (start, end), (kinds, note) in sorted(hits.items()):
+        if merged and start < merged[-1][1]:
+            last = merged[-1]
+            last[1] = max(last[1], end)
+            last[2] += [kind for kind in kinds if kind not in last[2]]
+            last[3] = last[3] or note
+        else:
+            merged.append([start, end, list(kinds), note])
+    out = []
+    for start, end, kinds, note in merged:
+        raw = text[start:end]
+        start += len(raw) - len(raw.lstrip())
+        end = start + len(raw.strip())
+        out.append(Passage(bisect.bisect_right(starts, start), bisect.bisect_right(starts, end - 1),
+                           tuple(kind for kind in KINDS if kind in kinds), text[start:end], note))
+    return out
+
+
+def flagged_bytes(found):
+    """The bytes the passages found take up."""
+    # surrogateescape gives back the bytes a doc that is not UTF-8 was read
+    # from, as its size in due() counts them.
+    return sum(len(p.text.encode("utf-8", "surrogateescape")) for p in found)
+
+
+def flagged_share(text, found):
+    """The share of text, in percent of its bytes, that the passages found
+    take up."""
+    size = len(text.encode("utf-8", "surrogateescape"))
+    return flagged_bytes(found) * 100 / size if size else 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -252,7 +760,10 @@ def _lf(text):
 def _git(args, root, stdin=None):
     """git's stdout, or None when it fails."""
     try:
-        result = subprocess.run(["git", "-c", "core.quotePath=false"] + args, cwd=root,
+        # Pinned as prose.py pins them: a user's trailer.separators without
+        # ":" would hide every Prose: trailer from the reads here.
+        result = subprocess.run(["git", "-c", "core.quotePath=false",
+                                 "-c", "trailer.separators=:"] + args, cwd=root,
                                 input=stdin, capture_output=True, check=False)
     except OSError:
         return None
@@ -313,29 +824,189 @@ def _sizes(objects, root, strict=False):
     return sizes
 
 
-def last_compaction(path, root):
-    """(commit, size after) for the newest non-merge commit reachable from
-    HEAD that shrank path by COMPACTED_SHARE or more, or None. Read from blob
-    sizes alone, so it needs no marker in the commit. Commits inside merged
+class SizeHistory(NamedTuple):
+    # (commit, size after, blob after) of the last compaction, or None
+    last: Optional[tuple]
+    added: Optional[tuple]  # (commit, size) of the oldest version seen, or None
+    # False when a size the search needed was missing, as in a partial
+    # clone: whether a compaction came before is then unknown.
+    complete: bool = True
+
+
+def reviewed_blob(passes, oid):
+    """True when prose's pass directory, passes, holds a completed-review
+    record for the blob oid, as --reviewed writes one: that blob is the
+    result of a compaction. Records live in the shared git directory and
+    outlive the snapshot, which is deleted once the compaction is
+    committed."""
+    if passes is None:
+        return False
+    try:
+        fields = json.loads((reviewed_dir(passes) / oid).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    return isinstance(fields, dict)
+
+
+def size_history(path, root, passes=None):
+    """The last compaction of path: the newest non-merge commit reachable
+    from HEAD whose Prose: trailer lists path after `compacted:`, or that
+    shrank it by COMPACTED_SHARE or more, or whose resulting blob has a
+    completed-review record in passes, prose's pass directory (a compaction
+    that kept its flagged passages may cut less); and the
+    version its newest add made, or the oldest the log reaches when the
+    file has more than HISTORY_DEPTH changes. Only commits since that add
+    count: a file deleted and added again starts a new history. Commits inside merged
     branches count: a compaction in a pull request that also grew the file
-    nets less than a tenth on the merge, but its own commit still shows it."""
-    out = _git(["log", "--no-merges", "-n", str(HISTORY_DEPTH), "--format=%x01%h",
-                "--raw", "--no-abbrev", "--no-renames", "--", path], root)
+    nets less than a tenth on the merge, but its own commit still shows
+    it."""
+    # Topological order, so no commit is read before a newer one that
+    # changed the file, whatever their dates.
+    out = _git(["log", "--no-merges", "--topo-order", "-n", str(HISTORY_DEPTH),
+                "--format=%x01%h%x02%(trailers:key=Prose,valueonly,unfold,separator=%x03)%x02",
+                "--raw", "--no-abbrev", "--no-renames", "--", f":(literal){path}"], root)
+    # A log that failed, as in a treeless clone that may not fetch, says
+    # nothing about earlier compactions, unless HEAD lacks the file, as
+    # before the first commit: a file HEAD lacks was never compacted.
+    if out is None:
+        return SizeHistory(None, None, not _in_head(path, root))
+    # A shallow clone's boundary commits have no parents here, so the log
+    # shows the file as added by one, and misses what came before.
+    boundaries = _shallow_boundaries(root)
     if not out:
-        return None
-    changes = []
+        return SizeHistory(None, None, not boundaries or not _in_head(path, root))
+    changes, oldest, marked = [], None, set()
     for chunk in out.split("\x01")[1:]:
-        lines = chunk.strip("\n").split("\n")
+        commit, _, rest = chunk.partition("\x02")
+        values, _, rest = rest.partition("\x02")
+        if any(path in compacted_paths_in(value) for value in values.split("\x03")):
+            # Its Prose: trailer records it as a compaction of path, whatever
+            # it cut: the record every clone sees.
+            marked.add(commit)
+        lines = [commit] + rest.strip("\n").split("\n")
+        kinds = set()
         for line in lines[1:]:
-            raw = re.match(r":\d+ \d+ ([0-9a-f]+) ([0-9a-f]+) M\t", line)
+            raw = re.match(r":\d+ \d+ ([0-9a-f]+) ([0-9a-f]+) ([ADM])\t", line)
+            if raw and raw.group(3) == "D":
+                # Deleted in HEAD: the doc staged now is a new file, with
+                # no history of its own yet.
+                return SizeHistory(None, None, True)
             if raw:
-                changes.append((lines[0], raw.group(1), raw.group(2)))
-    sizes = _sizes(sorted({blob for _, old, new in changes for blob in (old, new)}), root)
+                kinds.add(raw.group(3))
+                if raw.group(3) == "M":
+                    changes.append((lines[0], raw.group(1), raw.group(2)))
+                oldest = (lines[0], raw.group(2))
+        # The newest add starts the file's present life: what came before
+        # it, as before a deletion, was another file at the same path.
+        if "A" in kinds:
+            break
+    sizes = _sizes(sorted({blob for _, old, new in changes for blob in (old, new)}
+                          | ({oldest[1]} if oldest else set())), root)
+    last, complete = None, True
     for commit, old, new in changes:
-        if old in sizes and new in sizes and \
-                sizes[new] * 100 <= sizes[old] * (100 - COMPACTED_SHARE):
-            return commit, sizes[new]
-    return None
+        if new in sizes and (commit in marked or reviewed_blob(passes, new)):
+            last = (commit, sizes[new], new)
+            break
+        if new not in sizes or old not in sizes:
+            # Whether this change was a compaction cannot be told, so
+            # neither can which one was the last.
+            complete = False
+            break
+        if sizes[new] * 100 <= sizes[old] * (100 - COMPACTED_SHARE):
+            last = (commit, sizes[new], new)
+            break
+    if last is None and oldest and any(sha.startswith(oldest[0]) for sha in boundaries):
+        complete = False
+    added =(oldest[0], sizes[oldest[1]]) if oldest and oldest[1] in sizes else None
+    return SizeHistory(last, added, complete)
+
+
+# The part of a Prose: trailer value that names the files the commit
+# compacted, each verified and reviewed with `prose compact`.
+COMPACTED = re.compile(r"; compacted: (.+)$")
+
+
+def compacted_paths_in(value):
+    """The paths a Prose: trailer value lists after `; compacted: `."""
+    found = COMPACTED.search(value or "")
+    return found.group(1).split(", ") if found else []
+
+
+def listable(path):
+    """True when path can be listed after `compacted: ` and read back the
+    same: no separator, semicolon, line break or edge space in it."""
+    return bool(path) and path == path.strip() and not re.search(r", |;|[\r\n]", path)
+
+
+def compacted_paths(root, amend, passes):
+    """The staged paths whose compaction, started in this work tree, is
+    verified and reviewed for the staged blob, sorted: what the signing call
+    lists in its trailer after `compacted: `. Paths that cannot be listed
+    are left out; their compaction is then known only to this clone.
+
+    With amend, a path HEAD's own Prose: trailer lists stays listed while
+    its staged blob is still HEAD's. That is the compaction being amended:
+    any check run against HEAD since may have deleted its snapshot, so the
+    snapshot can no longer vouch for it."""
+    if root is None:
+        return []
+    base = "HEAD^" if amend else "HEAD"
+    try:
+        tree, index = tree_entries(root, base), index_entries(root)
+        stored = {}
+        begun = started(root, tree, passes, stored)
+        head = tree_entries(root, "HEAD") if amend else {}
+    except ValueError:
+        return []
+    out = set()
+    if amend:
+        values = _git(["log", "-1", "--format=%(trailers:key=Prose,valueonly,unfold,"
+                       "separator=%x03)", "HEAD"], root) or ""
+        for path in {path for value in values.rstrip("\n").split("\x03")
+                     for path in compacted_paths_in(value)}:
+            entries, held, old = index.get(path, []), head.get(path), tree.get(path)
+            if len(entries) == 1 and entries[0].stage == "0" and entries[0].mode in REGULAR \
+                    and held is not None and held[1] == entries[0].oid \
+                    and (old is None or old[1] != entries[0].oid) and listable(path):
+                out.add(path)
+    for path, starts in begun.items():
+        entries = index.get(path, [])
+        if len(entries) != 1 or entries[0].stage != "0" or entries[0].mode not in REGULAR:
+            continue
+        old, oid = tree.get(path), entries[0].oid
+        if (old is not None and old[1] == oid) or not listable(path):
+            continue
+        if any(_record(verified_dir(passes), oid, before)
+               and _review_covers(reviewed_dir(passes), oid, before,
+                                  _answers_for(stored.get((path, before)), oid))
+               for before in starts):
+            out.add(path)
+    return sorted(out)
+
+
+def _in_head(path, root):
+    """True when HEAD's tree holds path; False when it does not, or when
+    there is no HEAD yet."""
+    return bool(_git(["ls-tree", "-z", "--full-tree", "HEAD", "--", path], root))
+
+
+def _shallow_boundaries(root):
+    """The full ids of a shallow clone's boundary commits; none when the
+    clone is complete."""
+    path = _git(["rev-parse", "--git-path", "shallow"], root)
+    if not path or not path.strip():
+        return set()
+    try:
+        text = (pathlib.Path(root) / path.strip()).read_text(encoding="ascii")
+    except (OSError, ValueError):
+        return set()
+    return set(text.split())
+
+
+def last_compaction(path, root):
+    """(commit, size after, blob after) for the last compaction of path, or
+    None."""
+    return size_history(path, root).last
 
 
 class Due(NamedTuple):
@@ -343,32 +1014,24 @@ class Due(NamedTuple):
     why: str
 
 
-def _size_reason(path, size, head_oid, setting, root):
-    """Why path is due by size, or None. head_oid is its blob at HEAD, or
-    None; its size is read only when the file is over budget, and a size git
-    cannot read, as in a partial clone offline, counts as unknown."""
-    if size <= setting.budget:
+def _growth_reason(size, history, setting):
+    """Why a doc of size bytes is due by growth, or None: since its last
+    compaction it has grown by its growth share and by at least its growth
+    bytes. A doc never compacted has no growth to measure; its flagged
+    passages decide."""
+    if history.last is None:
         return None
-    try:
-        head = _size(head_oid, root) if head_oid else None
-    except ValueError:
-        head = None
-    if head is not None and size * 100 <= head * (100 - COMPACTED_SHARE):
-        return None  # this change is itself a compaction
-    last = last_compaction(path, root)
-    if last is None:
-        return f"{size:,} bytes, over its budget of {setting.budget:,} and never compacted"
-    commit, after = last
+    commit, after = history.last[:2]
+    if size - after < setting.growth_bytes:
+        return None
     if after == 0:
-        # Emptied by its last compaction: any size over budget has grown
-        # past every share.
-        return (f"{size:,} bytes, over its budget of {setting.budget:,}; its last compaction "
-                f"({commit}) left it empty")
+        return f"{size:,} bytes; its last compaction ({commit[:12]}) left it empty" if size else None
     if size * 100 < after * (100 + setting.growth):
         return None
     grown = (size - after) * 100 // after
-    return (f"{size:,} bytes, over its budget of {setting.budget:,} and grown {grown}% since "
-            f"its last compaction ({commit}, {after:,} bytes); {setting.growth}% is allowed")
+    return (f"{size:,} bytes, grown {grown}% ({size - after:,} bytes) since its last compaction "
+            f"({commit[:12]}, {after:,} bytes); {setting.growth}% and "
+            f"{setting.growth_bytes:,} bytes are allowed")
 
 
 def is_binary(setting, data):
@@ -377,30 +1040,255 @@ def is_binary(setting, data):
     return setting.binary or b"\0" in data
 
 
-def _marker_reason(markers):
-    shown = ", ".join(f"line {m.line} «{m.words}»" for m in markers[:3])
-    more = f", and {len(markers) - 3} more" if len(markers) > 3 else ""
-    return f"history markers in a current-state doc: {shown}{more}"
+# What makes a doc read often by its place in the repository.
+ALWAYS_READ = {"claude.md", "agents.md", "skill.md"}
+# A link a SKILL.md or AGENTS.md asks to have read first, or read before
+# something, in the same paragraph or list item. Read before changing the
+# skill is a read only when the skill changes, which commits count instead.
+# A link between "read" and "first" counts as one character, so the full
+# stop in its target, as in "x.md", does not end the sentence.
+READ_FIRST = re.compile(r"\bread\b(?:\[[^\]\n]*\]\([^)\n]*\)|[^.]){0,40}?\b(?:first\b|before\b"
+                        r"(?![ \t\n]+(?:chang|edit|modif|updat|touch)))", re.I)
+LINK = re.compile(r"\[[^\]\n]*\]\(<?([^)\s>]+)>?(?:[ \t]+\"[^\"]*\")?\)")
+# Trailers that imply a read of the skill they name.
+READ_TRAILERS = re.compile(r"^(bug-hunter|prose|spec-check)[ \t]*:", re.I | re.M)
 
 
-def due(paths, root):
-    """[Due] for each staged path that is current-state, by default or by
-    its declaration in .gitattributes, whatever its type, and due for
-    compaction: by size, by history markers, or both. A binary file, by its
+def _batch_blobs(oids, root):
+    """{oid: text} for blobs, read by one `git cat-file --batch`."""
+    if not oids:
+        return {}
+    try:
+        result = subprocess.run(["git", "cat-file", "--batch"], cwd=root,
+                                input=("\n".join(oids) + "\n").encode(), capture_output=True,
+                                check=False)
+    except OSError:
+        return {}
+    out, data, pos = {}, result.stdout, 0
+    for oid in oids:
+        end = data.find(b"\n", pos)
+        header = data[pos:end].split()
+        if len(header) != 3 or header[1] != b"blob":
+            pos = end + 1
+            continue
+        size = int(header[2])
+        out[oid] = _lf(data[end + 1:end + 1 + size].decode("utf-8", "surrogateescape"))
+        pos = end + 1 + size + 1
+    return out
+
+
+def read_first_links(root, index):
+    """{tracked path: the SKILL.md or AGENTS.md that links it as read first}
+    for every link a tracked SKILL.md or AGENTS.md makes in a paragraph or
+    list item that asks to read it first or before something."""
+    sources = {path: entries[0].oid for path, entries in index.items()
+               if pathlib.PurePosixPath(path).name.lower() in ("skill.md", "agents.md")
+               and len(entries) == 1 and entries[0].mode in REGULAR}
+    texts = _batch_blobs(sorted(set(sources.values())), root)
+    out = {}
+    for source, oid in sorted(sources.items()):
+        text = texts.get(oid)
+        if text is None:
+            continue
+        masked = _mask(text)
+        here = pathlib.PurePosixPath(source).parent
+        for block in _blocks(_mask(text, fill="x")):
+            body = masked[block.start:block.end]
+            if not READ_FIRST.search(body):
+                continue
+            # The link is read from the text itself, since masking blanks a
+            # quoted title; one that starts in code or a quotation is not a link.
+            for match in LINK.finditer(text, block.start, block.end):
+                if masked[match.start()] == " ":
+                    continue
+                target = match.group(1).split("#", 1)[0]
+                if not target or re.match(r"[a-z][a-z0-9+.-]*:", target, re.I):
+                    continue
+                path = os.path.normpath(str(here / target))
+                if path in index:
+                    out.setdefault(path, source)
+    return out
+
+
+def _skill_of(path, skills):
+    """The SKILL.md of the nearest directory above path that has one."""
+    parent = pathlib.PurePosixPath(path).parent
+    while True:
+        candidate = str(parent / "SKILL.md") if str(parent) != "." else "SKILL.md"
+        if candidate in skills:
+            return candidate
+        if str(parent) in (".", "/", ""):
+            return None
+        parent = parent.parent
+
+
+def implied_reads(root, index, links, stops):
+    """{doc: reads}: how many of the READS_DEPTH commits behind HEAD imply
+    a read of each doc. stops gives each doc's last compaction commit, or
+    None; only commits newer than it count. With None, the count runs from
+    the commit that added the doc, which counts, as size_history finds it.
+    A doc HEAD lacks has no reads. These rules map each commit to the reads
+    it implies; they are declared, not inferred:
+    - a commit changing a file in a skill's directory reads that skill's
+      SKILL.md and the files it links as read first;
+    - a Bug-hunter:, Prose: or Spec-check: trailer reads that skill's
+      SKILL.md;
+    - a Spec-check: trailer also reads the main specs and the open changes."""
+    out = {doc: 0 for doc in stops}
+    if not stops:
+        return out
+    done, added = set(), {}
+    for doc, stop in stops.items():
+        if stop is None:
+            if not _in_head(doc, root):
+                done.add(doc)
+            else:
+                oldest = size_history(doc, root).added
+                if oldest:
+                    added[doc] = oldest[0]
+    if len(done) == len(stops):
+        return out
+    # Trailers only: a subject such as "spec-check: ..." is not one.
+    # No merges: a merge's body is its pull request's title, which git
+    # reads as a trailer when it looks like one ("spec-check: ...").
+    log = _git(["log", "--no-merges", "--topo-order", "-n", str(READS_DEPTH),
+                "--format=%x01%H%n%(trailers:only,unfold)%x02",
+                "--name-only", "HEAD"], root)
+    if not log:
+        return out
+    skills = {path for path in index if pathlib.PurePosixPath(path).name == "SKILL.md"}
+    first_of = {}
+    for target, source in links.items():
+        first_of.setdefault(source, set()).add(target)
+    specs = {path for path in index
+             if (path.startswith("openspec/specs/") and path.endswith("/spec.md"))
+             or (path.startswith("openspec/changes/") and not path.startswith(
+                 "openspec/changes/archive/") and path.endswith(".md"))}
+    for chunk in log.split("\x01")[1:]:
+        commit, _, rest = chunk.partition("\n")
+        body, _, files = rest.partition("\x02")
+        for doc, stop in stops.items():
+            if stop and commit.startswith(stop):
+                done.add(doc)
+        if len(done) == len(stops):
+            break
+        reads = set()
+        for name in filter(None, files.split("\n")):
+            skill = _skill_of(name, skills)
+            if skill:
+                reads.add(skill)
+                reads |= first_of.get(skill, set())
+        for trailer in READ_TRAILERS.findall(body):
+            name = trailer.lower()
+            reads |= {path for path in skills
+                      if path == f"{name}/SKILL.md" or path.endswith(f"/{name}/SKILL.md")}
+            if name == "spec-check":
+                reads |= specs
+        for doc in stops:
+            if doc not in done and doc in reads:
+                out[doc] += 1
+        # The commit that added a doc is the oldest one that reads it.
+        for doc, first in added.items():
+            if commit.startswith(first):
+                done.add(doc)
+    return out
+
+
+def _often(path, setting, links):
+    """Why path is read often by its place or a declaration, or None."""
+    name = pathlib.PurePosixPath(path).name.lower()
+    if setting.declared:
+        return "declared prose-compact in .gitattributes"
+    if name in ALWAYS_READ:
+        return f"every {pathlib.PurePosixPath(path).name} is read before work"
+    parts = pathlib.PurePosixPath(path).parts
+    if parts[:2] == ("openspec", "changes") and "archive" not in parts and len(parts) == 4 \
+            and name in ("proposal.md", "design.md"):
+        return "an open OpenSpec change's " + name[:-3]
+    if path in links:
+        return f"{links[path]} links it to be read first"
+    return None
+
+
+def _flagged_reason(found, size, baseline, setting):
+    kinds = collections.Counter(kind for passage in found for kind in passage.kinds)
+    shown = ", ".join(f"{count} {kind}" for kind, count in
+                      sorted(kinds.items(), key=lambda item: KINDS.index(item[0])))
+    flagged = flagged_bytes(found)
+    since = f", {baseline:,} of them at its last compaction" if baseline else ""
+    return (f"{flagged:,} bytes ({flagged * 100 // max(size, 1)}%) in {len(found)} flagged "
+            f"passage{'' if len(found) == 1 else 's'} ({shown}){since}; {setting.flagged:,} more "
+            f"than at its last compaction is allowed")
+
+
+def _baseline(path, history, root, tracked):
+    """The bytes flagged in path as its last compaction left it: 0 when it
+    was never compacted, so all its flagged text counts; None when that is
+    unknown, as when a partial clone lacks the history it needs."""
+    if not history.complete:
+        return None
+    if history.last is None:
+        return 0
+    try:
+        data = _blob(history.last[2], root)
+    except ValueError:
+        return None
+    return flagged_bytes(passages(_lf(data.decode("utf-8", "surrogateescape")), path, root,
+                                  tracked))
+
+
+def due(paths, root, passes=None):
+    """[Due] for each staged path that is read often and due for
+    compaction. It is due when its flagged passages hold at least its
+    flagged-bytes setting more than at its last compaction (all of them
+    when it was never compacted), or when it has grown by both its growth
+    share and its growth bytes since then. Its last compaction is found as
+    size_history says; a staged blob that is itself a compaction is not
+    due. The trigger looks only at candidates: paths that are current-state,
+    by default or by their declaration in .gitattributes, or linked from a
+    SKILL.md or AGENTS.md to be read first, and not exempt. A candidate due
+    by flagged text or growth is reported only when it is read often. A binary file, by its
     `-diff` attribute or a NUL byte, is skipped. Reads the index, so it
     judges the change about to be committed; sizes and blobs are read by
-    the ids `git ls-files -s` and `git ls-tree` list."""
+    the ids `git ls-files -s` and `git ls-tree` list. Read counts come
+    last, and only for a doc otherwise due, since they read the log.
+
+    No git call here fetches a blob a partial clone lacks: a history blob
+    missing counts as unknown, so the trigger never waits on the network."""
+    with _no_lazy_fetch():
+        return _due(paths, root, passes)
+
+
+@contextlib.contextmanager
+def _no_lazy_fetch():
+    """Every git call made inside reads only the objects already here."""
+    old = os.environ.get("GIT_NO_LAZY_FETCH")
+    os.environ["GIT_NO_LAZY_FETCH"] = "1"
+    try:
+        yield
+    finally:
+        if old is None:
+            os.environ.pop("GIT_NO_LAZY_FETCH", None)
+        else:
+            os.environ["GIT_NO_LAZY_FETCH"] = old
+
+
+def _due(paths, root, passes):
     paths = [path for path in paths if path]
-    found = settings(paths, root)
-    current = [path for path in paths if found[path].current and not found[path].binary]
-    if not current:
+    if not paths:
         return []
+    found = settings(paths, root)
     try:
         index, head = index_entries(root), tree_entries(root, "HEAD")
     except ValueError:
         return []
-    out = []
-    for path in current:
+    links = read_first_links(root, index)
+    tracked = set(index)
+    pending = []
+    for path in paths:
+        setting = found[path]
+        if setting.exempt or setting.binary or not (setting.current or path in links):
+            continue
         entries = index.get(path, [])
         if len(entries) != 1 or entries[0].stage != "0" or entries[0].mode not in REGULAR:
             continue  # deleted, unmerged, or not a file
@@ -408,19 +1296,44 @@ def due(paths, root):
             data = _blob(entries[0].oid, root)
         except ValueError:
             continue
-        if is_binary(found[path], data):
+        if is_binary(setting, data):
             continue
         before = head.get(path)
+        try:
+            head_size = _size(before[1], root) if before else None
+        except ValueError:
+            head_size = None
+        if reviewed_blob(passes, entries[0].oid) or (
+                head_size is not None and len(data) * 100 <= head_size * (100 - COMPACTED_SHARE)):
+            continue  # this change is itself a compaction
+        text = _lf(data.decode("utf-8", "surrogateescape"))
+        flagged = passages(text, path, root, tracked)
+        history = size_history(path, root, passes)
         reasons = []
-        size_reason = _size_reason(path, len(data), before[1] if before else None, found[path],
-                                   root)
-        if size_reason:
-            reasons.append(size_reason)
-        markers = history_markers(_lf(data.decode("utf-8", "surrogateescape")))
-        if markers:
-            reasons.append(_marker_reason(markers))
+        if flagged and flagged_bytes(flagged) >= setting.flagged:
+            baseline = _baseline(path, history, root, tracked)
+            if baseline is not None and flagged_bytes(flagged) - baseline >= setting.flagged:
+                reasons.append(_flagged_reason(flagged, len(data), baseline, setting))
+        grown = _growth_reason(len(data), history, setting)
+        if grown:
+            reasons.append(grown)
         if reasons:
-            out.append(Due(path, "; ".join(reasons)))
+            pending.append((path, setting, history, reasons))
+    out, counted = [], {}
+    unplaced = {path: (history.last[0] if history.last else None)
+                for path, setting, history, _ in pending if not _often(path, setting, links)}
+    if unplaced:
+        counted = implied_reads(root, index, links, unplaced)
+    for path, setting, history, reasons in pending:
+        often = _often(path, setting, links)
+        if often is None:
+            reads = counted.get(path, 0)
+            if reads < setting.reads:
+                continue
+            often = (f"{reads} reads implied by commits since "
+                     + ("its last compaction" if history.last else "it was added")
+                     + f"; {setting.reads} make it read often")
+        out.append(Due(path, f"read often ({often}); " + "; ".join(reasons)))
     return out
 
 
@@ -864,6 +1777,103 @@ def _snapshot_path(where, state_home):
     return snapshot_dir(where.root, state_home) / key
 
 
+def _answers_file(snapshot):
+    """Where the compactor answers for each flagged passage: beside the
+    snapshot, in the git directory, so it is never staged."""
+    return snapshot.with_name(snapshot.name + ".passages.txt")
+
+
+PASSAGE_ANSWER = re.compile(r"Passage (\d+): (?:(rewritten|removed)|kept: (\S.*))")
+
+
+def read_answers(lines, count):
+    """({number: (answer, reason)}, [problem]) for an answers file's lines,
+    against count flagged passages."""
+    answers, problems = {}, []
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        match = PASSAGE_ANSWER.fullmatch(line)
+        if not match:
+            problems.append(f"not 'Passage <n>: rewritten', 'Passage <n>: removed' or "
+                            f"'Passage <n>: kept: <reason>': {line!r}")
+            continue
+        number = int(match.group(1))
+        if not 1 <= number <= count:
+            problems.append(f"passage {number} is not one of the {count} flagged")
+        elif number in answers:
+            problems.append(f"passage {number} is answered twice")
+        else:
+            answers[number] = (match.group(2) or "kept", match.group(3) or "")
+    missing = [n for n in range(1, count + 1) if n not in answers]
+    if missing:
+        problems.append(f"no answer for passage{'s' if len(missing) > 1 else ''} "
+                        f"{', '.join(map(str, missing))}")
+    return answers, problems
+
+
+def _passage_list(saved):
+    """The flagged passages a snapshot recorded, as Passage."""
+    out = []
+    for item in saved.get("passages") or []:
+        if isinstance(item, dict) and isinstance(item.get("text"), str):
+            out.append(Passage(int(item.get("start", 0)), int(item.get("end", 0)),
+                               tuple(item.get("kinds") or ()), item["text"],
+                               str(item.get("note") or "")))
+    return out
+
+
+def _kept_spans(text, found):
+    """[(start, end)] of each place text holds one of the passages found,
+    word for word, with any whitespace between its words."""
+    out = []
+    for passage in found:
+        words = passage.text.split()
+        if words:
+            pattern = re.compile(r"\s+".join(map(re.escape, words)))
+            out += [match.span() for match in pattern.finditer(text)]
+    return out
+
+
+def check_passages(before, after, found, lines):
+    """(report lines, failures) for the compactor's answers, lines (None
+    when it wrote no file), to the passages found in before. A passage
+    answered removed or rewritten passes when the new text holds its text,
+    normalised, fewer times than the old text did: at least one fewer for
+    each passage of that same text so answered. Otherwise it needs a
+    `kept:` answer. Text is normalised as
+    --verify compares headings."""
+    if not found:
+        return [], []
+    if lines is None:
+        return [], [f"no answers for the {len(found)} flagged passage"
+                    f"{'' if len(found) == 1 else 's'}: the compactor writes one line for each to "
+                    f"the answers file the brief names"]
+    answers, failures = read_answers(lines, len(found))
+    old = normalised(list(enumerate(before.split("\n"), start=1)))[0]
+    new = normalised(list(enumerate(after.split("\n"), start=1)))[0]
+    counts, gone, cut = collections.Counter(), collections.Counter(), []
+    for number, passage in enumerate(found, start=1):
+        answer = answers.get(number, ("", ""))[0]
+        counts[answer] += 1
+        needle = normalised(list(enumerate(passage.text.split("\n"), start=1)))[0]
+        if needle and answer not in ("", "kept"):
+            gone[needle] += 1
+            cut.append((number, passage, answer, needle))
+    # Passages with the same text share one count: each answered removed or
+    # rewritten takes one copy out of the file.
+    for number, passage, answer, needle in cut:
+        if new.count(needle) > max(old.count(needle), gone[needle]) - gone[needle]:
+            failures.append(f"passage {number} (lines {passage.start}-{passage.end}, "
+                            f"{', '.join(passage.kinds)}) is answered {answer} but is still in "
+                            f"the file word for word; rewrite or remove it, or answer "
+                            f"'Passage {number}: kept: <reason>'")
+    report = [f"Flagged passages: {len(found)}; answered {counts['rewritten']} rewritten, "
+              f"{counts['removed']} removed, {counts['kept']} kept."]
+    return report, failures
+
+
 class Entry(NamedTuple):
     mode: str
     oid: str
@@ -1082,14 +2092,24 @@ def brief(name, state_home, command, given=Given(), stdin=None):
     directory = snapshot_dir(where.root, state_home)
     directory.mkdir(mode=0o700, parents=True, exist_ok=True)
     found = references(where.rel, heading_texts(text), anchors(text), "", where.root, referrers)
+    # Every detector runs, with no threshold: a person's request to compact
+    # a file gets every passage answered, as a due doc does.
+    flagged = passages(text, where.rel, where.root)
+    setting = settings([where.rel], where.root)[where.rel]
     snapshot = _snapshot_path(where, state_home)
+    answers = _answers_file(snapshot)
     fields = {"path": str(where.file), "rel": where.rel, "root": where.root, "text": text,
-              "saved": now}
+              "saved": now, "passages": [dict(p._asdict(), kinds=list(p.kinds)) for p in flagged]}
     if start is not None:
         fields["before"] = start.oid
     with _snapshot_lock(snapshot.parent):
         _clear_drafts(snapshot)
         _write_snapshot(snapshot, fields)
+        # Answers to an earlier start's passages would answer the wrong ones.
+        try:
+            answers.unlink()
+        except FileNotFoundError:
+            pass
 
     markers = history_markers(text)
     held = {}
@@ -1105,6 +2125,22 @@ def brief(name, state_home, command, given=Given(), stdin=None):
                      "Keep each, with its exact text:")
         lines += [f"  {needle}  (in {', '.join(sorted(set(files))[:3])})"
                   for needle, files in sorted(held.items())]
+    lines.append("\nCredits: " + (
+        "drop each \"who decided\" credit, such as \"(Adam, 2026-10-24)\"; this file's "
+        "prose-compact-attribution=drop says so." if setting.drop_attribution else
+        "keep each \"who decided\" credit, such as \"(Adam, 2026-10-24)\", where the "
+        "document gives one."))
+    lines.append(f"\nAnswers file: {answers}")
+    if flagged:
+        lines.append(f"\nFlagged passages ({len(flagged)}). Answer every one in the answers file, "
+                     f"one line each, as compact.md says:")
+        for number, passage in enumerate(flagged, start=1):
+            note = f"; {passage.note}" if passage.note else ""
+            lines.append(f"\nPassage {number}, lines {passage.start}-{passage.end}, "
+                         f"{', '.join(passage.kinds)}{note}:")
+            lines += ["    " + line for line in passage.text.split("\n")]
+    else:
+        lines.append("\nFlagged passages: none. Leave the answers file unwritten.")
     print_brief("compaction brief", "\n".join(lines), brief_dir(where.root, state_home),
                 "compaction")
     again = given.options()
@@ -1124,10 +2160,14 @@ class Report(NamedTuple):
     failures: list
 
 
-def check_result(before, after, rel, root, budget=DEFAULT_BUDGET, referrers=None):
+def check_result(before, after, rel, root, referrers=None, kept=()):
     """The verification report for a file compacted from before to after.
     Failures are what the result must fix. The other lines inform whoever
-    checks the result for a lost conclusion: the reviewer, or a person."""
+    checks the result for a lost conclusion: the reviewer, or a person.
+    kept lists the flagged passages the compactor kept with a reason. A
+    history marker inside the text of one of them is not a failure, since
+    the reviewer judges that reason; a marker elsewhere on the same line
+    still fails."""
     lines, failures = [], []
     size_before, size_after = len(before.encode("utf-8")), len(after.encode("utf-8"))
     words_before, words_after = len(before.split()), len(after.split())
@@ -1138,12 +2178,6 @@ def check_result(before, after, rel, root, budget=DEFAULT_BUDGET, referrers=None
         failures.append("the file is empty")
     if size_after > size_before:
         failures.append("the file grew")
-    elif share < COMPACTED_SHARE and size_after > budget:
-        lines.append(f"It shrank by less than {COMPACTED_SHARE}% and is still over its budget of "
-                     f"{budget:,} bytes, so the size trigger will fire again on its next change. "
-                     f"If it is meant to be this long, propose its own budget to the person, a "
-                     f"line in .gitattributes such as '{rel} {ATTR_BUDGET}={size_after * 3 // 2}'; "
-                     f"the person decides, since a budget silences the trigger.")
 
     gone = gone_headings(before, after)
     # Each removed heading's anchor is searched even when a kept heading
@@ -1170,7 +2204,7 @@ def check_result(before, after, rel, root, budget=DEFAULT_BUDGET, referrers=None
         lines.append(f"Names that are gone ({len(dropped)}); the reviewer checks each: "
                      + ", ".join(term for _, term in dropped[:60])
                      + (" ..." if len(dropped) > 60 else ""))
-    for marker in history_markers(after):
+    for marker in history_markers(after, _kept_spans(after, kept)):
         failures.append(f"history marker left at line {marker.line}: «{marker.words}»")
     return Report(lines, failures)
 
@@ -1232,8 +2266,10 @@ def _unquoted(line):
     return QUOTE_MARKERS.sub("", line, count=1)
 
 
-# A fence opens a line, after any list marker: "- ```yaml" opens one too.
-FENCE = re.compile(r"(?:(?:[-*+]|[0-9]{1,9}[.)])[ \t]+)?(`{3,}|~{3,})")
+# A fence opens a line, after any list marker: "- ```yaml" opens one too. A
+# run of backticks with another backtick after it on the line is inline
+# code, not a fence, as in CommonMark: "```a `` b``` is ..." opens nothing.
+FENCE = re.compile(r"(?:(?:[-*+]|[0-9]{1,9}[.)])[ \t]+)?(`{3,}(?=[^`]*$)|~{3,})")
 
 
 def _paragraphs(text):
@@ -1242,11 +2278,11 @@ def _paragraphs(text):
     included."""
     paragraphs, headings, current, heading, fence = [], [], [], "", None
     for line in text.split("\n"):
-        stripped = _unquoted(line).lstrip()
-        if fence and stripped.startswith(fence):
+        unquoted = _unquoted(line)
+        if fence and _closes(fence, unquoted):
             fence = None
-        elif not fence and FENCE.match(stripped):
-            fence = FENCE.match(stripped).group(1)
+        elif not fence:
+            fence = _opens(unquoted)
         if not fence and not line.strip():
             if current:
                 paragraphs.append("\n".join(current))
@@ -1312,6 +2348,17 @@ def review(name, state_home, command="prose.py"):
         parts.append("## Names in the old file that the new one no longer has\n")
         parts.extend(f"- {kind}: {term}" for kind, term in dropped)
         parts.append("")
+    # The reviewer judges the answers --verify passed for this blob, as the
+    # snapshot stores them; the live answers file is not read.
+    answered = _stored_answers(saved, current.oid if current else "")
+    kept = _kept_passages(saved, answered)
+    if kept:
+        parts.append("## Flagged passages kept\n")
+        for number, passage, reason in kept:
+            note = f"; {passage.note}" if passage.note else ""
+            parts.append(f"### Passage {number}, lines {passage.start}-{passage.end}, "
+                         f"{', '.join(passage.kinds)}{note}\n\nReason given: {reason}\n")
+            parts.append("\n".join("    " + line for line in passage.text.split("\n")) + "\n")
     for change in found:
         parts.append(f"## Change {change.number}: {change.kind}, under "
                      f"\"{change.heading or '(the top)'}\"\n")
@@ -1328,7 +2375,8 @@ def review(name, state_home, command="prose.py"):
     # changes the reviewer must answer, which --reviewed checks its reply
     # against.
     review = {"oid": current.oid if current else None, "changes": len(found),
-              "printed": time.time()}
+              "kept": [number for number, _, _ in kept],
+              "judged": _kept_answers(answered), "printed": time.time()}
 
     def change(fields):
         draft.write_text("\n".join(parts), encoding="utf-8")
@@ -1343,13 +2391,72 @@ def review(name, state_home, command="prose.py"):
         f"The repository: {where.root}" if where.root else
         "The repository: none, since the file is outside one. Check claims against the old "
         "text only.",
-        f"Changes: {len(found)}. Names gone: {len(dropped)}."]),
+        f"Changes: {len(found)}. Names gone: {len(dropped)}. Flagged passages kept: "
+        f"{len(kept)}."]),
         brief_dir(where.root, state_home), "compaction-review")
     print(f"\n{HANDOFF} Run it on the same model as the compactor. Save its reply to a file; "
           "when its findings are answered, run:\n\n"
           f"  {command} compact {command_path(name)} --reviewed <reply file> "
           "[--dispositions <file>]")
     return BRIEF_PRINTED
+
+
+def _read_answers(where, state_home):
+    """The compactor's answers file's bytes, or None when it has written
+    none. Only --verify reads it; the later steps read the copy it stores."""
+    path = _answers_file(_snapshot_path(where, state_home))
+    try:
+        return path.read_bytes()
+    except FileNotFoundError:
+        return None
+    except OSError as error:
+        raise ValueError(f"{path}: could not read the answers to the flagged passages: {error}")
+
+
+def _stored_answers(saved, blob):
+    """The copy of the answers that --verify passed for blob, the staged
+    blob's id ("" outside a repository), as the snapshot stores it; None
+    when it stores none."""
+    return _answers_for(saved.get("answers"), blob)
+
+
+def _answers_for(copies, blob):
+    """copies[blob] when copies is a snapshot's {blob: answers}, else None."""
+    return copies.get(blob) if isinstance(copies, dict) else None
+
+
+def _answer_map(saved, lines):
+    """{"<n>": [answer, reason]} for the answers in lines, to the passages
+    saved lists."""
+    answers, _ = read_answers(lines or [], len(_passage_list(saved)))
+    return {str(number): list(answer) for number, answer in answers.items()}
+
+
+def _kept_answers(answered):
+    """{"<n>": reason} for each passage a stored copy of the answers keeps."""
+    if not isinstance(answered, dict):
+        return {}
+    return {number: answer[1] for number, answer in answered.items()
+            if isinstance(answer, list) and answer[:1] == ["kept"] and len(answer) > 1}
+
+
+def _unjudged(answered, judged):
+    """The numbers of the passages that answered, a stored copy of the
+    answers, keeps, and that judged, a review's {"<n>": reason}, did not
+    judge with the same reason."""
+    judged = judged if isinstance(judged, dict) else {}
+    return sorted((number for number, reason in _kept_answers(answered).items()
+                   if judged.get(number) != reason), key=int)
+
+
+def _kept_passages(saved, answered):
+    """[(number, Passage, reason)] for each flagged passage kept in
+    answered, a stored copy of the answers."""
+    found = _passage_list(saved)
+    return [(int(number), found[int(number) - 1], reason)
+            for number, reason in sorted(_kept_answers(answered).items(),
+                                         key=lambda item: int(item[0]))
+            if 1 <= int(number) <= len(found)]
 
 
 @contextlib.contextmanager
@@ -1411,13 +2518,28 @@ def _update_snapshot(where, state_home, loaded, change):
     return True
 
 
-def _note_in_snapshot(where, state_home, saved, key, oid, passed):
+def _note_in_snapshot(where, state_home, saved, key, oid, passed, answered=None, blob=""):
     """Add oid to, or with passed False remove it from, the snapshot's list
     under key ("verified" or "reviewed"). The lists say which blobs this
     compaction itself checked, which is what retires it (in started()): records
     are shared by every compaction that reaches the same content, the lists
-    are not. A list of another shape counts as empty."""
+    are not. A list of another shape counts as empty. With key "verified",
+    the snapshot also stores answered, the answers it passed, keyed by
+    blob. oid and blob are the same staged blob, but oid is None where no
+    record is kept and changes no list, while blob is "" outside a
+    repository. Every later step and the gate read that stored copy in
+    place of the answers file. When --verify did not pass, the copy for
+    blob is forgotten."""
     def change(current):
+        if key == "verified":
+            copies = current.get("answers")
+            copies = dict(copies) if isinstance(copies, dict) else {}
+            copies.pop(blob, None)
+            if passed:
+                copies[blob] = answered
+            current["answers"] = copies
+        if oid is None:
+            return
         listed = current.get(key)
         oids = [item for item in (listed if isinstance(listed, list) else [])
                 if isinstance(item, str) and item != oid]
@@ -1450,21 +2572,33 @@ def verify(name, state_home, passes=None, given=Given(), stdin=None):
     # named by its id as `git ls-files -s` lists it, which the gate reads.
     current = staged(where, "--verify") if where.root is not None else None
     after = current.text if current else _lf(where.file.read_text(encoding="utf-8"))
-    budget = settings([where.rel], where.root)[where.rel].budget
-    report = check_result(_lf(saved["text"]), after, where.rel, where.root, budget, referrers)
+    data = _read_answers(where, state_home)
+    try:
+        answered = None if data is None else data.decode("utf-8").split("\n")
+    except UnicodeDecodeError as error:
+        raise ValueError(f"{_answers_file(_snapshot_path(where, state_home))}: could not read "
+                         f"the answers to the flagged passages: {error}")
+    found = _passage_list(saved)
+    kept = [found[number - 1] for number, (answer, _) in
+            read_answers(answered or [], len(found))[0].items() if answer == "kept"]
+    report = check_result(_lf(saved["text"]), after, where.rel, where.root, referrers, kept)
+    extra, failures = check_passages(_lf(saved["text"]), after, found, answered)
+    report = Report(report.lines + extra, report.failures + failures)
     print(f"prose compact: {where.rel}")
     for line in report.lines:
         print(line)
     record = None
     if current is not None and passes is not None:
         record = verified_dir(passes(where.root)) / current.oid
+    oid = current.oid if record is not None else None
     if report.failures:
         if record is not None:
             try:
                 record.unlink()
             except FileNotFoundError:
                 pass
-            _note_in_snapshot(where, state_home, saved, "verified", current.oid, False)
+        _note_in_snapshot(where, state_home, saved, "verified", oid, False,
+                          blob=current.oid if current else "")
         print(f"\nFailed ({len(report.failures)}):")
         for failure in report.failures:
             print(f"  {failure}")
@@ -1473,10 +2607,11 @@ def verify(name, state_home, passes=None, given=Given(), stdin=None):
     if record is not None:
         _write_record(record, {"path": where.rel, "verified": time.time(),
                                "before": saved.get("before")})
-        if not _note_in_snapshot(where, state_home, saved, "verified", current.oid, True):
-            raise ValueError(f"the snapshot of {name} changed while --verify ran, by a new "
-                             f"step 1 or --abandon; if a compaction is still started, run "
-                             f"--verify again on it")
+    if not _note_in_snapshot(where, state_home, saved, "verified", oid, True,
+                             _answer_map(saved, answered), current.oid if current else ""):
+        raise ValueError(f"the snapshot of {name} changed while --verify ran, by a new "
+                         f"step 1 or --abandon; if a compaction is still started, run "
+                         f"--verify again on it")
     print("\nVerified. Ask the person before committing if the compactor listed a conclusion "
           "it would drop.")
     return VERIFIED
@@ -1488,7 +2623,8 @@ def verify(name, state_home, passes=None, given=Given(), stdin=None):
 
 VERDICT = re.compile(r"Change (\d+): (superseded|folded in|lost|holds|false)\b")
 TOTALS = re.compile(r"Totals: (\d+) lost, (\d+) false")
-ANSWER = re.compile(r"Change (\d+): (?:(fixed)|kept: (\S.*))")
+ANSWER = re.compile(r"(Change|Passage) (\d+): (?:(fixed)|kept: (\S.*))")
+PASSAGE_VERDICT = re.compile(r"Passage (\d+): (justified|unjustified)\b")
 
 
 def _lines(path, what):
@@ -1502,7 +2638,10 @@ def reviewed(name, state_home, passes, reply, dispositions=""):
     """Check that the last review's reply answers every change, and that
     each `lost` or `false` finding has an answer: fixed, in a file that has
     changed since the review, or kept with a reason. Inside a repository,
-    record the completed review for the staged blob. Returns VERIFIED."""
+    record the completed review for the staged blob, with the passages
+    marked fixed, which the gate requires the stored answers no longer to
+    keep.
+    Returns VERIFIED."""
     where = target(name)
     saved = _load_snapshot(where, name, state_home)
     review_of = saved.get("review")
@@ -1512,11 +2651,39 @@ def reviewed(name, state_home, passes, reply, dispositions=""):
                          f"and give a reviewer its brief first")
     current = staged(where, "--reviewed") if where.root is not None else None
     verdicts, totals = {}, []
-    findings = {}
+    findings, kept = {}, review_of.get("kept") if isinstance(review_of.get("kept"), list) else []
+    # Each passage kept in the answers --verify passed for the staged blob
+    # must have been judged by this review, with the same reason. A passage
+    # kept since the review, or one whose reason was rewritten, was not.
+    answered = _stored_answers(saved, current.oid if current else "")
+    if answered is None and _passage_list(saved):
+        raise ValueError(f"--verify has not passed {where.rel} as staged, so its answers to the "
+                         f"flagged passages are unchecked; run 'compact {command_path(name)} "
+                         f"--verify' first, then --reviewed again")
+    unseen = _unjudged(answered, review_of.get("judged"))
+    if unseen:
+        raise ValueError(f"the answers --verify passed for the staged file keep passage"
+                         f"{'s' if len(unseen) > 1 else ''} {', '.join(unseen)}, which the "
+                         f"review did not judge with that reason; run 'compact "
+                         f"{command_path(name)} --review' again, give a reviewer the new brief, "
+                         f"then run --reviewed with that reply")
+    judged, unjustified = set(), set()
     for line in _lines(reply, "reviewer's reply"):
         line = line.strip()
         if TOTALS.fullmatch(line):
             totals.append(tuple(map(int, TOTALS.fullmatch(line).groups())))
+            continue
+        if line.startswith("Passage "):
+            match = PASSAGE_VERDICT.match(line)
+            if not match:
+                raise ValueError(f"{reply}: a line the review brief's form does not allow: "
+                                 f"{line!r}")
+            number = int(match.group(1))
+            if number not in kept:
+                raise ValueError(f"{reply}: passage {number} is not one the compactor kept")
+            judged.add(number)
+            if match.group(2) == "unjustified":
+                unjustified.add(number)
             continue
         if not line.startswith("Change "):
             continue
@@ -1534,18 +2701,32 @@ def reviewed(name, state_home, passes, reply, dispositions=""):
     if missing:
         raise ValueError(f"{reply}: no verdict for change{'s' if len(missing) > 1 else ''} "
                          f"{', '.join(map(str, missing))}; the reviewer answers every change")
+    unjudged = [n for n in kept if n not in judged]
+    if unjudged:
+        raise ValueError(f"{reply}: no verdict for kept passage{'s' if len(unjudged) > 1 else ''} "
+                         f"{', '.join(map(str, unjudged))}; the reviewer judges every kept "
+                         f"passage's reason")
     counted = (sum(v.count("lost") for v in findings.values()),
                sum(v.count("false") for v in findings.values()))
     if totals != [counted]:
         raise ValueError(f"{reply}: needs one line 'Totals: {counted[0]} lost, {counted[1]} "
                          f"false', matching its verdicts")
     answers = {}
-    if findings:
+    wanted = {("Change", n) for n in findings} | {("Passage", n) for n in unjustified}
+    if wanted:
         if not dispositions:
-            raise ValueError(f"the review found {counted[0]} lost and {counted[1]} false, in "
+            parts = []
+            if findings:
+                parts.append(f"{counted[0]} lost and {counted[1]} false, in "
                              f"change{'s' if len(findings) > 1 else ''} "
-                             f"{', '.join(map(str, sorted(findings)))}: answer each in a file of "
-                             f"'Change <n>: fixed' or 'Change <n>: kept: <reason>' lines and "
+                             f"{', '.join(map(str, sorted(findings)))}")
+            if unjustified:
+                parts.append(f"an unjustified reason for kept passage"
+                             f"{'s' if len(unjustified) > 1 else ''} "
+                             f"{', '.join(map(str, sorted(unjustified)))}")
+            raise ValueError(f"the review found {' and '.join(parts)}: answer each in a file of "
+                             f"'Change <n>: fixed', 'Change <n>: kept: <reason>', "
+                             f"'Passage <n>: fixed' or 'Passage <n>: kept: <reason>' lines and "
                              f"pass it with --dispositions")
         for line in _lines(dispositions, "dispositions"):
             line = line.strip()
@@ -1553,19 +2734,32 @@ def reviewed(name, state_home, passes, reply, dispositions=""):
                 continue
             match = ANSWER.fullmatch(line)
             if not match:
-                raise ValueError(f"{dispositions}: not 'Change <n>: fixed' or 'Change <n>: kept: "
+                raise ValueError(f"{dispositions}: not 'Change <n>: fixed', 'Change <n>: kept: "
+                                 f"<reason>', 'Passage <n>: fixed' or 'Passage <n>: kept: "
                                  f"<reason>': {line!r}")
-            number = int(match.group(1))
-            if number not in findings or number in answers:
-                raise ValueError(f"{dispositions}: change {number} "
-                                 + ("is answered twice" if number in answers else
-                                    "has no lost or false finding to answer"))
-            answers[number] = "fixed" if match.group(2) else "kept"
-        unanswered = sorted(set(findings) - set(answers))
+            key = (match.group(1), int(match.group(2)))
+            what = f"{key[0].lower()} {key[1]}"
+            if key not in wanted or key in answers:
+                raise ValueError(f"{dispositions}: {what} "
+                                 + ("is answered twice" if key in answers else
+                                    "has no finding to answer" if key[0] == "Change" else
+                                    "was not found unjustified"))
+            answers[key] = "fixed" if match.group(3) else "kept"
+        unanswered = sorted(wanted - set(answers))
         if unanswered:
-            raise ValueError(f"{dispositions}: no answer for change"
-                             f"{'s' if len(unanswered) > 1 else ''} "
-                             f"{', '.join(map(str, unanswered))}")
+            raise ValueError(f"{dispositions}: no answer for "
+                             + ", ".join(f"{kind.lower()} {n}" for kind, n in unanswered))
+    # A kept passage is fixed only by answering it removed or rewritten,
+    # which --verify then checks against the file.
+    fixed = {str(n) for (kind, n), answer in answers.items()
+             if kind == "Passage" and answer == "fixed"}
+    still = sorted(set(fixed) & set(_kept_answers(answered)), key=int)
+    if still:
+        raise ValueError(f"passage{'s' if len(still) > 1 else ''} {', '.join(still)} "
+                         f"{'are' if len(still) > 1 else 'is'} marked fixed but the answers "
+                         f"--verify passed for the staged file still keep {'them' if len(still) > 1 else 'it'}; "
+                         f"remove or shorten the passage, update its answer, run --verify, "
+                         f"then --reviewed again")
     # The review must have seen what is staged. With nothing fixed, the
     # staged blob is the one reviewed. With a finding fixed, the staged blob
     # is a later one, and the review was of the compacted file, not of the
@@ -1588,14 +2782,17 @@ def reviewed(name, state_home, passes, reply, dispositions=""):
         _write_record(reviewed_dir(passes(where.root)) / current.oid,
                       {"path": where.rel, "reviewed": time.time(), "before": saved.get("before"),
                        "review_of": review_of.get("oid"), "lost": counted[0],
-                       "false": counted[1]})
+                       "false": counted[1], "judged": review_of.get("judged") or {},
+                       "fixed": sorted(fixed, key=int)})
         if not _note_in_snapshot(where, state_home, saved, "reviewed", current.oid, True):
             raise ValueError(f"the snapshot of {name} changed while --reviewed ran, by a new "
                              f"step 1 or --abandon; if a compaction is still started, run "
                              f"--review and --reviewed again on it")
     print(f"Review of {where.rel} complete: {counted[0]} lost, {counted[1]} false, "
           f"{sum(a == 'fixed' for a in answers.values())} fixed, "
-          f"{sum(a == 'kept' for a in answers.values())} kept.")
+          f"{sum(a == 'kept' for a in answers.values())} kept; "
+          f"{len(kept)} kept passage{'' if len(kept) == 1 else 's'} judged, "
+          f"{len(unjustified)} unjustified.")
     return VERIFIED
 
 
@@ -1640,6 +2837,21 @@ def _record(directory, oid, start):
     return isinstance(fields, dict) and fields.get("before") == start
 
 
+def _review_covers(directory, oid, start, answered):
+    """True when directory holds a completed review of oid from start that
+    meets two conditions against answered, the answers --verify passed for
+    oid. It judged every passage those answers keep, with the same reason.
+    And none of the passages it marked fixed is still kept in them."""
+    try:
+        fields = json.loads((directory / oid).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    fixed = fields.get("fixed") if isinstance(fields, dict) else None
+    return isinstance(fields, dict) and fields.get("before") == start \
+        and not _unjudged(answered, fields.get("judged")) \
+        and not set(fixed if isinstance(fixed, list) else ()) & set(_kept_answers(answered))
+
+
 def _size(oid, root):
     out = _git(["cat-file", "-s", oid], root)
     if out is None or not out.strip().isdigit():
@@ -1647,7 +2859,7 @@ def _size(oid, root):
     return int(out.strip())
 
 
-def started(root, head=None, passes=None):
+def started(root, head=None, passes=None, answered=None):
     """{path: {the blob ids compactions started from}} for every snapshot
     taken in this work tree, root, however old. Linked work trees share the
     git directory, so each snapshot names its own work tree's root.
@@ -1719,7 +2931,8 @@ def started(root, head=None, passes=None):
                         if isinstance(newer, dict) and isinstance(newer.get("before"), str):
                             out[rel].add(newer["before"])
                         continue
-                    for path in (entry, entry.with_suffix(".review.md")):
+                    for path in (entry, entry.with_suffix(".review.md"),
+                                 _answers_file(entry)):
                         try:
                             path.unlink()
                         except FileNotFoundError:
@@ -1730,6 +2943,10 @@ def started(root, head=None, passes=None):
                                  f"{error.strerror}")
             continue
         out.setdefault(rel, set()).add(before)
+        if answered is not None:
+            # The answers this compaction's --verify passed, {blob: answers},
+            # which the gate checks its review judged.
+            answered[(rel, before)] = fields.get("answers")
     return out
 
 
@@ -1748,7 +2965,8 @@ def unverified(root, amend, passes):
         tree, index = tree_entries(root, base), index_entries(root)
         # Retire against the base, not HEAD: with amend, HEAD is the commit
         # being replaced, so a checked copy there is about to go.
-        begun = started(root, tree, passes)
+        stored = {}
+        begun = started(root, tree, passes, stored)
     except ValueError as error:
         return [f"could not tell which staged files were compacted ({error}); fix that, then "
                 f"sign again"]
@@ -1774,7 +2992,9 @@ def unverified(root, amend, passes):
         if not any(_record(verified_dir(passes), oid, before) for before in starts):
             out.append(f"{path} was compacted but not verified; run "
                        f"`prose compact --verify {quoted}`{drop}")
-        if not any(_record(reviewed_dir(passes), oid, before) for before in starts):
+        if not any(_review_covers(reviewed_dir(passes), oid, before,
+                                  _answers_for(stored.get((path, before)), oid))
+                   for before in starts):
             out.append(f"{path} was compacted but its review was not completed; run "
                        f"`prose compact --review {quoted}`, answer the reviewer's findings, then "
                        f"`prose compact --reviewed <reply> {quoted}`{drop}")
@@ -1850,7 +3070,7 @@ def abandon(name, state_home, passes=None):
             raise ValueError(f"{name}: no compaction was started on it, so there is nothing to "
                              f"abandon")
         for entry in found:
-            for path in (entry, entry.with_suffix(".review.md")):
+            for path in (entry, entry.with_suffix(".review.md"), _answers_file(entry)):
                 try:
                     path.unlink()
                 except FileNotFoundError:
