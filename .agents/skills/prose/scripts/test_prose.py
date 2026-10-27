@@ -5585,5 +5585,73 @@ class CompactionGate(unittest.TestCase):
         self.assertEqual(self.pending(), [])
 
 
+class BriefFiles(unittest.TestCase):
+    """Each brief prose prints for a subagent is also saved to a file, whose
+    path it prints, so the agent hands over the path instead of retyping
+    the text."""
+
+    DOC = CompactionGate.DOC
+    AFTER = CompactionGate.AFTER.replace("B.", "B, now clearer.")
+
+    def setUp(self):
+        self.repo = Repo()
+        self.addCleanup(self.repo.cleanup)
+        self.repo.write("DECISIONS.md", self.DOC)
+        self.repo.commit("base\n")
+
+    def saved(self, output, marker):
+        """Check that output holds the brief between marker's lines and a
+        `Brief file:` line naming a file with the same text; return its path."""
+        found = re.search(rf"^=== {marker} ===\n(.*?)\n=== end {marker} ===$", output,
+                          re.M | re.S)
+        self.assertIsNotNone(found, output)
+        path = re.search(r"^Brief file: (.+)$", output, re.M)
+        self.assertIsNotNone(path, output)
+        path = pathlib.Path(path.group(1))
+        self.assertEqual(path.read_text(encoding="utf-8"), found.group(1) + "\n")
+        git_dir = (self.repo.path / ".git").resolve()
+        self.assertEqual(path.parent, git_dir / "prose" / "briefs")
+        return path
+
+    def test_the_compaction_and_review_briefs_are_saved(self):
+        first = self.repo.prose("compact", "DECISIONS.md")
+        self.assertEqual(first.returncode, 4, first.stderr)
+        self.saved(first.stdout, "compaction brief")
+        self.repo.write("DECISIONS.md", self.AFTER)
+        review = self.repo.prose("compact", "DECISIONS.md", "--review")
+        self.assertEqual(review.returncode, 4, review.stderr)
+        self.saved(review.stdout, "compaction review brief")
+
+    def test_the_cold_read_brief_of_a_commit_is_saved(self):
+        self.repo.write("DECISIONS.md", self.AFTER)
+        (self.repo.path / ".msg").write_text("DOCS(x): edit\n")
+        first = self.repo.prose("check", "-F", ".msg", "--goals", "review it")
+        token = pass_token(first.stdout)
+        needed = self.repo.prose("check", "-F", ".msg", "--goals", "review it", "--pass", token)
+        self.assertEqual(needed.returncode, prose.COLD_READ_NEEDED, needed.stderr)
+        self.assertIn(token, self.saved(needed.stdout, "cold-read brief").read_text())
+
+    def test_the_cold_read_brief_of_a_post_is_saved(self):
+        sign = lambda *args, stdin: run([sys.executable, str(SCRIPT), "sign"] + list(args),
+                                        cwd=self.repo.path, stdin=stdin)
+        token = pass_token(sign("--goals", "approve it", stdin="").stderr)
+        needed = sign("--pass", token, stdin="The fix lands.\n")
+        self.assertEqual(needed.returncode, prose.COLD_READ_NEEDED, needed.stderr)
+        self.assertEqual(needed.stdout, "")
+        self.assertIn("The fix lands.", self.saved(needed.stderr, "cold-read brief").read_text())
+
+    def test_old_briefs_are_deleted_as_old_tokens_are(self):
+        briefs = (self.repo.path / ".git" / "prose" / "briefs")
+        briefs.mkdir(parents=True)
+        old, recent = briefs / "old.md", briefs / "recent.md"
+        for path in (old, recent):
+            path.write_text("x")
+        past = time.time() - compact.BRIEF_LIFETIME - 60
+        os.utime(old, (past, past))
+        self.assertEqual(self.repo.prose("compact", "DECISIONS.md").returncode, 4)
+        self.assertFalse(old.exists())
+        self.assertTrue(recent.exists())
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

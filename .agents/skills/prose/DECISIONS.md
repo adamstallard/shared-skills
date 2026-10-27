@@ -657,7 +657,10 @@ session mark is out of scope, as forging a footer is.
 - **Bound to the goals, not the text,** since the pass revises the text. Only
   the token records the goals, so no trailer, footer, commit or post shows
   which goals the agent named.
-- **Expires after 2 hours;** each first call deletes older tokens.
+- **Expires after 2 hours;** each first call deletes older tokens. Two hours
+  also cover a compaction, whose token must stay valid from its cold read,
+  in step 4, to the signing call after its reviews: a whole compaction took
+  about 22 minutes, and an expired token only means redoing the cold read.
 - **Exit 4** for a first call, distinct from 2 (refused) and 0, so
   `sign … > signed.md && gh …` stops there.
 - **Lives in `prose/passes/` under the repository's git directory,** never
@@ -728,6 +731,17 @@ four of which the rules already named. A fresh subagent given only the brief
 found four of the seven, missing the far "these commands", the missing actor
 and the opening that says what the code avoids first, and three more gaps no
 review had named.
+
+**Every brief for a subagent is also saved to a file,** and the agent gives
+the subagent only the file's path, telling it to read the file and follow it.
+Copying a printed brief into a prompt can drop or repeat lines: in one
+compaction the copy listed its only item twice, and the signing call refused
+the cold reader's finding against "item 2", which the real brief did not
+have. The brief still prints between
+its `===` lines, for callers that read it there, such as spec-check. The
+files sit in `prose/briefs/` beside the pass tokens, in the git directory, or
+in prose's state home outside a repository, and each new brief deletes those older
+than 2 hours, as each first call does with tokens.
 
 **The signing call enforces it,** because it holds the final text. Without
 `--cold-read`, it signs nothing, keeps the token, exits 5 (distinct from 4 and

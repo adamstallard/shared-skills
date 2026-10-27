@@ -229,7 +229,7 @@ Point to a source with a link or a clickable path (`file:line`), not a name the 
 - Repeating a phrase that sounds like a reason in place of the reason.
 - Asked to revise a text, picking which sections to redo instead of drafting each one fresh.
 - Keeping an existing section because your draft wasn't clearly better, or to keep the diff small.
-- Giving the cold reader anything but the brief the signing call printed: the conversation, what the text is meant to say, or a summary of the change; or less than all of it, such as only the items you were unsure of.
+- Giving the cold reader anything but the brief the signing call saved, by its file's path: the conversation, what the text is meant to say, or a summary of the change; or less than all of it, such as only the items you were unsure of.
 - Arguing with a place the cold reader stopped, because you know what the text meant, instead of fixing it.
 - Writing the cold reader's report yourself when you could start a subagent.
 - Marking a finding fixed by editing another part of its item, or by rewording just enough to change it, so the reader would still stop at the same place.

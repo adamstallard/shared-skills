@@ -120,9 +120,11 @@ reads the working file.
    copy and is harmless. Add the files that might refer to it, as *Which
    files refer to the doc* below says; files you already know of can be
    named directly, with no search. It saves the file as staged, prints a
-   brief between `=== compaction brief ===` lines, and exits 4.
-2. Start a new subagent and give it the brief, exactly as printed. The brief
-   is [compact.md](compact.md), then the file's path, the history markers
+   brief between `=== compaction brief ===` lines, saves the brief to the
+   file named on the `Brief file:` line after them, and exits 4.
+2. Start a new subagent and give it only that file's path, telling it to
+   read the file and follow it. Don't copy the brief into its prompt: a
+   retyped brief can drop or repeat lines. The brief is [compact.md](compact.md), then the compacted doc's path, the history markers
    found, and the headings other files link to or name. The subagent rewrites
    the file in place and replies `Would drop: none`, or one `Would drop:` line
    for each conclusion it left in place but believes is no longer true.
@@ -165,10 +167,12 @@ reads the working file.
 5. Run `python3 $S/prose.py compact <file> --review`, with the file staged.
    It writes every change to a file, removed and rewritten text side by side,
    headed by the code spans, flags, constants, paths and headings the new
-   file no longer has. It prints a brief between `=== compaction review
-   brief ===` lines that names that file, and exits 4.
+   file no longer has. It prints a brief that names that file, between
+   `=== compaction review brief ===` lines, saves the brief as step 1 does,
+   and exits 4.
 6. Start another new subagent, on the same model as the compactor, never a
-   cheaper one, and give it that brief exactly as printed. The brief is
+   cheaper one, and give it only the brief file's path, as in step 2. The
+   brief is
    [compact-review.md](compact-review.md). For each removal, the reviewer
    answers superseded, folded in (and where) or lost. It checks that every
    decision the new text keeps still carries its reason. For each rewritten
@@ -270,14 +274,16 @@ as spec-check for a change's `proposal.md` and `design.md`, runs the same
 commands and may then run its own checks on the result:
 - `prose.py compact <file> [--paths-from <file|-> [-0]] [-- <path>...]` exits
   4 and prints the brief on stdout between `=== compaction brief ===` and
-  `=== end compaction brief ===`. The caller may add its own instructions
-  after the brief.
+  `=== end compaction brief ===`, then the `Brief file: <path>` line naming
+  the file the brief is also saved in. A caller may add its own
+  instructions to the subagent's prompt, after the instruction to read that
+  file.
 - `prose.py compact <file> --verify [--paths-from <file|-> [-0]] [-- <path>...]`
   exits 0 when the result passes and 1 when it fails, with the report on
   stdout.
 - `prose.py compact <file> --review` exits 4 and prints the reviewer's brief
   between `=== compaction review brief ===` and `=== end compaction review
-  brief ===`.
+  brief ===`, then its `Brief file:` line.
 - `prose.py compact <file> --reviewed <reply> [--dispositions <file>]` exits 0
   when the review is complete, recording it for the commit gate.
 - `prose.py compact <file> --abandon` exits 0 when it discarded a started
@@ -506,13 +512,16 @@ binary is skipped, since prose cannot read it.
 **How.** Run the signing call as usual. When it has something to read cold and
 you pass no report, it signs nothing, keeps the token and exits 5. It prints a
 brief between `=== cold-read brief ===` lines, on stdout for `check` and on
-stderr for `sign`. The brief is [cold-read.md](cold-read.md), then the line the
+stderr for `sign`, and then a `Brief file:` line naming the file it saved the
+brief in. The brief is [cold-read.md](cold-read.md), then the line the
 report must start with, then each text with its reader's goals: a comment or
 doc by its file and lines, a post quoted in full.
 
-1. Start a new subagent, and give it the brief exactly as printed. Add
-   nothing: not the conversation, not what the text is meant to say, not a
-   summary of the change.
+1. Start a new subagent, and give it only the brief file's path, telling it
+   to read the file and follow it. Don't copy the brief into its prompt: a
+   retyped brief can drop or repeat lines. Add nothing: not the
+   conversation, not what the text is meant to say, not a summary of the
+   change.
 2. Save its report, as it wrote it, to a file outside the commit, such as
    `cold-read.txt` beside `msg.txt`. The brief asks for one line per
    finding, quoting the words that stopped the reader, one line for each
@@ -598,20 +607,20 @@ checks `fixed` instead, by the item having changed.
 **Without subagents, hand the cold read back.** If you were started by
 something that reads your result, such as a caller or a workflow stage, do
 not read the brief yourself, sign or commit. Leave the change staged and put
-in your result the brief, whole and as printed, its token, and the paths of
-the message file and the worktree. The token is stored in the repository's
-git directory, not in your session, so any agent working in the same
-repository can spend it. Whoever holds your result gives the brief to a fresh
-agent. Then they, or an agent they start, fix the findings, write the
+in your result the brief file's path, its token, and the paths of the
+message file and the worktree. The brief file, like the token, is in the
+repository's git directory. Neither is stored in your session, so any agent
+working in the same repository can use them. Whoever holds your result gives
+the brief file's path to a fresh agent. Then they, or an agent they start, fix the findings, write the
 dispositions and run the signing call before the token's 2 hours are up.
 
 As workflow stages, that is three agents:
 1. **The author** writes and stages the change, runs the signing call, and
-   returns the brief, the token and the paths as fields of its structured
-   output, without committing.
-2. **The cold reader** gets the brief as its whole prompt. The workflow
-   script passes the author's brief field on exactly as returned, never
-   summarised or reworded.
+   returns the brief file's path, the token and the other paths as fields
+   of its structured output, without committing.
+2. **The cold reader** gets, as its whole prompt, the instruction to read
+   the brief file at that path and follow it. The workflow script passes
+   the path on exactly as returned.
 3. **The finisher** works in the same repository with the report and the
    token. It first runs `prose.py start`, which prints the rules and lets
    the hook allow its first file edit; then it fixes, answers each finding

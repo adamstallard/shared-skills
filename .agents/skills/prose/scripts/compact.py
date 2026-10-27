@@ -22,6 +22,7 @@ import json
 import os
 import pathlib
 import re
+import secrets
 import shlex
 import stat
 import subprocess
@@ -807,6 +808,57 @@ def snapshot_dir(root, state_home):
     return _git_dir(root) / "prose" / "compact" if root else state_home / "compact"
 
 
+# How long a saved brief is kept: as long as a pass token, since a cold-read
+# brief is of no use once its token has expired. Old briefs are deleted only
+# when a later one is saved.
+BRIEF_LIFETIME = 2 * 60 * 60
+
+
+def brief_dir(root, state_home):
+    """Where each brief printed for a subagent is also saved: prose/briefs
+    in the repository's git directory, or in prose's state home outside one."""
+    return _git_dir(root) / "prose" / "briefs" if root else state_home / "briefs"
+
+
+def save_brief(directory, kind, text, now=None):
+    """Write text to a new file in directory, named for its kind, and return
+    its path. Briefs older than BRIEF_LIFETIME are deleted first, as old pass
+    tokens are."""
+    now = time.time() if now is None else now
+    directory.mkdir(mode=0o700, parents=True, exist_ok=True)
+    for entry in list(directory.iterdir()):
+        try:
+            if now - entry.stat().st_mtime > BRIEF_LIFETIME:
+                entry.unlink()
+        except OSError:
+            pass
+    path = directory / f"{kind}-{secrets.token_hex(6)}.md"
+    with os.fdopen(os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "w",
+                   encoding="utf-8") as handle:
+        handle.write(text + "\n")
+    return path
+
+
+def print_brief(marker, text, directory, kind, stream=None):
+    """Print text between marker's lines, then the path of the file it is
+    also saved in, which the agent gives the subagent instead of retyping the
+    text. A brief that cannot be saved is still printed, and the `Brief
+    file:` line says it was not saved, instead of naming a path."""
+    try:
+        where = str(save_brief(directory, kind, text))
+    except (OSError, ValueError) as error:
+        where = f"not saved ({error}); give the subagent the text between the === lines"
+    print(f"=== {marker} ===", file=stream)
+    print(text, file=stream)
+    print(f"=== end {marker} ===", file=stream)
+    print(f"Brief file: {where}", file=stream)
+
+
+HANDOFF = ("Give a new subagent only the brief file's path, telling it to read that file and "
+           "follow it. Don't copy the text into its prompt: a retyped brief can drop or repeat "
+           "lines.")
+
+
 def _snapshot_path(where, state_home):
     key = hashlib.sha256(str(where.file).encode("utf-8", "surrogateescape")).hexdigest()[:24]
     return snapshot_dir(where.root, state_home) / key
@@ -1043,26 +1095,23 @@ def brief(name, state_home, command, given=Given(), stdin=None):
     held = {}
     for ref in found:
         held.setdefault(ref.needle, []).append(ref.source)
-    print("=== compaction brief ===")
-    print(BRIEF.read_text(encoding="utf-8").rstrip("\n"))
-    print(f"\nThe file: {where.file}")
-    print(f"Size: {len(text.encode('utf-8')):,} bytes, {len(text.split()):,} words.")
+    lines = [BRIEF.read_text(encoding="utf-8").rstrip("\n"), f"\nThe file: {where.file}",
+             f"Size: {len(text.encode('utf-8')):,} bytes, {len(text.split()):,} words."]
     if markers:
-        print(f"\nHistory markers the script found ({len(markers)}); there may be others:")
-        for marker in markers[:40]:
-            print(f"  line {marker.line}: «{marker.words}»")
+        lines.append(f"\nHistory markers the script found ({len(markers)}); there may be others:")
+        lines += [f"  line {marker.line}: «{marker.words}»" for marker in markers[:40]]
     if held:
-        print("\nHeadings other files name or link to, by their text or their `#anchor`. Keep "
-              "each, with its exact text:")
-        for needle, files in sorted(held.items()):
-            print(f"  {needle}  (in {', '.join(sorted(set(files))[:3])})")
-    print("=== end compaction brief ===")
+        lines.append("\nHeadings other files name or link to, by their text or their `#anchor`. "
+                     "Keep each, with its exact text:")
+        lines += [f"  {needle}  (in {', '.join(sorted(set(files))[:3])})"
+                  for needle, files in sorted(held.items())]
+    print_brief("compaction brief", "\n".join(lines), brief_dir(where.root, state_home),
+                "compaction")
     again = given.options()
     if given.paths_from == "-":
         again += "   (with the same list on stdin)"
     stage = f"git add {command_path(name)}\n  " if where.root is not None else ""
-    print(f"\nGive a new subagent the brief above, exactly as printed. Then, as the required "
-          f"last step, run:\n\n  {stage}{command} compact {command_path(name)} --verify{again}")
+    print(f"\n{HANDOFF} Then, as the required last step, run:\n\n  {stage}{command} compact {command_path(name)} --verify{again}")
     if where.root is None and referrers is None:
         print("\nThe file is outside any git repository, so --verify checks only its own links "
               "unless you give it the files that might refer to it, after `--` or with "
@@ -1288,17 +1337,16 @@ def review(name, state_home, command="prose.py"):
 
     if not _update_snapshot(where, state_home, saved, change):
         raise ValueError(f"the snapshot of {name} changed while --review ran; run it again")
-    print("=== compaction review brief ===")
-    print(REVIEW_BRIEF.read_text(encoding="utf-8").rstrip("\n"))
-    print(f"\nThe changes: {path}")
-    print(f"The compacted file: {where.file}")
-    print(f"The repository: {where.root}" if where.root else
-          "The repository: none, since the file is outside one. Check claims against the old "
-          "text only.")
-    print(f"Changes: {len(found)}. Names gone: {len(dropped)}.")
-    print("=== end compaction review brief ===")
-    print("\nGive a new subagent the brief above, exactly as printed, on the same model as the "
-          "compactor. Save its reply to a file; when its findings are answered, run:\n\n"
+    print_brief("compaction review brief", "\n".join([
+        REVIEW_BRIEF.read_text(encoding="utf-8").rstrip("\n"), f"\nThe changes: {path}",
+        f"The compacted file: {where.file}",
+        f"The repository: {where.root}" if where.root else
+        "The repository: none, since the file is outside one. Check claims against the old "
+        "text only.",
+        f"Changes: {len(found)}. Names gone: {len(dropped)}."]),
+        brief_dir(where.root, state_home), "compaction-review")
+    print(f"\n{HANDOFF} Run it on the same model as the compactor. Save its reply to a file; "
+          "when its findings are answered, run:\n\n"
           f"  {command} compact {command_path(name)} --reviewed <reply file> "
           "[--dispositions <file>]")
     return BRIEF_PRINTED

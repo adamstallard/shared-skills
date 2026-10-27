@@ -1892,8 +1892,9 @@ def print_cold_read(token, items, next_command, stream=None, root=None):
     brief = cold_read_brief(token, items, root)
     print(f"prose: {len(items)} text(s) here need a cold read before signing (step 5 of the "
           "pass). Nothing is signed, and the token is kept.\n", file=stream)
-    print("Give a new agent, one that has not seen this conversation, everything between the "
-          f"=== lines, unchanged and with nothing added. Save its report to {REPORT_FILE}, "
+    print("Give a new agent, one that has not seen this conversation, only the path on the "
+          "'Brief file:' line below, telling it to read that file and follow it; don't copy the "
+          f"brief into its prompt, or add to it. Save its report to {REPORT_FILE}, "
           "outside the commit. Fix the places it names, and restage. Then answer every finding "
           f"in {DISPOSITIONS_FILE}: its first line '{dispositions_header(token)}', then one "
           "line per finding, '<n>. fixed' once you changed the item it is in, or "
@@ -1903,9 +1904,11 @@ def print_cold_read(token, items, next_command, stream=None, root=None):
           "'Item <n>: kept (asked): <why>' once a person chose to keep it. Then run:\n",
           file=stream)
     print(f"  {next_command}\n", file=stream)
-    print("=== cold-read brief ===", file=stream)
-    print(brief, file=stream)
-    print("=== end cold-read brief ===", file=stream)
+    # The directory compact.brief_dir names too: prose/briefs beside the
+    # pass tokens, in the repository's git directory, or in prose's state
+    # home outside a repository. Any agent in the repository can read it.
+    compactor().print_brief("cold-read brief", brief, pass_dir(root).parent / "briefs",
+                            "cold-read", stream)
 
 
 # What a report and a dispositions file must look like, for their refusals.
