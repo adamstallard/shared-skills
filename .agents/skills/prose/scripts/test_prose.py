@@ -6038,12 +6038,77 @@ class ConservativeVerify(unittest.TestCase):
         repo.git("config", "submodule.recurse", "true")
         self.assertEqual(self.verify_after(repo, self.AFTER).returncode, 0)
 
-    def test_a_file_git_treats_as_binary_is_still_searched(self):
-        repo = self.repo_with({".gitattributes": "notes.md -diff\n", "DECISIONS.md": self.DOC,
-                               "notes.md": "see DECISIONS.md#snapshot-lifetime-policy\n"})
+    BINARY = b"see DECISIONS.md#snapshot-lifetime-policy, the Snapshot lifetime policy\0\n"
+
+    def binary_repo(self, attributes):
+        repo = self.repo_with({".gitattributes": attributes, "DECISIONS.md": self.DOC,
+                               "plain.md": "Nothing here.\n"})
+        (repo.path / "blob.dat").write_bytes(self.BINARY)
+        repo.git("add", "blob.dat")
+        repo.commit("blob\n")
+        return repo
+
+    def test_a_file_git_treats_as_binary_is_not_searched(self):
+        for attributes in ("", "notes.md -diff\n", "notes.md binary\n"):
+            with self.subTest(attributes=attributes):
+                repo = self.binary_repo(attributes)
+                repo.write("notes.md", "see DECISIONS.md#snapshot-lifetime-policy\n")
+                repo.commit("notes\n")
+                result = self.verify_after(repo, self.AFTER)
+                self.assertNotIn("blob.dat", result.stdout)
+                if attributes:
+                    self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                    self.assertNotIn("notes.md", result.stdout)
+                else:
+                    self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+                    self.assertIn("notes.md:1 links to", result.stdout)
+                self.assertIn("skipping files git treats as binary", result.stdout)
+
+    def test_a_diff_attribute_brings_a_binary_file_back_into_the_search(self):
+        repo = self.binary_repo("blob.dat diff\n")
         result = self.verify_after(repo, self.AFTER)
-        self.assertEqual(result.returncode, 1, result.stdout)
-        self.assertIn("notes.md:1 links to", result.stdout)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("blob.dat:1 links to #snapshot-lifetime-policy", result.stdout)
+        self.assertIn("blob.dat:1 names 'Snapshot lifetime policy'", result.stdout)
+
+    def test_a_binary_file_staged_only_is_skipped_and_its_diff_attribute_honoured(self):
+        # blob.dat's work-tree copy is plain text and its staged copy binary,
+        # so only the index run can find it, and it skips the staged copy as
+        # binary unless the diff attribute is set.
+        for attributes, code in (("", 0), ("blob.dat diff\n", 1)):
+            with self.subTest(attributes=attributes):
+                repo = self.binary_repo(attributes)
+                self.assertEqual(repo.prose("compact", "DECISIONS.md").returncode, 4)
+                (repo.path / "blob.dat").write_text("Nothing here.\n")
+                repo.write("DECISIONS.md", self.AFTER)
+                repo.git("add", "DECISIONS.md")
+                result = repo.prose("compact", "DECISIONS.md", "--verify")
+                self.assertEqual(result.returncode, code, result.stdout + result.stderr)
+
+    def test_a_diff_attribute_outside_a_sparse_index_cone_is_honoured(self):
+        for flag, attributes in (("--no-sparse-index", "far/.gitattributes"),
+                                 ("--sparse-index", "far/.gitattributes"),
+                                 ("--sparse-index", ".gitattributes")):
+            with self.subTest(flag=flag, attributes=attributes):
+                line = "blob.dat diff\n" if attributes.startswith("far/") else "far/blob.dat diff\n"
+                repo = self.repo_with({"DECISIONS.md": self.DOC, attributes: line, "near/x.md": "x\n",
+                                       "far/other.md": "x\n"})
+                (repo.path / "far" / "blob.dat").write_bytes(self.BINARY)
+                repo.git("add", "far/blob.dat")
+                repo.commit("blob\n")
+                repo.git("sparse-checkout", "init", "--cone", flag)
+                repo.git("sparse-checkout", "set", "near")
+                result = self.verify_after(repo, self.AFTER)
+                self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+                self.assertIn("far/blob.dat:1 links to", result.stdout)
+
+    def test_a_binary_file_named_as_a_referrer_is_searched(self):
+        repo = self.binary_repo("")
+        result = self.verify_after(repo, self.AFTER)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        result = repo.prose("compact", "DECISIONS.md", "--verify", "--", "blob.dat")
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("blob.dat:1 links to", result.stdout)
 
     def test_a_hash_ending_a_headings_text_is_kept(self):
         self.assertEqual(compact.heading_texts("## Building with C#\n## Closed ##\n"),
@@ -6387,7 +6452,8 @@ class GivenReferrers(unittest.TestCase):
         repo.write("DECISIONS.md", self.AFTER)
         result = repo.prose("compact", "DECISIONS.md", "--verify")
         self.assertEqual(result.returncode, 0, result.stdout)
-        self.assertIn("the repository's 1 tracked file, in the work tree and the index.", result.stdout)
+        self.assertIn("the repository's 1 tracked file, in the work tree and the index, skipping "
+                      "files git treats as binary.", result.stdout)
         result = repo.prose("compact", "DECISIONS.md", "--verify", "--", "untracked.md",
                             str(elsewhere / "x.md"))
         self.assertEqual(result.returncode, 1, result.stdout)

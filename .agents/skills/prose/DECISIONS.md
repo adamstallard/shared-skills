@@ -633,14 +633,22 @@ Every choice errs toward blocking.
   code alone; its messages differ by git version and by cause, such as a
   filesystem boundary.
 - **git grep reads the tracked files** in two runs, one over the work tree
-  and one over the index (`--cached`), each with a pattern every line matches
-  and `-a`, so every line of binary files and files outside a sparse checkout
-  is read too, and submodules are not; the matching is done in
-  Python on the normalised text. Symlinks, which git grep skips, are not
-  counted as searched. `advice.sparseIndexExpanded` is turned off, since its
-  hint on stderr would otherwise fail every run in a sparse-index clone.
-  Reading every binary has a cost: a repository with 100 MB of tracked
-  binaries took 7 seconds and 1.1 GB. igor, 317 files, takes under a second.
+  and one over the index (`--cached`). Each uses a pattern every line
+  matches, and the matching is done in Python on the normalised text. Files
+  outside a sparse checkout are read too; submodules are not. git grep skips
+  symlinks, so the report's count of files searched leaves them out.
+  - **It skips files git treats as binary** (`-I`): those with a NUL byte,
+    or with the `-diff` or `binary` attribute. Reading them took 7 seconds
+    and 1.1 GB of memory in a repository with 100 MB of tracked binaries.
+  - **To search a text file git misjudges,** such as one with a stray NUL
+    byte, give it the `diff` attribute: a line such as `notes.txt diff` in
+    `.gitattributes`.
+  - **A file named as a referrer is read whatever its type.**
+  - **A sparse index is expanded in memory** (`index.sparse=false`). A sparse
+    index stores each directory outside the cone as one entry, and `-I`
+    ignores the attributes of the files inside it. The expansion prints a
+    hint on stderr, which would fail every run, so
+    `advice.sparseIndexExpanded` is turned off.
 - **Known gap:** a heading underlined with `===` or `---` is not seen; no doc
   in this repository or igor uses one. An ATX heading indented up to three
   spaces, or with a tab after its hashes, is seen.

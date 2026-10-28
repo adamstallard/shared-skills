@@ -1622,23 +1622,29 @@ class Reference(NamedTuple):
 
 
 def _grep(where, root):
-    """{path: [(line number, line)]} for every line of every tracked file;
-    where is [] for the work tree or ["--cached"] for the index. git grep
-    reads them, with an empty pattern that every line matches, so the
-    matching is done here, on normalised text."""
+    """{path: [(line number, line)]} for every line of every tracked file
+    git does not treat as binary; where is [] for the work tree or
+    ["--cached"] for the index. git grep reads them, with an empty pattern
+    that every line matches, so the matching is done here, on normalised
+    text."""
     # Set against the user's config, so each record is always
     # path\0line\0content: no column field, no colour codes.
-    # Every tracked file is read as text, binary or not, and submodules are
-    # not this repository's files. A failure is an error, never "no
-    # references": anything git grep writes to stderr is one, whatever its
-    # exit code, since it exits 0 or 1 by whether something matched even
-    # when it could not read a file.
+    # -I skips a file git treats as binary: one with a NUL byte, or with the
+    # `-diff` or `binary` attribute. A `diff` attribute makes it text again.
+    # index.sparse=false expands a sparse index in memory. A sparse index
+    # stores each directory outside the cone as one entry, and -I ignores
+    # the attributes of the files inside it. The expansion prints a hint on
+    # stderr, which would fail the run, so advice.sparseIndexExpanded is off.
+    # Submodules are not this repository's files.
+    # A failure is an error, never "no references". Anything git grep writes
+    # to stderr counts as one, whatever its exit code: it exits 0 or 1 by
+    # whether something matched, even when it could not read a file.
     try:
         result = subprocess.run(
             ["git", "-c", "core.quotePath=false", "-c", "grep.column=false",
              "-c", "color.grep=never", "-c", "color.ui=never", "-c", "submodule.recurse=false",
-             "-c", "advice.sparseIndexExpanded=false",
-             "grep", "--no-color", "--no-recurse-submodules", "-n", "-a", "-z", "-F", "-e", ""]
+             "-c", "advice.sparseIndexExpanded=false", "-c", "index.sparse=false",
+             "grep", "--no-color", "--no-recurse-submodules", "-n", "-I", "-z", "-F", "-e", ""]
             + where,
             cwd=root, capture_output=True, check=False)
     except OSError as error:
@@ -1788,10 +1794,11 @@ def references(path, headings, wanted, text, root, referrers=None, file=None):
     characters once normalised is named by its normalised text anywhere; a
     shorter one by its words, case kept and markup ignored
     (short_heading_pattern), on the same line or in the same sentence as a
-    name for the doc (doc_names). The other files are the
-    repository's tracked files, in the work tree and the index (none when
-    root is None), and the referrers given. file is the doc's absolute
-    path, which doc_names needs outside a repository."""
+    name for the doc (doc_names). The other files searched are of two
+    kinds. Unless root is None, they include the repository's tracked files
+    that git does not treat as binary, in the work tree and the index. They
+    also include every referrer given, whatever its type. file is the doc's
+    absolute path, which doc_names needs outside a repository."""
     texts, short = {}, {}
     for heading in sorted(set(headings)):
         needle = normalised([(0, heading)])[0]
@@ -1846,7 +1853,8 @@ def searched(root, referrers):
         parts.append(f"the repository's {count:,} tracked file{'' if count == 1 else 's'}, in the work tree and the "
                      f"index"
                      + (f", not its {submodules:,} submodule{'' if submodules == 1 else 's'}"
-                        if submodules else ""))
+                        if submodules else "")
+                     + ", skipping files git treats as binary")
     if referrers is not None:
         shown = ", ".join(referrers.sources[:5]) + (" ..." if len(referrers.sources) > 5 else "")
         count = len(referrers.files)

@@ -380,9 +380,11 @@ has `fcntl` (macOS, Linux); on Windows, run one at a time.
 
 ### Which files refer to the doc
 
-`--verify` searches for removed headings in the file itself and the files you
-name, and inside a git repository in every tracked file too. Outside one it
-searches only what you name. Each name is a file: a directory is refused,
+`--verify` searches for removed headings in the file itself and in the files
+you name, whatever their type. Inside a git repository it also searches every
+tracked file that git does not treat as binary; to have a misjudged text file
+searched, give it the `diff` attribute. Outside a repository it searches only
+what you name. Each name is a file: a directory is refused,
 and the refusal shows how to list its files.
 
 **Find the candidates** before step 1, when you cannot yet know which
