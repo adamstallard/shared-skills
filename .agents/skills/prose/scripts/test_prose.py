@@ -5046,6 +5046,210 @@ class PassageAnswers(unittest.TestCase):
         self.assertEqual(self.repo.prose("compact", "--abandon", "DECISIONS.md").returncode, 0)
         self.assertFalse(self.answers.exists())
 
+    def test_the_answers_file_is_outside_the_git_directory(self):
+        # A subagent writes the answers file, and a harness may refuse its
+        # writes into the shared git directory. Outside the work tree too,
+        # so nothing can stage it.
+        git_dir = (self.repo.path / ".git").resolve()
+        where = self.answers.resolve()
+        self.assertFalse(where == git_dir or git_dir in where.parents, where)
+        self.assertFalse(self.repo.path.resolve() in where.parents, where)
+
+    def test_verify_reads_the_answers_file_given_with_answers(self):
+        elsewhere = self.repo.path.parent / f"{self.repo.path.name}-answers.txt"
+        self.addCleanup(lambda: elsewhere.unlink() if elsewhere.exists() else None)
+        elsewhere.write_text("Passage 1: removed\nPassage 2: removed\nPassage 3: removed\n")
+        self.repo.write("DECISIONS.md", self.GOOD)
+        self.assertFalse(self.answers.exists())
+        result = self.repo.prose("compact", "DECISIONS.md", "--verify", "--answers", str(elsewhere))
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("answered 0 rewritten, 3 removed, 0 kept.", result.stdout)
+
+    def test_a_missing_answers_file_given_with_answers_is_refused(self):
+        self.repo.write("DECISIONS.md", self.GOOD)
+        result = self.repo.prose("compact", "DECISIONS.md", "--verify", "--answers",
+                                 str(self.repo.path.parent / "no-such-answers.txt"))
+        self.assertEqual(result.returncode, 2, result.stdout)
+        self.assertIn("no-such-answers.txt: no such file, given with --answers", result.stderr)
+
+    def test_answers_goes_only_with_verify(self):
+        for step in ([], ["--review"], ["--abandon"]):
+            with self.subTest(step=step):
+                result = self.repo.prose("compact", "DECISIONS.md", *step, "--answers", "a.txt")
+                self.assertEqual(result.returncode, 2, result.stdout)
+                self.assertIn("--answers goes with --verify", result.stderr)
+
+
+class CitedShortHeadings(unittest.TestCase):
+    """A heading shorter than MIN_HEADING counts as cited where its words,
+    case kept and markup ignored, are on the same line, or in the same
+    sentence, as a name for the
+    doc: its path, its file name, or its skill's name as "<skill>'s" or
+    "the <skill> skill"."""
+
+    DOC = ("# Prose\n\n## Compaction\n\nA.\n\n## The cold read\n\nB.\n\n## Committing\n\nC.\n\n"
+           "## Never\n\nD.\n\n## Keep\n\nE.\n")
+    AFTER = "# Prose\n\n## Keep\n\nE.\n"
+    NAME = "skills/prose/SKILL.md"
+    # The first three entries copy citations as bug-hunter's SKILL.md,
+    # compact.py's messages and prose's rules.md write them. other.md uses
+    # the headings' words without naming the doc, so it cites nothing.
+    CITING = {
+        "skills/bug-hunter/SKILL.md": "cold-read brief. Follow prose's SKILL.md, *The cold read*, "
+                                      "which gives the\nSKILL.md, *Committing*, which covers an "
+                                      "amend.\n",
+        "skills/prose/scripts/compact.py": '    f"were making first (SKILL.md, *Compaction*), then '
+                                           'run the first "\n',
+        "skills/prose/rules.md": "- SKILL.md's *The cold read* says how to run it.\n",
+        "other.md": "Compaction keeps docs short. Never skip it, and keep Committing small.\n",
+    }
+
+    def repo_with(self, files):
+        repo = Repo()
+        self.addCleanup(repo.cleanup)
+        for name, text in files.items():
+            repo.write(name, text)
+        repo.commit("base\n")
+        return repo
+
+    def verify_after(self, repo, new_text):
+        brief = repo.prose("compact", self.NAME)
+        self.assertEqual(brief.returncode, 4, brief.stderr)
+        (repo.path / self.NAME).write_text(new_text)
+        repo.git("add", "--", self.NAME)
+        return brief, repo.prose("compact", self.NAME, "--verify")
+
+    def test_the_brief_and_verify_protect_short_headings_cited_by_name(self):
+        repo = self.repo_with({self.NAME: self.DOC, **self.CITING})
+        brief, result = self.verify_after(repo, self.AFTER)
+        self.assertIn("  The cold read  (in skills/bug-hunter/SKILL.md, skills/prose/rules.md)",
+                      brief.stdout)
+        self.assertIn("  Committing  (in skills/bug-hunter/SKILL.md)", brief.stdout)
+        self.assertIn("  Compaction  (in skills/prose/scripts/compact.py)", brief.stdout)
+        self.assertNotIn("  Never  (", brief.stdout)
+        self.assertEqual(result.returncode, 1, result.stdout)
+        for line in ("skills/bug-hunter/SKILL.md:1 names 'The cold read'",
+                     "skills/bug-hunter/SKILL.md:2 names 'Committing'",
+                     "skills/prose/scripts/compact.py:1 names 'Compaction'",
+                     "skills/prose/rules.md:1 names 'The cold read'"):
+            self.assertIn(line, result.stdout)
+        self.assertNotIn("other.md", result.stdout)
+
+    def test_each_name_for_the_doc_counts(self):
+        for text in ("See skills/prose/SKILL.md, under Never.", "SKILL.md: Never",
+                     "prose's Never list", "prose’s Never list", "the prose skill's Never list",
+                     "The Prose skill keeps a Never list.",
+                     "Read SKILL.md and its\nNever list.", "# Read SKILL.md and its\n# Never list.",
+                     # The file name on the line makes a heading word in
+                     # another clause count too: no clause is parsed.
+                     "SKILL.md is long; Never mind.", "Read SKILL.md.  Never mind."):
+            with self.subTest(text=text):
+                repo = self.repo_with({self.NAME: self.DOC, "n.md": text + "\n"})
+                _, result = self.verify_after(repo, self.AFTER)
+                self.assertEqual(result.returncode, 1, result.stdout)
+                self.assertIn("names 'Never'", result.stdout)
+
+    def test_no_name_beside_it_does_not_count(self):
+        for text in ("the compaction runs, and Compaction is a word.", "Never.",
+                     "Read SKILL.md.\nNever mind.",
+                     "SKILL.md\n\nNever", "SKILL.md: never", "SKILL.md: Nevermore",
+                     "bug-hunter's Never list", "proses Never list", "README.md: Never",
+                     "SKILL.mdx: Never", "the prose-check skill: Never"):
+            with self.subTest(text=text):
+                repo = self.repo_with({self.NAME: self.DOC, "n.md": text + "\n"})
+                _, result = self.verify_after(repo, self.AFTER)
+                self.assertEqual(result.returncode, 0, result.stdout)
+
+    def test_the_files_own_citation_does_not_block(self):
+        repo = self.repo_with({self.NAME: self.DOC})
+        _, result = self.verify_after(repo, self.AFTER + "\nSee SKILL.md, Never.\n")
+        self.assertEqual(result.returncode, 0, result.stdout)
+
+    def test_a_skill_name_in_backticks_counts(self):
+        for text in ("Readability is the `prose` skill's Never job.", "`prose`'s Never list"):
+            with self.subTest(text=text):
+                repo = self.repo_with({self.NAME: self.DOC, "n.md": text + "\n"})
+                _, result = self.verify_after(repo, self.AFTER)
+                self.assertEqual(result.returncode, 1, result.stdout)
+                self.assertIn("n.md:1 names 'Never'", result.stdout)
+
+    def test_an_abbreviation_does_not_end_the_sentence(self):
+        repo = self.repo_with({self.NAME: self.DOC,
+                               "n.md": "For the rule see the prose skill, e.g.\nNever.\n"})
+        _, result = self.verify_after(repo, self.AFTER)
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("n.md:2 names 'Never'", result.stdout)
+
+    def test_underscore_emphasis_counts(self):
+        for text in ("See _SKILL.md_, _Never_, for the reason.", "See SKILL.md, _Never_.",
+                     "See _SKILL.md_, *Never*."):
+            with self.subTest(text=text):
+                repo = self.repo_with({self.NAME: self.DOC, "n.md": text + "\n"})
+                _, result = self.verify_after(repo, self.AFTER)
+                self.assertEqual(result.returncode, 1, result.stdout)
+                self.assertIn("n.md:1 names 'Never'", result.stdout)
+
+    def test_a_numbered_list_continues_the_sentence(self):
+        repo = self.repo_with({self.NAME: self.DOC,
+                               "n.md": "SKILL.md lists these sections:\n1. Keep\n2. Never\n"})
+        _, result = self.verify_after(repo, self.AFTER)
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("n.md:3 names 'Never'", result.stdout)
+
+    def test_a_skill_name_counts_outside_a_repository(self):
+        folder = pathlib.Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, folder, True)
+        skill = folder / "skills" / "prose"
+        skill.mkdir(parents=True)
+        (skill / "SKILL.md").write_text(self.DOC)
+        (folder / "skills" / "other.md").write_text("See the prose skill, Never, for why.\n")
+        brief = run([sys.executable, str(SCRIPT), "compact", "SKILL.md", "--", "../other.md"],
+                    cwd=skill)
+        self.addCleanup(run, [sys.executable, str(SCRIPT), "compact", "--abandon", "SKILL.md"],
+                        cwd=skill)
+        self.assertEqual(brief.returncode, 4, brief.stderr)
+        self.assertIn("  Never  (in ../other.md)", brief.stdout)
+        (skill / "SKILL.md").write_text(self.AFTER)
+        result = run([sys.executable, str(SCRIPT), "compact", "SKILL.md", "--verify", "--",
+                      "../other.md"], cwd=skill)
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("names 'Never'", result.stdout)
+
+    def test_a_short_heading_with_markup_is_found_as_rendered(self):
+        doc = "# Prose\n\n## Using `rg`\n\nA.\n\n## Keep\n\nE.\n"
+        repo = self.repo_with({self.NAME: doc, "n.md": "See the prose skill, *Using rg*.\n"})
+        _, result = self.verify_after(repo, self.AFTER)
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("n.md:1 names 'Using `rg`'", result.stdout)
+
+    def test_a_heading_inside_the_docs_own_name_is_not_cited(self):
+        repo = self.repo_with({"docs/FAQ.md": "# Doc\n\n## FAQ\n\nA.\n\n## Keep\n\nB.\n",
+                               "other.md": "Questions go to docs/FAQ.md.\n"})
+        self.assertEqual(repo.prose("compact", "docs/FAQ.md").returncode, 4)
+        (repo.path / "docs/FAQ.md").write_text("# Doc\n\n## Keep\n\nB.\n")
+        repo.git("add", "--", "docs/FAQ.md")
+        result = repo.prose("compact", "docs/FAQ.md", "--verify")
+        self.assertEqual(result.returncode, 0, result.stdout)
+
+
+class AnswersDirectory(unittest.TestCase):
+    """The private directory for compactors' answers files."""
+
+    def test_windows_permission_bits_do_not_refuse_it(self):
+        # Windows reports a directory's mode as 0o777 or 0o555, whoever owns
+        # it, so the private-mode check cannot apply there. The test removes
+        # os.getuid, which Windows lacks, and fakes a 0o777 directory.
+        fake = os.stat_result((0o040777, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+        getuid = getattr(os, "getuid", None)
+        if getuid is not None:
+            del os.getuid
+        try:
+            with mock_attr(compact.os, "lstat", lambda path: fake):
+                self.assertTrue(compact.answers_dir().name.startswith("prose-answers-"))
+        finally:
+            if getuid is not None:
+                os.getuid = getuid
+
 
 class ManualRequest(unittest.TestCase):
     """`prose compact <file>` on a file no trigger would name still lists

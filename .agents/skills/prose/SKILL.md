@@ -161,13 +161,18 @@ reads the working file.
    [compact.md](compact.md), then the compacted doc's path, the headings
    other files link to or name, whether to keep "who decided" credits, the
    answers file, and every passage the detectors flagged, with its lines,
-   kind and text. The subagent rewrites the file in place and writes one line
-   per flagged passage to the answers file: `removed`, `rewritten`, or
-   `kept: <reason>`. It replies `Would drop: none`, or one `Would drop:` line
-   for each conclusion it left in place but believes is no longer true.
+   kind and text. The answers file is outside the repository, in the
+   system's temporary directory, in a folder only your operating-system
+   account can use, so the subagent never writes inside `.git`. The subagent rewrites the file in place and
+   writes one line per flagged passage to the answers file: `removed`,
+   `rewritten`, or `kept: <reason>`. It replies `Would drop: none`, or one
+   `Would drop:` line for each conclusion it left in place but believes is
+   no longer true. If it could not write the answers file and wrote its
+   answers elsewhere, it adds `Answers: <file>`.
 3. Stage the file (`git add <file>`), then run
    `python3 $S/prose.py compact <file> --verify`, with the same referrers as
-   step 1. It compares the staged file with the saved copy. It prints the
+   step 1, adding `--answers <file>` when the compactor's reply named one.
+   It compares the staged file with the saved copy. It prints the
    size before and after, what it searched, the headings removed, the code
    spans, flags, constants and paths that are gone, and the answers to the
    flagged passages. It fails, exiting
@@ -177,7 +182,12 @@ reads the working file.
      appears in another file searched, in any context. Text is compared with
      case, backticks, `*` and `_` ignored, and with line breaks and the
      comment or quote markers (`#`, `//`, `*`, `>`) starting a line read as
-     one space, so a citation wrapped in a comment counts;
+     one space, so a citation wrapped in a comment counts. A shorter
+     heading's whole text, with its case but with backticks and emphasis
+     markers ignored, counts only on the same line or
+     in the same sentence as a name for the doc: its path, its file name,
+     or, for a doc in a skill, the skill's name as "<skill>'s" or "the
+     <skill> skill" ("prose's", "the prose skill");
    - a flagged passage has no answer, or appears, compared the same way, as
      many times as before without a `kept:` answer;
    - a history marker is left, outside a passage answered `kept:`;
@@ -364,9 +374,10 @@ commands and may then run its own checks on the result:
   passage and names the answers file the compactor writes. A caller may add
   its own instructions to the subagent's prompt, after the instruction to
   read that file.
-- `prose.py compact <file> --verify [--paths-from <file|-> [-0]] [-- <path>...]`
-  exits 0 when the result passes, the answer to every flagged passage
-  included, and 1 when it fails, with the report on stdout.
+- `prose.py compact <file> --verify [--answers <file>] [--paths-from <file|-> [-0]] [-- <path>...]`
+  exits 0 when the result passes, which needs an answer to every flagged
+  passage, and 1 when it fails, with the report on stdout. It reads the
+  answers from the file the brief named, or from the one `--answers` gives.
 - `prose.py compact <file> --review` exits 4 and prints the reviewer's brief
   between `=== compaction review brief ===` and `=== end compaction review
   brief ===`, then its `Brief file:` line.
@@ -376,7 +387,8 @@ commands and may then run its own checks on the result:
   compaction, and 2 when none was started.
 - Each call exits 2, with the reason on stderr, when the file is missing or
   has unstaged changes, when a later step has no saved copy, or when a file
-  to search cannot be read. Step 1, `prose.py compact <file>`, saves that
+  to search cannot be read, or when a file given with `--answers` is
+  missing. Step 1, `prose.py compact <file>`, saves that
   copy in the repository's git directory, where it stays, however long the
   compaction takes, until the compaction retires on commit, `--abandon`
   deletes it, or the next step 1 on the file replaces it, so any agent in
@@ -393,12 +405,15 @@ directory is refused, and the refusal shows how to list its files.
 
 **Find the candidates** before step 1, when you cannot yet know which
 headings will go. Search every place a referrer could live (sibling folders,
-other repositories, notes) for the doc's file name, every heading's
-`#anchor`, and a distinctive word from each heading whose text is 16
+other repositories, notes) for the doc's file name, its skill's name for a
+doc in a skill, every heading's `#anchor`, and a distinctive word from each heading whose text is 16
 characters or more, ignoring case. `--verify` fails where a heading's
 anchor or text appears, even when a citation wraps the text or drops its
-formatting, so search for one word of it, which neither can break. A file that has none of them cannot refer to the doc. A shorter
-heading needs only its anchor searched. A broad term only adds candidates,
+formatting, so search for one word of it: neither a wrap nor dropped
+formatting can break a single word. A file that has none of them cannot
+refer to the doc. A shorter
+heading counts only beside the doc's name or by its anchor, which those
+searches find. A broad term only adds candidates,
 which costs nothing. `rg` skips hidden, gitignored and binary files; add
 `--hidden --no-ignore -a` unless you know no referrer is one. The title
 heading counts like any other.

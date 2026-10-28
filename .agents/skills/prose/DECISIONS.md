@@ -496,12 +496,23 @@ compactor one `kept:` line, and the reviewer judges it.
   noting", "note that", "as mentioned above", "in other words" opening a
   sentence, "basically", "essentially".
 - **Every passage needs an answer.** The brief lists each, and the compactor
-  writes `removed`, `rewritten` or `kept: <reason>` for it to an answers file
-  in the git directory. `--verify` searches the new file for each passage,
+  writes `removed`, `rewritten` or `kept: <reason>` for it to an answers file.
+  `--verify` searches the new file for each passage,
   comparing text normalised as for removed headings (below): one answered
   removed or rewritten must appear fewer times than before. The reviewer answers
   `justified` or `unjustified` for each kept reason, and the agent answers
   each unjustified one in `--reviewed`'s dispositions.
+- **The answers file is outside the git directory.** The compactor is a
+  subagent, and a harness can refuse a subagent's writes into the shared git
+  directory, whether or not its session is isolated in a work tree. So step
+  1 picks a default answers file and names it in the brief. The file is in
+  the system's temporary directory, outside the repository so nothing
+  stages it, in a folder only the operating-system account running prose
+  can use. A compactor that cannot write there writes its answers to a file
+  outside the repository and names it, and `--verify --answers <file>`
+  reads that one. `--answers` is optional, not required: with the default
+  file, the usual run needs no extra step. Prose's own state stays in the
+  git directory, written only by its scripts.
 - **The answers are a copy `--verify` stores.** A passing `--verify` copies
   the answers it checked into the snapshot, beside the blob it passed.
   `--review`, `--reviewed` and the commit gate read only the staged blob's
@@ -573,9 +584,37 @@ Every choice errs toward blocking.
     heading gives the same anchor: the removed heading's anchor is searched
     anyway;
   - another doc with the same heading text.
-- **Heading text under 16 characters, once normalised, is not searched;**
-  its anchor always is. "Why", "Open" or "Rejected" appear in ordinary prose
-  everywhere, so such a heading could never be removed.
+- **Heading text under 16 characters, once normalised, is not searched as a
+  bare word;** its anchor always is. "Why", "Open" or "Rejected" appear in
+  ordinary prose everywhere, so such a heading could never be removed.
+- **A short heading's text counts beside a name for the doc:** on the same
+  line, or in the same sentence, as the doc's path, its file name, or its
+  skill's name as "prose's" or "the prose skill". Other files cite short
+  headings this way, such as *The cold read*, *Committing* and *Compaction*
+  in bug-hunter's SKILL.md, rules.md and compact.py's messages; the length
+  rule alone would leave them unprotected. The heading's whole text must
+  match with its case, but backticks and emphasis markers are ignored on
+  both sides. No clause is parsed: on a line that names the doc, the
+  heading counts anywhere on that line, and a sentence that names the doc
+  makes it count anywhere in that sentence, across line breaks. That
+  over-blocks rarely and stays simple.
+  Inside a repository, a `SKILL.md` at the repository root gives no skill
+  name: the root directory's name is wherever the repository was cloned.
+  Rejected: taking it as the skill's name, which a fresh clone under
+  another name would silently change.
+- **Known gap: the short-heading rule is a heuristic, recorded rather than
+  fixed.** Sentence ends, word boundaries, names for the doc and markup are
+  all guessed. Each shape it misreads is recorded here, not fixed. A later
+  bug-hunter finding that is only such a shape is recorded here too, as
+  with *Known gaps in reading history* and *Known gaps in masking code*
+  above. A miss means `--verify` may not protect a short heading cited in
+  an unusual form; the reviewer still checks every removal against the old
+  text. Its newest part ignores backticks and emphasis in a short heading.
+  Bug-hunter checked that part only in a pass that proved findings but
+  fixed none, so a miss there is the likeliest. Recorded shapes:
+  - a heading whose markup touches punctuation inside a word, such as
+    "## `rg`'s output" or "## Why *not*?": a citation that copies it with
+    its markup is not matched, so `--verify` does not protect the heading.
 - **Paths are taken exactly as `git ls-files` lists them.** Inside a
   repository, a file argument that is not a tracked path, mistyped case
   included, is refused as "not a tracked file". CRLF line ends are read as

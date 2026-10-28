@@ -37,7 +37,9 @@ already compact; keep the shorter of the two.
 **Answer for every flagged passage.** A script flagged the passages listed
 below: history, repetition, amendment notes, long rejected alternatives,
 stale references, narrative words and filler. Write one line for each, in
-order, to the answers file named below:
+order, to the answers file named below. If you cannot write there, write the
+same lines to a file outside the repository, such as under `$TMPDIR`, and
+name that file in your reply.
 
 ```text
 Passage <n>: removed
@@ -61,7 +63,8 @@ conclusions.
 Write plainly: one claim per sentence, the conclusion first, each sentence
 following from the last. Add nothing the document does not already say.
 
-**Reply** with only these lines:
+**Reply** with only these lines, and the `Answers:` line below when it
+applies:
 
 ```text
 Compacted: <the file's path>
@@ -74,3 +77,6 @@ line in place of `none`:
 ```text
 Would drop: «<the conclusion, quoted>» <why you believe it is no longer true>
 ```
+
+If you wrote the answers somewhere other than the answers file named below,
+add one more line after those: `Answers: <that file's path>`.

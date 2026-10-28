@@ -22,6 +22,7 @@ import bisect
 import collections
 import contextlib
 import difflib
+import getpass
 import hashlib
 import json
 import os
@@ -31,6 +32,7 @@ import secrets
 import shlex
 import stat
 import subprocess
+import tempfile
 import time
 from typing import NamedTuple, Optional
 
@@ -1369,7 +1371,8 @@ def print_due(found, command):
 HEADING = re.compile(r"^ {0,3}#{1,6}[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$")
 # A heading whose normalised text is shorter than this, such as "Why" or
 # "Open", would match ordinary prose everywhere and could never be removed,
-# so its text is not searched. Its anchor still is.
+# so its text counts only beside a name for the doc (_cited). Its anchor
+# always counts.
 MIN_HEADING = 16
 # What starts a line and is dropped with the line break before it: the
 # indent, then any run of comment or quote markers.
@@ -1384,7 +1387,144 @@ def normalise_line(line):
     return " ".join(line.split())
 
 
-def normalised(lines):
+# What starts a line and is dropped before a short heading's citation is
+# looked for: the indent, then any run of `#`, `//` or `>` markers, or of
+# `*` followed by a space, as a bullet or a comment's margin. They go so
+# that normalised() can join a sentence wrapped across comment or quote
+# lines. A `*` with no space after it opens emphasis and stays; the
+# matching ignores it.
+CITE_LINE_MARKERS = re.compile(r"^[ \t]*(?:(?:#+|//+|>+)[ \t]*|\*+[ \t]+)*")
+# Where a sentence ends: `.`, `!` or `?`, any closing marks, then whitespace.
+# A dot inside a name, as in `SKILL.md`, is followed by no space. The dot of
+# an abbreviation such as "e.g." ends none, and nor does the dot after a
+# one- or two-digit number, as in a numbered list's `1.`, even where one
+# ends a sentence: a sentence read too long only keeps a heading.
+CITE_SENTENCE_END = re.compile(
+    r"(?<!\b[eE]\.g)(?<!\b[iI]\.e)(?<!\b[vV]s)(?<!\b[cC]f)(?<!\b[eE]tc)"
+    r"(?<!\b\d)(?<!\b\d\d)"
+    r"[.!?][)\]*_\"”»'`]*\s+")
+# A letter or digit: what may not touch a doc's name or a short heading's
+# text for it to count as whole words. `_` is not one, so `_Never_`, in
+# Markdown's underscore emphasis, counts.
+CITE_WORD = r"[^\W_]"
+
+
+def cite_line(line):
+    """line as a short heading's citation is looked for in it: its leading
+    comment or quote markers dropped and each run of whitespace made one
+    space, with its case kept."""
+    return " ".join(CITE_LINE_MARKERS.sub("", line).split())
+
+
+def _skill_dir(rel, root, file):
+    """The directory of the nearest SKILL.md at or above the doc's
+    directory, or None. Inside a repository, only directories below root
+    count: the root's own name is wherever it was cloned. Outside one, any
+    directory above file, the doc's absolute path, counts."""
+    if root is not None:
+        parent = pathlib.PurePosixPath(rel).parent
+        while str(parent) not in (".", "", "/"):
+            if (pathlib.Path(root) / parent / "SKILL.md").is_file():
+                return parent
+            parent = parent.parent
+        return None
+    if file is None:
+        return None
+    for parent in pathlib.Path(file).parents:
+        if (parent / "SKILL.md").is_file():
+            return parent
+    return None
+
+
+def doc_names(rel, root, file=None):
+    """The regex that finds a name for the doc at rel, ignoring case: its
+    path, its file name, or, for a doc inside a skill, that skill's name as
+    "<skill>'s" or "the <skill> skill", the name in backticks or not. The
+    skill is the directory _skill_dir finds; outside a repository, file,
+    the doc's absolute path, is where its search starts. A name counts only
+    as a whole: no letter, digit, `.` or `-` may touch it, so `SKILL.md`
+    is not found in `x.SKILL.md` and "prose's" is not in "dense-prose's"."""
+    pure = pathlib.PurePosixPath(rel)
+    names = [re.escape(rel), re.escape(pure.name)]
+    skill_dir = _skill_dir(rel, root, file)
+    if skill_dir is not None and skill_dir.name:
+        skill = re.escape(skill_dir.name)
+        names += [rf"`?{skill}`?['’]s", rf"the `?{skill}`? skill"]
+    return re.compile(rf"(?i)(?<!{CITE_WORD}|[.-])(?:" + "|".join(names)
+                      + rf")(?!{CITE_WORD}|-)")
+
+
+# The markup a heading and its citation may each carry or drop: code-span
+# backticks, and `*` or `_` emphasis. Between a heading's words, a citation
+# may hold any run of it beside the whitespace.
+CITE_MARKUP_GAP = r"[`*_]*\s+[`*_]*"
+
+
+def rendered_words(heading):
+    """A heading's words as rendered: its backticks and `*` dropped, and each
+    `_` at a word's edge, so `_Why_` reads as Why but my_doc keeps its `_`."""
+    text = re.sub(rf"(?<!{CITE_WORD})_+|_+(?!{CITE_WORD})", "",
+                  heading.replace("`", "").replace("*", ""))
+    return text.split()
+
+
+def short_heading_pattern(heading):
+    """The regex that finds a short heading's words, with their case and
+    without their markup, as whole words. Between two words the text may
+    hold whitespace and any backticks, `*` or `_`. Markup before the first
+    word or after the last is outside the match, so the pattern for the
+    heading Never matches the text `*Never*`. None for a heading with no
+    words."""
+    words = rendered_words(heading)
+    if not words:
+        return None
+    return re.compile(rf"(?<!{CITE_WORD})" + CITE_MARKUP_GAP.join(map(re.escape, words))
+                      + rf"(?!{CITE_WORD})")
+
+
+def _cited(source, lines, names, patterns):
+    """[Reference] for each place in one file's [(line number, line)] where
+    a short heading's text, as patterns ({heading: regex}) finds it, is on
+    the same line or in the same sentence as a name for the doc, as names
+    finds one. Sentences do not cross a blank line. A heading's text that
+    lies wholly inside a name for the doc, as "FAQ" in "docs/FAQ.md", is
+    part of that name, not a citation."""
+    found = []
+
+    def citations(text):
+        """The (start, heading) of each short heading's text in text that is
+        cited there: text holds a name for the doc, and the heading's text
+        is not inside one."""
+        spans = [match.span() for match in names.finditer(text)]
+        if not spans:
+            return []
+        return [(match.start(), heading) for heading, pattern in patterns.items()
+                for match in pattern.finditer(text)
+                if not any(start <= match.start() and match.end() <= end
+                           for start, end in spans)]
+
+    def scan(text, starts):
+        offsets = [offset for offset, _ in starts]
+        at = 0
+        for end in [match.end() for match in CITE_SENTENCE_END.finditer(text)] + [len(text)]:
+            for start, heading in citations(text[at:end]):
+                line = starts[bisect.bisect_right(offsets, at + start) - 1][1]
+                found.append(Reference(source, line, heading))
+            at = end
+
+    paragraph = []
+    for number, line in lines + [(0, "")]:
+        text = cite_line(line)
+        if text:
+            found += [Reference(source, number, heading) for _, heading in citations(text)]
+            paragraph.append((number, line))
+        elif paragraph:
+            scan(*normalised(paragraph, cite_line))
+            paragraph = []
+    return found
+
+
+def normalised(lines, normalise=normalise_line):
     """(text, starts) for [(line number, line)]: the lines normalised and
     joined by single spaces, so a phrase wrapped across lines reads as one,
     and [(offset in text, line number)] where each non-empty line begins.
@@ -1394,7 +1534,7 @@ def normalised(lines):
     pieces, starts, offset = [], [], 0
     for number, line in lines:
         for part in line.split("\r"):
-            piece = normalise_line(part)
+            piece = normalise(part)
             if piece:
                 starts.append((offset, number))
                 pieces.append(piece)
@@ -1501,11 +1641,14 @@ def _grep(where, root):
     return out
 
 
-def _find(source, lines, tags, texts):
-    """[Reference] in one file's [(line number, line)]: each line holding one
-    of tags, the `#anchor` strings, as written, and each place its normalised
-    text holds one of texts
-    ({normalised text: heading}), at the line the match starts on."""
+def _find(source, lines, tags, texts, cited=None):
+    """[Reference] in one file's [(line number, line)], each at the line
+    where its match starts. Three kinds are found:
+    - a line holding one of tags, the `#anchor` strings, as written;
+    - a place where the file's normalised text holds one of texts, a dict
+      {normalised text: heading};
+    - a short heading's citation that _cited finds, given cited as
+      (doc names regex, {heading: regex})."""
     found = [Reference(source, number, tag) for number, line in lines for tag in tags
              if tag in line]
     if texts:
@@ -1517,6 +1660,8 @@ def _find(source, lines, tags, texts):
                 found.append(Reference(source, starts[bisect.bisect_right(offsets, at) - 1][1],
                                        heading))
                 at = joined.find(needle, at + 1)
+    if cited and cited[1]:
+        found += _cited(source, lines, *cited)
     return found
 
 
@@ -1611,18 +1756,27 @@ def _read_lines(name, path):
     return list(enumerate(_lf(data.decode("utf-8", "surrogateescape")).split("\n"), start=1))
 
 
-def references(path, headings, wanted, text, root, referrers=None):
-    """[Reference] for each place that names one of the headings (at least
-    MIN_HEADING characters once normalised) in another file, or one of the
-    anchors in wanted as `#anchor` in another file or in text, the file's
-    own current text. The other files are the repository's tracked files,
-    in the work tree and the index (none when root is None), and the
-    referrers given."""
-    texts = {}
+def references(path, headings, wanted, text, root, referrers=None, file=None):
+    """[Reference] for each place that names one of the headings in another
+    file, or that holds one of the anchors in wanted as `#anchor`, in
+    another file or in the doc itself. path is the doc's path as `git
+    ls-files` lists it (or as given, outside a repository), and text is
+    the doc's own current text. A heading of at least MIN_HEADING
+    characters once normalised is named by its normalised text anywhere; a
+    shorter one by its words, case kept and markup ignored
+    (short_heading_pattern), on the same line or in the same sentence as a
+    name for the doc (doc_names). The other files are the
+    repository's tracked files, in the work tree and the index (none when
+    root is None), and the referrers given. file is the doc's absolute
+    path, which doc_names needs outside a repository."""
+    texts, short = {}, {}
     for heading in sorted(set(headings)):
         needle = normalised([(0, heading)])[0]
         if len(needle) >= MIN_HEADING:
             texts.setdefault(needle, heading)
+        elif (pattern := short_heading_pattern(heading)) is not None:
+            short[heading] = pattern
+    cited = (doc_names(path, root, file), short)
     tags = sorted(f"#{anchor}" for anchor in wanted)
     found = _find(path, list(enumerate(text.split("\n"), start=1)), tags, {})
     # Every file is read even when nothing is looked for, so the report's
@@ -1644,10 +1798,10 @@ def references(path, headings, wanted, text, root, referrers=None):
         for where in ([], ["--cached"]):
             for source, lines in _grep(where, root).items():
                 if source != path:
-                    keep(_find(source, lines, tags, texts))
+                    keep(_find(source, lines, tags, texts, cited))
     if referrers is not None:
         for name, file_path in referrers.files:
-            keep(_find(name, _read_lines(name, file_path), tags, texts))
+            keep(_find(name, _read_lines(name, file_path), tags, texts, cited))
     return found
 
 
@@ -1777,10 +1931,44 @@ def _snapshot_path(where, state_home):
     return snapshot_dir(where.root, state_home) / key
 
 
-def _answers_file(snapshot):
-    """Where the compactor answers for each flagged passage: beside the
-    snapshot, in the git directory, so it is never staged."""
-    return snapshot.with_name(snapshot.name + ".passages.txt")
+def answers_dir():
+    """The directory for compactors' answers files: one only this user can
+    use, in the system's temporary directory. The compactor is a subagent,
+    and a harness may refuse its writes into the repository's git
+    directory, where the rest of a compaction's state lives; outside the
+    work tree, the file is never staged. Raises ValueError when the path is
+    taken by something other than a private directory of this user's."""
+    user = str(os.getuid()) if hasattr(os, "getuid") else \
+        re.sub(r"[^\w.-]", "_", getpass.getuser())
+    directory = pathlib.Path(tempfile.gettempdir()) / f"prose-answers-{user}"
+    try:
+        directory.mkdir(mode=0o700)
+    except FileExistsError:
+        pass
+    except OSError as error:
+        raise ValueError(f"{directory}: could not make the directory for the answers file: "
+                         f"{error.strerror}")
+    found = os.lstat(directory)
+    # Without os.getuid, as on Windows, a directory's mode bits say nothing
+    # of who may use it (Windows reports 0o777 or 0o555), so only its type
+    # is checked.
+    if not stat.S_ISDIR(found.st_mode) or (hasattr(os, "getuid") and (
+            found.st_mode & 0o077 or found.st_uid != os.getuid())):
+        raise ValueError(f"{directory}: not a directory only you can use, so it cannot hold "
+                         f"the answers file; remove it and run the first call again")
+    return directory
+
+
+def _answers_file(fields):
+    """The answers file step 1 named in its brief, as its snapshot fields
+    record it, or None for a snapshot that records none. A recorded path
+    not ending in `.passages.txt` also gives None. This file is deleted
+    when the compaction retires, on the first `prose check` after its
+    commit lands (started()), and by --abandon, so a damaged snapshot must
+    not name some other file for them to delete."""
+    named = fields.get("answers_file") if isinstance(fields, dict) else None
+    return pathlib.Path(named) if isinstance(named, str) and \
+        named.endswith(".passages.txt") else None
 
 
 PASSAGE_ANSWER = re.compile(r"Passage (\d+): (?:(rewritten|removed)|kept: (\S.*))")
@@ -1849,7 +2037,8 @@ def check_passages(before, after, found, lines):
     if lines is None:
         return [], [f"no answers for the {len(found)} flagged passage"
                     f"{'' if len(found) == 1 else 's'}: the compactor writes one line for each to "
-                    f"the answers file the brief names"]
+                    f"the answers file the brief names; if it wrote them elsewhere, give that "
+                    f"file with --answers <file>"]
     answers, failures = read_answers(lines, len(found))
     old = normalised(list(enumerate(before.split("\n"), start=1)))[0]
     new = normalised(list(enumerate(after.split("\n"), start=1)))[0]
@@ -2091,15 +2280,17 @@ def brief(name, state_home, command, given=Given(), stdin=None):
     # so there is one per file.
     directory = snapshot_dir(where.root, state_home)
     directory.mkdir(mode=0o700, parents=True, exist_ok=True)
-    found = references(where.rel, heading_texts(text), anchors(text), "", where.root, referrers)
+    found = references(where.rel, heading_texts(text), anchors(text), "", where.root, referrers,
+                       where.file)
     # Every detector runs, with no threshold: a person's request to compact
     # a file gets every passage answered, as a due doc does.
     flagged = passages(text, where.rel, where.root)
     setting = settings([where.rel], where.root)[where.rel]
     snapshot = _snapshot_path(where, state_home)
-    answers = _answers_file(snapshot)
+    answers = answers_dir() / (snapshot.name + ".passages.txt")
     fields = {"path": str(where.file), "rel": where.rel, "root": where.root, "text": text,
-              "saved": now, "passages": [dict(p._asdict(), kinds=list(p.kinds)) for p in flagged]}
+              "saved": now, "passages": [dict(p._asdict(), kinds=list(p.kinds)) for p in flagged],
+              "answers_file": str(answers)}
     if start is not None:
         fields["before"] = start.oid
     with _snapshot_lock(snapshot.parent):
@@ -2148,6 +2339,9 @@ def brief(name, state_home, command, given=Given(), stdin=None):
         again += "   (with the same list on stdin)"
     stage = f"git add {command_path(name)}\n  " if where.root is not None else ""
     print(f"\n{HANDOFF} Then, as the required last step, run:\n\n  {stage}{command} compact {command_path(name)} --verify{again}")
+    if flagged:
+        print("\nIf the compactor's reply has an `Answers: <file>` line, add `--answers <file>` "
+              "to --verify.")
     if where.root is None and referrers is None:
         print("\nThe file is outside any git repository, so --verify checks only its own links "
               "unless you give it the files that might refer to it, after `--` or with "
@@ -2160,14 +2354,14 @@ class Report(NamedTuple):
     failures: list
 
 
-def check_result(before, after, rel, root, referrers=None, kept=()):
+def check_result(before, after, rel, root, referrers=None, kept=(), file=None):
     """The verification report for a file compacted from before to after.
     Failures are what the result must fix. The other lines inform whoever
     checks the result for a lost conclusion: the reviewer, or a person.
     kept lists the flagged passages the compactor kept with a reason. A
     history marker inside the text of one of them is not a failure, since
     the reviewer judges that reason; a marker elsewhere on the same line
-    still fails."""
+    still fails. file is the doc's absolute path, for references."""
     lines, failures = [], []
     size_before, size_after = len(before.encode("utf-8")), len(after.encode("utf-8"))
     words_before, words_after = len(before.split()), len(after.split())
@@ -2189,7 +2383,7 @@ def check_result(before, after, rel, root, referrers=None, kept=()):
         anchor for anchor, heading in heading_anchors(before) if heading in gone}
     # Only a heading or anchor the compaction removed is looked for, so a
     # reference already broken before is not its doing.
-    found = references(rel, gone, removed, after, root, referrers)
+    found = references(rel, gone, removed, after, root, referrers, file)
     lines.append(searched(root, referrers))
     lines.append(f"References to removed headings: {len(found)}.")
     for ref in found:
@@ -2401,16 +2595,24 @@ def review(name, state_home, command="prose.py"):
     return BRIEF_PRINTED
 
 
-def _read_answers(where, state_home):
-    """The compactor's answers file's bytes, or None when it has written
-    none. Only --verify reads it; the later steps read the copy it stores."""
-    path = _answers_file(_snapshot_path(where, state_home))
+def _read_answers(saved, given=""):
+    """(path, bytes) of the compactor's answers: the file given with
+    --answers, or else the one the brief named, its bytes None when the
+    compactor wrote none there. Only --verify reads it; the later steps
+    read the copy it stores. A file given that cannot be read is an
+    error."""
+    path = pathlib.Path(given) if given else _answers_file(saved)
+    if path is None:
+        return None, None
     try:
-        return path.read_bytes()
+        return path, path.read_bytes()
     except FileNotFoundError:
-        return None
+        if given:
+            raise ValueError(f"{given}: no such file, given with --answers")
+        return path, None
     except OSError as error:
-        raise ValueError(f"{path}: could not read the answers to the flagged passages: {error}")
+        raise ValueError(f"{path}: could not read the answers to the flagged passages: "
+                         f"{error.strerror}")
 
 
 def _stored_answers(saved, blob):
@@ -2561,10 +2763,12 @@ def _load_snapshot(where, name, state_home):
     return saved
 
 
-def verify(name, state_home, passes=None, given=Given(), stdin=None):
+def verify(name, state_home, passes=None, given=Given(), stdin=None, answers=""):
     """Check the compacted file against its snapshot; print the report.
     Returns VERIFIED or FAILED. Inside a repository, passes(root) is prose's
-    pass directory, where a pass is recorded for the commit gate."""
+    pass directory, where a pass is recorded for the commit gate. answers
+    is the answers file given with --answers; without it, the one the
+    brief named is read."""
     where = target(name)
     saved = _load_snapshot(where, name, state_home)
     referrers = _referrers(given, where, stdin)
@@ -2572,16 +2776,16 @@ def verify(name, state_home, passes=None, given=Given(), stdin=None):
     # named by its id as `git ls-files -s` lists it, which the gate reads.
     current = staged(where, "--verify") if where.root is not None else None
     after = current.text if current else _lf(where.file.read_text(encoding="utf-8"))
-    data = _read_answers(where, state_home)
+    path, data = _read_answers(saved, answers)
     try:
         answered = None if data is None else data.decode("utf-8").split("\n")
     except UnicodeDecodeError as error:
-        raise ValueError(f"{_answers_file(_snapshot_path(where, state_home))}: could not read "
-                         f"the answers to the flagged passages: {error}")
+        raise ValueError(f"{path}: could not read the answers to the flagged passages: {error}")
     found = _passage_list(saved)
     kept = [found[number - 1] for number, (answer, _) in
             read_answers(answered or [], len(found))[0].items() if answer == "kept"]
-    report = check_result(_lf(saved["text"]), after, where.rel, where.root, referrers, kept)
+    report = check_result(_lf(saved["text"]), after, where.rel, where.root, referrers, kept,
+                          where.file)
     extra, failures = check_passages(_lf(saved["text"]), after, found, answered)
     report = Report(report.lines + extra, report.failures + failures)
     print(f"prose compact: {where.rel}")
@@ -2932,7 +3136,9 @@ def started(root, head=None, passes=None, answered=None):
                             out[rel].add(newer["before"])
                         continue
                     for path in (entry, entry.with_suffix(".review.md"),
-                                 _answers_file(entry)):
+                                 _answers_file(fields)):
+                        if path is None:
+                            continue
                         try:
                             path.unlink()
                         except FileNotFoundError:
@@ -3070,7 +3276,9 @@ def abandon(name, state_home, passes=None):
             raise ValueError(f"{name}: no compaction was started on it, so there is nothing to "
                              f"abandon")
         for entry in found:
-            for path in (entry, entry.with_suffix(".review.md"), _answers_file(entry)):
+            for path in (entry, entry.with_suffix(".review.md"), _answers_file(found[entry])):
+                if path is None:
+                    continue
                 try:
                     path.unlink()
                 except FileNotFoundError:

@@ -12,8 +12,10 @@ Both calls of `check` run the repository's pre-commit hook first, if it has one.
             --goals <goals> | --message-goals-file <file> [--amend]
             [--goals-for <pattern> <goals>]... [--goals-file <file>]
         Before a commit, first call. Lists the prose, each file under its own
-        reader goals, and prints the rules and a token. --goals is the
-        message's reader's. --message-goals-file gives them in a file instead:
+        reader goals, and prints the rules and a token. --goals gives the
+        goals of the commit message's reader. --goals-file gives each file's
+        goals as 'pattern: goal; goal' lines. --message-goals-file gives the
+        message's goals in a file instead:
         one or more goals per line, separated by ';', with no 'pattern:'
         prefix. Every changed doc or spec needs goals of its own, or check
         refuses it.
@@ -26,19 +28,21 @@ Both calls of `check` run the repository's pre-commit hook first, if it has one.
     prose.py sign --goals <goals> | --goals-file <file>
         Before posting, first call. Prints the rules and a token; reads no stdin.
         start's and sign's goals file holds the goals --goals would, one or
-        more per line, with no 'pattern:' prefix as check's goals file has,
-        since neither command lists files.
+        more per line. Unlike check's --goals-file, its lines have no
+        'pattern:' prefix, since neither command lists files.
     prose.py sign --pass <token> [--cold-read <report> [--dispositions <file>]] < text > signed
         Second call. Prints stdin's text with a signed footer, or, as check
         does, a cold-read brief on stderr, exiting 5.
-    prose.py compact <file> [--verify] [--paths-from <file|-> [-0]] [-- <path>...]
+    prose.py compact <file> [--paths-from <file|-> [-0]] [-- <path>...]
+    prose.py compact <file> --verify [--answers <file>] [--paths-from <file|-> [-0]] [-- <path>...]
     prose.py compact <file> --review
     prose.py compact <file> --reviewed <reply> [--dispositions <file>]
     prose.py compact <file> --abandon
         Compaction: prints the brief a compactor subagent works from and
         exits 4. --verify checks the compacted file against the copy
-        `compact <file>` saved, exiting 0 when it passes and 1 when it fails.
-        --review prints the brief for a reviewer of each removal and
+        `compact <file>` saved, exiting 0 when it passes and 1 when it fails;
+        it reads the compactor's answers from the file the brief named, or
+        from the one --answers gives. --review prints the brief for a reviewer of each removal and
         rewrite, and exits 4. --reviewed records the review as complete
         once its findings are answered; check refuses to sign a compaction
         without both the --verify and the --reviewed record. --abandon
@@ -52,8 +56,9 @@ Both calls of `check` run the repository's pre-commit hook first, if it has one.
     prose.py hook-post --host <platform>      the posting hook
     prose.py hook-gate                        the first-write gate
 
-Standard library only. Read ../DECISIONS.md before changing what is hashed:
-a change here invalidates every signature already minted.
+Standard library only. Read ../DECISIONS.md before changing what is hashed
+into a trailer or footer (the staged tree, the message, a post's text): a
+change there invalidates every signature already minted.
 """
 
 import argparse
@@ -2769,6 +2774,9 @@ def main(argv=None):
                            metavar="FILE",
                            help="with --reviewed: 'Change <n>: fixed' or 'Change <n>: kept: "
                                 "<reason>' for each change with a lost or false finding")
+    p_compact.add_argument("--answers", default="", metavar="FILE",
+                           help="with --verify: the compactor's answers file, when it wrote it "
+                                "somewhere other than the path the brief named")
     p_compact.add_argument("--paths-from", default="", metavar="FILE",
                            help="a file listing more such paths, one per line; - reads stdin")
     p_compact.add_argument("-0", dest="nul", action="store_true",
@@ -2784,7 +2792,7 @@ def main(argv=None):
         argv, tail = argv[:at], argv[at + 1:]
         # With no file before `--`, the first path after it is the file, as
         # in `compact -- -notes.md`; it is passed after a `--` of its own.
-        valued = {"--paths-from", "--reviewed", "--dispositions"}
+        valued = {"--paths-from", "--reviewed", "--dispositions", "--answers"}
         named = [arg for i, arg in enumerate(argv[1:], start=1)
                  if not arg.startswith("-") and argv[i - 1] not in valued]
         if not named and tail:
@@ -2933,6 +2941,8 @@ def main(argv=None):
                                   "steps; run one at a time")
                 if args.compact_dispositions and not args.reviewed:
                     raise Refused("--dispositions goes with --reviewed, the reply it answers")
+                if args.answers and not args.verify:
+                    raise Refused("--answers goes with --verify, the step that reads it")
                 given = compact.Given(tuple(args.referrers), args.paths_from, args.nul)
                 # A closed stdin is None; only --paths-from - needs it.
                 stdin = sys.stdin.buffer if sys.stdin is not None else None
@@ -2947,7 +2957,8 @@ def main(argv=None):
                     return compact.reviewed(args.file, user_state_dir(), pass_dir, args.reviewed,
                                             args.compact_dispositions)
                 if args.verify:
-                    return compact.verify(args.file, user_state_dir(), pass_dir, given, stdin)
+                    return compact.verify(args.file, user_state_dir(), pass_dir, given, stdin,
+                                          args.answers)
                 if args.review:
                     return compact.review(args.file, user_state_dir(), _prose_command())
                 return compact.brief(args.file, user_state_dir(), _prose_command(), given, stdin)
