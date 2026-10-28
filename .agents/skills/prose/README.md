@@ -93,8 +93,9 @@ docs/api.md: call the API correctly
 Agents reread docs such as `SKILL.md`, `AGENTS.md` and open OpenSpec
 proposals before every task, so history, repetition and padding left in them
 cost tokens on every read. When a commit changes a doc agents read often,
-and the doc holds about a page of such text or has grown by half since it
-was last compacted, prose prints `compaction due for <file>`. The agent then
+and the history, repetition and padding added since it was last compacted
+make up a tenth of the doc and at least 1,000 bytes, or the doc has grown by
+half since then, prose prints `compaction due for <file>`. The agent then
 has a fresh subagent rewrite the file to what is current, answering for
 every passage a script flagged, and runs a script that checks those answers
 and that no link into the file broke. A second fresh subagent then checks

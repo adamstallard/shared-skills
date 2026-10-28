@@ -2287,6 +2287,73 @@ def pass_record(token, root=None):
 
 
 # ---------------------------------------------------------------------------
+# Re-signing a tree already signed
+# ---------------------------------------------------------------------------
+
+# A signing call that checks a cold read and signs records the result for the
+# staged tree, so that a later token's signing call on the same tree, as when
+# only the message changed, reuses it instead of reading the files cold again
+# (DECISIONS: A re-sign of the same tree reuses its cold read). Results older
+# than this are deleted to keep the directory small; a result's age never
+# decides whether it is reused.
+COLD_RESULT_LIFETIME = 7 * 24 * 60 * 60
+TREE = re.compile(r"[0-9a-f]{40}|[0-9a-f]{64}")
+
+
+def cold_results_dir(root=None):
+    """Where signed cold reads' results live: prose/cold-reads, beside the
+    pass tokens."""
+    return pass_dir(root).parent / "cold-reads"
+
+
+def staged_tree(root):
+    """The full hash of the tree `git write-tree` makes of the index now."""
+    return git(["write-tree"], root).strip()
+
+
+def _items_record(items):
+    """ColdItems as a result records them, in JSON's types: each item's
+    description, goals, file and line spans."""
+    return [[item.where, list(item.goals), item.path, [list(span) for span in item.spans]]
+            for item in items]
+
+
+def save_cold_result(tree, items, result, root=None):
+    """Record result, the ColdResult of a cold read just signed, for this
+    staged tree and the cold items it listed."""
+    results = _private_dir(cold_results_dir(root))
+    _prune(results, COLD_RESULT_LIFETIME, time.time())
+    draft = results / f".{tree}.{os.getpid()}"
+    try:
+        with open(draft, "w", encoding="utf-8") as handle:
+            json.dump({"tree": tree, "items": _items_record(items), "result": list(result)},
+                      handle)
+        os.replace(draft, results / tree)
+    finally:
+        draft.unlink(missing_ok=True)
+
+
+def reusable_cold_result(tree, items, root=None):
+    """The ColdResult a signing call recorded for exactly this staged tree
+    and these cold items, with their goals and spans; None when there is no
+    such record, or it cannot be read."""
+    if not TREE.fullmatch(tree):
+        return None
+    try:
+        record = json.loads((cold_results_dir(root) / tree).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(record, dict) or record.get("tree") != tree \
+            or record.get("items") != _items_record(items):
+        return None
+    result = record.get("result")
+    if not isinstance(result, list) or len(result) != len(ColdResult._fields) \
+            or not all(type(count) is int and count >= 0 for count in result):
+        return None
+    return ColdResult(*result)
+
+
+# ---------------------------------------------------------------------------
 # The first-write gate
 # ---------------------------------------------------------------------------
 
@@ -2851,13 +2918,25 @@ def main(argv=None):
 
             if args.token:
                 cold, result = cold_items(assigned), None
+                # A tree an earlier signing call signed after its cold read,
+                # listed with the same items and goals, is signed again with
+                # that read's result, as when only the message changed.
+                tree = staged_tree(args.repo) if cold else ""
+                earlier = None if args.report or not cold \
+                    else reusable_cold_result(tree, cold, args.repo)
                 # The cold read of a compacted file comes before its reviews,
                 # so they check its fixes. While a compaction is unfinished,
                 # a call without --cold-read still prints the brief; a call
                 # with it, or with nothing to read cold, is refused.
-                if pending and (args.report or not cold):
+                if pending and (args.report or not cold or earlier is not None):
                     raise Refused("; ".join(pending))
-                if args.report:
+                if earlier is not None:
+                    result = earlier
+                    understood = understood_counts(result.items, result.understood_fixed,
+                                                   result.understood_kept)
+                    trailer += (f"; cold read: {cold_counts(result.fixed, result.kept)}"
+                                f"; understood: {understood}")
+                elif args.report:
                     record = pass_record(args.token, args.repo)
                     refuse_unbriefed(cold, record)
                     result = check_cold_read(args.token, record,
@@ -2894,6 +2973,13 @@ def main(argv=None):
                 # leaves the token for the same call to run again.
                 block = render_result([trailer])
                 spend_pass(args.token, args.repo)
+                if result is not None and earlier is None and cold:
+                    # Only a tree this call signed after checking its read is
+                    # recorded. A failure here costs only a later full read.
+                    try:
+                        save_cold_result(tree, cold, result, args.repo)
+                    except OSError:
+                        pass
                 print_result(block)
                 return 0
             print_goals(goals, heading=MESSAGE_GOALS)

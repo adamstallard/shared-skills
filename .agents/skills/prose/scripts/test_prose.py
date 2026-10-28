@@ -3178,6 +3178,146 @@ class ColdRead(unittest.TestCase):
         self.assertNotIn("cold-read brief", refused.stderr)
 
 
+class ResignSameTree(unittest.TestCase):
+    """A signing call on the very tree an earlier signing call signed after a
+    cold read, listed with the same items and goals, signs with that read's
+    result and prints no brief: re-signing for a new message reads nothing
+    cold. Any other tree, and any read no signing call accepted, gets the
+    full brief."""
+
+    COMMENT = "x = 1\n# One.\n# Two.\ny = 2\n"
+
+    def setUp(self):
+        self.repo = Repo()
+        self.addCleanup(self.repo.cleanup)
+        self.repo.write("a.py", "x = 1\n")
+        self.repo.commit("base\n")
+        self.repo.write("a.py", self.COMMENT)
+
+    def first(self, message, *extra):
+        result = self.repo.prose("check", "-F", "-", "--goals", "review it", *extra,
+                                 stdin=message)
+        self.assertEqual(result.returncode, 4, result.stderr)
+        return pass_token(result.stdout)
+
+    def signing(self, token, message, *extra):
+        return self.repo.prose("check", "-F", "-", "--pass", token, *extra, stdin=message,
+                               file_goals=False)
+
+    def full_brief(self, token, message, *extra):
+        """Asserts the signing call prints a brief naming the comment."""
+        result = self.signing(token, message, *extra)
+        self.assertEqual(result.returncode, prose.COLD_READ_NEEDED, result.stdout + result.stderr)
+        self.assertIn("1. A code comment: a.py, lines 2-3", result.stdout)
+
+    def signed(self, message, *extra):
+        """Runs both calls and a full cold read for message, and returns the
+        trailer."""
+        token = self.first(message, *extra)
+        self.full_brief(token, message, *extra)
+        done = self.signing(token, message, *extra, *cold_flags(token))
+        self.assertEqual(done.returncode, 0, done.stderr)
+        return block_trailer(done.stdout)
+
+    def test_a_message_only_resign_reuses_the_cold_read(self):
+        first = self.signed("FEAT(x): a\n\nThree tests.\n")
+        message = "FEAT(x): a\n\nFour tests.\n"
+        token = self.first(message)
+        done = self.signing(token, message)
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertNotIn("cold-read brief", done.stdout)
+        trailer = block_trailer(done.stdout)
+        # The value's tree half and its counts are the first signing's; only
+        # the message half differs.
+        tree_half = re.compile(r"✓ ([0-9a-f]{12}):")
+        self.assertEqual(tree_half.search(trailer).group(1), tree_half.search(first).group(1))
+        self.assertEqual(trailer.split(";", 1)[1], first.split(";", 1)[1])
+        self.assertTrue(trailer.endswith("; cold read: no findings; understood: 1 item, "
+                                         "0 fixed, 0 kept"), trailer)
+        self.assertNotEqual(trailer, first)
+        self.repo.commit(message, trailer)
+        self.assertEqual(self.repo.verify().stdout, "checked\n")
+
+    def test_a_reused_read_keeps_its_counts(self):
+        token = self.first("FEAT(x): a\n")
+        self.full_brief(token, "FEAT(x): a\n")
+        report = cold_report(token, "Finding 1, item 1, guessed: «One» What?\n", name="kept")
+        answers = REPORTS / "kept-dispositions.txt"
+        answers.write_text(f"dispositions {token}\n1. kept (asked): it is clear\n"
+                           "Item 1: matches\n", encoding="utf-8")
+        done = self.signing(token, "FEAT(x): a\n", "--cold-read", report, "--dispositions",
+                            str(answers))
+        self.assertEqual(done.returncode, 0, done.stderr)
+        other = self.first("FEAT(x): b\n")
+        again = self.signing(other, "FEAT(x): b\n")
+        self.assertEqual(again.returncode, 0, again.stderr)
+        self.assertTrue(block_trailer(again.stdout).endswith(
+            "; cold read: 1 finding, 0 fixed, 1 kept; understood: 1 item, 0 fixed, 0 kept"))
+
+    def test_any_staged_change_forces_a_full_cold_read(self):
+        self.signed("FEAT(x): a\n")
+        for name, text in (("a.py", self.COMMENT + "z = 3\n"), ("b.txt", "data\n")):
+            with self.subTest(name=name):
+                self.repo.write(name, text)
+                self.full_brief(self.first("FEAT(x): b\n"), "FEAT(x): b\n")
+
+    def test_a_cold_read_never_signed_is_not_reused(self):
+        token = self.first("FEAT(x): a\n")
+        self.full_brief(token, "FEAT(x): a\n")
+        # The brief was printed, but no signing call accepted the tree.
+        self.full_brief(self.first("FEAT(x): b\n"), "FEAT(x): b\n")
+
+    def test_a_refused_signing_call_records_nothing(self):
+        token = self.first("FEAT(x): a\n")
+        self.full_brief(token, "FEAT(x): a\n")
+        bad = self.signing(token, "FEAT(x): a\n", "--cold-read", cold_report(token, name="bad"))
+        self.assertEqual(bad.returncode, 2, bad.stderr)
+        self.full_brief(self.first("FEAT(x): b\n"), "FEAT(x): b\n")
+
+    def test_a_signing_call_with_nothing_left_to_read_records_nothing(self):
+        token = self.first("FEAT(x): a\n")
+        self.full_brief(token, "FEAT(x): a\n")
+        self.repo.write("a.py", "x = 2\n")
+        done = self.signing(token, "FEAT(x): a\n", *cold_flags(token))
+        self.assertEqual(done.returncode, 0, done.stderr)
+        results = prose.cold_results_dir(str(self.repo.path))
+        self.assertEqual(list(results.iterdir()) if results.exists() else [], [])
+
+    def test_a_stale_or_unreadable_earlier_result_forces_a_full_cold_read(self):
+        self.signed("FEAT(x): a\n")
+        results = prose.cold_results_dir(str(self.repo.path))
+        (record,) = list(results.iterdir())
+        # An earlier tree's result: the staged tree is not the one it signed.
+        stale = json.loads(record.read_text(encoding="utf-8"))
+        stale["tree"] = "0" * 40
+        for text in ("{not json", json.dumps(stale), json.dumps({"tree": record.name})):
+            with self.subTest(text=text):
+                record.write_text(text, encoding="utf-8")
+                self.full_brief(self.first("FEAT(x): b\n"), "FEAT(x): b\n")
+        record.unlink()
+        self.full_brief(self.first("FEAT(x): b\n"), "FEAT(x): b\n")
+
+    def test_other_reader_goals_force_a_full_cold_read(self):
+        self.signed("FEAT(x): a\n")
+        token = self.first("FEAT(x): b\n", "--goals-for", "a.py", "see what it guards")
+        self.full_brief(token, "FEAT(x): b\n")
+
+    def test_an_amend_of_the_signed_tree_reuses_the_read(self):
+        self.signed("FEAT(x): a\n")
+        self.repo.commit("FEAT(x): a\n")
+        # The same tree, listed against HEAD's parent: the same items.
+        token = self.first("FEAT(x): b\n", "--amend")
+        done = self.signing(token, "FEAT(x): b\n", "--amend")
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+
+    def test_a_report_passed_anyway_is_checked_as_usual(self):
+        self.signed("FEAT(x): a\n")
+        token = self.first("FEAT(x): b\n")
+        refused = self.signing(token, "FEAT(x): b\n", *cold_flags(token))
+        self.assertEqual(refused.returncode, 2, refused.stdout)
+        self.assertIn("no cold-read brief was printed", refused.stderr)
+
+
 class ColdReadFindings(unittest.TestCase):
     """Every finding in a cold reader's report is answered before signing:
     fixed, checked by its item having changed, or kept with a reason. The
@@ -4063,8 +4203,8 @@ class CompactionDue(unittest.TestCase):
         self.assertEqual(result.returncode, 4, result.stderr)
         self.assertRegex(result.stdout, r"compaction due for skills/a/SKILL\.md: read often \(every "
                                         r"SKILL\.md is read before work\); 64 bytes \([0-9]+%\) in 1 "
-                                        r"flagged passage \(1 repetition\); 50 more than at its "
-                                        r"last compaction is allowed")
+                                        r"flagged passage \(1 repetition\); due at 10% of the "
+                                        r"file and 50 bytes more than at its last compaction")
 
     def test_flagged_text_under_the_threshold_is_not_due(self):
         self.repo.write(".gitattributes", "* prose-compact-flagged=65\n")
@@ -4259,6 +4399,46 @@ class CompactionDue(unittest.TestCase):
         self.repo.commit("compact\n")
         self.repo.write("SKILL.md", paragraphs(34) + REPEAT + REPEAT)
         self.assertIn("10% and 10 bytes are allowed", self.check().stdout)
+
+    def test_a_large_doc_under_the_flagged_share_is_not_due(self):
+        # 64 flagged bytes, past the 50-byte floor, in about 5,000 bytes.
+        self.repo.write("SKILL.md", repeated(2, paragraphs(90)))
+        self.assertNotIn("compaction due", self.check().stdout)
+        self.repo.write(".gitattributes", "* prose-compact-flagged=50 "
+                                          "prose-compact-flagged-share=1\n")
+        self.assertIn("compaction due for SKILL.md: read often (every SKILL.md is read before "
+                      "work); 64 bytes (1%) in 1 flagged passage (1 repetition); due at 1% of "
+                      "the file and 50 bytes", self.check().stdout)
+
+    def test_the_defaults_need_a_tenth_of_the_file_and_1000_bytes(self):
+        self.repo.write(".gitattributes", "")
+        # 17 repetitions, 1,088 bytes, about 60% of the file.
+        self.repo.write("SKILL.md", repeated(18))
+        self.assertIn("compaction due for SKILL.md", self.check().stdout)
+        # A small doc: a high share, but under the 1,000-byte floor.
+        self.repo.write("SKILL.md", repeated(10))
+        self.assertNotIn("compaction due", self.check().stdout)
+
+    def test_after_a_compaction_the_flagged_text_added_is_measured_against_the_file(self):
+        self.repo.write("SKILL.md", repeated(12, paragraphs(40)))
+        self.repo.commit("grow\n")
+        # The compaction keeps 11 repetitions, 704 bytes, over 40% of it.
+        self.repo.write("SKILL.md", repeated(12, paragraphs(10)))
+        self.repo.commit("compact, keeping the repetitions\n")
+        # 64 bytes added: past setUp's 50-byte floor, under a tenth of the file.
+        self.repo.write("SKILL.md", repeated(13, paragraphs(10)))
+        self.assertNotIn("compaction due", self.check().stdout)
+        # 320 bytes added, over a tenth.
+        self.repo.write("SKILL.md", repeated(17, paragraphs(10)))
+        self.assertRegex(self.check().stdout, r"compaction due for SKILL\.md: .*, 704 of them at "
+                                              r"its last compaction; 320 bytes \(1[0-9]%\) added "
+                                              r"since; due at 10% of the file")
+
+    def test_the_flagged_share_setting_is_read(self):
+        self.repo.write(".gitattributes", "SKILL.md prose-compact-flagged-share=25\n")
+        found = compact.settings(["SKILL.md", "a.md"], str(self.repo.path))
+        self.assertEqual(found["SKILL.md"].flagged_share, 25)
+        self.assertEqual(found["a.md"].flagged_share, compact.DEFAULT_FLAGGED_SHARE)
 
     def test_a_deleted_doc_is_not_due(self):
         self.repo.write("SKILL.md", repeated(5))

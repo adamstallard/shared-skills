@@ -108,9 +108,10 @@ and that is due. A doc is read often when it is:
   when linked to be read first, or declared.
 
 A doc read often is due when either holds:
-- **Flagged text:** the passages the detectors (below) flag hold at least 1,000
-  bytes more than they did at its last compaction. For a doc never
-  compacted, all its flagged text counts.
+- **Flagged text:** the text the detectors (below) flag holds at least 1,000
+  bytes more than at its last compaction, and those added bytes are at least
+  10% of the file's current size. For a doc never compacted, all its flagged
+  text counts.
 - **Growth:** it has grown by half, and by 2,000 bytes or more, since its
   last compaction. A doc never compacted has no growth to measure.
 
@@ -217,8 +218,11 @@ the working file.
    no brief and refuses, listing the steps left; go on to step 5.
 
    The token lasts 2 hours from the first call. If it expires before step
-   10, redo step 4 with a new first call. If the new cold read's fixes
-   change the file, run steps 5 to 8 again on it.
+   10, redo step 4 with a new first call. Step 4's cold read cannot be
+   reused, because its signing call refused and signed nothing. If the new
+   cold read's fixes change the file, run steps 5 to 8 again on it, even if
+   you ran them before. After step 10 signs, a new token for a changed
+   message signs without a new cold read.
 5. Run `python3 $S/prose.py compact <file> --review`, with the file staged.
    It writes every change to a file, removed and rewritten text side by side,
    headed by the code spans, flags, constants, paths and headings the new
@@ -330,8 +334,10 @@ openspec/specs/**/spec.md prose-compact-reads=10
 - `prose-compact-growth=<percent>` replaces the growth share, 50 by default.
 - `prose-compact-growth-bytes=<bytes>` replaces the bytes of growth also
   needed, 2,000 by default.
-- `prose-compact-flagged=<bytes>` replaces the flagged text that makes a doc
-  due, 1,000 bytes by default.
+- `prose-compact-flagged=<bytes>` replaces the flagged bytes that make a doc
+  due, 1,000 by default.
+- `prose-compact-flagged-share=<percent>` replaces the share of the file
+  those bytes must also be, 10 by default.
 - `prose-compact-reads=<n>` replaces the reads that make a doc read often,
   20 by default.
 - `prose-compact-attribution=drop` has the compactor drop "who decided"
@@ -350,8 +356,9 @@ it on its own so it stays visible. Propose:
 - `prose-compact` for a doc agents read often that *When it is due* misses;
 - `prose-compact-attribution=drop` when the person doesn't want "who
   decided" credits kept;
-- a higher `prose-compact-flagged`, `prose-compact-growth` or
-  `prose-compact-growth-bytes` for a doc that keeps coming up due while its
+- a higher `prose-compact-flagged`, `prose-compact-flagged-share`,
+  `prose-compact-growth` or `prose-compact-growth-bytes` for a doc that
+  keeps coming up due while its
   compactions cut little, or a higher `prose-compact-reads` when such a doc
   counts as read often only by its reads.
 
@@ -653,6 +660,15 @@ The signing call refuses (exit 2), signs nothing and keeps the token when:
 Each token takes one cold read. Fixes, including those a person chose, are
 not read cold again: the script checks `fixed` by the item having changed.
 
+**A re-sign of the same tree reuses its cold read.** A signing call that
+checks a cold read and signs records the staged tree's hash with the read's
+counts. A signing call with a new token, from a new first call, whose
+staged tree has that exact hash, listed with the same items and goals,
+signs without a brief, and the `Prose:` value it prints carries the
+recorded counts. So correcting only the message needs no new
+cold read. Any staged change, other goals, or a read no signing call
+accepted brings the full brief.
+
 **Without subagents, hand the cold read back.** If something reads your
 result, such as a caller or a workflow stage, do not read the brief
 yourself, sign or commit. Leave the change staged and put in your result the
@@ -703,7 +719,8 @@ blank, and the rest is the body. Passing the message as two words instead,
 
 Just before it commits, the script runs `verify-staged.sh`, which refuses the
 commit if the staged files or the message no longer match the trailer. If it
-refuses, run both calls again and pass the new value.
+refuses, run both calls again and pass the new value. When only the message
+changed, the new signing call reuses the cold read (*The cold read*).
 
 **When bug-hunter is installed,** the same commit carries bug-hunter's trailer
 too ([the rule](../../lib/commit-trailer/DECISIONS.md#every-installed-skills-trailer-on-one-commit)).

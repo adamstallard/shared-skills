@@ -7,8 +7,9 @@ Three parts, all standard library only:
   alternatives, stale references, narrative words and filler.
 - `due()`: the cheap triggers `prose check` runs on each changed doc. A doc
   agents read often is due for compaction when, since its last compaction,
-  its flagged text has grown by a set number of bytes, or the doc has grown
-  by both a set share and a set number of bytes.
+  its flagged text has grown by both a set share of the file and a set
+  number of bytes, or the doc has grown by both a set share and a set number
+  of bytes.
 - `brief()`, `verify()` and `review()`: `prose compact <file>` prints the
   brief a compactor subagent works from, listing every flagged passage;
   `--verify` checks the result, including the compactor's answer for each
@@ -46,8 +47,11 @@ BRIEF = HERE.parent / "compact.md"
 
 # A doc agents read often is due for compaction when the passages the
 # detectors flag hold at least this many bytes more than they did at its last
-# compaction (about 250 tokens, paid on every read).
+# compaction (about 250 tokens, paid on every read)...
 DEFAULT_FLAGGED = 1_000
+# ... and those added bytes are at least this share, in percent, of the
+# file's current size, since a compaction's cost grows with the whole file.
+DEFAULT_FLAGGED_SHARE = 10
 # Once compacted, it is also due when it has grown by this share, in
 # percent, since its last compaction.
 DEFAULT_GROWTH = 50
@@ -73,6 +77,7 @@ ATTR_DECLARE = "prose-compact"
 ATTR_GROWTH = "prose-compact-growth"
 ATTR_GROWTH_BYTES = "prose-compact-growth-bytes"
 ATTR_FLAGGED = "prose-compact-flagged"
+ATTR_FLAGGED_SHARE = "prose-compact-flagged-share"
 ATTR_READS = "prose-compact-reads"
 ATTR_ATTRIBUTION = "prose-compact-attribution"
 
@@ -124,6 +129,7 @@ class Settings(NamedTuple):
     drop_attribution: bool = False  # `prose-compact-attribution=drop`
     exempt: bool = False        # `-prose-compact`
     growth_bytes: int = DEFAULT_GROWTH_BYTES
+    flagged_share: int = DEFAULT_FLAGGED_SHARE
 
 
 def _number(value, default):
@@ -134,12 +140,13 @@ def settings(paths, root):
     """{path: Settings} from the staged .gitattributes, falling back to the
     defaults. `prose-compact` declares a doc read often, `-prose-compact`
     exempts one, the numeric attributes replace the growth share, the
-    bytes of growth, the flagged bytes and the reads needed, and `prose-compact-attribution=drop`
+    bytes of growth, the flagged bytes, the flagged share and the reads
+    needed, and `prose-compact-attribution=drop`
     has the compactor drop "who decided" credits. Outside a repository, or
     when git fails, every path gets the defaults."""
     found = {path: {} for path in paths}
-    names = [ATTR_DECLARE, ATTR_GROWTH, ATTR_GROWTH_BYTES, ATTR_FLAGGED, ATTR_READS,
-             ATTR_ATTRIBUTION, "diff"]
+    names = [ATTR_DECLARE, ATTR_GROWTH, ATTR_GROWTH_BYTES, ATTR_FLAGGED, ATTR_FLAGGED_SHARE,
+             ATTR_READS, ATTR_ATTRIBUTION, "diff"]
     if paths and root is not None:
         try:
             result = subprocess.run(
@@ -166,7 +173,8 @@ def settings(paths, root):
                              _number(attrs.get(ATTR_FLAGGED), DEFAULT_FLAGGED),
                              _number(attrs.get(ATTR_READS), DEFAULT_READS),
                              attrs.get(ATTR_ATTRIBUTION) == "drop", declared == "unset",
-                             _number(attrs.get(ATTR_GROWTH_BYTES), DEFAULT_GROWTH_BYTES))
+                             _number(attrs.get(ATTR_GROWTH_BYTES), DEFAULT_GROWTH_BYTES),
+                             _number(attrs.get(ATTR_FLAGGED_SHARE), DEFAULT_FLAGGED_SHARE))
     return out
 
 
@@ -1045,8 +1053,9 @@ def is_binary(setting, data):
 # What makes a doc read often by its place in the repository.
 ALWAYS_READ = {"claude.md", "agents.md", "skill.md"}
 # A link a SKILL.md or AGENTS.md asks to have read first, or read before
-# something, in the same paragraph or list item. Read before changing the
-# skill is a read only when the skill changes, which commits count instead.
+# something, in the same paragraph or list item. A link to read before
+# changing the skill does not count, so its target is not read often by
+# place.
 # A link between "read" and "first" counts as one character, so the full
 # stop in its target, as in "x.md", does not end the sentence.
 READ_FIRST = re.compile(r"\bread\b(?:\[[^\]\n]*\]\([^)\n]*\)|[^.]){0,40}?\b(?:first\b|before\b"
@@ -1212,15 +1221,24 @@ def _often(path, setting, links):
     return None
 
 
+def _flagged_due(added, size, setting):
+    """Whether added flagged bytes make a doc of size bytes due: at least
+    its flagged-bytes setting, and at least its flagged share of size."""
+    return added >= setting.flagged and added * 100 >= size * setting.flagged_share
+
+
 def _flagged_reason(found, size, baseline, setting):
     kinds = collections.Counter(kind for passage in found for kind in passage.kinds)
     shown = ", ".join(f"{count} {kind}" for kind, count in
                       sorted(kinds.items(), key=lambda item: KINDS.index(item[0])))
     flagged = flagged_bytes(found)
-    since = f", {baseline:,} of them at its last compaction" if baseline else ""
+    added = flagged - baseline
+    since = (f", {baseline:,} of them at its last compaction; {added:,} bytes "
+             f"({added * 100 // max(size, 1)}%) added since" if baseline else "")
     return (f"{flagged:,} bytes ({flagged * 100 // max(size, 1)}%) in {len(found)} flagged "
-            f"passage{'' if len(found) == 1 else 's'} ({shown}){since}; {setting.flagged:,} more "
-            f"than at its last compaction is allowed")
+            f"passage{'' if len(found) == 1 else 's'} ({shown}){since}; due at "
+            f"{setting.flagged_share}% of the file and {setting.flagged:,} bytes more than at "
+            "its last compaction")
 
 
 def _baseline(path, history, root, tracked):
@@ -1241,9 +1259,10 @@ def _baseline(path, history, root, tracked):
 
 def due(paths, root, passes=None):
     """[Due] for each staged path that is read often and due for
-    compaction. It is due when its flagged passages hold at least its
-    flagged-bytes setting more than at its last compaction (all of them
-    when it was never compacted), or when it has grown by both its growth
+    compaction. It is due when the flagged bytes added since its last
+    compaction (all of them when it was never compacted) reach both its
+    flagged-bytes setting and its flagged share of the file's current size,
+    or when it has grown by both its growth
     share and its growth bytes since then. Its last compaction is found as
     size_history says; a staged blob that is itself a compaction is not
     due. The trigger looks only at candidates: paths that are current-state,
@@ -1312,9 +1331,13 @@ def _due(paths, root, passes):
         flagged = passages(text, path, root, tracked)
         history = size_history(path, root, passes)
         reasons = []
-        if flagged and flagged_bytes(flagged) >= setting.flagged:
+        # The flagged bytes added can be no more than all the flagged bytes,
+        # so the baseline, which reads history, is looked up only when all
+        # the flagged bytes would make the doc due.
+        if flagged and _flagged_due(flagged_bytes(flagged), len(data), setting):
             baseline = _baseline(path, history, root, tracked)
-            if baseline is not None and flagged_bytes(flagged) - baseline >= setting.flagged:
+            if baseline is not None and _flagged_due(flagged_bytes(flagged) - baseline,
+                                                     len(data), setting):
                 reasons.append(_flagged_reason(flagged, len(data), baseline, setting))
         grown = _growth_reason(len(data), history, setting)
         if grown:

@@ -359,8 +359,9 @@ compaction repays its 300k to 500k tokens; size does not.
   - by place: every `CLAUDE.md`, `AGENTS.md` and `SKILL.md`; a file a
     `SKILL.md` or `AGENTS.md` links in a paragraph asking to read it first or
     before something; and an open change's `proposal.md` and `design.md`.
-    "Read it before changing this file" does not count: that read happens
-    only when the skill changes, which the commit count measures;
+    a link asking to read its file before changing the skill does not
+    count, and no commit counts a read of that file either, since a commit
+    in a skill reads only its `SKILL.md` and read-first files;
   - by `prose-compact` in `.gitattributes`;
   - or by the commits since the doc's last compaction, each counting as one
     read of the docs a fixed map gives it. A commit changing a file in a
@@ -435,17 +436,22 @@ compaction repays its 300k to 500k tokens; size does not.
 
   | Doc | Flagged | Read often | Due |
   |---|---|---|---|
-  | #25's `proposal.md` | 47,988 bytes (17%) | open change; 57 reads | yes |
-  | bug-hunter's `SKILL.md` | 1,050 bytes (1%), 7 repetitions | SKILL.md; 131 reads | yes |
-  | igor's `lore-from-reviews/design.md` | 1,123 bytes (4%) | open change | yes |
-  | prose's `SKILL.md` | 1,022 bytes (2%) | SKILL.md; 110 reads | yes |
+  | #25's `proposal.md` | 45,297 bytes (16.5%) | open change; 57 reads | yes |
+  | bug-hunter's `SKILL.md` | 1,050 bytes (1.8%) | SKILL.md; 131 reads | no |
+  | igor's `lore-from-reviews/design.md` | 1,123 bytes (4%) | open change | no |
+  | prose's `SKILL.md`, before dffb7b3 | 1,022 bytes (2.3%) | SKILL.md; 110 reads | no |
   | prose's `DECISIONS.md` | 5,346 bytes (8%); grown 70% since 469ffc2 | 0 reads | no |
   | igor's main specs | up to 4,139 bytes (12%) | 6 reads each | no |
 
-  - **Flagged text: 1,000 bytes,** about 250 tokens on every read. Among
-    docs read often, the SKILL.md files flag 0 to 1,050 bytes; the two read
-    on every commit, bug-hunter's and prose's, pass 1,000 on real
-    repetition.
+  - **Flagged text: 10% of the file and 1,000 bytes,** added since the
+    last compaction and measured against the file's current size. A
+    compaction's cost grows with the whole file, so the trigger does too.
+    Rejected: 1,000 bytes alone, which made large files due on a tiny
+    share. Under it, prose's SKILL.md was due with 2.3% of it flagged
+    (the table's row), and its compaction (dffb7b3) cut 5% for about half
+    a million tokens. The 1,000-byte floor,
+    about 250 tokens a read, keeps a small doc from coming due for a few
+    flagged lines.
   - **Reads: 20.** Skill files took 2 to 131 reads in shared-skills' 140
     commits; igor's main specs took 6 in its last 300.
   - **Growth: 50%** and **2,000 bytes**, about 500 tokens a read.
@@ -458,7 +464,7 @@ compaction repays its 300k to 500k tokens; size does not.
   archive, every read-first file, and every file declared `prose-compact`.
 - **A declaration works on any file.** `prose check` reads `prose-compact`,
   `-prose-compact`, `prose-compact-growth`, `prose-compact-growth-bytes`,
-  `prose-compact-flagged`, `prose-compact-reads` and
+  `prose-compact-flagged`, `prose-compact-flagged-share`, `prose-compact-reads` and
   `prose-compact-attribution` for every staged path. A file git treats as binary, by `-diff` (which `binary` sets) or a
   NUL byte, is skipped. Declarations reach the triggers and the brief only;
   the writing rules still apply only to docs.
@@ -1073,6 +1079,40 @@ findings can be misread confidently elsewhere.
 
 **Known gap.** `matches` is the author's claim; answering it falsely is on the
 cheat list.
+
+---
+
+## A re-sign of the same tree reuses its cold read
+
+A signing call that checks a cold read and signs records its counts in
+`prose/cold-reads/<tree>` beside the pass tokens, named by the full hash of
+the staged tree, with the cold items it listed: their files, line spans and
+goals. A signing call with a new token, from a new first call, whose `git
+write-tree`, after the pre-commit hook, has that exact hash, and whose cold
+items match, signs without a brief and carries the recorded counts. The
+commit message is not read cold here either; no signing call reads it.
+
+**Why.** The `Prose:` trailer binds the tree and the message together, so
+correcting the message alone took a new token, and with it a new cold read
+of every staged file. On one commit, fixing stale numbers in the message
+forced three fresh reads of a 42 KB SKILL.md. Each found new nitpicks (19,
+15, 11), and fixing them changed the file, which voided its compaction's
+`--verify` and review and needed a third review, past the compaction's cap
+of two.
+
+**Why reuse is safe.** The first signing already accepted that tree,
+including any fixes made after its brief, so signing the identical tree
+again adds nothing unread.
+- The key is the tree's hash, not a time: any staged byte changes it, and
+  the full brief follows. Records older than 7 days are deleted only to keep
+  the directory small.
+- Only a tree a signing call accepted is recorded. A printed brief, a report
+  never passed, or a refused signing call records nothing.
+- Other goals or another listing change the cold items, so they bring the
+  full brief.
+
+**Known gap.** The record is a file in the git directory, which anyone with
+access can forge, as with tokens.
 
 ---
 
