@@ -44,6 +44,11 @@ except ImportError:  # Windows: the lock does nothing, see _snapshot_lock
 
 HERE = pathlib.Path(__file__).resolve().parent
 BRIEF = HERE.parent / "compact.md"
+# compaction.md, the steps of a compaction. The trigger's advice, the
+# gate's refusals and step 1's refusal each print this path, so an agent
+# reaches the steps from whichever it sees; moving or renaming compaction.md
+# means changing this line.
+STEPS = HERE.parent / "compaction.md"
 
 # A doc agents read often is due for compaction when the passages the
 # detectors flag hold at least this many bytes more than they did at its last
@@ -1367,8 +1372,8 @@ def print_due(found, command):
     the docs due for compaction."""
     if not found:
         return
-    print("\nCompaction (do it in a separate commit in this pull request; SKILL.md, "
-          "*Compaction*):\n")
+    print(f"\nCompaction (do it in a separate commit in this pull request, following "
+          f"{STEPS}):\n")
     for item in found:
         print(f"  compaction due for {item.path}: {item.why}")
     print(f"\n  Commit this change first, then for each file run: {command} compact <file>")
@@ -2302,7 +2307,7 @@ def brief(name, state_home, command, given=Given(), stdin=None):
         head = tree_entries(where.root, "HEAD").get(where.rel)
         if head is None or head[1] != start.oid:
             raise ValueError(f"{where.rel} as staged differs from HEAD's; commit the change you "
-                             f"were making first (SKILL.md, *Compaction*), then run the first "
+                             f"were making first ({STEPS}), then run the first "
                              f"call on the committed file")
     text = start.text if start else _lf(where.file.read_text(encoding="utf-8"))
     now = time.time()
@@ -2376,7 +2381,7 @@ def brief(name, state_home, command, given=Given(), stdin=None):
     if where.root is None and referrers is None:
         print("\nThe file is outside any git repository, so --verify checks only its own links "
               "unless you give it the files that might refer to it, after `--` or with "
-              "--paths-from (SKILL.md, *Compaction*).")
+              f"--paths-from ({STEPS}, *Which files refer to the doc*).")
     return BRIEF_PRINTED
 
 

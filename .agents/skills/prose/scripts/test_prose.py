@@ -4293,9 +4293,13 @@ class CompactionDue(unittest.TestCase):
         self.repo.write("SKILL.md", repeated(3) + "One more line.\n")
         self.assertNotIn("compaction due", self.check().stdout)
         self.repo.write("SKILL.md", repeated(4) + "One more line.\n")
+        out = self.check().stdout
         self.assertIn("compaction due for SKILL.md: read often (every SKILL.md is read before "
-                      "work); 192 bytes", self.check().stdout)
-        self.assertIn("128 of them at its last compaction", self.check().stdout)
+                      "work); 192 bytes", out)
+        self.assertIn("128 of them at its last compaction", out)
+        # The advice names the file holding the steps, and that file exists.
+        self.assertIn(f"following {compact.STEPS}):", out)
+        self.assertTrue(compact.STEPS.is_file(), compact.STEPS)
 
     def test_a_compaction_that_kept_its_flags_and_cut_little_is_not_due_again(self):
         notes = "".join(f"Note that rule {n} holds for every commit here.\n\n" for n in range(25))
@@ -5271,9 +5275,10 @@ class CitedShortHeadings(unittest.TestCase):
            "## Never\n\nD.\n\n## Keep\n\nE.\n")
     AFTER = "# Prose\n\n## Keep\n\nE.\n"
     NAME = "skills/prose/SKILL.md"
-    # The first three entries copy citations as bug-hunter's SKILL.md,
-    # compact.py's messages and prose's rules.md write them. other.md uses
-    # the headings' words without naming the doc, so it cites nothing.
+    # The first three entries cite a short heading in the shapes other files
+    # use: bug-hunter's SKILL.md, compact.py's messages and prose's rules.md.
+    # other.md uses the headings' words without naming the doc, so it cites
+    # nothing.
     CITING = {
         "skills/bug-hunter/SKILL.md": "cold-read brief. Follow prose's SKILL.md, *The cold read*, "
                                       "which gives the\nSKILL.md, *Committing*, which covers an "
@@ -6469,6 +6474,14 @@ class GivenReferrers(unittest.TestCase):
         self.assertIn("compact DECISIONS.md --verify -- n/a.md\n", result.stdout)
         self.assertNotIn("checks only its own links", result.stdout)
 
+    def test_the_brief_outside_a_repository_points_at_how_to_find_referrers(self):
+        folder = self.folder({"DECISIONS.md": self.DOC})
+        result = run([sys.executable, str(SCRIPT), "compact", "DECISIONS.md"], cwd=folder)
+        self.assertEqual(result.returncode, 4, result.stderr)
+        self.assertIn("checks only its own links", result.stdout)
+        self.assertIn(f"({compact.STEPS}, *Which files refer to the doc*)",
+                      " ".join(result.stdout.split()))
+
 
 class CompactionGate(unittest.TestCase):
     """`prose check` refuses to sign a compaction unless --verify passed on
@@ -6506,8 +6519,9 @@ class CompactionGate(unittest.TestCase):
     CLEAN = "Change 1: superseded\nChange 2: superseded\nTotals: 0 lost, 0 false\n"
 
     def compaction(self, after=None, reply=CLEAN):
-        """The steps SKILL.md gives: snapshot, compact, stage, verify,
-        review, record the review."""
+        """The steps compaction.md gives, without step 4's cold read:
+        snapshot, compact and stage (Repo.write stages), verify, review,
+        record the review."""
         self.assertEqual(self.repo.prose("compact", "DECISIONS.md").returncode, 4)
         self.repo.write("DECISIONS.md", self.AFTER if after is None else after)
         verified = self.repo.prose("compact", "DECISIONS.md", "--verify")
@@ -6525,9 +6539,12 @@ class CompactionGate(unittest.TestCase):
         self.assertIn("DECISIONS.md was compacted but not verified; run "
                       "`prose compact --verify DECISIONS.md`", result.stderr)
         self.assertIn("DECISIONS.md was compacted but its review was not completed", result.stderr)
+        # Both the first call's listing and the refusal name the steps' file.
+        self.assertIn(f"The steps are in {compact.STEPS}.", first.stdout)
+        self.assertIn(f"; the steps are in {compact.STEPS}", result.stderr)
 
     def test_the_cold_read_brief_comes_before_the_review_and_signing_waits_for_it(self):
-        # SKILL.md: the cold read of a compacted file runs before its reviews,
+        # compaction.md: the cold read of a compacted file runs before its reviews,
         # so the reviews check the cold read's fixes.
         self.assertEqual(self.repo.prose("compact", "DECISIONS.md").returncode, 4)
         # A rewritten line, so the compacted file has a passage to read cold.
@@ -6543,6 +6560,7 @@ class CompactionGate(unittest.TestCase):
         self.assertIn("=== cold-read brief ===", needed.stdout)
         self.assertIn("DECISIONS.md was compacted but its review was not completed",
                       needed.stdout)
+        self.assertIn(f"The steps are in {compact.STEPS}.", needed.stdout)
         flags = straight_report(needed.stdout)
         refused = sign(*flags)
         self.assertEqual(refused.returncode, 2, refused.stdout)
@@ -6600,6 +6618,7 @@ class CompactionGate(unittest.TestCase):
         result = self.repo.prose("compact", "DECISIONS.md")
         self.assertEqual(result.returncode, 2, result.stdout)
         self.assertIn("differs from HEAD's; commit the change you were making first", result.stderr)
+        self.assertIn(f"first ({compact.STEPS})", result.stderr)
 
     def test_a_failed_verify_removes_its_record(self):
         self.compaction()

@@ -288,6 +288,17 @@ reaches the rest, and history piles up there: this DECISIONS.md grew from
 prose's commit check already lists every changed doc. Spec-check calls the
 same commands for OpenSpec proposals and designs.
 
+**Its steps live in [compaction.md](compaction.md),** not in SKILL.md.
+SKILL.md loads on every prose use, before every commit with prose and every
+post, while a compaction runs rarely: in SKILL.md, its 22 KB of steps would
+cost about 5,500 tokens on every load. SKILL.md keeps a short *Compaction*
+section that names the file. This does not reverse *Rejected: rules behind a
+pointer*: a rule behind a pointer is read after the mistake, so the writing
+rules every pass needs stay printed. Compaction has no such gap, since it
+starts only from a signal that names compaction.md: the printed
+`compaction due` advice, the gate's refusal, or, for a person's request,
+SKILL.md's *Compaction* section.
+
 **Just do it; ask on loss.** The compaction is reviewed as a diff of its own,
 so asking first only adds a wait. Dropping a conclusion is a decision, not an
 edit: the compactor leaves one it believes dead in place and names it, and a
@@ -596,8 +607,8 @@ Every choice errs toward blocking.
 - **A short heading's text counts beside a name for the doc:** on the same
   line, or in the same sentence, as the doc's path, its file name, or its
   skill's name as "prose's" or "the prose skill". Other files cite short
-  headings this way, such as *The cold read*, *Committing* and *Compaction*
-  in bug-hunter's SKILL.md, rules.md and compact.py's messages; the length
+  headings this way, such as *The cold read* and *Committing* in
+  bug-hunter's SKILL.md and this skill's rules.md; the length
   rule alone would leave them unprotected. The heading's whole text must
   match with its case, but backticks and emphasis markers are ignored on
   both sides. No clause is parsed: on a line that names the doc, the
@@ -723,7 +734,8 @@ what is checked is what is committed.
   the one reviewed, or `kept: <reason>`. With nothing fixed, the staged blob
   must be the one reviewed, so a review of an earlier draft, or taken before
   the compaction, does not count. That a second review ran when the first
-  found something stays SKILL.md's rule; the record cannot show it.
+  found something is required only by compaction.md's step 7; the record
+  cannot show it.
 - **A symlink is skipped by its mode,** 120000: it holds no prose, and
   hashing its target would never match the link's blob.
 - **`--abandon` ends a compaction that will not be finished,** which would
@@ -786,8 +798,8 @@ what is checked is what is committed.
   that commit was amended or rewritten.
 - **A removed work tree's snapshot stays.** Snapshots live in the shared git
   directory and match a work tree by its path, so a new work tree at the same
-  path inherits one not abandoned first. SKILL.md says to abandon before
-  removing.
+  path inherits one not abandoned first. compaction.md says to abandon
+  before removing.
 - **Partial clones work offline.** Trees are listed without sizes, and a size
   is read by blob id only where a check needs it, so a blobless or sparse
   clone is neither refused nor made to fetch on every check.

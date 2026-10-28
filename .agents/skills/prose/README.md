@@ -102,6 +102,7 @@ and that no link into the file broke. A second fresh subagent then checks
 every removal against the old text and the code, and anything lost is put
 back. The agent commits the result in a commit of its own, and asks you first
 only when the rewrite would drop a conclusion.
+[compaction.md](compaction.md) has the steps.
 
 You can ask your agent to:
 - compact a specific file now, whether or not it is due;

@@ -2929,7 +2929,7 @@ def main(argv=None):
                 # a call without --cold-read still prints the brief; a call
                 # with it, or with nothing to read cold, is refused.
                 if pending and (args.report or not cold or earlier is not None):
-                    raise Refused("; ".join(pending))
+                    raise Refused("; ".join(pending) + f"; the steps are in {compact.STEPS}")
                 if earlier is not None:
                     result = earlier
                     understood = understood_counts(result.items, result.understood_fixed,
@@ -2956,7 +2956,7 @@ def main(argv=None):
                               "review checks it:\n")
                         for line in pending:
                             print(f"  {line}")
-                        print()
+                        print(f"\n  The steps are in {compact.STEPS}.\n")
                     print_cold_read(args.token, cold, next_check(
                         args.token, args.message_file, args.amend, args.repo, REPORT_FILE,
                         DISPOSITIONS_FILE),
@@ -3013,6 +3013,7 @@ def main(argv=None):
                       "\nThe signing call will refuse until each of these is done:\n")
                 for line in pending:
                     print(f"  {line}")
+                print(f"\n  The steps are in {compact.STEPS}.")
             print()
             print_rules()
             token = issue_pass(goals, "check", _session(args), args.repo, rules)
