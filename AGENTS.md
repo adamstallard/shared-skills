@@ -2,9 +2,8 @@
 
 - **New work goes through OpenSpec.** Write a change under
   `openspec/changes/` and open a pull request holding only its
-  specification. Build it on the same branch once the repository's owner
-  approves that pull request's specification. Run the spec-check skill
-  before committing anything under `openspec/`.
+  specification. Build the implementation on the same branch once the
+  repository's owner approves that pull request's specification.
 - **UI is the exception: it is prototyped, not specified.** Build a
   prototype for the owner to use. Once they approve it, build the UI
   directly in an implementation pull request, with no specification pull
