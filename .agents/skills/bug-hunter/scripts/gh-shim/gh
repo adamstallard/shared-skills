@@ -1,0 +1,14 @@
+#!/bin/sh
+# Stands in for gh while a mutant's tests run, so no test can reach GitHub.
+# Put this directory first on PATH. Every call is refused with exit 1, and
+# appended as one line to the file GH_SHIM_LOG names; with GH_SHIM_LOG unset,
+# the call is refused and recorded nowhere. Line breaks inside an argument,
+# such as a multi-line --body, are logged as spaces, because the log's line
+# count is the number of calls. tr runs in the C locale, where every byte is
+# a character; in a UTF-8 locale it stops at the first invalid byte.
+call=$(printf '%s' "$*" | LC_ALL=C tr '\n\r' '  ')
+if [ -n "${GH_SHIM_LOG:-}" ]; then
+  printf 'gh %s\n' "$call" >> "$GH_SHIM_LOG"
+fi
+printf 'gh-shim: refused: gh %s\n' "$call" >&2
+exit 1

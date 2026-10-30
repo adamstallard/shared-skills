@@ -993,3 +993,247 @@ recommendation. Decided by Adam, 2026-10-13.
 - **The example-only commit** does not stop applying: it is Step 4's contract.
   A property the user chooses to keep is a guard added beside the regression,
   never in place of it.
+
+---
+
+## Mutants are made by agents, in a throwaway copy
+
+**Decision (Adam, 2026-10-29,
+[shared-skills#39](https://github.com/adamstallard/shared-skills/issues/39)).**
+Where the changed functions have tests, Step 3 checks that the tests pin
+them by mutating them. Fresh mutation subagents do it, never the code's
+author and never an external tool, each from
+[mutation-brief.md](mutation-brief.md) handed over verbatim:
+
+- **Scope:** the functions the staged change touches, Step 0's scope.
+- **Where:** every mutant lives in a throwaway copy of the repository, never
+  the real tree, and every test run has a `gh` shim first on `PATH` that logs
+  and refuses each call. `SKILL.md`'s *Never* list gains "mutate source in
+  the real tree".
+- **When:** in Step 3, in the background, beside the finder and each other.
+- **A survivor is a lead, never a finding.** It goes to the Step 3 finder,
+  which reports a candidate only once it has observed a real wrong outcome;
+  that candidate then goes through Steps 4–7 like any other.
+- **A survivor with no bug behind it gets a behavioural test**, written by
+  the Step 4 prover in the commit being checked, observed red on the mutant
+  and green on the real code. No test that reaches into internals. A
+  refuter then reviews it; code judged dead goes to a refuter too. See
+  [the next entry](#the-refuter-checks-survivor-tests-and-dead-code).
+- **An equivalent survivor**, one no behavioural test can kill, is ignored
+  and counted.
+- **The operators** are the brief's eight. Arid code is excluded: Google's
+  term for code whose tests rightly don't pin it, such as logging, metrics
+  and timeouts, which the brief lists. The cap is one mutant per line per
+  operator and 40 a run, kept in the priority order the brief gives.
+
+**Defaults set by the implementation, not by that decision:**
+- At most three mutation subagents run at once.
+- A mutant killed only by a known-flaky test is rerun serially before it
+  counts.
+- A mutant that survives the focused tests is rerun against the full suite
+  before it counts as a survivor.
+- The mutation subagents run on a capable model.
+- A later iteration mutates only the functions the last iteration's fixes
+  touched.
+- A mutant that makes a test run time out counts as killed, and is reported
+  as a timeout so the count can be read either way.
+
+**Why: a trial on igor (TypeScript) at `75a2fb5`, whole modules, against
+[mutator](https://github.com/unclebob/mutator).**
+
+| module | mutator | agents |
+|---|---|---|
+| `conditions.ts` | 113 mutants, 24 survivors, 97 s | 234 mutants, 36 survivors (27 real gaps, about 9 equivalent), about 47 min |
+| `gh.ts` | 20 mutants, 6 survivors, 61 s | 85 mutants, 29 survivors (28 real gaps), about 24 min |
+
+- **The agents took about 30 times as long, and that is accepted.** They
+  found the gaps that mattered most, which mutator missed. They run in the
+  background beside the finder, and on one commit's functions rather than
+  the whole modules the trial timed.
+- **The gaps mutator missed:** return-value replacement in `observes`, a
+  function in `conditions.ts`; request bodies that never
+  reached `gh`; `ghGraphql` never executed by any test. A judge agent wrote
+  behavioural tests for the 8 agents' survivors most likely to hide a bug: all 8
+  passed on the real code and failed on the mutant, so all were real test
+  gaps, and none was a bug.
+- **About a third of mutator's survivors were equivalent**, and it labels
+  none, so each costs a reader's judgement.
+- **mutator found one class the agents' first checklist lacked,** removing
+  `?.`. It is the brief's item 7.
+- **The copy and the shim come from two incidents in the same trial.** An
+  improvised mutant ran `git config` in a real working tree, and igor's
+  suite called the real `gh` about 184 times.
+- **Parallel test runs made igor's timing tests flaky**, which is why
+  concurrency is capped and flaky kills are rerun serially.
+
+**Why these operators, from the research.** The brief's eight keep AOR,
+LCR and ROR, take statement deletion from Google, and add return-value
+replacement and null-guard removal, which the trial found productive. They
+drop ABS, as Google did, and UOI, which Google found among its least
+productive.
+- Offutt et al.'s selective mutation: five operator classes come close to
+  the effectiveness of the full operator set of Mothra, an early
+  mutation-testing system. They are absolute-value insertion (ABS),
+  arithmetic operator replacement (AOR), logical connector replacement
+  (LCR), relational operator replacement (ROR) and unary operator insertion
+  (UOI).
+- Google's [Practical Mutation Testing at Scale](https://arxiv.org/html/2102.11378v2)
+  uses AOR, LCR, ROR, UOI and statement-block removal, and dropped ABS as
+  unproductive. It skips arid code, allows one mutant per changed line, and
+  caps at 7 times the number of files. ROR was its most productive operator,
+  which is why relational changes come first in the cap's priority order.
+  Suppressing unproductive mutants by developer feedback raised its share of
+  productive mutants from 80% to 89%, which is why the report records
+  per-operator counts.
+- Just et al., [FSE 2014](https://homes.cs.washington.edu/~rjust/publ/mutants_real_faults_fse_2014.pdf):
+  the common operators' mutants couple with 73% of real faults.
+
+**Rejected.**
+- **An external tool** (mutator, trialled above). It is blind to the
+  judgement the agents bring, missed the most consequential gaps, and labels
+  no equivalents.
+- **The full operator set.** More noise, more equivalent mutants, more
+  cost, for little Offutt's five classes miss.
+- **`git worktree add` for the copy.** A worktree shares the real
+  repository's config, hooks and refs, so a mutant's `git config` lands in
+  the real one. A plain `cp -R` has the same flaw when the real tree is
+  itself a worktree, whose `.git` is a file pointing at the shared
+  repository. The copy is a local clone with its working tree laid over it;
+  [reference.md](reference.md#step-3--mutation-testing) has the commands.
+
+**Open.**
+- How bug-hunter finds a project's focused test command, where the runner
+  offers no obvious selection. The run chooses by hand and names it.
+- Whether the shim extends to other networked CLIs.
+- Keeping the operator list good over time: the report records
+  per-operator productivity for review, and replaying past bug-fix commits
+  would show which operators find real faults.
+
+**Where this stops applying.** Mutation is evidence about the tests, not
+the code, so nothing it finds is reported until the finder has observed a
+real wrong outcome. It runs only where tests cover the changed functions.
+The operators and the arid list were tuned on one TypeScript trial; in a
+language with other idioms, the brief's "or the language's equivalent" is
+doing work no measurement here has checked.
+
+## The refuter checks survivor tests and dead code
+
+**Decision (Adam, 2026-10-30,
+[shared-skills#39](https://github.com/adamstallard/shared-skills/issues/39)).**
+
+- **A fresh refuter reviews every survivor test**, against the spec and
+  the code's callers: does it assert what the code should do? One it
+  rejects is deleted, and its survivor goes back to the finder as a lead.
+- **A survivor test may strengthen an existing test** by adding assertions,
+  with the same proof: green on the real code, red on the mutant. The
+  existing-test rule narrows to match: never weaken, delete or skip an
+  existing test, or change its assertions; adding assertions under that
+  proof is the one change allowed. Deleting stays forbidden even for a
+  test that asserts nothing, since it still catches a crash. The refuter
+  reviews a strengthened test like a new one, and rejecting it removes
+  only the added assertions.
+- **Dead code goes by how sure the claim is.** Provably dead code is
+  removed by the fixer without a refuter: unreachable by construction, an
+  unexported function with no reference in the repository, or a value never
+  read. Code judged dead on any other ground goes to a fresh refuter, who
+  tries to show it live by a four-item checklist
+  ([reference.md](reference.md#survivor-tests-and-dead-code)); with no live
+  path found, the fixer removes it, and with one, the survivor becomes a
+  gap and gets a test. Trust-boundary checks and exported code are handled
+  as the [next entry](#a-boundary-check-gets-a-test-exported-code-gets-a-search)
+  says. A removal that turns any test red is reverted;
+  one that keeps them green ships in the commit being checked, and is
+  reported.
+
+**Why.**
+- **A test green on the real code pins what the code does, right or
+  wrong.** If the finder took a bug for a gap, its test pins the bug, and
+  a later fix then looks like a regression. A reader without the finder's
+  reasoning catches that, as Step 5 already does for findings.
+- **A weak existing test is usually the right place for the assertion.**
+  It already sets up the case the survivor needs, so a new test would
+  repeat that setup beside it. Only adding is allowed, under the mutant's
+  proof, so the change can only make the test stricter.
+- **Removing code is a change, so the claim that it is dead needs
+  checking.** Where the claim is a fact of construction, a refuter adds
+  nothing. Otherwise the checklist names the ways code that looks dead
+  turned out live: real error paths, boundary checks, exported API and
+  dynamic use.
+
+**Why this fits the refuter.** A refuter judges findings, not proposals
+([above](#a-refuter-judges-findings-not-proposals)), because its skeptical
+default defends whatever exists when pointed at a design change. "This test
+asserts intended behaviour" and "this code is never reached" are factual
+claims about the code, true or false, with a skeptic's job to break them.
+
+**Rejected.**
+- **Keeping every survivor test without review.** It trusts the finder's
+  classification of gap against bug, which is the one judgement mutation
+  cannot check.
+- **Dead code always as a Step 9 recommendation.** It hands the user a
+  decision the evidence usually settles.
+
+**Where this stops applying.**
+- **Refuter review of a test** covers only tests written for a mutation
+  survivor. A regression test for a proven bug is checked by its red, and
+  Step 5 judges the finding it proves.
+- **Removing dead code** covers only code a survivor exposed, inside the
+  functions the change touches. Code that only looks unused elsewhere is
+  outside the change, and Step 6's scope rule applies.
+- **Adding assertions to an existing test** is allowed only for a mutation
+  survivor, proven by its mutant. Anywhere else, an existing test's
+  assertions are never changed.
+
+## A boundary check gets a test; exported code gets a search
+
+**Decision (Adam, 2026-10-30,
+[shared-skills#39](https://github.com/adamstallard/shared-skills/issues/39)).**
+
+- **A survivor in a check at a trust boundary, where outside data enters,
+  is a gap, never dead code.** Step 4 writes a behavioural test that sends
+  in the bad input the check guards against, observed green on the real
+  code and red on the mutant, and a fresh refuter reviews it like any
+  survivor test. The check is never removed, and the user is never asked.
+- **Exported or public code with no caller in the repository is searched
+  for before anyone is asked**: the other repositories the agent can
+  reach, by `gh search code` in each organisation it can see, and the
+  repository's own configuration. A caller found makes the code live: it
+  is a gap, and gets a refuter-reviewed test of its public contract, with
+  no question. Only when the search finds nothing does it become a Step 9
+  recommendation, asking what only the user may know: whether anything
+  outside the repository uses it. It has three options: remove it, keep it and add a test of its contract, or
+  skip. Keeping it is the safe default; removal needs the user's yes.
+
+**Why.**
+- **A boundary check exists to reject data the repository does not
+  control**, so a survivor there means no test sends it that bad input.
+  Nothing in the repository can show the check is never needed, and a
+  removal there is invisible to the tests, which never send the input it
+  rejects. A test with the bad input is cheap, and proves the check works.
+- **The search answers most exported-code cases from evidence.** The
+  inquisitor, a skill that vets agents' questions before a person sees
+  them ([igor#211](https://github.com/adamstallard/igor/issues/211)),
+  applies the same filter first: a question the evidence already answers
+  is not put to a person. Only the fact no search can
+  reach, whether a private or unknown caller exists, goes to the user.
+- **Removing is the one costly choice, and invisible if wrong.** If a
+  caller in another repository exists, the removal breaks it only when
+  that repository next takes this code's new version. That happens long
+  after the run and somewhere else, so nobody would link the breakage to
+  the removal. Keeping the code and testing its contract costs one test, so it is
+  the default, and removal waits for a yes.
+
+**Rejected.**
+- **Every exported or boundary survivor as a Step 9 recommendation.** It
+  asks the user questions the evidence answers: a boundary check stays by
+  rule, and a search finds most callers.
+- **Removing exported code when the search finds nothing.** The search
+  cannot rule out a private caller it cannot reach, or one nobody knows
+  of.
+
+**Where this stops applying.**
+- **Only survivors of the mutation step.** Code that merely looks unused,
+  with no survivor in it, is outside the change, and Step 6's scope rule
+  applies.
+- **The search covers only what `gh` can reach.** The question names what
+  was searched, so the user can weigh a caller the search could not see.

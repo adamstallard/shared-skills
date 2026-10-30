@@ -48,9 +48,9 @@ It edits the working tree, adds test files, and by default commits.
 - [ ] Step 0: Scope the change — staged diff only
 - [ ] Step 1: Triage — is this commit worth reviewing at all?
 - [ ] Step 2: Baseline — run the suite before touching anything
-- [ ] Step 3: Find candidates (strong model, reachability required)
+- [ ] Step 3: Find candidates (strong model, reachability required); mutation subagents beside it where the changed functions have tests
 - [ ] Step 4: Prove — write the test, run it, demand a matching red
-- [ ] Step 5: Refute — a second opinion tries to kill each proven bug
+- [ ] Step 5: Refute — a second opinion tries to kill each proven bug, and checks each survivor test and dead-code claim
 - [ ] Step 6: Fix (resume this iteration's finder, prevention question, scope-confined)
 - [ ] Step 7: Verify — new tests green; the full suite once, before Step 9
 - [ ] Step 8: Iterate — back to back, up to 3, without asking; never a 4th
@@ -359,6 +359,56 @@ Bound each property to a fixed number of runs or a few seconds, inside this
 pass. No invariant stated, no property — this is not for fishing. The procedure
 is in [reference.md](reference.md#step-3--searching-with-a-property).
 
+**Where the changed functions have tests, mutants check that the tests pin
+them.** A mutant is one small deliberate change to the code, such as a `<`
+made `<=` or a statement deleted. The tests kill it by failing; one they
+pass on survived, and marks behaviour no test checks. At the same time as
+the finder, start fresh mutation subagents in the background, on a
+**capable model**, never the code's author. Give each one
+[mutation-brief.md](mutation-brief.md) exactly as written, with its
+placeholders filled: its share of the functions the staged change touches,
+its own throwaway copy of the repository, the focused and full-suite test
+commands, the `gh` shim, the shim's log file and its share of the cap. Run at
+most three at once: parallel test runs made timing tests flaky. In a later
+iteration, mutate only the functions the last iteration's fixes touched.
+How to make the copies, choose the focused tests and collect the results is
+in [reference.md](reference.md#step-3--mutation-testing).
+
+**A survivor is a lead, never a finding.** Send each one to the finder via
+`SendMessage`, whether it is still running or has reported. For each, the
+finder answers one of four: a candidate, reported only once it has observed
+a real wrong outcome in the real code, like any other; a gap, where the code
+is right and no test checks it, naming the existing test the mutation report
+calls weak if there is one; equivalent, where no test could tell the mutant
+from the real code; or dead code, saying which kind and why. Code is
+provably dead when it is unreachable by construction, such as code after an
+unconditional return or a branch the types or a linter show impossible; an
+unexported function with no reference anywhere in the repository; or a
+value never read. Any other dead-code claim is judged dead, and Step 5
+checks it. A survivor in a check at a trust boundary, where outside data
+enters, is a gap, never dead code: the check exists to reject data the
+repository does not control, so the survivor means no test sends it that
+bad input. Exported or public code with no caller in the repository is
+neither provably nor judged dead: its callers are searched for, as below.
+Step 4 starts when the finder has answered every survivor, those from
+serial reruns included, and every such search has returned. **Never mutate source in the real tree**: an improvised
+mutant once ran `git config` in a real working tree
+([DECISIONS.md](DECISIONS.md#mutants-are-made-by-agents-in-a-throwaway-copy)).
+
+**Exported or public code with no caller in the repository is searched for
+before anyone is asked.** When the finder calls such code dead, search the
+other GitHub repositories you can reach for code that calls it, with `gh
+search code "<name>" --owner <owner>` for your own account and each
+organisation you belong to, and search the repository's own configuration
+([reference.md](reference.md#exported-code-with-no-caller-in-the-repository)).
+If the search finds a caller, the code is live: it is a gap, and Step 4
+writes a test of its public contract, which a fresh refuter reviews in
+Step 5. Nobody is asked. A search that finds nothing cannot rule out a
+private or unknown caller. The code then goes to Step 9 as a
+recommendation, asking the one thing only the user may know: whether
+anything outside the repository uses it. It is never removed without the
+user's yes.
+
 **Not candidates.** Style, naming, formatting, preferences, "consider
 extracting this", missing comments, defensive checks for conditions that
 cannot occur, or hypotheticals with no caller. Report none of these. The value
@@ -384,7 +434,8 @@ Not safe:
   meantime, say it is still running.
 
 Steps 4, 6 and 7 write files, so they run in the foreground. It is the reading
-passes that parallelise.
+passes that parallelise, and the mutation subagents, which write only in
+their own copies.
 
 **When the pass reports back, the run is the next thing.** Its return is Step 4
 starting — or, after the last iteration, Step 9 — not a notification to file
@@ -408,6 +459,25 @@ contract: without an observed red, a finding is a guess. **Do not delegate this*
 one test in the project's existing framework is translation, not investigation;
 write and run it in the loop you are already in, and a **small, cheap model** is
 sufficient. The red is the check, and it is empirical.
+
+**A survivor the finder called a gap gets a test, not a fix.** Write a
+behavioural test that calls the code through its public entry points, never
+one that reaches into its internals. Where an existing test already runs
+that code but fails to check the behaviour, you may strengthen it instead:
+add assertions to it, changing none it has. Either way, observe the test
+green on the real code and red on the mutant, applied in the throwaway copy
+and reverted after
+([reference.md](reference.md#a-test-for-a-mutation-survivor)). It is
+staged with the commit this run checks, and Step 5 reviews it. A gap no
+such test can drive red is equivalent after all. Equivalent survivors are
+ignored and counted in the report. Dead code gets no test: Step 5 and
+Step 6 handle it.
+
+For a survivor in a trust-boundary check, the test sends in the bad input
+the check guards against. For exported code that the search in Step 3
+found a caller of, the test checks its public contract. Both are proven and
+reviewed like any other survivor test, and neither check nor code is ever
+removed.
 
 **A property's counterexample is committed as an example, not as the
 property.** The regression test is the shrunk input written as an ordinary
@@ -438,6 +508,29 @@ factual rather than evaluative — *do any of these fixes fight each other?* Giv
 it the codebase's record of rejected approaches too — the same files Step 6
 reads — so it can say whether a finding re-treads ground already recorded as
 rejected.
+
+**Fresh refuters, one per item, also review every survivor test and every
+judged-dead claim**, beside the findings. Each is a factual claim, which is why it
+belongs here and not with the user: *this test asserts what the code should
+do*, and *this code is never reached*. Neither proposes changing a design.
+
+- **A survivor test**, new or strengthened: the refuter checks it against
+  the spec and the code's callers. A test green on the real code pins what
+  the code does now, so if the finder took a bug for a gap, the test pins
+  the bug. A test it rejects is deleted, or for a strengthened test its
+  added assertions are removed. Its survivor goes back to the finder as a
+  lead, as in Step 3.
+- **Judged-dead code**: the refuter tries to show it is live, by the
+  checklist in [reference.md](reference.md#survivor-tests-and-dead-code).
+  If it finds no live path, Step 6 removes the code. If it shows a live
+  path, the survivor is treated as a gap, and Step 4 writes its test, which
+  a fresh refuter reviews like any other. If it shows the code is exported
+  or public, search for the code's callers as in Step 3. A caller found
+  makes the survivor a gap, and Step 4 writes its test; none found makes it
+  a Step 9 recommendation.
+
+Provably dead code (Step 3) skips the refuter and goes straight to Step 6
+for removal.
 
 **Tell the refuter which spec text predates the change.** A refuter cannot see
 when a document was written, so it reads spec, design and task text as
@@ -471,14 +564,21 @@ from ever happening?* Prefer simpler code, simpler architecture, fewer moving
 parts. Confine the fix to the change under review; if the real cause sits outside
 it, that is a root cause for Step 9, not something to fix in passing.
 
+**The fixer also removes dead code**: what the finder called provably dead,
+and what Step 5's refuter found no live path to. Never a check at a trust
+boundary, and never exported or public code unless the user said yes in
+Step 9. A removal must leave
+every test green. It is staged with the commit this run checks, and the
+report lists it.
+
 **Step 7 — Verify.** Every new test passes. **The full suite runs once per run,
 not once per iteration** — at Step 2 for the baseline, and again immediately
 before the Step 9 report, which nothing ships without. In between, run the new
 regression tests plus whatever existing tests cover the files the fix touched;
 that is what catches a fix breaking its neighbours while it is still cheap to
-attribute. **Never modify, weaken, delete or skip an existing test to reach
-green.** If a pre-existing test now fails, the fix broke it — fix the fix, or
-revert it and report it unresolved. Running tests and comparing counts to the
+attribute. **Never weaken, delete or skip an existing test, or change its
+assertions, to reach green.** If a pre-existing test now fails, the fix broke
+it — fix the fix, or revert it and report it unresolved. Running tests and comparing counts to the
 baseline is running commands: **do it yourself**, as in Step 2.
 
 ## Step 8 — Iterate
@@ -566,7 +666,13 @@ there is not the report — an accurate description of something nobody was aske
 to decide is choice 3 taken on the user's behalf.
 
 **The full report format, with a worked example and the rules for each section,
-is in [reference.md](reference.md#the-report). Read it before writing one.** The
+is in [reference.md](reference.md#the-report). Read it before writing one.**
+When mutants ran, the result block carries one line for them, such as
+`mutation  14 mutants of 4 changed functions — 11 killed, 2 survivors killed
+by new or strengthened tests, 1 dead code removed, 0 ignored`, and the report
+a per-operator table. Each removal of dead code is listed in its iteration,
+and exported or public code that a search found no caller for is a
+recommendation, asked like any other. The
 commit itself — what to stage, the trailer, splitting — is in
 [reference.md](reference.md#committing).
 
@@ -959,8 +1065,9 @@ detail and a worked example: [reference.md](reference.md#the-caller-commits-resu
 ### Then ask, one recommendation at a time
 
 Whenever the report carries a recommendation — a root cause, a finding too large
-for the change under review, anything an abort left unresolved, or a Step 3
-property worth keeping as a permanent guard — **stop and
+for the change under review, anything an abort left unresolved, a Step 3
+property worth keeping as a permanent guard, or exported code that a search
+found no caller for — **stop and
 ask the user what to do with it. Each one separately.** Do not apply them
 silently, and do not decide on their behalf that they are out of scope. A
 recommendation is where a small change prevents a class of bugs rather than one
@@ -972,6 +1079,11 @@ recommendation, in severity order. Offer only the options that honestly apply:
 you do not, say so and offer the other two. Padding the menu with an option you
 have no confidence in is how a run ends with a hopeful patch on a problem nobody
 understood. A worked example is in
+[reference.md](reference.md#asking-about-a-recommendation).
+
+**Exported code with no caller found has its own three options**: remove it,
+keep it and add a test of its contract, or skip. Keeping it is the safe
+default, and removal needs the user's yes. The wording is in
 [reference.md](reference.md#asking-about-a-recommendation).
 
 **If the report reached you from an agent you spawned, the asking is yours.**
@@ -1021,7 +1133,11 @@ no options under it, is the same thing one hop later.
 
 - Run inside a git `pre-commit` hook.
 - `git stash`, amend, or rebase.
-- Weaken, skip, or delete an **existing** test to reach green.
+- Weaken, skip or delete an **existing** test, or change its assertions. The
+  one change allowed is adding assertions to cover a mutation survivor, proven
+  green on the real code and red on the mutant (Step 4). A test that asserts
+  nothing still stays: it catches crashes.
+- Mutate source in the real tree. Mutants live only in a throwaway copy.
 - Leave a failing or discarded test in the tree.
 - Report a bug with no failing test, or a style opinion of any kind.
 - Apply a refactor larger than the change under review.

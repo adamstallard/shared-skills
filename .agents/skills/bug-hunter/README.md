@@ -19,10 +19,27 @@ something.
    checkpoint you ask for, so it doesn't hound you on every checkpoint commit.
 2. **Finds** candidate bugs with a strong model. Each one has to name a real
    caller and a concrete input that reaches it. Style opinions are banned.
+   Beside it, where the changed functions have tests, other agents check
+   the tests by mutation: they break the code in small ways, one at a time,
+   in a throwaway copy of your repository. The finder judges each break
+   the tests miss: a lead to a bug; a gap, which gets a new test or extra
+   assertions in an existing one (your existing assertions are never
+   changed or removed); or code nothing reaches, which is removed. A check
+   on outside input is never removed: it gets a test that sends it the bad
+   input. For exported code that nothing in your repository calls, the
+   agent searches the other GitHub repositories it can reach for callers,
+   and removes the code only if none turns up and you say yes. The mutation agents run
+   beside the finder, so your commit waits longer only when they outlast
+   it. It costs up to 40 mutants a commit, at 12 to 17
+   seconds of agent time each in a trial, plus the tokens those agents
+   use.
 3. **Proves** each candidate with a regression test that fails now and will
    keep failing if the bug ever comes back.
 4. **Refutes** — a second, independent agent tries to kill each finding
    (unreachable, guarded upstream, intentional). Only survivors get fixed.
+   It also checks that each test mutation led to asserts what the code
+   should do, and, before code is removed as unreachable, that nothing
+   reaches it.
 5. **Fixes** with a strong model that first has to ask *"is there a better
    approach that would have prevented this class of bug entirely?"* and prefers
    the simpler one.
@@ -292,4 +309,5 @@ the script, from the root of your shared-skills clone:
 ```bash
 python3 .agents/skills/bug-hunter/scripts/test_hook.py
 python3 .agents/skills/bug-hunter/scripts/test_caller_result.py
+python3 .agents/skills/bug-hunter/scripts/test_gh_shim.py
 ```
