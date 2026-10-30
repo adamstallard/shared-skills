@@ -21,14 +21,18 @@ stops it:
 
 A rhetorical question, which nobody needs to answer, is stopped by filter
 3: the agent rewrites it as a statement, and its `decided` verdict names the
-post as where the choice is recorded. A question that another installed skill requires a person to decide, such
-as bug-hunter's root causes and the other questions bug-hunter always
-asks, a
-finding of prose's cold read that prose requires a person to decide (one it
-would mark `kept (asked)`), whether to enforce
-spec-check's decisions-first rule, or whether to adopt spec-trace, SHALL be
-exempt from filters 2, 3 and 4, so it is asked now. Only filter 1 still
-applies, and its `ask` verdict SHALL name the skill that requires it.
+post as where the choice is recorded. A question that another installed
+skill requires a person to decide, such as a finding of prose's cold read
+that prose requires a person to decide (one it would mark `kept (asked)`),
+whether to enforce spec-check's decisions-first rule, or whether to adopt
+spec-trace, SHALL be exempt from filters 2, 3 and 4, so it is asked now.
+Only filter 1 still applies, and its `ask` verdict SHALL name the skill that
+requires it. bug-hunter's Step 9 recommendations are not exempt. Step 9
+is the step of a bug-hunter run that reports a root cause, a finding too
+large for the change, anything left unresolved when the run aborted, or a
+property from its hunt worth keeping as a permanent guard. Each such
+recommendation SHALL pass all four filters like any other question
+(design.md, *bug-hunter's Step 9 recommendations go through the filters*).
 Except for a rhetorical question, under filters 3 and 4 the agent SHALL
 record what it chose, and why, where the question's answer is recorded.
 
@@ -328,10 +332,16 @@ Terms used throughout this spec:
 
 #### Scenario: A question another skill requires is not decided by the agent
 
-- **WHEN** bug-hunter requires the person to choose what to do about a root
-  cause, and the choice is cheap to reverse
+- **WHEN** spec-trace requires the person to decide whether to adopt it,
+  and the choice is cheap to reverse
 - **THEN** filter 4 does not stop it, and the agent asks it with an `ask`
-  verdict naming bug-hunter
+  verdict naming spec-trace
+
+#### Scenario: A bug-hunter recommendation passes the filters
+
+- **WHEN** bug-hunter's Step 9 makes a recommendation
+- **THEN** the agent runs it through the four filters like any other
+  question, and asks the person only if no filter stops it
 
 #### Scenario: A question another skill requires is not deferred
 
@@ -3386,9 +3396,9 @@ treats the post as input, and its question stands.
   that repository
 - **THEN** the agent treats the reply as input, and its question stands
 
-#### Scenario: An Inquisitor reply does not settle a question another skill reserves
+#### Scenario: An Inquisitor reply does not settle a question another skill requires a person to decide
 
-- **WHEN** an agent's question about a bug's root cause, which bug-hunter
+- **WHEN** an agent's question about a cold-read finding, which prose
   requires a person to decide, gets a reply starting
   `Inquisitor: filter 4` from the relay App of the person asked
 - **THEN** the agent treats the reply as input, and its question stands

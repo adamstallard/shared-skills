@@ -437,8 +437,8 @@ sixth consistency read:
 74. **Amended by Adam's decision 137, which added filter 2 to the
     exemption.** **A question another installed
     skill requires a person to decide is exempt from filters 2, 3 and 4,**
-    so it is asked now: bug-hunter's root causes and its other
-    questions it always asks, prose's `kept (asked)` findings, and whether
+    so it is asked now (bug-hunter's Step 9 recommendations are not exempt:
+    design.md, *Decisions*): prose's `kept (asked)` findings, and whether
     to adopt spec-check or spec-trace. For spec-check, the exempt question
     is whether to enforce its decisions-first rule, as the spec's first
     requirement says. Only filter 1 still applies, and its

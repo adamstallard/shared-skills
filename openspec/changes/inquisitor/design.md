@@ -1126,3 +1126,40 @@ what it needs. Until the change is archived, its scenarios sit outside
 `openspec/specs/`, so CI passes. Archiving it while any gap is untagged
 would fail CI, so the change is archived only after task 4.3 has tagged
 every gap (proposal decision 253).
+
+## Decisions
+
+### bug-hunter's Step 9 recommendations go through the filters
+
+**bug-hunter's Step 9 recommendations go through the inquisitor skill's
+four filters, like any other question, so fewer reach a person** (Adam,
+2026-10-30). Step 9 is the step of a bug-hunter run that reports and asks
+the person about each recommendation, one at a time. There are four
+kinds: a root cause, a finding too large for the change, anything left
+unresolved when the run aborted, and a property from the hunt (Step 3)
+worth keeping as a permanent guard. Task 5.7 changes bug-hunter's SKILL.md
+so that Step 9 runs each recommendation through the inquisitor skill
+before asking. Nothing in bug-hunter changes before the inquisitor skill
+exists.
+
+**Why:** every skill's questions go through one set of filters, rather than
+each skill making its own exceptions.
+
+*Rejected:* changing bug-hunter's Step 9 rules on their own, ahead of the
+inquisitor skill, so that bug-hunter settles some recommendations itself
+without asking. That would be a rule of bug-hunter's own that skips the
+shared filters.
+
+The table below holds the starting rules for task 5.7. They are input to
+its design, not decided behaviour: whoever builds task 5.7 at gate two
+sets the final rules, and Adam reviews them with the implementation. The
+spec fixes only that each recommendation passes the four filters.
+
+| Step 9 recommendation | Settle it without asking when | What to do then | Filter |
+|---|---|---|---|
+| A Step 3 property worth keeping as a guard: a property-based check the hunt ran against a stated invariant | The check is bounded in runtime, runs with a fixed seed, and needs no new dependency | Keep it as a test | Cheap to reverse |
+| A finding too large for the change | Always | File it as an issue with its evidence, and report the link | Deferrable |
+| Something left unresolved when a bug-hunter run aborted after its third iteration | A new bug-hunter run over it would be cheap | Record it where the repository keeps open questions, and report it | Deferrable |
+| A root cause | It was already decided or rejected (look it up), or its fix is small and defensible | Fix it, and run bug-hunter's loop over the fix | Already answered; cheap to reverse |
+
+Only a broad root-cause fix or a design choice, or an abort's leftover whose new run is costly, still goes to the person.

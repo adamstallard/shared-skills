@@ -380,6 +380,25 @@ contradicts what design.md assumed.
       pass never rewrites a log or miss file, which quotes a question and a
       person's words exactly (decision 134). It ships with the skill,
       which writes such files from gate two on
+- [ ] 5.7 Change bug-hunter's SKILL.md so that Step 9 runs each
+      recommendation in its report through the inquisitor skill's four
+      filters before asking about it: a root cause, a finding too large
+      for the change, anything left unresolved when the run aborted, and
+      a property from the hunt (Step 3) worth keeping as a permanent
+      guard. design.md's decision *bug-hunter's Step 9 recommendations go
+      through the filters* says why. Design the wiring from these
+      starting rules. They are input, not decided behaviour: you set the
+      final rules, and Adam reviews them with the implementation.
+
+      | Step 9 recommendation | Settle it without asking when | What to do then | Filter |
+      |---|---|---|---|
+      | A Step 3 property worth keeping as a guard: a property-based check the hunt ran against a stated invariant | The check is bounded in runtime, runs with a fixed seed, and needs no new dependency | Keep it as a test | Cheap to reverse |
+      | A finding too large for the change | Always | File it as an issue with its evidence, and report the link | Deferrable |
+      | Something left unresolved when a bug-hunter run aborted after its third iteration | A new bug-hunter run over it would be cheap | Record it where the repository keeps open questions, and report it | Deferrable |
+      | A root cause | It was already decided or rejected (look it up), or its fix is small and defensible | Fix it, and run bug-hunter's loop over the fix | Already answered; cheap to reverse |
+
+      Only a broad root-cause fix or a design choice, or an abort's
+      leftover whose new run is costly, still goes to the person
 
 ## 6. The answer session
 
