@@ -102,9 +102,9 @@ HALF = 12
 # counts_valid accepts them only in the forms cold_counts and understood_counts
 # print. A value without the understood part is accepted too: commits signed
 # before cold readers wrote understood lines carry none.
-TRAILER = re.compile(r"✓ ([0-9a-f]{%d}):([0-9a-f]{%d})"
-                     r"(?:; cold read: ([^;]*)(?:; understood: ([^;]*))?)?"
-                     r"(?:; compacted: ([^;\n]+))?" % (HALF, HALF))
+TRAILER = re.compile(r"✓ (?P<tree>[0-9a-f]{%d}):(?P<message>[0-9a-f]{%d})"
+                     r"(?:; cold read: (?P<cold>[^;]*)(?:; understood: (?P<understood>[^;]*))?)?"
+                     r"(?:; compacted: (?P<compacted>[^;\n]+))?" % (HALF, HALF))
 FOOTER_LENGTH = 6
 FOOTER = re.compile(r"^prose ✓ ([0-9a-f]{%d})$" % FOOTER_LENGTH)
 
@@ -810,18 +810,18 @@ def verify_staged(line, message, root):
     staged tree and this message now. The commit script runs this just before
     it commits. A failing reason starts with `unrecognised`, `mismatch` or
     `tree`, as verify_commit's does."""
-    found = re.fullmatch(r"%s: (%s)" % (KEY, TRAILER.pattern), line.strip())
+    found = re.fullmatch(r"%s: %s" % (KEY, TRAILER.pattern), line.strip())
     if not found:
         return False, f"unrecognised: {line.strip()}"
-    tree_half, message_half = found.group(2), found.group(3)
-    if not counts_valid(found.group(4), found.group(5)):
+    tree_half, message_half = found.group("tree"), found.group("message")
+    if not counts_valid(found.group("cold"), found.group("understood")):
         return False, f"unrecognised: {line.strip()}"
     tree = git(["write-tree"], root).strip()
-    if found.group(6) is not None:
+    if found.group("compacted") is not None:
         # Each file listed as compacted is one whose compaction this clone
         # verified and reviewed for the staged blob: the value was minted by
         # the signing call, not added by hand.
-        listed = found.group(6).split(", ")
+        listed = found.group("compacted").split(", ")
         compact = compactor()
         checked = compact.compacted_paths(
             git(["rev-parse", "--show-toplevel"], root).rstrip("\n"),
@@ -880,17 +880,17 @@ def verify_commit(sha, root):
         return False, (f"mismatch: the message is stored as {encoding}, and `prose check` "
                        f"signs only UTF-8 messages")
     found = TRAILER.fullmatch(value)
-    if not found or not counts_valid(found.group(3), found.group(4)):
+    if not found or not counts_valid(found.group("cold"), found.group("understood")):
         return False, f"unrecognised: {KEY}: {value}"
-    if found.group(5) is not None:
+    if found.group("compacted") is not None:
         # A file listed as compacted must be one this commit changed.
-        listed = found.group(5).split(", ")
+        listed = found.group("compacted").split(", ")
         changed = set(filter(None, git(["diff-tree", "--root", "--no-commit-id", "-r", "-z",
                                         "--name-only", "--no-renames", sha], root).split("\0")))
         if listed != sorted(set(listed)) or not set(listed) <= changed:
             return False, (f"tree: the {KEY}: trailer lists as compacted a file this commit "
-                           f"did not change: {found.group(5)}")
-    tree_half, message_half = found.group(1), found.group(2)
+                           f"did not change: {found.group('compacted')}")
+    tree_half, message_half = found.group("tree"), found.group("message")
     message = git(["log", "-1", "--format=%B", sha], root)
     if not committed_message_matches(message, message_half):
         return False, (
