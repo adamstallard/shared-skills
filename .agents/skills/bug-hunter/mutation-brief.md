@@ -115,6 +115,12 @@ tell it from the real code, and why: `yes`, `no`, or `unsure`. A mutant
 that changes only code no caller or entry point reaches is equivalent and
 also dead code: say which code that is, and why nothing reaches it.
 
+Then name the weak test, if there is one: an existing test that runs the
+mutated line yet passed, because it checks nothing that would notice.
+Whoever reads your report may add assertions to that test instead of
+writing a new one; don't add them yourself. Name it only if you know it
+runs that line, from coverage or from reading it.
+
 ## 5. Report
 
 Begin your report with the line `mutation report`, then one entry per
@@ -125,11 +131,12 @@ mutant in the order run:
     killed by <test name> | killed: timeout | killed: build failed |
     needs serial rerun (<flaky test>) | survived
 
-A survivor adds three lines:
+A survivor adds four lines:
 
     unpinned: <what no test checks>
     equivalent: yes | no | unsure — <why>
     dead code: no | yes — <the code nothing reaches, and why>
+    weak test: none | <test name> — <what it runs but does not check>
 
 Then:
 

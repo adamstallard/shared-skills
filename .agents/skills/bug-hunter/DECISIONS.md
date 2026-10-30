@@ -1016,9 +1016,11 @@ author and never an external tool, each from
   that candidate then goes through Steps 4–7 like any other.
 - **A survivor with no bug behind it gets a behavioural test**, written by
   the Step 4 prover in the commit being checked, observed red on the mutant
-  and green on the real code. No test that reaches into internals.
+  and green on the real code. No test that reaches into internals. A
+  refuter then reviews it; code judged dead goes to a refuter too. See
+  [the next entry](#the-refuter-checks-survivor-tests-and-dead-code).
 - **An equivalent survivor**, one no behavioural test can kill, is ignored
-  and counted. One that exposes dead code is a Step 9 recommendation.
+  and counted.
 - **The operators** are the brief's eight. Arid code is excluded: Google's
   term for code whose tests rightly don't pin it, such as logging, metrics
   and timeouts, which the brief lists. The cap is one mutant per line per
@@ -1113,3 +1115,74 @@ real wrong outcome. It runs only where tests cover the changed functions.
 The operators and the arid list were tuned on one TypeScript trial; in a
 language with other idioms, the brief's "or the language's equivalent" is
 doing work no measurement here has checked.
+
+## The refuter checks survivor tests and dead code
+
+**Decision (Adam, 2026-10-30,
+[shared-skills#39](https://github.com/adamstallard/shared-skills/issues/39)).**
+
+- **A fresh refuter reviews every survivor test**, against the spec and
+  the code's callers: does it assert what the code should do? One it
+  rejects is deleted, and its survivor goes back to the finder as a lead.
+- **A survivor test may strengthen an existing test** by adding assertions,
+  with the same proof: green on the real code, red on the mutant. The
+  existing-test rule narrows to match: never weaken, delete or skip an
+  existing test, or change its assertions; adding assertions under that
+  proof is the one change allowed. Deleting stays forbidden even for a
+  test that asserts nothing, since it still catches a crash. The refuter
+  reviews a strengthened test like a new one, and rejecting it removes
+  only the added assertions.
+- **Dead code goes by how sure the claim is.** Provably dead code is
+  removed by the fixer without a refuter: unreachable by construction, an
+  unexported function with no reference in the repository, or a value never
+  read. Code judged dead on any other ground goes to a fresh refuter, who
+  tries to show it live by a four-item checklist
+  ([reference.md](reference.md#survivor-tests-and-dead-code)); with no live
+  path found, the fixer removes it, and with one, the survivor becomes a
+  gap and gets a test. Exported or public code and trust-boundary checks
+  are never removed: they are Step 9 recommendations, for the user to
+  decide whether to remove. A removal that turns any test red is reverted;
+  one that keeps them green ships in the commit being checked, and is
+  reported.
+
+**Why.**
+- **A test green on the real code pins what the code does, right or
+  wrong.** If the finder took a bug for a gap, its test pins the bug, and
+  a later fix then looks like a regression. A reader without the finder's
+  reasoning catches that, as Step 5 already does for findings.
+- **A weak existing test is usually the right place for the assertion.**
+  It already sets up the case the survivor needs, so a new test would
+  repeat that setup beside it. Only adding is allowed, under the mutant's
+  proof, so the change can only make the test stricter.
+- **Removing code is a change, so the claim that it is dead needs
+  checking.** Where the claim is a fact of construction, a refuter adds
+  nothing. Otherwise the checklist names the ways code that looks dead
+  turned out live: real error paths, boundary checks, outside callers and
+  dynamic use. The refuter cannot see other repositories, so exported code
+  stays. A boundary check stays whether or not anything reaches it now: it
+  guards against data the repository does not control, so no search of the
+  repository can show it is never needed.
+
+**Why this fits the refuter.** A refuter judges findings, not proposals
+([above](#a-refuter-judges-findings-not-proposals)), because its skeptical
+default defends whatever exists when pointed at a design change. "This test
+asserts intended behaviour" and "this code is never reached" are factual
+claims about the code, true or false, with a skeptic's job to break them.
+
+**Rejected.**
+- **Keeping every survivor test without review.** It trusts the finder's
+  classification of gap against bug, which is the one judgement mutation
+  cannot check.
+- **Dead code always as a Step 9 recommendation.** It hands the user a
+  decision the evidence usually settles.
+
+**Where this stops applying.**
+- **Refuter review of a test** covers only tests written for a mutation
+  survivor. A regression test for a proven bug is checked by its red, and
+  Step 5 judges the finding it proves.
+- **Removing dead code** covers only code a survivor exposed, inside the
+  functions the change touches. Code that only looks unused elsewhere is
+  outside the change, and Step 6's scope rule applies.
+- **Adding assertions to an existing test** is allowed only for a mutation
+  survivor, proven by its mutant. Anywhere else, an existing test's
+  assertions are never changed.

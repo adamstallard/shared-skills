@@ -113,23 +113,31 @@ Rules for the report:
   the report a per-operator table:
 
   ```
-    mutation  14 mutants of 4 changed functions — 12 killed, 2 survivors
-              killed by new tests, 0 ignored
+    mutation  14 mutants of 4 changed functions — 11 killed, 2 survivors
+              killed by new or strengthened tests, 1 dead code removed,
+              0 ignored
 
   ── mutation ─────────────────────────────  14 mutants · 4 functions
 
     operator            mutants  killed  new test  finding  ignored  dead code
     relational                5       4         1        0        0          0
     logical                   3       3         0        0        0          0
-    statement deletion        4       3         1        0        0          0
+    statement deletion        4       2         1        0        0          1
     return value              2       2         0        0        0          0
     gh calls refused  0
   ```
 
-  A survivor that led to a bug is not on the line: it is reported as a
-  finding, in its iteration, and one that exposed dead code as a
-  recommendation. The table counts both, in its `finding` and `dead code`
-  columns, so each operator's productivity can be reviewed across runs.
+  The `new test` column counts strengthened tests too. The `dead code`
+  column counts dead code removed and dead code kept as a recommendation
+  because it is exported, public or a trust-boundary check. A survivor
+  that led to a bug is not on the line: it is reported as a finding, in
+  its iteration, and counted in the `finding` column. The table keeps all
+  of these so each operator's productivity can be reviewed across runs.
+  The line's counts need not add up to its total: findings, and dead code
+  kept as a recommendation, appear in the report but not on the line. Each
+  removal of dead code is listed in its iteration as `REMOVED`, with where
+  it was and either `provably dead` and why, or `refuter found no live
+  path`.
 - On `SKIP` at triage, print **one line** and nothing else —
   `🔍 bug-hunter · skipped at triage — <reason>`. It is worth printing rather
   than staying silent: knowing the check ran and why it stopped is useful, and
@@ -750,15 +758,17 @@ and use none of its results until it reports the copy clean. When every
 subagent has reported, resume them one at a time via `SendMessage` with
 the mutants marked `needs serial rerun`, so each rerun has no other test
 run beside it; send the survivors those turn up to the finder too. Delete
-each copy after Step 4 has written its survivor tests, by the directory
-above the `copy:` path it printed. First check that directory is not the
+each copy after Step 6, once no survivor of the iteration still needs a
+test, by the directory above the `copy:` path it printed. First check that
+directory is not the
 project and does not hold it, since a shell variable from item 4 is gone
 by now. `rm -rf` on it removes the links, not what they point at.
 
 **7. Count for the report.** Add up, across subagents and iterations:
-mutants, functions, killed, survivors killed by new tests, and survivors
-ignored as equivalent; and per operator, the same counts plus survivors
-that led to findings.
+mutants, functions, killed, survivors killed by new or strengthened tests,
+dead code removed, and survivors ignored as equivalent; and per operator,
+the same counts plus survivors that led to findings and dead code kept as a
+recommendation.
 
 ## Steps 4–7 in detail
 
@@ -827,16 +837,24 @@ boundary the code owns counts as behaviour: a return value, an output, an
 error, the arguments of a call to an external process or service. Private
 state, and calls between the function's own helpers, do not.
 
+**Strengthen an existing test, or write a new one.** Where the mutation
+report's `weak test` line names an existing test that runs the mutated code
+but checks nothing that would notice, you may add assertions to that test
+instead of writing a new one. Only add: never change, loosen or remove an
+assertion it already has. Never delete it either, even if it asserts
+nothing, since it still catches a crash. The proof is the same either way.
+
 1. Write it in the real tree, as any Step 4 test, and run it: green.
 2. In the copy, put the same test file in place, make the mutant's edit
    (`<original>` → `<mutated>` at its `file:line`), and run the test: red,
    failing on what the `unpinned` line names.
-3. Revert the edit and delete the test file from the copy, so the copy is
-   clean again by the brief's check.
+3. Revert the edit and restore the copy's test file (`git -C <copy>
+   checkout -- <file>` for a strengthened test, delete it for a new one), so
+   the copy is clean again by the brief's check.
 
 | Result | Action |
 |---|---|
-| Green on the real code, red on the mutant | Keep it. It is staged with the commit this run checks. |
+| Green on the real code, red on the mutant | Keep it, for Step 5's refuter to review. It is staged with the commit this run checks. |
 | Red on the real code | The test is wrong, or the code is. Repair the test once. Still red on the real code: send it to the finder as a candidate, since it may be a bug. |
 | Green on the mutant | Repair it once. Still green: the survivor is equivalent, ignored and counted. |
 
@@ -909,6 +927,46 @@ agent is about to author the fix plan this question is meant to check. Name ever
 Carry that list into Step 6 and fix in an order that respects it. A conflict
 found here costs a sentence; found after both fixes are written, it costs both.
 
+#### Survivor tests and dead code
+
+Launch these refuters with the others, one per item, each fresh. A survivor
+test or a dead-code claim is a factual claim, like a finding, so the
+skeptical default fits it: the refuter is asked whether something is true
+of the code, not whether a design should change.
+
+**A survivor test**, new or strengthened. Give the refuter the test, the
+code under test, its callers, and the spec, split into committed and
+in-flight text as above; not the finder's reasoning. It asks: does this
+test assert what the code *should* do, by the spec and by what the callers
+rely on, or only what it does now? A test green on the real code pins
+today's behaviour, so if the finder took a bug for a gap, the test pins the
+bug.
+
+| Verdict | Action |
+|---|---|
+| Asserts intended behaviour | Keep it. |
+| Asserts behaviour the spec or a caller contradicts | Delete the test, or remove the assertions added to a strengthened one. Send the survivor to the finder as a lead, as in Step 3; a candidate it reports goes through Steps 4–7 like any other. |
+
+**Judged-dead code**: anything the finder called dead that is not provably
+dead, exported or public, or a check at a trust boundary (those three are
+settled without a refuter: see SKILL.md, Step 5). Give the refuter the
+code, the repository and the survivor. It tries to show the code is live,
+by this checklist. The last two items catch code the finder failed to see
+was a boundary check or exported:
+
+- an error path that real systems produce and the tests don't exercise;
+- dynamic use: reached by name, through configuration, or on another
+  platform;
+- a deliberate defensive check at a trust boundary, where outside data
+  enters;
+- a caller outside the repository, through exported or public API.
+
+| Verdict | Action |
+|---|---|
+| No item applies | Step 6 removes it. |
+| An error path or dynamic use | The survivor is a gap. Step 4 writes its test, which a fresh refuter then reviews as above. |
+| A trust-boundary check or an outside caller | Keep it; a Step 9 recommendation. |
+
 ### Step 6 — Fix
 
 **Resume this iteration's Step 3 finder via `SendMessage` — do not spawn a
@@ -934,6 +992,14 @@ Step 6 resumes only its *own* iteration's finder, never a previous one's). The
 fresh fixer then gets the full brief: the files under review, the surviving
 findings with their failing tests, the refuter verdicts, and the conflict
 notes.
+
+**Dead code to remove** goes in the same message: each survivor the finder
+called provably dead, and each that Step 5's refuter found no live path to,
+with its location. The fixer removes only that code, never exported or
+public code or a trust-boundary check, and runs the tests that cover the
+file: every one stays green, or the removal is reverted and reported
+unresolved. Each removal is staged with the commit this run checks and
+listed in the report.
 
 Before writing the fix, it must answer: **"Is there a better approach that
 would have prevented bugs like this from ever happening?"** When more than one
@@ -968,9 +1034,11 @@ themselves, which repeat every iteration regardless.
   committed until it holds. Where the project cannot select a subset cheaply,
   the targeted run *is* the full run and this changes nothing.
 
-**Never modify, weaken, delete, or skip an existing test to get to green.** If
-a pre-existing test now fails, the fix broke it — fix the fix. If you cannot,
-revert that fix and report it as unresolved.
+**Never weaken, delete or skip an existing test, or change its assertions,
+to get to green.** The only change an existing test ever gets is added
+assertions for a mutation survivor, under Step 4's proof. If a pre-existing
+test now fails, the fix broke it — fix the fix. If you cannot, revert that
+fix and report it as unresolved.
 
 ## Committing
 

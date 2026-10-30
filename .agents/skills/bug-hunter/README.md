@@ -21,16 +21,22 @@ something.
    caller and a concrete input that reaches it. Style opinions are banned.
    Beside it, where the changed functions have tests, other agents check
    the tests by mutation: they break the code in small ways, one at a time,
-   in a throwaway copy of your repository. Any break the tests miss becomes
-   a lead for the finder, or a new test in the commit being checked. It
-   runs beside the finder, so your commit waits longer only when it
-   outlasts the finder. It costs up to 40 mutants a commit, at 12 to 17
+   in a throwaway copy of your repository. The finder judges each break
+   the tests miss: a lead to a bug; a gap, which gets a new test or extra
+   assertions in an existing one (your existing assertions are never
+   changed or removed); or code nothing reaches, which is removed unless it
+   is exported, public or a check on outside input. The mutation agents run
+   beside the finder, so your commit waits longer only when they outlast
+   it. It costs up to 40 mutants a commit, at 12 to 17
    seconds of agent time each in a trial, plus the tokens those agents
    use.
 3. **Proves** each candidate with a regression test that fails now and will
    keep failing if the bug ever comes back.
 4. **Refutes** — a second, independent agent tries to kill each finding
    (unreachable, guarded upstream, intentional). Only survivors get fixed.
+   It also checks that each test mutation led to asserts what the code
+   should do, and, before code is removed as unreachable, that nothing
+   reaches it.
 5. **Fixes** with a strong model that first has to ask *"is there a better
    approach that would have prevented this class of bug entirely?"* and prefers
    the simpler one.
