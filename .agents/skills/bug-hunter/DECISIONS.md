@@ -1139,9 +1139,9 @@ doing work no measurement here has checked.
   tries to show it live by a four-item checklist
   ([reference.md](reference.md#survivor-tests-and-dead-code)); with no live
   path found, the fixer removes it, and with one, the survivor becomes a
-  gap and gets a test. Exported or public code and trust-boundary checks
-  are never removed: they are Step 9 recommendations, for the user to
-  decide whether to remove. A removal that turns any test red is reverted;
+  gap and gets a test. Trust-boundary checks and exported code are handled
+  as the [next entry](#a-boundary-check-gets-a-test-exported-code-gets-a-search)
+  says. A removal that turns any test red is reverted;
   one that keeps them green ships in the commit being checked, and is
   reported.
 
@@ -1157,11 +1157,8 @@ doing work no measurement here has checked.
 - **Removing code is a change, so the claim that it is dead needs
   checking.** Where the claim is a fact of construction, a refuter adds
   nothing. Otherwise the checklist names the ways code that looks dead
-  turned out live: real error paths, boundary checks, outside callers and
-  dynamic use. The refuter cannot see other repositories, so exported code
-  stays. A boundary check stays whether or not anything reaches it now: it
-  guards against data the repository does not control, so no search of the
-  repository can show it is never needed.
+  turned out live: real error paths, boundary checks, exported API and
+  dynamic use.
 
 **Why this fits the refuter.** A refuter judges findings, not proposals
 ([above](#a-refuter-judges-findings-not-proposals)), because its skeptical
@@ -1186,3 +1183,57 @@ claims about the code, true or false, with a skeptic's job to break them.
 - **Adding assertions to an existing test** is allowed only for a mutation
   survivor, proven by its mutant. Anywhere else, an existing test's
   assertions are never changed.
+
+## A boundary check gets a test; exported code gets a search
+
+**Decision (Adam, 2026-10-30,
+[shared-skills#39](https://github.com/adamstallard/shared-skills/issues/39)).**
+
+- **A survivor in a check at a trust boundary, where outside data enters,
+  is a gap, never dead code.** Step 4 writes a behavioural test that sends
+  in the bad input the check guards against, observed green on the real
+  code and red on the mutant, and a fresh refuter reviews it like any
+  survivor test. The check is never removed, and the user is never asked.
+- **Exported or public code with no caller in the repository is searched
+  for before anyone is asked**: the other repositories the agent can
+  reach, by `gh search code` in each organisation it can see, and the
+  repository's own configuration. A caller found makes the code live: it
+  is a gap, and gets a refuter-reviewed test of its public contract, with
+  no question. Only when the search finds nothing does it become a Step 9
+  recommendation, asking what only the user may know: whether anything
+  outside the repository uses it. It has three options: remove it, keep it and add a test of its contract, or
+  skip. Keeping it is the safe default; removal needs the user's yes.
+
+**Why.**
+- **A boundary check exists to reject data the repository does not
+  control**, so a survivor there means no test sends it that bad input.
+  Nothing in the repository can show the check is never needed, and a
+  removal there is invisible to the tests, which never send the input it
+  rejects. A test with the bad input is cheap, and proves the check works.
+- **The search answers most exported-code cases from evidence.** The
+  inquisitor, a skill that vets agents' questions before a person sees
+  them ([igor#211](https://github.com/adamstallard/igor/issues/211)),
+  applies the same filter first: a question the evidence already answers
+  is not put to a person. Only the fact no search can
+  reach, whether a private or unknown caller exists, goes to the user.
+- **Removing is the one costly choice, and invisible if wrong.** If a
+  caller in another repository exists, the removal breaks it only when
+  that repository next takes this code's new version. That happens long
+  after the run and somewhere else, so nobody would link the breakage to
+  the removal. Keeping the code and testing its contract costs one test, so it is
+  the default, and removal waits for a yes.
+
+**Rejected.**
+- **Every exported or boundary survivor as a Step 9 recommendation.** It
+  asks the user questions the evidence answers: a boundary check stays by
+  rule, and a search finds most callers.
+- **Removing exported code when the search finds nothing.** The search
+  cannot rule out a private caller it cannot reach, or one nobody knows
+  of.
+
+**Where this stops applying.**
+- **Only survivors of the mutation step.** Code that merely looks unused,
+  with no survivor in it, is outside the change, and Step 6's scope rule
+  applies.
+- **The search covers only what `gh` can reach.** The question names what
+  was searched, so the user can weigh a caller the search could not see.

@@ -24,8 +24,11 @@ something.
    in a throwaway copy of your repository. The finder judges each break
    the tests miss: a lead to a bug; a gap, which gets a new test or extra
    assertions in an existing one (your existing assertions are never
-   changed or removed); or code nothing reaches, which is removed unless it
-   is exported, public or a check on outside input. The mutation agents run
+   changed or removed); or code nothing reaches, which is removed. A check
+   on outside input is never removed: it gets a test that sends it the bad
+   input. For exported code that nothing in your repository calls, the
+   agent searches the other GitHub repositories it can reach for callers,
+   and removes the code only if none turns up and you say yes. The mutation agents run
    beside the finder, so your commit waits longer only when they outlast
    it. It costs up to 40 mutants a commit, at 12 to 17
    seconds of agent time each in a trial, plus the tokens those agents

@@ -385,10 +385,29 @@ provably dead when it is unreachable by construction, such as code after an
 unconditional return or a branch the types or a linter show impossible; an
 unexported function with no reference anywhere in the repository; or a
 value never read. Any other dead-code claim is judged dead, and Step 5
-checks it. Step 4 starts when the finder has answered
-every survivor, those from serial reruns included. **Never mutate source in the real tree**: an
-improvised mutant once ran `git config` in a real working tree
+checks it. A survivor in a check at a trust boundary, where outside data
+enters, is a gap, never dead code: the check exists to reject data the
+repository does not control, so the survivor means no test sends it that
+bad input. Exported or public code with no caller in the repository is
+neither provably nor judged dead: its callers are searched for, as below.
+Step 4 starts when the finder has answered every survivor, those from
+serial reruns included, and every such search has returned. **Never mutate source in the real tree**: an improvised
+mutant once ran `git config` in a real working tree
 ([DECISIONS.md](DECISIONS.md#mutants-are-made-by-agents-in-a-throwaway-copy)).
+
+**Exported or public code with no caller in the repository is searched for
+before anyone is asked.** When the finder calls such code dead, search the
+other GitHub repositories you can reach for code that calls it, with `gh
+search code "<name>" --owner <owner>` for your own account and each
+organisation you belong to, and search the repository's own configuration
+([reference.md](reference.md#exported-code-with-no-caller-in-the-repository)).
+If the search finds a caller, the code is live: it is a gap, and Step 4
+writes a test of its public contract, which a fresh refuter reviews in
+Step 5. Nobody is asked. A search that finds nothing cannot rule out a
+private or unknown caller. The code then goes to Step 9 as a
+recommendation, asking the one thing only the user may know: whether
+anything outside the repository uses it. It is never removed without the
+user's yes.
 
 **Not candidates.** Style, naming, formatting, preferences, "consider
 extracting this", missing comments, defensive checks for conditions that
@@ -454,6 +473,12 @@ such test can drive red is equivalent after all. Equivalent survivors are
 ignored and counted in the report. Dead code gets no test: Step 5 and
 Step 6 handle it.
 
+For a survivor in a trust-boundary check, the test sends in the bad input
+the check guards against. For exported code that the search in Step 3
+found a caller of, the test checks its public contract. Both are proven and
+reviewed like any other survivor test, and neither check nor code is ever
+removed.
+
 **A property's counterexample is committed as an example, not as the
 property.** The regression test is the shrunk input written as an ordinary
 deterministic test in the project's framework. A property checks many inputs,
@@ -499,15 +524,13 @@ do*, and *this code is never reached*. Neither proposes changing a design.
   checklist in [reference.md](reference.md#survivor-tests-and-dead-code).
   If it finds no live path, Step 6 removes the code. If it shows a live
   path, the survivor is treated as a gap, and Step 4 writes its test, which
-  a fresh refuter reviews like any other.
+  a fresh refuter reviews like any other. If it shows the code is exported
+  or public, search for the code's callers as in Step 3. A caller found
+  makes the survivor a gap, and Step 4 writes its test; none found makes it
+  a Step 9 recommendation.
 
-Two kinds of dead-code claim skip the refuter. Provably dead code (Step 3)
-goes straight to Step 6 for removal. Exported or public code, and checks at
-a trust boundary, where outside data enters, are never removed, however
-dead they look: the refuter cannot see other repositories, and a boundary
-check guards against data the repository does not control. Such code goes
-to Step 9 as a recommendation, for the user to decide whether to remove
-it.
+Provably dead code (Step 3) skips the refuter and goes straight to Step 6
+for removal.
 
 **Tell the refuter which spec text predates the change.** A refuter cannot see
 when a document was written, so it reads spec, design and task text as
@@ -542,8 +565,9 @@ parts. Confine the fix to the change under review; if the real cause sits outsid
 it, that is a root cause for Step 9, not something to fix in passing.
 
 **The fixer also removes dead code**: what the finder called provably dead,
-and what Step 5's refuter found no live path to. Never exported or public
-code, and never a check at a trust boundary (Step 5). A removal must leave
+and what Step 5's refuter found no live path to. Never a check at a trust
+boundary, and never exported or public code unless the user said yes in
+Step 9. A removal must leave
 every test green. It is staged with the commit this run checks, and the
 report lists it.
 
@@ -647,7 +671,7 @@ When mutants ran, the result block carries one line for them, such as
 `mutation  14 mutants of 4 changed functions — 11 killed, 2 survivors killed
 by new or strengthened tests, 1 dead code removed, 0 ignored`, and the report
 a per-operator table. Each removal of dead code is listed in its iteration,
-and dead code that is exported, public or a trust-boundary check is a
+and exported or public code that a search found no caller for is a
 recommendation, asked like any other. The
 commit itself — what to stage, the trailer, splitting — is in
 [reference.md](reference.md#committing).
@@ -1042,8 +1066,8 @@ detail and a worked example: [reference.md](reference.md#the-caller-commits-resu
 
 Whenever the report carries a recommendation — a root cause, a finding too large
 for the change under review, anything an abort left unresolved, a Step 3
-property worth keeping as a permanent guard, or dead code that is exported,
-public or a trust-boundary check — **stop and
+property worth keeping as a permanent guard, or exported code that a search
+found no caller for — **stop and
 ask the user what to do with it. Each one separately.** Do not apply them
 silently, and do not decide on their behalf that they are out of scope. A
 recommendation is where a small change prevents a class of bugs rather than one
@@ -1055,6 +1079,11 @@ recommendation, in severity order. Offer only the options that honestly apply:
 you do not, say so and offer the other two. Padding the menu with an option you
 have no confidence in is how a run ends with a hopeful patch on a problem nobody
 understood. A worked example is in
+[reference.md](reference.md#asking-about-a-recommendation).
+
+**Exported code with no caller found has its own three options**: remove it,
+keep it and add a test of its contract, or skip. Keeping it is the safe
+default, and removal needs the user's yes. The wording is in
 [reference.md](reference.md#asking-about-a-recommendation).
 
 **If the report reached you from an agent you spawned, the asking is yours.**

@@ -127,17 +127,21 @@ Rules for the report:
     gh calls refused  0
   ```
 
-  The `new test` column counts strengthened tests too. The `dead code`
-  column counts dead code removed and dead code kept as a recommendation
-  because it is exported, public or a trust-boundary check. A survivor
+  The `new test` column counts strengthened tests too, and the tests
+  written for trust-boundary checks and for exported code a search found a
+  caller of. The `dead code` column counts dead code removed, and exported
+  code kept as a recommendation because a search found no caller. Exported
+  code the user later says to remove counts once, as removed. A survivor
   that led to a bug is not on the line: it is reported as a finding, in
   its iteration, and counted in the `finding` column. The table keeps all
   of these so each operator's productivity can be reviewed across runs.
-  The line's counts need not add up to its total: findings, and dead code
-  kept as a recommendation, appear in the report but not on the line. Each
+  The line's counts need not add up to its total: findings, and exported
+  code kept as a recommendation, are in the table and the report but not on
+  the line. Each
   removal of dead code is listed in its iteration as `REMOVED`, with where
-  it was and either `provably dead` and why, or `refuter found no live
-  path`.
+  it was and one of three reasons: `provably dead` and why, `refuter found
+  no live path`, or `exported, no caller found; the user said nothing
+  outside uses it`.
 - On `SKIP` at triage, print **one line** and nothing else —
   `🔍 bug-hunter · skipped at triage — <reason>`. It is worth printing rather
   than staying silent: knowing the check ran and why it stopped is useful, and
@@ -486,6 +490,38 @@ property's run time lands on every suite run.
    2  write it down     — record it as an open question, change nothing
    3  skip              — no property, no note
 ```
+
+**Exported code that a search found no caller for** is asked around the
+one fact only the user may know: whether anything outside the repository
+uses it. Keep this wording, filling the brackets: what the code is, what
+was searched, and what the mutant changed.
+
+```
+Dead code? `<file>: <name>` is exported but has no caller in this repository, and a search of <what was searched> found none. The mutation run found no test that notices <what the mutant changed>. If nothing outside uses it, it can be removed; if something does, it is a public contract that deserves a test.
+1. Remove it — nothing outside uses it.
+2. Keep it and add a test of its contract.
+3. Skip.
+```
+
+For example:
+
+```
+④ Dead code? `src/duration.ts: formatDuration` is exported but has no
+   caller in this repository, and a search of the adamstallard and
+   acme-tools organisations and this repository's configuration found
+   none. The mutation run found no test that notices its `>= 60` made
+   `> 60`. If nothing outside uses it, it can be removed; if something
+   does, it is a public contract that deserves a test.
+
+   1. Remove it — nothing outside uses it.
+   2. Keep it and add a test of its contract.
+   3. Skip.
+```
+
+Option 2 is the safe default, since removal needs the user's yes: mark it
+as the recommended option in the picker. Option 1 removes the code as Step 6 does, keeping
+every test green, and option 2 writes the test as Step 4 does, reviewed by
+a fresh refuter.
 
 An agent running this for another agent has no picker that reaches the user. It
 prints this shape, in full, with [the hand-off footer](#the-hand-off-footer)
@@ -837,6 +873,11 @@ boundary the code owns counts as behaviour: a return value, an output, an
 error, the arguments of a call to an external process or service. Private
 state, and calls between the function's own helpers, do not.
 
+For a check at a trust boundary, the test sends in the bad input the check
+exists to reject, such as a malformed payload or a value out of range, and
+asserts that it is rejected. For exported code that a search found a
+caller of, the test checks the contract that caller relies on.
+
 **Strengthen an existing test, or write a new one.** Where the mutation
 report's `weak test` line names an existing test that runs the mutated code
 but checks nothing that would notice, you may add assertions to that test
@@ -947,25 +988,52 @@ bug.
 | Asserts intended behaviour | Keep it. |
 | Asserts behaviour the spec or a caller contradicts | Delete the test, or remove the assertions added to a strengthened one. Send the survivor to the finder as a lead, as in Step 3; a candidate it reports goes through Steps 4–7 like any other. |
 
-**Judged-dead code**: anything the finder called dead that is not provably
-dead, exported or public, or a check at a trust boundary (those three are
-settled without a refuter: see SKILL.md, Step 5). Give the refuter the
-code, the repository and the survivor. It tries to show the code is live,
-by this checklist. The last two items catch code the finder failed to see
-was a boundary check or exported:
+**Judged-dead code**: anything the finder called dead except three kinds,
+each settled without a refuter. Provably dead code goes to Step 6 for
+removal; a check at a trust boundary is a gap (SKILL.md, Step 3); and
+exported or public code has its callers searched for (below). Give the refuter the code, the
+repository and the survivor. It tries to show the code is live, by this
+checklist. The last two items catch code the finder failed to see was a
+boundary check or exported:
 
 - an error path that real systems produce and the tests don't exercise;
 - dynamic use: reached by name, through configuration, or on another
   platform;
 - a deliberate defensive check at a trust boundary, where outside data
   enters;
-- a caller outside the repository, through exported or public API.
+- exported or public API, which a caller outside the repository could use.
 
 | Verdict | Action |
 |---|---|
 | No item applies | Step 6 removes it. |
 | An error path or dynamic use | The survivor is a gap. Step 4 writes its test, which a fresh refuter then reviews as above. |
-| A trust-boundary check or an outside caller | Keep it; a Step 9 recommendation. |
+| A trust-boundary check | The survivor is a gap. Step 4 writes a test that sends in the bad input the check guards against, which a fresh refuter then reviews as above. |
+| Exported or public API | Search for the code's callers, as below. |
+
+#### Exported code with no caller in the repository
+
+Search before anyone is asked, and run the search yourself, in the main
+loop, as Step 2 runs the baseline: it is a few commands, not judgement.
+The owners to search are your own account, `gh api user --jq .login`, and
+each organisation you belong to, `gh api user/orgs --jq '.[].login'`.
+Search each for the name:
+
+```bash
+gh search code "<name>" --owner <org> --limit 20
+```
+
+Search the repository's own configuration too: package manifests' entry
+points and exports, plugin and route lists, CI and deployment files. A hit
+counts only when it uses this code, such as an import from this package,
+not when it is another symbol with the same name. Note what was searched,
+for the question below. If `gh` cannot search, the code still goes to
+Step 9, and the question says that no search ran, instead of claiming one
+found nothing.
+
+| Result | Action |
+|---|---|
+| A caller found | The code is live, and the survivor is a gap. Step 4 writes a test of its public contract, and a fresh refuter reviews it as above. Nobody is asked. |
+| No caller found | A Step 9 recommendation ([Asking about a recommendation](#asking-about-a-recommendation)). The search cannot rule out a private caller it cannot reach, or one nobody knows of, so the code is never removed without the user's yes. |
 
 ### Step 6 — Fix
 
@@ -995,8 +1063,9 @@ notes.
 
 **Dead code to remove** goes in the same message: each survivor the finder
 called provably dead, and each that Step 5's refuter found no live path to,
-with its location. The fixer removes only that code, never exported or
-public code or a trust-boundary check, and runs the tests that cover the
+with its location, and exported code the user said in Step 9 to remove.
+The fixer removes only that code, never a trust-boundary check, and runs
+the tests that cover the
 file: every one stays green, or the removal is reverted and reported
 unresolved. Each removal is staged with the commit this run checks and
 listed in the report.
