@@ -709,14 +709,35 @@ touches. With no such test, every mutant would survive and say only that
 the tests are missing, so skip it and say so in the report:
 `mutation  skipped — no tests cover the changed functions`.
 
-**2. Choose the focused tests.** The tests that exercise the files holding
-the target functions, selected the way Step 7 selects them: the module's
-own test file, test files that import it, or the runner's own selection,
-such as `jest --findRelatedTests <file>`, `pytest <test file>` or
-`go test ./<package>`. The full-suite command is Step 2's. Where the
-project offers no obvious selection, choose by hand and name the command in
-the report; a general rule for it is an open question
+**2. Choose the focused tests and the recheck.** The focused tests are
+the tests that exercise the files holding the target functions, selected
+the way Step 7 selects them: the module's own test file, test files that
+import it, or the runner's own selection, such as
+`jest --findRelatedTests <file>`, `pytest <test file>` or
+`go test ./<package>`. Where the project offers no obvious selection,
+choose by hand and name the command in the report; a general rule for
+it is an open question
 ([DECISIONS.md](DECISIONS.md#mutants-are-made-by-agents-in-a-throwaway-copy)).
+
+**The recheck.** A mutant that survives the focused tests is rerun
+against every test file that mentions its file, not the full suite. For
+each file in the subagent's group, search the repository's test files for
+the file's name and for the path the language imports it by. For
+`src/conditions.ts`, `-e /conditions` matches imports such as
+`./conditions` and `../src/conditions`, which leave out the extension:
+
+```bash
+git grep -l -F -e conditions.ts -e /conditions -- '*.test.ts'
+```
+
+For `pkg/conditions.py`, the same search is
+`git grep -l -F -e conditions.py -e pkg.conditions -- 'test_*.py'`. A
+search that matches too many files costs only test time. When the
+searches find no test file beyond those the focused command runs, the
+recheck command is `none`, and a mutant that survives the focused tests
+is a survivor. Otherwise the recheck command runs every test file the
+searches found, the focused ones included. Why not the full suite:
+[DECISIONS.md](DECISIONS.md#a-survivor-is-rechecked-against-the-tests-that-name-its-file).
 
 **3. Split the work.** Group the target functions by file, and give each
 mutation subagent one group or more, at most three subagents at once. The
@@ -774,7 +795,7 @@ copy would point there too.
 
 **5. Fill the brief** for each subagent: its functions, with line ranges
 and changed lines from `git diff --cached -U0`; the `copy:` path the
-block printed; the focused and full-suite commands; the shim directory,
+block printed; the focused and recheck commands; the shim directory,
 `<base directory>/scripts/gh-shim`, where `<base directory>` is this
 skill's own directory, as Step 9 of SKILL.md describes; the log file,
 `gh-calls.log` in the directory above the `copy:` path, outside the copy so
@@ -791,10 +812,11 @@ is an open question.
 says `copy clean: yes`, then send its survivors to the finder. If it says
 `no`, the copy may still hold a mutant: resume that subagent to revert it,
 and use none of its results until it reports the copy clean. When every
-subagent has reported, resume them one at a time via `SendMessage` with
-the mutants marked `needs serial rerun`, so each rerun has no other test
-run beside it; send the survivors those turn up to the finder too. Delete
-each copy after Step 6, once no survivor of the iteration still needs a
+subagent has reported, resume them one at a time via `SendMessage`,
+each with its own mutants marked `needs serial rerun`, so each rerun has
+no other test run beside it. Each subagent's recheck command covers only
+its own files, so another subagent's mutant is never sent to it. Send the
+survivors those reruns turn up to the finder too. Delete each copy after Step 6, once no survivor of the iteration still needs a
 test, by the directory above the `copy:` path it printed. First check that
 directory is not the
 project and does not hold it, since a shell variable from item 4 is gone
