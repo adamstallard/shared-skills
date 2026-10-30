@@ -48,7 +48,7 @@ It edits the working tree, adds test files, and by default commits.
 - [ ] Step 0: Scope the change — staged diff only
 - [ ] Step 1: Triage — is this commit worth reviewing at all?
 - [ ] Step 2: Baseline — run the suite before touching anything
-- [ ] Step 3: Find candidates (strong model, reachability required)
+- [ ] Step 3: Find candidates (strong model, reachability required); mutation subagents beside it where the changed functions have tests
 - [ ] Step 4: Prove — write the test, run it, demand a matching red
 - [ ] Step 5: Refute — a second opinion tries to kill each proven bug
 - [ ] Step 6: Fix (resume this iteration's finder, prevention question, scope-confined)
@@ -359,6 +359,31 @@ Bound each property to a fixed number of runs or a few seconds, inside this
 pass. No invariant stated, no property — this is not for fishing. The procedure
 is in [reference.md](reference.md#step-3--searching-with-a-property).
 
+**Where the changed functions have tests, mutants check that the tests pin
+them.** A mutant is one small deliberate change to the code, such as a `<`
+made `<=` or a statement deleted. The tests kill it by failing; one they
+pass on survived, and marks behaviour no test checks. At the same time as
+the finder, start fresh mutation subagents in the background, on a
+**capable model**, never the code's author. Give each one
+[mutation-brief.md](mutation-brief.md) exactly as written, with its
+placeholders filled: its share of the functions the staged change touches,
+its own throwaway copy of the repository, the focused and full-suite test
+commands, the `gh` shim, the shim's log file and its share of the cap. Run at
+most three at once: parallel test runs made timing tests flaky. In a later
+iteration, mutate only the functions the last iteration's fixes touched.
+How to make the copies, choose the focused tests and collect the results is
+in [reference.md](reference.md#step-3--mutation-testing).
+
+**A survivor is a lead, never a finding.** Send each one to the finder via
+`SendMessage`, whether it is still running or has reported. For each, the
+finder answers one of four: a candidate, reported only once it has observed
+a real wrong outcome in the real code, like any other; a gap, where the code
+is right and no test checks it; equivalent, where no test could tell the
+mutant from the real code; or dead code. Step 4 starts when the finder has
+answered every survivor, those from serial reruns included. **Never mutate source in the real tree**: an
+improvised mutant once ran `git config` in a real working tree
+([DECISIONS.md](DECISIONS.md#mutants-are-made-by-agents-in-a-throwaway-copy)).
+
 **Not candidates.** Style, naming, formatting, preferences, "consider
 extracting this", missing comments, defensive checks for conditions that
 cannot occur, or hypotheticals with no caller. Report none of these. The value
@@ -384,7 +409,8 @@ Not safe:
   meantime, say it is still running.
 
 Steps 4, 6 and 7 write files, so they run in the foreground. It is the reading
-passes that parallelise.
+passes that parallelise, and the mutation subagents, which write only in
+their own copies.
 
 **When the pass reports back, the run is the next thing.** Its return is Step 4
 starting — or, after the last iteration, Step 9 — not a notification to file
@@ -408,6 +434,15 @@ contract: without an observed red, a finding is a guess. **Do not delegate this*
 one test in the project's existing framework is translation, not investigation;
 write and run it in the loop you are already in, and a **small, cheap model** is
 sufficient. The red is the check, and it is empirical.
+
+**A survivor the finder called a gap gets a test, not a fix.** Write a
+behavioural test that calls the code through its public entry points, never
+one that reaches into its internals. Observe it green on the real code and
+red on the mutant, applied in the throwaway copy and reverted after
+([reference.md](reference.md#a-test-for-a-mutation-survivor)). It is
+staged with the commit this run checks. A gap no such test can drive red
+is equivalent after all. Equivalent survivors are ignored and counted in
+the report; dead code is a Step 9 recommendation.
 
 **A property's counterexample is committed as an example, not as the
 property.** The regression test is the shrunk input written as an ordinary
@@ -566,7 +601,10 @@ there is not the report — an accurate description of something nobody was aske
 to decide is choice 3 taken on the user's behalf.
 
 **The full report format, with a worked example and the rules for each section,
-is in [reference.md](reference.md#the-report). Read it before writing one.** The
+is in [reference.md](reference.md#the-report). Read it before writing one.**
+When mutants ran, the result block carries one line for them, such as
+`mutation  14 mutants of 4 changed functions — 12 killed, 2 survivors killed
+by new tests, 0 ignored`, and the report a per-operator table. The
 commit itself — what to stage, the trailer, splitting — is in
 [reference.md](reference.md#committing).
 
@@ -1022,6 +1060,7 @@ no options under it, is the same thing one hop later.
 - Run inside a git `pre-commit` hook.
 - `git stash`, amend, or rebase.
 - Weaken, skip, or delete an **existing** test to reach green.
+- Mutate source in the real tree. Mutants live only in a throwaway copy.
 - Leave a failing or discarded test in the tree.
 - Report a bug with no failing test, or a style opinion of any kind.
 - Apply a refactor larger than the change under review.

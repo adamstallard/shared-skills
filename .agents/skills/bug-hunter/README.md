@@ -19,6 +19,14 @@ something.
    checkpoint you ask for, so it doesn't hound you on every checkpoint commit.
 2. **Finds** candidate bugs with a strong model. Each one has to name a real
    caller and a concrete input that reaches it. Style opinions are banned.
+   Beside it, where the changed functions have tests, other agents check
+   the tests by mutation: they break the code in small ways, one at a time,
+   in a throwaway copy of your repository. Any break the tests miss becomes
+   a lead for the finder, or a new test in the commit being checked. It
+   runs beside the finder, so your commit waits longer only when it
+   outlasts the finder. It costs up to 40 mutants a commit, at 12 to 17
+   seconds of agent time each in a trial, plus the tokens those agents
+   use.
 3. **Proves** each candidate with a regression test that fails now and will
    keep failing if the bug ever comes back.
 4. **Refutes** — a second, independent agent tries to kill each finding
@@ -292,4 +300,5 @@ the script, from the root of your shared-skills clone:
 ```bash
 python3 .agents/skills/bug-hunter/scripts/test_hook.py
 python3 .agents/skills/bug-hunter/scripts/test_caller_result.py
+python3 .agents/skills/bug-hunter/scripts/test_gh_shim.py
 ```

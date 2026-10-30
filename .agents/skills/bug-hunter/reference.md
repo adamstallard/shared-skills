@@ -109,6 +109,27 @@ Rules for the report:
   reason is a shrug.
 - Say `clean` for an iteration that found nothing, rather than omitting it. A
   missing iteration reads like it was skipped.
+- **When mutants ran**, the result block carries one `mutation` line and
+  the report a per-operator table:
+
+  ```
+    mutation  14 mutants of 4 changed functions — 12 killed, 2 survivors
+              killed by new tests, 0 ignored
+
+  ── mutation ─────────────────────────────  14 mutants · 4 functions
+
+    operator            mutants  killed  new test  finding  ignored  dead code
+    relational                5       4         1        0        0          0
+    logical                   3       3         0        0        0          0
+    statement deletion        4       3         1        0        0          0
+    return value              2       2         0        0        0          0
+    gh calls refused  0
+  ```
+
+  A survivor that led to a bug is not on the line: it is reported as a
+  finding, in its iteration, and one that exposed dead code as a
+  recommendation. The table counts both, in its `finding` and `dead code`
+  columns, so each operator's productivity can be reviewed across runs.
 - On `SKIP` at triage, print **one line** and nothing else —
   `🔍 bug-hunter · skipped at triage — <reason>`. It is worth printing rather
   than staying silent: knowing the check ran and why it stopped is useful, and
@@ -631,6 +652,114 @@ Step 4 turns the shrunk input into the regression test
 ([below](#a-counterexample-from-a-property)). Keeping the property itself is a
 Step 9 recommendation ([Asking about a recommendation](#asking-about-a-recommendation)).
 
+## Step 3 — Mutation testing
+
+The procedure behind SKILL.md's mutation paragraph. Each mutation subagent
+works from [mutation-brief.md](mutation-brief.md); everything here is what
+the run does around it. Why each part:
+[DECISIONS.md](DECISIONS.md#mutants-are-made-by-agents-in-a-throwaway-copy).
+
+**1. Decide whether it runs.** It runs on a `REVIEW`, when the focused
+selection below finds at least one test for the functions the staged change
+touches. With no such test, every mutant would survive and say only that
+the tests are missing, so skip it and say so in the report:
+`mutation  skipped — no tests cover the changed functions`.
+
+**2. Choose the focused tests.** The tests that exercise the files holding
+the target functions, selected the way Step 7 selects them: the module's
+own test file, test files that import it, or the runner's own selection,
+such as `jest --findRelatedTests <file>`, `pytest <test file>` or
+`go test ./<package>`. The full-suite command is Step 2's. Where the
+project offers no obvious selection, choose by hand and name the command in
+the report; a general rule for it is an open question
+([DECISIONS.md](DECISIONS.md#mutants-are-made-by-agents-in-a-throwaway-copy)).
+
+**3. Split the work.** Group the target functions by file, and give each
+mutation subagent one group or more, at most three subagents at once. The
+cap is 40 mutants a run unless the user or the project's `AGENTS.md` sets
+another, shared out in proportion to each group's changed lines.
+
+**4. Make one throwaway copy per subagent**, outside the real tree, from
+the project's root:
+
+```bash
+set -eu
+REAL=$(git rev-parse --show-toplevel)
+TMP=$(mktemp -d)
+TMP=$(cd "$TMP" && pwd -P)    # resolved: on macOS /var is a link
+COPY="$TMP/repo"
+git clone --quiet --no-checkout "$REAL" "$COPY"
+git -C "$COPY" fetch --quiet "$REAL" HEAD
+git -C "$COPY" reset --quiet FETCH_HEAD
+git -C "$COPY" remote remove origin
+rsync -a --delete --exclude=/.git --exclude=/node_modules "$REAL"/ "$COPY"/
+if [ -d "$REAL/node_modules" ]; then ln -s "$REAL/node_modules" "$COPY/node_modules"; fi
+git -C "$COPY" add -A
+echo "copy: $COPY"
+```
+
+Run it as one tool call, and keep `set -eu` and the separate `mktemp` line.
+Where `mktemp -d` fails and prints nothing, `cd ""` succeeds and leaves
+you in the project, so a combined `TMP=$(cd "$(mktemp -d)" && pwd -P)`
+would put the copy inside the real tree, and deleting the copy afterwards
+would delete the project. With them, the first failure stops the block.
+In a repository with submodules it stops at `git add -A`, because the
+copied submodule's `.git` file points at a directory the clone lacks. Skip
+mutation there, delete the temp directory and everything in it, and say so
+in the report.
+
+The clone gives the copy its own `.git`, so a git command that a test or a
+mutant runs, a `git config` included, changes only the copy. Removing
+`origin` keeps a `git push` from reaching the real repository. `rsync`
+then lays the working tree over it, untracked files included, so the
+copy's tests see what the Step 2 baseline saw, and `git add -A` stages that
+state: the brief's check that the copy is clean compares the files with
+it.
+
+Adjust the block to the project's dependency directories. Each one the
+tests only read, such as `node_modules` or `.venv`, is excluded from
+`rsync` and linked, as `node_modules` is above, so it is not copied. Never
+link a directory the tests write, such as a build output or a cache: left
+out of the excludes, `rsync` copies it, and the tests write the copy's.
+
+Not `git worktree add`: a worktree shares the real repository's config,
+hooks and refs, so a mutant's `git config` or commit would land in the
+real one. Not a plain `cp -R` either: when the real tree is itself a
+worktree, its `.git` is a file pointing at the shared repository, and the
+copy would point there too.
+
+**5. Fill the brief** for each subagent: its functions, with line ranges
+and changed lines from `git diff --cached -U0`; the `copy:` path the
+block printed; the focused and full-suite commands; the shim directory,
+`<base directory>/scripts/gh-shim`, where `<base directory>` is this
+skill's own directory, as Step 9 of SKILL.md describes; the log file,
+`gh-calls.log` in the directory above the `copy:` path, outside the copy so
+`git add` never stages it; and its cap. Add nothing else. Told what the
+code is meant to do, a subagent would judge survivors by that intent
+instead of by what the tests check.
+
+The shim is a `gh` that refuses every call with exit 1 and logs it. It
+catches only a `gh` found on `PATH`: a test that runs `gh` by absolute
+path, or another networked CLI, gets through; whether to cover other CLIs
+is an open question.
+
+**6. Collect the results.** As each report arrives, check its last line
+says `copy clean: yes`, then send its survivors to the finder. If it says
+`no`, the copy may still hold a mutant: resume that subagent to revert it,
+and use none of its results until it reports the copy clean. When every
+subagent has reported, resume them one at a time via `SendMessage` with
+the mutants marked `needs serial rerun`, so each rerun has no other test
+run beside it; send the survivors those turn up to the finder too. Delete
+each copy after Step 4 has written its survivor tests, by the directory
+above the `copy:` path it printed. First check that directory is not the
+project and does not hold it, since a shell variable from item 4 is gone
+by now. `rm -rf` on it removes the links, not what they point at.
+
+**7. Count for the report.** Add up, across subagents and iterations:
+mutants, functions, killed, survivors killed by new tests, and survivors
+ignored as equivalent; and per operator, the same counts plus survivors
+that led to findings.
+
 ## Steps 4–7 in detail
 
 ### Step 4 — Prove
@@ -688,6 +817,31 @@ Do not commit the property as the regression, even when the project has the
 library: even seeded, its red can come from another counterexample, and its
 inputs change with the library. Keeping it as a guard beside this test is the
 user's decision, in Step 9.
+
+#### A test for a mutation survivor
+
+For a survivor the finder called a gap: the code is right, and no test
+notices when it is changed. The test checks what the survivor's `unpinned`
+line names, through the code's public entry points. What crosses a
+boundary the code owns counts as behaviour: a return value, an output, an
+error, the arguments of a call to an external process or service. Private
+state, and calls between the function's own helpers, do not.
+
+1. Write it in the real tree, as any Step 4 test, and run it: green.
+2. In the copy, put the same test file in place, make the mutant's edit
+   (`<original>` → `<mutated>` at its `file:line`), and run the test: red,
+   failing on what the `unpinned` line names.
+3. Revert the edit and delete the test file from the copy, so the copy is
+   clean again by the brief's check.
+
+| Result | Action |
+|---|---|
+| Green on the real code, red on the mutant | Keep it. It is staged with the commit this run checks. |
+| Red on the real code | The test is wrong, or the code is. Repair the test once. Still red on the real code: send it to the finder as a candidate, since it may be a bug. |
+| Green on the mutant | Repair it once. Still green: the survivor is equivalent, ignored and counted. |
+
+Never edit the real tree's source to see the red: the mutant exists only in
+the copy.
 
 ### Step 5 — Refute
 
