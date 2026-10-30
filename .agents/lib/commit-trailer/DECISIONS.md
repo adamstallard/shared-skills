@@ -318,16 +318,16 @@ for its JSON by replacing every `"` and `\` with a space, not by escaping
 them. This happens in the library's delivery and config-error paths, which
 also replace control characters, and in each wrapper's missing-library
 message. So a
-report holding either character reaches Cursor altered. bug-hunter's report
-names its commit script by path: on Cursor, a path holding an apostrophe is
-printed unquoted, because any quoting of it needs a `\` or a `"`.
+report holding either character reaches Cursor altered: the repository's
+path, a commit subject, or trailer text a verifier echoes in its reason.
 
 ---
 
 ## The report states facts and stops
 
 **Decision.** It names which commits lack a trailer and which repository they are
-in, and says nothing about what to do. No git commands.
+in. To fix them, it names a section of the skill's SKILL.md and gives no
+command (*Each report names its skill's section*).
 
 **Why.** The block that constructed commands produced 28 findings across eight
 review iterations in two runs, while the half that reads the reflog and checks
@@ -388,9 +388,54 @@ this paragraph is the mitigation. Treat "the report says X" in any doc as a
 claim you must re-read the report to keep true, and grep the four docs for it
 whenever the report text changes.
 
-**The line, since it is not "no imperatives".** Trailer placement stayed in the
-report. It is context-free — where a trailer goes in a message is true wherever
-the reader stands. A remedy is not.
+**What the report may say.** The rule is not "no imperatives". It is that
+everything in the report is true wherever the reader stands: "Ask before
+rewriting a pushed commit", the name of a SKILL.md section, and the
+`disable-hook` command all are. A remedy for the named commit is not.
+
+## Each report names its skill's section
+
+**Decision (Adam, 2026-10-28, issue #38).** When commits lack a valid trailer,
+each skill's report has four short parts:
+
+1. The commits, and what is wrong with them: no trailer, a trailer line git
+   does not read as one, or a trailer that fails verification.
+2. "Ask before rewriting a pushed commit." Adding a missing trailer means
+   amending or rebasing, which may rewrite published history.
+3. "Fix it with the <skill> skill's *<section>* steps", naming no file path.
+4. The one-line `disable-hook` command, given as a person's choice: the
+   person who does not want the check turns it off, not the agent.
+
+It restates nothing from SKILL.md: not where a trailer sits, nor the commit
+script, nor the skip value, nor how a trailer is signed or minted.
+
+**Why.** Each report used to be self-contained, so it repeated SKILL.md and
+could drift from it. It was also long. For one reported commit whose
+`<hash> <subject>` line is 30 bytes, bug-hunter's report was 1,119 to 2,092
+bytes, depending on the case, and is now 355 to 433. prose's and
+spec-check's were 465 to 724 bytes, and are now 310 to 415. Since the agent reads the report and then fixes
+the commit, it needs the skill's steps anyway, and SKILL.md is the copy that
+is kept true.
+
+**Which section (2026-10-30, chosen by the agent coordinating the work; open
+for Adam to overrule).** Each report names its own skill's section: prose's
+*Committing*, spec-check's *Commit*, and bug-hunter's *If you are an agent
+about to commit*. bug-hunter's other candidate, *Step 9 — Report and commit*,
+assumes a run has just happened. *If you are an agent about to commit* is
+written for an agent that has not run one. It leads into triage, and triage
+sends a commit with nothing to review to the skip value.
+
+**Rejected.** Renaming the three sections to one shared name such as
+*Committing*. bug-hunter's DECISIONS.md and reference.md link to its section
+anchors, and a rename breaks those links and any outside them. Naming each
+skill's own section costs nothing and is cheap to change later.
+
+**Out of scope.** The worktrees skill's hooks, whose messages are already
+short; spec-check's proposal hook; and spec-trace's hook, which speaks only
+once per repository, to ask whether to adopt spec-trace. spec-check's
+report keeps one more line, asking for setup when the repository has not
+decided on the decisions-first rule, since that line belongs to the rule
+(issue #37), not to the trailer.
 
 ---
 

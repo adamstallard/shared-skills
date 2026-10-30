@@ -24,8 +24,12 @@ own: two decisions about its hook's behaviour, then the skill's rules.
 
 **Decision.** Two texts reach an agent that never invokes this skill: the
 frontmatter `description`, before it decides, and the hook's report, after the
-commit lands. Both state that a skip is a trailer value, and neither states the
-trailer requirement in a form conditional on the commit containing code.
+commit lands. The description states that a skip is a trailer value. The
+report says a commit landed without a `Bug-hunter:` trailer, with no condition
+on the commit containing code, and sends the agent to *If you are an agent
+about to commit*, which says a skipped commit carries the trailer too. Neither
+text states the trailer requirement in a form conditional on the commit
+containing code.
 
 **Why.** On 2026-09-11 one session made three doc-only commits to a backend repo
 — an OpenSpec proposal, its design and spec, and a prose correction, zero code —
@@ -75,9 +79,12 @@ habit, the "trivial docs commit" arriving with `-m` composed. This incident is
 upstream of it: the agent had no reason to think the script applied at all.
 
 **Where this stops applying.** This does not license remedies in the hook's
-report. What went in is the standard — unconditional, context-free, naming no
-sha and no repair — which is the same line *The report states facts and stops*
-drew for trailer placement. The remedy for a commit that already landed stays
+report. What this decision put in the report is now one line: the report's
+first, which says the commit has no trailer and carries no condition. The skip
+categories and the skip value are left to the SKILL.md section the report
+names (the library's
+[*Each report names its skill's section*](../../lib/commit-trailer/DECISIONS.md#each-report-names-its-skills-section)).
+The remedy for a commit that already landed stays
 in `SKILL.md`'s triage table, which runs in the reader's own frame. Nor is it a
 general rule that every doc gets the same sentence: the two edited here are the
 only ones read by an agent that has not invoked the skill.
@@ -580,8 +587,8 @@ own resolved location, so a path through a link works.
 minting mechanism — `git write-tree` over the staged index, run after the last
 `git add`, output passed as `--trailer` — is unchanged, and so is the rule that
 only the path to the script is absolute, never the git command it runs. The
-hook is wired by `manage-skills` with the script's resolved path, and its
-report names the commit script by the hook's own location.
+hook is wired by `manage-skills` with the script's resolved path. Its report
+names no script; it names a SKILL.md section.
 
 ## The commit is assembled by a script, not by hand
 
@@ -589,8 +596,8 @@ report names the commit script by the hook's own location.
 `scripts/commit-with-trailer.sh -F msg.txt <Bug-hunter value>
 [<Co-Authored-By value>]`, or with the message as `<subject> <body>` in place
 of `-F msg.txt` — for every commit this skill makes, skips included.
-The hook's report names the same script wherever it used to show a
-`git commit … --trailer …` example. `--trailer` and `mint-trailer.sh` are still
+The hook's report shows no `git commit … --trailer …` example and names no
+script. `--trailer` and `mint-trailer.sh` are still
 the mechanism; `reference.md` now documents them as what the script does, not
 as what the agent types.
 
@@ -614,15 +621,14 @@ script's path is worked out once, for the wrapper, because it finds
 `mint-trailer.sh` next to itself. What is left to get wrong is the one thing
 that was never the problem: where the skill is.
 
-The hook names the script for a different reason. Its report is the one text an
-agent provably reads at the moment of failure — every one of the repaired
-commits was repaired because the report said so — and its own example was a
-hand-built `git commit -m … --trailer …`. An agent acting on the report re-did
-the assembly step, by hand, that had just gone wrong. Naming the script there
-stays inside *The report states facts and stops*: a placeholder call naming
-the script's own path is context-free in exactly the way the old example was,
-and the text describes how this skill commits, not what to do with the named
-sha.
+The hook's report is the one text an agent provably reads at the moment of
+failure — every one of the repaired commits was repaired because the report
+said so — and its own example was a hand-built `git commit -m … --trailer …`.
+An agent acting on the report re-did the assembly step, by hand, that had just
+gone wrong. After that, the report showed the script's path instead of the
+hand-built example. It now names *If you are an agent about to commit*, whose
+first rule shows the commit script, so the agent reads the whole commit step
+rather than a copy of part of it.
 
 **Rejected.**
 - Stronger prose, or a third example. Two bold statements and two examples had

@@ -603,7 +603,7 @@ done
 
 count_unchecked=$(printf '%s' "$unchecked" | grep -c . || true)
 
-# The report states facts and stops. It does not say what to do about them.
+# The report states facts and stops. It gives no command to fix them.
 #
 # This block used to construct git commands, and across eight review iterations
 # in two runs it produced 28 findings — every one of them in the machinery for
@@ -619,8 +619,10 @@ count_unchecked=$(printf '%s' "$unchecked" | grep -c . || true)
 # git. Telling it *which commits lack a trailer, and in which repository* is the
 # part it cannot cheaply work out for itself; the rest was us guessing.
 #
-# What survives is context-free: the standard, and how git wants a trailer
-# written. Neither depends on where the reader stands, which is the line.
+# Beyond the facts, a skill's report says to ask before rewriting a pushed
+# commit, and names the SKILL.md section that fixes it. A report may hold only
+# what is true wherever the reader stands, and both of these are (DECISIONS.md,
+# "Each report names its skill's section").
 #
 # For naming only — never for a command. check_repo runs cd'd into each
 # submodule, so this resolves in a frame the reader is not standing in.

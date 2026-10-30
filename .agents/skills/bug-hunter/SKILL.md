@@ -79,9 +79,11 @@ right wording and still be a sentence recalled from having read this file,
 rather than one produced by running any part of it — that is the one shape
 the string-presence check cannot catch, and the one this binding is for.
 
-A commit that lands without a `Bug-hunter:` trailer at all gets named
-in a report, with the repository it is in, and nothing else: the hook cannot see
-where you are standing, and the commit it names is often not your HEAD.
+A commit that lands with no `Bug-hunter:` trailer, or with one whose
+`Bug-hunter-Tree` binding does not match, gets named in a report, with the
+repository it is in. The report sends you to the section below and gives no
+command to fix the commit: the hook cannot see where you are standing, and the
+commit it names is often not your HEAD.
 
 ---
 
@@ -92,12 +94,13 @@ let that skill start from "commit this"; still run for "bug check this". If
 this turn already stated a commit subject, use that subject unchanged. Only add
 trailers.
 
-**Run this skill before every commit you create that contains code.** Not when
-asked for it by name — every time. "Commit this", "commit my changes", "wrap up
-and commit", or your own decision to commit after finishing a task all mean:
-stage the change, run this skill, then commit. Triage (Step 1) is what decides
-whether a given commit is worth reviewing, so running it always is cheap when it
-does not apply.
+**Every commit you create goes through this skill and carries a Bug-hunter: trailer.**
+Not when asked for it by name — every time. A commit with code gets the hunt. A commit
+with only docs, specs, tests or formatting skips the hunt, not the skill. 
+"Commit this", "commit my changes", "wrap up and commit", or your own decision to 
+commit after finishing a task all mean: stage the change, run this skill, then commit.
+Triage (Step 1) is what decides whether a given commit is worth reviewing, so running
+it always is cheap when it does not apply.
 
 ### Do not evade this skill
 
