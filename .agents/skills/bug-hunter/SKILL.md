@@ -94,12 +94,13 @@ let that skill start from "commit this"; still run for "bug check this". If
 this turn already stated a commit subject, use that subject unchanged. Only add
 trailers.
 
-**Run this skill before every commit you create that contains code.** Not when
-asked for it by name — every time. "Commit this", "commit my changes", "wrap up
-and commit", or your own decision to commit after finishing a task all mean:
-stage the change, run this skill, then commit. Triage (Step 1) is what decides
-whether a given commit is worth reviewing, so running it always is cheap when it
-does not apply.
+**Every commit you create goes through this skill and carries a Bug-hunter: trailer.**
+Not when asked for it by name — every time. A commit with code gets the hunt. A commit
+with only docs, specs, tests or formatting skips the hunt, not the skill. 
+"Commit this", "commit my changes", "wrap up and commit", or your own decision to 
+commit after finishing a task all mean: stage the change, run this skill, then commit.
+Triage (Step 1) is what decides whether a given commit is worth reviewing, so running
+it always is cheap when it does not apply.
 
 ### Do not evade this skill
 
