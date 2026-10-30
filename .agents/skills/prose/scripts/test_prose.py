@@ -2325,7 +2325,19 @@ class CommitHook(CommitHookBase):
         result = self.hook()
         self.assertEqual(result.returncode, 2)
         self.assertIn("without a Prose: trailer", result.stderr)
-        self.assertIn("Prose: ✓ <tree>:<message>", result.stderr)
+        self.assertIn("Ask before rewriting a pushed commit.", result.stderr)
+        self.assertIn("Fix it with the prose skill's *Committing* steps.", result.stderr)
+        self.assertIn("A person who does not want this check can turn it off:", result.stderr)
+        self.assertIn("skills.py disable-hook prose", result.stderr)
+
+    def test_a_prose_line_git_does_not_read_is_reported_as_such(self):
+        self.repo.write("README.md", "# Hi\n")
+        self.repo.commit("DOCS(x): add a readme\n\nProse: ✓ 0123:4567\n\nmore body\n")
+        result = self.hook()
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("without a Prose: trailer", result.stderr)
+        self.assertIn("There is a Prose: line in there, but git does not read it as a trailer.",
+                      result.stderr)
 
     def test_an_edited_message_fails_the_callback(self):
         self.repo.write("README.md", "# Hi\n")
@@ -2367,10 +2379,27 @@ class CommitHook(CommitHookBase):
         result = self.hook()
         self.assertEqual((result.returncode, result.stderr), (0, ""))
 class HookReportText(unittest.TestCase):
-    def test_the_rejected_trailer_report_names_both_calls(self):
-        result = run(["sh", "-c", f'. "{HOOK_REPORT}"; rejected="abc123 mismatch"; '
+    def test_the_rejected_trailer_report_names_the_section_and_no_path(self):
+        # The report names SKILL.md's section rather than restating its
+        # commands, and names none of prose's files: the section gives each
+        # path from the skill's base directory.
+        result = run(["sh", "-c", f'. "{HOOK_REPORT}"; rejected="abc123 x -- mismatch: y"; '
                                   'commit_trailer_report; printf "%s\\n" "$REPORT"'])
-        self.assertIn("--pass", result.stdout)
+        self.assertIn("carry a Prose: trailer that does not hold", result.stdout)
+        self.assertIn("abc123 x -- mismatch: y", result.stdout)
+        self.assertIn("Fix it with the prose skill's *Committing* steps.", result.stdout)
+        self.assertNotIn("prose check", result.stdout)
+        self.assertNotIn(".sh", result.stdout)
+
+    def test_the_first_block_names_the_repository_and_the_second_follows_a_blank_line(self):
+        # The library sets repo_label to the repository's top, which matters
+        # most for a commit in a submodule. One batch can hold a commit with no
+        # trailer and another whose trailer fails verification.
+        result = run(["sh", "-c", f'. "{HOOK_REPORT}"; repo_label=/r/sub; count_unchecked=1; '
+                                  'unchecked="abc1234 a"; rejected="def5678 b -- tree: x"; '
+                                  'commit_trailer_report; printf "%s\\n" "$REPORT"'])
+        self.assertIn("landed without a Prose: trailer in /r/sub.", result.stdout)
+        self.assertIn("abc1234 a\n\nprose: 1 commit(s) carry", result.stdout)
 
 
 class CommitHookThroughTheLibrary(CommitHookBase):

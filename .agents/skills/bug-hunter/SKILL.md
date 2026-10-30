@@ -79,9 +79,11 @@ right wording and still be a sentence recalled from having read this file,
 rather than one produced by running any part of it — that is the one shape
 the string-presence check cannot catch, and the one this binding is for.
 
-A commit that lands without a `Bug-hunter:` trailer at all gets named
-in a report, with the repository it is in, and nothing else: the hook cannot see
-where you are standing, and the commit it names is often not your HEAD.
+A commit that lands with no `Bug-hunter:` trailer, or with one whose
+`Bug-hunter-Tree` binding does not match, gets named in a report, with the
+repository it is in. The report sends you to the section below and gives no
+command to fix the commit: the hook cannot see where you are standing, and the
+commit it names is often not your HEAD.
 
 ---
 

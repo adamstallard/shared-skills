@@ -80,13 +80,14 @@ Your agent shows you the changes before making them, then commits them. Once
 they are committed, every agent on the team reads the same answer and none of
 them asks again.
 
-Until a repository decides, the agent raises it at three moments:
+Until a repository decides, the question comes up at three moments:
 
-- right after it writes a proposal, prompted by the proposal hook;
+- right after the agent writes a proposal, prompted by the proposal hook;
 - when `check` runs, which adds one note saying the repository has not
   decided, and checks no proposal against the rule;
-- when the commit hook reports an `openspec/` commit, whose report ends with
-  "ask your agent to set up spec-check in this repository".
+- when the commit hook reports an `openspec/` commit that lacks a valid
+  `Spec-check:` trailer: the report tells you to "ask your agent to set up
+  spec-check in this repository".
 
 To do it yourself, run either command in the repository; `--dry-run` shows
 what would change without writing it:

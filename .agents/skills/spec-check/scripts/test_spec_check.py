@@ -13,6 +13,7 @@ is not on PATH.
 import json
 import os
 import pathlib
+import re
 import shutil
 import subprocess
 import sys
@@ -751,6 +752,36 @@ class TrailerTests(unittest.TestCase):
         self.assertEqual(r.returncode, 2)
         self.assertIn("1 new commit(s) changed openspec/ without a Spec-check: trailer", r.stderr)
         self.assertIn("Add a spec", r.stderr)
+        self.assertIn("Ask before rewriting a pushed commit.", r.stderr)
+        self.assertIn("Fix it with the spec-check skill's *Commit* steps.", r.stderr)
+        self.assertIn("A person who does not want this check can turn it off:", r.stderr)
+        self.assertIn("skills.py disable-hook spec-check", r.stderr)
+        self.assertNotIn("spec_check.py sign", r.stderr)
+
+    def test_both_kinds_in_one_report_name_the_repository_and_are_separate_paragraphs(self):
+        # One batch can hold a commit with no trailer and another whose
+        # trailer fails verification. Each block names the repository and
+        # keeps its own header after a blank line.
+        self.stage_change()
+        self.repo.git("commit", "-q", "-m", "Add a spec")
+        self.repo.write("openspec/changes/good/design.md", "## Context\n\nMore.\n")
+        self.repo.git("add", "-A")
+        self.repo.git("commit", "-q", "-m", "Add a design", "--trailer",
+                      "Spec-check: ✓ 0123456789ab 0 errors")
+        r = self.hook()
+        self.assertEqual(r.returncode, 2)
+        top = self.repo.git("rev-parse", "--show-toplevel")
+        self.assertIn(f"changed openspec/ without a Spec-check: trailer in {top}.", r.stderr)
+        self.assertRegex(r.stderr, r"Add a spec\n\nspec-check: 1 commit\(s\) carry a Spec-check: "
+                                   r"trailer that does not hold in " + re.escape(top) + r"\.")
+
+    def test_a_spec_check_line_git_does_not_read_is_reported_as_such(self):
+        self.stage_change()
+        self.repo.git("commit", "-q", "-m", "Add a spec\n\nSpec-check: ✓ 0123 0 errors\n\nmore body")
+        r = self.hook()
+        self.assertEqual(r.returncode, 2)
+        self.assertIn("There is a Spec-check: line in there, but git does not read it as a trailer.",
+                      r.stderr)
 
     def test_an_undecided_repository_gets_one_more_line(self):
         self.stage_change()
@@ -826,6 +857,7 @@ class TrailerTests(unittest.TestCase):
         r = self.hook()
         self.assertEqual(r.returncode, 2)
         self.assertIn("carry a Spec-check: trailer that does not hold", r.stderr)
+        self.assertIn("Fix it with the spec-check skill's *Commit* steps.", r.stderr)
 
     def test_sign_refuses_a_change_with_errors(self):
         self.stage_change(proposal=GOOD_PROPOSAL.replace("## Decisions", "## Why first"))
