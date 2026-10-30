@@ -367,12 +367,13 @@ the finder, start fresh mutation subagents in the background, on a
 **capable model**, never the code's author. Give each one
 [mutation-brief.md](mutation-brief.md) exactly as written, with its
 placeholders filled: its share of the functions the staged change touches,
-its own throwaway copy of the repository, the focused and full-suite test
-commands, the `gh` shim, the shim's log file and its share of the cap. Run at
-most three at once: parallel test runs made timing tests flaky. In a later
+its own throwaway copy of the repository, the focused test command, the
+recheck command (the test files that name each mutated file, or `none`),
+the `gh` shim, the shim's log file and its share of the cap. Run at most
+three at once: parallel test runs made timing tests flaky. In a later
 iteration, mutate only the functions the last iteration's fixes touched.
-How to make the copies, choose the focused tests and collect the results is
-in [reference.md](reference.md#step-3--mutation-testing).
+How to make the copies, choose the focused tests and the recheck command,
+and collect the results is in [reference.md](reference.md#step-3--mutation-testing).
 
 **A survivor is a lead, never a finding.** Send each one to the finder via
 `SendMessage`, whether it is still running or has reported. For each, the

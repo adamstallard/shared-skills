@@ -10,7 +10,7 @@ the change under review touched in it:
 <functions, e.g. src/conditions.ts:40-96 observes (changed: 52-60, 88)>
 The throwaway copy of the repository, where every mutant lives: <copy path>
 The focused test command, run from the copy: <focused command>
-The full-suite command, run from the copy: <full-suite command>
+The recheck command, run from the copy: <recheck command, or none>
 The gh shim directory: <shim directory>
 The file the shim logs to: <log path>
 Your mutant cap: <cap, e.g. 20>
@@ -96,12 +96,14 @@ One at a time:
    fails, or the run times out.
 3. If a flaky test is the only one that failed, the mutant is
    `needs serial rerun`, not killed. Name the test.
-4. If it survived the focused command, run the full-suite command with the
-   mutant still applied. Before the first such run, revert the mutant, run
-   the full suite once on the unmutated copy and record its flaky and
-   failing tests as in section 1, then apply the mutant again. Killed if
-   anything fails that passed on the unmutated copy, by the same rule for
-   flaky tests; otherwise it survived.
+4. If it survived the focused command and the recheck command is not
+   `none`, run the recheck command with the mutant still applied. The
+   first time you reach this step, first revert the mutant, run the
+   recheck command once on the unmutated copy, record its flaky and
+   failing tests as in section 1, and apply the mutant again. Killed if
+   any test that passed on the unmutated copy now fails; if a flaky test
+   is the only one that failed, it is `needs serial rerun`, as in step 3.
+   Otherwise it survived.
 5. Revert the edit: `git -C <copy path> checkout -- <file>`. Then the copy
    must be clean again, by the check in section 1, before the next mutant.
 
@@ -149,11 +151,11 @@ Then:
 
 ## 6. If you are resumed for serial reruns
 
-You may later be sent mutants marked `needs serial rerun`, yours or
-another subagent's, while no other mutation run is going. For each one:
+You may later be sent your own mutants marked `needs serial rerun`,
+while no other mutation run is going. For each one:
 make its edit and run only its flaky test, alone and in serial mode. It
 is killed if that test fails again. If it passes, the mutant survived the
 command that flagged it: after the focused command, carry on from step 4
-of section 3; after the full suite, it survived, and you judge it as in
+of section 3; after the recheck command, it survived, and you judge it as in
 section 4. Revert before the next one. Report each in the form of section 5,
 under the line `serial reruns`.
