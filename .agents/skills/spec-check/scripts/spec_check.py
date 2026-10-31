@@ -2,14 +2,11 @@
 """spec-check: the mechanical half of reviewing an OpenSpec change.
 
     spec_check.py check [<target>...] [--repo DIR] [--ref REF] [--base REF]
-                        [--decisions-heading TEXT]... [--no-validate] [--json]
-    spec_check.py setup [--repo DIR] [--decline] [--dry-run]
-    spec_check.py state [--repo DIR]
+                        [--no-validate] [--json]
     spec_check.py sign --read subagent|self [--amended N] [--open N]
-                       [--base REF] [--decisions-heading TEXT]... [--no-validate]
+                       [--base REF] [--no-validate]
     spec_check.py verify-staged "Spec-check: <value>"   (message on stdin)
     spec_check.py verify-commit <sha> <value>
-    spec_check.py proposal-hook --host claude|cursor   (hook payload on stdin)
 
 A target is a change name, a change directory (openspec/changes/<name>), or
 `specs` for every spec under openspec/specs. With no target, every open change
@@ -23,6 +20,11 @@ never archived: its result must already show in the tree. Each dependency is
 read from its pull request with gh and git, which needs the network, and the
 OpenSpec CLI must be on PATH. A dependency that cannot be read, judged or
 archived is an error, never skipped.
+
+Every checked change is also archived into a scratch copy of the specs by
+`openspec archive`: alone, or for a stacked change, on top of its
+dependencies. Each refusal is an error. Without the CLI, a change archived
+alone is reported as not run, and a stacked change gets an error.
 
 check exits 0 with no errors, 1 with errors, 2 when it cannot run. Findings
 marked `check` are heuristics for a person or agent to judge; they never fail.
@@ -38,25 +40,12 @@ import json
 import os
 import posixpath
 import re
-import shlex
 import shutil
 import subprocess
 import sys
 import tarfile
 import tempfile
 import urllib.parse
-
-DECISIONS_HEADINGS = ["Decisions"]
-
-# The repository's answer to whether proposals must open with their
-# decisions. Only setup writes it, as one line: `decisions-first: enforce` or
-# `decisions-first: off`. It is spec-check's own file: the script never reads
-# or edits OpenSpec's config (DECISIONS.md, "Each repository's
-# decisions-first answer lives in spec-check's own file").
-DECISION_FILE = "openspec/spec-check.yaml"
-DECISION_LINE = re.compile(r"^decisions-first:[ \t]*(enforce|off)[ \t]*$")
-# The states, as `state` prints them and `check --json` reports them.
-ENFORCE, OFF, UNDECIDED, INVALID = "enforce", "off", "undecided", "invalid"
 
 KEY = "Spec-check"
 
@@ -106,12 +95,10 @@ def materialize(repo, treeish, dest, allow_empty=False):
     if allow_empty and has.returncode == 0 and not has.stdout.strip():
         os.makedirs(os.path.join(dest, "openspec"))
         return
-    # The decision file is left out: tree_decision reads it from the tree,
-    # and a link there must become a finding, not a link to extract.
     # The peeled tree, not a commit: a commit's archive starts with a pax
     # header, so one with no file in it is a tar that tarfile cannot open.
     out = git(repo, "archive", "--format=tar", f"{treeish}^{{tree}}", "--", "openspec",
-              f":(exclude){DECISION_FILE}", check=False, binary=True)
+              check=False, binary=True)
     if out.returncode != 0:
         raise Fatal(f"cannot read openspec/ from {treeish}: "
                     f"{out.stderr.decode('utf-8', 'replace').strip()}")
@@ -120,8 +107,6 @@ def materialize(repo, treeish, dest, allow_empty=False):
             tar.extractall(dest, filter="data")
         except TypeError:  # Python before 3.12 has no filter argument
             tar.extractall(dest)
-    # An openspec/ holding only the decision file archives as nothing.
-    os.makedirs(os.path.join(dest, "openspec"), exist_ok=True)
 
 
 FENCE = re.compile(r"(`{3,}|~{3,})")
@@ -155,7 +140,7 @@ def markdown_lines(text):
     """Each line of a markdown text as (line number, line, in a code fence).
     Fence lines themselves count as inside. Every scan of a proposal or spec
     reads through this, so text quoted in a fence is never taken for a
-    heading, a decision, a label or a citation.
+    heading, a requirement or a citation.
 
     It follows CommonMark as far as fences need:
     - A fence may be indented up to three spaces past the content column of
@@ -234,6 +219,7 @@ class Req:
         self.path, self.line, self.name, self.section = path, line, name, section
         self.text = []        # (line number, text) before the first scenario
         self.scenarios = []   # Scenario
+        self.stray = []       # (line, title) of each other `###` heading inside it
         # Set only on a requirement of the base a change is checked against
         # (the tree's specs, plus any dependencies): cap is the capability it
         # belongs to there. dep is the dependency that defined or renamed it,
@@ -462,6 +448,13 @@ def parse_spec(rel, text):
                 scen = Scenario(n, s.group(1).strip())
                 req.scenarios.append(scen)
                 continue
+            if level == 3 and req is not None:
+                # OpenSpec's block runs on to the next requirement header,
+                # so what follows still belongs to the requirement here.
+                # check_scenarios reports the heading itself.
+                req.stray.append((n, title))
+                scen = None
+                continue
             if level <= 3:
                 req = scen = None
             else:
@@ -589,6 +582,13 @@ def check_scenarios(reqs, out):
     for r in reqs:
         if r.section in ("REMOVED", "RENAMED"):
             continue
+        for line, title in r.stray:
+            out.append(Finding(r.path, line, "error", "stray-heading",
+                               f'"### {title}" inside requirement "{r.name}" is neither a '
+                               "requirement nor a scenario: OpenSpec's validator gives the "
+                               "scenarios after it to the heading, not the requirement, so the "
+                               "spec fails validation (a main spec once its change is archived). "
+                               "Remove the heading or make it plain text"))
         if NORMATIVE.search(r.body) and not r.scenarios:
             out.append(Finding(r.path, r.line, "error", "no-scenario",
                                f'requirement "{r.name}" states a SHALL or MUST and has no scenario'))
@@ -648,6 +648,25 @@ def retires(corpus, a, b):
     return False
 
 
+def capability(r):
+    """The capability r belongs to: the one it was read under in the base,
+    or for a requirement of a change, the directory of its delta spec."""
+    if r.cap is not None:
+        return r.cap
+    parts = r.path.split("/")
+    return parts[4] if len(parts) > 5 and parts[1:2] == ["changes"] and parts[3] == "specs" else None
+
+
+def restates(a, b):
+    """Whether one of a and b is a MODIFIED requirement restating the other:
+    the same name, as OpenSpec matches names, in the same capability. Only
+    such a pair may share sentences. An ADDED requirement, or one in another
+    capability, that repeats a rule under the same name is a duplicate."""
+    cap = capability(a)
+    return (a.name == b.name and "MODIFIED" in (a.section, b.section)
+            and cap is not None and cap == capability(b))
+
+
 def check_duplicates(targets, corpus, out, base=None, skip=()):
     """base and skip are as Corpus.all_reqs takes them. A stacked change is
     checked against the specs plus its dependencies, so its dependencies'
@@ -655,6 +674,8 @@ def check_duplicates(targets, corpus, out, base=None, skip=()):
     already."""
     index = {}
     for r in corpus.all_reqs(base, skip):
+        if r.section == "REMOVED":
+            continue  # the change deletes its text, so it states no rule
         for line, sentence in units(r):
             key = normalize(sentence)
             if len(key.split()) >= DUPLICATE_MIN_WORDS:
@@ -666,11 +687,8 @@ def check_duplicates(targets, corpus, out, base=None, skip=()):
         for r, line in places:
             if id(r) not in target_ids:
                 continue
-            # A MODIFIED requirement restates the one it modifies, so copies
-            # under one requirement name are expected. Names match exactly,
-            # as OpenSpec matches them.
             others = [(o, ol) for o, ol in places
-                      if o is not r and o.name != r.name
+                      if o is not r and not restates(r, o)
                       and not retires(corpus, r, o)]
             if others:
                 o, ol = others[0]
@@ -829,76 +847,6 @@ def judge_citation(m, base):
     if holds(base.line_count(found)) or holds(base.change_line_count(found)):
         return None
     return "check", f"{found}, the one file named {cited}, has no line {line}"
-
-
-def decisions_heading_ok(title, headings):
-    t = title.strip().strip("*").strip().lower()
-    return any(t.startswith(h.lower()) for h in headings)
-
-
-def check_decisions(change, corpus, headings, out):
-    path = f"openspec/changes/{change}/proposal.md"
-    if path not in corpus.texts:
-        out.append(Finding(path, 0, "error", "decisions-first", "the change has no proposal.md"))
-        return
-    for n, raw, fenced in markdown_lines(corpus.texts[path]):
-        m = None if fenced else HEADING.match(raw)
-        if not m or len(m.group(1)) < 2:
-            continue
-        if not decisions_heading_ok(m.group(2), headings):
-            names = " or ".join(f'"{h}"' for h in headings)
-            out.append(Finding(path, n, "error", "decisions-first",
-                               f'the proposal opens with "{m.group(2)}"; it must open with a '
-                               f"section headed {names}: the decisions the reviewer is asked to make, "
-                               "then what is still open"))
-        elif not has_decisions(corpus.texts[path], n, len(m.group(1))):
-            out.append(Finding(path, n, "error", "decisions-first",
-                               "the decisions section lists no decisions; list each as an item"))
-        return
-    out.append(Finding(path, 0, "error", "decisions-first", "the proposal has no sections"))
-
-
-DECISION_ITEM = re.compile(r"^(\d+[.)]|[-*])\s+")
-# What starts the "still open" part: "Still open", "Open questions", "Open
-# items", "Open issues" or "Open", as a whole label. It is bold, ends in a
-# colon, or is all the line says, so "Open issues close after ninety days" is a
-# decision, not the label.
-OPEN_LABEL = re.compile(
-    r"^([*_]{0,2})\s*(still\s+open|open\s+(?:questions?|items?|issues?)|open)(?![A-Za-z0-9])"
-    r"\s*([:?.]?)\s*([*_]{0,2})\s*([:?.]?)\s*(.*)$",
-    re.I)
-
-
-def is_open_label(text):
-    """Whether the text is the "still open" label: wrapped in emphasis (bold
-    or italic), followed by a colon, or all the text says ("Still open.")."""
-    m = OPEN_LABEL.match(text.strip())
-    if not m:
-        return False
-    wrapped = bool(m.group(1) and m.group(4))
-    colon = ":" in (m.group(3) + m.group(5))
-    return wrapped or colon or not m.group(6)
-
-
-def has_decisions(text, start, level):
-    """Whether the decisions section lists at least one decision. start is the
-    line number of the section's heading, and level is its depth. A decision
-    is a list item at the left margin that comes before the section ends and
-    before the "still open" label."""
-    for n, raw, fenced in markdown_lines(text):
-        if n <= start or fenced:  # a list item in a fence is quoted text
-            continue
-        h = HEADING.match(raw)
-        if h and (len(h.group(1)) <= level or is_open_label(h.group(2))):
-            return False
-        item = DECISION_ITEM.match(raw)
-        if item:
-            return not is_open_label(raw[item.end():])
-        # Only an unindented line can be the label; an indented line is part
-        # of the text above it.
-        if not raw[:1].isspace() and is_open_label(raw):
-            return False
-    return False
 
 
 # -- stacked changes -------------------------------------------------------------
@@ -1291,7 +1239,7 @@ class Scratch:
             p = os.path.join(home, name)
             if name == "specs" and os.path.isdir(p):
                 shutil.copytree(p, os.path.join(there, "specs"), ignore_dangling_symlinks=True)
-            elif os.path.isfile(p) and name != os.path.basename(DECISION_FILE):
+            elif os.path.isfile(p):
                 shutil.copyfile(p, os.path.join(there, name))
 
     def caps(self):
@@ -1658,7 +1606,7 @@ def build_stack(change, corpus, repo, base):
                                                complete, blocker, scratch)
         if complete:
             stack.settle(scratch, corpus)
-            stack.refusals = archive_own(change, corpus, Scratch(scratch.root, tmp))
+            stack.refusals = archive_own(change, corpus, Scratch(scratch.root, tmp), stacked=True)
     return stack, findings, complete
 
 
@@ -1674,11 +1622,13 @@ NO_OPERATIONS = re.compile(r"^Delta parsing found no operations for (\S+?)\. ")
 
 def refusal_place(said, files):
     """(capability or None, line, requirement name or None) of one refusal
-    of the stacked change's archive. The line is that of the requirement
+    of a change's own archive (archive_own). The line is that of the requirement
     the refusal is about, or 0 when it is about the capability's delta as a
-    whole. A refusal that a capability has no spec is about its first
-    rename or modification, which OpenSpec allows only on a spec that
-    exists, and which check_drift reports at that same line."""
+    whole. A refusal that a capability has no spec names no requirement.
+    It is placed at the delta's first rename or modification, since
+    OpenSpec allows those only on a spec that exists. For a stacked change,
+    check_drift reports an error at that line too, so run_checks drops the
+    refusal there."""
     m = REFUSAL.match(said)
     if m:
         # The CLI quotes the name unescaped, and a name may itself hold
@@ -1702,29 +1652,46 @@ def refusal_place(said, files):
     return cap, 0, None
 
 
-def archive_own(change, corpus, copy):
-    """[Finding] for the stacked change itself, archived verbatim with
-    `openspec archive` into copy, a copy of the scratch specs with its open
-    dependencies archived (DECISIONS.md, "The stacked change itself is
-    archived too"). Each refusal is
-    a drift error in the delta file of the capability it names, at the
-    requirement it is about or at line 0 (refusal_place), quoting the CLI.
-    copy is not the stack's base, so the duplicate and drift checks still
-    read the specs before the change is applied."""
+def archive_own(change, corpus, copy, stacked):
+    """[Finding] for the change itself, archived verbatim with `openspec
+    archive` into copy (DECISIONS.md, "Every change is archived into a
+    scratch copy"). For a stacked change, copy is a copy of the scratch
+    specs with its open dependencies archived; otherwise it is a copy of the
+    tree's specs. Each refusal is an archive error in the delta file of the
+    capability it names, at the requirement it is about or at line 0
+    (refusal_place), quoting the CLI. copy is never the stack's base, so the
+    duplicate and drift checks still read the specs before the change is
+    applied."""
     rels = change_deltas(corpus, change)
     files = {cap: corpus.texts[rel] for cap, rel in rels.items()}
-    if not files:
-        return []
     proposal = corpus.texts.get(f"openspec/changes/{change}/proposal.md")
     out = []
     for said in copy.archive_files(change, files, proposal):
         cap, line, name = refusal_place(said, files)
         rel = rels.get(cap) or next(iter(rels.values()))
         what = f'"{name}" in {cap}' if name else (cap or "this change")
-        out.append(Finding(rel, line, "error", "drift",
-                           f"{what}: `openspec archive` refuses this change on top of what it builds "
-                           f"on: {said.rstrip('.')}; write this change against what it builds on now"))
+        if stacked:
+            why = (f"`openspec archive` refuses this change on top of what it builds on: "
+                   f"{said.rstrip('.')}; write this change against what it builds on now")
+        else:
+            why = (f"`openspec archive` would refuse this change on the specs it is checked "
+                   f"against: {said.rstrip('.')}")
+        out.append(Finding(rel, line, "error", "archive", f"{what}: {why}"))
     return out
+
+
+def archive_alone(change, corpus):
+    """([Finding], status) for a change with no `Builds on:` line: the change
+    alone, archived into a scratch copy of the tree's specs (archive_own).
+    Without the OpenSpec CLI the status says the archive was not run."""
+    if openspec_exe() is None:
+        return [], NOT_ARCHIVED
+    with tempfile.TemporaryDirectory(prefix="spec-check-archive-") as tmp:
+        refusals = archive_own(change, corpus, Scratch(corpus.root, tmp), stacked=False)
+    return refusals, "refused" if refusals else "passed"
+
+
+NOT_ARCHIVED = "not run: the openspec CLI is not on PATH"
 
 
 def read_dep(repo, dep, corpus):
@@ -2104,30 +2071,26 @@ def resolve_targets(corpus, targets):
     return changes, specs
 
 
-def run_checks(root, repo, base_ref, targets, headings, validate, base_required=False, change=None):
+def run_checks(root, repo, base_ref, targets, validate, base_required=False, change=None):
     corpus = Corpus(root)
     changes, specs = resolve_targets(corpus, targets)
     base = Base(repo, base_ref, change)
     if not base.ok and base_required:
         raise Fatal(f"the base {base_ref!r} does not resolve to a commit")
-    findings, statuses = [], []
-    state, problem = read_decision(root) if change is None else tree_decision(repo, change)
-    if changes and state == UNDECIDED:
-        findings.append(Finding(DECISION_FILE, 0, "check", "decisions-first", UNDECIDED_NOTE))
-    elif changes and state == INVALID:
-        findings.append(Finding(DECISION_FILE, 0, "check", "decisions-first",
-                                f"{problem}; decisions-first was not checked"))
+    findings, statuses, archives = [], [], []
     stacks, declared = [], {}
     for change in changes:
         reqs = [r for rs in corpus.changes[change].values() for r in rs]
-        if state == ENFORCE:
-            check_decisions(change, corpus, headings, findings)
         check_scenarios(reqs, findings)
         stack, problems, complete = build_stack(change, corpus, repo, base)
         findings += problems
         if stack is None:
             check_duplicates(reqs, corpus, findings)
-        elif complete:
+            refusals, archived = archive_alone(change, corpus)
+            findings += refusals
+        elif not complete:
+            archived = NOT_ARCHIVED if openspec_exe() is None else "not run: see the stack error"
+        else:
             deps = {d.change for d in stack.deps}
             declared[change] = deps
             if stack.deps:
@@ -2140,6 +2103,8 @@ def run_checks(root, repo, base_ref, targets, headings, validate, base_required=
             said = {(f.path, f.line) for f in findings
                     if f.severity == "error" and f.kind == "drift"}
             findings += [f for f in stack.refusals if not f.line or (f.path, f.line) not in said]
+            archived = "refused" if stack.refusals else "passed"
+        archives.append((change, archived))
         check_citations(corpus.files_of(change), corpus, base, findings)
         if validate:
             v, status = run_validate(root, change)
@@ -2156,18 +2121,19 @@ def run_checks(root, repo, base_ref, targets, headings, validate, base_required=
             findings += v
             statuses.append(("openspec/specs", status))
     add_hints(repo, findings, declared)
-    return changes, specs, findings, statuses, state, stacks
+    return changes, specs, findings, statuses, archives, stacks
 
 
-def print_report(changes, specs, findings, statuses, state, stacks, base_ref, source, as_json):
+def print_report(changes, specs, findings, statuses, archives, stacks, base_ref, source, as_json):
     errors = sum(1 for f in findings if f.severity == "error")
     checks = len(findings) - errors
     if as_json:
         print(json.dumps({
             "source": source, "base": base_ref, "changes": changes, "specs": specs,
-            "errors": errors, "checks": checks, "decisions_first": state,
+            "errors": errors, "checks": checks,
             "findings": [f.as_dict() for f in findings],
             "openspec_validate": {k: v for k, v in statuses},
+            "openspec_archive": {k: v for k, v in archives},
             "builds_on": {c: [{"change": d.change, "repo": d.slug, "number": d.number,
                                "commit": d.tree} for d in deps] for c, deps in stacks},
         }, indent=2))
@@ -2180,6 +2146,8 @@ def print_report(changes, specs, findings, statuses, state, stacks, base_ref, so
         print(f"{change} builds on " + ", then ".join(
             f"{d.change} ({d.slug}#{d.number} at {d.tree[:12]})" for d in deps) +
             "; checked against main plus " + ("it" if len(deps) == 1 else "them"))
+    for what, status in archives:
+        print(f"openspec archive ({what}): {status}")
     for what, status in statuses:
         print(f"openspec validate --strict ({what}): {status}")
     if not statuses:
@@ -2193,14 +2161,13 @@ def print_report(changes, specs, findings, statuses, state, stacks, base_ref, so
 def cmd_check(args):
     repo = repo_root(args.repo)
     base_ref = args.base or default_base(repo)
-    headings = args.decisions_heading or DECISIONS_HEADINGS
     if args.ref:
         with tempfile.TemporaryDirectory(prefix="spec-check-") as tmp:
             materialize(repo, args.ref, tmp)
-            res = run_checks(tmp, repo, base_ref, args.targets, headings, not args.no_validate,
+            res = run_checks(tmp, repo, base_ref, args.targets, not args.no_validate,
                              bool(args.base), args.ref)
     else:
-        res = run_checks(repo, repo, base_ref, args.targets, headings, not args.no_validate,
+        res = run_checks(repo, repo, base_ref, args.targets, not args.no_validate,
                          bool(args.base))
     source = args.ref or "the working tree"
     errors = print_report(*res, base_ref, source, args.json)
@@ -2212,192 +2179,6 @@ def repo_root(path):
     if out.returncode != 0:
         raise Fatal(f"not in a git repository: {os.path.abspath(path or '.')}")
     return out.stdout.strip()
-
-
-# -- setup -----------------------------------------------------------------
-
-UNDECIDED_NOTE = (
-    "this repository has not decided on the decisions-first rule, so no proposal "
-    "was checked for it. Ask the user whether to enforce it (spec_check.py setup) "
-    f"or turn it off (spec_check.py setup --decline); the answer goes in {DECISION_FILE}, "
-    "so it is asked once per repository")
-
-
-def write_plain(path, text):
-    """Writes text to path as a new plain file. It is written under a fresh
-    random name beside path, then moved into place. A link at path is
-    replaced rather than written through, and since the temporary name is
-    new each time, no link can be waiting there either, as one could at a
-    fixed name committed to the repository."""
-    folder = os.path.dirname(path)
-    try:
-        fd, tmp = tempfile.mkstemp(dir=folder, prefix=".spec-check.", suffix=".tmp")
-    except OSError as e:
-        raise Fatal(f"cannot write in {folder}: {e.strerror}") from e
-    try:
-        umask = os.umask(0)
-        os.umask(umask)
-        os.fchmod(fd, 0o666 & ~umask)
-        with os.fdopen(fd, "w", encoding="utf-8", newline="") as fh:
-            fh.write(text)
-        os.replace(tmp, path)
-    except BaseException as e:
-        try:
-            os.unlink(tmp)
-        except OSError:
-            pass
-        if isinstance(e, OSError):
-            raise Fatal(f"cannot write {path}: {e.strerror}") from e
-        raise
-
-
-def read_decision(home):
-    """(state, problem) from home's openspec/spec-check.yaml on disk. A link
-    is refused rather than followed, as in a git tree."""
-    path = os.path.join(home, DECISION_FILE)
-    if not os.path.lexists(path):
-        return UNDECIDED, None
-    if os.path.islink(path):
-        return INVALID, f"{DECISION_FILE} is a symlink, not a plain file"
-    if not os.path.isfile(path):
-        return INVALID, f"{DECISION_FILE} is not a plain file"
-    try:
-        with open(path, "rb") as fh:
-            return parse_decision(fh.read())
-    except OSError as e:
-        return INVALID, f"{DECISION_FILE} cannot be read ({e.strerror})"
-
-
-def tree_decision(repo, treeish):
-    """(state, problem) from openspec/spec-check.yaml in a git tree, read
-    with git and never through a link: a link, a submodule or a directory is
-    a problem to report, not something to resolve."""
-    out = git(repo, "ls-tree", "-z", treeish, "--", DECISION_FILE, check=False)
-    entry = out.stdout.split("\0", 1)[0]
-    if out.returncode != 0 or not entry.endswith("\t" + DECISION_FILE):
-        return UNDECIDED, None
-    mode, kind, sha = entry.split("\t", 1)[0].split(" ")
-    if mode == "120000":
-        return INVALID, f"{DECISION_FILE} is a symlink, not a plain file"
-    if kind != "blob":
-        what = "a submodule" if kind == "commit" else "a directory"
-        return INVALID, f"{DECISION_FILE} is {what}, not a plain file"
-    return parse_decision(git(repo, "cat-file", "blob", sha, binary=True).stdout)
-
-
-def parse_decision(data):
-    """(state, problem) from the decision file's bytes."""
-    try:
-        lines = [l.strip() for l in data.decode("utf-8").splitlines() if l.strip()]
-    except UnicodeDecodeError:
-        lines = []
-    m = DECISION_LINE.match(lines[0]) if len(lines) == 1 else None
-    if m:
-        return m.group(1), None
-    return INVALID, (f"{DECISION_FILE} must hold one line, `decisions-first: enforce` "
-                     "or `decisions-first: off`")
-
-
-def cmd_setup(args):
-    # The repository's top, as check, sign and the commit hook read it.
-    home = repo_root(args.repo)
-    if not os.path.isdir(os.path.join(home, "openspec")):
-        raise Fatal(f"no openspec/ in {home}; run `openspec init` first")
-    value = OFF if args.decline else ENFORCE
-    path = os.path.join(home, DECISION_FILE)
-    if os.path.isdir(path) and not os.path.islink(path):
-        raise Fatal(f"{path} is a directory; remove it, then run setup again")
-    line = f"decisions-first: {value}\n"
-    if read_decision(home)[0] == value:
-        print(f"spec-check setup: {DECISION_FILE} already says `{line.strip()}`")
-        return 0
-    if args.dry_run:
-        sys.stdout.write(f"--- {DECISION_FILE}\n{line}")
-        print(f"spec-check setup: would record `{line.strip()}` in {DECISION_FILE}")
-        return 0
-    write_plain(path, line)
-    print(f"spec-check setup: recorded `{line.strip()}` in {DECISION_FILE}. "
-          "Commit it, so nobody's agent asks again.")
-    if value == ENFORCE:
-        print("spec-check setup: to show the rule to agents drafting a proposal, add it to "
-              "OpenSpec's config under rules: proposal: (optional; `check` enforces it "
-              "either way). spec-check's SKILL.md, \"Setting up a repository\", has the lines.")
-    return 0
-
-
-def cmd_state(args):
-    state, problem = read_decision(repo_root(args.repo))
-    print(state)
-    if problem:
-        print(problem, file=sys.stderr)
-    return 0
-
-
-# -- the proposal hook ---------------------------------------------------------
-
-# A proposal, under an openspec/ directory at any depth; archived changes
-# (openspec/changes/archive/<name>/) have one more level, so they never match.
-# Wherever the proposal is, the decision read is the repository top's.
-PROPOSAL_PATH = re.compile(r"/openspec/changes/[^/]+/proposal\.md$")
-
-
-def proposal_hook_message(payload):
-    """What the proposal hook tells the agent, or None to stay silent.
-
-    payload is a PostToolUse hook's input, from Claude Code or Cursor. The
-    path is tool_input's file_path (Claude Code), or path or target_file:
-    Cursor does not document its Write tool's input, so all three are read."""
-    if not isinstance(payload, dict):
-        return None
-    tool_input = payload.get("tool_input")
-    found = []
-    if isinstance(tool_input, dict):
-        found += [tool_input.get(k) for k in ("file_path", "path", "target_file")]
-    path = next((p for p in found if isinstance(p, str) and p), None)
-    if path is None:
-        return None
-    if not os.path.isabs(path):
-        cwd = payload.get("cwd")
-        if not isinstance(cwd, str) or not os.path.isabs(cwd):
-            return None
-        path = os.path.join(cwd, path)
-    path = os.path.normpath(path).replace(os.sep, "/")
-    m = PROPOSAL_PATH.search(path)
-    if not m:
-        return None
-    out = subprocess.run(["git", "-C", path[:m.start()] or "/", "rev-parse", "--show-toplevel"],
-                         capture_output=True, text=True, timeout=5)
-    top = out.stdout.strip()
-    # check, sign and the commit hook read only the top's openspec/, so a
-    # proposal under a nested one is judged by the top's decision. When the
-    # top has no openspec/, the hook says nothing.
-    if (out.returncode != 0 or not top or not os.path.isdir(os.path.join(top, "openspec"))
-            or read_decision(top)[0] != UNDECIDED):
-        return None
-    script = os.path.abspath(__file__)
-    run = f"python3 {shlex.quote(script)} setup --repo {shlex.quote(top)}"
-    return ("This repository has not decided on spec-check's decisions-first rule. "
-            f"Before finishing this proposal, ask the user whether to enforce it (`{run}`) "
-            f"or turn it off (`{run} --decline`), then follow spec-check's SKILL.md, "
-            "\"Setting up a repository\".")
-
-
-def cmd_proposal_hook(args):
-    """Never blocks and fails open: any error means silence."""
-    try:
-        message = proposal_hook_message(json.loads(sys.stdin.read()))
-    except Exception:  # noqa: BLE001 - a hook that crashes must stay quiet
-        return 0
-    if not message:
-        return 0
-    if args.host == "claude":
-        print(json.dumps({"hookSpecificOutput": {"hookEventName": "PostToolUse",
-                                                 "additionalContext": message}}))
-    elif args.host == "cursor":
-        print(json.dumps({"additional_context": message}))
-    else:
-        print(message, file=sys.stderr)
-    return 0
 
 
 # -- the trailer -----------------------------------------------------------
@@ -2431,7 +2212,6 @@ def cmd_sign(args):
         return 1
     tree = git(repo, "write-tree").stdout.strip()
     base_ref = args.base or default_base(repo)
-    headings = args.decisions_heading or DECISIONS_HEADINGS
     with tempfile.TemporaryDirectory(prefix="spec-check-") as tmp:
         materialize(repo, tree, tmp, allow_empty=True)
         staged = Corpus(tmp)
@@ -2441,7 +2221,7 @@ def cmd_sign(args):
             # Only deletions or archive moves: nothing open is left to check.
             print(f"{KEY}: \u2713 {tree[:12]} no open change or spec staged")
             return 0
-        res = run_checks(tmp, repo, base_ref, targets, headings, not args.no_validate,
+        res = run_checks(tmp, repo, base_ref, targets, not args.no_validate,
                          bool(args.base), tree)
     errors = print_report(*res, base_ref, "the staged tree", False)
     if errors:
@@ -2517,37 +2297,17 @@ def main(argv=None):
     c.add_argument("--repo")
     c.add_argument("--ref", help="read openspec/ from this git ref, not the working tree")
     c.add_argument("--base", help="the ref citations are checked against (default: origin/HEAD, origin/main, main)")
-    c.add_argument("--decisions-heading", action="append",
-                   help="a heading the proposal may open with (repeatable; matched as a prefix)")
     c.add_argument("--no-validate", action="store_true")
     c.add_argument("--json", action="store_true")
     c.set_defaults(fn=cmd_check)
-
-    s = sub.add_parser("setup", help=f"record in {DECISION_FILE} that this repository enforces "
-                                     "the decisions-first rule, or with --decline that it does not")
-    s.add_argument("--repo", help="a directory in the repository (default: the working directory)")
-    s.add_argument("--decline", action="store_true",
-                   help="record that this repository does not enforce the rule")
-    s.add_argument("--dry-run", action="store_true")
-    s.set_defaults(fn=cmd_setup)
-
-    st = sub.add_parser("state", help="print enforce, off, undecided or invalid: what "
-                                      f"{DECISION_FILE} says about the decisions-first rule")
-    st.add_argument("--repo", help="a directory in the repository (default: the working directory)")
-    st.set_defaults(fn=cmd_state)
-
-    ph = sub.add_parser("proposal-hook", help="the hook run after a file is written")
-    ph.add_argument("--host", default="")
-    ph.set_defaults(fn=cmd_proposal_hook)
 
     g = sub.add_parser("sign", help="check the staged openspec change and print the trailer")
     g.add_argument("--read", required=True, choices=["subagent", "self"],
                    help="who did the consistency read")
     g.add_argument("--amended", type=int, default=0, help="amendments the read led to")
-    g.add_argument("--open", type=int, default=0, help="open questions left in the proposal")
+    g.add_argument("--open", type=int, default=0, help="open questions left in design.md")
     g.add_argument("--repo")
     g.add_argument("--base")
-    g.add_argument("--decisions-heading", action="append")
     g.add_argument("--no-validate", action="store_true")
     g.set_defaults(fn=cmd_sign)
 

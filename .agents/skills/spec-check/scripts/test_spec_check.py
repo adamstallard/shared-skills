@@ -24,7 +24,6 @@ from unittest import mock
 HERE = pathlib.Path(__file__).resolve().parent
 SCRIPT = HERE / "spec_check.py"
 HOOK = HERE / "check-commit-trailer.sh"
-PROPOSAL_HOOK = HERE / "proposal-hook.sh"
 SKILLS_PY = HERE.parent.parent / "manage-skills" / "scripts" / "skills.py"
 VERIFY = HERE / "verify-staged.sh"
 SKILLS = HERE.parent.parent
@@ -61,13 +60,7 @@ The store SHALL keep every record it is given for at least thirty days after the
 - **THEN** it can be read for thirty days
 """
 
-GOOD_PROPOSAL = """## Decisions
-
-1. **Records expire.** *Rejected:* keeping them forever.
-
-**Still open:** nothing.
-
-## Why
+GOOD_PROPOSAL = """## Why
 
 Records pile up (`src/app.py:5`).
 
@@ -101,18 +94,14 @@ TASKS = "## 1. Build\n\n- [ ] 1.1 Expire records\n"
 
 
 class Repo:
-    """A throwaway repository with one main spec and a ten-line source file.
-    It enforces the decisions-first rule unless the test passes another
-    decision, or None for a repository that has not decided."""
+    """A throwaway repository with one main spec and a ten-line source file."""
 
-    def __init__(self, test, decision="enforce"):
+    def __init__(self, test):
         self.path = pathlib.Path(tempfile.mkdtemp(prefix="spec-check-test-")).resolve()
         test.addCleanup(shutil.rmtree, self.path, ignore_errors=True)
         self.git("init", "-q", "-b", "main")
         self.git("config", "commit.gpgsign", "false")
         self.write("openspec/config.yaml", "schema: spec-driven\n")
-        if decision is not None:
-            self.write("openspec/spec-check.yaml", f"decisions-first: {decision}\n")
         self.write("openspec/specs/cap/spec.md", MAIN_SPEC)
         self.write("src/app.py", "".join(f"line{i}\n" for i in range(1, 11)))
         self.git("add", "-A")
@@ -180,7 +169,7 @@ class CheckTests(unittest.TestCase):
         self.assertIn("has no WHEN or THEN", r.stdout)
 
     def test_a_removed_requirement_needs_no_scenario(self):
-        self.repo.change("x", delta=GOOD_DELTA + "\n## REMOVED Requirements\n\n### Requirement: Old\n\n"
+        self.repo.change("x", delta=GOOD_DELTA + "\n## REMOVED Requirements\n\n### Requirement: Records are kept\n\n"
                                                  "**Reason**: gone. The store MUST NOT do it.\n")
         self.assertEqual(kinds(self.repo.check("x")), [])
 
@@ -236,50 +225,15 @@ class CheckTests(unittest.TestCase):
         self.repo.change("x", proposal=GOOD_PROPOSAL + "\nSee http://example.com:8080 and example.com:443.\n")
         self.assertEqual(kinds(self.repo.check("x")), [])
 
-    def test_a_proposal_without_a_decisions_section_fails(self):
-        self.repo.change("x", proposal=GOOD_PROPOSAL.split("## Why", 1)[1].join(["## Why", ""]))
-        r = self.repo.check("x")
-        self.assertEqual(r.returncode, 1)
-        self.assertEqual(kinds(r), ["decisions-first"])
-        self.assertIn('opens with "Why"', r.stdout)
-
-    def test_a_decision_with_no_rejected_alternative_passes(self):
-        self.repo.change("x", proposal=GOOD_PROPOSAL.replace(
-            "1. **Records expire.** *Rejected:* keeping them forever.",
-            "1. **Expiry runs nightly.**\n   Once a day is enough."))
-        r = self.repo.check("x")
-        self.assertEqual(r.returncode, 0, r.stdout)
-        self.assertEqual(kinds(r), [])
-
-    def test_a_still_open_list_passes(self):
-        self.repo.change("x", proposal=GOOD_PROPOSAL.replace(
-            "**Still open:** nothing.", "**Still open:**\n\n- Whether ninety days is right."))
-        self.assertEqual(kinds(self.repo.check("x")), [])
-
-    def test_a_decisions_section_with_no_decisions_fails(self):
-        self.repo.change("x", proposal=GOOD_PROPOSAL.replace(
-            "1. **Records expire.** *Rejected:* keeping them forever.\n", "None yet.\n"))
-        self.assertEqual(kinds(self.repo.check("x")), ["decisions-first"])
-
-    def test_the_decisions_heading_is_configurable(self):
-        self.repo.change("x", proposal=GOOD_PROPOSAL.replace("## Decisions", "## Choices for you"))
-        self.assertEqual(kinds(self.repo.check("x")), ["decisions-first"])
-        r = self.repo.check("x", "--decisions-heading", "Choices")
-        self.assertEqual(kinds(r), [])
-
-    def test_a_longer_decisions_heading_matches(self):
-        self.repo.change("x", proposal=GOOD_PROPOSAL.replace("## Decisions", "## Decisions for the reviewer"))
-        self.assertEqual(kinds(self.repo.check("x")), [])
-
     def test_a_branch_is_checked_without_checking_it_out(self):
         self.repo.git("checkout", "-q", "-b", "spec/x")
-        self.repo.change("x", proposal=GOOD_PROPOSAL.replace("## Decisions", "## Why not"))
+        self.repo.change("x", proposal=GOOD_PROPOSAL.replace("src/app.py:5", "src/gone.py:5"))
         self.repo.git("add", "-A")
         self.repo.git("commit", "-q", "-m", "spec")
         self.repo.git("checkout", "-q", "main")
         self.assertFalse((self.repo.path / "openspec/changes/x").exists())
         r = self.repo.check("--ref", "spec/x", "x")
-        self.assertEqual(kinds(r), ["decisions-first"])
+        self.assertEqual(kinds(r), ["citation"])
         self.assertIn("read from spec/x", r.stdout)
 
     def test_an_unknown_change_cannot_run(self):
@@ -321,6 +275,203 @@ class CheckTests(unittest.TestCase):
         self.assertEqual(r.returncode, 1)
 
 
+def added_req(name, body, cap_scenario="s"):
+    return (f"## ADDED Requirements\n\n### Requirement: {name}\n\n{body}\n\n"
+            f"#### Scenario: {cap_scenario}\n\n- **WHEN** w\n- **THEN** t\n")
+
+
+MAIN_RULE = "The store SHALL keep every record it is given for at least thirty days after the last read."
+
+
+class ArchiveRefusalTests(unittest.TestCase):
+    """A change with no `Builds on:` line is archived alone, by the real
+    `openspec archive`, into a scratch copy of the tree's specs, and each
+    refusal is an archive error (issue #37, item 4)."""
+
+    DELTA = "openspec/changes/x/specs/cap/spec.md"
+
+    def setUp(self):
+        if not HAS_OPENSPEC:
+            self.skipTest("openspec CLI not on PATH")
+        self.repo = Repo(self)
+
+    def refused(self, r, name, quote):
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        hits = [l for l in errors(r) if "[archive]" in l]
+        self.assertEqual(len(hits), 1, r.stdout)
+        self.assertTrue(hits[0].startswith(self.DELTA + ":"), hits[0])
+        self.assertIn(f'"{name}" in cap', hits[0])
+        self.assertIn(quote, hits[0])
+        self.assertIn("openspec archive (x): refused", r.stdout)
+        return hits[0]
+
+    def test_an_added_name_main_already_has_is_an_error(self):
+        self.repo.change("x", delta=added_req("Records are kept", "The store SHALL keep records for a year."))
+        line = self.refused(self.repo.check("x"), "Records are kept", "already exists")
+        self.assertTrue(line.startswith(self.DELTA + ":3:"), line)  # the ADDED header
+
+    def test_a_rename_onto_a_taken_name_is_an_error(self):
+        self.repo.write("openspec/specs/cap/spec.md", MAIN_SPEC + "\n### Requirement: Records expire\n\n"
+                        "The store SHALL delete a record ninety days after its last read.\n\n"
+                        "#### Scenario: An old record goes\n\n- **WHEN** w\n- **THEN** t\n")
+        self.repo.change("x", delta="## RENAMED Requirements\n\n- FROM: `### Requirement: Records are kept`\n"
+                                    "- TO: `### Requirement: Records expire`\n")
+        self.refused(self.repo.check("x"), "Records expire", "target already exists")
+
+    def test_a_modification_that_drops_a_scenario_is_an_error(self):
+        self.repo.change("x", delta="## MODIFIED Requirements\n\n### Requirement: Records are kept\n\n"
+                                    "The store SHALL keep every record for a year.\n\n"
+                                    "#### Scenario: A year passes\n\n- **WHEN** a year passes\n"
+                                    "- **THEN** the record is still there\n")
+        self.refused(self.repo.check("x"), "Records are kept",
+                     "current spec contains scenario(s) not present in the modified block")
+
+    def test_a_change_that_fits_passes_and_says_so(self):
+        self.repo.change("x")
+        r = self.repo.check("x")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("openspec archive (x): passed", r.stdout)
+        self.assertEqual(json.loads(self.repo.check("x", "--json").stdout)["openspec_archive"],
+                         {"x": "passed"})
+
+    def test_each_change_is_archived_alone(self):
+        # Two open changes add the same name. Either fits main alone; together
+        # they would not, but only the checked change is archived.
+        self.repo.change("x", delta=added_req("Audit trail", "Every change SHALL be written to the audit log."))
+        self.repo.change("y", delta=added_req("Audit trail", "Every read SHALL be written to the access log."))
+        r = self.repo.check()
+        self.assertNotIn("[archive]", r.stdout)
+        self.assertIn("openspec archive (x): passed", r.stdout)
+        self.assertIn("openspec archive (y): passed", r.stdout)
+
+    def test_the_tree_is_left_alone(self):
+        self.repo.change("x")
+        self.repo.check("x")
+        self.assertEqual(self.repo.git("status", "--porcelain"),
+                         "?? openspec/changes/")
+        self.assertEqual((self.repo.path / "openspec/specs/cap/spec.md").read_text(), MAIN_SPEC)
+
+
+class ArchiveWithoutTheCliTests(unittest.TestCase):
+    def test_without_the_cli_the_archive_is_not_run(self):
+        repo = Repo(self)
+        repo.change("x", delta=added_req("Records are kept", "The store SHALL keep records for a year."))
+        bin_dir = repo.path.parent / f"{repo.path.name}-bin"
+        bin_dir.mkdir()
+        self.addCleanup(shutil.rmtree, bin_dir, ignore_errors=True)
+        (bin_dir / "git").symlink_to(shutil.which("git"))
+        r = repo.check("x", env=dict(ENV, PATH=str(bin_dir)))
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("openspec archive (x): not run: the openspec CLI is not on PATH", r.stdout)
+        self.assertNotIn("[archive]", r.stdout)
+
+
+class SameNameDuplicateTests(unittest.TestCase):
+    """A same-name pair may share sentences only when one of the two is a
+    MODIFIED requirement in the other's capability (issue #37, item 4)."""
+
+    def setUp(self):
+        self.repo = Repo(self)
+
+    def test_an_added_requirement_repeating_main_under_its_name_is_a_duplicate(self):
+        self.repo.change("x", delta=added_req("Records are kept", MAIN_RULE))
+        r = self.repo.check("x")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("duplicate", kinds(r))
+        self.assertIn('also stated in "Records are kept" at openspec/specs/cap/spec.md:11', r.stdout)
+
+    def test_the_same_name_in_another_capability_is_a_duplicate(self):
+        self.repo.change("x", delta=added_req("Records are kept", MAIN_RULE), cap="archive-store")
+        r = self.repo.check("x")
+        self.assertEqual(kinds(r), ["duplicate"], r.stdout)
+
+    def test_a_modification_in_another_capability_is_a_duplicate(self):
+        self.repo.change("x", delta=MAIN_SPEC.split("## Requirements\n", 1)[1]
+                         .join(["## MODIFIED Requirements\n", ""]), cap="archive-store")
+        self.assertIn("duplicate", kinds(self.repo.check("x")))
+
+    def test_two_changes_modifying_one_requirement_are_not_duplicates(self):
+        for name in ("x", "y"):
+            self.repo.change(name, delta=MAIN_SPEC.split("## Requirements\n", 1)[1]
+                             .join(["## MODIFIED Requirements\n", ""]))
+        self.assertEqual(kinds(self.repo.check()), [])
+
+    def test_the_main_spec_is_not_a_duplicate_of_an_open_modification(self):
+        self.repo.change("x", delta=MAIN_SPEC.split("## Requirements\n", 1)[1]
+                         .join(["## MODIFIED Requirements\n", ""]))
+        self.assertEqual(kinds(self.repo.check("specs")), [])
+
+
+class FoundByBugHunterGapTests(unittest.TestCase):
+    """Regressions found by bug-hunter's run over the issue #37 changes."""
+
+    def setUp(self):
+        self.repo = Repo(self)
+
+    def test_a_moved_requirement_quoted_in_its_removal_is_not_a_duplicate(self):
+        self.repo.change("x", delta="## REMOVED Requirements\n\n### Requirement: Records are kept\n\n"
+                                    "**Reason**: moved to retention.\n\n" + MAIN_RULE + "\n")
+        self.repo.write("openspec/changes/x/specs/retention/spec.md",
+                        added_req("Records are kept", MAIN_RULE))
+        self.assertNotIn("duplicate", kinds(self.repo.check("x")))
+
+    def test_deltas_outside_a_capability_directory_have_no_capability(self):
+        # OpenSpec archives only specs/<capability>/spec.md, so a delta
+        # straight under specs/ belongs to no capability, and two of them
+        # cannot restate each other.
+        rule = ("### Requirement: Loose rule\n\nEvery export SHALL name the seat that asked for it, "
+                "in the export's first line.\n\n#### Scenario: s\n\n- **WHEN** w\n- **THEN** t\n")
+        for name in ("x", "y"):
+            self.repo.change(name, delta="## MODIFIED Requirements\n\n" + rule)
+            os.rename(self.repo.path / f"openspec/changes/{name}/specs/cap/spec.md",
+                      self.repo.path / f"openspec/changes/{name}/specs/spec.md")
+        self.assertIn("duplicate", kinds(self.repo.check("x")))
+
+    def test_lines_after_a_stray_heading_leave_the_scenario_above_it(self):
+        self.repo.change("x", delta="## ADDED Requirements\n\n### Requirement: Records expire\n\n"
+                                    "The store SHALL delete a record ninety days after its last read.\n\n"
+                                    "#### Scenario: An old record goes\n\n- **WHEN** a record has not been read\n\n"
+                                    "### Notes\n\n- **THEN** it is deleted\n")
+        self.assertEqual(sorted(kinds(self.repo.check("x"))), ["scenario-incomplete", "stray-heading"])
+
+
+class StrayHeadingTests(unittest.TestCase):
+    """A `###` heading inside a requirement that is neither a requirement
+    nor a scenario is reported by name, not as a missing scenario (issue
+    #37, item 4)."""
+
+    def setUp(self):
+        self.repo = Repo(self)
+
+    STRAY = ("## ADDED Requirements\n\n### Requirement: Records expire\n\n"
+             "The store SHALL delete a record ninety days after its last read.\n\n"
+             "### Retention details\n\nNinety days, counted from the last read.\n\n"
+             "#### Scenario: An old record goes\n\n- **WHEN** a record has not been read\n"
+             "- **THEN** it is deleted\n")
+
+    def test_a_stray_heading_is_named_at_its_line(self):
+        self.repo.change("x", delta=self.STRAY)
+        r = self.repo.check("x")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertEqual(kinds(r), ["stray-heading"], r.stdout)
+        self.assertIn('openspec/changes/x/specs/cap/spec.md:7: error [stray-heading] '
+                      '"### Retention details" inside requirement "Records expire"', r.stdout)
+
+    def test_a_stray_heading_before_any_scenario_is_not_no_scenario(self):
+        self.repo.change("x", delta=self.STRAY)
+        self.assertNotIn("no-scenario", kinds(self.repo.check("x")))
+
+    def test_a_stray_heading_in_a_main_spec_is_reported(self):
+        self.repo.write("openspec/specs/cap/spec.md", MAIN_SPEC.replace(
+            "#### Scenario: A record survives", "### Retention details\n\nThirty days.\n\n"
+            "#### Scenario: A record survives"))
+        self.assertEqual(kinds(self.repo.check("specs")), ["stray-heading"])
+
+    def test_a_heading_after_the_requirements_section_is_not_stray(self):
+        self.repo.change("x", delta=GOOD_DELTA + "\n## Notes\n\n### Background\n\nWhy.\n")
+        self.assertEqual(kinds(self.repo.check("x")), [])
+
+
 class FoundByBugHunterTests(unittest.TestCase):
     """Regressions found by bug-hunter's first pass over this skill."""
 
@@ -347,12 +498,6 @@ class FoundByBugHunterTests(unittest.TestCase):
         self.repo.change("x", delta="## ADDED Requirements\n" + restated +
                          "\n## REMOVED Requirements\n\n### Requirement: Records are kept\n\n"
                          "**Reason**: replaced.\n")
-        self.assertEqual(kinds(self.repo.check("x")), [])
-
-    def test_a_decision_starting_with_open_is_a_decision(self):
-        self.repo.change("x", proposal=GOOD_PROPOSAL.replace(
-            "1. **Records expire.** *Rejected:* keeping them forever.",
-            "- **Open registration to everyone.** *Rejected:* invite-only."))
         self.assertEqual(kinds(self.repo.check("x")), [])
 
     def test_a_repository_with_no_commits_can_be_checked_and_signed(self):
@@ -409,16 +554,6 @@ class FoundByBugHunterIteration2Tests(unittest.TestCase):
                         .replace("Records are kept", "Records are retained"))
         self.assertEqual(kinds(self.repo.check("x")), [])
 
-    def test_a_still_open_list_item_ends_the_decisions(self):
-        self.repo.change("x", proposal=GOOD_PROPOSAL.replace(
-            "1. **Records expire.** *Rejected:* keeping them forever.\n\n**Still open:** nothing.\n", "- **Still open:** whether archived records expire too.\n"))
-        self.assertEqual(kinds(self.repo.check("x")), ["decisions-first"])
-
-    def test_open_items_end_the_decisions(self):
-        self.repo.change("x", proposal=GOOD_PROPOSAL.replace(
-            "1. **Records expire.** *Rejected:* keeping them forever.\n\n**Still open:** nothing.\n", "**Open items:**\n\n- Whether archived records expire too.\n"))
-        self.assertEqual(kinds(self.repo.check("x")), ["decisions-first"])
-
     def test_check_on_a_ref_without_openspec_cannot_run(self):
         self.repo.git("checkout", "-q", "-b", "nospec")
         self.repo.git("rm", "-rq", "openspec")
@@ -458,12 +593,6 @@ class FoundByBugHunterIteration3Tests(unittest.TestCase):
         r = self.repo.check("x")
         self.assertEqual(r.returncode, 0, r.stdout)
 
-    def test_a_decision_about_open_issues_is_a_decision(self):
-        self.repo.change("x", proposal=GOOD_PROPOSAL.replace(
-            "1. **Records expire.** *Rejected:* keeping them forever.",
-            "1. **Open issues close after ninety days.** *Rejected:* never closing them."))
-        self.assertEqual(kinds(self.repo.check("x")), [])
-
     @unittest.skipUnless(HAS_OPENSPEC, "openspec CLI not on PATH")
     def test_sign_a_commit_that_deletes_openspec_runs_no_validation(self):
         self.repo.git("rm", "-rq", "openspec")
@@ -473,38 +602,21 @@ class FoundByBugHunterIteration3Tests(unittest.TestCase):
 
 
 class FoundByScopedRunTests(unittest.TestCase):
-    """Fences inside the decisions section, the "still open" label's styles,
-    quoted stack traces and image names, and citations of files the change
-    adds. bug-hunter found each of these."""
+    """Fences inside a list, quoted stack traces and image names, and
+    citations of files the change adds. bug-hunter found each of these."""
 
     def setUp(self):
         self.repo = Repo(self)
 
-    def proposal(self, decisions):
-        return GOOD_PROPOSAL.replace(
-            "1. **Records expire.** *Rejected:* keeping them forever.\n\n**Still open:** nothing.\n",
-            decisions)
+    def proposal(self, items):
+        return GOOD_PROPOSAL.replace("- Records expire.\n", items)
 
-    def test_a_fence_in_the_decisions_does_not_end_them(self):
+    def test_a_fence_in_a_list_does_not_end_it(self):
         self.repo.change("x", proposal=self.proposal(
             "1. **Purge nightly.** *Rejected:* purging on read. The job:\n\n"
             "```sh\n# nightly purge\npurge --older-than 90d\n```\n\n"
             "2. **Purged records are deleted** (`src/purge.py:3`).\n"))
         self.assertEqual(kinds(self.repo.check("x")), ["citation"])
-
-    def test_a_list_item_in_a_fence_is_not_a_decision(self):
-        self.repo.change("x", proposal=self.proposal(
-            "The config, for reference:\n\n"
-            "```yaml\n- name: primary\n  pool: 10\n```\n"))
-        self.assertEqual(kinds(self.repo.check("x")), ["decisions-first"])
-
-    def test_still_open_labels_in_other_styles_end_the_decisions(self):
-        for label in ("*Still open:*", "_Still open:_", "### *Still open*",
-                      "**Open questions?**", "Still open."):
-            with self.subTest(label=label):
-                self.repo.change("x", proposal=self.proposal(
-                    f"{label}\n\n- Whether archived records expire too.\n"))
-                self.assertEqual(kinds(self.repo.check("x")), ["decisions-first"])
 
     def test_a_quoted_stack_trace_is_not_a_citation(self):
         self.repo.change("x", proposal=GOOD_PROPOSAL.replace("## What Changes", (
@@ -523,7 +635,7 @@ class FoundByScopedRunTests(unittest.TestCase):
 
 class FoundByScopedRunIteration2Tests(unittest.TestCase):
     """Citations of files or lines the change adds, nested and tilde fences,
-    underscore-wrapped labels, and dot directories read as hosts.
+    and dot directories, such as `.ai/`, read as hosts.
     bug-hunter found each of these."""
 
     def setUp(self):
@@ -546,22 +658,15 @@ class FoundByScopedRunIteration2Tests(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertIn("check [citation]", r.stdout)
 
-    def test_a_fence_inside_a_longer_fence_does_not_end_the_decisions(self):
+    def test_a_fence_inside_a_longer_fence_does_not_end_the_list(self):
         for outer in ("~~~", "````"):
             with self.subTest(outer=outer):
                 self.repo.change("x", proposal=GOOD_PROPOSAL.replace(
-                    "1. **Records expire.** *Rejected:* keeping them forever.\n",
+                    "- Records expire.\n",
                     "1. **Ship the snippet.** *Rejected:* linking out.\n\n"
                     f"{outer}markdown\nRun it:\n```\n# build everything\nmake\n```\n{outer}\n\n"
                     "2. **Snippets are tested** (`src/snippets.py:3`).\n"))
                 self.assertEqual(kinds(self.repo.check("x")), ["citation"])
-
-    def test_an_underscore_wrapped_label_ends_the_decisions(self):
-        for label in ("__Still open__", "_Open questions_", "### _Still open_"):
-            with self.subTest(label=label):
-                self.repo.change("x", proposal=GOOD_PROPOSAL.replace(
-                    "1. **Records expire.** *Rejected:* keeping them forever.\n\n**Still open:** nothing.\n", f"{label}\n\n- Whether archived records expire too.\n"))
-                self.assertEqual(kinds(self.repo.check("x")), ["decisions-first"])
 
     def test_a_dot_directory_is_not_a_host(self):
         self.repo.write(".ai/rules.md", "one\ntwo\n")
@@ -584,7 +689,7 @@ class CitationRuleTests(unittest.TestCase):
 
     def test_a_fence_in_a_nested_list_item_is_a_fence(self):
         self.repo.change("x", proposal=GOOD_PROPOSAL.replace(
-            "1. **Records expire.** *Rejected:* keeping them forever.\n",
+            "- Records expire.\n",
             "1. **Records expire.** *Rejected:* keeping them forever. Today:\n\n"
             "    - The trace we see:\n\n"
             "        ```\n"
@@ -631,9 +736,9 @@ class FencesAndLinksTests(unittest.TestCase):
             "    at src/app/handler.ts:812:5\n```\nafter"))
         self.assertEqual(kinds(self.repo.check("x")), [])
 
-    def test_fences_straight_after_decisions_hide_nothing(self):
+    def test_fences_straight_after_list_items_hide_nothing(self):
         self.repo.change("x", proposal=GOOD_PROPOSAL.replace(
-            "1. **Records expire.** *Rejected:* keeping them forever.\n",
+            "- Records expire.\n",
             "1. Store the policy as YAML. *Rejected:* JSON. The file reads:\n"
             "```yaml\n- name: web\n  retries: 1\n```\n"
             "2. Install the hook with a script. *Rejected:* manual steps.\n"
@@ -687,7 +792,7 @@ class QuotesAndSubmodulesTests(unittest.TestCase):
 
     def test_a_prompt_line_inside_a_list_item_fence_stays_in_the_fence(self):
         self.repo.change("x", proposal=GOOD_PROPOSAL.replace(
-            "1. **Records expire.** *Rejected:* keeping them forever.\n",
+            "- Records expire.\n",
             "1. Parse dates with `parseDate`. *Rejected:* a regular expression. In the REPL:\n"
             "   ```\n   > parseDate(\"2024-02-29\")\n   Uncaught RangeError\n"
             "       at parseDate (app/dates.js:212:5)\n   ```\n"
@@ -757,6 +862,7 @@ class TrailerTests(unittest.TestCase):
         self.assertIn("A person who does not want this check can turn it off:", r.stderr)
         self.assertIn("skills.py disable-hook spec-check", r.stderr)
         self.assertNotIn("spec_check.py sign", r.stderr)
+        self.assertNotIn("set up spec-check", r.stderr)
 
     def test_both_kinds_in_one_report_name_the_repository_and_are_separate_paragraphs(self):
         # One batch can hold a commit with no trailer and another whose
@@ -783,41 +889,17 @@ class TrailerTests(unittest.TestCase):
         self.assertIn("There is a Spec-check: line in there, but git does not read it as a trailer.",
                       r.stderr)
 
-    def test_an_undecided_repository_gets_one_more_line(self):
-        self.stage_change()
-        self.repo.git("commit", "-q", "-m", "Add a spec")
-        self.assertNotIn("ask your agent to set up spec-check", self.hook().stderr)
-        self.repo.git("rm", "-q", "openspec/spec-check.yaml")
-        self.repo.git("commit", "-q", "-m", "Undecide")
-        r = self.hook()
-        self.assertEqual(r.returncode, 2)
-        self.assertEqual(r.stderr.count("ask your agent to set up spec-check in this repository"), 1)
-
-    def test_a_commit_removing_openspec_does_not_ask_for_setup(self):
-        self.repo.git("rm", "-rq", "openspec")
-        self.repo.git("commit", "-q", "-m", "Drop OpenSpec")
-        r = self.hook()
-        self.assertEqual(r.returncode, 2)
-        self.assertNotIn("ask your agent to set up spec-check", r.stderr)
-
-    def test_a_decision_only_commit_gets_its_trailer_from_sign(self):
-        for args in (("setup",), ("setup", "--decline")):
-            with self.subTest(args=args):
-                self.repo = Repo(self, None)
-                self.hook()
-                r = self.repo.run(*args)
-                self.assertEqual(r.returncode, 0, r.stderr)
-                self.repo.git("add", "openspec/")
-                r = self.sign()
-                self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-                value = r.stdout.strip().splitlines()[-1][len("Spec-check: "):]
-                self.assertIn("no open change or spec staged", value)
-                r = self.commit_with("--verified-value", str(VERIFY), "Spec-check", value,
-                                     message="Settle the decisions-first rule")
-                self.assertEqual(r.returncode, 0, r.stderr)
-                self.assertIn("openspec/spec-check.yaml",
-                              self.repo.git("diff", "--name-only", "HEAD~1", "HEAD"))
-                self.assertEqual(self.hook().returncode, 0)
+    def test_a_config_only_commit_gets_its_trailer_from_sign(self):
+        self.repo.write("openspec/config.yaml", "schema: spec-driven\ncontext: Records.\n")
+        self.repo.git("add", "openspec/")
+        r = self.sign()
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        value = r.stdout.strip().splitlines()[-1][len("Spec-check: "):]
+        self.assertIn("no open change or spec staged", value)
+        r = self.commit_with("--verified-value", str(VERIFY), "Spec-check", value,
+                             message="Give OpenSpec context")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(self.hook().returncode, 0)
 
     def test_a_commit_outside_openspec_is_never_reported(self):
         self.repo.write("src/other.py", "x\n")
@@ -860,10 +942,10 @@ class TrailerTests(unittest.TestCase):
         self.assertIn("Fix it with the spec-check skill's *Commit* steps.", r.stderr)
 
     def test_sign_refuses_a_change_with_errors(self):
-        self.stage_change(proposal=GOOD_PROPOSAL.replace("## Decisions", "## Why first"))
+        self.stage_change(proposal=GOOD_PROPOSAL.replace("src/app.py:5", "src/gone.py:5"))
         r = self.sign()
         self.assertEqual(r.returncode, 1)
-        self.assertIn("decisions-first", r.stdout)
+        self.assertIn("[citation]", r.stdout)
         self.assertIn("not signed", r.stderr)
         self.assertNotIn("Spec-check:", r.stdout)
 
@@ -908,11 +990,11 @@ class ManifestTests(unittest.TestCase):
         manifest = json.loads((HERE.parent / "hook.json").read_text())
         self.assertEqual(manifest["default"], "enabled")
         commands = [h["command"] for h in manifest["hooks"]]
-        self.assertEqual(commands, ["scripts/check-commit-trailer.sh", "scripts/proposal-hook.sh"])
+        self.assertEqual(commands, ["scripts/check-commit-trailer.sh"])
         for command in commands:
             self.assertTrue(os.access(HERE.parent / command, os.X_OK), command)
 
-    def test_a_sandboxed_install_wires_both_hooks_on_both_hosts(self):
+    def test_a_sandboxed_install_wires_the_hook_on_both_hosts(self):
         tmp = pathlib.Path(tempfile.mkdtemp(prefix="spec-check-install-")).resolve()
         self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
         env = dict(ENV, SHARED_SKILLS_TARGET=str(tmp / "skills"),
@@ -927,402 +1009,14 @@ class ManifestTests(unittest.TestCase):
         wired = {(g["matcher"], h["command"].split("/")[-1].split(" ")[0])
                  for g in claude["PostToolUse"] for h in g["hooks"]}
         self.assertIn(("Bash", "check-commit-trailer.sh"), wired)
-        self.assertIn(("^(Write|Edit|MultiEdit)$", "proposal-hook.sh"), wired)
         cursor = json.loads((tmp / "home/.cursor/hooks.json").read_text())["hooks"]
         self.assertTrue(any("check-commit-trailer.sh --host cursor" in h["command"]
                             for h in cursor["postToolUse"]))
-        self.assertTrue(any("proposal-hook.sh --host cursor" in h["command"]
-                            for h in cursor["postToolUse"] if h.get("matcher") == "Write"))
         r = subprocess.run([sys.executable, str(SKILLS_PY), "doctor"],
                            capture_output=True, text=True, env=env, cwd=tmp)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertIn("No problems found in any target.", r.stdout)
-        # The command as wired runs, and speaks in an undecided repository.
-        command = next(h["command"] for g in claude["PostToolUse"] for h in g["hooks"]
-                       if "proposal-hook.sh" in h["command"])
-        repo = Repo(self, None)
-        repo.change("x")
-        payload = {"tool_name": "Write", "cwd": str(repo.path),
-                   "tool_input": {"file_path": str(repo.path / "openspec/changes/x/proposal.md")}}
-        r = subprocess.run(command, shell=True, input=json.dumps(payload),
-                           capture_output=True, text=True, env=ENV)
-        self.assertIn("has not decided", json.loads(r.stdout)["hookSpecificOutput"]["additionalContext"])
 
-
-class DecisionFileTests(unittest.TestCase):
-    """openspec/spec-check.yaml: what it says, and what check does with it."""
-
-    BAD = GOOD_PROPOSAL.replace("## Decisions", "## Why first")
-
-    def test_the_states_on_disk(self):
-        for text, want in ((None, "undecided"), ("decisions-first: enforce\n", "enforce"),
-                           ("decisions-first: off\n", "off"),
-                           ("\r\ndecisions-first:   off  \r\n\r\n", "off"),
-                           ("decisions-first: on\n", "invalid"), ("", "invalid"),
-                           ("decisions-first: enforce\nother: x\n", "invalid"),
-                           ("# comment\ndecisions-first: enforce\n", "invalid")):
-            with self.subTest(text=text):
-                repo = Repo(self, None)
-                if text is not None:
-                    repo.write("openspec/spec-check.yaml", text)
-                self.assertEqual(repo.run("state").stdout.strip(), want)
-
-    def test_no_openspec_is_undecided(self):
-        repo = Repo(self, None)
-        shutil.rmtree(repo.path / "openspec")
-        self.assertEqual(repo.run("state").stdout.strip(), "undecided")
-
-    def test_enforce_makes_it_an_error(self):
-        repo = Repo(self, "enforce")
-        repo.change("x", proposal=self.BAD)
-        r = repo.check("x")
-        self.assertEqual((r.returncode, kinds(r)), (1, ["decisions-first"]))
-
-    def test_off_is_not_checked(self):
-        repo = Repo(self, "off")
-        repo.change("x", proposal=self.BAD)
-        r = repo.check("x")
-        self.assertEqual((r.returncode, kinds(r)), (0, []), r.stdout)
-        self.assertEqual(json.loads(repo.check("x", "--json").stdout)["decisions_first"], "off")
-
-    def test_undecided_gives_one_note_and_no_errors(self):
-        repo = Repo(self, None)
-        repo.change("x", proposal=self.BAD)
-        repo.change("y", proposal="## Why\n\nNo decisions.\n")
-        r = repo.check()
-        self.assertEqual((r.returncode, kinds(r)), (0, ["decisions-first"]), r.stdout)
-        self.assertIn("openspec/spec-check.yaml: check [decisions-first] this repository "
-                      "has not decided", r.stdout)
-        self.assertIn("setup --decline", r.stdout)
-        data = json.loads(repo.check("x", "--json").stdout)
-        self.assertEqual((data["decisions_first"], data["errors"], data["checks"]),
-                         ("undecided", 0, 1))
-
-    def test_only_specs_get_no_note(self):
-        self.assertEqual(kinds(Repo(self, None).check("specs")), [])
-
-    def test_an_invalid_file_gives_one_note_without_setup_advice(self):
-        repo = Repo(self, None)
-        repo.write("openspec/spec-check.yaml", "decisions-first: yes\n")
-        repo.change("x", proposal=self.BAD)
-        r = repo.check("x")
-        self.assertEqual((r.returncode, kinds(r)), (0, ["decisions-first"]), r.stdout)
-        self.assertIn("must hold one line", r.stdout)
-        self.assertNotIn("setup", r.stdout)
-        self.assertEqual(json.loads(repo.check("x", "--json").stdout)["decisions_first"], "invalid")
-
-    def test_a_link_is_not_followed_on_disk_or_in_a_tree(self):
-        repo = Repo(self, None)
-        repo.write("shared/sc.yaml", "decisions-first: enforce\n")
-        (repo.path / "openspec/spec-check.yaml").symlink_to("../shared/sc.yaml")
-        repo.change("x", proposal=self.BAD)
-        repo.git("add", "-A")
-        repo.git("commit", "-q", "-m", "linked")
-        self.assertEqual(repo.run("state").stdout.strip(), "invalid")
-        for args in (("x",), ("--ref", "HEAD", "x")):
-            with self.subTest(args=args):
-                r = repo.check(*args)
-                self.assertEqual((r.returncode, kinds(r)), (0, ["decisions-first"]), r.stdout)
-                self.assertIn("is a symlink, not a plain file", r.stdout)
-
-    def test_a_submodule_or_directory_in_a_tree_is_reported(self):
-        repo = Repo(self, None)
-        repo.write("openspec/spec-check.yaml/x", "y\n")
-        repo.change("x", proposal=self.BAD)
-        repo.git("add", "-A")
-        repo.git("commit", "-q", "-m", "dir")
-        r = repo.check("--ref", "HEAD", "x")
-        self.assertIn("is a directory, not a plain file", r.stdout)
-        sub = repo.path.parent / f"{repo.path.name}-sub"
-        sub.mkdir()
-        self.addCleanup(shutil.rmtree, sub, ignore_errors=True)
-        subprocess.run(["git", "init", "-q", "-b", "main"], cwd=sub, check=True, env=ENV)
-        (sub / "f").write_text("decisions-first: enforce\n")
-        subprocess.run(["git", "add", "-A"], cwd=sub, check=True, env=ENV)
-        subprocess.run(["git", "commit", "-q", "-m", "s"], cwd=sub, check=True, env=ENV)
-        repo.git("rm", "-rq", "openspec/spec-check.yaml")
-        repo.git("-c", "protocol.file.allow=always", "submodule", "add", "-q", str(sub),
-                 "openspec/spec-check.yaml")
-        repo.git("commit", "-q", "-m", "sub")
-        r = repo.check("--ref", "HEAD", "x")
-        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-        self.assertIn("is a submodule, not a plain file", r.stdout)
-
-    def test_a_branch_is_judged_by_its_own_file(self):
-        repo = Repo(self, None)
-        repo.git("checkout", "-q", "-b", "spec/x")
-        repo.change("x", proposal=self.BAD)
-        repo.write("openspec/spec-check.yaml", "decisions-first: enforce\n")
-        repo.git("add", "-A")
-        repo.git("commit", "-q", "-m", "x")
-        repo.git("checkout", "-q", "main")
-        r = repo.check("--ref", "spec/x", "x")
-        self.assertEqual((r.returncode, kinds(r)), (1, ["decisions-first"]))
-
-    def test_sign_reads_the_staged_file(self):
-        repo = Repo(self, None)
-        repo.change("x", proposal=self.BAD)
-        repo.git("add", "-A")
-        r = repo.run("sign", "--read", "subagent", "--base", "main", "--no-validate")
-        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-        self.assertIn("0 errors, 1 checks", r.stdout)
-        repo.write("openspec/spec-check.yaml", "decisions-first: enforce\n")
-        r = repo.run("sign", "--read", "subagent", "--base", "main", "--no-validate")
-        self.assertEqual(r.returncode, 0, "unstaged, so the staged tree is still undecided")
-        repo.git("add", "-A")
-        r = repo.run("sign", "--read", "subagent", "--base", "main", "--no-validate")
-        self.assertEqual(r.returncode, 1, r.stdout)
-
-
-class FoundByBugHunterDecisionTests(unittest.TestCase):
-    """Regressions found by bug-hunter over the decision file."""
-
-    def setUp(self):
-        self.repo = Repo(self, None)
-        self.openspec = self.repo.path / "openspec"
-
-    def test_a_link_at_the_temporary_name_is_not_written_through(self):
-        outside = self.repo.path.parent / f"{self.repo.path.name}-victim.txt"
-        outside.write_text("keep\n")
-        self.addCleanup(outside.unlink)
-        (self.openspec / "spec-check.yaml.tmp").symlink_to(outside)
-        r = self.repo.run("setup")
-        self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertEqual(outside.read_text(), "keep\n")
-        self.assertFalse((self.openspec / "spec-check.yaml").is_symlink())
-        self.assertEqual(self.repo.run("state").stdout.strip(), "enforce")
-
-    def test_a_decision_file_linked_out_of_the_repository_is_reported_from_a_tree(self):
-        outside = self.repo.path.parent / f"{self.repo.path.name}-out.yaml"
-        outside.write_text("decisions-first: enforce\n")
-        self.addCleanup(outside.unlink)
-        (self.openspec / "spec-check.yaml").symlink_to(f"../../{outside.name}")
-        self.repo.change("x")
-        self.repo.git("add", "-A")
-        self.repo.git("commit", "-q", "-m", "linked")
-        r = self.repo.check("--ref", "HEAD", "x")
-        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-        self.assertIn("is a symlink, not a plain file", r.stdout)
-
-
-class FoundByBugHunterDecisionIteration2Tests(unittest.TestCase):
-    def setUp(self):
-        self.repo = Repo(self, None)
-        self.openspec = self.repo.path / "openspec"
-
-    def test_a_ref_whose_openspec_holds_only_the_decision_file(self):
-        (self.openspec / "config.yaml").unlink()
-        shutil.rmtree(self.openspec / "specs")
-        self.repo.write("openspec/spec-check.yaml", "decisions-first: off\n")
-        self.repo.git("add", "-A")
-        self.repo.git("commit", "-q", "-m", "only the decision")
-        r = self.repo.check("--ref", "HEAD")
-        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-
-class SetupDecisionTests(unittest.TestCase):
-    def setUp(self):
-        self.repo = Repo(self, None)
-        self.decision = self.repo.path / "openspec" / "spec-check.yaml"
-        self.config = self.repo.path / "openspec" / "config.yaml"
-
-    def test_setup_writes_enforce_and_never_touches_the_config(self):
-        before = self.config.read_bytes()
-        r = self.repo.run("setup")
-        self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertEqual(self.decision.read_text(), "decisions-first: enforce\n")
-        self.assertEqual(self.config.read_bytes(), before)
-        self.assertIn("SKILL.md", r.stdout)
-        self.assertEqual(self.repo.run("state").stdout.strip(), "enforce")
-
-    def test_decline_writes_off_and_never_touches_the_config(self):
-        before = self.config.read_bytes()
-        r = self.repo.run("setup", "--decline")
-        self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertEqual(self.decision.read_text(), "decisions-first: off\n")
-        self.assertEqual(self.config.read_bytes(), before)
-        self.assertEqual(self.repo.run("state").stdout.strip(), "off")
-
-    def test_setup_needs_no_config_at_all(self):
-        self.config.unlink()
-        for args, want in ((("setup",), "enforce"), (("setup", "--decline"), "off")):
-            with self.subTest(args=args):
-                r = self.repo.run(*args)
-                self.assertEqual(r.returncode, 0, r.stderr)
-                self.assertEqual(self.decision.read_text(), f"decisions-first: {want}\n")
-        self.assertFalse(self.config.exists())
-
-    def test_each_is_idempotent_and_one_switches_the_other(self):
-        for args, want in ((("setup",), "enforce"), (("setup",), "enforce"),
-                           (("setup", "--decline"), "off"), (("setup", "--decline"), "off"),
-                           (("setup",), "enforce")):
-            with self.subTest(args=args):
-                r = self.repo.run(*args)
-                self.assertEqual(r.returncode, 0, r.stderr)
-                self.assertEqual(self.decision.read_text(), f"decisions-first: {want}\n")
-        self.assertIn("already says", self.repo.run("setup").stdout)
-
-    def test_dry_runs_write_nothing(self):
-        for args in (("setup", "--dry-run"), ("setup", "--decline", "--dry-run")):
-            with self.subTest(args=args):
-                r = self.repo.run(*args)
-                self.assertEqual(r.returncode, 0, r.stderr)
-                self.assertIn("--- openspec/spec-check.yaml\ndecisions-first:", r.stdout)
-                self.assertFalse(self.decision.exists())
-
-    def test_a_linked_decision_file_is_replaced_by_a_plain_file(self):
-        self.repo.write("shared/sc.yaml", "decisions-first: off\n")
-        self.decision.symlink_to("../shared/sc.yaml")
-        r = self.repo.run("setup")
-        self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertFalse(self.decision.is_symlink())
-        self.assertEqual(self.decision.read_text(), "decisions-first: enforce\n")
-        self.assertEqual((self.repo.path / "shared/sc.yaml").read_text(), "decisions-first: off\n")
-
-    def test_repo_naming_a_subdirectory_writes_the_tops_decision(self):
-        nested = self.repo.path / "pkg"
-        (nested / "openspec").mkdir(parents=True)
-        r = self.repo.run("setup", "--decline", "--repo", str(nested))
-        self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertEqual(self.decision.read_text(), "decisions-first: off\n")
-        self.assertFalse((nested / "openspec/spec-check.yaml").exists())
-        self.assertEqual(self.repo.run("state", "--repo", str(nested)).stdout.strip(), "off")
-
-    def test_no_openspec_refuses(self):
-        shutil.rmtree(self.repo.path / "openspec")
-        r = self.repo.run("setup")
-        self.assertEqual(r.returncode, 2)
-        self.assertIn("openspec init", r.stderr)
-
-
-class ProposalHookTests(unittest.TestCase):
-    def setUp(self):
-        self.repo = Repo(self, None)
-        self.proposal = self.repo.path / "openspec/changes/x/proposal.md"
-        self.repo.change("x")
-
-    def run_hook(self, host, payload):
-        data = payload if isinstance(payload, str) else json.dumps(payload)
-        return subprocess.run(["sh", str(PROPOSAL_HOOK), "--host", host], input=data,
-                              capture_output=True, text=True, env=ENV, cwd=tempfile.gettempdir())
-
-    def claude(self, path, tool="Write"):
-        return {"hook_event_name": "PostToolUse", "tool_name": tool, "cwd": str(self.repo.path),
-                "tool_input": {"file_path": str(path), "content": "x"}}
-
-    def cursor(self, path):
-        return {"hook_event_name": "postToolUse", "tool_name": "Write",
-                "tool_input": {"file_path": str(path), "contents": "x"},
-                "tool_output": "{}", "cwd": str(self.repo.path)}
-
-    def context(self, r, host):
-        self.assertEqual((r.returncode, r.stderr), (0, ""))
-        if not r.stdout:
-            return None
-        data = json.loads(r.stdout)
-        if host == "claude":
-            self.assertEqual(data["hookSpecificOutput"]["hookEventName"], "PostToolUse")
-            return data["hookSpecificOutput"]["additionalContext"]
-        return data["additional_context"]
-
-    def test_a_proposal_in_an_undecided_repository_adds_context(self):
-        for host, payload in (("claude", self.claude(self.proposal)),
-                              ("claude", self.claude(self.proposal, "Edit")),
-                              ("claude", self.claude(self.proposal, "MultiEdit")),
-                              ("cursor", self.cursor(self.proposal))):
-            with self.subTest(host=host, payload=payload):
-                text = self.context(self.run_hook(host, payload), host)
-                self.assertIn("has not decided", text)
-                self.assertIn(f"{SCRIPT} setup --repo {self.repo.path}`", text)
-                self.assertIn(f"{SCRIPT} setup --repo {self.repo.path} --decline`", text)
-                self.assertIn("Before finishing this proposal", text)
-
-    def test_cursor_write_input_may_name_the_path_by_any_known_key(self):
-        for key in ("path", "target_file"):
-            with self.subTest(key=key):
-                payload = self.cursor(self.proposal)
-                payload["tool_input"] = {key: str(self.proposal)}
-                self.assertIn("has not decided", self.context(self.run_hook("cursor", payload), "cursor"))
-
-    def test_a_relative_path_is_read_from_the_payloads_cwd(self):
-        payload = self.claude("openspec/changes/x/proposal.md")
-        self.assertIsNotNone(self.context(self.run_hook("claude", payload), "claude"))
-
-    def test_git_is_asked_about_the_directory_holding_openspec(self):
-        cases = (("/openspec/changes/x/proposal.md", "/", ["/"]),
-                 ("openspec/changes/x/proposal.md", "/", ["/"]),
-                 ("/r/openspec/changes/x/proposal.md", "/", ["/r"]),
-                 ("openspec/changes/x/proposal.md", "/r", ["/r"]),
-                 ("/r/myopenspec/changes/x/proposal.md", "/", []),
-                 ("myopenspec/changes/x/proposal.md", "/r", []),
-                 ("/r/openspec/changes/archive/2026-01-01-x/proposal.md", "/", []))
-        for path, cwd, want in cases:
-            asked = []
-
-            def fake_run(cmd, **_):
-                asked.append(cmd[2])
-                return subprocess.CompletedProcess(cmd, 1, "", "")
-            with self.subTest(path=path, cwd=cwd), \
-                    mock.patch.object(spec_check.subprocess, "run", fake_run):
-                payload = {"cwd": cwd, "tool_input": {"file_path": path}}
-                self.assertIsNone(spec_check.proposal_hook_message(payload))
-                self.assertEqual(asked, want)
-
-    def test_a_nested_proposal_asks_about_the_repository_top(self):
-        nested = self.repo.path / "pkg/openspec/changes/y/proposal.md"
-        nested.parent.mkdir(parents=True)
-        nested.write_text(GOOD_PROPOSAL)
-        text = self.context(self.run_hook("claude", self.claude(nested)), "claude")
-        self.assertIn(f"--repo {self.repo.path}`", text)
-        self.assertNotIn(f"--repo {self.repo.path / 'pkg'}", text)
-
-    def test_a_nested_proposal_with_no_openspec_at_the_top_is_silent(self):
-        shutil.rmtree(self.repo.path / "openspec")
-        nested = self.repo.path / "pkg/openspec/changes/y/proposal.md"
-        nested.parent.mkdir(parents=True)
-        nested.write_text(GOOD_PROPOSAL)
-        self.assertIsNone(self.context(self.run_hook("claude", self.claude(nested)), "claude"))
-
-    def test_a_nested_openspec_in_a_decided_repository_is_silent(self):
-        self.repo.write("openspec/spec-check.yaml", "decisions-first: enforce\n")
-        nested = self.repo.path / "examples/demo/openspec/changes/b/proposal.md"
-        nested.parent.mkdir(parents=True)
-        nested.write_text(GOOD_PROPOSAL)
-        self.assertIsNone(self.context(self.run_hook("claude", self.claude(nested)), "claude"))
-
-    def test_a_decided_repository_is_silent(self):
-        for config in ("decisions-first: enforce\n", "decisions-first: off\n", "nonsense\n"):
-            self.repo.write("openspec/spec-check.yaml", config)
-            for host, payload in (("claude", self.claude(self.proposal)),
-                                  ("cursor", self.cursor(self.proposal))):
-                with self.subTest(config=config, host=host):
-                    self.assertIsNone(self.context(self.run_hook(host, payload), host))
-
-    def test_other_paths_are_silent(self):
-        others = [self.repo.path / "openspec/changes/x/design.md",
-                  self.repo.path / "openspec/changes/archive/2026-01-01-x/proposal.md",
-                  self.repo.path / "openspec/specs/cap/proposal.md",
-                  self.repo.path / "docs/proposal.md",
-                  self.repo.path / "openspec/changes/x/proposal.md.bak"]
-        for path in others:
-            for host, payload in (("claude", self.claude(path)), ("cursor", self.cursor(path))):
-                with self.subTest(path=path, host=host):
-                    self.assertIsNone(self.context(self.run_hook(host, payload), host))
-
-    def test_outside_a_git_repository_is_silent(self):
-        tmp = pathlib.Path(tempfile.mkdtemp(prefix="spec-check-nogit-")).resolve()
-        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
-        path = tmp / "openspec/changes/x/proposal.md"
-        path.parent.mkdir(parents=True)
-        path.write_text(GOOD_PROPOSAL)
-        self.assertIsNone(self.context(self.run_hook("claude", self.claude(path)), "claude"))
-
-    def test_a_bad_payload_is_silent(self):
-        for payload in ("", "not json", "[]", "null", '{"tool_input": "openspec/changes/x/proposal.md"}',
-                        json.dumps({"tool_input": {"file_path": 7}, "file_path": "proposal.md"}),
-                        json.dumps({"tool_input": {"file_path": "openspec/changes/x/proposal.md"}})):
-            for host in ("claude", "cursor"):
-                with self.subTest(payload=payload, host=host):
-                    self.assertIsNone(self.context(self.run_hook(host, payload), host))
 
 # -- stacked changes -----------------------------------------------------------
 
@@ -1520,8 +1214,10 @@ class StackedChangeTests(unittest.TestCase):
         self.s.repo.change("lore-search", delta=self.lore)
         r = self.s.check("lore-search", gh=False)
         self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
-        self.assertEqual(kinds(r), ["duplicate"])
+        self.assertEqual(kinds(r), ["duplicate", "archive"])
         self.assertIn('also stated in "Records are kept"', r.stdout)
+        # On main alone, there is no "Records are retained" to modify.
+        self.assertIn('error [archive] "Records are retained" in cap: `openspec archive` would refuse', r.stdout)
         self.assertNotIn("Builds on", r.stdout)  # no gh, so no hint
 
     def test_with_the_declaration_it_checks_against_main_plus_the_dependency(self):
@@ -1530,11 +1226,12 @@ class StackedChangeTests(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertEqual(kinds(r), [])
         self.assertIn("lore-search builds on seat-files (acme/widgets#171", r.stdout)
+        self.assertIn("; checked against main plus it\n", r.stdout)
 
     def test_both_changes_in_one_tree_need_the_declaration_too(self):
         self.s.repo.change("seat-files", delta=SEAT_FILES)
         self.s.repo.change("lore-search", delta=self.lore)
-        self.assertEqual(kinds(self.s.check("lore-search", gh=False)), ["duplicate"])
+        self.assertEqual(kinds(self.s.check("lore-search", gh=False)), ["duplicate", "archive"])
         self.s.stacked(self.lore, "seat-files (acme/widgets#171)")
         r = self.s.check("lore-search")
         self.assertEqual(kinds(r), [], r.stdout + r.stderr)
@@ -1561,21 +1258,21 @@ class StackedChangeTests(unittest.TestCase):
         self.s.repo.change("lore-search", delta=self.lore)
         r = self.s.check("lore-search")
         self.assertEqual(r.returncode, 1)
-        self.assertEqual(kinds(r), ["duplicate"])
+        self.assertEqual(kinds(r), ["duplicate", "archive"])
         self.assertIn("Builds on: seat-files (acme/widgets#171)", r.stdout)
 
     def test_no_hint_when_no_open_pull_request_retires_the_requirement(self):
         self.s.data["list"] = []
         self.s.repo.change("lore-search", delta=self.lore)
         r = self.s.check("lore-search")
-        self.assertEqual(kinds(r), ["duplicate"])
+        self.assertEqual(kinds(r), ["duplicate", "archive"])
         self.assertNotIn("Builds on", r.stdout)
 
     def test_no_hint_when_gh_cannot_list_pull_requests(self):
         self.s.data["list"] = None
         self.s.repo.change("lore-search", delta=self.lore)
         r = self.s.check("lore-search")
-        self.assertEqual(kinds(r), ["duplicate"])
+        self.assertEqual(kinds(r), ["duplicate", "archive"])
         self.assertNotIn("Builds on", r.stdout)
 
     def test_the_hint_lookup_is_bounded_and_made_once(self):
@@ -1894,7 +1591,7 @@ class FoundByBugHunterStackIteration3Tests(unittest.TestCase):
         self.s.repo.change("lore-search", delta=modified("Records are retained", KEPT, SEAT, SEARCH))
         r = self.s.check("lore-search")
         self.assertNotIn("Traceback", r.stderr)
-        self.assertEqual(kinds(r), ["duplicate"])
+        self.assertEqual(kinds(r), ["duplicate", "archive"])
 
     def test_a_branch_from_before_the_merge_beside_an_older_archive_of_its_name(self):
         old = GOOD_PROPOSAL.replace("Records expire.", "An older change of the same name.")
@@ -3534,10 +3231,11 @@ class StackedChangeArchiveTests(unittest.TestCase):
 
     def refused(self, out, name, quote):
         self.assertEqual(out.returncode, 1, out.stdout + out.stderr)
-        hits = [l for l in errors(out) if "[drift]" in l and quote in l]
+        hits = [l for l in errors(out) if "[archive]" in l and quote in l]
         self.assertEqual(len(hits), 1, out.stdout)
         self.assertTrue(hits[0].startswith(self.DELTA + ":"), hits[0])
         self.assertIn(f'"{name}"', hits[0])
+        self.assertIn("openspec archive (lore-search): refused", out.stdout)
         return hits[0]
 
     def test_adding_a_requirement_its_dependency_adds_is_an_error(self):
