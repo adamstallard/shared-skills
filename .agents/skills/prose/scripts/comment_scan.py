@@ -7,13 +7,14 @@ hashes are inside a string), and matching the history-language patterns that
 below comes from a real miss, and a test pins it. Standard library only.
 """
 
-import ast
 import io
+import json
 import pathlib
 import re
 import subprocess
 import sys
 import tokenize
+from typing import NamedTuple
 
 # Extensions where `//` starts a line comment, `/* */` delimits a block, and
 # `"` / `'` / `` ` `` are the string delimiters. One hand-written lexer covers
@@ -577,21 +578,66 @@ def extract_python(source):
             row, column = token.start
             own = not lines[row - 1][:column].strip()
             found.append((row, row, "line", [token.string], own, False))
-    holders = (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
-    for node in ast.walk(ast.parse(source)):
-        if not isinstance(node, holders) or not node.body:
-            continue
-        first = node.body[0]
-        if not isinstance(first, ast.Expr) or not isinstance(first.value, ast.Constant):
-            continue
-        if not isinstance(first.value.value, str):
-            continue
+    for doc in _docstrings(source):
         found.append(
-            (first.lineno, first.end_lineno, "docstring",
-             _string_only(lines[first.lineno - 1:first.end_lineno], first.value),
-             True, isinstance(node, ast.Module))
+            (doc.lineno, doc.end_lineno, "docstring",
+             _string_only(lines[doc.lineno - 1:doc.end_lineno], doc),
+             True, doc.module)
         )
     return found
+
+
+class Docstring(NamedTuple):
+    lineno: int
+    end_lineno: int
+    col_offset: int
+    end_col_offset: int
+    module: bool
+
+
+# Run in a child interpreter by _docstrings: the source on stdin, one line
+# of JSON out, [lineno, end_lineno, col_offset, end_col_offset, module] for
+# each docstring.
+_DOCSTRINGS = """
+import ast, json, sys
+holders = (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
+out = []
+for node in ast.walk(ast.parse(sys.stdin.buffer.read().decode("utf-8", "surrogateescape"))):
+    if not isinstance(node, holders) or not node.body:
+        continue
+    first = node.body[0]
+    if isinstance(first, ast.Expr) and isinstance(first.value, ast.Constant) \\
+            and isinstance(first.value.value, str):
+        value = first.value
+        out.append([first.lineno, first.end_lineno, value.col_offset, value.end_col_offset,
+                    isinstance(node, ast.Module)])
+sys.stdout.write(json.dumps(out))
+"""
+
+
+def _docstrings(source):
+    """[Docstring] in Python source, found by `ast` in a child interpreter.
+    A file nested deeper than the parser can take makes some interpreters,
+    3.9 among them, crash in C code, which no handler here can catch; the
+    child takes the crash, and the file is reported as one that does not
+    parse. A depth cap set beforehand would only guess at the parser's
+    limits, which differ by version and by expression."""
+    try:
+        result = subprocess.run([sys.executable, "-I", "-c", _DOCSTRINGS],
+                                input=source.encode("utf-8", "surrogateescape"),
+                                capture_output=True, check=False)
+    except OSError as error:
+        raise ValueError(f"could not start Python to parse the file: {error}")
+    if result.returncode != 0:
+        # A SyntaxError, a RecursionError or a crash: the file does not parse.
+        raise SyntaxError("the file could not be parsed: "
+                          + (result.stderr.decode("utf-8", "replace").strip().splitlines()
+                             or [f"exit {result.returncode}"])[-1])
+    try:
+        rows = json.loads(result.stdout)
+    except ValueError:
+        raise SyntaxError("the parser gave output that could not be read")
+    return [Docstring(*row) for row in rows]
 
 
 def _string_only(lines, node):
@@ -674,7 +720,8 @@ def comments_in(path, source):
     return merged
 
 
-# ast.parse raises the last two on a file too deeply nested to parse.
+# RecursionError and MemoryError: tokenize on a file too deeply nested; the
+# child that runs ast reports its own failures as a SyntaxError.
 PARSE_ERRORS = (SyntaxError, tokenize.TokenError, IndentationError, ValueError,
                 RecursionError, MemoryError)
 

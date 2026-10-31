@@ -12,10 +12,13 @@ Both calls of `check` run the repository's pre-commit hook first, if it has one.
             --goals <goals> | --message-goals-file <file> [--amend]
             [--goals-for <pattern> <goals>]... [--goals-file <file>]
         Before a commit, first call. Lists the prose, each file under its own
-        reader goals, and prints the rules and a token. --goals is the
-        message's reader's. --message-goals-file gives them in a file instead:
-        one or more goals per line, separated by ';', naming no file. Every
-        changed doc or spec needs goals of its own, or check refuses it.
+        reader goals, and prints the rules and a token. --goals gives the
+        goals of the commit message's reader. --goals-file gives each file's
+        goals as 'pattern: goal; goal' lines. --message-goals-file gives the
+        message's goals in a file instead:
+        one or more goals per line, separated by ';', with no 'pattern:'
+        prefix. Every changed doc or spec needs goals of its own, or check
+        refuses it.
     prose.py check -F <message file, or - for stdin> --pass <token> [--amend]
             [--cold-read <report> [--dispositions <file>]]
         Second call. Prints the Prose: trailer. --amend: before `git commit --amend`.
@@ -25,18 +28,37 @@ Both calls of `check` run the repository's pre-commit hook first, if it has one.
     prose.py sign --goals <goals> | --goals-file <file>
         Before posting, first call. Prints the rules and a token; reads no stdin.
         start's and sign's goals file holds the goals --goals would, one or
-        more per line, naming no file, since neither command lists files.
+        more per line. Unlike check's --goals-file, its lines have no
+        'pattern:' prefix, since neither command lists files.
     prose.py sign --pass <token> [--cold-read <report> [--dispositions <file>]] < text > signed
         Second call. Prints stdin's text with a signed footer, or, as check
         does, a cold-read brief on stderr, exiting 5.
+    prose.py compact <file> [--paths-from <file|-> [-0]] [-- <path>...]
+    prose.py compact <file> --verify [--answers <file>] [--paths-from <file|-> [-0]] [-- <path>...]
+    prose.py compact <file> --review
+    prose.py compact <file> --reviewed <reply> [--dispositions <file>]
+    prose.py compact <file> --abandon
+        Compaction: prints the brief a compactor subagent works from and
+        exits 4. --verify checks the compacted file against the copy
+        `compact <file>` saved, exiting 0 when it passes and 1 when it fails;
+        it reads the compactor's answers from the file the brief named, or
+        from the one --answers gives. --review prints the brief for a reviewer of each removal and
+        rewrite, and exits 4. --reviewed records the review as complete
+        once its findings are answered; check refuses to sign a compaction
+        without both the --verify and the --reviewed record. --abandon
+        discards a compaction started on the file, so the commit gate
+        treats it as ordinary again. `compact <file>` with no flag and every
+        --verify take the files that might refer to the doc, after -- or
+        listed in --paths-from.
     prose.py verify-staged <trailer line>     stdin: the message (the commit script's verifier)
     prose.py verify-commit <sha>              after a commit (the commit hook)
     prose.py verify-post                      stdin: posted text
     prose.py hook-post --host <platform>      the posting hook
     prose.py hook-gate                        the first-write gate
 
-Standard library only. Read ../DECISIONS.md before changing what is hashed:
-a change here invalidates every signature already minted.
+Standard library only. Read ../DECISIONS.md before changing what is hashed
+into a trailer or footer (the staged tree, the message, a post's text): a
+change there invalidates every signature already minted.
 """
 
 import argparse
@@ -80,8 +102,9 @@ HALF = 12
 # counts_valid accepts them only in the forms cold_counts and understood_counts
 # print. A value without the understood part is accepted too: commits signed
 # before cold readers wrote understood lines carry none.
-TRAILER = re.compile(r"✓ ([0-9a-f]{%d}):([0-9a-f]{%d})"
-                     r"(?:; cold read: ([^;]*)(?:; understood: ([^;]*))?)?" % (HALF, HALF))
+TRAILER = re.compile(r"✓ (?P<tree>[0-9a-f]{%d}):(?P<message>[0-9a-f]{%d})"
+                     r"(?:; cold read: (?P<cold>[^;]*)(?:; understood: (?P<understood>[^;]*))?)?"
+                     r"(?:; compacted: (?P<compacted>[^;\n]+))?" % (HALF, HALF))
 FOOTER_LENGTH = 6
 FOOTER = re.compile(r"^prose ✓ ([0-9a-f]{%d})$" % FOOTER_LENGTH)
 
@@ -99,6 +122,14 @@ GIT_TRAILER = re.compile(r"^([A-Za-z0-9-]+)[ \t]*:[ \t]*(.*)$")
 
 class Refused(Exception):
     """A condition the caller has to fix; the message says how."""
+
+
+def compactor():
+    """compact.py, imported only by the commands that use it."""
+    sys.dont_write_bytecode = True
+    sys.path.insert(0, str(HERE))
+    import compact
+    return compact
 
 
 def scanner():
@@ -779,13 +810,28 @@ def verify_staged(line, message, root):
     staged tree and this message now. The commit script runs this just before
     it commits. A failing reason starts with `unrecognised`, `mismatch` or
     `tree`, as verify_commit's does."""
-    found = re.fullmatch(r"%s: (%s)" % (KEY, TRAILER.pattern), line.strip())
+    found = re.fullmatch(r"%s: %s" % (KEY, TRAILER.pattern), line.strip())
     if not found:
         return False, f"unrecognised: {line.strip()}"
-    tree_half, message_half = found.group(2), found.group(3)
-    if not counts_valid(found.group(4), found.group(5)):
+    tree_half, message_half = found.group("tree"), found.group("message")
+    if not counts_valid(found.group("cold"), found.group("understood")):
         return False, f"unrecognised: {line.strip()}"
     tree = git(["write-tree"], root).strip()
+    if found.group("compacted") is not None:
+        # Each file listed as compacted is one whose compaction this clone
+        # verified and reviewed for the staged blob: the value was minted by
+        # the signing call, not added by hand.
+        listed = found.group("compacted").split(", ")
+        compact = compactor()
+        checked = compact.compacted_paths(
+            git(["rev-parse", "--show-toplevel"], root).rstrip("\n"),
+            False, pass_dir(root))
+        if listed != sorted(set(listed)) or not set(listed) <= set(checked):
+            return False, (
+                f"tree: the {KEY}: trailer lists as compacted a file whose staged copy was not "
+                f"verified and reviewed with `prose compact`; run both calls of `prose check` "
+                f"again"
+            )
     if message_half != message_hash(message):
         return False, (
             f"mismatch: the {KEY}: trailer does not match the commit message; the message "
@@ -834,9 +880,17 @@ def verify_commit(sha, root):
         return False, (f"mismatch: the message is stored as {encoding}, and `prose check` "
                        f"signs only UTF-8 messages")
     found = TRAILER.fullmatch(value)
-    if not found or not counts_valid(found.group(3), found.group(4)):
+    if not found or not counts_valid(found.group("cold"), found.group("understood")):
         return False, f"unrecognised: {KEY}: {value}"
-    tree_half, message_half = found.group(1), found.group(2)
+    if found.group("compacted") is not None:
+        # A file listed as compacted must be one this commit changed.
+        listed = found.group("compacted").split(", ")
+        changed = set(filter(None, git(["diff-tree", "--root", "--no-commit-id", "-r", "-z",
+                                        "--name-only", "--no-renames", sha], root).split("\0")))
+        if listed != sorted(set(listed)) or not set(listed) <= changed:
+            return False, (f"tree: the {KEY}: trailer lists as compacted a file this commit "
+                           f"did not change: {found.group('compacted')}")
+    tree_half, message_half = found.group("tree"), found.group("message")
     message = git(["log", "-1", "--format=%B", sha], root)
     if not committed_message_matches(message, message_half):
         return False, (
@@ -1867,8 +1921,9 @@ def print_cold_read(token, items, next_command, stream=None, root=None):
     brief = cold_read_brief(token, items, root)
     print(f"prose: {len(items)} text(s) here need a cold read before signing (step 5 of the "
           "pass). Nothing is signed, and the token is kept.\n", file=stream)
-    print("Give a new agent, one that has not seen this conversation, everything between the "
-          f"=== lines, unchanged and with nothing added. Save its report to {REPORT_FILE}, "
+    print("Give a new agent, one that has not seen this conversation, only the path on the "
+          "'Brief file:' line below, telling it to read that file and follow it; don't copy the "
+          f"brief into its prompt, or add to it. Save its report to {REPORT_FILE}, "
           "outside the commit. Fix the places it names, and restage. Then answer every finding "
           f"in {DISPOSITIONS_FILE}: its first line '{dispositions_header(token)}', then one "
           "line per finding, '<n>. fixed' once you changed the item it is in, or "
@@ -1878,9 +1933,11 @@ def print_cold_read(token, items, next_command, stream=None, root=None):
           "'Item <n>: kept (asked): <why>' once a person chose to keep it. Then run:\n",
           file=stream)
     print(f"  {next_command}\n", file=stream)
-    print("=== cold-read brief ===", file=stream)
-    print(brief, file=stream)
-    print("=== end cold-read brief ===", file=stream)
+    # The directory compact.brief_dir names too: prose/briefs beside the
+    # pass tokens, in the repository's git directory, or in prose's state
+    # home outside a repository. Any agent in the repository can read it.
+    compactor().print_brief("cold-read brief", brief, pass_dir(root).parent / "briefs",
+                            "cold-read", stream)
 
 
 # What a report and a dispositions file must look like, for their refusals.
@@ -2227,6 +2284,73 @@ def refuse_unbriefed(cold, record):
 def pass_record(token, root=None):
     """The record of a token redeem_pass has already accepted."""
     return json.loads((pass_dir(root) / token).read_text(encoding="utf-8"))
+
+
+# ---------------------------------------------------------------------------
+# Re-signing a tree already signed
+# ---------------------------------------------------------------------------
+
+# A signing call that checks a cold read and signs records the result for the
+# staged tree, so that a later token's signing call on the same tree, as when
+# only the message changed, reuses it instead of reading the files cold again
+# (DECISIONS: A re-sign of the same tree reuses its cold read). Results older
+# than this are deleted to keep the directory small; a result's age never
+# decides whether it is reused.
+COLD_RESULT_LIFETIME = 7 * 24 * 60 * 60
+TREE = re.compile(r"[0-9a-f]{40}|[0-9a-f]{64}")
+
+
+def cold_results_dir(root=None):
+    """Where signed cold reads' results live: prose/cold-reads, beside the
+    pass tokens."""
+    return pass_dir(root).parent / "cold-reads"
+
+
+def staged_tree(root):
+    """The full hash of the tree `git write-tree` makes of the index now."""
+    return git(["write-tree"], root).strip()
+
+
+def _items_record(items):
+    """ColdItems as a result records them, in JSON's types: each item's
+    description, goals, file and line spans."""
+    return [[item.where, list(item.goals), item.path, [list(span) for span in item.spans]]
+            for item in items]
+
+
+def save_cold_result(tree, items, result, root=None):
+    """Record result, the ColdResult of a cold read just signed, for this
+    staged tree and the cold items it listed."""
+    results = _private_dir(cold_results_dir(root))
+    _prune(results, COLD_RESULT_LIFETIME, time.time())
+    draft = results / f".{tree}.{os.getpid()}"
+    try:
+        with open(draft, "w", encoding="utf-8") as handle:
+            json.dump({"tree": tree, "items": _items_record(items), "result": list(result)},
+                      handle)
+        os.replace(draft, results / tree)
+    finally:
+        draft.unlink(missing_ok=True)
+
+
+def reusable_cold_result(tree, items, root=None):
+    """The ColdResult a signing call recorded for exactly this staged tree
+    and these cold items, with their goals and spans; None when there is no
+    such record, or it cannot be read."""
+    if not TREE.fullmatch(tree):
+        return None
+    try:
+        record = json.loads((cold_results_dir(root) / tree).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(record, dict) or record.get("tree") != tree \
+            or record.get("items") != _items_record(items):
+        return None
+    result = record.get("result")
+    if not isinstance(result, list) or len(result) != len(ColdResult._fields) \
+            or not all(type(count) is int and count >= 0 for count in result):
+        return None
+    return ColdResult(*result)
 
 
 # ---------------------------------------------------------------------------
@@ -2694,7 +2818,56 @@ def main(argv=None):
     p_hook = sub.add_parser("hook-post", help="the posting hook: payload on stdin")
     p_hook.add_argument("--host", default="")
     sub.add_parser("hook-gate", help="the first-write gate: payload on stdin")
+    # allow_abbrev=False: an abbreviation such as --paths would make the
+    # split at `--` below misread the option's value as the file.
+    p_compact = sub.add_parser("compact", allow_abbrev=False,
+                               help="print the brief that compacts a doc to what is current; "
+                                    "with --verify, check the result",
+                               epilog="Files that might refer to the doc go after --, for the "
+                                      "first call and every --verify.")
+    p_compact.add_argument("file")
+    p_compact.add_argument("--verify", action="store_true",
+                           help="check the compacted file against the copy the first call saved")
+    p_compact.add_argument("--review", action="store_true",
+                           help="print the brief for the reviewer who judges each removal and "
+                                "rewrite against the copy the first call saved")
+    p_compact.add_argument("--abandon", action="store_true",
+                           help="discard a compaction started on the file, and its records, so "
+                                "the commit gate treats the file as ordinary again")
+    p_compact.add_argument("--reviewed", default="", metavar="REPLY",
+                           help="record the review as complete: the file holding the reviewer's "
+                                "reply, whose findings --dispositions answers")
+    p_compact.add_argument("--dispositions", dest="compact_dispositions", default="",
+                           metavar="FILE",
+                           help="with --reviewed: 'Change <n>: fixed' or 'Change <n>: kept: "
+                                "<reason>' for each change with a lost or false finding")
+    p_compact.add_argument("--answers", default="", metavar="FILE",
+                           help="with --verify: the compactor's answers file, when it wrote it "
+                                "somewhere other than the path the brief named")
+    p_compact.add_argument("--paths-from", default="", metavar="FILE",
+                           help="a file listing more such paths, one per line; - reads stdin")
+    p_compact.add_argument("-0", dest="nul", action="store_true",
+                           help="with --paths-from: the paths are separated by NUL, as "
+                                "rg -l0 and find -print0 write them")
+    # Paths after `--` are split off before parsing and are the referrers:
+    # argparse before Python 3.12 cannot give a positional list the paths
+    # after `--` once an option such as --verify follows the file.
+    argv = list(sys.argv[1:] if argv is None else argv)
+    tail = []
+    if argv[:1] == ["compact"] and "--" in argv:
+        at = argv.index("--")
+        argv, tail = argv[:at], argv[at + 1:]
+        # With no file before `--`, the first path after it is the file, as
+        # in `compact -- -notes.md`; it is passed after a `--` of its own.
+        valued = {"--paths-from", "--reviewed", "--dispositions", "--answers"}
+        named = [arg for i, arg in enumerate(argv[1:], start=1)
+                 if not arg.startswith("-") and argv[i - 1] not in valued]
+        if not named and tail:
+            argv, tail = argv + ["--", tail[0]], tail[1:]
     args = parser.parse_args(argv)
+    # Referrers come only from after `--`, so a stray positional is an error
+    # on every Python version.
+    args.referrers = tail
 
     try:
         if getattr(args, "report", "") and not args.token:
@@ -2736,9 +2909,34 @@ def main(argv=None):
             items, flags, trailer = check(message, args.repo, args.amend, bool(args.token))
             assigned, unused = assign_goals(items, rules)
             refuse_uncovered(assigned, unused, after_first_call=bool(args.token))
+            compact = compactor()
+            root = git(["rev-parse", "--show-toplevel"], args.repo).rstrip("\n")
+            # A compaction is signed only when the bytes staged both passed
+            # --verify and had their review completed with --reviewed
+            # (DECISIONS: Compaction).
+            pending = compact.unverified(root, args.amend, pass_dir(args.repo))
+
             if args.token:
                 cold, result = cold_items(assigned), None
-                if args.report:
+                # A tree an earlier signing call signed after its cold read,
+                # listed with the same items and goals, is signed again with
+                # that read's result, as when only the message changed.
+                tree = staged_tree(args.repo) if cold else ""
+                earlier = None if args.report or not cold \
+                    else reusable_cold_result(tree, cold, args.repo)
+                # The cold read of a compacted file comes before its reviews,
+                # so they check its fixes. While a compaction is unfinished,
+                # a call without --cold-read still prints the brief; a call
+                # with it, or with nothing to read cold, is refused.
+                if pending and (args.report or not cold or earlier is not None):
+                    raise Refused("; ".join(pending) + f"; the steps are in {compact.STEPS}")
+                if earlier is not None:
+                    result = earlier
+                    understood = understood_counts(result.items, result.understood_fixed,
+                                                   result.understood_kept)
+                    trailer += (f"; cold read: {cold_counts(result.fixed, result.kept)}"
+                                f"; understood: {understood}")
+                elif args.report:
                     record = pass_record(args.token, args.repo)
                     refuse_unbriefed(cold, record)
                     result = check_cold_read(args.token, record,
@@ -2752,27 +2950,107 @@ def main(argv=None):
                     record_brief(args.token, cold,
                                  {item.path: staged_text(item.path, args.repo) for item in cold},
                                  args.repo)
+                    if pending:
+                        print("prose: the signing call with --cold-read will refuse until each "
+                              "of these is done; fix what the cold reader finds first, so the "
+                              "review checks it:\n")
+                        for line in pending:
+                            print(f"  {line}")
+                        print(f"\n  The steps are in {compact.STEPS}.\n")
                     print_cold_read(args.token, cold, next_check(
                         args.token, args.message_file, args.amend, args.repo, REPORT_FILE,
                         DISPOSITIONS_FILE),
-                        root=git(["rev-parse", "--show-toplevel"], args.repo).strip())
+                        root=git(["rev-parse", "--show-toplevel"], args.repo).rstrip("\n"))
                     return COLD_READ_NEEDED
+                # Each staged file compacted with `prose compact` is named in
+                # the trailer, so every clone's trigger sees the compaction,
+                # however little it cut (DECISIONS: Compaction).
+                compacted = compact.compacted_paths(root, args.amend, pass_dir(args.repo))
+                if compacted:
+                    trailer += "; compacted: " + ", ".join(compacted)
                 # The signing call prints only the result block. It is built
                 # before the token is spent, so a block that cannot be built
                 # leaves the token for the same call to run again.
                 block = render_result([trailer])
                 spend_pass(args.token, args.repo)
+                if result is not None and earlier is None and cold:
+                    # Only a tree this call signed after checking its read is
+                    # recorded. A failure here costs only a later full read.
+                    try:
+                        save_cold_result(tree, cold, result, args.repo)
+                    except OSError:
+                        pass
                 print_result(block)
                 return 0
             print_goals(goals, heading=MESSAGE_GOALS)
             print_check(assigned, flags, unused,
                         "--message-goals-file" if args.message_goals_file else "--goals")
+            # Every staged path, doc or not: a declaration in .gitattributes
+            # makes any file current-state (DECISIONS: Compaction). The
+            # triggers only advise, so a listing that fails skips them.
+            try:
+                staged_paths = compact.changed_paths(root, args.amend)
+            except ValueError:
+                staged_paths = []
+            # The pass directory holds the completed-review records that mark
+            # a compaction which cut little (DECISIONS: Compaction).
+            # The trigger only advises: an error in it warns, and the first
+            # call goes on without the advice. The commit gate is separate.
+            try:
+                due = compact.due(staged_paths, root, pass_dir(args.repo))
+            except Exception as error:  # noqa: BLE001 - any trigger bug only advises
+                due = []
+                print(f"prose: warning: the compaction trigger failed, so no compaction advice "
+                      f"is given this time: {type(error).__name__}: {error}", file=sys.stderr)
+            compact.print_due(due, _prose_command())
+
+            if pending:
+                # With nothing in the commit to read cold, as when a compaction
+                # only removed lines, the signing call prints no brief and
+                # refuses.
+                print("\nThe signing call can print its cold-read brief now, but signs only once each "
+                      "of these is done:\n" if cold_items(assigned) else
+                      "\nThe signing call will refuse until each of these is done:\n")
+                for line in pending:
+                    print(f"  {line}")
+                print(f"\n  The steps are in {compact.STEPS}.")
             print()
             print_rules()
             token = issue_pass(goals, "check", _session(args), args.repo, rules)
             print_pass(token, [next_check(token, args.message_file, args.amend, args.repo)])
             print_commit_how(args.amend, args.message_file)
             return PASS_ISSUED
+        if args.command == "compact":
+            compact = compactor()
+            try:
+                if sum(map(bool, (args.verify, args.review, args.reviewed, args.abandon))) > 1:
+                    raise Refused("--verify, --review, --reviewed and --abandon are separate "
+                                  "steps; run one at a time")
+                if args.compact_dispositions and not args.reviewed:
+                    raise Refused("--dispositions goes with --reviewed, the reply it answers")
+                if args.answers and not args.verify:
+                    raise Refused("--answers goes with --verify, the step that reads it")
+                given = compact.Given(tuple(args.referrers), args.paths_from, args.nul)
+                # A closed stdin is None; only --paths-from - needs it.
+                stdin = sys.stdin.buffer if sys.stdin is not None else None
+                if args.nul and not args.paths_from:
+                    raise Refused("-0 goes with --paths-from, the list it separates")
+                if (args.review or args.reviewed or args.abandon) and given.supplied():
+                    raise Refused("--review, --reviewed and --abandon read no other files; give "
+                                  "the paths to --verify")
+                if args.abandon:
+                    return compact.abandon(args.file, user_state_dir(), pass_dir)
+                if args.reviewed:
+                    return compact.reviewed(args.file, user_state_dir(), pass_dir, args.reviewed,
+                                            args.compact_dispositions)
+                if args.verify:
+                    return compact.verify(args.file, user_state_dir(), pass_dir, given, stdin,
+                                          args.answers)
+                if args.review:
+                    return compact.review(args.file, user_state_dir(), _prose_command())
+                return compact.brief(args.file, user_state_dir(), _prose_command(), given, stdin)
+            except (ValueError, UnicodeDecodeError) as error:
+                raise Refused(str(error))
         if args.command == "verify-staged":
             ok, reason = verify_staged(args.line, _read_stdin(), args.repo)
             print(reason)
