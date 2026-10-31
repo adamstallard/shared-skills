@@ -10,7 +10,8 @@ change under review touched in it, and its focused test command, which
 runs only the tests that exercise it:
 <functions, e.g. src/conditions.ts:40-96 observes (changed: 52-60, 88) — npx jest src/conditions.test.ts -t observes>
 The throwaway copy of the repository, where every mutant lives: <copy path>
-The recheck command, run from the copy: <recheck command, or none>
+Each function's recheck command, run from the copy, which runs more of the
+tests near that function: <one line per function, e.g. observes — npx jest src/conditions.test.ts src/gh.test.ts -t "observes|evaluate", or observes — none>
 The gh shim directory: <shim directory>
 The file the shim logs to: <log path>
 Your mutant cap: <cap, e.g. 20>
@@ -101,15 +102,18 @@ One at a time:
    fails, or the run times out.
 3. If a flaky test is the only one that failed, the mutant is
    `needs serial rerun`, not killed. Name the test.
-4. If it survived the focused command and the recheck command is not
-   `none`, run the recheck command with the mutant still applied. The
-   first time you reach this step, first revert the mutant, run the
-   recheck command once on the unmutated copy, note how long it took,
-   record its flaky and failing tests as in section 1, and apply the
-   mutant again. Killed if
-   any test that passed on the unmutated copy now fails; if a flaky test
-   is the only one that failed, it is `needs serial rerun`, as in step 3.
-   Otherwise it survived.
+4. If it survived the focused command and its function's recheck command
+   is not `none`, recheck it:
+   - The first time you use a given recheck command, revert the mutant
+     and run the command once on the unmutated copy, as section 1 runs
+     a focused command: note how long it took and record its flaky and
+     failing tests. If it cannot run, or runs no test, treat it as
+     `none` and say so in the report. Then apply the mutant again.
+   - Run the recheck command with the mutant applied. It is killed by
+     the same rule as step 2: a test that passed on the unmutated copy
+     now fails, or the build or typecheck the command runs fails, or the
+     run times out. If a flaky test is the only one that failed, it is
+     `needs serial rerun`, as in step 3. Otherwise it survived.
 5. Revert the edit: `git -C <copy path> checkout -- <file>`. Then the copy
    must be clean again, by the check in section 1, before the next mutant.
 

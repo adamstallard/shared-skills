@@ -73,25 +73,53 @@ of the report's per-operator table
 killed or leave it out. The brief carries the rule; nothing
 needs filling in.
 
-**The recheck.** A mutant that survives the focused tests is rerun
-against every test file that mentions its file, not the full suite. For
-each file a subagent mutates (item 2 groups them), search the repository's test files for
-the file's name and for the path the language imports it by. For
-`src/conditions.ts`, `-e /conditions` matches imports such as
-`./conditions` and `../src/conditions`, which leave out the extension:
+**The recheck.** A mutant that survives its focused command is rerun
+against a wider set of the tests near its function, never the full suite.
+Each target function gets its own recheck command, built from two
+searches.
+
+First, find the test files that name the function's source file: search
+the repository's test files for the file's name and for the path the
+language imports it by. For `src/conditions.ts`, `-e /conditions` matches
+imports such as `./conditions` and `../src/conditions`, which leave out
+the extension:
 
 ```bash
 git grep -l -F -e conditions.ts -e /conditions -- '*.test.ts'
 ```
 
 For `pkg/conditions.py`, the same search is
-`git grep -l -F -e conditions.py -e pkg.conditions -- 'test_*.py'`. A
-search that matches too many files costs only test time. When the
-searches find no test file beyond those the focused command runs, the
-recheck command is `none`, and a mutant that survives the focused tests
-is a survivor. Otherwise the recheck command runs every test file the
-searches found, the focused ones included. Why not the full suite:
-[DECISIONS.md](DECISIONS.md#a-survivor-is-rechecked-against-the-tests-that-name-its-file).
+`git grep -l -F -e conditions.py -e pkg.conditions -e 'import conditions' -- 'test_*.py'`,
+where the last pattern catches `from pkg import conditions`. A search
+that matches too many files costs only test time. One that misses a file
+leaves its tests out of the recheck, which
+[DECISIONS.md](DECISIONS.md#a-survivor-is-rechecked-against-the-tests-near-its-function)
+accepts. When the search finds no test file, the recheck command is
+`none`.
+
+Then find the function's callers in its own source file. Run
+`git grep -n -w <function> -- <source file>`, and for each matching line
+take the function that holds it, leaving out the function's own
+definition and its calls to itself. Only one level is searched, never a
+caller's callers. Within the test files the first search found, find the
+tests whose names or bodies mention the function or one of those callers,
+with `git grep -n -w`, as for the focused command. Select them by name
+with the runner's own selection, as in the table above:
+
+```bash
+pytest tests/test_parser.py tests/test_cli.py -k "parse_header or read_headers"
+```
+
+Collect the selection before filling the brief, without running it
+(`pytest --collect-only -q`, `go test -list`), or run it once where the
+runner cannot collect. The recheck runs the whole named test files only
+when the selection collects no test, or when the runner cannot select
+within them. Compare what it collects with what the focused command
+collects: when every test is already in the focused command, the recheck
+command is `none`, and a mutant that survives the focused command is a
+survivor. The time budget above applies to the recheck as to the
+focused command. Why this narrow, and what it can miss:
+[DECISIONS.md](DECISIONS.md#a-survivor-is-rechecked-against-the-tests-near-its-function).
 
 **2. Split the work.** Group the target functions by file, and give each
 mutation subagent one group or more, at most three subagents at once,
@@ -149,7 +177,7 @@ copy would point there too.
 
 **4. Fill the brief** for each subagent: its functions, with line ranges,
 changed lines from `git diff --cached -U0`, and each one's focused
-command; the `copy:` path the block printed; the recheck command; the shim directory,
+command and recheck command; the `copy:` path the block printed; the shim directory,
 `<base directory>/scripts/gh-shim`, where `<base directory>` is this
 skill's own directory, the one holding SKILL.md, which Claude Code names
 on its "Base directory for this skill:" line; the log file,
@@ -171,8 +199,9 @@ iteration in progress ([Survivors that arrive during Steps
 and use none of its results until it reports the copy clean. When every
 subagent has reported, resume them one at a time via `SendMessage`,
 each with its own mutants marked `needs serial rerun`, so each rerun has
-no other test run beside it: run none in the real tree meanwhile. Send each subagent only its own mutants: its
-recheck command covers only its own files. Send the
+no other test run beside it: run none in the real tree meanwhile. Send each subagent only its own mutants: a
+serial rerun can go on to the recheck, and a subagent holds recheck
+commands only for its own functions. Send the
 survivors those reruns turn up to the finder too. Delete each
 subagent's copy once its serial reruns are done, and the proof copy ([The proof copy](#the-proof-copy)) once
 no survivor still needs a test, each by the directory above the `copy:`

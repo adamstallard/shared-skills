@@ -1045,9 +1045,9 @@ author and never an external tool, each from
 - A mutant that exceeds its time budget counts as killed, and is reported
   as a timeout so the count can be read either way.
 
-A mutant that survives the focused tests is rerun against the tests that
-name its file before it counts as a survivor. That is Adam's decision, in
-[its own entry](#a-survivor-is-rechecked-against-the-tests-that-name-its-file).
+A mutant that survives the focused tests is rerun against the tests near
+its function before it counts as a survivor. That is Adam's decision, in
+[its own entry](#a-survivor-is-rechecked-against-the-tests-near-its-function).
 
 **Why: a trial on igor (TypeScript) at `75a2fb5`, whole modules, against
 [mutator](https://github.com/unclebob/mutator).**
@@ -1249,32 +1249,57 @@ claims about the code, true or false, with a skeptic's job to break them.
 - **The search covers only what `gh` can reach.** The question names what
   was searched, so the user can weigh a caller the search could not see.
 
-## A survivor is rechecked against the tests that name its file
+## A survivor is rechecked against the tests near its function
 
-**Decision (Adam, 2026-10-30).** A mutant that survives the focused tests
-is rerun against the test files that mention its file, not the full suite.
-A `git grep` of the test files for the file's name and the path the
-language imports it by finds them;
-[mutation.md](mutation.md#running-the-mutants) has the command.
-Only the mutation recheck changes: the full suite still runs once a run,
-on the code under review, immediately before the Step 9 report
+**Decision (Adam, 2026-10-30, narrowed 2026-10-31).** A mutant that
+survives its focused tests is rerun against the tests near its function,
+never the full suite. Two searches find them:
+- **The test files that name its source file**, by a `git grep` of the
+  test files for the file's name and the path the language imports it by.
+- **Within those files, the tests that mention the function, or a function
+  in the same source file that calls it.** The callers are found by
+  searching the source file, one level only. The runner's own selection
+  (`-k`, `-run`, `-t`) runs them.
+
+The recheck runs the whole named test files only when that selection runs
+no test, or when the runner cannot select within them. A function has no
+recheck when the searches find no test file, or only tests its focused
+command already runs. The per-mutant time budget applies to the recheck as to the focused
+command. [mutation.md](mutation.md#running-the-mutants) has the commands.
+Only the mutation recheck is narrowed: the full suite still runs once a
+run, on the code under review, immediately before the Step 9 report
 ([above](#the-full-suite-is-a-gate-on-the-run-not-on-the-iteration)).
 
-**Why: the full-suite recheck cost most of the mutation time.**
-- In the igor trial it took 32 of the 47 minutes `conditions.ts` took.
+**Why: the recheck cost most of the mutation time.**
+- With the full suite as the recheck, it took 32 of the 47 minutes
+  `conditions.ts` took in the igor trial.
 - In shared-skills the full suite, 1,716 tests in 11 files, many of them
   starting git subprocesses, takes more than 4.5 minutes. Every mutant
   that survived the focused tests paid that again.
+- One file can be most of that suite. Prose keeps its tests in one file,
+  `test_prose.py`, which runs `prose.py` by path: 617 of those tests, and
+  about 4 of those minutes. Rechecking every test in the files that name
+  `prose.py` reran all of `test_prose.py` for every survivor. Narrower
+  focused commands send more mutants to the recheck, so that whole-file
+  rerun happened more often.
 
-**What it can miss, accepted.** A test that runs the file without naming
-it, through a subprocess or a dynamic import, is left out of the recheck.
-A mutant only that test would kill is reported as a survivor. A survivor
-is a lead, never a finding: the finder looks at it and reports a candidate
-only once it has observed a real wrong outcome. A missed kill can cost
-the finder a look, and a test that duplicates the one that would have
-killed it, but never a wrong result.
+**What it can miss, accepted.** The recheck leaves out a test that reaches
+the function without the searches finding it: through a deeper caller,
+through a subprocess or a dynamic import, or from a test file that never
+names the source file. A mutant only that test would kill is reported as a
+survivor. A survivor is a lead, never a finding: the finder, the agent
+every survivor is sent to, looks at it and reports a candidate only once
+it has observed a real wrong outcome. A missed kill can cost the finder a
+look, and a new test that repeats the one the recheck left out, but never
+a wrong result.
 
-**Rejected.** The full suite, which this replaces, for its cost above.
+**Rejected.**
+- **The full suite**, for its cost above.
+- **Every test in the files that name the source file**, which costs a
+  one-file suite such as prose's the whole suite again per survivor.
+- **Callers more than one level up.** Each level widens the selection
+  back toward the whole file. The kills it would add are ones whose loss
+  costs only the finder a look, which is not worth that time.
 
 ## Mutants never hold up the hunt
 
