@@ -369,8 +369,9 @@ compaction repays its 300k to 500k tokens; size does not.
 - **Read often** is declared, never inferred from content:
   - by place: every `CLAUDE.md`, `AGENTS.md` and `SKILL.md`; a file a
     `SKILL.md` or `AGENTS.md` links in a paragraph asking to read it first or
-    before something; and an open change's `proposal.md` and `design.md`.
-    a link asking to read its file before changing the skill does not
+    before something; and an open change's `proposal.md`, `design.md` and
+    delta specs, since spec-check's consistency read, run for every commit
+    that changes `openspec/`, opens each of them in every open change. A link asking to read its file before changing the skill does not
     count, and no commit counts a read of that file either, since a commit
     in a skill reads only its `SKILL.md` and read-first files;
   - by `prose-compact` in `.gitattributes`;
@@ -471,8 +472,9 @@ compaction repays its 300k to 500k tokens; size does not.
   file in `.gitattributes`. They are revisited if real use shows them off.
 - **Candidates** are the files the trigger looks at, before the read-often
   and due tests: `DECISIONS.md`, `SKILL.md`, `AGENTS.md`, `CLAUDE.md`,
-  `architecture*.md`, OpenSpec specs, proposals and designs outside the
-  archive, every read-first file, and every file declared `prose-compact`.
+  `architecture*.md`, main OpenSpec specs, the proposals, designs and delta
+  specs of changes not archived, every read-first file, and every file declared
+  `prose-compact`.
 - **A declaration works on any file.** `prose check` reads `prose-compact`,
   `-prose-compact`, `prose-compact-growth`, `prose-compact-growth-bytes`,
   `prose-compact-flagged`, `prose-compact-flagged-share`, `prose-compact-reads` and

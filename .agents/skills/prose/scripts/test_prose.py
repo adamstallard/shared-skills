@@ -4112,7 +4112,11 @@ class CurrentStateDocs(unittest.TestCase):
                                ("openspec/specs/seat/spec.md", True),
                                ("openspec/changes/fix-x/proposal.md", True),
                                ("openspec/changes/fix-x/design.md", True),
+                               ("openspec/changes/fix-x/specs/seat/spec.md", True),
                                ("openspec/changes/archive/2026-10-01-x/design.md", False),
+                               ("openspec/changes/archive/2026-10-01-x/specs/seat/spec.md",
+                                False),
+                               ("openspec/changes/fix-x/specs/seat/notes.md", False),
                                ("openspec/changes/fix-x/tasks.md", False),
                                ("README.md", False), ("CHANGELOG.md", False),
                                ("docs/guide.md", False)):
@@ -4235,6 +4239,16 @@ class CompactionDue(unittest.TestCase):
         out = self.check().stdout
         self.assertIn("compaction due for openspec/changes/x/proposal.md: read often (an open "
                       "OpenSpec change's proposal)", out)
+        self.assertNotIn("compaction due for openspec/changes/archive", out)
+
+    def test_an_open_changes_delta_spec_is_read_often(self):
+        # A consistency read opens every open change's delta specs, as it
+        # does its proposal and design.
+        self.repo.write("openspec/changes/x/specs/seat/spec.md", repeated())
+        self.repo.write("openspec/changes/archive/2026-01-01-y/specs/seat/spec.md", repeated())
+        out = self.check().stdout
+        self.assertIn("compaction due for openspec/changes/x/specs/seat/spec.md: read often (an "
+                      "open OpenSpec change's delta spec)", out)
         self.assertNotIn("compaction due for openspec/changes/archive", out)
 
     def test_a_main_spec_is_read_often_once_commits_imply_enough_reads(self):

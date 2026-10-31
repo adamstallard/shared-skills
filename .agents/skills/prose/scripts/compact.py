@@ -105,8 +105,8 @@ DEFAULT_NAMES = {"decisions.md", "skill.md", "agents.md", "claude.md"}
 def default_current(path):
     """True when, with no `prose-compact` attribute, path is a current-state
     doc agents read before working: a DECISIONS.md, SKILL.md, AGENTS.md or
-    CLAUDE.md; an architecture doc; or an OpenSpec spec, proposal or design
-    that is not archived."""
+    CLAUDE.md; an architecture doc; or an OpenSpec spec, or an open change's
+    proposal, design or delta spec."""
     pure = pathlib.PurePosixPath(path)
     name = pure.name.lower()
     if name in DEFAULT_NAMES:
@@ -119,9 +119,23 @@ def default_current(path):
     rest = parts[parts.index("openspec") + 1:]
     if rest[:1] == ("specs",):
         return name == "spec.md"
-    if rest[:1] == ("changes",) and "archive" not in rest:
-        return len(rest) == 3 and name in ("proposal.md", "design.md")
-    return False
+    return open_change_doc(rest) is not None
+
+
+def open_change_doc(rest):
+    """Which file of an open change rest names, a path's parts after its
+    openspec/ directory: "proposal", "design", "delta spec", or None.
+    default_current makes those three candidates, and _often counts them
+    read often by place, naming the kind in its reason: spec-check's
+    consistency read opens all three in every open change."""
+    if len(rest) < 3 or rest[0] != "changes" or rest[1] == "archive":
+        return None
+    name = rest[-1].lower()
+    if len(rest) == 3 and name in ("proposal.md", "design.md"):
+        return name[:-3]
+    if len(rest) == 5 and rest[2] == "specs" and name == "spec.md":
+        return "delta spec"
+    return None
 
 
 class Settings(NamedTuple):
@@ -1218,9 +1232,9 @@ def _often(path, setting, links):
     if name in ALWAYS_READ:
         return f"every {pathlib.PurePosixPath(path).name} is read before work"
     parts = pathlib.PurePosixPath(path).parts
-    if parts[:2] == ("openspec", "changes") and "archive" not in parts and len(parts) == 4 \
-            and name in ("proposal.md", "design.md"):
-        return "an open OpenSpec change's " + name[:-3]
+    kind = open_change_doc(parts[1:]) if parts[:1] == ("openspec",) else None
+    if kind:
+        return "an open OpenSpec change's " + kind
     if path in links:
         return f"{links[path]} links it to be read first"
     return None
