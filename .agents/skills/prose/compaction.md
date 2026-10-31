@@ -290,9 +290,8 @@ it on its own so it stays visible. Propose:
   compactions cut little, or a higher `prose-compact-reads` when such a doc
   counts as read often only by its reads.
 
-**Called by another skill.** A skill that keeps its own docs compact, such
-as spec-check for a change's `proposal.md` and `design.md`, runs the same
-steps, may add its own instructions to the compactor's prompt after the
+**Called by another skill.** A skill that compacts a doc itself, rather
+than waiting for `prose check`'s advice, runs the same steps, may add its own instructions to the compactor's prompt after the
 instruction to read the brief file, and may then run its own checks on the
 result. The reviewer and the cold reader still get nothing but the brief
 file's path. `prose compact` prints its briefs and reports on stdout. Each call exits 2, with the reason

@@ -285,8 +285,9 @@ reaches the rest, and history piles up there: this DECISIONS.md grew from
 51 KB to 107 KB in three weeks.
 
 **It lives in prose** because it is rule 8 applied to a whole file, and
-prose's commit check already lists every changed doc. Spec-check calls the
-same commands for OpenSpec proposals and designs.
+prose's commit check already lists every changed doc. OpenSpec proposals,
+designs and delta specs are among the docs that check measures, so spec-check
+starts no compaction of its own.
 
 **Its steps live in [compaction.md](compaction.md),** not in SKILL.md.
 SKILL.md loads on every prose use, before every commit with prose and every
