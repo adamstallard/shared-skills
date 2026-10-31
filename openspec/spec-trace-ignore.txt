@@ -1,0 +1,2 @@
+# spec-trace's own tests hold example tags that name scenarios of other repositories.
+.agents/skills/spec-trace/scripts/test_spec_trace.py
