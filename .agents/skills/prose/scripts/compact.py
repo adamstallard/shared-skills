@@ -1956,15 +1956,19 @@ def save_brief(directory, kind, text, now=None):
     return path
 
 
-def print_brief(marker, text, directory, kind, stream=None):
+def print_brief(marker, text, directory, kind, stream=None, saved=None):
     """Print text between marker's lines, then the path of the file it is
     also saved in, which the agent gives the subagent instead of retyping the
-    text. A brief that cannot be saved is still printed, and the `Brief
-    file:` line says it was not saved, instead of naming a path."""
+    text. saved, when given, is what the file holds instead: text, then more
+    that the agent need not see. A brief that cannot be saved is printed as
+    the file would have held it, saved's extra part included, and the
+    `Brief file:` line says it was not saved, instead of naming a path."""
     try:
-        where = str(save_brief(directory, kind, text))
+        where = str(save_brief(directory, kind, saved if saved is not None else text))
     except (OSError, ValueError) as error:
         where = f"not saved ({error}); give the subagent the text between the === lines"
+        if saved is not None:
+            text = saved
     print(f"=== {marker} ===", file=stream)
     print(text, file=stream)
     print(f"=== end {marker} ===", file=stream)

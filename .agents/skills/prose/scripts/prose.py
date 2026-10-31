@@ -1894,6 +1894,171 @@ def dispositions_header(token):
     return f"dispositions {token}"
 
 
+# How much of a file the saved cold-read brief copies for each item
+# (DECISIONS: The cold reader runs on the brief alone). Lines shown before a
+# comment, and after the code it sits on:
+BRIEF_CONTEXT_LINES = 5
+# The lines after a comment that stand for the code it sits on:
+BRIEF_CODE_LINES = 40
+# The most lines of a doc passage's section copied either side of the
+# changed lines; the section's heading is always copied:
+BRIEF_SECTION_REACH = 150
+# The fewest lines either side of a doc passage copied whatever its headings
+# say, so a line misread as a heading hides only lines beyond this reach:
+BRIEF_SECTION_FLOOR = 40
+# The line that ends the printed brief when the saved one goes on with the
+# lines each item needs.
+BRIEF_FILES_NOTE = ("The brief file goes on from here with the staged lines each item above "
+                    "needs.")
+# Headings by format: Markdown's `#`, and AsciiDoc's `= ` (the space keeps
+# a Markdown setext underline from counting). Other formats get none:
+# reStructuredText marks a heading by the line under it, and YAML's `#`
+# starts a comment. With none, the section is the file, within the reach.
+# _FENCE opens a code fence, inside which a `#` line is not a heading;
+# _FENCE_CLOSE closes it: the fence characters and nothing after them.
+_HASH_HEADING = re.compile(r"^ {0,3}(#{1,6})(?:[ \t]|$)")
+_EQUALS_HEADING = re.compile(r"^(={1,6})[ \t]")
+_FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})")
+_FENCE_CLOSE = re.compile(r"^ {0,3}(`{3,}|~{3,})[ \t]*$")
+# An AsciiDoc delimited block, whose lines are not headings: a line of four
+# or more of one of - . / = * + _ opens it, and the same line closes it.
+_ADOC_BLOCK = re.compile(r"^(-{4,}|\.{4,}|/{4,}|={4,}|\*{4,}|\+{4,}|_{4,})[ \t]*$")
+# Markdown files: these suffixes, and a doc with none, such as README.
+_MARKDOWN_SUFFIXES = {".md", ".markdown", ".mdx", ""}
+
+
+def _heading_pattern(path):
+    suffix = pathlib.PurePosixPath(path.rstrip()).suffix.lower()
+    if suffix in (".adoc", ".asciidoc"):
+        return _EQUALS_HEADING
+    return _HASH_HEADING if suffix in _MARKDOWN_SUFFIXES else None
+
+
+def _headings(lines, pattern):
+    """Each heading's (line number, level). Lines in a code fence are skipped,
+    and so are those in an AsciiDoc delimited block or, in Markdown, in
+    front matter at the top of the file or in an HTML comment."""
+    found, fence, block, comment = [], None, None, False
+    if pattern is None:
+        return found
+    markdown = pattern is _HASH_HEADING
+    for number, line in enumerate(lines, start=1):
+        if fence:
+            closing = _FENCE_CLOSE.match(line)
+            if closing and closing.group(1)[0] == fence[0] and len(closing.group(1)) >= len(fence):
+                fence = None
+            continue
+        if block:
+            if line.rstrip() == block:
+                block = None
+            continue
+        if comment:
+            comment = "-->" not in line
+            continue
+        if markdown and number == 1 and line.rstrip() == "---":
+            block = "---"
+            continue
+        if markdown and line.lstrip().startswith("<!--"):
+            comment = "-->" not in line
+            continue
+        delimiter = None if markdown else _ADOC_BLOCK.match(line)
+        if delimiter:
+            block = delimiter.group(1)
+            continue
+        opened = _FENCE.match(line)
+        if opened:
+            fence = opened.group(1)
+            continue
+        heading = pattern.match(line)
+        if heading:
+            found.append((number, len(heading.group(1))))
+    return found
+
+
+def _section(lines, span, path):
+    """A doc passage's section: from the heading at or above its first line
+    to the line before the next heading of the same or a higher level, cut
+    to BRIEF_SECTION_REACH lines either side of the passage; the heading is
+    always kept. With no heading above, the section starts at line 1. It
+    never stops closer than BRIEF_SECTION_FLOOR lines to the passage."""
+    first, last = span
+    headings = _headings(lines, _heading_pattern(path))
+    above = [(number, level) for number, level in headings if number <= first]
+    start, level = above[-1] if above else (1, 0)
+    end = len(lines)
+    for number, other in headings:
+        if number > last and (not above or other <= level):
+            end = number - 1
+            break
+    ranges = [(start, start)] if above else []
+    start = min(max(start, first - BRIEF_SECTION_REACH), first - BRIEF_SECTION_FLOOR)
+    end = max(min(end, last + BRIEF_SECTION_REACH), last + BRIEF_SECTION_FLOOR)
+    ranges.append((max(1, start), min(len(lines), end)))
+    return ranges
+
+
+def _sits_on(lines, span, path=""):
+    """A comment, the BRIEF_CODE_LINES after it for the code it sits on, and
+    BRIEF_CONTEXT_LINES either side. A fixed reach, with no syntax rules,
+    since each such rule misread some language's code. A docstring is a
+    comment here too."""
+    first, last = span
+    return [(max(1, first - BRIEF_CONTEXT_LINES),
+             min(len(lines), last + BRIEF_CODE_LINES + BRIEF_CONTEXT_LINES))]
+
+
+def _merged(ranges):
+    merged = []
+    for first, last in sorted(ranges):
+        if merged and first <= merged[-1][1] + 1:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], last))
+        else:
+            merged.append((first, last))
+    return merged
+
+
+def brief_files(items, texts):
+    """The part of a saved cold-read brief after the items: for each file an
+    item names, once, in the order first named, the staged lines its items
+    need, with their numbers, so the reader needs nothing but the brief
+    (DECISIONS: The cold reader runs on the brief alone). A doc passage gets
+    its section, a comment the code it sits on; the lines between are said
+    to be left out. Bytes that are not UTF-8 show as U+FFFD."""
+    paths = list(dict.fromkeys(item.path for item in items if item.path))
+    if not paths:
+        return ""
+    out = ["", "From each named file, as staged, the lines its items need, each after "
+               "its number:"]
+    for path in paths:
+        raw = texts.get(path, "").encode("utf-8", TEXT_ERRORS)
+        # Split at "\n" only, as git numbers lines, so a bare CR does not
+        # shift the numbers the items give.
+        lines = [line.replace("\r", "") for line in
+                 raw.decode("utf-8", errors="replace").split("\n")]
+        if lines and lines[-1] == "":
+            lines.pop()
+        window = _sits_on if kind_of(path) == "comment" else _section
+        ranges = []
+        for item in items:
+            if item.path == path and lines:
+                for first, last in item.spans:
+                    span = (max(1, min(first, len(lines))), max(1, min(last, len(lines))))
+                    ranges += window(lines, span, path)
+        width = len(str(len(lines)))
+        out += ["", f"--- {path} ---"]
+        shown = 0
+        for first, last in _merged(ranges):
+            if first > shown + 1:
+                out.append(f"(lines {shown + 1}-{first - 1} left out)")
+            out += [f"{number:>{width}}  {lines[number - 1]}".rstrip()
+                    for number in range(first, last + 1)]
+            shown = last
+        if shown < len(lines):
+            out.append(f"(lines {shown + 1}-{len(lines)} left out)")
+        out.append(f"--- end {path} ---")
+    return "\n".join(out)
+
+
 def cold_read_brief(token, items, root=None):
     """cold-read.md, then the line the report starts with, then the items.
     root is the repository that the items' paths are relative to."""
@@ -1915,10 +2080,17 @@ def cold_read_brief(token, items, root=None):
     return "\n".join(lines)
 
 
-def print_cold_read(token, items, next_command, stream=None, root=None):
+def print_cold_read(token, items, next_command, stream=None, root=None, texts=None):
     """Why nothing was signed, what to do, and the brief, between marker lines
-    so the agent can pass it on unchanged."""
+    so the agent can pass it on unchanged. texts maps each item's path to its
+    staged text. The saved brief goes on with the lines each item needs from
+    those texts. The printed brief leaves them out: the agent running this
+    call wrote the texts and needs no copy."""
     brief = cold_read_brief(token, items, root)
+    files = brief_files(items, texts or {})
+    saved = brief + "\n" + files if files else None
+    if files:
+        brief += "\n\n" + BRIEF_FILES_NOTE
     print(f"prose: {len(items)} text(s) here need a cold read before signing (step 5 of the "
           "pass). Nothing is signed, and the token is kept.\n", file=stream)
     print("Give a new agent, one that has not seen this conversation, only the path on the "
@@ -1937,7 +2109,7 @@ def print_cold_read(token, items, next_command, stream=None, root=None):
     # pass tokens, in the repository's git directory, or in prose's state
     # home outside a repository. Any agent in the repository can read it.
     compactor().print_brief("cold-read brief", brief, pass_dir(root).parent / "briefs",
-                            "cold-read", stream)
+                            "cold-read", stream, saved)
 
 
 # What a report and a dispositions file must look like, for their refusals.
@@ -2947,9 +3119,8 @@ def main(argv=None):
                     trailer += (f"; cold read: {cold_counts(result.fixed, result.kept)}"
                                 f"; understood: {understood}")
                 elif cold:
-                    record_brief(args.token, cold,
-                                 {item.path: staged_text(item.path, args.repo) for item in cold},
-                                 args.repo)
+                    texts = {item.path: staged_text(item.path, args.repo) for item in cold}
+                    record_brief(args.token, cold, texts, args.repo)
                     if pending:
                         print("prose: the signing call with --cold-read will refuse until each "
                               "of these is done; fix what the cold reader finds first, so the "
@@ -2960,7 +3131,8 @@ def main(argv=None):
                     print_cold_read(args.token, cold, next_check(
                         args.token, args.message_file, args.amend, args.repo, REPORT_FILE,
                         DISPOSITIONS_FILE),
-                        root=git(["rev-parse", "--show-toplevel"], args.repo).rstrip("\n"))
+                        root=git(["rev-parse", "--show-toplevel"], args.repo).rstrip("\n"),
+                        texts=texts)
                     return COLD_READ_NEEDED
                 # Each staged file compacted with `prose compact` is named in
                 # the trailer, so every clone's trigger sees the compaction,
