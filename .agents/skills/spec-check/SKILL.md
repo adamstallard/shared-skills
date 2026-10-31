@@ -62,6 +62,11 @@ A **check** is a heuristic: judge it, and fix it or leave it. An `openspec
 archive` or `openspec validate` result of "not run" means it was not
 checked, never that it passed; say so in your report.
 
+`--no-validate` skips the whole `openspec validate --strict` run, so its
+result reads `not run (--no-validate)` and no `openspec-validate` finding
+appears. Every other check still runs, the archive check included: only a
+missing CLI skips the archive.
+
 Citations are checked against the base branch: by default `origin/HEAD`, then
 `origin/main`, then `main`. Pass `--base` when the change targets another
 branch.

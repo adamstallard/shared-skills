@@ -560,8 +560,12 @@ OpenSpec stops at its first refusal, so one run shows at most one.
 - **An error without the CLI.** That is right for a stacked change, whose
   other checks are wrong without its dependencies. Here the other checks
   still hold, so "not run" says exactly what is missing.
-- **Skipping the archive under `--no-validate`.** That flag is about
-  `openspec validate`; the archive is a check of its own.
+- **Skipping the archive under spec-check's `--no-validate`.** That flag
+  skips the whole `openspec validate --strict` run and nothing else. The
+  archive is a check of its own, and only a missing CLI skips it. The
+  `--no-validate` in the `openspec archive` command above is a different
+  flag, OpenSpec's own: it stops `archive` running OpenSpec's validation
+  before it applies the change. spec-check never passes its own flag through.
 
 ---
 
