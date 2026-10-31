@@ -451,50 +451,51 @@ a licence to discount it: a committed contract saying the behavior is intended i
 real refutation, and provenance checked once and found to predate the change settles
 the question rather than reopening it.
 
-## Step 6 resumes the finder; the refuters and the next find pass stay cold
+## Step 6's fixer is a choice; the refuters and the next find pass stay cold
 
-**Decision.** Within an iteration, Step 6 does not spawn a fresh fixer by
-default. It resumes that iteration's Step 3 finder via `SendMessage`, passing
-the surviving findings, the refuter verdicts, and Step 5's fix-conflict notes.
-A fresh `Agent` call — strongest available model, full brief — is the fallback,
-used only when that finder is no longer reachable (errored, session ended, or
-it belongs to an earlier iteration).
+**Decision.** Step 6's fix may be written by the orchestrating agent itself,
+by this iteration's Step 3 finder resumed via `SendMessage`, or by a fresh agent
+on the strongest available model. Resuming the finder is an option for when it
+saves tokens, not a rule. Whoever writes it gets the same inputs: the surviving
+findings, the refuter verdicts, and Step 5's fix-conflict notes.
 
-**Why.** Nothing mutates the source between Find and Fix: Step 4 only adds test
-files, Step 5 only reads. The finder has already read every changed file in
-full, traced each candidate's reachability, and run the candidates — the most
-expensive context in the loop, and exactly what a cold fixer spends its first
-tokens rebuilding. There is no independence to protect here: the fixer was
-never a check on the finder — it is handed the surviving findings as facts to
-fix, and the refuters have already done the checking.
+**Why.** Resuming the finder was always a token optimisation: it has already
+read every changed file, traced each candidate's reachability and run the
+candidates, which a cold fixer spends its first tokens rebuilding. There was no
+independence to protect in who fixes: the fixer is handed the surviving
+findings as facts, and the refuters have already done the checking. As a rule
+it went unfollowed, since the orchestrator often holds the findings and the
+code already and writes the fix faster itself, and an unfollowed rule teaches
+agents to break rules quietly. A choice stated as a choice is followed.
 
-**Consequence, accepted.** A finder fixing its own findings is anchored on the
-framing it built — it may defend its diagnosis rather than notice a simpler
-fix. Two things bound that: Step 6's prevention question ("is there a better
-approach?") is asked either way, and Step 8 guarantees the fixes get a fresh
-pair of eyes — the next iteration's finder is cold by this entry's own scope
-rule, and a run never ends on an iteration that fixed something.
+**Consequence, accepted.** A finder or orchestrator fixing findings it framed
+may defend that framing rather than notice a simpler fix. Two things bound
+that: Step 6's prevention question ("is there a better approach?") is asked
+whoever fixes, and Step 8 gives the fixes a fresh pair of eyes: the next
+iteration's finder is cold, and when the cap ends a run on an iteration that
+fixed something, those fixes become a `budget` cause offering a new run.
 
-**Rejected.** Spawning a fresh strongest-model fixer every time, which is what
-the earlier wording implied — it re-billed the finder's whole investigation for
-no independence gain. Also rejected: retiring the byte-stable prompt prefix
-rule shared between Steps 3 and 6 as obsolete. It still governs the fallback
-path and the Step 3 spawns themselves, which repeat every iteration.
+**Rejected.**
+- **Requiring the resumed finder**, which this replaces, for the reason above.
+- **Requiring a fresh strongest-model fixer every time.** It re-bills the
+  finder's whole investigation for no independence gain.
+- **Retiring the byte-stable prompt prefix rule** shared between Steps 3 and 6.
+  It still governs a fresh fixer and the Step 3 spawns, which repeat every
+  iteration.
 
-**Where this stops applying.** This is within-iteration reuse only, and it does
-not extend in either direction:
+**Where this stops applying.** The choice is about who writes the fix only. The
+independence safeguards stay fixed:
 
-- **Not to Step 5's refuters.** Their entire value is independence — an agent
-  that has not seen the finder's reasoning (see *A refuter judges findings, not
+- **Step 5's refuters** are always fresh. Their whole value is that they have
+  not seen the finder's reasoning (see *A refuter judges findings, not
   proposals*). Resuming the finder as a refuter, or letting one refuter see
-  another's reasoning, destroys the step to save its cost. Every refuter stays
-  fresh, every time, no exceptions.
-- **Not to the next iteration's Step 3 finder.** Step 6 rewrites the files, so
-  a resumed finder's context describes code that no longer exists — findings
-  against a stale version are worthless (Step 3's own backgrounding rule), and
-  the record in *An iteration that fixed something is never the last one* is
-  that iteration 2 finds bugs iteration 1's fixes created, which only a fresh
-  read of the fixed code catches.
+  another's reasoning, destroys the step to save its cost.
+- **Each iteration's Step 3 finder** is fresh. Step 6 rewrites the files, so a
+  resumed finder's context describes code that no longer exists, and the record
+  in *An iteration that fixed something is never the last one* is that
+  iteration 2 finds bugs iteration 1's fixes created, which only a fresh read
+  of the fixed code catches. For the same reason, a resumed fixer is only ever
+  this iteration's finder.
 
 ## Triage applies to the hook's own reports
 
@@ -1004,19 +1005,23 @@ recommendation. Decided by Adam, 2026-10-13.
 
 ## Mutants are made by agents, in a throwaway copy
 
-**Decision (Adam, 2026-10-29,
-[shared-skills#39](https://github.com/adamstallard/shared-skills/issues/39)).**
+**Decision ([shared-skills#39](https://github.com/adamstallard/shared-skills/issues/39)).**
 Where the changed functions have tests, Step 3 checks that the tests pin
 them by mutating them. Fresh mutation subagents do it, never the code's
 author and never an external tool, each from
 [mutation-brief.md](mutation-brief.md) handed over verbatim:
 
-- **Scope:** the functions the staged change touches, Step 0's scope.
+- **Scope:** once per run, within one cap. Iteration 1 mutates the
+  functions the staged change touches that have tests; a later iteration
+  mutates only the functions the last iteration's fixes touched that have
+  tests, within what the cap has left.
 - **Where:** every mutant lives in a throwaway copy of the repository, never
   the real tree, and every test run has a `gh` shim first on `PATH` that logs
   and refuses each call. `SKILL.md`'s *Never* list gains "mutate source in
   the real tree".
-- **When:** in Step 3, in the background, beside the finder and each other.
+- **When:** in Step 3, in the background, beside the finder and each other,
+  and never holding up Steps 4–7
+  ([below](#mutants-never-hold-up-the-hunt)).
 - **A survivor is a lead, never a finding.** It goes to the Step 3 finder,
   which reports a candidate only once it has observed a real wrong outcome;
   that candidate then goes through Steps 4–7 like any other.
@@ -1037,9 +1042,7 @@ author and never an external tool, each from
 - A mutant killed only by a known-flaky test is rerun serially before it
   counts.
 - The mutation subagents run on a capable model.
-- A later iteration mutates only the functions the last iteration's fixes
-  touched.
-- A mutant that makes a test run time out counts as killed, and is reported
+- A mutant that exceeds its time budget counts as killed, and is reported
   as a timeout so the count can be read either way.
 
 A mutant that survives the focused tests is rerun against the tests that
@@ -1061,7 +1064,7 @@ name its file before it counts as a survivor. That is Adam's decision, in
 - **The gaps mutator missed:** return-value replacement in `observes`, a
   function in `conditions.ts`; request bodies that never
   reached `gh`; `ghGraphql` never executed by any test. A judge agent wrote
-  behavioural tests for the 8 agents' survivors most likely to hide a bug: all 8
+  behavioural tests for the 8 survivors, from the agents' runs, most likely to hide a bug: all 8
   passed on the real code and failed on the mutant, so all were real test
   gaps, and none was a bug.
 - **About a third of mutator's survivors were equivalent**, and it labels
@@ -1107,10 +1110,10 @@ productive.
   the real one. A plain `cp -R` has the same flaw when the real tree is
   itself a worktree, whose `.git` is a file pointing at the shared
   repository. The copy is a local clone with its working tree laid over it;
-  [reference.md](reference.md#step-3--mutation-testing) has the commands.
+  [mutation.md](mutation.md#running-the-mutants) has the commands.
 
 **Open.**
-- How bug-hunter finds a project's focused test command, where the runner
+- How bug-hunter finds a function's focused test command, where the runner
   offers no obvious selection. The run chooses by hand and names it.
 - Whether the shim extends to other networked CLIs.
 - Keeping the operator list good over time: the report records
@@ -1145,7 +1148,7 @@ doing work no measurement here has checked.
   unexported function with no reference in the repository, or a value never
   read. Code judged dead on any other ground goes to a fresh refuter, who
   tries to show it live by a four-item checklist
-  ([reference.md](reference.md#survivor-tests-and-dead-code)); with no live
+  ([mutation.md](mutation.md#step-5--survivor-tests-and-dead-code)); with no live
   path found, the fixer removes it, and with one, the survivor becomes a
   gap and gets a test. Trust-boundary checks and exported code are handled
   as the [next entry](#a-boundary-check-gets-a-test-exported-code-gets-a-search)
@@ -1252,7 +1255,7 @@ claims about the code, true or false, with a skeptic's job to break them.
 is rerun against the test files that mention its file, not the full suite.
 A `git grep` of the test files for the file's name and the path the
 language imports it by finds them;
-[reference.md](reference.md#step-3--mutation-testing) has the command.
+[mutation.md](mutation.md#running-the-mutants) has the command.
 Only the mutation recheck changes: the full suite still runs once a run,
 on the code under review, immediately before the Step 9 report
 ([above](#the-full-suite-is-a-gate-on-the-run-not-on-the-iteration)).
@@ -1272,3 +1275,120 @@ the finder a look, and a test that duplicates the one that would have
 killed it, but never a wrong result.
 
 **Rejected.** The full suite, which this replaces, for its cost above.
+
+## Mutants never hold up the hunt
+
+**Decision.** Mutants run in the background while the finder's own
+candidates go through Steps 4–7; only the commit and the Step 9 report wait
+for every survivor to be answered.
+
+- **A survivor that arrives late is judged against the current tree.** The
+  finder of the iteration in progress answers it by reading the code as it
+  is now. A candidate is proven red on the current code, so one a fix
+  already covered does not go red and is dropped. A gap's test is proven by
+  applying the mutant to the current code, in a proof copy refreshed from
+  the real tree; if the mutant's original text no longer exists there, the
+  survivor is stale and dropped.
+- **An iteration is not clean while a survivor sent to it is unanswered.**
+  A late survivor proven a bug is fixed in the iteration it is proven in,
+  and counts as that iteration having found something, so another
+  iteration is owed. Before its fix, a fresh agent asks Step 5's
+  fix-conflict question for it on its own.
+- **At the cap, leftovers are `budget` causes**: survivors unanswered, and
+  those answered as candidates but unproven, are root-causes entries. Never
+  a fourth iteration, never dropped silently.
+- **Mutants are cheap.** Each function gets a focused command that selects
+  the tests exercising it, through the runner's own selection, not a whole
+  test file. Each run against a mutant has a time budget of three times the
+  unmutated run of the same command, or 30 seconds, whichever is longer; a
+  mutant over it counts as killed by timeout and is reported as such.
+- **Mutation runs once per run, within one cap**: iteration 1 on the
+  functions the change touches, a later iteration only on the functions
+  the last iteration's fixes touched, and only those with tests. Stated as
+  one rule, because a sentence buried at the end of a paragraph was missed.
+
+**Why.** The point of mutation testing here is that mutants run while the
+finder hunts ordinary bugs. When Step 4 waited for every survivor, the
+slowest mutant held up every fix. In one session each mutant reran prose's
+whole 617-test file, about four minutes, and the wait led agents to break
+rules: one started Step 4 early, so its mutants tested stale code, and
+another replaced the finder with mutants of its own. Judging late
+survivors against the current tree is what makes not waiting safe: a fix
+that already covered a survivor shows up as no red, and a fix that
+rewrote the mutated code shows up as a missing original. Dropping a stale
+survivor loses nothing: the next iteration mutates the functions the fixes
+touched, and in iteration 3 those fixes are already a `budget` cause.
+
+**Rejected.**
+- **Step 4 waiting for every survivor**, which this replaces, for the cost
+  above.
+- **Starting Step 4 early and judging survivors against the code they were
+  made on.** A survivor of code a fix has since rewritten says nothing about
+  the code being committed.
+- **Restarting the mutants after each fix.** It repeats the work the next
+  iteration already does on the functions the fixes touched.
+- **A mutation tool in place of the agents, to make mutants cheap.** The
+  cost was the test command each mutant ran, not who made the mutant, so
+  narrowing that command fixes it. The agents found the gaps that mattered
+  most in the trial, which the tool missed
+  ([above](#mutants-are-made-by-agents-in-a-throwaway-copy)).
+- **A fourth iteration for survivors left at the cap**, for the reasons in
+  *There is no fourth iteration; the abort reports root causes*.
+
+**Where this stops applying.** Only Steps 4–7 stop waiting. The commit and
+the report still wait for the whole run, as *The commit waits for the run,
+and the iteration counter resets* requires, and the full suite still gates
+the report.
+
+## The mutation procedure lives in mutation.md
+
+**Decision.** The mutation procedure, from choosing the focused tests to
+the leftovers at the cap, is in [mutation.md](mutation.md). `SKILL.md`
+keeps a short paragraph: when mutation runs, who runs it and where, that a
+survivor is a lead, that mutants never hold up the hunt, and that mutation
+is never improvised. Every signal that sends an agent to the procedure names
+the file. [mutation-brief.md](mutation-brief.md) stays the subagents' brief.
+
+**Why.** `SKILL.md` loads on every run, and most runs mutate nothing or
+little, so a page of mutation procedure there is paid for on every load.
+Agents keep short rules and lose long ones: the mutation text in `SKILL.md`
+had grown to several paragraphs, and the rule about when Step 4 starts sat
+at the end of one of them. Prose moved its compaction steps into
+`compaction.md` for the same reason.
+
+**This does not reverse *The trailer rule is stated inline, not only pointed
+at*.** That entry keeps inline the rules an agent executes at a step where a
+wrong one produces a wrong artifact, because a pointer is followed after the
+mistake. The mutation rules of that kind stay in `SKILL.md`: never mutate
+source in the real tree, never improvise, don't hold Steps 4–7 for mutants.
+The procedure is read before it is needed, not after a mistake: the
+paragraph every run reads at Step 3 says to read mutation.md before
+starting any mutant, and the rules whose breach does harm before then are
+the inline ones.
+
+**Rejected.** Moving it to `reference.md`, which already carries the report
+and Steps 4–7 and is read before every report; mutation is read only when
+mutants run.
+
+**Where this stops applying.** Only the mutation procedure moved. Rules
+every run needs stay in `SKILL.md`.
+
+## The agent that wrote the change runs bug-hunter itself
+
+**Decision.** The agent that wrote the change runs this skill in its own
+session. It does not hand the whole run to a subagent that then starts
+finders, refuters and mutation agents of its own. Delegating the single
+passes stays as the steps describe.
+
+**Why.** The run needs an orchestrator that stays alive to collect
+survivors and resume agents. A nested delegate keeps ending its turn while
+its children run, so their results arrive at an agent that has already
+reported, or at none.
+
+**Rejected.** A dedicated bug-hunter subagent per commit. It saves the
+author's context, at the cost of a run that cannot wait for its own passes.
+
+**Where this stops applying.** An agent briefed to write a change and
+commit it, by another agent, is the author: it runs the skill itself, and
+its report goes to the agent that briefed it, as *A question is asked when
+the user sees it, not when an agent writes it* says.

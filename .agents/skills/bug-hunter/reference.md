@@ -110,30 +110,37 @@ Rules for the report:
 - Say `clean` for an iteration that found nothing, rather than omitting it. A
   missing iteration reads like it was skipped.
 - **When mutants ran**, the result block carries one `mutation` line and
-  the report a per-operator table:
+  the report carries a per-operator table:
 
   ```
-    mutation  14 mutants of 4 changed functions — 11 killed, 2 survivors
-              killed by new or strengthened tests, 1 dead code removed,
-              0 ignored
+    mutation  14 mutants of 4 changed functions — 11 killed (1 by timeout),
+              2 survivors killed by new or strengthened tests, 1 dead code
+              removed, 0 stale, 0 ignored
 
   ── mutation ─────────────────────────────  14 mutants · 4 functions
 
-    operator            mutants  killed  new test  finding  ignored  dead code
-    relational                5       4         1        0        0          0
-    logical                   3       3         0        0        0          0
-    statement deletion        4       2         1        0        0          1
-    return value              2       2         0        0        0          0
+    operator            mutants  killed  timeout  new test  finding  stale  ignored  dead code
+    relational                5       4        0         1        0      0        0          0
+    logical                   3       3        1         0        0      0        0          0
+    statement deletion        4       2        0         1        0      0        0          1
+    return value              2       2        0         0        0      0        0          0
     gh calls refused  0
   ```
 
+  `killed` includes the mutants killed by timeout, and `timeout` counts
+  them again, so the count can be read either way. `stale` counts
+  survivors dropped because a fix had already removed the mutant's
+  original text ([Survivors that arrive during Steps
+  4–7](mutation.md#survivors-that-arrive-during-steps-47)).
+
   The `new test` column counts strengthened tests too, and the tests
   written for trust-boundary checks and for exported code a search found a
-  caller of. The `dead code` column counts dead code removed, and exported
-  code kept as a recommendation because a search found no caller. Exported
+  caller of. The `dead code` column counts both dead code removed and exported
+  code kept as a recommendation because a search found no caller; the
+  line counts only the removed, and each is listed in its iteration. Exported
   code the user later says to remove counts once, as removed. A survivor
   that led to a bug is not on the line: it is reported as a finding, in
-  its iteration, and counted in the `finding` column. The table keeps all
+  the iteration it was proven in, and counted in the `finding` column. The table keeps all
   of these so each operator's productivity can be reviewed across runs.
   The line's counts need not add up to its total: findings, and exported
   code kept as a recommendation, are in the table and the report but not on
@@ -597,6 +604,22 @@ through the picker, in severity order:
   question.
 ```
 
+**Mutation leftovers are `budget` entries** ([mutation.md](mutation.md#at-the-cap)): one entry for
+the survivors the finder had not answered when iteration 3's Step 7 ended,
+listing each mutant, and one for each survivor answered as a candidate but not
+yet proven, with its concrete input and wrong outcome. Option 1 is a new run scoped to them:
+
+```
+  ③ 2 mutation survivors were never answered
+     kind        budget — inside the change under review, unjudged
+     affects     M7 parser.py:41 `<` → `<=` · M12 parser.py:88 `return x` → `return None`
+     odds        unknown — the finder never read them against the code
+
+     1  new run         — iteration 1, these survivors re-mutated and judged
+     2  write it down   — record them as a known gap, change nothing
+     3  skip            — no pass, no note
+```
+
 An abort's headline reads `3 iterations · aborted · … · 2 to decide`, and the
 footer earns its place most here: an abort is the ending most likely to be
 relayed as a status line — *it aborted* — with the causes and their choices left
@@ -696,138 +719,6 @@ Step 4 turns the shrunk input into the regression test
 ([below](#a-counterexample-from-a-property)). Keeping the property itself is a
 Step 9 recommendation ([Asking about a recommendation](#asking-about-a-recommendation)).
 
-## Step 3 — Mutation testing
-
-The procedure behind SKILL.md's mutation paragraph. Each mutation subagent
-works from [mutation-brief.md](mutation-brief.md); everything here is what
-the run does around it. Why each part:
-[DECISIONS.md](DECISIONS.md#mutants-are-made-by-agents-in-a-throwaway-copy).
-
-**1. Decide whether it runs.** It runs on a `REVIEW`, when the focused
-selection below finds at least one test for the functions the staged change
-touches. With no such test, every mutant would survive and say only that
-the tests are missing, so skip it and say so in the report:
-`mutation  skipped — no tests cover the changed functions`.
-
-**2. Choose the focused tests and the recheck.** The focused tests are
-the tests that exercise the files holding the target functions, selected
-the way Step 7 selects them: the module's own test file, test files that
-import it, or the runner's own selection, such as
-`jest --findRelatedTests <file>`, `pytest <test file>` or
-`go test ./<package>`. Where the project offers no obvious selection,
-choose by hand and name the command in the report; a general rule for
-it is an open question
-([DECISIONS.md](DECISIONS.md#mutants-are-made-by-agents-in-a-throwaway-copy)).
-
-**The recheck.** A mutant that survives the focused tests is rerun
-against every test file that mentions its file, not the full suite. For
-each file in the subagent's group, search the repository's test files for
-the file's name and for the path the language imports it by. For
-`src/conditions.ts`, `-e /conditions` matches imports such as
-`./conditions` and `../src/conditions`, which leave out the extension:
-
-```bash
-git grep -l -F -e conditions.ts -e /conditions -- '*.test.ts'
-```
-
-For `pkg/conditions.py`, the same search is
-`git grep -l -F -e conditions.py -e pkg.conditions -- 'test_*.py'`. A
-search that matches too many files costs only test time. When the
-searches find no test file beyond those the focused command runs, the
-recheck command is `none`, and a mutant that survives the focused tests
-is a survivor. Otherwise the recheck command runs every test file the
-searches found, the focused ones included. Why not the full suite:
-[DECISIONS.md](DECISIONS.md#a-survivor-is-rechecked-against-the-tests-that-name-its-file).
-
-**3. Split the work.** Group the target functions by file, and give each
-mutation subagent one group or more, at most three subagents at once. The
-cap is 40 mutants a run unless the user or the project's `AGENTS.md` sets
-another, shared out in proportion to each group's changed lines.
-
-**4. Make one throwaway copy per subagent**, outside the real tree, from
-the project's root:
-
-```bash
-set -eu
-REAL=$(git rev-parse --show-toplevel)
-TMP=$(mktemp -d)
-TMP=$(cd "$TMP" && pwd -P)    # resolved: on macOS /var is a link
-COPY="$TMP/repo"
-git clone --quiet --no-checkout "$REAL" "$COPY"
-git -C "$COPY" fetch --quiet "$REAL" HEAD
-git -C "$COPY" reset --quiet FETCH_HEAD
-git -C "$COPY" remote remove origin
-rsync -a --delete --exclude=/.git --exclude=/node_modules "$REAL"/ "$COPY"/
-if [ -d "$REAL/node_modules" ]; then ln -s "$REAL/node_modules" "$COPY/node_modules"; fi
-git -C "$COPY" add -A
-echo "copy: $COPY"
-```
-
-Run it as one tool call, and keep `set -eu` and the separate `mktemp` line.
-Where `mktemp -d` fails and prints nothing, `cd ""` succeeds and leaves
-you in the project, so a combined `TMP=$(cd "$(mktemp -d)" && pwd -P)`
-would put the copy inside the real tree, and deleting the copy afterwards
-would delete the project. With them, the first failure stops the block.
-In a repository with submodules it stops at `git add -A`, because the
-copied submodule's `.git` file points at a directory the clone lacks. Skip
-mutation there, delete the temp directory and everything in it, and say so
-in the report.
-
-The clone gives the copy its own `.git`, so a git command that a test or a
-mutant runs, a `git config` included, changes only the copy. Removing
-`origin` keeps a `git push` from reaching the real repository. `rsync`
-then lays the working tree over it, untracked files included, so the
-copy's tests see what the Step 2 baseline saw, and `git add -A` stages that
-state: the brief's check that the copy is clean compares the files with
-it.
-
-Adjust the block to the project's dependency directories. Each one the
-tests only read, such as `node_modules` or `.venv`, is excluded from
-`rsync` and linked, as `node_modules` is above, so it is not copied. Never
-link a directory the tests write, such as a build output or a cache: left
-out of the excludes, `rsync` copies it, and the tests write the copy's.
-
-Not `git worktree add`: a worktree shares the real repository's config,
-hooks and refs, so a mutant's `git config` or commit would land in the
-real one. Not a plain `cp -R` either: when the real tree is itself a
-worktree, its `.git` is a file pointing at the shared repository, and the
-copy would point there too.
-
-**5. Fill the brief** for each subagent: its functions, with line ranges
-and changed lines from `git diff --cached -U0`; the `copy:` path the
-block printed; the focused and recheck commands; the shim directory,
-`<base directory>/scripts/gh-shim`, where `<base directory>` is this
-skill's own directory, as Step 9 of SKILL.md describes; the log file,
-`gh-calls.log` in the directory above the `copy:` path, outside the copy so
-`git add` never stages it; and its cap. Add nothing else. Told what the
-code is meant to do, a subagent would judge survivors by that intent
-instead of by what the tests check.
-
-The shim is a `gh` that refuses every call with exit 1 and logs it. It
-catches only a `gh` found on `PATH`: a test that runs `gh` by absolute
-path, or another networked CLI, gets through; whether to cover other CLIs
-is an open question.
-
-**6. Collect the results.** As each report arrives, check its last line
-says `copy clean: yes`, then send its survivors to the finder. If it says
-`no`, the copy may still hold a mutant: resume that subagent to revert it,
-and use none of its results until it reports the copy clean. When every
-subagent has reported, resume them one at a time via `SendMessage`,
-each with its own mutants marked `needs serial rerun`, so each rerun has
-no other test run beside it. Each subagent's recheck command covers only
-its own files, so another subagent's mutant is never sent to it. Send the
-survivors those reruns turn up to the finder too. Delete each copy after Step 6, once no survivor of the iteration still needs a
-test, by the directory above the `copy:` path it printed. First check that
-directory is not the
-project and does not hold it, since a shell variable from item 4 is gone
-by now. `rm -rf` on it removes the links, not what they point at.
-
-**7. Count for the report.** Add up, across subagents and iterations:
-mutants, functions, killed, survivors killed by new or strengthened tests,
-dead code removed, and survivors ignored as equivalent; and per operator,
-the same counts plus survivors that led to findings and dead code kept as a
-recommendation.
-
 ## Steps 4–7 in detail
 
 ### Step 4 — Prove
@@ -886,43 +777,8 @@ library: even seeded, its red can come from another counterexample, and its
 inputs change with the library. Keeping it as a guard beside this test is the
 user's decision, in Step 9.
 
-#### A test for a mutation survivor
-
-For a survivor the finder called a gap: the code is right, and no test
-notices when it is changed. The test checks what the survivor's `unpinned`
-line names, through the code's public entry points. What crosses a
-boundary the code owns counts as behaviour: a return value, an output, an
-error, the arguments of a call to an external process or service. Private
-state, and calls between the function's own helpers, do not.
-
-For a check at a trust boundary, the test sends in the bad input the check
-exists to reject, such as a malformed payload or a value out of range, and
-asserts that it is rejected. For exported code that a search found a
-caller of, the test checks the contract that caller relies on.
-
-**Strengthen an existing test, or write a new one.** Where the mutation
-report's `weak test` line names an existing test that runs the mutated code
-but checks nothing that would notice, you may add assertions to that test
-instead of writing a new one. Only add: never change, loosen or remove an
-assertion it already has. Never delete it either, even if it asserts
-nothing, since it still catches a crash. The proof is the same either way.
-
-1. Write it in the real tree, as any Step 4 test, and run it: green.
-2. In the copy, put the same test file in place, make the mutant's edit
-   (`<original>` → `<mutated>` at its `file:line`), and run the test: red,
-   failing on what the `unpinned` line names.
-3. Revert the edit and restore the copy's test file (`git -C <copy>
-   checkout -- <file>` for a strengthened test, delete it for a new one), so
-   the copy is clean again by the brief's check.
-
-| Result | Action |
-|---|---|
-| Green on the real code, red on the mutant | Keep it, for Step 5's refuter to review. It is staged with the commit this run checks. |
-| Red on the real code | The test is wrong, or the code is. Repair the test once. Still red on the real code: send it to the finder as a candidate, since it may be a bug. |
-| Green on the mutant | Repair it once. Still green: the survivor is equivalent, ignored and counted. |
-
-Never edit the real tree's source to see the red: the mutant exists only in
-the copy.
+A test for a mutation survivor is proven differently, on the mutant:
+[mutation.md](mutation.md#step-4--a-test-for-a-survivor).
 
 ### Step 5 — Refute
 
@@ -975,8 +831,8 @@ information, not a failure.
 
 One more question waits for the parallel pass to come back, because it needs the
 survivors: ask a single **fresh** agent, about the set as a whole, **do any of
-these fixes fight each other?** Fresh, not the resumed Step 6 finder — that
-agent is about to author the fix plan this question is meant to check. Name every case of:
+these fixes fight each other?** Fresh, not whoever will write the Step 6 fix —
+that agent is about to author the fix plan this question is meant to check. Name every case of:
 
 - **Fixing A reopens B.** The cheap fix for one finding creates a hole another
   finding is about. (Real example: excluding any command containing
@@ -990,107 +846,39 @@ agent is about to author the fix plan this question is meant to check. Name ever
 Carry that list into Step 6 and fix in an order that respects it. A conflict
 found here costs a sentence; found after both fixes are written, it costs both.
 
-#### Survivor tests and dead code
-
-Launch these refuters with the others, one per item, each fresh. A survivor
-test or a dead-code claim is a factual claim, like a finding, so the
-skeptical default fits it: the refuter is asked whether something is true
-of the code, not whether a design should change.
-
-**A survivor test**, new or strengthened. Give the refuter the test, the
-code under test, its callers, and the spec, split into committed and
-in-flight text as above; not the finder's reasoning. It asks: does this
-test assert what the code *should* do, by the spec and by what the callers
-rely on, or only what it does now? A test green on the real code pins
-today's behaviour, so if the finder took a bug for a gap, the test pins the
-bug.
-
-| Verdict | Action |
-|---|---|
-| Asserts intended behaviour | Keep it. |
-| Asserts behaviour the spec or a caller contradicts | Delete the test, or remove the assertions added to a strengthened one. Send the survivor to the finder as a lead, as in Step 3; a candidate it reports goes through Steps 4–7 like any other. |
-
-**Judged-dead code**: anything the finder called dead except three kinds,
-each settled without a refuter. Provably dead code goes to Step 6 for
-removal; a check at a trust boundary is a gap (SKILL.md, Step 3); and
-exported or public code has its callers searched for (below). Give the refuter the code, the
-repository and the survivor. It tries to show the code is live, by this
-checklist. The last two items catch code the finder failed to see was a
-boundary check or exported:
-
-- an error path that real systems produce and the tests don't exercise;
-- dynamic use: reached by name, through configuration, or on another
-  platform;
-- a deliberate defensive check at a trust boundary, where outside data
-  enters;
-- exported or public API, which a caller outside the repository could use.
-
-| Verdict | Action |
-|---|---|
-| No item applies | Step 6 removes it. |
-| An error path or dynamic use | The survivor is a gap. Step 4 writes its test, which a fresh refuter then reviews as above. |
-| A trust-boundary check | The survivor is a gap. Step 4 writes a test that sends in the bad input the check guards against, which a fresh refuter then reviews as above. |
-| Exported or public API | Search for the code's callers, as below. |
-
-#### Exported code with no caller in the repository
-
-Search before anyone is asked, and run the search yourself, in the main
-loop, as Step 2 runs the baseline: it is a few commands, not judgement.
-The owners to search are your own account, `gh api user --jq .login`, and
-each organisation you belong to, `gh api user/orgs --jq '.[].login'`.
-Search each for the name:
-
-```bash
-gh search code "<name>" --owner <org> --limit 20
-```
-
-Search the repository's own configuration too: package manifests' entry
-points and exports, plugin and route lists, CI and deployment files. A hit
-counts only when it uses this code, such as an import from this package,
-not when it is another symbol with the same name. Note what was searched,
-for the question below. If `gh` cannot search, the code still goes to
-Step 9, and the question says that no search ran, instead of claiming one
-found nothing.
-
-| Result | Action |
-|---|---|
-| A caller found | The code is live, and the survivor is a gap. Step 4 writes a test of its public contract, and a fresh refuter reviews it as above. Nobody is asked. |
-| No caller found | A Step 9 recommendation ([Asking about a recommendation](#asking-about-a-recommendation)). The search cannot rule out a private caller it cannot reach, or one nobody knows of, so the code is never removed without the user's yes. |
+**Survivor tests and judged-dead code** get fresh refuters of their own, launched
+with these: [mutation.md](mutation.md#step-5--survivor-tests-and-dead-code).
 
 ### Step 6 — Fix
 
-**Resume this iteration's Step 3 finder via `SendMessage` — do not spawn a
-fresh fixer by default.** Nothing has mutated the source between Find and Fix:
-Step 4 only added test files, Step 5 only read. The finder has already read
-every changed file in full, traced each candidate's reachability, and run the
-candidates — exactly the context a cold fixer would spend its first tokens
-rebuilding. The message hands it what it does not have:
+**Who writes the fix is your choice; what it is given is not.** Three ways,
+all allowed:
 
-- **the surviving findings** — which of its candidates were proven red and not
+- **Write it yourself**, in the loop you are already in, when you hold the
+  findings and the code.
+- **Resume this iteration's Step 3 finder via `SendMessage`** when that
+  saves tokens: it has already read every changed file in full, traced each
+  candidate's reachability and run the candidates, which a cold fixer would
+  spend its first tokens rebuilding. Only this iteration's finder, never an
+  earlier one's: Step 6 rewrote the files since that one read them.
+- **Start a fresh agent on the strongest available model**, with the files
+  under review in the brief.
+
+Whoever writes it works from:
+
+- **the surviving findings** — which candidates were proven red and not
   refuted, with the failing test for each;
-- **the refuter verdicts** — what was refuted and why, so it does not re-fix a
-  dropped finding;
+- **the refuter verdicts** — what was refuted and why, so a dropped finding is
+  not re-fixed;
 - **the fix-conflict notes** from Step 5's cross-finding question, and the fix
   order they imply;
+- **the dead code to remove**, by
+  [mutation.md](mutation.md#step-6--removing-dead-code);
 - the fix instructions below (prevention question, scope confinement).
 
-**Fall back to a fresh `Agent` call — strongest available model — only when
-that finder is no longer available**: the `SendMessage` errors or the agent
-cannot be reached, its session has ended, or the finder belongs to an earlier
-iteration than this Step 6 (each iteration's Step 3 spawns fresh, so each
-Step 6 resumes only its *own* iteration's finder, never a previous one's). The
-fresh fixer then gets the full brief: the files under review, the surviving
-findings with their failing tests, the refuter verdicts, and the conflict
-notes.
-
-**Dead code to remove** goes in the same message: each survivor the finder
-called provably dead, and each that Step 5's refuter found no live path to,
-with its location, and exported code the user said in Step 9 to remove.
-The fixer removes only that code, never a trust-boundary check, and runs
-the tests that cover the
-file: every one stays green, or the removal is reverted and reported
-unresolved. Each removal is staged with the commit this run checks and
-listed in the report.
+The independence that matters is elsewhere, and it stays: Step 5's refuters
+never see the finder's reasoning, and each iteration's Step 3 finder is
+fresh.
 
 Before writing the fix, it must answer: **"Is there a better approach that
 would have prevented bugs like this from ever happening?"** When more than one
@@ -1104,15 +892,13 @@ do not fix it here and do not iterate on it. Report it (Step 9) with a
 recommendation, and only recommend the larger change if it has a high chance
 of success.
 
-**Keep the prompt's prefix byte-stable across iterations**, here and at Step 3 —
-these are the two strong-model delegations and a run repeats each up to three
+**Keep the prompt's prefix byte-stable across iterations** whenever Step 3, or a
+fresh Step 6 fixer, starts a strong-model agent — a run repeats each up to three
 times. Put the skill instructions and the file content under review first,
 identical every iteration, and append the per-iteration specifics — the fix just
 applied, what the last pass found — at the end rather than weaving them through.
 An unchanged prefix hits prompt caching instead of re-billing the same context
-each time. Resuming the finder at Step 6 does not retire this rule: it governs
-the fallback path when a fresh fixer is spawned, and the Step 3 spawns
-themselves, which repeat every iteration regardless.
+each time.
 
 ### Step 7 — Verify
 
