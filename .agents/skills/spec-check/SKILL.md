@@ -46,16 +46,27 @@ It reports `file:line: error|check [kind] message`, then the results of
 Exit 0: no errors. Exit 1: errors to fix. Exit 2: it could not run, and says
 why.
 
+**It needs OpenSpec 1.15.0 or later on PATH** (`npm install -g
+@fission-ai/openspec`). It reads specs and deltas only through the CLI:
+`openspec show --json` for their requirements, `openspec validate --strict
+--json` for what a delta drops or misfiles, and `openspec archive --json` for
+whether a change applies. Without that CLI, every check that needs a
+requirement reports `not run: install OpenSpec 1.15.0 or later`, followed by
+why the CLI on PATH cannot be used, such as `(this one is 1.14.3)`.
+Citations, `Builds on:` lines and the `renamed-block` scan still run, and a
+stacked change gets a `stack` error.
+
 | Kind | Severity | What it means |
 | --- | --- | --- |
 | `no-scenario` | error | A requirement states a SHALL or MUST and has no scenario |
-| `stray-heading` | error | A `###` heading inside a requirement that is neither a requirement nor a scenario. OpenSpec's validator gives the scenarios after it to the heading, so the spec fails validation once the change is archived. The error names the heading |
+| `renamed-block` | error | A `###` heading under `## RENAMED Requirements` with anything under it besides FROM and TO lines. OpenSpec reads only FROM and TO lines there, so `openspec archive` drops the rest, and OpenSpec itself does not say so. Restate the requirement under `## MODIFIED Requirements` with its new name |
 | `scenario-incomplete` | error | A scenario has no WHEN or no THEN |
 | `duplicate` | error | A sentence of the rule also appears under another requirement, here or in another spec or change. Two requirements with one name may share sentences only when one is a MODIFIED requirement in the other's capability |
 | `archive` | error | `openspec archive` refuses the change: an ADDED requirement whose name is already there, a RENAMED onto a name already taken, a MODIFIED that drops a scenario, or a requirement modified, removed or renamed that is not there. The error quotes the CLI. See [Archive refusals](#archive-refusals) |
 | `citation` | error, or check | A `path:line` with a `/` whose line is in neither the base branch nor the change is an error. Any other citation finding is a check: a bare name such as `config.py:50`, or a line only the change adds. Text in a code fence, and addresses such as `0.0.0.0:8080`, are skipped |
-| `openspec-validate` | error, or check when validation passed | An issue `openspec validate --strict` reported |
-| `stack` | error, or check | Error: a `Builds on:` line that cannot be read or is listed twice; a change that names itself; the OpenSpec CLI missing from PATH; a pull request that holds no change of that name; a dependency that cannot be read, or whose deltas `openspec archive` refuses; a merged dependency whose result your branch does not hold; a dependency that builds on a change this one does not list before it, whose result your tree lacks. Check: a dependency whose result your tree already holds, so its line should be removed; one only partly there; one whose version a later dependency replaces without building on it; one whose pull request was closed without merging (see [Stacked changes](#stacked-changes)) |
+| `openspec-validate` | error, or check when validation passed; an INFO note is always a check | An issue `openspec validate --strict` reported, at OpenSpec's line and in its words. Among them: a section or text above the first `##` that the archive drops, a requirement under a misspelt or other section, and a `###` heading in a delta that is not a requirement header, which OpenSpec reports as an INFO note, so it is a check. To that last one spec-check adds where the rule goes: restated under MODIFIED when the specs already have its title, moved to ADDED when they do not |
+| `openspec-show` | error, or check | `openspec show` cannot read a change's deltas or a main spec, so no requirement check read it. A main spec is a check when only changes are checked |
+| `stack` | error, or check | Error: a `Builds on:` line that cannot be read or is listed twice; a change that names itself; the OpenSpec CLI missing from PATH, or older than 1.15.0; a pull request that holds no change of that name; a dependency that cannot be read, or whose deltas `openspec archive` refuses; a merged dependency whose result your branch does not hold; a dependency that builds on a change this one does not list before it, whose result your tree lacks. Check: a dependency whose result your tree already holds, so its line should be removed; one only partly there; one whose version a later dependency replaces without building on it; one whose pull request was closed without merging (see [Stacked changes](#stacked-changes)) |
 | `drift` | error, or check | Error: a stacked change modifies, removes or renames a requirement that main plus its dependencies no longer define. Check, quoting both texts: a modified requirement keeps a sentence its dependency has since replaced, or a requirement a dependency adds is already in your tree with another text |
 
 A **check** is a heuristic: judge it, and fix it or leave it. An `openspec
@@ -64,8 +75,9 @@ checked, never that it passed; say so in your report.
 
 `--no-validate` skips the whole `openspec validate --strict` run, so its
 result reads `not run (--no-validate)` and no `openspec-validate` finding
-appears. Every other check still runs, the archive check included: only a
-missing CLI skips the archive.
+appears, including the ones about sections the archive drops. Every other
+check still runs, the archive check included: only a missing or older CLI
+skips the archive.
 
 Citations are checked against the base branch: by default `origin/HEAD`, then
 `origin/main`, then `main`. Pass `--base` when the change targets another
@@ -83,9 +95,9 @@ The tree itself is never touched.
 A stacked change is archived on top of its dependencies rather than onto the
 tree's specs alone (see [Stacked changes](#stacked-changes)).
 
-Without the OpenSpec CLI on PATH, a change archived alone gets the line
-`openspec archive (<change>): not run`, and the other checks still run. A
-stacked change gets a `stack` error instead.
+Without OpenSpec 1.15.0 or later on PATH, a change with no `Builds on:`
+line, which is archived alone, gets the line `openspec archive (<change>): not run`, saying why. A stacked change
+gets a `stack` error instead.
 
 ## Stacked changes
 
@@ -142,17 +154,16 @@ handles it by its pull request's state:
 
 Every check then runs against the result.
 
-**Stacked changes need the OpenSpec CLI on PATH,** since the dependencies
-are archived with it. Without it, the change gets a `stack` error.
+**Stacked changes need OpenSpec 1.15.0 or later on PATH,** since the
+dependencies are read and archived with it. Without it, the change gets a
+`stack` error.
 
 **What stops the check.** Each of these is a `stack` error, never a pass:
 a dependency that cannot be read; a pull request that holds no change of
 the name on the line, which means the line names the wrong change or the
-wrong pull request; a delta with no requirement header spec-check can
-read; and deltas `openspec archive` refuses, where the error quotes the
-CLI and names the dependency. Requirement headers are matched
-case-insensitively, as OpenSpec matches them: `### requirement:` is a
-header too. After any of these errors, the duplicate and drift checks do
+wrong pull request; a delta in which `openspec show` reads nothing; and
+deltas `openspec archive` refuses, where the error quotes the CLI and names
+the dependency. After any of these errors, the duplicate and drift checks do
 not run for the change, and the error says so; the other checks still run.
 
 **The change itself is archived last,** on top of its dependencies, as
@@ -259,7 +270,9 @@ python3 "$SC/spec_check.py" sign --read subagent --amended <n> --open <n>
 
 It runs the mechanical checks on the staged tree and refuses when any error
 remains. Otherwise it prints `Spec-check: ✓ <tree> ...`, a value bound to the
-staged tree. `--amended` is how many amendments the read led to; `--open` is
+staged tree. Without OpenSpec 1.15.0 or later it still signs, and the value
+says `show, validate and archive not run (install OpenSpec 1.15.0 or
+later)`. `--amended` is how many amendments the read led to; `--open` is
 how many open questions design.md now lists. For work in progress, skip
 `sign` and write the value yourself: `skipped (<reason>)`.
 

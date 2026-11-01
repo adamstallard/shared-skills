@@ -15,8 +15,6 @@ Before an agent commits, or opens a pull request for, anything under
 
 1. **Runs the mechanical checks** in `scripts/spec_check.py`:
    - a requirement with a SHALL or MUST and no scenario;
-   - a `###` heading inside a requirement that is neither a requirement nor
-     a scenario;
    - a scenario with no WHEN or THEN;
    - the same rule stated under two requirements;
    - a `path:line` citation whose line is on neither the base branch nor
@@ -24,20 +22,23 @@ Before an agent commits, or opens a pull request for, anything under
    - what `openspec archive` would refuse: an ADDED requirement whose name
      the specs already have, a RENAMED onto a taken name, a MODIFIED that
      drops a scenario. `check` archives the change into a scratch copy of
-     your specs to find out, so this check needs the OpenSpec CLI; without
-     it, the check is reported as not run.
+     your specs to find out;
+   - a requirement written out under `## RENAMED Requirements`, whose text
+     the archive drops.
 
-   It also runs `openspec validate --strict` and includes the result.
+   It also runs `openspec validate --strict` and includes what it reports,
+   such as a misspelt section title or a section the archive drops.
 
    A **stacked change**, one that applies on top of another open change, says
    so in its proposal with a line such as `Builds on: seat-files
    (adamstallard/igor#171)`. The checks then run against main plus that
    change. `check` reads the change from its pull request and archives it
-   into a scratch copy of your specs with `openspec archive`, so stacked
-   changes need the OpenSpec CLI. A dependency whose pull request has
-   merged is not archived again. Instead, `check` looks for its result in
-   your specs: when the result is there, it says to remove the line, and
-   when it is not, to merge main.
+   into a scratch copy of your specs with `openspec archive`.
+
+   A dependency whose pull request has merged is not archived, since its
+   result should already be in your specs. `check` looks for that result
+   there: when the result is there, it says to remove the line, and when it
+   is not, to merge main.
 
    The stacked change fails as `drift` when it edits a requirement its
    dependency has since renamed or removed, and as `archive` when `openspec
@@ -72,6 +73,11 @@ records who the agent says did.
 
 Install it by asking your agent: "Install the spec-check skill". Installing
 turns on its hook (see below).
+
+spec-check needs OpenSpec 1.15.0 or later on `PATH` (`npm install -g
+@fission-ai/openspec`). It reads the requirements of every spec and change
+through the OpenSpec CLI only. Without that version, the checks on
+requirements are reported as not run.
 
 Nothing needs setting up per repository. spec-check reads no
 `openspec/spec-check.yaml`, a file earlier versions wrote; if your repository
@@ -111,10 +117,12 @@ python3 ~/.agents/skills/manage-skills/scripts/skills.py disable-hook spec-check
 
 ## Troubleshooting
 
-- **`openspec validate --strict: not run` and `openspec archive: not
-  run`.** The `openspec` CLI is not on `PATH`. The other checks still ran;
-  validation and the archive did not. A stacked change also gets a `stack`
-  error, since its dependencies are archived with the same CLI.
+- **`not run: install OpenSpec 1.15.0 or later`.** The `openspec` CLI is
+  not on `PATH`, or is older than 1.15.0. The requirement checks, validation
+  and the archive did not run; citations and the `renamed-block` scan did.
+  A stacked change also gets a `stack` error, since its dependencies are read
+  and archived with the same CLI. Install or update OpenSpec (`npm install -g
+  @fission-ai/openspec`) and run it again.
 - **An `archive` error quotes `openspec archive`.** The change would not
   archive onto the specs it is checked against. OpenSpec reports one
   refusal at a time, so fix it and run `check` again.
@@ -127,10 +135,6 @@ python3 ~/.agents/skills/manage-skills/scripts/skills.py disable-hook spec-check
 - **The agent cannot make the trailer.** `spec_check.py sign`, which prints
   the `Spec-check:` line, refuses while errors remain, and prints them. For
   work in progress, the agent commits with `Spec-check: skipped (<reason>)`.
-- **A `stack` error says the openspec CLI is not on PATH.** A change with a
-  `Builds on:` line is checked by archiving its dependencies with
-  `openspec archive`. Install OpenSpec (`npm install -g
-  @fission-ai/openspec`) and run it again.
 - **A `stack` error quotes `openspec archive` refusing a dependency's
   deltas.** The dependency does not fit your tree with the dependencies
   listed before it archived: a requirement it modifies or renames is not

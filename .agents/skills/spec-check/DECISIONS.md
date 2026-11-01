@@ -299,21 +299,18 @@ is checked. A run without it is an error, not a silent pass, since a
 stacked change checked against main alone reports false duplicates and
 misses real ones.
 
-spec-check reads deltas with a port of OpenSpec's own reader (OpenSpec
-1.6.0, `core/parsers/requirement-blocks.js`), so the two agree on what a
-delta says. The script's earlier reader disagreed with OpenSpec on deltas
-that `openspec validate --strict` accepts. It missed a REMOVED entry written
-as a bullet and a `###Requirement:` header with no space, and it dropped a
-trailing `#` from a name such as "Records in C#". It also read things
-OpenSpec ignores: lowercase `FROM:`/`TO:` rename lines, a section titled
-`## REMOVED Requirements (cleanup)`, and the first of two sections with the
-same title. Each disagreement blocked a correct stack or let a wrong one
-pass. The port reads requirement names in the tree's specs, the
-dependencies' deltas and the stacked change's own delta.
+The tree's specs, the dependencies' deltas and the stacked change's own
+delta are all read with `openspec show --json` (see *spec-check reads
+OpenSpec only through its CLI*), so a requirement's name and text are what
+OpenSpec reads. Two versions of a requirement are the same when OpenSpec
+reads the same text and scenarios from both and their fenced code matches,
+since `show` leaves fenced code out and the archive writes it.
 
 When none of a capability's delta items is dropped as already there, the
 archive gets the dependency's delta file for it verbatim. Otherwise the
-archive gets a delta rebuilt from the kept items, each block verbatim.
+archive gets a delta rebuilt from the kept items. Each item is written as
+the dependency's delta file writes it: its lines from its header to the next
+requirement header or section (see *A finding's line is a text search*).
 
 **Why the pull request's state, and not the text it was written against.**
 The design before this one inferred, for every differing modification,
@@ -541,8 +538,8 @@ requirement whose name is already there, a RENAMED onto a taken name, a
 MODIFIED that drops a scenario the requirement holds, and a requirement
 modified, removed or renamed that is not there. A refusal about a delta file
 as a whole, such as two sections naming one requirement, is reported at line
-0 of that file. Without the CLI, the archive is reported "not run" and the
-other checks still run. The tree is never touched.
+0 of that file. Without OpenSpec 1.15.0 or later, the archive is reported
+"not run", like every check that needs the CLI. The tree is never touched.
 
 **Why.** Each of these passes `openspec validate`, which reads a change on
 its own, and fails only when the change is archived, after review. The CLI
@@ -552,6 +549,12 @@ checked change keeps one open change's deltas from failing another's check:
 which lands first is not known.
 
 OpenSpec stops at its first refusal, so one run shows at most one.
+
+`check` reads the archive's result from `archive --json`. It reads
+`openspec --version` first and treats a CLI older than 1.15.0, or one whose
+version it cannot read, as a missing one, naming the version to install. An
+older CLI's errors, such as "unknown option '--json'", are never read as a
+refusal of the change.
 
 **Rejected:**
 - **Archiving each capability separately.** It would show one refusal per
@@ -585,18 +588,164 @@ the same name and pass.
 
 ---
 
-## A stray heading is named
+## spec-check reads OpenSpec only through its CLI
 
-**Decision.** A `###` heading inside a requirement that is neither a
-requirement header nor a scenario is a `stray-heading` error naming the
-heading. spec-check reads the requirement on past the heading, as OpenSpec's
-archive does when it applies a delta, so the scenarios after it still count
-for the requirement.
+**Decision.** spec-check reads specs and deltas only through the public
+commands of the OpenSpec CLI, 1.15.0 or later:
 
-**Why.** OpenSpec's validator, unlike its archive, gives the scenarios after
-such a heading to the heading, so the requirement has none and the main spec fails validation
-once the change is archived. Reported as `no-scenario`, it pointed at the
-wrong fix: the scenarios are there.
+- `openspec show --json` gives each requirement's name, text and scenarios:
+  `--type spec` for a main spec, `--deltas-only` for a change. A change's
+  deltas are read beside a stub proposal in an empty directory, since `show`
+  refuses a change whose own proposal lacks "Why" or "What Changes".
+- `openspec validate --strict --json` reports what a delta drops or
+  misfiles, and spec-check relays each issue with OpenSpec's own line and
+  message: a misspelt section title, a requirement above the first `##` or
+  under another section, a section or text above the first `##` that the
+  archive does not carry, and a `###` heading that is not a requirement
+  header.
+- `openspec archive --json`, into a scratch copy, says whether a change
+  applies, alone or on top of what it builds on.
+
+`show --json` gives no line numbers, so a finding's line comes from a plain
+text search for the names `show` gives (see *A finding's line is a text
+search*). What a delta holds is decided by `show` alone.
+
+Each relayed issue keeps OpenSpec's level. Under `--strict` an ERROR or a
+WARNING fails validation, so it is an error. An INFO note, such as the one on
+a stray heading, never fails it, so it is a check, and the advice spec-check
+adds to it does not change that.
+
+Below 1.15.0, or with no CLI, every check that needs a requirement reports
+`not run: install OpenSpec 1.15.0 or later`: the scenario, duplicate and
+drift checks, the archive and validation. A stacked change gets a `stack`
+error, since its other checks are wrong without its dependencies. The checks
+that read no requirement still run: citations, `Builds on:` lines and the
+RENAMED scan below.
+
+spec-check adds to OpenSpec's output in two places only:
+
+- **Advice on a stray heading.** OpenSpec notes a `###` heading in a delta
+  that is not a requirement header and ignores it, while the archive keeps it
+  inside the requirement above, where a later change to that requirement
+  replaces or removes it. spec-check adds where the rule goes. A MODIFIED
+  `### Requirement:` must name a requirement the specs have, and an ADDED
+  one a requirement they lack, or the archive refuses it. So the advice is
+  to restate the rule under MODIFIED when the specs the change is checked
+  against (main, plus any dependencies) already have its title, and to move
+  it to ADDED when they do not. When a stacked change's dependencies could
+  not be read, it gives both, with the condition.
+- **A requirement written out under `## RENAMED Requirements`.** OpenSpec
+  reads only FROM and TO lines there, so the archive renames the
+  requirement, keeps the specs' text, and drops the text written there.
+  Neither `show` nor `validate` says so. A line scan finds it: each `###`
+  heading in that section, outside a code fence, with anything under it
+  besides FROM and TO lines is a `renamed-block` error. A heading over only
+  FROM and TO lines is a rename written under a heading, and passes. The fix
+  is to restate the requirement under `## MODIFIED Requirements` with its
+  new name.
+
+**Why.**
+
+- **Hand-written readers drifted.** spec-check carried a port of OpenSpec
+  1.6.0's delta reader, and walkers of its own for sections, fences and
+  stray headings. Each round of review found another place where they read
+  a delta differently from OpenSpec, or from each other. Meanwhile OpenSpec
+  1.14 and 1.15 changed what it reads: when a delta has two sections with
+  the same title, such as two `## ADDED Requirements`, both are now
+  applied, and `## ` lines inside a fence no longer split a delta. Every
+  finding the walkers made about those cases became wrong.
+- **A fallback runs exactly where nothing checks it.** A reader kept for
+  CLIs too old to ask would run only on machines whose OpenSpec nobody
+  tests against.
+- **OpenSpec now says it itself.** From 1.14.0 `show --json` names
+  requirements and scenarios, and from 1.15.0 `validate` reports, with
+  lines, each section and text the archive does not carry.
+
+**Rejected:**
+
+- **Importing OpenSpec's parsers.** They sit outside the package's
+  `exports`, which list only its entry point, so any release may move or
+  change them.
+- **1.14.0 as the minimum.** Its `validate` reports a requirement under a
+  section it does not read, but not a section or preamble of plain text that
+  the archive drops. Only 1.15.0 reports both.
+- **Keeping spec-check's own section and fence findings beside OpenSpec's.**
+  Where OpenSpec reports a case, its report is the definition; a second
+  report of it would only disagree with it.
+
+**Where it stops.** These are gaps OpenSpec leaves and no narrow line scan
+can find, so spec-check reports nothing more for them:
+
+- **Text under a `###` heading that is not a requirement header.** `openspec
+  show` ends the requirement's text at the heading, while the archive keeps
+  the heading and what follows inside the requirement. So the scenario,
+  duplicate and drift checks do not see that text, and a dependency that
+  changes only that text reads as already in the tree. OpenSpec's note on
+  the heading, with spec-check's advice, is the only finding.
+- **A header with no space after its hashes.** `show` reads `###Requirement:`
+  as a header in a delta but not in a main spec, and the archive copies the
+  header into the spec as written. So once a dependency's such requirement
+  is archived into the scratch specs, spec-check no longer sees it there,
+  and a stacked change that modifies it gets a `drift` error saying no one
+  defines it.
+- **A section or requirement written inside a code fence.** OpenSpec 1.15.0
+  reads every fenced line as text, in `show`, `validate` and the archive, so
+  a `## ` line or `### Requirement:` header inside a fence is never a
+  section or a header. If an author fences one by mistake, nothing reports
+  it: spec-check reads fenced lines as OpenSpec does.
+
+---
+
+## A finding's line is a text search
+
+**Decision.** A finding's line is found by searching the file's text for the
+names `openspec show --json` gives, with no grammar of OpenSpec's headers:
+
+- A requirement is at the first line, not taken by another, on which its
+  name follows "Requirement:", compared ignoring case, backticks, `#`s and
+  runs of space.
+- When several lines match, a line starting with `###` wins over any other,
+  such as an example quoted in a requirement's text. Among those, a line
+  naming it exactly wins over one that matches only with case and the rest
+  ignored, so two names OpenSpec tells apart keep their own lines.
+- A rename is at its FROM line, the line that also holds `FROM:`.
+- A requirement's text and scenarios are searched between its line and the
+  next line starting with `## ` or `### `, each scenario after the one
+  before it, on lines starting with `####`, with or without "Scenario:".
+- A name the search cannot find gives line 0, and the finding names the
+  file only.
+- Where OpenSpec trims a header more than this search does, a finding can
+  name the wrong line. Take a spec with `### Requirement: Foo ##` followed by
+  a no-break space, and later `### Requirement: Foo`. OpenSpec reads both
+  names as "Foo", but only the second header names "Foo" exactly, so the
+  first requirement gets the second one's line. Matching OpenSpec's
+  trimming would be the grammar this decision drops.
+
+Two questions are about what the archive writes rather than where a name
+is, and they use OpenSpec's one test for a requirement header,
+`^###\s*Requirement:\s*\S`, ignoring case:
+
+- The stray-heading advice asks whether a requirement header comes between
+  the `## ` line that starts the section and the stray heading. A looser test
+  told the author the archive keeps text that it drops.
+- A requirement's lines, from its header to the next `## ` line or
+  requirement header, are kept as the file writes them. A dependency
+  delta rebuilt from some of its items writes those lines, so it keeps
+  what `openspec show` leaves out, such as fenced code and the text under
+  a stray heading, as the archive would. Fenced code also counts when two
+  versions of a requirement are compared.
+
+**Why.** The locator first matched OpenSpec's header grammar: optional
+bullets, `FROM:`/`TO:` prefixes, a backtick closed only when one opened,
+closing `#` runs, block ends. One bug-hunter run found 11 bugs, and every
+one was that copy of the grammar disagreeing with OpenSpec 1.15 on some form
+of header. That is the drift the CLI-only decision removed from reading
+requirements, kept in a smaller place. A search with no grammar has nothing
+to drift from, and a wrong guess only puts a finding on the wrong line.
+
+**Rejected:** keeping the grammar as a best-effort locator. Each form
+OpenSpec accepts and the copy does not is another wrong line, found one
+review at a time.
 
 ---
 
@@ -625,6 +774,12 @@ nothing.
 proves the checks ran on what landed, and an edit staged after signing breaks
 it. This is the commit-trailer library's design
 ([its DECISIONS.md](../../lib/commit-trailer/DECISIONS.md#the-trailer-is-minted-from-the-tree-not-recalled-by-the-agent)).
+
+Without OpenSpec 1.15.0 or later, `sign` still signs, and the value names
+everything that did not run in place of the validate result: `show,
+validate and archive not run (install OpenSpec 1.15.0 or later)`. A reader
+of the trailer then knows that no requirement was checked, and how to fix
+that.
 
 **The value carries the binding** (`--verified-value`), rather than a separate
 `Spec-check-Tree:` line (`--minted`). bug-hunter's commit script forwards
