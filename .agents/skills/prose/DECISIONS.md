@@ -959,7 +959,9 @@ have. The brief still prints between
 its `===` lines, for callers that read it there, such as spec-check. The
 files sit in `prose/briefs/` beside the pass tokens, in the git directory, or
 in prose's state home outside a repository, and each new brief deletes those older
-than 2 hours, as each first call does with tokens.
+than 2 hours, as each first call does with tokens. The saved brief also
+holds the staged lines each item needs (see *The cold reader runs on the
+brief alone*).
 
 **The signing call enforces it,** because it holds the final text. Without
 `--cold-read`, it signs nothing, keeps the token, exits 5 (distinct from 4 and
@@ -1102,6 +1104,139 @@ findings can be misread confidently elsewhere.
 
 **Known gap.** `matches` is the author's claim; answering it falsely is on the
 cheat list.
+
+---
+
+## The cold reader runs on the brief alone
+
+**Decision.** The saved cold-read brief goes on, after the items, with the
+staged lines each item needs, numbered as in the file. A doc passage gets
+its section: from the heading at or above it to the next heading of the
+same or a higher level, cut to at most 150 lines and at least 40 lines on
+each side of the passage, with the heading always kept. A comment, a
+docstring included, gets the 40 lines after it for the code it sits on,
+with 5 lines before the comment and 5 after those 40. Each gap says which lines it leaves out. In Claude Code the
+reader is the `Explore` agent type, on the model the author runs on. On
+other hosts it is a fresh general agent. Adam chose the windows over whole
+files, the fixed reach for comments, and the 40-line floor for sections,
+on 2026-10-31.
+
+**Why, measured here.** Each cold read cost about 100k tokens processed,
+though the text it read was a few hundred words. Most of that was fixed
+overhead: a general agent's tool definitions and system prompt, a call to
+read the brief and a call to open each file. One brief, three runs per
+reader, with five stops seeded in it (S1 to S5, S5 a pointer to a noun many
+lines back):
+
+| Reader | Processed per read | Calls | S1 to S4 | S5 |
+|---|---|---|---|---|
+| General agent, same model (before) | 102,262 | 3 | 3/3 | 2/3 |
+| `Explore`, same model | 42,367 | 3 | 3/3 | 2/3 |
+| General agent, files in the brief | 68,187 | 2 | 3/3 | 2/3 |
+| `Explore`, files in the brief (this) | 28,727 | 2 | 3/3 | 2/3 |
+
+The two savings stack: `Explore` carries a smaller prompt, and the files in
+the brief save a call. Time per read went from 28.4 s to 23.9 s. The bench
+copied whole files, which were short; for a short file the window is the
+whole file.
+
+End to end, on the skill-creator skill's benchmark harness, with four tasks (a comment block,
+a README section, a one-line dictated comment, and a doc commit plus a pull
+request description), two runs each against the version before:
+- **Catches:** unchanged. Every seeded defect was fixed, or flagged by the
+  cold read and handed back, in all 16 runs.
+- **Cold readers:** 870k to 273k tokens processed across the 10 reads in
+  each version, 69% fewer; 87k to 27k per read.
+- **Whole runs:** 924k to 792k processed per run, 14% fewer, within the
+  noise of the author's own work. Time to the result was unchanged, about
+  125 s: the reader is a small part of a run.
+- **Endpoints:** 4 of 8 runs committed before, against 2 of 8 after; the
+  rest handed findings back for a person, which both versions did on the
+  same kinds of finding (a cleanup script nobody named, a back-off time the
+  notes did not give). Two runs per version are too few to tell whether the
+drop from 4 to 2 is real.
+
+**The same model, never a cheaper one.** Sonnet and Haiku read the same
+brief. Both caught S1 to S4, and both lost S5: Sonnet caught it in part in
+one run of 3, Haiku in none. Haiku's reports were in the wrong form in 2 of
+3 runs. It took 38 s and 108k tokens, against 28.4 s and 102k for a
+general agent on the author's model, partly because a reader on another
+model writes its own prompt cache: 35k tokens, against 13k for a reader
+that shares the author's. End to end, Haiku readers cost 5% more tokens and 12%
+more time than the readers they replaced. S5 is the catch a cold read
+exists for: the far pointer the author cannot see.
+
+**Windows, not whole files.** One Read returns about 25k tokens at most.
+A whole file such as prose.py, 155 KB, would be read in pages and cost more
+than the excerpts a reader opened before. A window keeps the brief to what
+prose's rules already ask the reader to read: a passage in its section, a
+comment with its code.
+
+**A fixed reach for a comment.** The code a comment sits on was first
+found by syntax: the next line and what was indented deeper, then
+decorators, wrapped signatures and braces. Each rule had its own miss
+across two bug-hunter iterations: Python's `else:` and `except:`, a
+decorator over several lines, C#'s `}` / `else` / `{`, an empty block that
+ran on into the next one. A fixed reach cannot misread a language's
+syntax; a long function shows its first 40 lines.
+
+**A floor under the section.** The heading scan kept meeting markup it
+cannot read: across three bug-hunter iterations, a fence line with an info
+string, YAML comments, HTML comments and `<pre>` blocks, front matter in
+YAML or TOML or after a byte-order mark, and AsciiDoc blocks nested in
+others. A line misread as a heading ends the section early. With the
+section never stopping closer than 40 lines to the passage, a misread
+heading can hide only lines beyond that reach.
+
+**Staged, not from disk.** The lines are copied from the index, because the
+staged text is what gets signed, and the working tree can differ from it.
+Line numbers follow git's: lines are split on newlines only, and a bare
+carriage return is dropped from the copy.
+
+**The heading scan.** Headings are found by a line scan, outside fenced
+code: Markdown's `#` in Markdown files and docs with
+no suffix, and AsciiDoc's `= ` in `.adoc` files. In any other format none
+is found, and the section is the whole file, within the 150-line reach:
+reStructuredText marks a heading only by the line under it, and in a YAML
+file under `openspec/`, `#` starts a comment. The scan also skips the
+blocks whose lines are not headings: Markdown front matter and HTML
+comments, and AsciiDoc's delimited blocks, such as a `----` listing. A
+heading the scan misses only widens the window; a line it wrongly takes
+for one narrows it, which is why those blocks are skipped, and why the
+section has its floor. Either way the gap lines say what was left out.
+An earlier idea, listing each passage's section heading as a hint, was
+rejected (*Each listed item is judged as its own reader*) because a wrong
+heading there misled with no sign of it.
+
+**Where it stops applying.**
+- The reader bench used one fixed brief, with small files. A commit with
+  many items in long sections can still exceed the 25k-token page; re-measure
+  if readers report missing context or page through briefs.
+- If the brief stops carrying the lines each item needs, `Explore`, which
+  reads files in excerpts, is no longer a safe reader; go back to the
+  general agent.
+- A comment over code longer than 40 lines gets only its first 40. If
+  readers ask about code past that, raise the reach.
+- If the host changes what `Explore` carries, or drops it, re-measure; the
+  general agent is the fallback.
+
+**Rejected.**
+- **A cheaper model for the reader.** It lost S5, above.
+- **Whole files.** A large file is read in pages and costs more than
+  excerpts did.
+- **Whole files under a size cap, naming the rest.** A capped file goes back
+  to being opened on disk, in excerpts, where the text can differ from what
+  is signed.
+- **A fixed reach for doc passages too, with no heading scan.** A passage
+  in a long section would lose the section's heading and the rest of it.
+- **Recording the misread markup as known gaps.** Each misread heading
+  hides lines the reader needs, and there was no end to the list.
+- **Finding a comment's code by indentation and brackets.** Each rule
+  misread some language's code, above.
+- **Finding a comment's code with Python's `ast`.** It covers one language,
+  and every other still needs the fixed reach.
+- **The texts in the printed brief.** The printed brief is for the caller;
+  only the reader needs the files, and it reads the saved one.
 
 ---
 

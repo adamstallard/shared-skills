@@ -223,12 +223,17 @@ brief between `=== cold-read brief ===` lines, on stdout for `check` and on
 stderr for `sign`, and then a `Brief file:` line naming the file it saved the
 brief in. The brief is [cold-read.md](cold-read.md), then the line the
 report must start with, then each text with its reader's goals: a comment or
-doc by its file and lines, a post quoted in full.
+doc by its file and lines, a post quoted in full. The brief file goes on
+with the staged lines each item needs, its section or the code it sits on,
+so the reader needs nothing else.
 
 1. Give a new subagent only the brief file's path, telling it to read the
-   file and follow it. Don't copy the brief into its prompt: a retyped brief
-   can drop or repeat lines. Add nothing: not the conversation, not what the
-   text is meant to say, not a summary of the change.
+   file and follow it. In Claude Code, start it as the `Explore` agent type,
+   with `model` set to the model you run on, never a cheaper one; on another
+   host, start a fresh general agent. Don't copy the brief into its prompt:
+   a retyped brief can drop or repeat lines. Add nothing: not the
+   conversation, not what the text is meant to say, not a summary of the
+   change.
 2. Save its report, as it wrote it, to a file outside the commit, such as
    `cold-read.txt` beside `msg.txt`. The brief asks for one line per
    finding, quoting the words that stopped the reader, one line for each

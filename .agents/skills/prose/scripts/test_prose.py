@@ -7319,14 +7319,21 @@ class BriefFiles(unittest.TestCase):
 
     def saved(self, output, marker):
         """Check that output holds the brief between marker's lines and a
-        `Brief file:` line naming a file with the same text; return its path."""
+        `Brief file:` line naming a file with the same text; return its path.
+        A cold-read brief's file goes on after the printed text, with the
+        lines its items need (ColdReadBriefFiles)."""
         found = re.search(rf"^=== {marker} ===\n(.*?)\n=== end {marker} ===$", output,
                           re.M | re.S)
         self.assertIsNotNone(found, output)
         path = re.search(r"^Brief file: (.+)$", output, re.M)
         self.assertIsNotNone(path, output)
         path = pathlib.Path(path.group(1))
-        self.assertEqual(path.read_text(encoding="utf-8"), found.group(1) + "\n")
+        printed = found.group(1)
+        if printed.endswith("\n\n" + prose.BRIEF_FILES_NOTE):
+            printed = printed[:-len("\n\n" + prose.BRIEF_FILES_NOTE)]
+            self.assertTrue(path.read_text(encoding="utf-8").startswith(printed + "\n"))
+        else:
+            self.assertEqual(path.read_text(encoding="utf-8"), printed + "\n")
         git_dir = (self.repo.path / ".git").resolve()
         self.assertEqual(path.parent, git_dir / "prose" / "briefs")
         return path
@@ -7369,6 +7376,288 @@ class BriefFiles(unittest.TestCase):
         self.assertEqual(self.repo.prose("compact", "DECISIONS.md").returncode, 4)
         self.assertFalse(old.exists())
         self.assertTrue(recent.exists())
+
+
+class ColdReadBriefFiles(unittest.TestCase):
+    """The saved cold-read brief goes on with the staged lines its items
+    need, so the reader needs nothing but the brief; the printed brief ends
+    with a note instead (DECISIONS: The cold reader runs on the brief
+    alone)."""
+
+    def setUp(self):
+        self.repo = Repo()
+        self.addCleanup(self.repo.cleanup)
+        self.repo.write("README.md", "# Base\n")
+        self.repo.commit("base\n")
+        (self.repo.path / ".msg").write_text("FEAT(x): a\n")
+
+    def needed(self):
+        first = self.repo.prose("check", "-F", ".msg", "--goals", "review it")
+        token = pass_token(first.stdout)
+        result = self.repo.prose("check", "-F", ".msg", "--goals", "review it", "--pass", token)
+        self.assertEqual(result.returncode, prose.COLD_READ_NEEDED, result.stdout + result.stderr)
+        printed = result.stdout[result.stdout.index("=== cold-read brief ===\n"):
+                                result.stdout.index("=== end cold-read brief ===")]
+        path = pathlib.Path(re.search(r"^Brief file: (.+)$", result.stdout, re.M).group(1))
+        return printed, path.read_text(encoding="utf-8")
+
+    def test_the_saved_brief_holds_each_named_file_with_line_numbers(self):
+        self.repo.write("a.py", "x = 1\n# One.\ny = 2\n")
+        printed, saved = self.needed()
+        self.assertIn("--- a.py ---\n1  x = 1\n2  # One.\n3  y = 2\n--- end a.py ---", saved)
+        self.assertTrue(printed.rstrip("\n").endswith(prose.BRIEF_FILES_NOTE))
+        self.assertNotIn("--- a.py ---", printed)
+
+    def test_the_staged_text_is_copied_not_the_working_tree(self):
+        self.repo.write("a.py", "x = 1\n# Staged.\n")
+        (self.repo.path / "a.py").write_text("x = 1\n# Unstaged edit.\n")
+        _, saved = self.needed()
+        self.assertIn("2  # Staged.", saved)
+        self.assertNotIn("Unstaged edit", saved)
+
+    def test_a_file_two_items_name_is_copied_once(self):
+        self.repo.write("a.py", "# One.\nx = 1\n\n\ny = 2\n# Two.\n")
+        _, saved = self.needed()
+        self.assertEqual(saved.count("--- a.py ---"), 1)
+        self.assertIn("A code comment: a.py, line 1,", saved)
+        self.assertIn("A code comment: a.py, line 6,", saved)
+
+    def test_a_doc_and_a_comment_are_both_copied(self):
+        self.repo.write("a.py", "x = 1  # One.\n")
+        self.repo.write("docs/guide.md", "# Guide\n\nOne.\n")
+        _, saved = self.needed()
+        self.assertIn("--- a.py ---", saved)
+        self.assertIn("--- docs/guide.md ---\n1  # Guide\n2\n3  One.\n", saved)
+
+    def test_a_post_brief_has_no_files_and_no_note(self):
+        sign = lambda *args, stdin: run([sys.executable, str(SCRIPT), "sign"] + list(args),
+                                        cwd=self.repo.path, stdin=stdin)
+        token = pass_token(sign("--goals", "approve it", stdin="").stderr)
+        needed = sign("--pass", token, stdin="The fix lands.\n")
+        self.assertEqual(needed.returncode, prose.COLD_READ_NEEDED, needed.stderr)
+        self.assertNotIn(prose.BRIEF_FILES_NOTE, needed.stderr)
+        self.assertNotIn("The named files", needed.stderr)
+
+
+def fill(tag, count):
+    """count numbered lines of filler, tag0 to tag<count - 1>."""
+    return "".join(f"{tag}{n}\n" for n in range(count))
+
+
+class BriefFilesText(unittest.TestCase):
+    """brief_files on its own: numbering, odd bytes, and the window each
+    item gets."""
+
+    def item(self, path="a.py"):
+        return prose.ColdItem("A code comment.", ("g",), path, spans=((1, 1),))
+
+    def test_a_bare_cr_does_not_shift_the_numbers(self):
+        out = prose.brief_files([self.item()], {"a.py": "a\rb\nc\n"})
+        self.assertIn("1  ab\n2  c\n", out)
+
+    def test_a_last_line_with_no_newline_is_kept(self):
+        out = prose.brief_files([self.item()], {"a.py": "# One.\nx = 1"})
+        self.assertIn("1  # One.\n2  x = 1\n--- end a.py ---", out)
+
+    def test_bytes_that_are_not_utf8_are_replaced(self):
+        text = b"x = '\xff'\n".decode("utf-8", prose.TEXT_ERRORS)
+        out = prose.brief_files([self.item()], {"a.py": text})
+        self.assertIn("1  x = '\ufffd'", out)
+        out.encode("utf-8")
+
+    def doc(self, spans, path="guide.md"):
+        return prose.ColdItem("A doc passage.", ("g",), path, spans=spans)
+
+    def test_a_doc_passage_gets_its_section_up_to_a_heading_as_high(self):
+        text = ("# A\n" + fill("a", 50) + "## B\n" + fill("b", 50) + "### B1\n" + fill("c", 50) +
+                "## C\n" + fill("d", 60))
+        out = prose.brief_files([self.doc(((100, 100),))], {"guide.md": text})
+        self.assertIn("(lines 1-51 left out)\n 52  ## B\n", out)
+        self.assertIn("103  ### B1\n", out)
+        self.assertIn("(lines 154-214 left out)", out)
+
+    def test_a_hash_line_in_a_fence_is_not_a_heading(self):
+        text = "## A\n```sh\n# a shell comment\n```\n" + fill("a", 100) + "## B\n" + fill("b", 60)
+        out = prose.brief_files([self.doc(((60, 60),))], {"guide.md": text})
+        self.assertIn("--- guide.md ---\n  1  ## A\n", out)
+        self.assertIn("(lines 105-165 left out)", out)
+
+    def test_a_passage_before_any_heading_starts_at_line_one(self):
+        text = fill("p", 60) + "# Later\n" + fill("f", 60)
+        out = prose.brief_files([self.doc(((10, 10),))], {"guide.md": text})
+        self.assertIn("--- guide.md ---\n  1  p0\n", out)
+        self.assertIn("(lines 61-121 left out)", out)
+
+    def test_a_long_section_is_cut_but_keeps_its_heading(self):
+        reach = prose.BRIEF_SECTION_REACH
+        text = "# Top\n" + "".join(f"line {n}\n" for n in range(2, 2 * reach + 400))
+        middle = reach + 200
+        out = prose.brief_files([self.doc(((middle, middle),))], {"guide.md": text})
+        self.assertIn("--- guide.md ---\n  1  # Top\n(lines 2-", out)
+        self.assertIn(f"(lines 2-{middle - reach - 1} left out)", out)
+        self.assertIn(f"{middle + reach}  line {middle + reach}\n(lines {middle + reach + 1}-", out)
+
+    def test_a_readme_and_a_spec_get_their_sections(self):
+        text = "# P\n" + fill("p", 10) + "## Install\n" + fill("s", 100) + "## Usage\n" + fill("u", 60)
+        for path in ("README.md", "openspec/specs/x/spec.md"):
+            out = prose.brief_files([self.doc(((60, 60),), path)], {path: text})
+            self.assertIn("(lines 1-11 left out)\n 12  ## Install\n", out, path)
+            self.assertIn("(lines 113-173 left out)", out, path)
+
+    def test_a_setext_underline_is_not_taken_for_a_heading(self):
+        text = "Usage\n===\n" + "".join(f"para {n}\n" for n in range(3, 200))
+        out = prose.brief_files([self.doc(((180, 180),))], {"guide.md": text})
+        self.assertNotIn("  2  ===\n(lines", out)
+
+    def test_a_hash_line_in_an_rst_code_block_is_not_a_heading(self):
+        text = ("Install\n=======\n\nRun these:\n\n.. code-block:: bash\n\n"
+                "   # fetch the deps\n   make deps\n\nThen\nrun it.\n")
+        out = prose.brief_files([self.doc(((12, 12),), "install.rst")], {"install.rst": text})
+        self.assertIn(" 1  Install\n", out)
+
+    def test_a_comment_gets_the_lines_after_it_and_lines_either_side(self):
+        reach = prose.BRIEF_CODE_LINES + prose.BRIEF_CONTEXT_LINES
+        text = "".join(f"line {n}\n" for n in range(1, 101))
+        out = prose.brief_files([self.item("a.py")._replace(spans=((20, 21),))], {"a.py": text})
+        self.assertIn("(lines 1-14 left out)\n 15  line 15\n", out)
+        self.assertIn(f"{21 + reach}  line {21 + reach}\n(lines {22 + reach}-100 left out)", out)
+
+    def test_a_comment_near_the_end_stops_at_the_last_line(self):
+        out = prose.brief_files([self.item("a.py")._replace(spans=((3, 3),))],
+                                {"a.py": "a\nb\n# c\nd\n"})
+        self.assertIn("1  a\n2  b\n3  # c\n4  d\n--- end a.py ---", out)
+        self.assertNotIn("left out", out)
+
+    def test_two_items_close_together_share_one_window(self):
+        text = "".join(f"line {n}\n" for n in range(1, 201))
+        items = [self.item("a.py")._replace(spans=((10, 10),)),
+                 self.item("a.py")._replace(spans=((30, 30),))]
+        out = prose.brief_files(items, {"a.py": text})
+        self.assertEqual(out.count("left out"), 2)
+        self.assertIn("(lines 1-4 left out)", out)
+        self.assertIn(f"(lines {31 + prose.BRIEF_CODE_LINES + prose.BRIEF_CONTEXT_LINES}-200 "
+                      "left out)", out)
+
+    def test_an_asciidoc_passage_gets_its_section(self):
+        text = "= Doc\n" + fill("d", 5) + "== A\n" + fill("a", 100) + "== B\n" + fill("b", 60)
+        out = prose.brief_files([self.doc(((60, 60),), "guide.adoc")], {"guide.adoc": text})
+        self.assertIn("(lines 1-6 left out)\n  7  == A\n", out)
+        self.assertIn("(lines 108-168 left out)", out)
+
+    def test_a_fence_line_with_an_info_string_does_not_close_a_fence(self):
+        text = ("# Guide\n" + fill("g", 50) + "## Writing fences\n```\nOpen with:\n```python\n"
+                "print(1)\n```\n## Usage\n" + fill("u", 100) + "## Last\n" + fill("l", 60))
+        out = prose.brief_files([self.doc(((110, 110),))], {"guide.md": text})
+        self.assertIn("(lines 1-57 left out)\n 58  ## Usage\n", out)
+        self.assertIn("(lines 159-219 left out)", out)
+
+    def test_a_yaml_comment_is_not_a_heading(self):
+        text = "".join(f"k{n}: {n}\n" for n in range(60)) + "# Added at review.\nk60: 60\n"
+        out = prose.brief_files([self.doc(((62, 62),), "openspec/config.yaml")],
+                                {"openspec/config.yaml": text})
+        self.assertIn("--- openspec/config.yaml ---\n 1  k0: 0\n", out)
+
+    def test_a_heading_in_an_html_comment_leaves_the_section_whole(self):
+        text = ("# Install\nRun the installer.\n<!--\nold notes\n# Old install steps\n-->\n" +
+                fill("x", 100) + "# Use\n" + fill("u", 60))
+        out = prose.brief_files([self.doc(((2, 2),), "README.md")], {"README.md": text})
+        self.assertIn("106  x99\n(lines 107-167 left out)", out)
+
+    def test_a_comment_in_front_matter_leaves_the_title_in(self):
+        text = "---\ntitle: Page\n# draft: true\n---\n" + fill("x", 60)
+        out = prose.brief_files([self.doc(((60, 60),), "docs/page.mdx")], {"docs/page.mdx": text})
+        self.assertIn(" 2  title: Page\n", out)
+
+    def test_a_heading_in_an_asciidoc_listing_leaves_the_section_whole(self):
+        text = ("== Writing\nChanged passage.\n----\n= Example title\n----\n" + fill("m", 100) +
+                "== Next\n" + fill("n", 60))
+        out = prose.brief_files([self.doc(((2, 2),), "guide.adoc")], {"guide.adoc": text})
+        self.assertIn("105  m99\n(lines 106-166 left out)", out)
+
+    def test_an_upper_case_suffix_still_finds_headings(self):
+        text = "# A\n" + fill("a", 100) + "# B\n" + fill("b", 60)
+        out = prose.brief_files([self.doc(((50, 50),), "README.MD")], {"README.MD": text})
+        self.assertIn("(lines 102-162 left out)", out)
+
+    def test_a_misread_heading_hides_nothing_within_the_floor(self):
+        cases = {
+            "README.md": ("# Project\n\n## Install\n\nSteps follow.\n\n<pre>\n# Clone it\n"
+                          "git clone x\n</pre>\n\nThen run make.\n", 12),
+            "guide.adoc": ("= Guide\n\n== Nesting\n\nTo nest:\n\n====\n[source,asciidoc]\n----\n"
+                           "====\n== Not a section\n----\n====\n\nIt keeps its delimiters.\n", 15),
+            "post.md": ("+++\ntitle = 'Post'\n# draft until review\ndraft = true\n+++\n\n"
+                        "Intro paragraph.\n\n## Details\n", 7),
+            "bom.md": ("\ufeff---\ntitle: Post\n# yaml-language-server: x\n---\n\nIntro.\n\n"
+                       "## Details\n", 6),
+        }
+        for path, (text, line) in cases.items():
+            out = prose.brief_files([self.doc(((line, line),), path)], {path: text})
+            self.assertNotIn("left out", out, path)
+
+    def test_a_long_html_comment_hides_its_headings(self):
+        text = ("# Install\nRun.\n<!--\none\ntwo\n# Hidden\n-->\n" + fill("x", 100) + "# Use\n" +
+                fill("u", 60))
+        out = prose.brief_files([self.doc(((2, 2),), "README.md")], {"README.md": text})
+        self.assertIn("107  x99\n(lines 108-168 left out)", out)
+
+    def test_a_heading_after_a_closed_block_ends_the_section(self):
+        text = "---\ntitle: P\n---\n# A\n" + fill("a", 100) + "# B\n" + fill("b", 60)
+        out = prose.brief_files([self.doc(((50, 50),))], {"guide.md": text})
+        self.assertIn("(lines 105-165 left out)", out)
+        text = "== A\n----\ncode\n----\n" + fill("a", 100) + "== B\n" + fill("b", 60)
+        out = prose.brief_files([self.doc(((50, 50),), "g.adoc")], {"g.adoc": text})
+        self.assertIn("(lines 105-165 left out)", out)
+
+    def test_a_passage_starting_on_a_heading_starts_its_section_there(self):
+        text = "# A\n" + fill("a", 100) + "# B\n" + fill("b", 100)
+        out = prose.brief_files([self.doc(((102, 103),))], {"guide.md": text})
+        self.assertIn("(lines 1-61 left out)", out)
+
+    def test_a_passage_ending_on_a_heading_runs_to_the_next(self):
+        text = "# A\n" + fill("a", 100) + "# B\n" + fill("b", 100) + "# C\n" + fill("c", 60)
+        out = prose.brief_files([self.doc(((50, 102),))], {"guide.md": text})
+        self.assertIn("202  b99\n(lines 203-263 left out)", out)
+
+    def test_a_section_ends_at_the_first_later_sibling(self):
+        text = "# A\n" + fill("a", 100) + "# B\n" + fill("b", 100) + "# C\n" + fill("c", 60)
+        out = prose.brief_files([self.doc(((50, 50),))], {"guide.md": text})
+        self.assertIn("(lines 102-263 left out)", out)
+
+    def test_one_files_items_do_not_widen_anothers(self):
+        text = fill("x", 200)
+        items = [self.item("a.py")._replace(spans=((10, 10),)),
+                 self.item("b.py")._replace(spans=((150, 150),))]
+        out = prose.brief_files(items, {"a.py": text, "b.py": text})
+        self.assertIn("(lines 56-200 left out)\n--- end a.py ---", out)
+
+    def test_a_passage_gets_the_floor_across_a_near_heading(self):
+        text = "# A\n" + fill("a", 100) + "# B\n" + fill("b", 100)
+        out = prose.brief_files([self.doc(((95, 95),))], {"guide.md": text})
+        self.assertIn("102  # B\n", out)
+        self.assertIn("135  b32\n(lines 136-202 left out)", out)
+
+    def test_a_thematic_break_in_markdown_opens_no_block(self):
+        text = "# A\n" + fill("a", 50) + "----\n" + fill("b", 50) + "# B\n" + fill("c", 60)
+        out = prose.brief_files([self.doc(((50, 50),))], {"guide.md": text})
+        self.assertIn("(lines 103-163 left out)", out)
+
+    def test_a_one_line_html_comment_closes_on_its_line(self):
+        text = "# A\n" + fill("a", 50) + "<!-- note -->\n" + fill("b", 50) + "# B\n" + fill("c", 60)
+        out = prose.brief_files([self.doc(((50, 50),))], {"guide.md": text})
+        self.assertIn("(lines 103-163 left out)", out)
+
+    def test_a_post_alone_has_no_files(self):
+        self.assertEqual(prose.brief_files([prose.ColdItem("The post below.", ("g",))], {}), "")
+
+    def test_a_brief_that_cannot_be_saved_is_printed_whole(self):
+        blocked = pathlib.Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, blocked)
+        (blocked / "briefs").write_text("a file, not a directory")
+        out = io.StringIO()
+        compact.print_brief("cold-read brief", "short", blocked / "briefs", "cold-read", out,
+                            "short\nand the files")
+        self.assertIn("short\nand the files\n=== end cold-read brief ===", out.getvalue())
+        self.assertIn("Brief file: not saved", out.getvalue())
 
 
 if __name__ == "__main__":
