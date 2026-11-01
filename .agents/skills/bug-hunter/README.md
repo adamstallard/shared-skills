@@ -29,8 +29,8 @@ something.
    input. For exported code that nothing in your repository calls, the
    agent searches the other GitHub repositories it can reach for callers,
    and removes the code only if none turns up and you say yes. The mutation agents run
-   beside the finder, so your commit waits longer only when they outlast
-   it. It costs up to 40 mutants a commit, at 12 to 17
+   beside the finder, and fixing goes ahead while they run, so your commit
+   waits longer only when they outlast the rest of the run. It costs up to 40 mutants a commit, at 12 to 17
    seconds of agent time each in a trial, plus the tokens those agents
    use.
 3. **Proves** each candidate with a regression test that fails now and will

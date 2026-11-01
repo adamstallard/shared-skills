@@ -5,12 +5,13 @@ killed; one they pass on survived, and shows behaviour no test pins. You
 did not write this code, which is why you were asked: its author tests
 what they meant it to do, and cannot see what it does that no test checks.
 
-The functions to mutate, each with its file, its line range, and the lines
-the change under review touched in it:
-<functions, e.g. src/conditions.ts:40-96 observes (changed: 52-60, 88)>
+The functions to mutate, each with its file, its line range, the lines the
+change under review touched in it, and its focused test command, which
+runs only the tests that exercise it:
+<functions, e.g. src/conditions.ts:40-96 observes (changed: 52-60, 88) — npx jest src/conditions.test.ts -t observes>
 The throwaway copy of the repository, where every mutant lives: <copy path>
-The focused test command, run from the copy: <focused command>
-The recheck command, run from the copy: <recheck command, or none>
+Each function's recheck command, run from the copy, which runs more of the
+tests near that function: <one line per function, e.g. observes — npx jest src/conditions.test.ts src/gh.test.ts -t "observes|evaluate", or observes — none>
 The gh shim directory: <shim directory>
 The file the shim logs to: <log path>
 Your mutant cap: <cap, e.g. 20>
@@ -32,19 +33,24 @@ Run every test command from the copy, in this form:
 
   cd <copy path> && PATH="<shim directory>:$PATH" GH_SHIM_LOG="<log path>" <command>
 
-Stop any run that takes longer than three times what the same command
-took on the unmutated copy, or 60 seconds, whichever is longer. Use your
-tool's own time limit, or `timeout` where it is installed (macOS has
-none). A
-mutant that hangs a test counts as killed (timeout).
+**The time budget.** Stop any run against a mutant that takes longer than
+three times what the same command took on the unmutated copy, or 30
+seconds, whichever is longer. Use your shell tool's own timeout setting,
+or the `timeout` command where it is installed; macOS has no `timeout`, so
+there the shell tool's setting is the way. A mutant that exceeds its
+budget counts as killed, and is reported as `killed: timeout`, so a reader
+can count it as killed or leave it out.
 
 ## 1. The unmutated run
 
-Run the focused command on the copy before changing anything. Rerun each
+Run each function's focused command on the copy before changing
+anything, and note how long each took: the time budget is measured from
+it. Rerun each
 test that fails, alone, in the test runner's serial mode if it has one
 (`--runInBand`, `-p 1`, `--workers=1`). A test that then passes is flaky;
 one that fails again is failing. Record both lists. A failing test kills
-no mutant. If the focused command itself cannot run, stop and report that.
+no mutant. If a focused command itself cannot run, or runs no test, stop
+and report that.
 
 Then check the copy is clean: `git -C <copy path> diff --quiet` exits 0,
 and `git -C <copy path> ls-files --others --exclude-standard` prints
@@ -91,19 +97,23 @@ return value, then negation, arithmetic, null guard and literal. Report how many
 One at a time:
 
 1. Make the one edit in the copy.
-2. Run the focused command. Killed if any test that passed on the
+2. Run the mutated function's focused command. Killed if any test that passed on the
    unmutated copy now fails, or the build or typecheck the command runs
    fails, or the run times out.
 3. If a flaky test is the only one that failed, the mutant is
    `needs serial rerun`, not killed. Name the test.
-4. If it survived the focused command and the recheck command is not
-   `none`, run the recheck command with the mutant still applied. The
-   first time you reach this step, first revert the mutant, run the
-   recheck command once on the unmutated copy, record its flaky and
-   failing tests as in section 1, and apply the mutant again. Killed if
-   any test that passed on the unmutated copy now fails; if a flaky test
-   is the only one that failed, it is `needs serial rerun`, as in step 3.
-   Otherwise it survived.
+4. If it survived the focused command and its function's recheck command
+   is not `none`, recheck it:
+   - The first time you use a given recheck command, revert the mutant
+     and run the command once on the unmutated copy, as section 1 runs
+     a focused command: note how long it took and record its flaky and
+     failing tests. If it cannot run, or runs no test, treat it as
+     `none` and say so in the report. Then apply the mutant again.
+   - Run the recheck command with the mutant applied. It is killed by
+     the same rule as step 2: a test that passed on the unmutated copy
+     now fails, or the build or typecheck the command runs fails, or the
+     run times out. If a flaky test is the only one that failed, it is
+     `needs serial rerun`, as in step 3. Otherwise it survived.
 5. Revert the edit: `git -C <copy path> checkout -- <file>`. Then the copy
    must be clean again, by the check in section 1, before the next mutant.
 
@@ -145,7 +155,7 @@ Then:
   skipped: <one line per skipped mutant: file:line, operator, why>
   dropped by the cap: <count>
   flaky: <tests> · failing on the unmutated copy: <tests>
-  per operator: <operator> <mutants> mutants, <killed> killed, <survived> survived; one line each
+  per operator: <operator> <mutants> mutants, <killed> killed (<n> by timeout), <survived> survived; one line each
   gh calls refused: <the number of lines in the log file>
   copy clean: yes | no — <what the check in section 1 printed after the last revert>
 
