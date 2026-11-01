@@ -1273,15 +1273,19 @@ run, on the code under review, immediately before the Step 9 report
 **Why: the recheck cost most of the mutation time.**
 - With the full suite as the recheck, it took 32 of the 47 minutes
   `conditions.ts` took in the igor trial.
-- In shared-skills the full suite, 1,716 tests in 11 files, many of them
-  starting git subprocesses, takes more than 4.5 minutes. Every mutant
+- In shared-skills the full suite, then 1,716 tests in 11 files, many of
+  them starting git subprocesses, took more than 4.5 minutes. Every mutant
   that survived the focused tests paid that again.
-- One file can be most of that suite. Prose keeps its tests in one file,
-  `test_prose.py`, which runs `prose.py` by path: 617 of those tests, and
-  about 4 of those minutes. Rechecking every test in the files that name
-  `prose.py` reran all of `test_prose.py` for every survivor. Narrower
-  focused commands send more mutants to the recheck, so that whole-file
-  rerun happened more often.
+- One file can be most of that suite. When this was decided, prose kept
+  its tests in one file, `test_prose.py`, which ran `prose.py` by path: 617
+  of those tests, and about 4 of those minutes. Rechecking every test in
+  the files that name `prose.py` reran all of `test_prose.py` for every
+  survivor. A narrower focused command kills fewer mutants, so more of
+  them survive to the recheck, and that whole-file rerun happened more
+  often. Prose's tests are now in five files split by area, besides
+  `test_comment_scan.py`. Each of the five names `prose.py`, so the search
+  for the files that name it finds all five, and rerunning those files
+  whole would still rerun every one of those tests.
 
 **What it can miss, accepted.** The recheck leaves out a test that reaches
 the function without the searches finding it: through a deeper caller,

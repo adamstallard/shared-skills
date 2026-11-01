@@ -179,9 +179,21 @@ run it in your own terminal, or, as a last resort, turn the hooks off as in
 
 ## Tests
 
-From the root of your clone:
+From the root of your clone, all of them:
 
 ```sh
-python3 .agents/skills/prose/scripts/test_prose.py
-python3 .agents/skills/prose/scripts/test_comment_scan.py
+python3 -m unittest discover -s .agents/skills/prose/scripts
 ```
+
+Or run one file, such as `python3 .agents/skills/prose/scripts/test_compact.py`:
+
+| File | Tests |
+|---|---|
+| `test_check.py` | `prose check` and `prose sign`: the rules file, signatures, pass tokens |
+| `test_hooks.py` | the posting hook, the commit hook and commit script, the first-call gate |
+| `test_cold_read.py` | the cold read: briefs, reports, findings, saved brief files |
+| `test_compact_triggers.py` | which docs are due for compaction, and the bloat detectors |
+| `test_compact.py` | compaction itself: `prose compact`, `--verify`, the gate on signing |
+| `test_comment_scan.py` | `comment_scan.py` |
+
+Their shared helpers are in `prose_test_support.py`.
