@@ -854,9 +854,11 @@ form of the report file and the dispositions file. In order: you start a fresh
 subagent and give it the brief; it writes a report file; you answer the report
 in a dispositions file; then you run the second call again with
 `--cold-read <report file>` and `--dispositions <dispositions file>`. If you
-cannot start a subagent, that section says how to hand the cold read back
-instead. The cold reader's report holds findings, each a place it stopped, and
-one understood line per item, saying what it took the item to mean. The
+cannot start a subagent, prose's reference.md, *Cold read: counts, refusals,
+reuse and hand-back*, says what to do: hand the cold read back to whoever
+reads your result, or, when nothing does, read the brief yourself. The cold
+reader's report holds findings, each a place it stopped, and one understood
+line per item, saying what it took the item to mean. The
 dispositions file answers each finding with `fixed` or `kept`, and each
 understood line with `matches`, `fixed` or `kept`. When the rerun succeeds,
 run the commit command shown in step 4, putting in the `Prose` value the rerun

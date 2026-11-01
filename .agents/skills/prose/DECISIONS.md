@@ -159,6 +159,48 @@ so stricter parsing would guard almost nothing.
 
 ---
 
+## SKILL.md keeps the steps; reference.md keeps the cases
+
+SKILL.md holds what every commit and post runs: the two calls, the cold
+read's six steps, committing and posting. [reference.md](reference.md) holds
+what only some runs reach, each under a heading SKILL.md names where that case
+comes up:
+- the format of a goals file, and the pattern syntax of per-file goals;
+- the cold read's counts, its refusals, its reuse and how to hand it back;
+- committing with other skills' trailers, and amending;
+- what the `gh` hook reads;
+- the procedure for revising existing text.
+
+The bullets explaining a hook report stay in SKILL.md's *Committing*, because
+the report prose's commit hook prints names that section.
+
+**Why.** SKILL.md loads on every prose use. The move took it from 22 KB to
+14 KB.
+
+**Measured** with skill-creator's benchmark, which runs an author agent on
+fixed writing tasks with seeded prose defects and grades whether each defect
+was fixed or handed back. It ran four tasks, seven graded runs per version.
+The version measured was 13 KB: it also cut the warning about `S`'s install
+path and the hook-report bullets, which the committed SKILL.md keeps.
+- The author agent processed 6% fewer tokens, paired by task and run (867k to
+  814k per run), and took 2% less wall time.
+- Repeated runs of one version varied by 144k to 207k tokens (one standard
+  deviation), so the saving is within noise.
+- Seeded defects were caught as often as before: 95% of grading checks passed
+  with the trim, against 98% without it, and each failure behind the gap also
+  appeared in runs without the trim.
+- One run reached the moved hand-back rules and cited the section.
+
+**This does not reverse *Rejected: rules behind a pointer*.** The writing rules
+stay in rules.md, printed in full at every first call. What moved is procedure
+for a case the agent has already reached: a refusal, a hand-back, a second
+trailer, an amend, a revision request. Wherever an agent meets one of these
+cases, the text in front of it names reference.md and the section: SKILL.md at
+the step where the case comes up (for a refusal or a hand-back, at the end of
+*The cold read*), and bug-hunter's SKILL.md where it hands a cold read back.
+
+---
+
 ## Each listed item is judged as its own reader
 
 `prose check`'s `--goals` are the commit message's, for the reviewer. Every
