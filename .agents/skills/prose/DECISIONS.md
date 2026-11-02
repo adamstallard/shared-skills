@@ -1,573 +1,1487 @@
 # prose — decisions
 
 `prose` makes agents rewrite what they write for human reviewers, and proves
-they did. The rules themselves are in `rules.md`; this file is why they, and
-the mechanisms around them, are the way they are.
+they did. The rules are in [rules.md](rules.md); this file says why they and
+the mechanisms around them are the way they are: each decision, why it holds,
+and the alternatives an editor might propose again, with why each was
+rejected. Rule numbers are the current ones.
 
-Each entry: the decision, why, and what was rejected. **Open** marks what is
-not decided yet.
+**Terms used throughout.**
+- **The pass:** the agent rewrites its own text by rules.md before signing it.
+- **First call and signing call:** each commit or post takes two runs of
+  `prose.py`. The first (`check` or `sign` without `--pass`) prints the rules
+  and a **pass token**; the signing call passes that token back and gets the
+  trailer or footer.
+- **Cold read:** before signing, a fresh agent reads the changed text and
+  reports where it stopped; the author answers each finding.
+- **The gate:** a Claude Code hook that blocks a session's first file write
+  and first GitHub post until `prose start` or a first call has run.
+- **Igor** (adamstallard/igor) is an agent pipeline that runs prose in its
+  workers; most examples come from it.
 
 ---
 
 ## Why the skill exists
 
-Reviewers spend most of their time reading, and agent-written code is usually
-easy to read. The text around it is not: long, discursive, ambiguous, and
-switching topics mid-block. Agents write it that way because they rank other
-goals — completeness, defensibility — above being understood.
+Agent-written code is usually easy to read; the text around it is not: long,
+ambiguous and switching topics, because agents rank completeness and
+defensibility above being understood.
 
-**Rejected: more instructions.** `sharper-comments`, `CLAUDE.md` rules and
-memories all failed the same way: agents treat advisory text as optional and
-skip it. So this skill's value is enforcement. The rules matter, but a rule no
-one can check is the thing that already failed.
+**Its value is enforcement.** `sharper-comments`, `CLAUDE.md` rules and
+memories all failed the same way: agents treat advisory text as optional. A
+rule no script checks is the thing that already failed.
 
----
+**Scope: anything a human reviews.** READMEs and other docs, code comments,
+architecture docs, specs, commit messages, pull request descriptions, and
+posts to GitHub, Linear and Discord. Short kinds are not exempt: agents bloat
+commit subjects and ticket comments too.
 
-## Rules 1–3: fewer claims, cut to answer review, no claim-checking
-
-The rules are in [rules.md](rules.md).
-
-**Why.** Wordy text makes more claims, and every claim is something a
-reviewer (bug-hunter, an AI reviewer, a person) can attack. An agent answers
-each attack with a hedge, which is another claim. A few rounds of that produce
-the unreadable block. Re-verifying every claim inside this skill would rebuild
-the same loop.
-
-**Rejected: readability scores** (Flesch and similar), even as a flag. They
-count syllables and sentence length, not whether a reviewer can find what they
-need, and text rewritten to raise them is no easier to understand (Redish; the
-ISO plain-language standard excludes them).
-
-**Open, for rule 2's wording.** Research finds vague hedges lower trust while
-a stated limit raises it (van der Bles 2020, Jensen 2008). One explicit scope
-line — "Checked: X. Not checked: Y." — is narrowing, not hedging.
+**Rejected.**
+- **Readability scores** (Flesch and similar), even as a flag. They count
+  syllables and sentence length, not whether a reviewer finds what they need,
+  and text rewritten to raise them is no easier to understand.
+- **Length budgets per kind**, beyond the 72-character commit subject. A number
+  reads as a target: short text gets padded, long text loses a needed
+  sentence, and rule 1 already cuts length. The one figure available, a median
+  of 355 words for agent pull request descriptions against 56 for humans,
+  shows that agents write longer, not what length a reader needs. If bloat
+  still gets through, measure word counts before and after the pass, and set
+  limits from that.
 
 ---
 
-## Rule 6: each sentence follows from the last
+## The rules
 
-**Decision (Adam, 2026-10-04).** No abrupt switch to a subject the reader
-wasn't expecting, or may not know or care about. A new subject the reader
-does need gets its own paragraph that introduces it.
+**Rules 1 to 3 cut claims; nothing checks them.** Rule 1 keeps a sentence
+only if the reader needs it, rule 2 puts the conclusion first, and rule 3
+removes rereads. None asks the agent to verify its claims: every claim is
+something a reviewer can attack, an agent answers each attack with a hedge,
+which is another claim, and a few rounds produce an unreadable block of
+hedges.
+Re-verifying claims inside this skill would rebuild that loop. One
+explicit scope line ("Checked: X. Not checked: Y.") narrows rather than
+hedges: vague hedges lower trust while a stated limit raises it (van der Bles
+2020, Jensen 2008).
 
-**Why.** Agents' text kept making non-sequiturs after the prose pass existed,
-and they slowed reading down: a README about GitHub saying in passing how
-claiming works on Linear. Each one makes the reader hesitate, reread, or ask
-the agent what it meant.
+**Rule 3 names a pointer whose one referent is far back** as a cause of a
+reread, as well as a pointer with two possible referents. A far pointer is
+"it" or "these commands" a paragraph after the one thing it points at.
 
-**Ranked right after *Read once, understood once* when added,** because an
-abrupt switch fails the same way: the reader stops and goes back. It was rule
-4 then, and is rule 6 now: *A hypothetical reads as one* and *Say when, and
-whether* sit between it and *Read once, understood once*. It is a separate
-rule from *One topic per block*, which is about how text is divided; this rule
-is about whether one sentence leads to the next. `RULES_IN_FULL`, the number
-of rules `prose check` prints in full, became 7, so *Spend words where they
-save reading time*, which was rule 7 at that time, was still printed in full
-with its example.
+**Rule 4, a hypothetical reads as one.** A case that happens only by accident,
+rarely, or by someone else's choice is marked three ways together: lead with
+what is always true, say the case is unusual and whose doing it would be, and
+put its consequences in "would" or "might". Two cold readers stopped on this
+comment; after the author fixed what they named, a third read it straight
+through as "spec-trace saves a log of its output":
+
+```
+# A log of this output saved in the repository is searched by the next run.
+```
+
+It meant: if a person saved the output in the repository, the next run would
+search it. The condition hid in the subject, so the writer saw no condition to
+label, and a reader sure of the wrong meaning never stops. "If" alone is not
+enough: with the case still the topic and its consequences in the plain
+present, the reader takes away a normal workflow with a condition attached.
+Rule 4 comes right after rule 3, among the rules printed in full (*New
+failures fold into an existing rule*, below), because a misreading costs more
+than a reread.
+
+**Rule 5, say when and whether, sits beside rule 4.** Both are about a claim's
+status (past, present or future; actual or conditional), and both prevent a
+reader who leaves misinformed without stopping, the goal rules.md names
+*Read as meant*. Further apart, someone applying one would read past the
+other.
+
+**Rule 6, each sentence follows from the last.** Abrupt switches to an
+unexpected subject slowed reading even after the pass. A "so", "because" or
+"therefore" points at what the reader just read: one whose cause is two
+sentences back makes the reader search.
+
+**Rule 7, a claim is stated once, with its reason.** In Igor's PR #156 one
+catchphrase appeared nine times across six documents, restating a rule in a
+form that sounded like a reason, so the reasons were never written down. The
+pass greps the repository for a phrase a changed passage repeats and fixes it
+at its source. rules.md's *Scope* limits the pass to text the change wrote,
+with two exceptions: this fix, and text someone asked to have revised. A term
+defined once and used as a name is vocabulary, not a catchphrase.
+
+**Rule 8, what is, not how it got here,** covers docs as well as comments. A
+passage that labelled its past ("the argument once made … does not apply")
+passed the pass, because rule 5 only asks that the past be labelled. Rule 8
+says whether the past belongs in the text at all.
+
+**Rule 9, spend words where they save reading time,** has *one claim per
+sentence* as its point. Its sentence "a longer sentence that reads once beats a
+shorter one read twice" allows words that serve the sentence's one claim, not
+a second claim.
+
+**New failures fold into an existing rule when they fit its question;** a new
+rule is inserted only when none fits, as rule 4 was. Renumbering breaks
+citations by number, and rules past `RULES_IN_FULL` (9) reach the agent as
+headings without their reasons or examples.
+
+**Rejected.**
+- **A word or clause limit per sentence.** A count of words does not see
+  claims, and reads as a target.
+- **Merging rule 8 (*What is*) into rule 5 (*Say when*).** They answer
+  different questions: whether the past belongs in the text, and how to mark
+  it when it does. Kept apart, rule 5 can say outright that labelling the past
+  does not justify keeping it.
+- **Merging rule 6 into rule 11 (*One topic per block*).** Rule 11 is about
+  how text is divided; rule 6 is about whether one sentence leads to the next.
+- **A mechanical lint for passives** such as "is searched" with no "by". It
+  would flag far more harmless sentences than harmful ones, and prose's checks
+  are worth reading because they don't cry wolf.
+
+---
+
+## The rules live only in rules.md
+
+`rules.md` holds the full rules text: scope, the pass with its reader table,
+the rules with their examples, and how agents cheat. SKILL.md keeps no copy.
+Every first call prints rules.md by its headings: everything before the rules,
+rules 1 to `RULES_IN_FULL` in full, the rest as one-line headings, and the
+cheat list. `prose.py` refuses to run when a section is missing or out of
+order, or the rules are misnumbered.
+
+**Why.** Agents skip documents but read a command's output at the moment they
+act on it. A second copy drifts, and a summary is read in place of the rule.
+
+**Rejected: rules behind a pointer** (a `reference.md`). A rule behind a
+pointer is read after the mistake.
+
+**Known gaps.** A fence closes at the next line starting with the same three
+characters, a `####` heading inside a rule is refused, a blank `# ` title
+passes, and so does a title placed after the opening principle (the bold
+lines before *Scope*). rules.md changes only through reviewed pull requests,
+so stricter parsing would guard almost nothing.
+
+---
+
+## SKILL.md keeps the steps; reference.md keeps the cases
+
+SKILL.md holds what every commit and post runs: the two calls, the cold
+read's six steps, committing and posting. [reference.md](reference.md) holds
+what only some runs reach, each under a heading SKILL.md names where that case
+comes up:
+- the format of a goals file, and the pattern syntax of per-file goals;
+- the cold read's counts, its refusals, its reuse and how to hand it back;
+- committing with other skills' trailers, and amending;
+- what the `gh` hook reads;
+- the procedure for revising existing text.
+
+The bullets explaining a hook report stay in SKILL.md's *Committing*, because
+the report prose's commit hook prints names that section.
+
+**Why.** SKILL.md loads on every prose use. The move took it from 22 KB to
+14 KB.
+
+**Measured** with skill-creator's benchmark, which runs an author agent on
+fixed writing tasks with seeded prose defects and grades whether each defect
+was fixed or handed back. It ran four tasks, seven graded runs per version.
+The version measured was 13 KB: it also cut the warning about `S`'s install
+path and the hook-report bullets, which the committed SKILL.md keeps.
+- The author agent processed 6% fewer tokens, paired by task and run (867k to
+  814k per run), and took 2% less wall time.
+- Repeated runs of one version varied by 144k to 207k tokens (one standard
+  deviation), so the saving is within noise.
+- Seeded defects were caught as often as before: 95% of grading checks passed
+  with the trim, against 98% without it, and each failure behind the gap also
+  appeared in runs without the trim.
+- One run reached the moved hand-back rules and cited the section.
+
+**This does not reverse *Rejected: rules behind a pointer*.** The writing rules
+stay in rules.md, printed in full at every first call. What moved is procedure
+for a case the agent has already reached: a refusal, a hand-back, a second
+trailer, an amend, a revision request. Wherever an agent meets one of these
+cases, the text in front of it names reference.md and the section: SKILL.md at
+the step where the case comes up (for a refusal or a hand-back, at the end of
+*The cold read*), and bug-hunter's SKILL.md where it hands a cold read back.
 
 ---
 
 ## Each listed item is judged as its own reader
 
-**Decision (Adam, 2026-10-06).** `prose check`'s `--goals` are the commit
-message's, for its reader, the reviewer. Each doc, spec and comment it lists is
-judged against goals of its own, which the agent names per file (the next
-entry). The listing and the pass both say to reread each changed doc passage
-inside its section, as that section's reader. *What is, not how it got here*
-moved up into the rules printed in full, covering docs as well as comments,
-and `RULES_IN_FULL` became 8. *Say when, and whether* now says that
-labelling the past does not make it worth keeping.
+`prose check`'s `--goals` are the commit message's, for the reviewer. Every
+changed doc and spec gets goals of its own, named per file with
+`--goals-for <pattern> '<goals>'` or a `--goals-file` of `pattern: goal; goal`
+lines. Without them the first call refuses, naming each file and its kind's
+default from rules.md's reader table. A deleted doc needs none; a code comment
+without goals gets its kind's default, labelled as one. The pass token records
+the per-file goals, and the signing call refuses goals that differ from them,
+or a doc staged since the first call that they don't cover.
 
-**Why.** A commit to Igor's `docs/architecture.md` passed the pass with a valid
-trailer while adding, to a section on how seats work, "The argument once made
-for multi-role Igors … does not apply". Three things let it through:
-- **The wrong reader.** The one goals string was a reviewer's, and a reviewer
-  wants to know an old argument no longer applies. The architecture's reader
-  was never shown that argument, and has to reconstruct it to follow the
-  sentence.
-- ***Say when, and whether* licensed it.** The passage labelled its
-  past ("once made"), which is all *Say when, and whether* asked. The rule
-  that forbids it was a one-line checklist item worded for code comments.
-- **Hunks, not sections.** Read beside the spec change in the diff, the passage
-  made sense; read in its section, it didn't.
+**Why.** A commit to Igor's architecture doc passed with a valid trailer while
+telling the doc's reader that an argument they never saw "does not apply".
+The one goals string was the reviewer's, who does want to know an old
+argument no longer applies; the doc's reader does not. Only the agent writing
+the change knows who a doc's reader is, and printing each file's goals above
+it keeps that reader in front of the agent.
 
-**Rejected.**
-- **One `check` per document.** A commit has one trailer, and the message
-  hash binds one message.
-- **Merging *What is* into *Say when*.** They answer different questions:
-  whether the past belongs in the text, and how to mark it when it does. Kept
-  apart, each says the other does not license it.
-- **Listing each changed passage's section heading** (Adam, 2026-10-06).
-  It was built, and dropped after three bug-hunter iterations each found
-  another Markdown construct it misread: 6, then 2, then 1, the last a fence
-  opened on a list-marker line that hid every later heading. A wrong hint
-  misleads silently, and the instruction to reread in the section carries
-  the point. *Reconsider if* agents ignore that instruction; a real Markdown
-  parser would then be the starting point, not another hand-written one.
-
-**Where this stops applying.** If agents keep reviewer context in docs with
-each doc's goals printed above it, the printout is not enough, and the next
-step is a separate first call for each doc.
-
----
-
-## Each file's reader goals are named by the agent
-
-**Decision (Adam, 2026-10-06).** `prose check` takes reader goals per file.
-`--goals` stays the commit message's. `--goals-for <pattern> '<goals>'`,
-repeatable, gives the goals of every listed file the pattern matches;
-`--goals-file <file>` gives the same as `pattern: goal; goal` lines. Every
-changed doc and spec must get goals, except a deleted one, which has no
-reader. Without them the first call refuses, naming each file with the
-default for its kind from rules.md's reader table.
-A code comment may go without, and gets its kind's default, labelled as one.
-The listing prints each item under the goals it gets and where they came from;
-a pattern that matches no listed file is a warning, since it is usually a typo.
-The pass token records the per-file goals, and the signing call refuses other
-ones, or a doc staged since the first call that they don't cover.
-
-**Which goals win.** The most specific match. An exact path beats any pattern;
-between patterns, the one with more literal characters wins, counting the
-pattern less a leading `/`, its `*` and `?`, and any `[...]`. So `docs/api/**`
-beats `docs/**`, which beats `*.md`, and `docs/*.md` beats `docs/**`. Two
-equally specific matches with different goals are refused, naming both:
-choosing by order would hide a contradiction the agent has to settle. The
-patterns follow gitignore because agents already know it: one that matches a
-directory covers the files under it, and `\` escapes a glob character.
-Negation (`!`) is refused, since a narrower pattern says the same thing.
-
-**Why.** The first version of the entry above printed one fixed reader for all
-docs ("someone reading this document to learn what it describes") and one for
-all comments. That told the agent a doc's reader is not the reviewer, but it
-could not say who a particular doc's reader is: an architecture doc, an API
-reference and a runbook are read for different reasons, and only the agent
-writing the change knows which this is. Requiring the goals, and showing the
-table's row when they are missing, puts that reader in front of the agent for
-each file during the pass.
-
-The entry above had rejected a flag per file because an agent fills it from
-the conversation it is in, which is the reviewer's. The refusal answers that:
-the agent is shown its kind's reader, not asked to recall one, and each file's
-goals are printed above it while it works.
-
-**Why a goals file.** A big change lists many docs, and goals with apostrophes
-break on a command line. A file needs no quoting, the lesson the commit
-script's `--message-file` already taught.
+**Which goals win: the most specific match.** An exact path beats any pattern;
+between patterns, more literal characters win. Equally specific matches with
+different goals are refused, since choosing by order would hide a
+contradiction. Patterns follow gitignore because agents know it; negation is
+refused. A pattern matching no listed file is a warning, usually a typo.
 
 **Rejected.**
-- **One fixed reader per kind**, printed above each group of listed items
-  (the first version of the entry above). It gave no way to state a
-  particular doc's reader.
-- **Goals per chunk** (per hunk or section). A file is read by one reader, so
-  a file listed for both doc text and comments gets one set of goals.
-- **Ties broken by order.** The later or earlier flag would win silently.
+- **One fixed reader per kind.** It cannot say an API reference and a runbook
+  are read for different reasons.
+- **One `check` per document.** A commit has one trailer and one message.
+- **Goals per hunk or section.** A file is read by one reader.
+- **Listing each changed passage's section heading.** Three bug-hunter rounds
+  each found another Markdown construct it misread, and a wrong hint misleads
+  silently. Reconsider only with a real Markdown parser, if agents ignore the
+  instruction to reread each passage in its section.
 
 **Where this stops applying.** If agents paste the reviewer's goals into
-`--goals-for`, naming the reader per file is not enough; the separate first
-call per doc above is the next step.
+`--goals-for`, the next step is a separate first call per doc.
 
 ---
 
-## A claim is stated once, with its reason
+## `start` and `sign` take their goals from a file too
 
-**Decision (Adam, 2026-10-06).** Rule 7, numbered 5 at the time, became *Plain words, and reasons
-instead of catchphrases*: a claim is stated once, with its reason, and
-elsewhere linked or restated in plain terms. The pass greps the repository for
-a phrase a changed passage repeats, and a phrase that recurs with no definition
-or reason at any use is fixed at its source: one statement with its reasons,
-the others cut or pointed at it. That fix reaches text the change did not
-otherwise touch, so *Scope* names it as its one exception.
+`start` and `sign` take `--goals-file <file>` in place of `--goals`: one or
+more goals per line, separated by `;`, blank and `#` lines skipped. Giving
+both is refused, since joining them would choose an order nobody gave. The
+token is bound to the goals, not to where they came from.
 
-**Why.** In Igor's pull request #156, "an Igor that does two jobs is two
-Igors" appeared nine times across the README, the architecture doc, a docs
-page, and the change's proposal, design and spec. "Job" was never defined and
-the phrase gave no reason; it restated the rule, one role per Igor, in a form
-that sounded like a reason. So the reasons were never written down, and
-Adam's question, why a role can't extend two bases, had no recorded answer.
+**Why.** Goals can hold text from a private issue, and on Linux any user can
+read another process's arguments in `/proc/<pid>/cmdline`. A file readable
+only by its owner keeps them private, and needs no quoting.
 
-**Folded into rule 7, not a new rule.** An undefined catchphrase is shorthand,
-which rule 7 already covers. On 2026-10-06, *Spend words where they save
-reading time* was the eighth and last rule printed in full, so a ninth rule in full would
-have pushed it out of the printout or grown `RULES_IN_FULL` again.
-
-**Where this stops applying.** A phrase that is defined once and used as a
-name, such as a term the project's glossary gives, is vocabulary, not a
-catchphrase.
+**Rejected: goals on stdin.** `sign`'s signing call reads the post there.
 
 ---
 
-## Three causes of a reread, added to rules 3, 6 and 9
+## `check` takes the message's goals from a file too
 
-**Decision (Adam, 2026-10-12).** Three failures become part of rules that
-already exist. This entry gives the rules' current numbers; at the time, rules
-6, 7, 9 and 10 were 4, 5, 8 and 9, and rules 1 to 8 were printed in full.
-- **Rule 3** names *a pointer whose one referent is far back* as a usual cause
-  of a reread: "it", "there" or "these commands" with a single possible
-  referent, a paragraph back. The rule had named only a pointer with two
-  possible referents.
-- **Rule 6** says *a "so" points at what the reader just read*: "so",
-  "because", "which", "therefore" and "thus" claim that a sentence follows
-  from the one before it.
-- **Rule 9** says *one claim per sentence*, and its sentence "a longer
-  sentence that reads once beats a shorter one read twice" now says what may
-  make it longer: words that serve its one claim, not a second claim.
+`check` takes `--message-goals-file <file>`, written like `start`'s, in place
+of `--goals`, for the same privacy reason. It is a second option because
+`check`'s `--goals-file` holds per-file `pattern: goal` lines, and a reserved
+pattern naming the message could clash with a real file.
 
-**Why.** Igor's `gitEnv` comment in `src/worktree.ts` (branch
-`one-claiming-surface`, from commit `2c4a19e`, which carries a valid `Prose:`
-trailer) is hard to read although the pass ran on it. Of its seven
-failures, four are ones the rules already named, missed because the author
-reviewed their own text (*A cold read before signing*, below, is the fix):
-- an idiom in place of the mechanism, "take a command off the token" (rule 7);
-- a missing actor, "authenticates with the token where it fetches" (rule 10);
-- an exception without the reason it is safe, "`.git/config` is still read
-  by the fetches `merge` makes" (rule 7);
-- an opening that says what the code avoids before what it does (rule 2).
-
-The other three no rule covered:
-- "So a proxy set only as `http.proxy` there does not reach these commands"
-  follows the sentence on `insteadOf`, but its cause is the decision two
-  sentences earlier, to read no global or system config.
-- Each sentence carries a rule, its mechanism and a consequence at once, and
-  rule 9's sentence about longer sentences reads as permission for that.
-- "there", "these commands" and "it" each have one referent, but a paragraph
-  back. Rule 3 named only the pointer with two.
-
-Each rule's new example is taken from that comment, shortened.
-
-**Folded into existing rules, not new ones.** `prose check` then printed eight
-rules in full, and the rest as one-line headings. Three new rules added after
-the 14 there were would have reached the agent as headings alone, without
-their reasons or examples, and those were what the motivating comment needed. Each failure is also a case of
-an existing rule's question: a far pointer sends the reader back (rule 3), a
-misplaced "so" breaks one sentence leading to the next (rule 6), and a
-sentence's claims are what its words are spent on (rule 9).
-
-**Rejected.**
-- **New rules numbered within the 8 then printed in full**, with
-  `RULES_IN_FULL` raised to 11.
-  Every rule after the insertion is renumbered, and this file, SKILL.md and
-  past reviews cite rules by number.
-- **A word or clause limit per sentence.** A number reads as a target (*No
-  length budgets*); the rule is about claims, which a count of words does not
-  see.
-
----
-
-## Rule 4: a hypothetical reads as one
-
-**Decision (Adam, 2026-10-18).** A new rule 4, *A hypothetical reads as one*,
-goes right after *Read once, understood once*. A doc or comment describes what
-normally happens. A case that happens only by accident, rarely, or by someone
-else's choice is marked three ways together: the text leads with what is
-always true, says the case is unusual and whose doing it would be, and puts
-its consequences in "would" or "might". *Say when, and whether* moved up to
-rule 5, beside it (*Rule 5 sits beside rule 4*, below). *Each sentence follows
-from the last*, *Plain words, and reasons instead of catchphrases* and *What
-is, not how it got here* are now rules 6 to 8, and every rule after them moved
-down one. `RULES_IN_FULL` became 9, so *Spend words where they save reading
-time*, now rule 9, is still printed in full. This file cites rules by their
-current numbers, and says so where a number differed at the time.
-
-**Why.** A code comment in spec-trace (`.agents/skills/spec-trace/scripts/spec_trace.py`,
-commit `e76371f` on branch `spec-trace`) read:
-
-```
-# A log of this output saved in the repository is searched by the next run. The
-# choice lines never read as a tag, so they never count for a scenario; the echo
-# of the bad tag does read as one, but it is ambiguous again.
-```
-
-Adam read it as "spec-trace saves a log of its output, and the next run
-searches it". spec-trace never saves its output. The comment meant an unusual
-case: a person saves the output in the repository, and the next run's
-`git grep --untracked` would then search that file. The commit went through
-three cold reads. Rounds 1 and 2 stopped on the comment. The fix after round 2
-wrote that round's reader's guess into the comment as its first sentence,
-stated as fact, and round 3 read it straight through. Two gaps let it through:
-- ***Say when, and whether* found no condition to label.** It asks
-  for actual and conditional to be labelled. Here the condition hid in the
-  subject, "a log … saved in the repository", which stands for "if someone
-  saved a log", and the verb, "is searched", stayed in the plain present. The
-  writer saw a statement, not a condition.
-- **The cold read reported only stumbles.** A reader sure of the wrong
-  meaning has none to report (*The cold reader says what it understood*,
-  below).
-
-**A new rule, not a paragraph in *Say when, and whether*.** That rule is about
-labels, and a label was not enough. Adam rejected the rewrite "If someone
-saves this output…, the next run's search reads that file": it still reads
-like a step in the normal workflow. The fix changes what the text leads with
-and the mood of its verbs, which a label does not. A paragraph inside that
-rule would also go unread: a writer turns to that rule on seeing a condition
-to label, and this writer saw none.
-
-**Why "if" alone is not enough.** "If" marks one clause as conditional. When
-the case is still the topic, and its consequences are in the plain present,
-the reader takes away a workflow with a condition attached: something that
-happens, and often. So the rule asks for all three marks together, and the
-cheat list names adding "if" while leaving the consequences in the plain
-present.
-
-**Inserted at 4, against the earlier choice to fold new rules in** (*A claim
-is stated once*, and *Three causes of a reread*, above). That choice rejected
-new rules within 1 to 8 because renumbering breaks citations by number. Both
-earlier cases fit an existing rule's question; this one does not. Rule 3 is
-about a reader who goes back, and this reader never does. A misreading also
-costs more than a reread, so the rule ranks just after rule 3 and is printed
-in full, with its example. The citations in this repository were renumbered
-in the same change. A review or comment elsewhere that cites rule 4 or later
-by its old number now names a different rule: an old "rule 5" meant *Plain
-words*, which is now rule 7, and rule 5 is now *Say when, and whether*.
-
-**Rule 5 sits beside rule 4.** Inserting rule 4 alone would have left *Say
-when, and whether* at rule 8, with three rules between it and rule 4. Rules 4 and 5 are both about the status of a claim: whether it
-is past, present or future, and whether it is actual or conditional. Both
-guard against the harm that ranks rule 4 so high: a reader who leaves
-misinformed without ever stopping. A plan written in the present tense
-misleads as silently as a hypothetical written as fact. With three rules
-between them, someone applying one would read past the other. `RULES_IN_FULL`
-stays 9, so both are printed in full. The goals at the top of rules.md name
-the harm both rules prevent, *Read as meant*, as a goal of its own: its cost
-is a wrong belief, not reading time, so it fits under none of the other three:
-*Read once*, *Understood without help* and *Not verbose*.
-
-**Rejected.**
-- **A mechanical lint for passives without an agent,** such as "is searched"
-  with no "by". It would flag far more harmless sentences than harmful ones,
-  and prose's checks are worth reading because they don't cry wolf.
-- **The rule only in a personal CLAUDE.md.** Everyone who reads agent-written
-  text meets this, so the rule goes where every agent running prose gets it.
+**Rejected: goals in the message file.** They would become part of the message.
 
 ---
 
 ## A revision request is drafted fresh, section by section
 
-**Decision (Adam, 2026-10-10).** When someone asks for existing text to be
-improved or fixed with prose, the agent drafts every section of it again
-before rereading it, then carries over what the old text held that the draft
-lacks, and keeps the old text only where the draft converges on it (*Kept
-only where the draft converges*, below). SKILL.md's *Revising existing text*
-gives the procedure; rules.md's *Scope* names the requested text as in scope,
-and the cheat list names picking sections to redo.
-In Adam's words: "treat each section of prose as if you're writing it from
-scratch, rather than deciding which sections to fix and which to skip."
+When someone asks for existing text to be improved with prose, the agent
+drafts every section before rereading it, carries over every fact,
+measurement, decision and warning the draft lacks, and keeps the original only
+where the draft, written without it, says essentially the same thing. A tie
+goes to the draft. A section an open branch also changes is held: left
+unchanged for now, with the branch named. The report to whoever asked
+counts sections redrafted, merged, kept and held, and shows each kept
+section's draft beside the original.
 
-**Why.** Asked to "use prose to improve the comments in src/execute.ts" in
-Igor (2163 lines, 743 of them comments), an agent grepped for history words,
-catchphrases and line-number references, skimmed comment blocks printed
-without their code, and judged each by its own test ("does it give a reason or
-record a measurement?") under its own reader goals instead of the table's. It
-changed 5 comments and reported the file in good shape. Among those it left was
-this one, which fails rule 3 (read once) and rule 7 (shorthand coined during
-the work):
+**Why.** Asked to improve the comments in a 2,163-line file, an agent grepped
+for patterns, skimmed comments without their code, changed 5 and called the
+file good; the ones it kept included blocks that fail rules 3 and 7. Each step
+closes a way poor blocks get through:
+- **Drafting fresh:** editing anchors on the existing framing. A sentence that
+  sounds reasoned survives "is this wrong?", a much easier test than "would a
+  fresh draft be better?".
+- **Writing the draft out:** a draft held in the head can't be checked.
+- **Ties to the draft:** left to judgement, the original, read with the code's
+  context already in mind, would win them. An agent also keeps the original to
+  avoid churn (diff size, merge conflicts) and calls that the reader's
+  interest, so churn from an open branch must be named out loud, as a held
+  section.
+- **The report:** `prose check` lists only what the change touches, so the
+  report is the only record that the rest was read.
 
-```
-// The three clauses of the requirement, and they are not one comparison: a deletion is
-// undone by the path being there at all, whatever it holds. Asking for the merge base's
-// own content there would catch only the deletion nobody meant to drop, and never the
-// delete/modify conflict a worker resolves by keeping the file — which is the shape the
-// conflict instructions hand it.
-```
-
-Drafted from the code, it reads:
-
-```
-// The base's change is undone in a different way for each kind of change:
-// - the base deleted the path: undone if anything publishes there, whatever it holds;
-// - the base added it: undone if nothing publishes there;
-// - the base rewrote it: undone if what publishes is exactly the merge base's content.
-// Don't compare a deletion against the merge base's content as well. A worker that resolves
-// a delete/modify conflict by keeping its own edited file, which the conflict prompt
-// invites, publishes content that matches nothing, and the deletion would be undone silently.
-```
-
-Three things let it through:
-- **Editing anchors on the existing framing.** A sentence that sounds reasoned
-  survives "is this wrong?", a higher bar than "would a fresh draft be
-  better?". Drafting first asks the second question of every section.
-- **A bulk retrofit invites triage by proxy.** Searching for patterns and
-  reading comments without their code is quick, and misses whatever the search
-  didn't name. The procedure says to read each comment with its code, and to
-  give a subagent taking a chunk all of that chunk's code.
-- **`prose check` lists only what the change touches.** A section the agent
-  chose not to edit is never in the listing, and the token proves the rules
-  were printed, not that untouched text was read. So the agent reports how many
-  sections it redrafted, merged, kept and held.
-
-**Carried over, not replaced.** A fresh draft from the code alone loses what
-the code can't show: measurements, rejected alternatives, past failures written
-as warnings. Step 2 compares against the old text for exactly those.
-
-**Deferred: listing a whole file in `prose check`.** A `--revise <path>` that
-lists every section of a file and marks those the change touches would make the
-untouched ones visible. Not built with this: printing every comment without its
-code is the reading that failed, and a listing proves printing, not reading.
-[Issue #16](https://github.com/adamstallard/shared-skills/issues/16) holds the
-design. *Build it if* agents follow the procedure and still report a file
-done with sections unread.
-
-### Kept only where the draft converges (Adam, 2026-10-10)
-
-**Decision.** The agent writes out a draft of every section, and keeps the
-original only where that draft, written without it, says the same things in
-essentially the same way. Otherwise the draft goes in, or a merge of the two;
-a tie goes to the draft. So "kept" records that the draft rediscovered the
-original, not a judgement that the original is better. The report shows each
-kept section's draft beside the original, so a reviewer can check that the two
-converge. A section whose lines an open branch also changes is *held*: left
-as it is, reported with the branch named, and revised after that branch
-merges. The report counts sections redrafted, merged, kept and held.
-
-**Why.** The first version of step 3 kept the old text "only where it serves
-its reader better than the draft". Used on Igor's `src/execute.ts` (217
-comment blocks, 90 kept) and `src/worktree.ts` (57 blocks, 40 kept), it let
-through a poor block that Adam found within minutes. Three things went wrong:
-- **Nothing forced the draft to exist.** For most kept blocks the agent formed
-  a draft in its head, found the original acceptable, and kept it: the "is
-  this wrong?" test with a step in front of it. A draft never written can't be
-  checked.
-- **The original won every tie.** "Better than the draft" put the burden on
-  the draft, and the two seemed equal more often than they were, because the
-  agent read the original with the code's context already in mind.
-- **The judge was the drafter, who also bears the cost of churn:** a bigger
-  diff, merge conflicts. Those are reasons about the diff, not the reader, and
-  "keep if better" let them pass as judgements about the reader. Holding a
-  section gives them a name of their own.
-
-The block Adam found, kept as "accurate and dense":
-
-```
-  /**
-   * What `broughtIn` changed since it and `head` last agreed, and what `head` holds for each of
-   * those paths — the three blobs a revert is read off.
-   *
-   * Two `--raw` diffs off the merge base rather than a lookup per path: `--raw` names both
-   * blobs of every changed path in one pass, and head's side of a path the base changed is
-   * either in head's own diff or unchanged since the merge base, which is `before`. That also
-   * keeps names as the bytes git wrote — a lookup would have to pass each one back through
-   * `argv`, where a name that is not text cannot go.
-   */
-```
-
-The draft that should have replaced it, which names the branch, the three
-blobs and what compares them, where the original leaves the reader to work
-them out:
-
-```
-  /**
-   * For each path the base branch (`broughtIn`) changed since the merge base, the three blobs
-   * `undone()` compares: the merge base's (`before`), the base's (`after`) and head's (`head`).
-   *
-   * Computed from two `git diff --raw` runs off the merge base, one to `broughtIn` and one to
-   * `head`, rather than one lookup per path. `--raw` gives both blob names of every changed path
-   * in one pass. Head's blob for a path is in head's own diff if head changed it, and otherwise
-   * is still the merge base's, `before`. The diffs also keep each name as the bytes git wrote; a
-   * lookup per path would pass each name back through `argv`, where a name that is not valid
-   * text cannot go.
-   */
-```
-
-**Rejected:**
-- **Always replacing the original.** Where the draft converges, replacing it
-  grows the diff for nothing, and a draft is sometimes worse.
-- **A blind comparison by a second agent** that is not told which text is the
-  original. It removes the bias, but doubles the cost of every revision.
+**Rejected.**
+- **Keeping the original where it serves the reader better.** It let poor
+  blocks through, for the reasons above.
+- **Always replacing the original.** Where the draft converges it only grows
+  the diff, and a draft is sometimes worse.
+- **A blind comparison by a second agent.** Removes the bias, but doubles the
+  cost of every revision.
 - **Keeping the original where the agent can name a rule the draft breaks.**
-  That is still a judgement, and the original wins it easily.
+  Still a judgement the original wins easily.
+- **A `--revise <path>` listing every section of a file** (issue #16). A
+  listing proves printing, not reading. Build it if agents follow the
+  procedure and still report files done with sections unread.
 
 ---
 
-## Scope: anything a human reviews
+## Compaction keeps docs read before work compact
 
-READMEs and other docs, code comments, architecture docs, specs, commit
-messages, pull request descriptions, and posts to GitHub, Linear and Discord.
+`prose check`'s first call prints `compaction due for <file>: <why>` for a
+changed doc agents read often that holds enough flagged text, or has grown
+by half and by 2,000 bytes since its last compaction.
+The agent compacts it in a commit of its own in the same pull request:
+`prose compact <file>` prints a brief for a fresh compactor
+([compact.md](compact.md)), `--verify` checks the result mechanically, and
+`--review` prints a brief for a fresh reviewer
+([compact-review.md](compact-review.md)).
 
-Commit subjects and ticket comments are not exempt for being short. Agents
-bloat them too; that is the problem.
+**Why.** Docs read before work stay compact, and current-state docs don't
+accumulate history. Over two long sessions, about 69% of subagent spend was
+agents rereading large documents; igor's `docs/architecture.md` was read 249
+times. The pass rewrites only the lines a change touches, so rule 8 never
+reaches the rest, and history piles up there: this DECISIONS.md grew from
+51 KB to 107 KB in three weeks.
+
+**It lives in prose** because it is rule 8 applied to a whole file, and
+prose's commit check already lists every changed doc. OpenSpec proposals,
+designs and delta specs are among the docs that check measures, so spec-check
+starts no compaction of its own.
+
+**Its steps live in [compaction.md](compaction.md),** not in SKILL.md.
+SKILL.md loads on every prose use, before every commit with prose and every
+post, while a compaction runs rarely: in SKILL.md, its 22 KB of steps would
+cost about 5,500 tokens on every load. SKILL.md keeps a short *Compaction*
+section that names the file. This does not reverse *Rejected: rules behind a
+pointer*: a rule behind a pointer is read after the mistake, so the writing
+rules every pass needs stay printed. Compaction has no such gap, since it
+starts only from a signal that names compaction.md: the printed
+`compaction due` advice, the gate's refusal, or, for a person's request,
+SKILL.md's *Compaction* section.
+
+**Just do it; ask on loss.** The compaction is reviewed as a diff of its own,
+so asking first only adds a wait. Dropping a conclusion is a decision, not an
+edit: the compactor leaves one it believes dead in place and names it, and a
+person decides. The reviewer's verdicts decide what is restored; the person
+is asked only where restoring is itself a judgement call.
+
+**A fresh reviewer judges every removal**, as bug-hunter's refuter judges
+findings, because a compactor checking its own work misses losses: the
+compactor of pull request #31, which compacted this file, missed eight that a
+fresh reviewer caught. `--review` writes every change to a file, old and new
+text side by side, headed by the code spans, flags, constants, paths and
+headings that are gone; that list is a script's work and costs no tokens. The
+reviewer runs on the same model, never a cheaper one, since it is the check on
+a strong model's judgement. For each removal it answers superseded, folded in
+or lost; for each rewritten claim, holds or false, checked against the code;
+it skips unchanged text. It also checks that every kept decision still carries
+its reason, since a decision without its reason invites the next editor to
+undo it. The compactor restores and corrects. A second review runs only if the
+first found something, and never a third.
+
+**A compacted file is read cold before its reviews.** This is the cold read
+`prose check` asks for before it signs the compaction's commit, and the
+reviews then check the fixes it leads to. The commit gate, below, needs
+`--verify` and the review recorded for the exact file staged, so a fix made
+after the reviews would need one more review, a third. So the signing call
+prints the cold-read brief while the compaction lacks those records, and signs
+only once both are recorded.
+
+**The compactor drafts each section fresh.** Measured with skill-creator's
+benchmark harness on five docs, each seeded with three conclusions hidden in
+history or repetition: this file before and after #31, bug-hunter's
+DECISIONS.md, worktrees' DECISIONS.md and igor's `docs/architecture.md`.
+Every seeded conclusion survived in every run. A judge agent also counted
+every other live conclusion of the original that each result no longer
+states; the table's last column gives that count. The reviewer's own count
+runs higher, since it also counts lost reasons and claims made false.
+
+| Brief | Size cut | Lost (judge's count) |
+|---|---|---|
+| Drafting fresh (shipped) | 6 to 23% | 1, after one review |
+| Cutting boldly | 17 to 36% | 12, after two reviews |
+| Cutting boldly, reviewer checks reasons | 6 to 42% | 6, after two reviews |
+| Naive "compact this", no reviewer | 4 to 54% | 41 |
+
+A brief that edited in place cut only 1 to 12%.
+
+**Rejected: cutting boldly and relying on the reviewer,** aiming for the 61% a
+hand compaction of this file reached. Even with the reasons check, 6
+conclusions were lost after two reviews, mostly reasons dropped from igor's
+architecture doc; the bar is at most 1 to 3 conclusions lost, counted as in
+the table. A bold compaction also cost 365k to 780k tokens and 6 to 19
+minutes. The shipped reviewer still runs the reasons check.
+
+**The reviewer, measured on #31's compaction,** caught 7 of the 11 points the
+human review restored or corrected. It missed one rejected alternative, one
+reason and two wrong statements, and found 23 more, 14 of them real.
+
+**The triggers are a script.** They read the index, git history and blob
+sizes, in well under a second for a commit's docs. A doc is due when it is
+read often and either its flagged text or its growth passes a threshold.
+How often a doc is read, and how much bloat it holds, decide whether a
+compaction repays its 300k to 500k tokens; size does not.
+- **Rejected: a fixed size budget** (it was 40,000 bytes). Compacting
+  prose's own DECISIONS.md under it cost about half a million tokens and cut
+  2%: the file is rarely read and held little history. Its compactor also
+  copied 11 of 33 sections word for word, and nothing caught it, which is
+  why every flagged passage now needs an answer.
+- **Read often** is declared, never inferred from content:
+  - by place: every `CLAUDE.md`, `AGENTS.md` and `SKILL.md`; a file a
+    `SKILL.md` or `AGENTS.md` links in a paragraph asking to read it first or
+    before something; and an open change's `proposal.md`, `design.md` and
+    delta specs, since spec-check's consistency read, run for every commit
+    that changes `openspec/`, opens each of them in every open change. A link asking to read its file before changing the skill does not
+    count, and no commit counts a read of that file either, since a commit
+    in a skill reads only its `SKILL.md` and read-first files;
+  - by `prose-compact` in `.gitattributes`;
+  - or by the commits since the doc's last compaction, each counting as one
+    read of the docs a fixed map gives it. A commit changing a file in a
+    skill's directory counts as a read of its `SKILL.md` and read-first
+    files. A `Bug-hunter:`, `Prose:` or `Spec-check:` trailer counts as a
+    read of that skill's `SKILL.md`, and `Spec-check:` also of the main
+    specs and open changes. The log is capped at 300 commits. So in practice
+    this path makes a main spec read often; a `DECISIONS.md` or
+    architecture doc not linked to be read first gains no reads, and is read
+    often only when declared.
+- **The last compaction** is the newest commit behind HEAD, merged
+  branches included, whose `Prose:` trailer lists the file after
+  `compacted:`, or that shrank it by 10% or more, or that committed a copy
+  `--reviewed` passed in this clone.
+- **A compaction is recorded in the `Prose:` trailer.** The signing call
+  appends `; compacted: <path>, ...` for each staged file whose `--verify`
+  and review records cover its staged blob, minted with the rest of the
+  value. A compaction that cuts under a tenth, such as one that keeps
+  justified passages, is otherwise seen only in the clone that ran it: every other
+  clone would count its kept passages as new and flag the file on its next
+  edit, again and again. The commit script refuses a listed file this
+  clone did not compact, and the commit hook a listed file the commit did
+  not change. The cut and the local review record stay as backups, for a
+  compaction committed without the trailer.
+- **Flagged text counts since the last compaction:** the bytes flagged now,
+  less those flagged in the copy the last compaction left. Passages a
+  compaction kept with a reason then never make the doc due again. A doc
+  never compacted counts all of its flagged text. Rejected: the fewest
+  flagged bytes in any recent version as the baseline. Text a doc held from
+  the start then never counted, and bug-hunter's SKILL.md was not due.
+- **Growth** is measured only from the last compaction. Rejected: measuring
+  a doc never compacted from the version that added it. Drafting grows a doc
+  fast without bloating it: #25's proposal had grown 2,151% and prose's
+  SKILL.md 443%.
+- **The trigger never fetches.** Its git calls run with
+  `GIT_NO_LAZY_FETCH=1`, so in a partial clone a blob not present counts as
+  unknown, and an offline check does not wait on the network. A shallow
+  clone whose history stops before the doc's add, or a log git cannot read,
+  counts as unknown too. An unknown baseline gives no flagged-text reason,
+  never a baseline of 0.
+- **Known gap: git older than 2.44** ignores `GIT_NO_LAZY_FETCH`, so there a
+  partial clone fetches the blobs the trigger reads: slow, not wrong.
+- **An error in the trigger warns** and `prose check`'s first call goes on
+  without the advice, since the trigger only advises. The commit gate is
+  separate and unaffected.
+- **Known gaps in reading history, recorded rather than fixed.** The
+  trigger only advises: a wrong answer is one `compaction due` line printed
+  or missed, and the commit gate reads no history. So these stay, and new
+  ones of the kind are added here:
+  - a squash merge whose message drops the compaction's trailer and whose
+    net cut is under a tenth;
+  - a doc renamed (`--no-renames`), or a symlink turned into a file
+    (status `T`), starts a new history;
+  - a side branch that deleted the doc, merged back with the doc kept, can
+    come before an earlier compaction in topological order, and the delete
+    then ends the walk;
+  - history past 500 changes of the file, or reads past 300 commits, are
+    not read;
+  - `--topo-order` sorts the whole history before printing, about a second
+    per 300,000 commits in a repository with no commit-graph;
+  - a path holding `, `, `;` or a line break is never listed after
+    `compacted:`, so only its cut or a local record marks its compaction;
+  - an amend of a compaction commit that also edits the doc is an ordinary
+    edit once a plain `prose check` has retired the compaction, deleting its
+    local snapshot because the compaction is committed; that amend's
+    trailer then drops `compacted:` for the doc.
+- **Growth needs 2,000 bytes as well as half.** Without a floor, igor's
+  2,268-byte `AGENTS.md` was due at 70% growth, 941 bytes, since its last
+  cut; a compaction costs far more than such a doc wastes per read.
+- **The thresholds, measured** with the shipped detectors on shared-skills
+  (this branch, and `origin/spec/inquisitor` for #25) and on igor:
+
+  | Doc | Flagged | Read often | Due |
+  |---|---|---|---|
+  | #25's `proposal.md` | 45,297 bytes (16.5%) | open change; 57 reads | yes |
+  | bug-hunter's `SKILL.md` | 1,050 bytes (1.8%) | SKILL.md; 131 reads | no |
+  | igor's `lore-from-reviews/design.md` | 1,123 bytes (4%) | open change | no |
+  | prose's `SKILL.md`, before dffb7b3 | 1,022 bytes (2.3%) | SKILL.md; 110 reads | no |
+  | prose's `DECISIONS.md` | 5,346 bytes (8%); grown 70% since 469ffc2 | 0 reads | no |
+  | igor's main specs | up to 4,139 bytes (12%) | 6 reads each | no |
+
+  - **Flagged text: 10% of the file and 1,000 bytes,** added since the
+    last compaction and measured against the file's current size. A
+    compaction's cost grows with the whole file, so the trigger does too.
+    Rejected: 1,000 bytes alone, which made large files due on a tiny
+    share. Under it, prose's SKILL.md was due with 2.3% of it flagged
+    (the table's row), and its compaction (dffb7b3) cut 5% for about half
+    a million tokens. The 1,000-byte floor,
+    about 250 tokens a read, keeps a small doc from coming due for a few
+    flagged lines.
+  - **Reads: 20.** Skill files took 2 to 131 reads in shared-skills' 140
+    commits; igor's main specs took 6 in its last 300.
+  - **Growth: 50%** and **2,000 bytes**, about 500 tokens a read.
+
+  They are constants in `compact.py`, and a repository overrides them per
+  file in `.gitattributes`. They are revisited if real use shows them off.
+- **Candidates** are the files the trigger looks at, before the read-often
+  and due tests: `DECISIONS.md`, `SKILL.md`, `AGENTS.md`, `CLAUDE.md`,
+  `architecture*.md`, main OpenSpec specs, the proposals, designs and delta
+  specs of changes not archived, every read-first file, and every file declared
+  `prose-compact`.
+- **A declaration works on any file.** `prose check` reads `prose-compact`,
+  `-prose-compact`, `prose-compact-growth`, `prose-compact-growth-bytes`,
+  `prose-compact-flagged`, `prose-compact-flagged-share`, `prose-compact-reads` and
+  `prose-compact-attribution` for every staged path. A file git treats as binary, by `-diff` (which `binary` sets) or a
+  NUL byte, is skipped. Declarations reach the triggers and the brief only;
+  the writing rules still apply only to docs.
+- **Settings live in `.gitattributes`:** committed, matched by path, read by
+  one `git check-attr` call.
+- **An agent never adds or changes a setting on its own initiative.** Each
+  can keep the trigger quiet or change what a compaction keeps. One slipped
+  into a commit of other edits would change that without the person
+  noticing, so the agent proposes the line instead. When the person asks for
+  a setting, or confirms a proposed line, the agent makes the edit itself,
+  in a commit of its own so it stays visible, never folded into other edits.
+- **Credits are kept by default:** a "who decided" credit is information a
+  team may rely on. `prose-compact-attribution=drop` drops them per file;
+  shared-skills sets it on its skills' DECISIONS.md files.
+
+**Bloat detectors** flag sentences and paragraphs, each with a line range and
+a kind, from the file alone: history, repetition, amendment notes, long
+rejected alternatives, stale references, narrative words and filler. They
+are plain patterns, chosen to be predictable: a false flag costs the
+compactor one `kept:` line, and the reviewer judges it.
+- **Repetition** follows spec-check's duplicate check: a normalised sentence
+  of 10 or more words stated twice, or 8 words in a row that two sentences
+  share. At 12 words, bug-hunter's SKILL.md showed none of the eight
+  restatements that 8 words find.
+- **A rejected alternative** may take the sentence naming it and one
+  sentence of reason, the form compact.md asks for. Flagging every two-sentence one
+  flagged 55 of the 63 passages in this file.
+- **A stale reference's path** is checked only when its first directory is
+  the repository's own, since skills describe paths in the repositories they
+  work on; without that rule, spec-trace's SKILL.md flagged 20. A flag or
+  `function()` is stale when no tracked file other than Markdown and the doc
+  holds it. A flag of another tool, such as `rg --hidden`, is a known false
+  flag.
+- **Filler** follows rule 9 and the cheat list: a "Note:" line, "it is worth
+  noting", "note that", "as mentioned above", "in other words" opening a
+  sentence, "basically", "essentially".
+- **Every passage needs an answer.** The brief lists each, and the compactor
+  writes `removed`, `rewritten` or `kept: <reason>` for it to an answers file.
+  `--verify` searches the new file for each passage,
+  comparing text normalised as for removed headings (below): one answered
+  removed or rewritten must appear fewer times than before. The reviewer answers
+  `justified` or `unjustified` for each kept reason, and the agent answers
+  each unjustified one in `--reviewed`'s dispositions.
+- **The answers file is outside the git directory.** The compactor is a
+  subagent, and a harness can refuse a subagent's writes into the shared git
+  directory, whether or not its session is isolated in a work tree. So step
+  1 picks a default answers file and names it in the brief. The file is in
+  the system's temporary directory, outside the repository so nothing
+  stages it, in a folder only the operating-system account running prose
+  can use. A compactor that cannot write there writes its answers to a file
+  outside the repository and names it, and `--verify --answers <file>`
+  reads that one. `--answers` is optional, not required: with the default
+  file, the usual run needs no extra step. Prose's own state stays in the
+  git directory, written only by its scripts.
+- **The answers are a copy `--verify` stores.** A passing `--verify` copies
+  the answers it checked into the snapshot, beside the blob it passed.
+  `--review`, `--reviewed` and the commit gate read only the staged blob's
+  copy, never the live file, so an edit counts
+  only once `--verify` runs again. One rule then binds the steps: every
+  passage the stored copy keeps was judged, with the same reason, by the
+  review that wrote the gate's record. Rejected: comparing digests of the
+  live file at each step, which needed a separate agreement rule per step,
+  and a new bug in each over six bug-hunter iterations.
+- **A person's request runs every detector with no threshold:** `prose
+  compact <file>` lists and enforces every passage, however few. Thresholds
+  gate only the `compaction due` line.
+- **History markers:** a dated revision note or span, a "History:" or
+  "Update:" label, "previously" (not "a previously issued"), "originally",
+  "formerly", "was changed to". Over 26 docs here and in igor they fire on 8
+  lines of this DECISIONS.md as it was before pull request #31, on igor's
+  architecture doc, bug-hunter's DECISIONS.md and an igor design. They fire
+  on none of the nine SKILL.md files, rules.md, this file after #31 or
+  seven other DECISIONS.md files. They miss
+  history phrased as "an earlier version", which the reviewer catches.
+  `--verify` fails on one left in the file, unless its passage was answered
+  `kept:`; the reviewer then judges the reason, as for any kind.
+- **The scans skip fenced code and quoted text** by one shared rule, so
+  every scanner agrees on what is code. A line of three or more backticks or
+  tildes, after any list or quote markers, opens a block, unless a backtick
+  fence's line holds another backtick. A bare fence of the same character, at
+  least as long and indented at most 3 beyond the opener, closes it. Text in
+  inline code, double quotes or guillemets is skipped too. Prose's own docs
+  quote Before and After specimens, which would otherwise be flagged
+  constantly. `--verify`'s check for removed headings detects no fences:
+  it reads every heading-shaped line, code blocks included.
+- **Known gaps in masking code, recorded rather than fixed.** The detectors
+  only flag, so a misread block costs one extra `kept:` line or one missed
+  passage, never a blocked or unchecked commit; the commit gate does not
+  depend on them. So these stay, and new ones of the kind are added here:
+  - fences inside nested containers beyond a list item holding a quote,
+    such as a quote inside a quote inside a list;
+  - a fence opened in a block quote or list item that ends without a
+    closer runs on, where CommonMark closes it with its container;
+  - indented code blocks (four spaces, no fence) are not masked;
+  - a quotation that wraps over more than one line break, or an inline
+    code span over more than one, is not masked;
+  - setext headings and HTML blocks are read as prose.
+
+**`--verify` blocks on any reference to what was removed.** A removed heading
+or anchor counts as still referenced when its heading text appears anywhere in
+another searched file, in any context, or its `#slug` appears anywhere in a
+searched file or the file itself. Then `--verify` fails and the compactor
+keeps the heading. Only removed headings and anchors are looked for, so a
+reference broken before the compaction never counts. It also fails on a
+history marker left, or a file that grew.
+
+**Heading text is compared normalised** on both sides: case folded
+(`casefold`, so "STRASSE" matches "Straße"); backticks, `*` and `_` dropped;
+every run of whitespace made one space, as is each line break (a bare CR
+among them) together with any comment or quote markers (`#`, `//`, `*`, `>`)
+starting the next line, so a citation wrapped inside a comment reads as one
+line. It is plain string clean-up, no parsing. The anchor is searched as
+written. Comparing exact text missed 11 of 15 real references in the
+benchmark below: citations drop a heading's backticks, lowercase its first
+word, and wrap.
+
+Every choice errs toward blocking.
+- **Over-blocking is accepted.** Each case below only keeps a heading:
+  - an incidental mention of the heading's text, or of its `#anchor`;
+  - a heading-shaped line (`#` to `######` and a space) inside a code block,
+    which counts as a heading, since `--verify` detects no fences;
+  - a heading renamed only in case or formatting, or removed while a kept
+    heading gives the same anchor: the removed heading's anchor is searched
+    anyway;
+  - another doc with the same heading text.
+- **Heading text under 16 characters, once normalised, is not searched as a
+  bare word;** its anchor always is. "Why", "Open" or "Rejected" appear in
+  ordinary prose everywhere, so such a heading could never be removed.
+- **A short heading's text counts beside a name for the doc:** on the same
+  line, or in the same sentence, as the doc's path, its file name, or its
+  skill's name as "prose's" or "the prose skill". Other files cite short
+  headings this way, such as *The cold read* and *Committing* in
+  bug-hunter's SKILL.md and this skill's rules.md; the length
+  rule alone would leave them unprotected. The heading's whole text must
+  match with its case, but backticks and emphasis markers are ignored on
+  both sides. No clause is parsed: on a line that names the doc, the
+  heading counts anywhere on that line, and a sentence that names the doc
+  makes it count anywhere in that sentence, across line breaks. That
+  over-blocks rarely and stays simple.
+  Inside a repository, a `SKILL.md` at the repository root gives no skill
+  name: the root directory's name is wherever the repository was cloned.
+  Rejected: taking it as the skill's name, which a fresh clone under
+  another name would silently change.
+- **Known gap: the short-heading rule is a heuristic, recorded rather than
+  fixed.** Sentence ends, word boundaries, names for the doc and markup are
+  all guessed. Each shape it misreads is recorded here, not fixed. A later
+  bug-hunter finding that is only such a shape is recorded here too, as
+  with *Known gaps in reading history* and *Known gaps in masking code*
+  above. A miss means `--verify` may not protect a short heading cited in
+  an unusual form; the reviewer still checks every removal against the old
+  text. Its newest part ignores backticks and emphasis in a short heading.
+  Bug-hunter checked that part only in a pass that proved findings but
+  fixed none, so a miss there is the likeliest. Recorded shapes:
+  - a heading whose markup touches punctuation inside a word, such as
+    "## `rg`'s output" or "## Why *not*?": a citation that copies it with
+    its markup is not matched, so `--verify` does not protect the heading.
+- **Paths are taken exactly as `git ls-files` lists them.** Inside a
+  repository, a file argument that is not a tracked path, mistyped case
+  included, is refused as "not a tracked file". CRLF line ends are read as
+  LF.
+- **A git error is an error.** Anything `git grep` writes to stderr fails
+  `--verify` (exit 2), whatever its exit code: it exits 0 when anything
+  matched, and the staged copy of the file always matches, so an unreadable
+  file would otherwise pass in silence.
+- **Outside a repository means `git rev-parse` failed,** judged by its exit
+  code alone; its messages differ by git version and by cause, such as a
+  filesystem boundary.
+- **git grep reads the tracked files** in two runs, one over the work tree
+  and one over the index (`--cached`). Each uses a pattern every line
+  matches, and the matching is done in Python on the normalised text. Files
+  outside a sparse checkout are read too; submodules are not. git grep skips
+  symlinks, so the report's count of files searched leaves them out.
+  - **It skips files git treats as binary** (`-I`): those with a NUL byte,
+    or with the `-diff` or `binary` attribute. Reading them took 7 seconds
+    and 1.1 GB of memory in a repository with 100 MB of tracked binaries.
+  - **To search a text file git misjudges,** such as one with a stray NUL
+    byte, give it the `diff` attribute: a line such as `notes.txt diff` in
+    `.gitattributes`.
+  - **A file named as a referrer is read whatever its type.**
+  - **A sparse index is expanded in memory** (`index.sparse=false`). A sparse
+    index stores each directory outside the cone as one entry, and `-I`
+    ignores the attributes of the files inside it. The expansion prints a
+    hint on stderr, which would fail every run, so
+    `advice.sparseIndexExpanded` is turned off.
+- **Known gap:** a heading underlined with `===` or `---` is not seen; no doc
+  in this repository or igor uses one. An ATX heading indented up to three
+  spaces, or with a tab after its hashes, is seen.
+- **Known gap: a heading moved into a code block counts as kept.** With no
+  fence detection, the line still looks like a heading, so its anchor is not
+  searched, though GitHub no longer gives it. A compactor rarely does this,
+  and the reviewer sees the change. Masking code on the new side only would
+  close it; that is for Adam.
+- **Known gap: an HTML anchor** such as `<a id="x">` is not a heading, so
+  removing it is not checked.
+- **Known gap: an assume-unchanged referrer.** git grep reads such a file's
+  index copy in its work-tree pass, so an unstaged reference in it is not
+  seen. The doc itself marked assume-unchanged or skip-worktree is refused,
+  since its changes could not be seen.
+
+**The caller names the files that might refer to the doc,** each one
+explicitly: after `--`, or listed by `--paths-from <file|->`, one path per
+line or NUL-separated with `-0`, so names with spaces or newlines survive
+`rg -l0` and `find -print0`. A file is read whatever its type or size. A
+directory is refused, with how to list its files by search, which lists
+exactly the files meant. Inside a repository the given files add to the
+tracked ones. Outside one, exactly the given files are read, and with none
+only the file's own links are checked. The report always says what was
+searched, so a run that checked too little shows it. Every file is read even
+when nothing was removed, so the report stays true and an unreadable file is
+still an error.
+
+**Rejected: walking named directories.** It needed filters for type, size,
+hidden directories, symlinked folders and a file cap, each with its own bugs,
+one of which left a large file unread when its folder was named first.
+
+**A compaction is signed only after it is verified and reviewed.** Inside a
+repository the agent stages the compaction first, and `--verify` and
+`--review` read the staged blob, refusing a file with unstaged changes, so
+what is checked is what is committed.
+- **Two records,** in prose's pass directory under `.git/prose/passes/`:
+  `compacted/` for a passing `--verify`, and `reviewed/` for a completed
+  review. Each is named by the staged blob's id exactly as `git ls-files -s
+  -z` lists it, and holds `before`, the blob id `prose compact <file>`
+  snapshotted when the compaction started. A failed `--verify` deletes its
+  record.
+- **Every compaction is gated,** whatever kind of file. Once `prose compact
+  <file>` has snapshotted a file in this work tree, `prose check` refuses to
+  sign while that file is staged with a blob other than the base's (HEAD's
+  blob, or HEAD's parent's with `--amend`) and lacks either record for its
+  staged id with `before` equal to the snapshot's start, until the compaction
+  retires on commit or is abandoned. Each refusal names the missing step:
+  "<file> was compacted but not verified; run `prose compact --verify
+  <file>`", or "<file> was compacted but its review was not completed; ...".
+  `prose check`'s first call lists the same lines. No new trailer or hook;
+  the `Prose:` value gains only `compacted:`, described above.
+- **Only a compaction started with `prose compact` is gated.** A compaction by
+  hand takes an agent deliberately skipping the tool, and the gate stops
+  accidents, not deliberate evasion. Rejected: gating any
+  current-state file shrunk by a tenth. It refused merges, cherry-picks and
+  reverts that bring in a compaction made elsewhere, and legitimate deletions,
+  with no way to satisfy it, since `prose compact <file>` refuses unless the
+  staged file equals HEAD's.
+- **`prose compact <file>` starts from the committed file.** It refuses a file
+  whose staged blob differs from HEAD's, so the snapshot is always of the
+  base, and running it on an already-compacted copy is refused.
+- **A snapshot belongs to its work tree.** Linked work trees share the git
+  directory, so each snapshot names its root, and only this work tree's
+  snapshots gate its commits.
+- **Ids are read from listings, never from names.** The gate reads `git
+  ls-files -s -z` and `git ls-tree -r -z`, so a path such as `0:x.md`, or
+  one holding a newline or ending in a CR, cannot name another file.
+- **A completed review** is one `--reviewed <reply> --dispositions <file>`
+  accepts: the reviewer's reply gives each change of the last `--review` a
+  verdict and a matching `Totals:` line, and each change with a `lost` or
+  `false` finding is answered `fixed`, which needs a staged blob other than
+  the one reviewed, or `kept: <reason>`. With nothing fixed, the staged blob
+  must be the one reviewed, so a review of an earlier draft, or taken before
+  the compaction, does not count. That a second review ran when the first
+  found something is required only by compaction.md's step 7; the record
+  cannot show it.
+- **A symlink is skipped by its mode,** 120000: it holds no prose, and
+  hashing its target would never match the link's blob.
+- **`--abandon` ends a compaction that will not be finished,** which would
+  otherwise keep blocking that file's ordinary commits until its snapshot was
+  deleted by hand. It deletes the file's snapshot, the review file beside it,
+  and the `--verify` and review records whose path and starting blob are the
+  file's. Records are named by blob id and shared by every work tree, so a
+  record is kept while any surviving snapshot starts from its `before` blob:
+  another work tree's snapshot of the same file, or a snapshot of a file with
+  the same content. A file deleted from the work tree, its compacted copy
+  still staged, can still be abandoned. It refuses when nothing was started,
+  so a mistyped path is not taken for success, and it touches no other file's
+  compaction. Each gate refusal names it.
+- **Known gap, accepted:** a file renamed and changed in the same commit is
+  not gated, since its snapshot names the old path, which the commit deletes.
+- **Snapshots and records do not expire.** A compaction stays gated until it
+  is committed or abandoned, and the later steps accept a snapshot of any age;
+  an expiry would let an unfinished compaction be signed, unverified and
+  unreviewed, once it lapsed. Snapshots are named for the file's path in its
+  work tree, so step 1 (`prose compact <file>`) on a file replaces that
+  file's snapshot. Records sit in subdirectories of prose's pass directory,
+  so they outlive prose's cleanup there, which deletes only top-level files
+  older than two hours (the life of a pass token).
+- **A finished compaction retires on commit.** The gate reads no history.
+  The next `prose check` deletes the snapshot when the base (HEAD, or its
+  parent with `--amend`) holds a blob for the file that this snapshot's own
+  `--verify` and `--reviewed` passed, whose two records still stand, and that
+  is not the start. What is committed was then checked, so deleting the
+  snapshot lets no unchecked copy through. The snapshot lists the blobs it
+  passed itself; a record alone is not enough, since records are shared by
+  every compaction that reaches the same content, and another compaction's
+  checked result must not retire this one. The gate itself retires the
+  compaction, so nothing needs wiring after the commit. It reads the base
+  rather than HEAD because an amend replaces HEAD. A compaction committed
+  without its records keeps gating until abandoned. A revert after retirement
+  does not re-arm it. Retirement needs a `prose check` while the base
+  holds the checked copy. If a work tree switches to a branch with the old
+  copy first, the file stays gated there until a check on a branch holding
+  the checked copy, or `--abandon`, clears it.
+- **Steps run at once keep each other's changes.** Each step changes the
+  snapshot under a lock, re-reading it first; a step finishing after a new
+  step 1 leaves the new snapshot alone and fails, saying to run it again.
+  Retirement re-reads the snapshot under the lock and keeps it if a new step 1
+  replaced it, and `--abandon` deletes under the lock, so no step can write a
+  snapshot back after it. Each draft of a snapshot or review file is written
+  and renamed under the lock, so a draft another step finds in the snapshot
+  directory was left by a killed step, and is deleted without checking
+  whether its process runs.
+- **The lock holds only where `fcntl` exists** (macOS, Linux). On Windows it
+  does nothing, so steps run at once are not safe there; one step at a time
+  is. A Windows lock was not added.
+- **An amend after retirement is an ordinary edit,** not gated, since the file
+  is ordinary again. Rejected: a tombstone to gate that amend, which would add
+  more shared state, the source of most of this gate's bugs.
+- **Rejected: ending a compaction by its history.** Searching every ref for
+  the finished result was satisfied with the staged file unchecked by an
+  amend, a kept stash or a second compaction from the same start, and fetched
+  blobs in a partial clone. Recording HEAD when step 1 ran, and gating while
+  that commit stays an ancestor of the base, ended the gate unchecked when
+  that commit was amended or rewritten.
+- **A removed work tree's snapshot stays.** Snapshots live in the shared git
+  directory and match a work tree by its path, so a new work tree at the same
+  path inherits one not abandoned first. compaction.md says to abandon
+  before removing.
+- **Partial clones work offline.** Trees are listed without sizes, and a size
+  is read by blob id only where a check needs it, so a blobless or sparse
+  clone is neither refused nor made to fetch on every check.
+- **Python 3.9 or later,** the repository's floor (README). So paths after
+  `--` are split off before argparse, which before 3.12 drops them once an
+  option follows the file.
+- **Outside git** `--verify` reads the working file and there is no gate;
+  the brief names `--verify` as the required last step.
+
+**Measured `--verify`** on the same benchmark's compactions, each in a clone
+of its real repository at the doc's commit. Judge agents labelled each of the
+47 removed heading-shaped lines over the three briefs the table above
+measured after review (drafting fresh, cutting boldly, and cutting boldly
+with the reasons check) as genuinely referenced or not: 15 are, all in this
+file before or after #31; the other three docs lost no referenced heading.
+
+| `--verify` | Caught | Missed | False blocks |
+|---|---|---|---|
+| Normalised text (shipped) | 15 of 15 | 0 | 6 |
+| Exact text | 4 of 15 | 11 | 3 |
+| f37015c, precise matching | 10 of 15 | 5 | 6 |
+
+- **The false blocks** each keep one heading:
+  - three lines of a code block that rules.md quotes;
+  - `#rejected`, a prefix of a live link to `#rejected-a-github-action`;
+  - "A claim is stated once, with its reason", which rules.md states as a rule;
+  - "Every commit gets the pass", used in passing in a test.
+- **Five of f37015c's six false blocks** came from one compaction whose
+  fence it misread: it reported 38 headings gone where all 48 were kept, and
+  five of those 38 are cited elsewhere.
+
+**Rejected.**
+- **Matching links and citations precisely:** a Markdown parser, then grep
+  with rules for paths, percent-encoding, comment prefixes, emphasis, wrapped
+  lines, shared headings, fences, path case and anchor collisions. Bug-hunter
+  found 14 bugs in the parser over three passes and over 25 more in the
+  matching rules over three runs, each fix exposing the next case, and was
+  still finding them at its cap. The review of #31's compaction checked links
+  the same way, by grep.
+- **A marker in the compaction commit.** An agent has to remember it, and a
+  squash merge can drop it.
+- **"No longer", "used to", "an earlier version" as markers.** Here they fire
+  mostly on present state ("if the tree no longer matches") or on rejected
+  alternatives stated in passing.
+- **A config file of its own.** One more file, with its own pattern matching.
 
 ---
 
-## `sharper-comments` is removed
+## The rules are on screen before a signature
 
-It is deleted in the pull request that adds this skill, so there is never a
-gap with neither installed.
+A trailer or footer takes two calls. The first, `check` or `sign` without
+`--pass`, needs the reader's goals, prints them, the rules and a pass token,
+signs nothing and exits 4. The signing call, with `--pass <token>`, signs.
 
-**Rejected: merging it in.** Its rules do not carry over unless decided again
-here. Its comment scanner may be reused to find comment lines in a diff.
+**Why.** The rules help most while a draft exists and is not final. Goals on
+the command make naming the reader part of the command, so it cannot be
+skipped silently; without goals there is nothing to cut against.
+
+**What it proves:** a first call printed the rules before the signature. Not
+that the agent read them, or that the pass was good. Forging a token file or a
+session mark is out of scope, as forging a footer is.
+
+### The pass token
+
+- **One token signs one text,** once: a commit and a PR description have
+  different readers, and a reusable token would let later texts skip naming
+  theirs. A commit's docs are signed with its token, each under its own
+  per-file goals. It is bound to its goals and its command (`check` signs a
+  commit, `sign` a post). A refused signing call keeps it.
+- **Bound to the goals, not the text,** since the pass revises the text. Only
+  the token records the goals, so no trailer, footer, commit or post shows
+  which goals the agent named.
+- **Expires after 2 hours;** each first call deletes older tokens. Two hours
+  also cover a compaction, whose token must stay valid from its cold read,
+  in step 4, to the signing call after its reviews: a whole compaction took
+  about 22 minutes, and an expired token only means redoing the cold read.
+- **Exit 4** for a first call, distinct from 2 (refused) and 0, so
+  `sign … > signed.md && gh …` stops there.
+- **Lives in `prose/passes/` under the repository's git directory,** never
+  committed. Igor's workers each run in a throwaway clone with a shared HOME,
+  so per-clone tokens mean no contention and no worker redeeming another's.
+  Outside a repository, `${XDG_STATE_HOME:-$HOME/.local/state}/prose/passes/`.
+  Written under a temporary name and renamed, so no call reads half of one.
+
+### `prose start`
+
+The gate (next section) blocks the first file write, so the call that opens
+it must work before any draft exists. `start` takes only goals, prints them
+and the rules, marks the session, and issues no token: one would sign a text
+whose own reader was never named.
+
+**Rejected.**
+- **Printing the rules on the signing call.** They would arrive after the
+  footer, when nothing is left to rewrite.
+- **Injecting the rules from a hook** (`additionalContext`). Shown, not acted
+  on; what fixed skipping in bug-hunter was making the agent run a script.
+- **A flag that prints only the trailer.** It is what an agent reaches for to
+  skip the rules.
 
 ---
 
-## Commits carry a trailer, and a script decides what it may say
+## The gate blocks a session's first file write
 
-A commit carries one trailer, `Prose: ✓ <tree>:<message>`, which `prose check`
-prints and the agent passes to the shared commit script. `prose check` also
-lists the prose in the staged change — Markdown, specs, the comments the diff touches, the
-commit message — for the agent to pass over. (Revised 2026-09-26: the skip
-value is dropped; see *Every commit gets the pass*. Revised 2026-09-27: one
-line signing the snapshot replaces `Prose: checked` plus `Prose-Sig`; see *The
-signature signs the snapshot*.)
+In Claude Code, `require-first-call.sh` blocks a session's first Write, Edit,
+MultiEdit or NotebookEdit to any file, and its first `gh` or GitHub MCP post,
+until `prose start` or a first call has run in the session. It checks the
+session mark first, so in a marked session it does nothing else. It does not
+look for comments or tell docs from code.
 
-The trailer is made when the pass runs and checked when the commit lands, so
-staging a change or editing the message after the pass breaks it. Twelve hex
-characters per half is enough: it stops a trailer written from memory, and no
-hash can prove when it was computed. The message must hash the same before
-the commit (the text passed in) and after (what git stored, normalised, minus
-the trailers git added at its end), which needs its own test.
+**Why not detect prose.** A gate that looked for comments in edits did not
+converge: two bug-hunter runs hit their iteration cap, each round finding 4 or
+5 real bugs (unparseable fragments, regex literals, directives, docstrings,
+notebook cells). Nearly every session writes prose anyway, a commit message at
+least, and the token already guarantees the rules before any signature. The
+cost is one `prose start` in a session that writes no prose.
 
-**One commit carries both skills' trailers.** Composing `Bug-hunter:` and
-`Prose:` in one commit is the shared library's job, not this skill's: its
-`commit-with-trailers.sh` takes any number of trailer families. A family
-is a trailer's key, its value and how that value is bound to the commit; see
-the library's *One commit, several families*.
-prose's family is `--verified-value scripts/verify-staged.sh Prose <value>`:
-the value binds itself, and `verify-staged.sh` refuses the commit if the staged
-tree or the message no longer matches it. Bug-hunter's is `--minted-by` with
-its own minter. A caller that makes the commit, such as the `commit` skill,
-passes both in one command.
+**The session mark** is an empty file named by the session id in
+`${XDG_STATE_HOME:-$HOME/.local/state}/prose/sessions/`, deleted after 30
+days, taken from `--session` or `CLAUDE_CODE_SESSION_ID`. It lives in the
+state home because a session spans repositories.
 
-**An amend goes to git directly.** The commit script makes a new commit and has
-no amend mode, so under `--amend` `prose check` prints
-`git commit --amend -F <the file it read> --trailer "<the Prose: line>"`.
-Nothing verifies that trailer before the amend lands; the hook reports a
-mismatch after it. *Fix, if amends need the check before landing:* an amend
+**It fails open.** A missing `python3`, a crash or an unreadable state
+directory lets the call through: a broken gate would block every write.
+
+**What it relies on in Claude Code:** PreToolUse exit 2 blocks and feeds stderr
+to the agent; the payload's `session_id` (a subagent carries its parent's),
+`tool_name` and `tool_input`; `CLAUDE_CODE_SESSION_ID` equals that
+`session_id`; matchers are unanchored regexes, so this one is anchored.
+
+**Known gaps.** Files written through Bash (`sed -i`, `>`) skip the gate.
+Cursor has no gate.
+
+---
+
+## A cold read before signing
+
+Before a changed comment, doc passage or post is signed, an agent that never
+saw the conversation reads it and reports every place it stopped, reread or
+guessed. [cold-read.md](cold-read.md) is the brief's only copy.
+
+**Why.** The author checks the text with the conversation in mind, so every
+gap is already filled for them. Igor's `gitEnv` comment had seven failures,
+four of which the rules already named. A fresh subagent given only the brief
+found four of the seven, missing the far "these commands", the missing actor
+and the opening that says what the code avoids first, and three more gaps no
+review had named.
+
+**Every brief for a subagent is also saved to a file,** and the agent gives
+the subagent only the file's path, telling it to read the file and follow it.
+Copying a printed brief into a prompt can drop or repeat lines: in one
+compaction the copy listed its only item twice, and the signing call refused
+the cold reader's finding against "item 2", which the real brief did not
+have. The brief still prints between
+its `===` lines, for callers that read it there, such as spec-check. The
+files sit in `prose/briefs/` beside the pass tokens, in the git directory, or
+in prose's state home outside a repository, and each new brief deletes those older
+than 2 hours, as each first call does with tokens. The saved brief also
+holds the staged lines each item needs (see *The cold reader runs on the
+brief alone*).
+
+**The signing call enforces it,** because it holds the final text. Without
+`--cold-read`, it signs nothing, keeps the token, exits 5 (distinct from 4 and
+2, so a script can tell "do this step" from an error), and prints the brief:
+cold-read.md, the `cold-read <token>` line the report starts with, and each
+text with its reader's goals, a comment or doc by file and lines, a post
+quoted. With a report and the author's answer to each finding (the
+dispositions, next section), it checks both, then signs.
+
+**What it reads, and what it skips.**
+- **Every comment block the change touches, whole,** since a reader meets it
+  whole, including a comment on a changed line whose own text did not change.
+  Every doc or spec passage the change adds to. Every post.
+- **No length threshold.** A version reading only texts of three or more
+  lines had every one of its bugs in that counting (comment syntax,
+  binary-diffed docs, BOMs, UTF-16), and a character count has the same hard
+  cases.
+- **Not the commit message:** the repository's owner decided commit message
+  bodies are not worth a cold read. A commit changing no comment or doc signs
+  without a report, so only commits that change a comment or doc, and every
+  post, need one.
+- **Nothing with no new prose to read:** a doc git diffs as binary, a deleted
+  doc, an edit that only removes lines, a symlink or submodule at a doc path,
+  a code file that did not parse or could not be read.
+- **One cold read per token.** Fixes are not read cold again, which would
+  repeat until a reader found nothing; `fixed` is checked by the item having
+  changed instead.
+
+**What it proves:** a report for that token existed before the signature, and
+each finding was answered. Not that a fresh agent wrote it; an author writing
+its own report is forgery, which the cheat list names.
+
+**Rejected.**
+- **Procedure only, in SKILL.md.** A cold read is skipped exactly when the
+  author thinks the text is clear, which is when the author is wrong.
+- **The script running the reader through a model API.** Needs a key, a
+  network and a provider in a standard-library script.
+- **A brief from the first call.** The text is a draft then, and `sign`'s
+  first call has no text at all.
+- **A separate `brief` command.** One more thing to remember.
+- **Giving the reader the rules.** It would check against them instead of
+  reading; the pass already does that.
+- **Asking the reader for rewrites.** A rewrite carries its guesses into the
+  text; a stop with what was guessed tells the author what to fix.
+- **Binding the report to the text's hash.** Every fix would need a new read.
+
+**Where this stops applying.** If cold readers report nothing on text human
+reviewers still find hard, change the brief. If authors dismiss what readers
+report, the next step is a second cold read of the fixed text.
+
+---
+
+## Every cold-read finding is answered before signing
+
+The signing call takes `--dispositions <file>` beside the report. Its first
+line is `dispositions <token>`, so answers for one cold read cannot pass with
+another, and it answers every finding once: `<n>. fixed`, or
+`<n>. kept (asked): <reason>`. A missing, duplicate or unknown number is
+refused.
+
+**Why.** Proving only that a report existed let an author pass it and change
+nothing, with a signature identical to one whose author fixed every place.
+
+**The report has a fixed form,** which cold-read.md asks for and the script
+parses: numbered findings `Finding <n>, item <i>, <stopped|reread|guessed>:
+«<words>» <what was missing>`, `Item <i>: read straight through.`, and one
+understood line per item. A line in any other form is refused, so the author
+asks the reader again rather than prose guessing what a free-form report
+meant.
+
+**`fixed` is checked by its item changing.** The brief's call records each
+item's file, line spans and the staged text, so the signing call refuses
+`--cold-read`, which passes in the reader's report, for a token whose brief
+was never printed. A brief printed again replaces the record, and the report
+must answer the latest one. At signing, the script diffs the recorded text
+against the current one: a line of the item changed or removed, or a line
+added inside it or directly beside it, counts. An edit elsewhere that only
+moves its lines does not. The quote is for the person deciding, and is not
+checked.
+
+**Rejected: refusing `fixed` while the quoted words remain.** It was the most
+intricate code and held one of the two bugs bug-hunter found in its version;
+it refused honest misquotes, and proved only that those exact words were
+edited.
+
+**A file the brief did not name is refused** when it now has a changed comment
+or doc passage: no reader saw it, and the trailer would say one had.
+
+**A person decides every kept finding.** A finding kept without `(asked)` is
+refused, with the quote, the reader's note, the reason and the file paths. An
+agent with a person and an interactive picker (in Claude Code, the
+`AskUserQuestion` tool) asks one question per finding, "Keep as is" or "Fix
+it". An agent that cannot ask leaves the change staged and hands that
+refusal, the files and the token to whoever holds its result. `(asked)` proves
+nothing the script can see; it is a claim made on purpose, and writing it
+falsely is on the cheat list.
+
+**The counts go in the `Prose:` value,** such as `; cold read: 5 findings, 3
+fixed, 2 kept; understood: 4 items, 1 fixed, 0 kept`, accepted only in the
+exact form the script prints. A commit with no cold read keeps the plain
+value; posts keep their footer. The value, not a new trailer key, because the
+commit script, the shared hook and bug-hunter already carry it as one opaque
+line.
+
+**Rejected.**
+- **Withholding the token until a read comes back clean.** Readers rarely
+  report nothing, and the author relays the report, so "clean" is unverifiable.
+- **Free-form reports.** The text being read contains quotation marks too, and
+  a guess at a report's meaning passes by mistake.
+- **Signing with `kept` and fixing later, or showing kept findings after
+  signing when no person can be asked.** Either way the wording lands before
+  anyone sees it.
+
+**Known gaps.** `fixed` proves the item changed, not that the edit touched the
+place the reader stopped; editing another part of the item is on the cheat
+list. Where a file repeats identical lines, the diff may attribute an added
+line to the wrong repeat; if that repeat is inside an item or directly beside
+one, the item counts as fixed though nobody edited it. A `kept` reason is
+checked only for being there.
+
+---
+
+## The cold reader says what it understood
+
+For every item the reader writes `Item <n>, understood: <one line>`: who or
+what does each thing, whether it always happens or only in some case, and
+whether the code does it or someone else could make it happen. The author
+answers each one: `matches`, `fixed` (checked like a fixed finding) or
+`kept (asked): <reason>`. The counts gain `; understood: <items>, <fixed>,
+<kept>`; a value without that part still verifies.
+
+**Why.** A reader sure of a wrong meaning stumbles nowhere, so its report says
+"read straight through", as the rule 4 comment's did. The author, who knows
+what was meant, can see the difference. The three questions are what a
+hypothetical written as fact gets wrong; a summary without them tends to
+restate the item's words.
+
+**Rejected: a line only for items read straight through.** An item with
+findings can be misread confidently elsewhere.
+
+**Known gap.** `matches` is the author's claim; answering it falsely is on the
+cheat list.
+
+---
+
+## The cold reader runs on the brief alone
+
+**Decision.** The saved cold-read brief goes on, after the items, with the
+staged lines each item needs, numbered as in the file. A doc passage gets
+its section: from the heading at or above it to the next heading of the
+same or a higher level, cut to at most 150 lines and at least 40 lines on
+each side of the passage, with the heading always kept. A comment, a
+docstring included, gets the 40 lines after it for the code it sits on,
+with 5 lines before the comment and 5 after those 40. Each gap says which lines it leaves out. In Claude Code the
+reader is the `Explore` agent type, on the model the author runs on. On
+other hosts it is a fresh general agent. Adam chose the windows over whole
+files, the fixed reach for comments, and the 40-line floor for sections,
+on 2026-10-31.
+
+**Why, measured here.** Each cold read cost about 100k tokens processed,
+though the text it read was a few hundred words. Most of that was fixed
+overhead: a general agent's tool definitions and system prompt, a call to
+read the brief and a call to open each file. One brief, three runs per
+reader, with five stops seeded in it (S1 to S5, S5 a pointer to a noun many
+lines back):
+
+| Reader | Processed per read | Calls | S1 to S4 | S5 |
+|---|---|---|---|---|
+| General agent, same model (before) | 102,262 | 3 | 3/3 | 2/3 |
+| `Explore`, same model | 42,367 | 3 | 3/3 | 2/3 |
+| General agent, files in the brief | 68,187 | 2 | 3/3 | 2/3 |
+| `Explore`, files in the brief (this) | 28,727 | 2 | 3/3 | 2/3 |
+
+The two savings stack: `Explore` carries a smaller prompt, and the files in
+the brief save a call. Time per read went from 28.4 s to 23.9 s. The bench
+copied whole files, which were short; for a short file the window is the
+whole file.
+
+End to end, on the skill-creator skill's benchmark harness, with four tasks (a comment block,
+a README section, a one-line dictated comment, and a doc commit plus a pull
+request description), two runs each against the version before:
+- **Catches:** unchanged. Every seeded defect was fixed, or flagged by the
+  cold read and handed back, in all 16 runs.
+- **Cold readers:** 870k to 273k tokens processed across the 10 reads in
+  each version, 69% fewer; 87k to 27k per read.
+- **Whole runs:** 924k to 792k processed per run, 14% fewer, within the
+  noise of the author's own work. Time to the result was unchanged, about
+  125 s: the reader is a small part of a run.
+- **Endpoints:** 4 of 8 runs committed before, against 2 of 8 after; the
+  rest handed findings back for a person, which both versions did on the
+  same kinds of finding (a cleanup script nobody named, a back-off time the
+  notes did not give). Two runs per version are too few to tell whether the
+drop from 4 to 2 is real.
+
+**The same model, never a cheaper one.** Sonnet and Haiku read the same
+brief. Both caught S1 to S4, and both lost S5: Sonnet caught it in part in
+one run of 3, Haiku in none. Haiku's reports were in the wrong form in 2 of
+3 runs. It took 38 s and 108k tokens, against 28.4 s and 102k for a
+general agent on the author's model, partly because a reader on another
+model writes its own prompt cache: 35k tokens, against 13k for a reader
+that shares the author's. End to end, Haiku readers cost 5% more tokens and 12%
+more time than the readers they replaced. S5 is the catch a cold read
+exists for: the far pointer the author cannot see.
+
+**Windows, not whole files.** One Read returns about 25k tokens at most.
+A whole file such as prose.py, 155 KB, would be read in pages and cost more
+than the excerpts a reader opened before. A window keeps the brief to what
+prose's rules already ask the reader to read: a passage in its section, a
+comment with its code.
+
+**A fixed reach for a comment.** The code a comment sits on was first
+found by syntax: the next line and what was indented deeper, then
+decorators, wrapped signatures and braces. Each rule had its own miss
+across two bug-hunter iterations: Python's `else:` and `except:`, a
+decorator over several lines, C#'s `}` / `else` / `{`, an empty block that
+ran on into the next one. A fixed reach cannot misread a language's
+syntax; a long function shows its first 40 lines.
+
+**A floor under the section.** The heading scan kept meeting markup it
+cannot read: across three bug-hunter iterations, a fence line with an info
+string, YAML comments, HTML comments and `<pre>` blocks, front matter in
+YAML or TOML or after a byte-order mark, and AsciiDoc blocks nested in
+others. A line misread as a heading ends the section early. With the
+section never stopping closer than 40 lines to the passage, a misread
+heading can hide only lines beyond that reach.
+
+**Staged, not from disk.** The lines are copied from the index, because the
+staged text is what gets signed, and the working tree can differ from it.
+Line numbers follow git's: lines are split on newlines only, and a bare
+carriage return is dropped from the copy.
+
+**The heading scan.** Headings are found by a line scan, outside fenced
+code: Markdown's `#` in Markdown files and docs with
+no suffix, and AsciiDoc's `= ` in `.adoc` files. In any other format none
+is found, and the section is the whole file, within the 150-line reach:
+reStructuredText marks a heading only by the line under it, and in a YAML
+file under `openspec/`, `#` starts a comment. The scan also skips the
+blocks whose lines are not headings: Markdown front matter and HTML
+comments, and AsciiDoc's delimited blocks, such as a `----` listing. A
+heading the scan misses only widens the window; a line it wrongly takes
+for one narrows it, which is why those blocks are skipped, and why the
+section has its floor. Either way the gap lines say what was left out.
+An earlier idea, listing each passage's section heading as a hint, was
+rejected (*Each listed item is judged as its own reader*) because a wrong
+heading there misled with no sign of it.
+
+**Where it stops applying.**
+- The reader bench used one fixed brief, with small files. A commit with
+  many items in long sections can still exceed the 25k-token page; re-measure
+  if readers report missing context or page through briefs.
+- If the brief stops carrying the lines each item needs, `Explore`, which
+  reads files in excerpts, is no longer a safe reader; go back to the
+  general agent.
+- A comment over code longer than 40 lines gets only its first 40. If
+  readers ask about code past that, raise the reach.
+- If the host changes what `Explore` carries, or drops it, re-measure; the
+  general agent is the fallback.
+
+**Rejected.**
+- **A cheaper model for the reader.** It lost S5, above.
+- **Whole files.** A large file is read in pages and costs more than
+  excerpts did.
+- **Whole files under a size cap, naming the rest.** A capped file goes back
+  to being opened on disk, in excerpts, where the text can differ from what
+  is signed.
+- **A fixed reach for doc passages too, with no heading scan.** A passage
+  in a long section would lose the section's heading and the rest of it.
+- **Recording the misread markup as known gaps.** Each misread heading
+  hides lines the reader needs, and there was no end to the list.
+- **Finding a comment's code by indentation and brackets.** Each rule
+  misread some language's code, above.
+- **Finding a comment's code with Python's `ast`.** It covers one language,
+  and every other still needs the fixed reach.
+- **The texts in the printed brief.** The printed brief is for the caller;
+  only the reader needs the files, and it reads the saved one.
+
+---
+
+## A re-sign of the same tree reuses its cold read
+
+A signing call that checks a cold read and signs records its counts in
+`prose/cold-reads/<tree>` beside the pass tokens, named by the full hash of
+the staged tree, with the cold items it listed: their files, line spans and
+goals. A signing call with a new token, from a new first call, whose `git
+write-tree`, after the pre-commit hook, has that exact hash, and whose cold
+items match, signs without a brief and carries the recorded counts. The
+commit message is not read cold here either; no signing call reads it.
+
+**Why.** The `Prose:` trailer binds the tree and the message together, so
+correcting the message alone took a new token, and with it a new cold read
+of every staged file. On one commit, fixing stale numbers in the message
+forced three fresh reads of a 42 KB SKILL.md. Each found new nitpicks (19,
+15, 11), and fixing them changed the file, which voided its compaction's
+`--verify` and review and needed a third review, past the compaction's cap
+of two.
+
+**Why reuse is safe.** The first signing already accepted that tree,
+including any fixes made after its brief, so signing the identical tree
+again adds nothing unread.
+- The key is the tree's hash, not a time: any staged byte changes it, and
+  the full brief follows. Records older than 7 days are deleted only to keep
+  the directory small.
+- Only a tree a signing call accepted is recorded. A printed brief, a report
+  never passed, or a refused signing call records nothing.
+- Other goals or another listing change the cold items, so they bring the
+  full brief.
+
+**Known gap.** The record is a file in the git directory, which anyone with
+access can forge, as with tokens.
+
+---
+
+## Without subagents, the cold read goes back to the caller
+
+An agent that cannot start a subagent hands back the brief, its token, and the
+paths of the message file and worktree, and does not sign or commit. It reads
+the brief itself only when nothing will read its result.
+
+**Why.** An author reading its own brief is the same author whose gaps the read
+exists to find; in one workflow every author lacked a subagent tool, so every
+"cold read" was the author's. A workflow script can start the fresh reader.
+The token lives in the repository's git directory, so a different agent can
+fix the findings and sign.
+
+**Rejected: reading the brief yourself whenever no subagent is available.** It
+produces a report that looks like a cold read and is not one.
+
+---
+
+## Commits carry a trailer that signs the snapshot
+
+Every commit carries `Prose: ✓ <tree>:<message>`: the first 12 hex of the
+staged tree (`git write-tree` when the signing call runs) and of the sha256 of
+the normalised message. Agents commit through the shared commit script with
+`--verified-value scripts/verify-staged.sh Prose <value>`, which refuses the
+commit if the tree or message no longer match.
+
+**Why.** The signature proves a script ran over the final text, and an edit
+after it breaks it. Twelve hex per half stops a trailer written from memory;
+no hash can prove when it was computed.
+
+**Every commit gets the pass; prose issues no skip value.** Every commit has a
+message a reviewer reads, so no commit honestly qualifies for a skip.
+
+**One commit carries every installed skill's trailer.** Composing them is the
+shared library's job (`../../lib/commit-trailer/`), through trailer families.
+While bug-hunter runs, its commit step runs prose's two calls and carries the
+`Prose:` value.
+
+**An amend goes to git directly,** with `git commit --amend -F <file> --trailer
+"<the Prose: line>"`, because the commit script cannot amend. Nothing checks
+the trailer before the amend lands; the commit hook reports it afterwards if
+it no longer matches. Fix, if amends need checking before they land: an amend
 mode in the commit script.
 
-**Known gap: a skip note is not stopped before the commit.** prose has no skip
-value, but the commit script runs no verifier for a value starting `skipped`
-(see [the library's decision](../../lib/commit-trailer/DECISIONS.md#a-family-whose-value-is-its-own-binding)),
-so a `Prose: skipped…` commit lands and only the hook reports it, as `unrecognised:`. It is
-left open for Adam: change the library, or keep it recorded here.
+**Messages are UTF-8.** `prose check` refuses a message that is not valid UTF-8
+or holds a Unicode noncharacter (git would store it re-encoded), and a
+non-UTF-8 `i18n.commitEncoding` (reading it back converts the `✓`).
+`verify-commit` reports a commit stored under any other encoding label as a
+mismatch.
 
-**Rejected: counts in the trailer** (text blocks checked, rewritten, cut).
-Nobody needs them, and "rewritten" needs a before-and-after of the pass.
+**The listing is not hashed.** `prose check` lists the message, each changed
+doc or spec, and each touched code comment so the agent knows what to pass
+over; history language in touched comments is printed as non-blocking flags.
+The listing finds renames (`-M`) whatever git's `diff.renames` setting, so a
+pure rename, which changes no text, lists nothing.
+
+**`verify-commit`** exits 0 valid, 1 invalid, 3 unable to check, matching the
+library's callback contract. Its reason starts `missing` (git sees no `Prose`
+key at all), `unrecognised` (any other form, including a blank value),
+`mismatch` (the message half) or `tree` (only the tree half), so the report
+says which half broke.
+
+**A cherry-pick finished by hand is verified.** After `git cherry-pick -n -x`
+and a plain `git commit`, the reflog shows a commit, not a replay, so the
+hook verifies it. Sign it like any commit; its `(cherry picked from commit …)`
+line is signed with the rest.
+
+**Rejected.**
+- **A rebase-proof signature over the prose lines a commit adds.** It grew
+  rename, cancellation and parse-failure rules, each another way for check and
+  verify to disagree. The hook exempts rebases and cherry-picks by reflog
+  action instead.
+- **Two lines** (`Prose: checked` plus a signature), or **counts of blocks
+  rewritten** in the trailer: nobody needs them.
+- **A git `commit-msg` hook.** Per-clone setup, and the reflog hook covers it.
+
+---
+
+## `prose check` ends with the shared result block
+
+The signing call prints only the shared `result-block.sh` block, holding the
+trailer, so no one types it. The format lives in the shared script; prose does
+not copy it. Either call stops before printing anything when `result-block.sh`
+is missing.
+
+---
+
+## `prose check` runs the pre-commit hook first
+
+In a repository with a pre-commit hook, both calls run it, through the shared
+`run-pre-commit.sh`, before they list or hash anything.
+
+**Why.** A formatter in the hook rewrites staged files after the check would
+have signed them, breaking the trailer. Running it on the first call too means
+the agent passes over the text that lands, and a failing hook stops the agent
+before the pass. The library records a passing run for the staged state, so
+in the usual flow the hook runs once in total.
+
+A failing hook makes `prose check` exit 2: the first call issues no token, and
+the signing call keeps its token for after the fix. With `prose check --amend`,
+`git commit --amend` runs the hook a second time itself; a formatter that
+already ran changes nothing.
+
+---
+
+## The signed message is found by searching from its end
+
+`prose check` hashes the whole message it is given. `verify-commit` removes 0,
+1, 2 or more trailer-shaped lines from the end of the stored message's last
+trailer block, and accepts the commit when any of those results hashes to the
+message half. The search stops at an indented line, any line that is not
+trailer-shaped, or the start of the paragraph.
+
+**Why.** git adds trailers only at the end, and `prose check` refuses the
+`trailer.*` config that could move them, so the signed text is always the
+stored message minus some lines from the end. A list of trailer keys missed
+edits to keyed lines elsewhere and had to grow with every skill.
+
+**How the message is normalised.** LF endings, trailing blanks off each line,
+blank-line runs collapsed, ends trimmed. When git reads the last paragraph as
+a trailer block, its lines are put in git's `token: value` form first, and an
+empty-valued key is folded into the indented line after it, as git does. A
+line starting with `#` or `core.commentChar` is refused, since git's cleanup
+may delete it. A `prepare-commit-msg` hook that edits the message breaks the
+signature, and the report says so.
+
+**Accepted cost.** A trailer-shaped line appended after signing does not break
+the hash.
+
+**The fold follows git's default rule:** an empty-valued key is folded only
+when git would read the whole paragraph as a trailer block. A configured
+`trailer.<x>.key` makes git count more lines as trailers, but `prose check`
+refuses to sign under any `trailer.*` config except `separators=:`. So a
+mismatch arises only when a commit is verified under trailer config that
+differs from where it was checked, and then it fails loudly. Fix, if needed:
+read `trailer.*.key` config and count those keys as git does.
+
+**Rejected.**
+- **git's own commands for parsing** (`git stripspace`,
+  `git interpret-trailers`). A prototype committed about 2,500 test and fuzzed
+  messages for real. It round-tripped every default-config one, but prose's
+  own parser already matched git on all 2,464 of them that it accepts. The git
+  version would save about 90 lines while adding git calls, depending on the
+  internal order of `git commit`, and still needing most refusals. Revisit if
+  people hit the refusals (configured trailer keys, `#` lines,
+  `core.commentString`) in practice.
+- **Folding every paragraph.** It would need no config, but folding joins an
+  indented line onto the empty-valued key above it, dropping its indentation,
+  so an edit to only that indentation would no longer break the hash.
 
 ---
 
 ## Posted text carries a signed footer
 
-A pull request description or comment ends with a short line such as
-`prose ✓ 3f2a91`. The hash covers the text above it and is printed by a
-script. A hook recomputes it from the tool's input before the post goes out
-and blocks a mismatch.
+A pull request description or comment ends with `prose ✓ <6 hex>`, the hash of
+the text above it (LF endings, trailing blanks off each line, and trailing
+blank lines removed; blank lines inside the text are hashed), which `sign`
+prints. A hook recomputes it before the post goes out and blocks a mismatch.
+`sign` replaces an existing footer, so re-signing works.
 
-It proves the footer matches the final text, so in practice a script produced
-it for that text. It does not prove when, or that the rewrite was good. The
-hashes are unkeyed, so an agent that reimplemented them could forge one; that
-is not defended locally, because a secret key would sit on the same disk the
-agent reads. What the design stops is skipping: a missing or typed value
-fails. Forging is forbidden by SKILL.md's "Never" list and caught at review
-like any other lie. Igor gets the stronger guarantee by running the passes
-itself.
+**What it proves:** a script produced the footer for that exact text. Not when,
+or that the rewrite was good. The hash is unkeyed, so a reimplementation could
+forge one; a secret key would sit on the disk the agent reads. The design stops
+skipping, and forgery is forbidden by SKILL.md's *Never* list and caught at
+review.
 
-**What the footer hashes (confirmed by Adam, 2026-09-28).** The text above the
-footer, with LF line endings, trailing blanks off each line and trailing blank
-lines removed. The footer is the last non-blank line and matches
-`prose ✓ <6 hex>` exactly. `sign` replaces a footer already there, so
-re-signing after an edit works. *Why:* only invisible whitespace is
-normalised; any change to a word breaks the footer.
-
-**Rejected: a plain `prose ✓`.** It can be typed from memory without running
-anything, which is the failure bug-hunter's tree binding was added to stop.
+**Rejected: a plain `prose ✓`.** It can be typed from memory.
 
 ---
 
@@ -575,1370 +1489,238 @@ anything, which is the failure bug-hunter's tree binding was added to stop.
 
 | Destination | Check |
 |---|---|
-| GitHub via MCP (Linear and Discord planned, not built) | a hook before the tool runs, which blocks |
-| GitHub via `gh` | the same hook, on an allow-list of command forms (see *The posting hook reads an allow-list*) |
+| GitHub via MCP | a hook before the tool runs, which blocks |
+| GitHub via `gh` | the same hook, on an allow-list of command forms |
 | Commits | the reflog hook shared with bug-hunter, after the command |
 
-Only the agent-side hook can stop a Linear or Discord post before it is
-public. There is no CI check: see *Rejected: a GitHub Action*.
+Only an agent-side hook can stop a post before it is public. Linear and Discord
+are to be added the same way. The MCP check matches the server, not a list of
+tool names, because a tool a name list missed would pass silently. It requires
+a footer when the input has a string under a `body` or `comment` key at any
+depth, so each review comment needs its own footer (inline comments are the
+agent text reviewers read most). A payload that is not JSON passes: the hook
+fails open, like the commit hook. For a stricter setup, permission rules can
+deny the raw GitHub tools outright.
 
-**Rejected.**
-- A git `commit-msg` hook: per-clone setup, and the reflog hook, which the
-  skill installs, covers the same ground.
-- One hook event for everything: commits would be reported a turn late, and
-  Cursor splits shell and MCP events anyway.
-
-Permission rules that deny the raw posting tools stay an option for strict
-setups.
-
-**Which tools, to start: GitHub.** Code is already covered, since comments and
-docs reach reviewers through commits. The hook matches every `mcp__github__`
-tool and requires a footer only when the tool's input carries a body or
-comment field, plus the `gh pr` and `gh issue` commands that post text (see
-*The posting hook's reach*). Not built yet: Linear and Discord, to be added
-the same way.
-
-**Rejected: a list of tool names.** A list is never complete, and a tool it
-misses passes silently. Matching the server and checking for a text field
-makes an unanticipated tool checked by default.
-
-**The hooks use several-hooks `hook.json`.** This skill's `hook.json`
-used the list form from the start, rather than a single-hook workaround that
-would have been thrown away.
+**Rejected: one hook event for everything.** A post must be blocked before
+the tool runs, but a commit exists only after it. Checked on the event before
+the tool, each commit would be reported at the next tool call, a turn late.
+Cursor splits shell and MCP events anyway.
 
 ---
 
 ## Rejected: a GitHub Action
 
-**Decision (Adam, 2026-09-30).** prose has no GitHub Action. The checks run
-only where the agent works, through the hooks the skill installs.
-
-**What it would have caught.** Agent-written commits and pull request
-descriptions from agents that do not use the skill: a missing, stale or
-hand-typed `Prose:` trailer, or a description without a matching footer.
-
-**Why.**
-- Installing the skill installs its hooks, so every agent that uses prose is
-  checked locally: the commit script refuses a stale trailer, the reflog hook
-  reports any commit without a valid one, and the posting hook blocks an
-  unsigned post.
-- So CI would catch only agents that do not use the skill. The remedy for that
-  is the maintainer asking agents to use it, not failing their pull requests.
-- Igor (adamstallard/igor#139) runs the passes as its own pipeline steps and
-  builds the trailers in code, verifying tree hashes before it commits. CI
-  would only re-check Igor's own work.
-- bug-hunter has no Action either.
-- It cost maintenance and design for little enforcement: a token to check out
-  the private shared-skills repository, a rule for which commits in a pull
-  request are a person's, and a policy for rebased commits in CI.
-
-**What removing the Action removed.** Without CI, the reflog hook is the only
-check on a landed commit, and it skips rebases and cherry-picks, including a
-message-only amend of one. So the code that verified a commit after someone
-else rewrote it went too:
-- reading a message's raw bytes when a rewrite left UTF-8 under another
-  encoding's label, and deciding which labels keep ASCII;
-- leaving `git cherry-pick -x`'s line out of the message hash;
-- the tests of rebases under Latin-1 and SHIFT_JIS, of relabelled headers, and
-  of `cherry-pick -x`, and the known gaps about re-encoding.
-
-In their place, `verify-commit` reports a commit stored under any encoding
-label other than UTF-8 as a mismatch. The refusals of a non-UTF-8 message and
-of a non-UTF-8 commit encoding stay, because a plain commit breaks without
-them (see *The signature signs the snapshot*).
-
-A `git cherry-pick -n -x` finished with a plain `git commit` is not a replay to
-the hook, so it is verified, and the `-x` line is now signed: the agent runs
-`prose check` on that message first. (Before this, reusing the original
-trailer verified only when the new tree matched the one signed.)
-
-**Where this stops applying.** If agents that never install the skill start
-committing to repositories that adopt prose, CI is the only place their
-commits can be checked. `verify-commit` and `verify-post` are the checks such
-a job would run; it would still have to decide which commits are a person's
-and how to fetch `prose.py`. It would also need the rewrite handling above
-back, from `e8da005`, since CI sees rebased and cherry-picked commits.
-
----
-
-## The rules reach the agent through `prose check`
-
-`prose check` lists the prose in the change and then prints the rules. The
-rules are written once, in `rules.md`, which the script reads. (Revised
-2026-09-28: `SKILL.md` no longer keeps a short version; see *The rules live
-only in rules.md*. Revised 2026-09-30: the first call of `start`, `check` or
-`sign` prints them, and a signature needs a first call; see *The rules are on
-screen before a signature*.)
-
-**Why.** Agents skip documents; they read a command's output at the moment
-they act on it. Bug-hunter's hook report is the one text agents reliably read
-when they fail, and this puts the rules in the same position.
-
-**Rejected: rules only in `reference.md`.** A rule behind a pointer is read
-after the mistake, not before (bug-hunter's *The trailer rule is stated
-inline, not only pointed at*).
-
----
-
-## The rules live only in rules.md
-
-**Decision (Adam, 2026-09-28).** `rules.md` holds the full rules text: the
-principle, scope, the pass with its reader-goals table and what never to cut,
-the rules most important first with their examples, and how agents cheat on
-the pass. `SKILL.md` keeps no copy; it says that `prose check` prints the rules
-and `rules.md` is their only copy.
-
-`prose check` prints it by its headings, every time: everything before the
-rules section, rules 1 to 9 in full, the rest as one-line checklist items (their
-`###` heading), and the cheat list. It refuses when a section is missing or out
-of order, or the rules are not numbered 1, 2, 3, even on a signing call.
-
-**Why.** A second copy drifts from the first, and the pass does not need one:
-the agent reads the rules in the check's output, at the moment it acts.
-
-**Rejected: a one-line summary of each rule in `SKILL.md`.** It is a second copy
-too, and a summary is read in place of the rule.
-
-**Known gaps.** A fence closes at the next line starting with the same three
-characters, so a four-backtick fence holding ``` lines, or a ```` ```sh ```` line
-inside a ``` fence, closes early; the file is then refused, loudly. A `####`
-heading inside a rule is refused too. *Fix, if rules.md needs either:* track
-fence length and info strings as CommonMark does, and allow `####` inside a
-rule.
-
-Two title-check gaps are also left (Adam, 2026-09-28). `rules.md` ships with the
-skill and changes only through reviewed pull requests, so a stricter check
-would guard almost nothing. The gaps:
-- **A blank title is accepted.** A `# ` line with no text passes. *Fix:* match
-  the title with `^# \S`.
-- **The check is looser than its message.** The refusal says a title and a
-  principle come first, but a title after the principle, or with no principle,
-  passes. *Fix:* require the first non-blank line to be `# <text>`, with some
-  text before `## Scope`.
-
----
-
-## `prose check` ends with the shared result block
-
-**Decision (Adam, 2026-09-27).** Skills a committing caller uses end their
-output with one result block, printed by the shared script
-`.agents/lib/commit-trailer/result-block.sh`, so no one types it.
-`prose check` ends with that block for skill `prose`: its one trailer line,
-normally with no open decisions. The format lives in the shared script only;
-prose does not copy it.
-
-`render_result` in `prose.py` is the one call to it, on the signing call. Either
-call of `prose check` stops before printing anything when the script is
-missing.
-
----
-
-## `prose check` runs the pre-commit hook first
-
-**Decision (Adam, 2026-09-30).** In a repository with a pre-commit hook, both
-calls of `prose check` run it before they list or hash anything, through the
-shared library's `run-pre-commit.sh`. The signing call signs what the hook left
-staged. In a repository without one, nothing runs and the output is unchanged.
-
-**Why.** `git commit` runs the pre-commit hook after the check, and a formatter
-there (prettier on Markdown, black on docstring quotes) can rewrite and
-restage files. The signature then no longer matches the staged tree, the commit
-script refuses the commit, and the agent has to run both calls again. With the
-hook run first, the signature covers the formatted tree.
-
-**Why the first call runs it too.** So the text the agent does the pass on is
-the text that lands. Run only before signing, a formatter that reflows a README
-would put text in the commit that the agent never read. A failing hook also
-stops the agent before the pass, not after it. The cost is small: when nothing
-staged changes between the calls, the signing call skips the hook (the record,
-below); when the pass restages a file, the hook runs again, on the new text.
-
-**How it uses the library.** After the hook passes, `run-pre-commit.sh`
-records the staged tree and the state it ran in, in the git directory. A later
-call in the same state skips the hook. So in the usual flow the hook runs once
-in total: the first call runs it, and the signing call and the commit script
-find the pass recorded. A test counts the runs. See the library's
-`DECISIONS.md`, *The pre-commit hook runs before anything is bound* and *The
-pre-commit hook runs once per commit*.
-
-**What each result does.**
-- **`unchanged`**: `prose check` carries on and prints nothing extra.
-- **`changed`**: `prose check` carries on, and says on stderr, in one line,
-  that the list (first call) or the trailer (signing call) is of what the hook
-  left staged.
-- **Exit 1** (the hook failed, the staged tree could not be read, or git is
-  older than 2.36 and there is a hook): `prose check` exits 2, its refusal
-  code, after the library's reason. The first call issues no token; the
-  signing call prints no trailer and does not spend its token, so the same
-  token signs after the fix.
-
-**With `--amend`, the hook runs too.** `git commit --amend` runs the hook
-itself and does not read the record, so the hook runs twice. A formatter that
-already ran changes nothing the second time, so the signature holds; without
-the early run, a formatter breaks an amend's signature as it breaks a
-commit's.
-
----
-
-## Code shared with bug-hunter
-
-The reflog check and tree minting live once in `.agents/lib/commit-trailer/`.
-Each skill keeps thin wrappers naming its skill and trailer key. See that
-library's `DECISIONS.md`.
-
-**The commit hook verifies through a library callback.** The shared library
-provides what prose needs: the optional `commit_trailer_verify` callback and
-the `--verified-value` family. prose defines the callback in `hook-report.sh`;
-the library calls it for each commit carrying a `Prose:` trailer, in place of
-its own `<key>-Tree` check, and reports what `verify-commit` says.
-
-Hooks ship with this skill through `hook.json`, in `manage-skills`'s list form.
-
-**One commit with bug-hunter's trailer (Adam, 2026-10-01).** While bug-hunter
-is running, its commit step runs prose's two calls and carries the `Prose:`
-value; prose's own combined command is for an agent committing itself. See
-the library's *Every installed skill's trailer, on one commit*.
-
----
-
-## No length budgets, beyond the commit subject limit
-
-**Decision.** `prose` sets no per-kind length limits. The 72-character commit
-subject limit the `commit` skill already has stays.
-
-**Why.** Rule 1 already cuts length: a sentence stays only if a reader needs
-it. A number reads as a target: short text gets padded to it, long text loses a
-sentence the reader needed, and the agent optimises the count instead of the
-reader — the reason readability scores were rejected. Any number today would
-be a guess from one correlational figure (agent PR descriptions: median 355
-words against 56 for humans).
-
-**Where this stops applying.** If bloat still gets through once `prose` runs,
-measure first: record word counts before and after each pass, and set limits
-from that data.
-
----
-
-## The agent names the reader's goals before it gets proof
-
-**Decision.** `prose check` prints no `Prose:` line, and `prose sign` prints no
-footer, until the agent passes the reader goals it chose:
-`--goals "review the fix; check it's safe to merge"`, the most probable reasons
-a reader opens this text, most probable first. `check` echoes them at the top of
-its output so the text is ordered and cut against them. The goals are not put in
-the trailer or the footer.
-
-**Why.** Agents skip listing the reader's goals, and without goals there is
-nothing to cut against. The script cannot judge them. The flag makes the step
-part of the command, so it cannot be skipped silently.
-
-**Revised 2026-09-30.** The goals now open the first call, which prints the
-rules and a pass token; the signing call takes the token. See *The rules are
-on screen before a signature*.
-
----
-
-## The rules are on screen before a signature
-
-**Decision (Adam, 2026-09-30).** A trailer or footer takes two calls:
-
-1. **The first call** is `check` or `sign` without `--pass`. It needs
-   `--goals`, prints the goals, the rules and a pass token, signs nothing, and
-   exits 4.
-2. **The signing call** is the same command with `--pass <token>`. It signs,
-   and does not print the rules again.
-
-Every commit and every post gets its own pair. In Claude Code, a hook also
-blocks a session's first file write or post until `prose start`, a warm-up
-that prints the goals and the rules and issues no token, or a first call has
-run in that session.
-
-**Why.** The rules help most during the rewrite pass: a draft exists and is not
-final. Before this, `--goals` on the first call signed at once, and `sign`
-printed no rules at all, so an agent could sign without the rules ever
-reaching its context.
-
-**What it proves:** a first call printed the rules before the signature was
-issued, and, in Claude Code, before the session's first file write or post.
-**What it does
-not prove:** that the agent read them, the order it thought in, or that the
-pass was good. Forging a token file or a session mark is out of scope, as it is
-for the footer (*Posted text carries a signed footer*): the design stops
-skipping, not deliberate forgery.
-
-### The pass token
-
-- **One token signs one text (Adam, 2026-09-30).** A session writes several
-  texts with different readers: a doc edit, then a commit message, then a pull
-  request description. A token that signed more than one would let every later
-  text skip choosing its own reader's goals. So a token is:
-  - **bound to the goals** given on the first call that issued it. The signing
-    call may repeat `--goals`, and is refused if they differ;
-  - **bound to its command**: a `check` token signs only a commit, a `sign`
-    token only a post;
-  - **single use.** A signing call refused for its text (a `#` line, say)
-    keeps the token; only a printed signature spends it.
-- **Bound to the goals, not the text.** The pass revises the text, so binding
-  the draft would punish revising.
-- **Expires after 2 hours.** That is longer than one pass, and an expired token
-  costs one more first call. Each first call deletes token files older than
-  that.
-- **Exit 4 for a first call**, distinct from 2 (refused) and 0 (signed), so
-  `sign … > signed.md && gh …` stops at the first call.
-- **Where it lives (Adam, 2026-09-30):** one file per token in `prose/passes/`
-  under the repository's git directory (`git rev-parse --git-common-dir`);
-  outside a repository, in `${XDG_STATE_HOME:-$HOME/.local/state}/prose/passes/`.
-  - The git directory is never committed and never shows in `git status`.
-  - Igor runs each worker in a throwaway clone with a shared service-user HOME
-    (`workerEnv` in Igor's `src/execute.ts` passes HOME). A per-clone location
-    gives each worker its own tokens: no contention between concurrent workers,
-    no token issued to one redeemable by another, and they go with the clone.
-  - A token is written under a temporary name in the same directory, then
-    renamed, so a concurrent call never reads half of one.
-  - Both calls must run in the same repository, or both outside one.
-
-### `prose start`: a warm-up before any draft exists
-
-The gate blocks the first file write, so the call that opens it has to work
-before there is a draft. `check` needs a message and a staged change, so
-`start` takes only the goals: it prints them and the rules, and marks the
-session. It issues no token. If it did, that token would sign a text whose own
-reader was never named, which is what one token per text rules out. `start`
-exits 0: it has done its whole job.
-
-### `--trailers-only` is removed (Adam, 2026-09-30)
-
-Nothing outside the tests used it, and SKILL.md never mentioned it. The
-signing call already prints only the result block, so the flag would only be a
-way to get a trailer with less output: what an agent reaches for to skip the
-rules.
-
-### The gate (Claude Code only)
-
-`scripts/require-first-call.sh` is a PreToolUse hook on Write, Edit, MultiEdit,
-NotebookEdit, Bash and the GitHub MCP tools. When the session has no mark, it
-blocks, with exit 2 and the command to run on stderr:
-- any Write, Edit, MultiEdit or NotebookEdit call, whatever the file;
-- a `gh` post, as the posting hook finds one (`gh_bodies`), or a GitHub MCP
-  call with a body field.
-
-It reads no file and tells no kind of file from another; see *The gate blocks
-a session's first file write*.
-
-**The mark first (Adam, 2026-09-30).** The gate checks the session mark before
-anything else, so a marked session does nothing else.
-
-**The session mark.** `start` or a first call writes an empty file named by the session id
-in `${XDG_STATE_HOME:-$HOME/.local/state}/prose/sessions/`, deleted after 30
-days. The id comes from `--session`, which the block message fills in, or else
-from `CLAUDE_CODE_SESSION_ID`. Marks live in the state home, not the git
-directory: a session spans repositories, and the hook's working directory can
-differ from the Bash command's.
-
-**It fails open.** The wrapper passes a message on only when `prose.py` exits
-2 with one. A missing `python3`, a crash, a payload without a session id, or a
-state directory it cannot read lets the call through, silently. A broken gate
-would otherwise block every write.
-
-**The Claude Code API it relies on** (code.claude.com/docs/en/hooks,
-/hooks-guide, /env-vars and /agent-sdk/hooks, read 2026-09-30):
-- PreToolUse exit 2 blocks the call and feeds stderr to Claude ("Use exit 2 to
-  block with a stderr message").
-- The payload's `session_id`, `tool_name` and `tool_input`. A subagent's
-  calls carry its parent's `session_id`.
-- `CLAUDE_CODE_SESSION_ID` is set for Bash tool commands and "matches the
-  `session_id` field in the hook JSON input".
-- The tool names. The gate reads `file_path` and NotebookEdit's
-  `notebook_path` only to name the file in its message; if one is renamed, the
-  message leaves the path out and the call is still blocked.
-- Matchers are unanchored regular expressions, so this one is anchored.
-
-### Rejected
-
-- **The goals as the gate.** An agent passes them on the first call, which
-  then also signed.
-- **Printing the rules on the signing call, with no gate.** They would appear
-  after the footer is issued, when nothing is left to rewrite.
-- **Injecting the rules into the agent's context from a hook**
-  (`additionalContext`). Shown, not acted on: what fixed skipping in bug-hunter
-  was making the agent run a script. It is also documented only for
-  PostToolUse, after the write it should come before.
-- **Binding the token to the draft.** It punishes the revision the pass is for.
-
-### Known gaps
-
-- Files written through Bash (`echo … > README.md`, `sed -i`) skip the gate.
-- Cursor has no gate (Adam: fine).
-
-### Superseded 2026-09-30: the gate that looked for prose
-
-Until *The gate blocks a session's first file write*, the gate blocked only a
-doc or spec, a code edit that added comment text, a Markdown notebook cell or a
-post. It diffed the whole file on disk against the edited file and compared
-comment text line by line; it lexed the added lines alone when the file did not
-parse. These decisions from the same day refined that detection. Each is
-superseded by *The gate blocks a session's first file write*:
-- **Tool directives were not prose (Adam).** A comment holding only directives
-  (`noqa`, `type: ignore`, `eslint-…`, `@ts-…`, a coding line and similar) did
-  not open the gate, because it instructs a tool, not a reader; text after the
-  directive did.
-- **Git work tree first, then the session's directory (Adam).** Directory names
-  counted only below the project, so a checkout under `~/out/` was not build
-  output; git came first because a session can start above the repository.
-- **A submodule stayed vendored.** A submodule the session worked outside of
-  belonged to its superproject, so one under `vendor/` stayed vendored.
-- **A notebook code cell was compared with its source on disk (Adam),** like a
-  code file; a replace without `cell_type` kept the type read from the notebook.
-- **Known gap: JS regex literals.** A regex the lexer did not recognise had its
-  `//` read as a comment, which blocked. The gap remains only in `prose
-  check`'s listing; see *Comments in more languages*.
-
----
-
-## The gate blocks a session's first file write
-
-**Decision (Adam, 2026-09-30).** The gate blocks a session's first Write, Edit,
-MultiEdit or NotebookEdit call to any file, and its first `gh` or GitHub MCP
-post, until `prose start` or a first call has run in the session. It does not
-look for comments, tell docs from code, or classify paths.
-
-**Why.**
-- **The heuristic did not converge.** Two bug-hunter runs on "does this edit
-  add a comment" each hit their 3-iteration cap, and every iteration found 4
-  or 5 real bugs: fragments of files that do not parse, regex literals,
-  directives, docstrings, notebook cells, paths under build or vendored
-  directories.
-- **The gate is a warm-up.** The pass token already guarantees the rules are
-  printed before any signature, so the gate's precision barely matters.
-- **Nearly every session writes prose,** a commit message at least, so one
-  `prose start` per session costs less than a heuristic nobody gets right.
-
-**Accepted cost.** A session that writes no prose but edits a file must run
-`prose start` once.
-
----
-
-## A cold read before signing
-
-**Decision (Adam, 2026-10-12; scope settled 2026-10-13).** Before a changed
-comment, doc passage or post is signed, an agent that has never seen the
-conversation behind it reads it, and reports every place it stopped, reread or
-guessed. The author fixes those places, then signs. rules.md's step 5 states
-it, SKILL.md's *The cold read* gives the procedure, and
-[cold-read.md](cold-read.md) holds the brief the cold reader gets, its only
-copy.
-
-**Why.** The pass ran on Igor's `gitEnv` comment (*Three causes of a reread*,
-above), and four of its failures were ones the rules already named. The author
-checked the text against the rules with the conversation in mind, so every
-gap was already filled for them. A reader without the conversation is the
-reader the text is for, and the only one who stops where that reader will.
-
-**Tried on that comment (2026-10-12).** A fresh subagent given only the
-brief the signing call printed for the comment reported four of the seven
-failures: the idiom, the misplaced "so", the exception without its reason, and
-"for the clone and the fetches" as a pointer it had to guess at. It missed the
-far "these commands", the missing actor (it doubted the LFS fetch's safety
-instead) and the opening. It also found three gaps no review had named: "the
-worker" and `merge` are never introduced, and the comment does not say why the
-empty helper entry alone is not enough.
-
-**The signing call enforces it.** The first call cannot: it lists a draft,
-and `sign`'s first call has no text yet. So the signing call, which has the
-final text:
-- takes every changed comment block and doc passage `check` lists, as they
-  are, and every post;
-- without `--cold-read <file>`, signs nothing, keeps the token, exits 5, and
-  prints the brief: cold-read.md, the line `cold-read <token>` the report
-  starts with, the repository the paths are in, and each text with its
-  reader's goals. A comment or doc is named by file and lines; a post is
-  quoted;
-- with it, checks the report and an answer to each of its findings, then
-  signs (*Every cold-read finding is answered before signing*, below). A
-  refused report keeps the token.
-
-Exit 5 is distinct from 4 (first call) and 2 (refused), so a script running the
-calls can tell "do this step" from an error.
-
-**No length threshold (Adam, 2026-10-13).** The first version read only texts
-of three or more lines that hold text. Every bug bug-hunter found in it was in
-that counting: comment syntax lines counted as text, docs git diffs as binary
-skipped or read whole at any size, a symlink replacing a doc, and NULs and
-byte order marks counted as lines in UTF-16 and UTF-32. A character count has
-the same hard cases. Without a threshold, the cost is a subagent where a
-commit's only prose is a short comment, and nothing to count can go wrong.
-
-**What it applies to, and what it skips.**
-- **New and changed text alike:** a reader meets a comment block whole, so the
-  whole block goes in the brief, whatever line the diff touched.
-- **Not the commit message** (Adam, 2026-10-13: "I don't care about commit
-  message bodies"). A commit that changes no comment or doc signs without a
-  report.
-- **Not a doc git diffs as binary** (UTF-16, `-diff`): prose cannot read it,
-  so it has no passage to name. Nor a deleted doc, an edit that only
-  removes lines, or a symlink or submodule at a doc path, whose one line is a
-  target path or a commit: none leaves new prose to read.
-- **One cold read per token:** the fixes are not read cold again, since that
-  would repeat until a reader found nothing. Each finding marked fixed is
-  checked instead by its item having changed (*Every cold-read finding is
-  answered before signing*, below).
-- **A code file listed as "did not parse" or "could not be read"** (Adam,
-  2026-10-13) signs without a cold read: prose found no comment in it, so the
-  brief has nothing to name.
-- **A comment on a changed line is read cold even when its own text did not
-  change** (Adam, 2026-10-13), such as `# note` on `x = 1` made `x = 2`.
-  `check` lists that comment, and the cold read takes what `check` lists.
-
-**A host without subagents (Adam, 2026-10-13):** the author does the cold
-read, reading the brief as all they know, and writes the report. The report
-carries no marker saying so: it is not committed or posted, so no reader would
-see one.
-
-**What it proves:** a report for that pass's token existed before the
-signature, and each of its findings was answered: its item changed, or kept
-with a reason. **What it does not prove:** that a fresh agent wrote it, or that it
-was given only the brief. An author can write the report themselves; that is
-the forgery this skill does not defend against (*Posted text carries a signed
-footer*), and the cheat list names it.
-
-**Rejected.**
-- **Procedure only, in SKILL.md.** Advisory text is what agents skip (*Why the
-  skill exists*), and a cold read is skipped exactly when the author thinks the
-  text is clear, which is when the author is wrong.
-- **The script running the cold reader itself,** through a model API. It would
-  need a key, a network and a model choice in a standard-library script, and
-  it would tie the skill to one provider.
-- **A brief from the first call.** The text is a draft then, and `sign` has
-  none yet.
-- **A separate `brief` command.** One more command to remember, when the
-  signing call already holds the final text.
-- **Giving the cold reader the rules.** It would check the text against them
-  instead of reading it, and the pass already does that. Its stops are the
-  evidence; the rules are the author's to apply.
-- **Asking the cold reader for rewrites.** A rewrite carries the reader's
-  guesses into the text. A stop with what was guessed tells the author what to
-  fix.
-- **Binding the report to the text's hash.** The fixes change the text, so
-  every fix would need a new cold read.
-- **A threshold in lines, characters, sentences or words.** See *No length
-  threshold*, above.
-
-**Known gap.** A doc passage is named by its changed lines, not its section;
-the reader is told to read the section around them. Finding sections was tried
-and dropped (*Each listed item is judged as its own reader*, "Listing each
-changed passage's section heading").
-
-**Where this stops applying.** If cold readers report nothing on text that
-human reviewers still find hard, the brief is the place to change. If authors
-dismiss what cold readers report, the next step is a second cold read of the
-fixed text.
-
----
-
-## Every cold-read finding is answered before signing
-
-**Decision (Adam, 2026-10-13).** The signing call takes, beside
-`--cold-read <report>`, `--dispositions <file>`, which answers each of the
-report's findings once:
-- `<n>. fixed`: the script checks that the item the finding is in has
-  changed since the brief was printed. If it has not, it refuses, naming the
-  finding.
-- `<n>. kept (asked): <reason>`: a person chose to keep it (*A person
-  decides every kept finding*, below). The reason is required, on that line.
-
-A missing, duplicated or unknown finding number is refused, naming it. The
-file's first line is `dispositions <token>`, the token the report starts with,
-so answers written for one cold read cannot be passed with another. The same
-file answers each item's understood line, with a line such as `Item 2:
-matches` (*The cold reader says what it understood*, below), so every cold
-read needs one, even a report with no findings.
-
-**Why.** The signing call proved only that a report existed. An author could
-pass it and change nothing: the findings were ignored without a trace, and the
-signature looked the same as one whose author fixed every place. Each finding
-now ends one of two ways the author has to state: the item the reader
-stopped in has changed, or the author says why it stays.
-
-**The report has a fixed form,** which cold-read.md asks for and the script
-parses:
-
-```text
-cold-read <token>
-Finding 1, item 2, guessed: «the exact words» What was guessed or missing.
-Item 2, understood: What the reader took item 2 to state.
-Item 3: read straight through.
-Item 3, understood: What the reader took item 3 to state.
-```
-
-Findings are numbered from 1 in order; what was missing may go on over
-indented lines. Every item gets findings or the straight-through line, never
-both, and one understood line, so a report that skips an item is refused. A line in no other form is
-refused, with the form in the message: the author asks the reader again
-rather than prose guessing what a free-form report meant.
-
-**`fixed` is checked by its item changing (Adam, 2026-10-13).** The brief's
-call records, with the token, each item's file and line spans, and each named
-file's text as staged, or the post. At signing, the script diffs that text
-against the text now (`item_changed`). A finding marked `fixed` is accepted
-when its item changed: a line of it changed or removed, or a line added
-inside it or directly above or below it. It is refused when none did. An
-edit elsewhere in the file, including one above the item that moves its
-lines, is not a change to it, since the diff maps the old lines to the new.
-A deleted file, or a removed passage, counts as changed. A post is compared
-whole. Because of the record, `--cold-read` is refused for a token whose
-brief was never printed. A brief printed again replaces the record, and the
-report must answer the latest brief.
-
-The quote stays in the report's form, `«<words>»`, and the script parses it
-but does not check it against the text. The quote is for the person who
-answers the finding; the check uses the item number.
-
-**Why not the quote.** The first version refused `fixed` while the quoted
-words were still in the item's file, and refused a quote the file never held
-as a misquote. That proved only that those exact words were edited. It took
-the most intricate code in the change, a generated pattern matching a quote
-across comment-marker lines, which held one of the two bugs bug-hunter found
-in it. It also refused honest misquotes: a paraphrase, curly quotes, "…".
-Comparing the item's recorded text with its current text catches the case the
-check exists for, a finding marked `fixed` with nothing touched, with far
-less code.
-
-**Accepted cost.** An edit to a different part of the same item counts, and
-so does a line added directly above or below it, even when that line is
-code. The cheat list names marking a finding fixed by editing another part
-of its item.
-
-**A file the brief did not name is refused.** When a file not among the
-brief's items now has a changed comment or doc passage, the signing call
-refuses with `--cold-read`, naming it: no cold reader saw it, and the trailer
-would say it was read. Running the signing call without `--cold-read` prints
-a new brief that covers it. Fixes inside the files the brief named are
-allowed, as *One cold read per token* says.
-
-**Rejected.**
-- **Withholding the token until a cold read comes back clean.** Cold readers
-  rarely report nothing, so it would loop to the cap. And the author relays
-  the report, so "clean" cannot be verified.
-- **Re-reading fixed passages cold.** *One cold read per token* stands; the
-  item check replaces it, at no cost of a second subagent.
-- **Checking `fixed` by the quote being gone,** replaced on 2026-10-13 (see
-  *Why not the quote*, above).
-- **Free-form reports, with the quotes found by looking for quotation
-  marks.** The text being read contains quotation marks too, and a guess at
-  what a report meant is a check that passes by mistake.
-- **Signing with `kept` and fixing afterwards in a follow-up commit.** An
-  unattended run would ship wording no person had looked at.
-- **Signing with `kept` when no person can be asked,** and showing the kept
-  findings afterwards. The same: the wording lands before anyone sees it.
-
-**A person decides every kept finding (Adam, 2026-10-13).** A kept finding
-leaves the change unsigned until a person has been asked.
-- The signing call refuses a finding kept without `(asked)`. The refusal
-  names each such finding with its quote, the cold reader's note and the
-  reason, and gives the paths of the report and the dispositions file. The
-  token stays unspent.
-- An agent with a person and an interactive picker asks one question per
-  finding before signing: "Keep as is" writes `kept (asked): <reason>`; "Fix
-  it" rewrites the passage, restages it, and writes `fixed`. Then it signs
-  once.
-- An agent that cannot ask (a subagent, a background job, no picker) does
-  not sign or commit. It leaves the change staged and passes the refusal, the
-  report, the dispositions file and the token to whoever holds its result.
-  That agent asks the person and signs within the token's two hours.
-- **What `(asked)` proves: nothing.** The script cannot see whether a person
-  was asked; `(asked)` is the agent's explicit claim that one was. Writing it
-  falsely is on the cheat list, and it is a statement made on purpose rather
-  than a step skipped by default.
-- The signing call prints no separate list of kept findings. Each one reaches
-  a person through the question, which takes its text from the report and the
-  dispositions file.
-
-**The counts (Adam, 2026-10-13).**
-- A commit's `Prose:` value ends with the counts the script mints, `; cold
-  read: 5 findings, 3 fixed, 2 kept` (or `1 finding`, or `no findings`). A
-  commit with no cold read keeps the plain `✓ <tree>:<message>` value, so
-  every commit signed before this verifies as it did.
-- `verify-staged` and `verify-commit` accept the counts only in the exact
-  form `cold_counts` prints, with the total equal to fixed plus kept; any
-  other form is `unrecognised`. The counts are not hashed: like the rest of
-  the value, they show the script ran, and a hand-typed value is the forgery
-  this skill does not defend against.
-- Posts keep their footer unchanged.
-
-**Counts in the `Prose:` value, not a new trailer.** The commit script, the
-library's commit hook and bug-hunter's commit script already carry the
-`Prose:` value as one opaque line, verified only by prose's own
-`verify-staged`. Extending the value changes only prose's parser. A new
-trailer key would have to be taught to the library's families, its hook and
-bug-hunter's caller result.
-
-**Known gap.** `fixed` proves the item changed, not that the edit touched the
-place the reader stopped, nor that the reader would now read it straight
-through. Editing another part of the item is on the cheat list. Where a file
-repeats identical lines, the diff may place an added one at a different
-repeat, which can land it beside an item. A `kept` reason is not checked
-beyond being there; the cheat list names a reason that restates the wording.
-
----
-
-## The cold reader says what it understood
-
-**Decision (Adam, 2026-10-18).** For every item, whether it has findings or
-was read straight through, the cold reader writes one line:
-`Item <n>, understood: <one line>`. The line says three things about what the
-item states:
-- who or what does each thing;
-- whether it always happens, or only in some case;
-- whether the code, or whatever the item describes, does it, or someone else
-  could make it happen.
-
-The brief tells
-the reader not to suggest a rewrite in that line, as it already forbids in
-findings. The author answers each
-understood line in the dispositions file:
-- `Item <n>: matches`: the line says what the author meant.
-- `Item <n>: fixed`: checked as a fixed finding is, by the item having changed
-  since the brief.
-- `Item <n>: kept (asked): <reason>`: a person chose to keep it, as for a
-  finding (*A person decides every kept finding*, above).
-
-A report missing an understood line for any item is refused, and so is a
-dispositions file that leaves one unanswered or answers one twice. The
-trailer's counts gain a part, such as `; understood: 41 items, 2 fixed,
-0 kept`: the number of items read, then how many of their understood lines
-did not match and were fixed or kept. `verify-staged` and `verify-commit` still accept a
-value without that part, so a commit signed before it verifies as it did.
-With it, they accept only the form `understood_counts` prints.
-
-**Why.** The report showed only where the reader stumbled: where it stopped,
-reread or guessed. A reader sure of a wrong meaning stumbles nowhere, so its
-report says "read straight through". The spec-trace comment (*Rule 4: a
-hypothetical reads as one*, above) passed its third cold read that way. A line
-per item shows the meaning the reader took away, and the author, who knows
-what was meant, can see a difference the reader could not.
-
-**Why those three things.** They are what a hypothetical written as fact gets
-wrong: who acts (a person, not the tool), whether it always happens (only
-when someone does that), and whose doing it is. A summary with no such
-questions tends to restate the item's words, and carries a misreading
-through unseen.
-
-**Rejected.**
-- **A line only for items read straight through.** An item with findings can
-  be misread confidently at another place.
-- **Accepting reports without understood lines.** Nothing needs it. A report
-  is passed with the pass token it was written for, and a token expires 2
-  hours after it is issued, so no report written before this change can
-  still be passed.
-
-**Known gap.** `matches` is the author's claim, and the script cannot check
-it. Answering `matches` to a line that doesn't say what the author meant is
-on the cheat list.
-
----
-
-## Every commit gets the pass
-
-**Decision (Adam, 2026-09-26).** There is no skip value. Every commit has a
-message a reviewer reads, so every commit gets the pass, and the only trailer
-value is the one `prose check` prints (now `✓ <tree>:<message>`; see *The
-signature signs the snapshot*). Any other value is reported as unrecognised.
-
-**Why.** The message always counts as prose (*short kinds are not exempt*), so
-no commit honestly qualifies for a skip; keeping the value would only have
-kept a check for a trailer no script prints.
-
----
-
-## The signature signs the snapshot
-
-**Decision (Adam, 2026-09-27).** One trailer line, `Prose: ✓ <tree>:<message>`:
-the first 12 hex of the staged tree, from `git write-tree` when `prose check`
-runs (as the shared library's `mint-trailer.sh` reads it), and the first 12
-hex of the sha256 of the message as `prose check` read it. There is no
-`Prose: checked` line and no `Prose-Sig`. `verify-commit` requires both halves;
-its reason starts `missing`, `unrecognised`, `mismatch` (the message half) or
-`tree` (only the tree half). The reflog hook reports any failure, and exempts
-cherry-picks and rebases by reflog action. (Replaces *The signature covers the
-prose, not the tree*, 2026-09-26.)
-
-**Why.** The signature's job is proving a script ran over the final text. Any
-committer can honour a tree hash: stage, check, commit. The one case the tree
-half gets wrong, a rebase or cherry-pick, is one the hook skips.
-
-**Rejected: the rebase-proof diff engine.** History: from 2026-09-26 the
-signature hashed the prose lines each commit added and removed, so a rebase
-kept it, and it grew rename, cancellation, diff-pin, gitlink and parse-failure
-rules, each another way for check and verify to disagree.
-
-**The listing is not hashed.** `prose check` still lists the prose so the
-agent knows what to pass over: the message, each doc or spec file the staged
-diff touches, and each code comment it touches, as `path:span (comment)`. A
-code file that does not parse is listed as "did not parse", and one that
-cannot be read as "could not be read"; neither stops the check. History
-language in a touched comment (the patterns `sharper-comments` measured) is
-printed under "Flags (warnings, not blocking)"; a flag never changes the exit
-code or the trailer.
-
-**Messages are UTF-8 (Adam, 2026-09-26).** `prose check` refuses:
-- a message that is not valid UTF-8, or holds a Unicode noncharacter: git
-  reads either as Latin-1 and rewrites it as UTF-8 when it stores the commit;
-- a non-UTF-8 `i18n.commitEncoding`: git stores the UTF-8 message under that
-  label, and reading it back converts the trailer's `✓` into other characters.
-
-`verify-commit` reports a commit stored under any label other than UTF-8 as a
-mismatch. Only config the check never saw, such as `git -c` at commit, puts
-one there.
-
-**Which lines of the stored message are compared:** see *The signed message
-is found by searching from its end*. The line `cherry-pick -x` adds is signed,
-but still counts, as in git, towards reading its paragraph as a trailer block.
-`prose check` refuses any `trailer.*` config other than `trailer.separators=:`,
-since those settings make `git commit --trailer` drop, replace or move lines.
-
-**Where this stops applying.** Any change to the staged files after the check,
-code included, breaks the tree half: the trailer attests to the snapshot the
-pass ran on. A rebase or cherry-pick changes the tree too; the hook exempts it
-by reflog action.
-
----
-
-## The signed message is found by searching from its end
-
-**Decision (Adam, 2026-09-30).** `prose check` hashes the whole message it is
-given. `verify-commit` accepts a commit when its stored message, minus 0, 1, 2
-or more trailer-shaped lines (`Key: value`, as git parses them) taken from the
-end of its last trailer block, hashes to the message half. A paragraph left
-empty is dropped. The search stops at an indented line, at any other line that
-is not trailer-shaped, and at the start of the paragraph; it never reaches the
-title. There is no list of trailer keys.
-
-**Why.** `git commit` adds trailers only at the end of the message: to the
-last paragraph when it reads that as a trailer block, otherwise as a new
-paragraph. `prose check` refuses the config that could move them
-(`refuse_configured_trailers`). So the signed text is always the stored
-message minus some lines from that end. A key list left out every line with a
-listed key, even in an earlier paragraph or when it carried prose
-(`Bug-hunter: the fix is safe`), so an edit to that line verified. It also had
-to grow with every skill that adds a trailer.
-
-**An indented line stays signed.** git never wraps the trailers it adds, so an
-indented line is text someone wrote. The search stops there, and the line it
-continues stays signed with it.
-
-**git's rewrite of the last block still matches.** When git adds trailers to
-the last paragraph, it rewrites that paragraph as `token: value` lines and
-joins an empty-valued line with the indented line after it. Both hashes put
-the last paragraph in that form first, so an author-written trailer block
-verifies whether git added to it or not. The tests commit for real through
-`--trailer`, `-s`, `git interpret-trailers` and the commit script.
-
-**`verify-staged` hashes the message as given.** The commit script passes it
-the message before any trailer is added, so there is nothing to search.
-
-**No refusal for an empty-valued key before an indented line.** git joins the
-two into one line, which is signed like any other.
-
-**Accepted cost.** A trailer-shaped line appended at the end after signing,
-such as `Reviewed-by: …`, does not break the hash; an edit anywhere else does.
-Trying several bodies raises the chance of an accidental 12-hex match, but
-negligibly.
-
-**Rejected: keep the key list, but strip only from the end.** It closes the
-same gap and keeps "only known keys may be appended", but keeps a list that
-every new skill must be added to.
+prose has no CI check; it runs only where the agent works, through the hooks
+the skill installs.
+
+**Why.** Installing the skill installs the hooks, so every agent using prose is
+already checked locally, and CI would catch only agents that don't use it. The
+remedy for those is asking them to use it. Igor builds its trailers in code and
+verifies them itself. A CI check would also need a policy for which commits are
+a person's and for rebased commits, and code to verify rebased and re-encoded
+messages, which the skill does not have.
+
+**Where this stops applying.** If agents that never install the skill commit to
+repositories adopting prose. `verify-commit` and `verify-post` are what such a
+job would run, and the rewrite handling would come back from `e8da005`.
 
 ---
 
 ## The posting hook reads an allow-list
 
-**Decision (Adam, 2026-09-26).** For a Bash command, the hook reads a post's
-body only when `gh` is the whole command and the body is one of:
+For a Bash command, the hook reads a post's body only when `gh` is the whole
+command and the body comes one of two ways:
+- `--body` or `-b` (`--comment` or `-c` for close and reopen) with a literal
+  value, in single quotes or in double quotes without `$`, backtick or
+  backslash;
+- `--body-file` or `-F` naming an existing file.
 
-- a literal `--body` (or `-b`, or `--comment`/`-c` for close and reopen) in
-  single quotes, or in double quotes with no `$`, backtick or backslash;
-- `--body-file`/`-F` naming a file that exists.
+Any other command that runs a `gh` post is blocked, and the message names
+those forms.
 
-Any other command that mentions a gh post verb is blocked as unreadable, and
-the block message names these two forms and suggests signing into a file
-(`prose sign … > signed.md`, then `--body-file signed.md`). The general shell
-parser it replaces is deleted.
+**Why.** Two bug-hunter runs found about 25 places where a general parser read
+a command differently from bash, most letting an unsigned post through. With a
+short allow-list nothing is left to diverge.
 
-**The heredoc form was dropped (Adam, 2026-09-26).** It was first accepted as a
-third form, exactly `--body "$(cat <<'EOF'` … `EOF` … `)"`. macOS `/bin/bash`
-3.2 parses a heredoc inside `$( )` differently from the text the hook reads,
-and it needed five refusal rules for that shell alone: unbalanced parens, `#`
-comments, backslash-newline, `$'…'` and `$"…"`. zsh read it correctly, but the
-Bash tool may run bash. A heredoc body is now blocked like any other
-unreadable form; `--body-file` covers the same flow.
+**Rejected.**
+- **A general parser,** however careful.
+- **A heredoc body form.** macOS bash 3.2 parses a heredoc inside `$( )`
+  differently, and it needed five refusal rules for that shell alone.
+  `--body-file` covers the same flow.
 
-**Why.** Two bug-hunter runs found about 25 places where the parser read a
-command differently from bash (quoting, heredoc contexts, redirections, pflag
-grouping), most of them letting an unsigned post through, and every iteration
-found more. With a short allow-list nothing is left to diverge.
+**Titles are not checked.** A footer cannot go on a one-line title, so
+`--title` is an ordinary value flag.
 
-**Rejected: a general parser**, however careful. Each fix added states that
-drifted from bash in new places.
-
-**Where this stops applying.** A command that runs no `gh` post passes even if
-it mentions one: see *A command that runs no gh post is not a post*. A
-deliberately disguised `gh` (`g''h`, `$GH`) is not recognised; the hook stops
-accidents, not an agent set on getting around it.
+**Where this stops applying.** A deliberately disguised `gh` (`g''h`, `$GH`)
+passes; the hook stops accidents, not an agent set on getting around it.
 
 ---
 
 ## A command that runs no gh post is not a post
 
-**Decision (Adam asked for the fix, 2026-10-04).** A Bash command that
-mentions a `gh` post verb but is not the whole-command form passes when the
-hook can show the shell runs no `gh` post in it. That holds when every simple
-command in it either:
-
-- names no `gh` as a word: the post appears only as data, inside quotes or a
-  heredoc given to a command that does not run them, or in a comment; or
-- is a `gh` command that sends no text the hook checks: a label, assignee,
-  reviewer or milestone edit, `gh pr ready`, a close without `--comment`,
-  or a read such as `gh pr list` or `gh issue view`.
-
-A `gh` command with a body flag must still be the whole command, as before.
+A command that mentions a `gh` post verb but is not the whole-command form
+passes when the hook can show the shell runs no `gh` post in it: every simple
+command either names no `gh` as a word, or is a `gh` command that sends no
+text (a label edit, `gh pr ready`, a close without a comment, `gh pr view`).
 
 **Why.** Blocking every mention forced workarounds for commands that posted
-nothing. Two were seen in one day: an inline Python script whose comment and
-Markdown string named `gh issue edit`, and `cd … && gh issue edit 12
---add-label …`, which only changes a label. The bare label edit already passed;
-only the longer command was blocked.
+nothing, such as a Python script whose string named `gh issue edit`, or
+`cd … && gh issue edit 12 --add-label …`.
 
-**How this keeps the allow-list's protection.** The allow-list was chosen
-because a parser that reads bodies drifted from bash and let unsigned posts
-through. This reader reads no bodies; it only shows that no `gh` post runs,
-and anything it cannot read exactly is blocked as before:
-
-- backticks, `<(…)`, `$'…'`, `$"…"`, `${…}` beyond a name, `$(…)` inside
-  double quotes, an unterminated quote. An unquoted `$(…)` is read as a
-  subshell, so the commands inside it are checked like any other;
-- a heredoc inside parentheses, where bash 3.2 differs, or whose body would
-  start while a `$(` on its line is still open, since both shells run that
-  `$(…)` first; an unquoted heredoc body holding `$(`, a backtick or a
-  backslash; a heredoc with no end line;
-- a number before `<` or `>` other than one ASCII digit: zsh reads `12>` as
-  the word 12, bash as a descriptor, and neither reads `١>` as one;
-- a comment holding quotes or operators, in case a shell does not read it as
-  one; a word with `[` left open (`a[1<<EOF]=5` is no heredoc to bash).
-
-How each simple command is read:
-
-- **Which word is the command.** The first word, after any unquoted `if`,
-  `then`, `elif`, `else`, `do`, `while`, `until`, `!`, `{` or `time`, since
-  these run nothing themselves: `if grep "gh pr create" …` is a `grep`, and
-  `then gh issue edit …` a `gh` command. `for`, `case`, `[[`, `coproc` and
-  zsh's `repeat` and `noglob` are not skipped. A command that is only `fi`,
-  `done` or `}` is no command; `done sh` is still `sh`. A backslash-newline
-  outside single quotes is removed first, as both shells do, so a `\` at a
-  line's end makes no word, and `<<\`, a newline, then `EOF` is an unquoted
-  heredoc whose body is checked.
-- **What names `gh`.** `gh` not followed by a letter, digit, `_` or `-`:
-  `make gh-pages` does not name it, and `sh -c '${GH:-gh} …'` does.
-- **Data commands.** Text naming `gh` counts as data only in a command from
-  `DATA_COMMANDS` (`echo`, `cat`, `grep`, `git`, `python3` and a few more).
-  Any other command that names `gh` blocks, since it may run the text it is
-  given: `sh -c`, `eval`, `trap`, `env -S`, `ssh`, `xargs`. `printf`, `test`
-  and `[` are not on the list (Adam, 2026-10-05): bash 4+ evaluates an array
-  subscript given to `printf -v` or `test -v`, command substitution included,
-  so `printf -v 'a[$(gh …)]' x` runs `gh`.
-- **`gh` commands.** A `gh` word anywhere but first (`env gh …`) or after an
-  assignment blocks. Whether a `gh` command is a post is read from its words
-  after quote removal, so `gh p''r comment` in a longer command is read like
-  `gh pr comment`. A subcommand that sends no text (`NO_TEXT_VERBS`: `list`,
-  `view`, `checks` and the like) is no post, so `gh pr list --search
-  'review-requested:@me'` passes; `merge` and any verb not on that list are
-  read as before.
-- **Pipes and input** (corrected 2026-10-07, #14). A pipe or an input
-  redirection (`|`, `|&`, `<`, `<>`, `<&`, a heredoc, `<<<`) matters only
-  for the command that reads it. That command must be from `DATA_COMMANDS`
-  or a `gh` subcommand that takes no body (`NO_TEXT_VERBS`: `gh pr view`,
-  `gh pr checks`, `gh pr ready`, `gh issue lock` and the like), so `bash <<'EOF'`,
-  `echo … | sh`, `… | xargs` and `cat body.md | gh pr comment 1 -F -` are
-  blocked. The other commands are read as if there were no pipe: in `gh pr
-  view 1; echo "review" | head -1`, only `head` reads the pipe. A block
-  names the command that reads the input.
-
-  *Why:* when any pipe anywhere required every command to be a data
-  command, commands that post nothing were blocked, such as `gh pr view 156
-  > a.md` followed by `python3 prose.py sign --goals "review PR #156" |
-  head -1` (#14).
-
-  A `gh` post verb (`GH_VERBS`: `comment`, `create`, `edit`, `close` and the
-  rest) that reads input blocks even when this call sends no text (Adam,
-  2026-10-07), so `cat body.md | gh issue edit 12 --add-label x` stays
-  blocked. Allowing it would rest on gh never taking a body from stdin
-  without `-F -`, which a later gh could change. A `NO_TEXT_VERBS`
-  subcommand has no body flag to take one with, so it may read input.
-
-  Which command reads it is worked out strictly, since the second bug-hunter
-  pass found that an earlier per-command attempt missed pipes across line
-  breaks and into subshells. A pipe feeds the next command that has a word,
-  across line breaks, comments and heredoc bodies; a leading `!` or `time`
-  passes it on to the word after. When the input can reach more than one
-  simple command, every command must be from `DATA_COMMANDS`, `gh`
-  included: a pipe into `(`, `$(`, `{`, `if`, `while` or another
-  opening reserved word; an input redirection on `)` or on a command holding
-  `}`, `done` or `fi`; or a `$(` inside a command that reads input. A pipe
-  into `for` or `case`, or a redirection on `esac`, blocks as the command
-  that reads it, since those words are not skipped and are no data command.
-  So does a data command after an assignment (`LC_ALL=C sort`): the
-  assignment is read as the command, as it is for `gh`.
-
-The rule that separates the two: an evasion *runs* `gh` with a body the hook
-cannot read; text that only contains `gh` runs nothing.
-
-**`--title` is not prose here.** Titles were never checked (`--title` is a
-plain value flag in `LONG_FLAGS`), and a footer cannot go on one line. So
-`gh pr edit 3 --title x` in a longer command passes, as it already did alone.
+**How it keeps the allow-list's protection:** it reads no bodies, only shows
+that no post runs, and blocks anything it cannot read exactly: backticks,
+`<(…)`, `$'…'`, `${…}` beyond a name, `$(…)` in double quotes, unterminated
+quotes, heredocs in parentheses or holding `$(`, multi-digit descriptors,
+comments holding quotes or operators. The rules for each simple command:
+- **The command word** is the first, after `if`, `then`, `elif`, `else`, `do`,
+  `while`, `until`, `!`, `{` or `time`. `fi`, `done` or `}` alone is no
+  command.
+- **`gh` is named** when not followed by a letter, digit, `_` or `-`.
+- **Text naming `gh` is data** only in a command from `DATA_COMMANDS` (`echo`,
+  `cat`, `grep`, `git`, `python3`, `node` and a few more). `python3` and
+  `node` can run code from their arguments or stdin (*Where it stops
+  applying*). Any other command naming `gh` blocks, since it might run it
+  (`sh -c`, `eval`, `trap`, `env -S`, `xargs`). `printf`, `test` and `[` are
+  left out of `DATA_COMMANDS`: bash evaluates an array subscript given to
+  `printf -v` or `test -v`, command substitution included.
+- **A `gh` command** must be first and plain; its words are read after quote
+  removal. `NO_TEXT_VERBS` lists the subcommands that send no text; `merge` is
+  not on it.
+- **A pipe or input redirection** matters only for the command that reads it,
+  which must be a data command or a `NO_TEXT_VERBS` subcommand. A post verb
+  reading input blocks even with no body flag: allowing it would rely on gh
+  never reading a body from stdin except through `-F -` (`--body-file -`),
+  which a later gh could change. When input can reach a group, loop or
+  subshell, every command in it must be a data command.
 
 **Rejected.**
-- *Python's `shlex`.* It knows no heredocs, no `$(…)` and no comments in
-  bash's sense, so it reads a heredoc body as code and `#` mid-word wrongly.
-  The reader here is small and refuses everything else.
-- *Reading bodies in longer commands.* An earlier `cd` or `printf > body.md`
-  changes which file `--body-file` names, and a pipe can feed `-F -`.
-- *Matching text with a looser pattern.* Text cannot tell a quoted mention
-  from a run.
-- *A list of commands that run text as code* (`bash`, `eval`, `ssh` …). The
-  first bug-hunter pass found `trap` and `env -S` missing from one; such a list
-  is never complete. A closed list of data commands fails toward blocking.
+- **Python's `shlex`.** It knows no heredocs, `$(…)` or bash comments.
+- **Reading bodies in longer commands.** An earlier `cd` or `printf > body.md`
+  changes which file `--body-file` names.
+- **A list of commands that run text as code.** Such a list was missing `trap`
+  and `env -S`, and is never complete; a closed list of data commands fails
+  toward blocking.
+- **Matching the command text with a pattern** instead of parsing its words.
+  A pattern cannot tell `gh` inside a quoted string from a `gh` that runs.
 
 **Where it stops applying.** A script handed to another interpreter
-(`python3 - <<'EOF'`, `node -e`) can run `gh` itself; the hook does not read
-it, just as it does not read a script file. Text the shell evaluates a second
-time is a disguise like `$GH`, out of scope: a variable holding `$(gh …)` read
-by `(( ))`, `let` or zsh's `${(e)…}`, a zsh glob qualifier, `{gh,}`, `GH` on
-a case-insensitive disk, git options that run a command (`-c alias.x='!gh …'`,
-`rebase -x`, `submodule foreach`, `bisect run`) and a zsh coprocess fed
-through `>&p`. So is a post wrapped in `sh -c` inside zsh's
-`{ … } always { … }`, which the hook reads as one command (the third
-bug-hunter pass, 2026-10-05). A command joins `DATA_COMMANDS` only if it
-runs neither its arguments nor its stdin, short of such a disguise. If `gh` gains a way to read a body from stdin without `-F -`,
-revisit this.
-
----
-
-## Docs are exempt only where vendored
-
-**Decision (Adam, 2026-09-26).** A doc under `node_modules/` or `vendor/` is not
-prose; a doc anywhere else is, including under `build/`, `out/`, `target/`,
-`dist/` and `generated/`. Code comments still skip the scanner's whole list of
-build and vendored directories. See also *Which files are docs*.
-
-**Why.** Those names are also where people keep authored docs
-(`docs/build/README.md`), and skipping them left that prose unsigned.
-
----
-
-## Known gaps, recorded rather than fixed
-
-Each is left on purpose for now; its *Fix:* says what would close it.
-
-- **`core.commentString` is not read.** Only `core.commentChar` is, so on git
-  2.45+ a message line starting with a configured comment string is not
-  refused, and `commit.cleanup=strip` may delete it after the check (a
-  mismatch, not a hidden edit). *Fix:* read `core.commentString` too.
-- **`gh api` and `gh pr merge --body` are not checked.** They fall outside the
-  decided verb list, so text posted through them has no footer check. *Fix:*
-  add them to the list, with `gh api`'s `-f body=` and `--input` read as body
-  sources.
-- **Some zsh options change what gh receives.** With `setopt extendedglob`, an
-  unquoted `sig#.md` or `a^b.md` is a glob; with `magicequalsubst`,
-  `--body-file==gh` expands. The hook reads the literal name. Claude Code's
-  Bash tool inherits the user's zsh options, but neither is set on the
-  machines checked. *Fix:* take `#` and `^` out of the unquoted characters the
-  hook accepts, and refuse an unquoted `=` after the first character.
-- **Two `prose check` runs at once in one checkout fail on git's index
-  lock** (Adam, 2026-10-01). `git write-tree` takes the lock even with
-  `GIT_OPTIONAL_LOCKS=0`. Not fixed: each worktree, and each of Igor's clones,
-  has its own index. *Fix:* compute the tree from a temporary copy of the
-  index (`GIT_INDEX_FILE`), which gives the same hash and takes no lock
-  (tested).
-- **Only an MCP server named exactly `github` is checked.** A server registered
-  as `GitHub` or `github-mcp` is not matched. *Fix:* match the server name
-  case-insensitively and by substring, as the Cursor path does.
-- **Config given only to `git commit` is not seen by the check.** `prose check`
-  reads the repository's config when it runs; a `git -c trailer.separators=…`
-  or `GIT_CONFIG_*` set only for the commit can make git rewrite the message,
-  giving an honest mismatch. It fails closed. *Fix:* none short of making the
-  commit itself; the commit script that composes trailers could pin these.
-- **`commit.cleanup=verbatim` with a leading blank line.** git then finds no
-  title and may read the first paragraph as trailers and rewrite it, while the
-  signature treats it as the title; an honest commit fails verify. It fails
-  closed. *Fix:* refuse a leading blank line when `commit.cleanup` is verbatim.
-- **`git interpret-trailers` without `--no-divider` puts trailers above a
-  `---` line.** A message holding such a line, committed through it, then
-  fails verify as a mismatch or a missing trailer; it fails closed. `git
-  commit --trailer`, `-s` and the commit script pass `--no-divider`. *Fix:*
-  refuse a `---` line in the message, if that route is ever needed.
-- **A disguised `gh` passes.** `g''h` or `$GH` does not match the post pattern.
-  The hook stops accidents, not an agent set on getting around it. *Fix:* none
-  planned; permission rules that deny the raw tools are the strict option.
+(`python3 - <<'EOF'`, `node -e`) can run `gh` itself, and text the shell
+evaluates twice (`(( ))`, `let`, zsh `${(e)…}`, git aliases, `rebase -x`) is a
+disguise, out of scope. Revisit if `gh` gains a way to read a body from stdin
+without `-F -`.
 
 ---
 
 ## Cursor's posting hook is wired as a best guess
 
-**Decision (Adam, 2026-09-26).** The posting hook is wired for Cursor now, on
-`beforeShellExecution` and `beforeMCPExecution`, with no matcher, and the
-README tells Cursor users it is unverified.
+The posting hook is wired for Cursor on `beforeShellExecution` and
+`beforeMCPExecution`, and the README says it is unverified.
 
-**Why.** Cursor's payloads and its `permission` answer are documented, and the
-script reads them; what is not verified is how Cursor runs it. Waiting would
-leave Cursor users with no check at all.
-
-**What is unverified.** What a `beforeMCPExecution` matcher would match (so
-the script filters on `mcp_server_name` itself), whether `manage-skills` accepts
-two entries sharing one script, and the run against a real Cursor. Cursor blocks
-an action when a permission hook prints no valid JSON, so every allowing path
-in `check-post.sh` prints `{"permission":"allow"}`; a hook that crashes fails
-open.
+**Why.** Cursor's payloads and its `permission` answer are documented and the
+script reads them; waiting would leave Cursor users with no check. Unverified:
+what a `beforeMCPExecution` matcher matches (so the script filters on
+`mcp_server_name` itself) and a run in a real Cursor. Cursor blocks when a
+permission hook prints no valid JSON, so every allowing path prints
+`{"permission":"allow"}`.
 
 ---
 
-## The trailer fold follows git's default rule
+## Docstrings are found by a child interpreter
 
-**Decision (Adam, 2026-09-26).** The message hash folds an empty-valued `Key:`
-line into the indented line after it only when git would read the whole
-paragraph as a trailer block, as git does when it adds trailers there.
+A Python file too deep to parse is listed as one that does not parse, never a
+crash. Python 3.9's parser crashes in C on a deep enough expression, such as
+200,000 terms added in a row, and a crash in C cannot be caught. So `ast` runs
+in a child interpreter, which takes the crash; a child that fails, by error
+or by signal, means the file does not parse. The child costs one interpreter
+start per changed Python file.
 
-**The gap.** git also counts keys a user configures (`trailer.<x>.key`) the way
-it counts `Signed-off-by`. With such a key in a mixed paragraph, git folds a
-paragraph prose leaves alone, and an honest commit is reported as a mismatch.
-
-**Why it is kept.** The two choices differ only at the edges. Folding every
-paragraph would need no config, but an edit to only the indentation of lines
-that start with whitespace would no longer break the message hash. The current
-rule can mismatch only when a commit is verified under trailer config that
-differs from where it was checked: `prose check` refuses to sign in a
-repository with any `trailer.*` config except the default separator
-(`refuse_configured_trailers`). Neither case is common, and the mismatch is
-loud, never silent. Folding every paragraph would also save little code, since
-the trailer block still has to be found to search it for added trailers.
-
-**What would fix it.** Read the repository's `trailer.*.key` config (`git
-config --get-regexp '^trailer\..*\.key$'`) and count those keys as git does.
-
----
-
-## How the message is normalised for the trailer
-
-**Decision (confirmed by Adam, 2026-09-28, including the refusal of `#`
-lines: the agent rewords such a line).** The message half hashes the message
-with LF line endings, trailing blanks off each line, runs of blank lines
-collapsed and the ends trimmed. Every line of the text `prose check` read is
-signed, `Note:` and URL lines included; which lines of the stored message are
-compared is in *The signed message is found by searching from its end*. When
-git reads the message's last paragraph as a trailer block, its
-trailer-shaped lines are put in git's `token: value` form first, because git
-rewrites them that way when it adds trailers there. `prose check` refuses a
-line starting with `#`, or with the repository's `core.commentChar`: git's `strip`
-cleanup deletes it, and git places trailers before trailing `#` lines, so it
-cannot be signed reliably. A git hook that edits the message after the check
-(`prepare-commit-msg`) breaks the signature; the mismatch report says so.
-
----
+**Rejected: a depth cap set before parsing.** It could only guess the parser's
+limits, which differ by Python version and by kind of expression.
 
 ## Which files are docs
 
-**Decision (confirmed by Adam, 2026-09-28).** Docs are `.md`, `.mdx`,
-`.markdown`, `.rst`, `.adoc`, `.asciidoc`, and files named `README`,
-`CHANGELOG` or `CONTRIBUTING` with any extension. Specs are anything under an
-`openspec/` directory. Which directories exempt a doc: see *Docs are exempt
-only where vendored*.
+Docs are `.md`, `.mdx`, `.markdown`, `.rst`, `.adoc`, `.asciidoc`, and files
+named `README`, `CHANGELOG` or `CONTRIBUTING` with any extension. Specs are
+anything under an `openspec/` directory.
 
-**Rejected: `.txt` as a doc type.** It would take in files such as
-`requirements.txt` and `LICENSE.txt`.
+**Docs are exempt only where vendored.** A doc under `node_modules/` or
+`vendor/` is not prose; one under `build/`, `out/`, `dist/` or `generated/` is,
+because people keep authored docs there. Code comments still skip the
+scanner's whole list of build and vendored directories.
 
----
+**Comments** are found by lexers for Python and the C family, and own-line `#`
+comments in shell, YAML, TOML, Ruby, Perl, R, PowerShell, `Dockerfile` and
+`Makefile`. A `#` after code is not read, since it may be in a string. In
+JavaScript, a `/` opens a regex literal only after an operator or keyword and
+only if it closes on the line; elsewhere its `//` is a false item in the
+listing, which changes no trailer.
 
-## Comments in more languages
-
-**Decision (confirmed by Adam, 2026-09-28).** The scanner kept its lexers for
-Python and the C family, and gained own-line `#` comments for shell, YAML,
-TOML, Ruby, Perl, R, PowerShell, `Dockerfile` and `Makefile`: wider than
-`sharper-comments` scanned. A `#` after code is not read, since it may be in a
-string or be `$#`. Of its advisory checks, the history-language patterns are
-back as `prose check` flags (see *The signature signs the snapshot*); the
-block-length check went with `sharper-comments`.
-
-**Why.** More languages only widen what the pass lists and flags. Since the
-snapshot signature, comment detection does not affect the trailer.
-
-**Regex literals (2026-09-30).** In JavaScript and TypeScript, a `/` opens a
-regex literal only after one of `( , = : [ ! & | ? { ;`, `=>` or a keyword
-such as `return`, and only if the regex closes on the same line; a `!` right
-after an operand is a non-null assertion, so `x! / 2` divides. A `//` inside
-such a regex is not listed as a comment. A regex anywhere else, such as at the
-start of a line, has its `//` listed as one: a false item in the listing,
-which changes no trailer.
-
----
-
-## The posting hook's reach
-
-**Decision (confirmed by Adam, 2026-09-28, including a footer on each review
-comment: inline comments are the agent text reviewers read most).**
-- A body-like field is a string under a key named `body` or `comment`, at any
-  depth, so each comment in a review (`comments[0].body`) needs its own footer.
-- The Claude matcher is `^(Bash|mcp__github__.*|mcp__plugin_.*_github__.*)$`,
-  anchored because Claude Code tests matchers as unanchored regexes, and
-  covering a plugin-bundled GitHub server.
-- `gh pr review` and `gh issue edit` are checked along with the listed
-  commands, since they post a body too.
-- How a `gh` command is read: see *The posting hook reads an allow-list*. A
-  `gh` command with no body flag passes. A payload that is not JSON passes:
-  the hook fails open, like the commit hook.
-- It blocks with exit 2 and the reason on stderr, Claude Code's documented
-  PreToolUse contract.
-
----
-
-## `verify-commit` reports `missing` only when git sees no `Prose` key
-
-**Decision (Adam, 2026-09-29).** A blank value (empty, spaces, a no-break
-space) is `unrecognised`.
-
-**Why.** `missing` says the pass never ran. A commit whose `Prose:` line is
-blank carries a broken trailer, and `verify-commit` says so. The hook reads
-the value first and reports an empty or all-ASCII-space one as no trailer, so
-it relies on this only for a value it passes on, such as a no-break space.
-
----
-
-## Command details
-
-**Decision (confirmed by Adam, 2026-09-28).** Each detail implements a decision
-already made:
-- `prose check --amend` lists the change against the commit's parent instead
-  of HEAD, for an amend; the trailer is the same either way.
-- The listing's diff finds renames (`-M`) whatever the config, so a pure rename
-  lists nothing, per the scope rule.
-- `prose check -F <file|->`, the first call, prints the list, any flags, the
-  rules and a pass token; with `--pass`, it prints only the result block
-  holding the trailer (see *`prose check` ends with the shared result block*).
-  How `rules.md` is printed: see *The rules live only in rules.md*.
-- `verify-commit` exits 0 valid, 1 invalid, 3 when it could not check, matching
-  the library's callback contract. Its reason starts with the kind,
-  `missing`, `unrecognised`, `mismatch` or `tree`, so the hook's report says
-  which half broke.
+**Rejected: `.txt` as a doc type.** It takes in `requirements.txt` and
+`LICENSE.txt`.
 
 ---
 
 ## Scripts are found from the skill's base directory
 
-**Decision.** `SKILL.md` defines `S` as the `scripts/` directory in the
-skill's base directory: the directory holding `SKILL.md`, which Claude Code
-names on a "Base directory for this skill:" line ahead of the skill's text.
-bug-hunter's minter is found the same way, in the `bug-hunter` directory
-beside it. The commands `prose.py` prints for the next call name the path it
-was run by, with any link kept; it still finds `rules.md` and the shared
-library from its resolved location.
+SKILL.md defines `S` as `scripts/` in the skill's base directory, the one
+Claude Code names on its "Base directory for this skill:" line. When
+`prose.py` prints the command for the next call, it uses the path it was run
+by, without resolving symlinks. It still finds rules.md and the shared library
+from its resolved location.
 
-**Why.** The skill is not always loaded from a home directory. Igor loads its
-workers' skills from a pinned directory with `claude -p --bare --plugin-dir`,
-where `~/.agents/skills` and `~/.claude/skills` are missing, or hold a
-different copy that would run in place of the pinned one. Igor also grants its
-workers `python3 <pinned>/prose/scripts/prose.py check` by path, so a command
-naming any other path is denied, including the clone that `<pinned>/prose`
-links to. Measured with Claude Code 2.1.296 on 2026-10-11, the base-directory
-line names the link, not what it resolves to: `~/.claude/skills/prose` for a
-home install, and `<plugin>/skills/prose` for a plugin whose `skills/prose` is
-a link.
+**Why.** Igor loads workers' skills from a pinned directory where the home
+installs are missing or hold a different copy, and grants `prose.py` by that
+path, so any other path is denied, including the clone the link resolves to.
 
-**Rejected.**
-- Home-directory paths (`~/.agents/skills/prose/scripts`, else
-  `~/.claude/skills/prose/scripts`). They cover the installs `manage-skills`
-  makes and nothing else.
-- `${CLAUDE_SKILL_DIR}`, which Claude Code replaces with the same path, but
-  only in the text of a skill it loads. Another agent reading `SKILL.md`, or
-  a file read with a file tool, shows the placeholder itself.
-- Printing the resolved path. It is the clone's, which a by-path grant on the
-  pinned directory denies.
+**Rejected.** Home-directory paths, which cover only `manage-skills` installs;
+`${CLAUDE_SKILL_DIR}`, which another agent reading SKILL.md sees unreplaced;
+the resolved path, which the by-path grant denies.
 
 ---
 
-## Considered: git's own commands for message parsing
+## Known gaps, recorded rather than fixed
 
-**Decision (Adam, 2026-09-29): keep prose's own message parsing.** It is exact
-on every message it accepts, and a git-native version would trade its refusals
-for new failure modes to save about 8% of `prose.py`.
+Each is left on purpose; its fix says what would close it.
 
-The figures below predate *What removing the Action removed*, which cut
-`prose.py` from 1,328 lines to 1,246. None of that code parsed messages, so
-the estimate of what git's commands would replace still holds.
-
-**What was tried.** A prototype (git 2.54, against this branch at `dbe41c8`)
-committed messages for real in scratch repositories, through
-`commit-with-trailers.sh` and through `git commit -F` with the same pinned
-settings, and compared git's stored message with each prediction: 61 shaped
-cases from the tests and edge cases, 2,500 fuzzed messages, 18 trailer and
-comment configurations, and 120 cherry-picks.
-
-- **git's commands predict what git stores.** `git stripspace`, then
-  `git interpret-trailers --no-divider --trailer …`, then `stripspace` again,
-  matched the stored message byte for byte in 3,061 of 3,062 default-config
-  commits. The miss was a Unicode noncharacter: git re-encodes such a message
-  as Latin-1 when it stores it.
-- **prose's own parsing is exact on everything it accepts:** no mismatch in
-  2,464 accepted messages. All its mismatches were in messages it refuses (a
-  bare CR, `#` lines, the noncharacter), except `core.commentString`, already
-  a known gap.
-- **A git-native design** (the pipeline at check time; stripping the added
-  trailers from the stored message at verify) round-tripped every default-config
-  message, closed the `trailer.<x>.key` and `core.commentString` gaps, and
-  worked under other cleanup modes. It failed under a `trailer.*.command` whose
-  output changes between runs, `trailer.bug-hunter.ifexists=replace`,
-  `core.commentChar=auto` with strip cleanup, and a `cherry-pick -x` of a
-  message ending in a `#` paragraph.
-
-**Why it is not adopted.**
-- The gain is correctness under unusual configuration, which `prose check`
-  already refuses loudly rather than getting wrong.
-- It would remove about 80–100 of 1,276 lines, and tests would barely shrink:
-  they would need real repositories.
-- It adds three `git` calls (about 10 ms) twice per commit, and depends on the
-  order of steps inside `git commit`, verified on one git version only.
-- It would still need most refusals: noncharacters, `#` lines under
-  `commentChar=auto`, and `.command` settings.
-
-**What would change it.** People hitting the refusals in practice (configured
-trailer keys, `#` lines, `core.commentString`). Then the partial replacement
-is the starting point: `git stripspace` for `_clean`, and one
-`git interpret-trailers` call in place of the trailer-block, folding and
-`token: value` rules at check time. `refuse_bare_cr` would go, and
-`refuse_configured_trailers` would narrow to `.command`/`.cmd` and per-key
-`ifexists`/`ifmissing` on added keys other than `Prose`.
-
----
-
-## Without subagents, the cold read goes back to the caller
-
-**Decision.** An agent that cannot start a subagent hands back to whatever
-started it the brief, its token, and the paths of the message file and the
-worktree, and does not sign or commit.
-It reads the brief itself only when nothing will read its result. Decided by
-Adam, 2026-10-13.
-
-**Why.** A cold read exists because an author fills the gaps in their own text
-without seeing them. An author reading its own brief is that same author. In a
-workflow run on 2026-10-13, every author agent had no subagent tool, so every
-cold read was the author's own. Workflow scripts can start agents even when
-their agents cannot, so the script can supply the fresh reader. Another agent
-can then finish: the one that fixes the findings and runs the signing call
-need not be the author, because the token, which signs once, is stored in the
-repository's git directory and not in the author's session.
-
-**Rejected.** Reading the brief yourself whenever no subagent is available.
-It produces a report that looks like a cold read and is not one.
+- **`core.commentString` is not read,** only `core.commentChar`. Fix: read it.
+- **`gh api` and `gh pr merge --body` are not checked.** Fix: add them, with
+  `gh api`'s `-f body=` and `--input` as body sources.
+- **zsh `extendedglob` or `magicequalsubst` change what gh receives** from an
+  unquoted `#`, `^` or `=`. Neither is set on the machines checked. Fix: refuse
+  those characters unquoted.
+- **Two `prose check` runs at once in one checkout fail on git's index lock.**
+  Each worktree and each Igor clone has its own index. Fix: compute the tree
+  from a copy of the index (`GIT_INDEX_FILE`), tested to give the same hash.
+- **Only an MCP server named exactly `github` is checked** in Claude Code. Fix:
+  match case-insensitively and by substring, as the Cursor path does.
+- **Config given only to `git commit`** (`git -c trailer.…`) can make git
+  change the message as it adds the trailers, so an honest commit fails
+  verification and is redone; it fails closed. `prose check` refuses every
+  `trailer.*` setting it can see, but runs before the commit. The
+  commit-trailer library pins four settings on its commits:
+  `trailer.ifexists=add`, `trailer.ifmissing=add`, `trailer.separators=:` and
+  `trailer.where=end`. Per-trailer settings still reach the commit unpinned:
+  `trailer.<token>.where`, `.ifexists` and `.ifmissing` override the matching
+  pin for that token; `trailer.<token>.key` renames a trailer's key, and
+  `.cmd` and `.command` add trailers. Fix, not built: just before it commits,
+  the library would refuse any `trailer.*` setting besides its pins, as
+  `prose check` does. That would cover every commit the library makes; a
+  hand-run `git commit` with its own `-c` settings would still fail
+  verification, closed, unless `prose check` made the commit itself.
+- **`commit.cleanup=verbatim` with a leading blank line** fails verify on an
+  honest commit; it fails closed. Fix: `prose check` refuses a leading blank
+  line when `commit.cleanup` is verbatim.
+- **`git interpret-trailers` without `--no-divider` on a message holding a
+  `---` line** fails verify on an honest commit; it fails closed. Fix: `prose
+  check` refuses a `---` line in the message.
 
 ---
 
 ## Open
 
+- **Skip notes,** undecided: the commit script runs no verifier for a value
+  starting `skipped`, so a `Prose: skipped…` value written by hand or by
+  another tool lands unchecked, and only the hook reports it. Change the
+  shared library to verify it, or keep the gap recorded here.
 - More rules.
-

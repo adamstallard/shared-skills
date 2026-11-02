@@ -16,7 +16,6 @@ import json
 import os
 import pathlib
 import re
-import shlex
 import shutil
 import subprocess
 import tempfile
@@ -225,17 +224,21 @@ class CommitTrailerTests(unittest.TestCase):
         self.assertNotIn("git -C", stderr)
         self.assertNotIn("reset --soft", stderr)
 
-    def test_the_report_keeps_the_context_free_trailer_guidance(self):
-        # The rule is not "no imperatives" — it is nothing computed from a frame
-        # the reader does not occupy. Where a trailer goes in a message is true
-        # wherever they stand, and it is the one thing here they cannot cheaply
-        # work out; a remedy is not. Deleting this paragraph, or putting an
-        # --amend prescription back, left every other test in the file green.
+    def test_the_report_names_the_section_that_fixes_it(self):
+        # After the commit and what is wrong, the report has three parts: ask
+        # before rewriting a pushed commit, the SKILL.md section to fix it with,
+        # and the command that turns the check off. It restates nothing from
+        # that section, because a restated copy drifted from SKILL.md. It
+        # prescribes no remedy such as --amend, which may land on the wrong
+        # commit (../../../lib/commit-trailer/DECISIONS.md#each-report-names-its-skills-section).
         self.settle()
         self.commit("FEAT: x", filename="g.txt")
         stderr = self.run_hook("--host", "claude").stderr
-        self.assertIn("A trailer belongs in the last paragraph", stderr)
+        self.assertIn("Ask before rewriting a pushed commit.", stderr)
+        self.assertIn("Fix it with the bug-hunter skill's *If you are an agent about to commit* steps.", stderr)
+        self.assertIn("A person who does not want this check can turn it off:", stderr)
         self.assertNotIn("--amend", stderr)
+        self.assertNotIn("skipped at triage", stderr)
 
     def test_a_commit_is_reported_once_and_not_again(self):
         # Otherwise every later command in the repo repeats the same complaint.
@@ -299,7 +302,6 @@ class CommitTrailerTests(unittest.TestCase):
         result = self.run_hook("--host", "claude")
         self.assertEqual(result.returncode, REPORTED)
         self.assertIn("does not read it as a trailer", result.stderr)
-        self.assertIn("last paragraph", result.stderr)
 
     def test_a_lowercase_trailer_counts(self):
         # git matches trailer keys case-insensitively, and the report the agent
@@ -509,7 +511,7 @@ class CommitTrailerTests(unittest.TestCase):
         self.assertEqual(result.returncode, QUIET)  # cursor reads stdout, not the code
         context = json.loads(result.stdout)["additional_context"]
         self.assertIn("bug-hunter", context)
-        self.assertIn("without being checked", context)
+        self.assertIn("without a Bug-hunter: trailer", context)
 
     def test_an_unknown_host_still_reports_on_stderr(self):
         self.settle()
@@ -932,10 +934,11 @@ class CommitTrailerTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, REPORTED, result.stderr or "(silent)")
 
-    def test_the_wrapped_trailer_note_explains_indenting(self):
-        # An unindented continuation line also stops git reading a trailer, and
-        # the diagnostic only mentioned blank lines — which led one agent to
-        # conclude the trailer must never be wrapped at all.
+    def test_the_wrapped_trailer_note_names_no_single_cause(self):
+        # An unindented continuation line also stops git reading a trailer. A
+        # note that named only blank lines led one agent to conclude the
+        # trailer must never be wrapped at all, so the note names no cause and
+        # leaves the causes to SKILL.md's commit steps.
         self.settle()
         self.commit(
             "FEAT: d\n\nBug-hunter: skipped at triage (docs only, no\nexecutable code)",
@@ -943,7 +946,8 @@ class CommitTrailerTests(unittest.TestCase):
         )
         result = self.run_hook("--host", "claude")
         self.assertEqual(result.returncode, REPORTED)
-        self.assertIn("indent", result.stderr.lower())
+        self.assertIn("does not read it as a trailer", result.stderr)
+        self.assertNotIn("blank line", result.stderr)
 
     # -- verification pass: what inverting the list cost -------------------
 
@@ -1690,66 +1694,33 @@ class CommitTrailerTests(unittest.TestCase):
             "FEAT: d\n\nBug-hunter: 1 iteration\n\nmore body", filename="g.py")
         result = self.run_hook("--host", "cursor")
         ctx = json.loads(result.stdout)["additional_context"]
-        if "git commit" in ctx:
-            self.assertNotIn('-m  ', ctx, "double quotes stripped out of the example")
-        # The cursor channel replaces every `"` and `\` with a space, so the
-        # example command has to be quoted and laid out so that it survives.
-        self.assertIn("commit-with-trailer.sh -F msg.txt '1 iteration, 1 bug fixed'", ctx)
+        self.assertIn("does not read it as a trailer", ctx)
+        self.assertIn("*If you are an agent about to commit*", ctx)
+        self.assertIn("skills.py disable-hook bug-hunter", ctx)
 
-    def test_the_misplaced_trailer_note_points_at_the_commit_script(self):
-        # The note used to show a hand-typed `git commit -m ... --trailer ...`
-        # as the way to do it — the same assembly step that produced the
-        # misplaced line, so an agent acting on the report did it again by
-        # hand. The report names the script that does the assembly instead,
-        # and shows no hand-built git commit at all.
+    def test_the_report_shows_no_commit_command(self):
+        # A report that showed a hand-typed `git commit -m ... --trailer ...`
+        # had agents redo, by hand, the assembly step that produced the
+        # misplaced line. The report shows no commit command at all; SKILL.md's
+        # section names the commit script.
         self.settle()
         self.commit("FEAT: d\n\nBug-hunter: 1 iteration\n\nmore body", filename="g.py")
         stderr = self.run_hook("--host", "claude").stderr
-        self.assertIn("commit-with-trailer.sh", stderr)
-        self.assertNotIn("git commit -m", stderr)
+        self.assertNotIn("git commit", stderr)
+        self.assertNotIn("commit-with-trailer.sh", stderr)
 
-    def test_every_report_names_the_commit_script_beside_the_hook(self):
-        # A commit with no trailer at all is the other way to arrive here, and
-        # the closing guidance is the one paragraph every report carries. It
-        # names the commit script in the running hook's own directory, not a
-        # home-directory install path, which may be missing or a different
-        # copy (../DECISIONS.md#scripts-are-found-from-the-skills-base-directory).
-        self.settle()
-        self.commit("FEAT: x", filename="g.txt")
-        stderr = self.run_hook("--host", "claude").stderr
-        self.assertIn(f"at\n{WRAPPER}. ", stderr)
-        self.assertNotIn("skills/bug-hunter/scripts/", stderr.replace(str(HOOK.parent), ""))
-
-    def test_a_hook_loaded_from_a_path_with_a_space_names_its_script_quoted(self):
-        # The report's commit command has to survive being pasted into a
-        # shell, from either channel, wherever the skill was loaded from.
-        root = pathlib.Path(tempfile.mkdtemp(prefix="bug hunter "))
-        self.addCleanup(shutil.rmtree, root, True)
-        clone = HOOK.parents[4]
-        scripts = root / ".agents" / "skills" / "bug-hunter" / "scripts"
-        shutil.copytree(HOOK.parent, scripts)
-        shutil.copytree(clone / ".agents" / "lib", root / ".agents" / "lib")
-        payload = json.dumps({"cwd": str(self.repo), "tool_name": "Bash"})
-        self.settle()
-        for host in ("claude", "cursor"):
-            self.commit(f"FEAT: {host}", filename=f"{host}.txt")
-            result = subprocess.run(
-                ["sh", str(scripts / "check-commit-trailer.sh"), "--host", host],
-                input=payload, capture_output=True, text=True, cwd=self.repo)
-            text = result.stderr if host == "claude" else json.loads(result.stdout)["additional_context"]
-            self.assertIn(f"'{scripts.resolve()}/commit-with-trailer.sh'", text)
-
-    def test_a_hook_loaded_from_a_path_with_an_apostrophe_names_its_script_exactly(self):
-        # Cursor's channel turns every backslash into a space, so the usual
-        # '\'' escape arrives as ' '', which a shell cannot parse.
-        # On either channel the reader must get the script's exact path back.
+    def test_the_report_names_no_path_of_its_own(self):
+        # The report names none of the skill's files: SKILL.md gives each path
+        # from the skill's base directory. The only path
+        # in it is the disable-hook command's. A skill installed under a path
+        # holding a space and an apostrophe must still report, and print none
+        # of that path.
         root = pathlib.Path(tempfile.mkdtemp(prefix="o'brien "))
         self.addCleanup(shutil.rmtree, root, True)
         clone = HOOK.parents[4]
         scripts = root / ".agents" / "skills" / "bug-hunter" / "scripts"
         shutil.copytree(HOOK.parent, scripts)
         shutil.copytree(clone / ".agents" / "lib", root / ".agents" / "lib")
-        path = f"{scripts.resolve()}/commit-with-trailer.sh"
         payload = json.dumps({"cwd": str(self.repo), "tool_name": "Bash"})
         self.settle()
         for host in ("claude", "cursor"):
@@ -1759,11 +1730,10 @@ class CommitTrailerTests(unittest.TestCase):
                     ["sh", str(scripts / "check-commit-trailer.sh"), "--host", host],
                     input=payload, capture_output=True, text=True, cwd=self.repo)
                 text = result.stderr if host == "claude" else json.loads(result.stdout)["additional_context"]
-                segment = text.split("msg.txt, at", 1)[1].split(". Rewriting", 1)[0].strip()
-                if path not in segment:
-                    self.assertEqual(shlex.split(segment), [path])
-
-
+                self.assertIn(f"FEAT: {host}", text)
+                self.assertNotIn(str(scripts.resolve()), text)
+                self.assertNotIn(str(HOOK.parent), text)
+                self.assertNotIn(".sh", text)
 
     def test_a_key_shaped_directory_is_not_walked_as_a_submodule(self):
         # submodule "a"'s own path value, "submodule.b.path", is shaped like a
@@ -1997,13 +1967,12 @@ class CommitTrailerTests(unittest.TestCase):
             )
         result = self.run_hook("--host", "claude")
         self.assertEqual(result.returncode, REPORTED)
-        self.assertIn("Bug-hunter-Tree", result.stderr)
-        self.assertIn("mint-trailer.sh", result.stderr)
-        # ...and the thing that runs it, which is what to reach for.
-        self.assertIn("commit-with-trailer.sh", result.stderr)
+        self.assertIn("1 commit(s) carry a Bug-hunter: trailer with no Bug-hunter-Tree binding",
+                      result.stderr)
+        self.assertIn("*If you are an agent about to commit*", result.stderr)
         # Distinguishable from "no trailer at all" — a different problem with
         # a different fix.
-        self.assertNotIn("landed without being checked", result.stderr)
+        self.assertNotIn("landed without a Bug-hunter: trailer", result.stderr)
 
     def test_a_fix_trailer_with_a_stale_binding_is_reported(self):
         # Minted against one tree, then more was staged before the commit —
@@ -4115,6 +4084,26 @@ class SkillVerifyTests(unittest.TestCase):
         self.assertIn("FEAT: unbound", result.stderr.split("unminted: ", 1)[1].split("rejected:")[0])
         self.assertIn("rejected: ", result.stderr)
         self.assertNotIn("-- ", result.stderr.split("rejected:", 1)[1])
+
+
+class HookReportTextTests(unittest.TestCase):
+    """hook-report.sh's commit_trailer_report, called the way the library
+    calls it, with the fact variables set by hand."""
+
+    def report(self, script):
+        result = subprocess.run(
+            ["sh", "-c", f'. "{HOOK.parent / "hook-report.sh"}"; {script}; '
+                         'commit_trailer_report; printf "%s\\n" "$REPORT"'],
+            capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        return result.stdout
+
+    def test_both_kinds_in_one_report_are_separate_paragraphs(self):
+        # One batch can hold a commit with no trailer and another with an
+        # unminted one. Each block keeps its own header after a blank line.
+        text = self.report('unchecked="abc1234 FEAT: a\n"; count_unchecked=1; '
+                           'unminted="def5678 FIX: b\n"; repo_label=/r')
+        self.assertIn("abc1234 FEAT: a\n\nbug-hunter: 1 commit(s) carry", text)
 
 
 if __name__ == "__main__":

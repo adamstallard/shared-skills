@@ -29,6 +29,8 @@ It edits the working tree, adds test files, and by default commits.
 
 - **How to do each step** — [reference.md](reference.md). Read it before Steps
   4–7, before writing a report, and before committing.
+- **Mutation testing, Step 3 to Step 9** — [mutation.md](mutation.md). Read it
+  before starting any mutant.
 - **Why any of this is the way it is** — [DECISIONS.md](DECISIONS.md). Read it
   before changing this file or `scripts/`. It is about this skill; the record
   Step 6 reads before a fix is the codebase's own.
@@ -48,10 +50,10 @@ It edits the working tree, adds test files, and by default commits.
 - [ ] Step 0: Scope the change — staged diff only
 - [ ] Step 1: Triage — is this commit worth reviewing at all?
 - [ ] Step 2: Baseline — run the suite before touching anything
-- [ ] Step 3: Find candidates (strong model, reachability required)
+- [ ] Step 3: Find candidates (strong model, reachability required); mutation subagents beside it where the changed functions have tests
 - [ ] Step 4: Prove — write the test, run it, demand a matching red
-- [ ] Step 5: Refute — a second opinion tries to kill each proven bug
-- [ ] Step 6: Fix (resume this iteration's finder, prevention question, scope-confined)
+- [ ] Step 5: Refute — a second opinion tries to kill each proven bug, and checks each survivor test and dead-code claim
+- [ ] Step 6: Fix (prevention question, scope-confined)
 - [ ] Step 7: Verify — new tests green; the full suite once, before Step 9
 - [ ] Step 8: Iterate — back to back, up to 3, without asking; never a 4th
 - [ ] Step 9: Report once at the end; ask the user each open decision (picker — written is not asked); then commit (with prose's trailer when prose is installed) or leave it for review — or, under "caller commits", end with `scripts/caller-result.sh`'s block
@@ -79,9 +81,11 @@ right wording and still be a sentence recalled from having read this file,
 rather than one produced by running any part of it — that is the one shape
 the string-presence check cannot catch, and the one this binding is for.
 
-A commit that lands without a `Bug-hunter:` trailer at all gets named
-in a report, with the repository it is in, and nothing else: the hook cannot see
-where you are standing, and the commit it names is often not your HEAD.
+A commit that lands with no `Bug-hunter:` trailer, or with one whose
+`Bug-hunter-Tree` binding does not match, gets named in a report, with the
+repository it is in. The report sends you to the section below and gives no
+command to fix the commit: the hook cannot see where you are standing, and the
+commit it names is often not your HEAD.
 
 ---
 
@@ -92,12 +96,20 @@ let that skill start from "commit this"; still run for "bug check this". If
 this turn already stated a commit subject, use that subject unchanged. Only add
 trailers.
 
-**Run this skill before every commit you create that contains code.** Not when
-asked for it by name — every time. "Commit this", "commit my changes", "wrap up
-and commit", or your own decision to commit after finishing a task all mean:
-stage the change, run this skill, then commit. Triage (Step 1) is what decides
-whether a given commit is worth reviewing, so running it always is cheap when it
-does not apply.
+**Every commit you create goes through this skill and carries a Bug-hunter: trailer.**
+Not when asked for it by name — every time. A commit with code gets the hunt. A commit
+with only docs, specs, tests or formatting skips the hunt, not the skill. 
+"Commit this", "commit my changes", "wrap up and commit", or your own decision to 
+commit after finishing a task all mean: stage the change, run this skill, then commit.
+Triage (Step 1) is what decides whether a given commit is worth reviewing, so running
+it always is cheap when it does not apply.
+
+**Run it yourself, in your own session.** The agent that wrote the change runs
+this skill. Do not hand the whole run to a subagent that then starts finders,
+refuters and mutation agents of its own: the run needs an orchestrator that stays
+alive to collect survivors and resume agents, and a nested delegate keeps ending
+its turn while its children run. Delegating the single passes, as the steps say,
+is how it is meant to run.
 
 ### Do not evade this skill
 
@@ -207,8 +219,8 @@ skill runs in an agent that reports to another agent, its Step 9 report and its
 questions reach *that agent*, and nothing has been asked yet: the hop moves the
 picker, it does not discharge the question. So:
 
-- **If you spawned an agent to run this**, its report is your Step 9 input, not
-  your Step 9 output. Every entry on the user's list goes in front of the
+- **If an agent you spawned ran this on its own change**, its report is your
+  Step 9 input, not your Step 9 output. Every open decision in that report goes in front of the
   user in your **next reply, before anything else** — through your picker, one
   question per decision, or the report's numbered block verbatim where there is
   none. *"The run aborted"* or *"it found three root causes"* with no options
@@ -216,8 +228,8 @@ picker, it does not discharge the question. So:
   writing that sentence, that is the bug. Holding the decision across a turn
   while other work finishes is choice 3, made for them — the other work waits,
   or the reply carries both.
-- **If you are the agent running this for another agent**, you have no picker
-  that reaches the user. Print the whole report in its format — not a summary
+- **If you are running this in an agent that reports to another agent**, you
+  have no picker that reaches the user. Print the whole report in its format — not a summary
   of it — with the hand-off footer
   ([reference.md](reference.md#the-hand-off-footer)) that tells whoever holds
   it what is still theirs to ask. Say plainly which decisions are open and
@@ -359,6 +371,33 @@ Bound each property to a fixed number of runs or a few seconds, inside this
 pass. No invariant stated, no property — this is not for fishing. The procedure
 is in [reference.md](reference.md#step-3--searching-with-a-property).
 
+**Where the changed functions have tests, mutants check that the tests pin
+them.** A mutant is one small deliberate change to the code, such as a `<`
+made `<=`. A mutant the tests still pass on has survived, and marks behaviour
+no test checks. **Read [mutation.md](mutation.md) before starting any mutant,
+and follow it: mutation is never improvised.** The rules you must not get
+wrong, which it also carries:
+
+- **When:** once per run, within one cap. Iteration 1 mutates the
+  functions the change touches that have tests. A later iteration mutates
+  only when the last iteration's fixes touched functions that have tests,
+  and then only those, within what the run's cap has left.
+- **Who and where:** fresh mutation subagents, in the background beside the
+  finder, never the code's author, each given
+  [mutation-brief.md](mutation-brief.md) as written. **Never mutate source
+  in the real tree**: mutants live only in throwaway copies.
+- **Cheap:** each function's focused command runs only the tests that
+  exercise it, never a whole test file when the runner can select single
+  tests in it, and
+  each mutant's run has a time budget; one over it counts as killed by
+  timeout.
+- **A survivor is a lead, never a finding.** The finder answers each one,
+  and a candidate it reports is proven like any other.
+- **Mutants never hold up the hunt.** Steps 4–7 go ahead on the finder's
+  own candidates while the mutants run. A survivor that arrives later is
+  judged against the code as it is then. Only the commit and the Step 9
+  report wait until every survivor is answered.
+
 **Not candidates.** Style, naming, formatting, preferences, "consider
 extracting this", missing comments, defensive checks for conditions that
 cannot occur, or hypotheticals with no caller. Report none of these. The value
@@ -376,7 +415,10 @@ Not safe:
 
 - **Do not touch the files under review.** Findings against a version that no
   longer exists are worthless. If the other work needs an edit there, the run is
-  invalid — wait, or restart it against the new state.
+  invalid — wait, or restart it against the new state. Running mutation
+  subagents do not stop Step 6: its fixes may edit these files while they run,
+  since each survivor is judged against the code as it is when it arrives
+  ([mutation.md](mutation.md#survivors-that-arrive-during-steps-47)).
 - **Do not commit.** The commit waits for the whole run, always. Backgrounding is
   for spending the wait well, not for shipping while the check is in flight.
 - **Do not guess at the result.** You know nothing until the pass reports back.
@@ -384,7 +426,8 @@ Not safe:
   meantime, say it is still running.
 
 Steps 4, 6 and 7 write files, so they run in the foreground. It is the reading
-passes that parallelise.
+passes that parallelise, and the mutation subagents, which write only in
+their own copies.
 
 **When the pass reports back, the run is the next thing.** Its return is Step 4
 starting — or, after the last iteration, Step 9 — not a notification to file
@@ -408,6 +451,10 @@ contract: without an observed red, a finding is a guess. **Do not delegate this*
 one test in the project's existing framework is translation, not investigation;
 write and run it in the loop you are already in, and a **small, cheap model** is
 sufficient. The red is the check, and it is empirical.
+
+**A survivor the finder called a gap gets a test, not a fix**, proven green
+on the real code and red on the mutant, by
+[mutation.md](mutation.md#step-4--a-test-for-a-survivor).
 
 **A property's counterexample is committed as an example, not as the
 property.** The regression test is the shrunk input written as an ordinary
@@ -439,6 +486,12 @@ it the codebase's record of rejected approaches too — the same files Step 6
 reads — so it can say whether a finding re-treads ground already recorded as
 rejected.
 
+**Fresh refuters, one per item, also review every survivor test and every
+judged-dead claim**, beside the findings
+([mutation.md](mutation.md#step-5--survivor-tests-and-dead-code)). Each is a
+factual claim, which is why it belongs here and not with the user: *this test
+asserts what the code should do*, and *this code is never reached*.
+
 **Tell the refuter which spec text predates the change.** A refuter cannot see
 when a document was written, so it reads spec, design and task text as
 pre-existing intent — and documentation authored in the same session as the code
@@ -451,12 +504,12 @@ refutes nothing**; the procedure is in
 [reference.md](reference.md#step-5--refute), the incident in
 [DECISIONS.md](DECISIONS.md#documentation-written-in-the-same-session-is-not-evidence-of-intent).
 
-**Step 6 — Fix.** **Resume this iteration's Step 3 finder via `SendMessage`** —
-it already read the files, traced reachability, and ran the candidates, and
-nothing has changed them since — passing it the surviving findings, the refuter
-verdicts, and Step 5's fix-conflict notes. Spawn a fresh agent on the
-**strongest available model** only if that finder is no longer reachable; the
-mechanics are in [reference.md](reference.md#step-6--fix).
+**Step 6 — Fix.** Write the fix yourself, resume this iteration's Step 3
+finder via `SendMessage` when that saves tokens, since it already read the
+files and ran the candidates, or start a fresh agent on the **strongest
+available model**; any of the three is fine. Whoever writes it gets the
+surviving findings, the refuter verdicts and Step 5's fix-conflict notes
+([reference.md](reference.md#step-6--fix)).
 
 **Read the codebase's record of rejected approaches first, if it keeps one** —
 a `DECISIONS.md`, an ADR directory, the `design.md` of the OpenSpec change that
@@ -471,14 +524,18 @@ from ever happening?* Prefer simpler code, simpler architecture, fewer moving
 parts. Confine the fix to the change under review; if the real cause sits outside
 it, that is a root cause for Step 9, not something to fix in passing.
 
+**The fixer also removes dead code** that a survivor exposed, never a check at
+a trust boundary, and never exported code without the user's yes
+([mutation.md](mutation.md#step-6--removing-dead-code)).
+
 **Step 7 — Verify.** Every new test passes. **The full suite runs once per run,
 not once per iteration** — at Step 2 for the baseline, and again immediately
 before the Step 9 report, which nothing ships without. In between, run the new
 regression tests plus whatever existing tests cover the files the fix touched;
 that is what catches a fix breaking its neighbours while it is still cheap to
-attribute. **Never modify, weaken, delete or skip an existing test to reach
-green.** If a pre-existing test now fails, the fix broke it — fix the fix, or
-revert it and report it unresolved. Running tests and comparing counts to the
+attribute. **Never weaken, delete or skip an existing test, or change its
+assertions, to reach green.** If a pre-existing test now fails, the fix broke
+it — fix the fix, or revert it and report it unresolved. Running tests and comparing counts to the
 baseline is running commands: **do it yourself**, as in Step 2.
 
 ## Step 8 — Iterate
@@ -502,8 +559,14 @@ report within the run — `Bug-hunter: 2 iterations, 3 bugs fixed` means this ru
 not this week.
 
 **An iteration that fixed something is never the last one.** Stop only after a
-pass that **finds nothing**. A fix is new code written minutes ago by someone who
-was just thinking about a different problem, so stopping straight after writing
+pass that **finds nothing**. An iteration whose finder found nothing is clean
+only once every mutation subagent running has reported and every survivor sent
+to it is answered with no bug proven; it waits for them, since there is nothing
+else to do. A survivor proven a bug counts as that iteration having found
+something. An iteration that found something does not wait: the next one
+starts while the mutants still run
+([mutation.md](mutation.md#survivors-that-arrive-during-steps-47)). A fix is new code
+written minutes ago by someone who was just thinking about a different problem, so stopping straight after writing
 one stops where the change is least reviewed — "I fixed four bugs" and "this code
 is clean" are different claims, and only the second is what anyone wanted. The
 measurements behind that are in
@@ -530,6 +593,11 @@ is, because the budget is spent. Iteration 3's fixes are code written minutes ag
 that no finder pass has ever read. Report it as a root cause in those words:
 *iteration 3's fixes never got a finder pass — the budget ended before one
 could run*, naming what those fixes touched.
+
+**Mutation leftovers at the cap are `budget` causes too**: survivors still
+unanswered, and those answered as candidates but not yet proven, each an entry
+([mutation.md](mutation.md#at-the-cap)). Never a fourth iteration for them,
+and never drop one silently.
 
 **That is a different kind of cause from Step 6's, and the report says which.**
 Step 6's root cause is about **place** — the real cause sits outside the change
@@ -566,95 +634,267 @@ there is not the report — an accurate description of something nobody was aske
 to decide is choice 3 taken on the user's behalf.
 
 **The full report format, with a worked example and the rules for each section,
-is in [reference.md](reference.md#the-report). Read it before writing one.** The
+is in [reference.md](reference.md#the-report). Read it before writing one.**
+When mutants ran, the result block carries one line for them, such as
+`mutation  14 mutants of 4 changed functions — 11 killed (1 by timeout),
+2 survivors killed by new or strengthened tests, 1 dead code removed, 0 stale,
+0 ignored`, and the report carries a per-operator table. Each removal of dead code
+is listed in its iteration, and exported or public code that a search found no caller for is a
+recommendation, asked like any other. The
 commit itself — what to stage, the trailer, splitting — is in
 [reference.md](reference.md#committing).
 
 **Commit through the script. Never assemble `git commit -m … --trailer …` by
-hand — not for a fix, not for a skip, not for a one-line docs change.** Scope:
-first letter capital when inventing; reuse `git log` tokens as-is. Stage
-everything first, then, standing in the project:
+hand — not for a fix, not for a skip, not for a one-line docs change.** The
+one exception, an amend that adds a missing trailer, is described below.
+
+If the subjects in `git log` start with a `TYPE(Scope):` prefix, such as
+`FIX(parser):`, use one too, and reuse a scope (the part in parentheses) that
+`git log` already shows, such as `parser`, written exactly as it is there,
+lowercase included, so each scope keeps one spelling across the log. When none
+fits and you make up a new scope, capitalise its first letter, as in
+`FIX(Parser):`. The mix of cases this gives is intended: existing scopes keep
+their spelling, and new ones start with a capital.
+
+In the commands below, `<base directory>` is this skill's base directory: the
+directory that holds this SKILL.md. Claude Code names it on a "Base directory
+for this skill:" line, which it prints just before this file's text when the
+skill loads. In the commands, replace `<base directory>`, angle brackets and
+all, with the path written out in full, as that line gives it; don't swap in a
+home-directory install path, which may be missing or hold a different copy.
+The script's path is absolute because it lives in this skill, not in your
+project. Run the command from inside your project, though: the git commands
+the script runs act on the repository you run it from.
+
+First stage everything the commit holds. Then write the message to `msg.txt`
+in the directory you will run the command from. It is not part of the commit:
+never stage it, and delete it once the commit is made, so that a later
+`git add` cannot pick it up.
+
+Next, check whether the prose skill is installed: invoke the `manage-skills`
+skill and ask it to list the skills (its `list` action); prose is installed
+when prose's row in that list says `installed`. If it is, use the command
+under **When prose is installed**, further down, not the one here. If it is
+not, standing in the project, run both lines below in one tool call, since a
+shell variable set in one tool call is gone by the next:
 
 ```bash
 BH="<base directory>/scripts/commit-with-trailer.sh"
-"$BH" -F msg.txt "1 iteration, 1 bug fixed" "Claude Opus 5 (1M context) <noreply@anthropic.com>"
+"$BH" -F msg.txt "1 iteration, 1 bug fixed" "<Co-Authored-By value from your attribution instructions>"
 ```
 
-`msg.txt` holds the message: the subject, a blank line, then the body (never a
-trailer in it). Write it to a file so the message never has to be quoted on the
-command line; prose's pass uses the same file. Then come the `Bug-hunter:`
-value and, optionally, the `Co-Authored-By` value. The message as two words,
-`"<subject>" "<body>"` in place of `-F msg.txt`, still works. Each trailer is
-passed as `--trailer`, so where it lands is git's problem; and for any value that
-is not `skipped …` the script runs `mint-trailer.sh` against the tree staged at
-that instant and adds the `Bug-hunter-Tree` binding — the one line a hand-typed
-commit cannot produce, and the one the hook checks. It runs the repository's
-pre-commit hook before minting, so a formatter there cannot change the tree
-after it is bound; if the hook fails, nothing is committed — review what it
-changed, stage what belongs, and run the script again. Verify with
-`git log -1 --format='%(trailers:key=Bug-hunter)'`; while the commit is still
-local, `git commit --amend --no-edit --trailer "…"` is the repair.
+`1 iteration, 1 bug fixed` is a sample: pass this run's own result in the same
+form, such as `0 bugs found` or `aborted after iteration 2 (<reason>)`. The
+arguments, in order:
 
-`<base directory>` is this skill's base directory: the directory that holds
-this SKILL.md, which Claude Code names on the "Base directory for this skill:"
-line above it. Write the path out in full, as that line gives it; don't swap in
-a home-directory install path, which may be missing or hold a different copy.
-The path *to the script* is absolute because `scripts/` is relative to this
-skill, not to your project; the git it runs is not. The mechanics the script wraps, and what the binding does and does
-not attest to: [reference.md](reference.md#committing),
+1. `-F msg.txt`: the file holding the commit message, which is the subject, a
+   blank line, then the body. Never put a trailer in it. With a file, the
+   message never has to be quoted on the command line. The script also accepts
+   the message as two shell arguments, `"<subject>" "<body>"`, in place of
+   `-F msg.txt`, but the file is the form to use.
+2. The `Bug-hunter:` value, without the `Bug-hunter: ` prefix.
+3. Optionally, the `Co-Authored-By` value: the text after `Co-Authored-By: `,
+   without that prefix. Your host may give you a co-author line for commits;
+   in Claude Code it is in the attribution instructions, and names the current
+   model. Leave the argument out if you have none. In the command, the
+   placeholder `<Co-Authored-By value from your attribution instructions>`
+   stands for the whole value: replace it, angle brackets and all. The value
+   itself has angle brackets around the email, as in
+   `"Name <name@example.com>"`, and keeps them.
+
+A skip commits through the script too, with its reason in the `Bug-hunter:`
+value, argument 2. Like the command above, this is the form without prose:
+
+```bash
+BH="<base directory>/scripts/commit-with-trailer.sh"
+"$BH" -F msg.txt "skipped at triage (docs only)" "<Co-Authored-By value from your attribution instructions>"
+```
+
+The script passes the `Bug-hunter:` and `Co-Authored-By` values to git as
+`--trailer` options, and git places each in the message's trailer block, the
+last paragraph, where git reads trailers. You never place a trailer line
+yourself.
+
+Just before committing, the script does two things, in order:
+
+1. It runs the repository's pre-commit hook, if there is one, so a formatter
+   there cannot change the files after step 2 ties the trailers to them. If the
+   hook fails, nothing is committed. A hook may rewrite files and still fail, as
+   some formatters do, so review what it changed, stage what belongs, and run
+   the script again. With prose installed, first run prose's two `check` calls
+   again (see **When prose is installed**, below), since the staged files have
+   changed.
+2. It ties the trailers to the staged files. For a `Bug-hunter:` value that does
+   not start with `skipped` or `Skipped`, it runs `mint-trailer.sh`, a script
+   beside it in `scripts/`, which prints a `Bug-hunter-Tree: <hash>` line, where
+   the hash identifies the git tree object for the staged files;
+   `commit-with-trailer.sh` adds that line as a trailer. For another skill's
+   value, such as prose's (see **When prose is installed**, below), it runs that
+   skill's verifier, which confirms the value was made from those files and, for
+   prose, from the message. This tie is what lets a check made later, such as
+   bug-hunter's companion hook (below), tell whether the committed files are the
+   ones the trailers were made from.
+
+When every value passed starts with `skipped` or `Skipped` (the `Bug-hunter:`
+value, and each other skill's value if any was passed), no value needs tying,
+and the script skips both steps. (The `Co-Authored-By` value is never tied.) git
+then runs the pre-commit hook during the commit as usual. A `Prose:` value never
+starts with either, so with prose installed both steps run, even for a skip.
+
+bug-hunter's companion hook, installed with this skill, is not a git hook: your
+agent host runs it after each shell command you run. It reports to you each
+commit that landed without a valid `Bug-hunter:` trailer. It counts a non-skip
+value as valid only with a `Bug-hunter-Tree` line beside it whose hash matches
+the committed files. So a hand-typed `git commit` with a non-skip value, which
+leaves out the mint, gets reported, and so does a commit whose files changed
+after the mint.
+
+After committing, check that the trailer landed:
+`git log -1 --format='%(trailers:key=Bug-hunter)'` prints the `Bug-hunter:`
+line. If it prints nothing, the commit has no `Bug-hunter:` trailer, usually
+because it was made by hand. While the commit is still local, add the trailer
+with an amend. Amending is the one case where you type
+`git commit … --trailer …` by hand: the script makes new commits and cannot
+amend one. Once the commit is pushed, ask the user before amending it: that
+rewrites published history. Stage nothing new before the amend: anything
+staged would go into the commit.
+
+For a skip value, which needs no mint:
+
+```bash
+git commit --amend --no-edit --trailer "Bug-hunter: <value>"
+```
+
+For a value that is not a skip, use this form instead. It adds a second
+`--trailer`, carrying the `Bug-hunter-Tree` line that `mint-trailer.sh`
+prints, and `--no-verify`:
+
+```bash
+git commit --amend --no-edit --no-verify \
+  --trailer "Bug-hunter: <value>" \
+  --trailer "$("<base directory>/scripts/mint-trailer.sh")"
+```
+
+With nothing new staged, the staged files are the commit's own, since git leaves
+the index matching the commit it just made. The mint hashes those files and the
+amend commits them, so the `Bug-hunter-Tree` hash matches the amended commit.
+`--no-verify` skips the pre-commit and commit-msg hooks for this amend. The
+pre-commit hook must not run here, because it would run after the mint, and a
+hook that changed the files would leave the hash naming files the commit does
+not hold. `--no-verify` cannot skip one hook without the other, so neither hook
+runs on this amend, and the commit-msg hook never sees the trailer lines the
+amend adds. That is the cost of adding them this way. In the skip form the hooks
+run as usual, since there is no mint for a hook's change to break. A commit made
+by hand may lack other trailers too. Add a missing `Co-Authored-By` with its own
+`--trailer` in the same amend; to add a missing `Prose:` trailer, follow prose's
+SKILL.md, *Committing*, which covers an amend.
+
+The mechanics the script wraps, and what the binding does and does not attest
+to: [reference.md](reference.md#committing),
 [DECISIONS.md](DECISIONS.md#the-commit-is-assembled-by-a-script-not-by-hand).
 
-**When prose is installed, the same commit carries its `Prose:` trailer.**
-Skills that sign commits through the shared library commit once, with every
-installed skill's trailer
-([the rule](../../lib/commit-trailer/DECISIONS.md#every-installed-skills-trailer-on-one-commit)).
-To learn whether prose is installed, ask the `manage-skills` skill (its
-`list`): prose is installed when its row says `installed`. prose's SKILL.md
-gives its scripts directory, written `$S` below.
+**When prose is installed**, the same commit carries its `Prose:` trailer. The
+commit library that `commit-with-trailer.sh` calls is shared with other
+skills, and it puts every installed skill's trailer on one commit, not one
+commit per skill ([the
+rule](../../lib/commit-trailer/DECISIONS.md#every-installed-skills-trailer-on-one-commit)).
+So you pass prose's value to `commit-with-trailer.sh`, which hands it on.
+Below, `$S` is prose's scripts directory: `scripts/` in prose's base
+directory, which Claude Code names on the "Base directory for this skill:"
+line when the prose skill loads; if prose is not loaded yet, invoke the prose
+skill to see that line. The commands below set `S` with
+`S="<prose's scripts directory>"`: replace that placeholder with the path
+written out in full, as with `<base directory>`, and leave each `$S` as it is.
+Keep the `S=` in the same tool call as the command that uses it: a variable
+set in an earlier tool call is gone by the next one.
 
-If it is, after the last fix and the final `git add`, write the message (subject,
-a blank line, body) to `msg.txt`, unstaged, and:
+When prose is installed, every commit, a skip included, goes through prose's
+two calls. With the commit staged and `msg.txt` written, as above:
 
 1. Run prose's first call. It lists the prose in the change and prints the
    rules and a pass token:
-   `python3 "$S/prose.py" check -F msg.txt --goals "review the fix; check it is safe to merge"`.
-   Add `--goals-for <path or pattern> '<goals>'` for each changed doc or spec,
+   `S="<prose's scripts directory>"; python3 "$S/prose.py" check -F msg.txt --goals "review the fix; check it is safe to merge"`.
+   `--goals` names what the commit message's reader wants from it; replace the
+   sample goals with your change's. Add
+   `--goals-for <path or pattern> '<goals>'` for each changed doc or spec,
    naming its own reader's goals; prose's SKILL.md says how.
 2. Rewrite the listed comments, docs and message by those rules; restage.
 3. Run the second call, which prints the `Prose:` trailer:
-   `python3 "$S/prose.py" check -F msg.txt --pass <token>`.
-   If it exits 5, it printed a cold-read brief instead: follow prose's
-   SKILL.md, *The cold read*, then run it again with `--cold-read <report>`
-   and `--dispositions <file>`. The cold reader's report holds findings,
-   each a place it stopped, and one understood line per item, saying what it
-   took the item to mean. To keep one is to leave its item as it is: for an
-   understood line, although it shows a meaning other than yours. Each one
-   you would keep needs a person's answer first, through your host's interactive picker (prose's
-   SKILL.md, *The cold read*). If you cannot ask, because you run for another
-   agent or under *caller commits*, don't commit: leave the change staged,
-   and put prose's refusal, which names each one kept, in your bug-hunter
-   report, with one open decision per kept one ("keep as is · fix it"). Once signed,
-   the trailer ends with the cold read's counts; pass it as printed.
-4. Commit once, passing the text after `Prose: ` as a family before `--`:
+   `S="<prose's scripts directory>"; python3 "$S/prose.py" check -F msg.txt --pass <token>`.
+   If it exits 5, it prints no trailer yet: it asks for a cold read before it
+   will sign. See *If prose asks for a cold read*, after the command below.
+   When the second call succeeds after a cold read, the `Prose:` value it
+   prints ends with the cold read's counts (how many findings there were, and
+   how many were fixed or kept); pass the whole value as printed.
+4. Commit once, passing prose's value in a *family* before `--`. A family is
+   four shell arguments: `--verified-value`, the verifier's path
+   (`$S/verify-staged.sh`), the key `Prose`, and the value, which is the text
+   after `Prose: ` that the second call printed. Keep the value quoted: it holds
+   a space, and unquoted it would split into two arguments. After `--` come the
+   same arguments as without prose: `-F msg.txt`, the `Bug-hunter:` value, and
+   the optional `Co-Authored-By` value. Pass `-F` the `msg.txt` as it stood at
+   the last run of the second call, the run that printed the value: the `Prose:`
+   value is tied to that exact text, so any edit after that call makes the
+   commit refuse. Set `BH` and `S` in the same tool call that runs the command,
+   as the block below does: a variable set in an earlier tool call is gone by
+   now. The `Prose` value below is a sample: pass the one your second call
+   printed. For a skip, pass the skip value, such as
+   `skipped at triage (docs only)`, in place of `1 iteration, 1 bug fixed`.
 
 ```bash
+BH="<base directory>/scripts/commit-with-trailer.sh"
+S="<prose's scripts directory>"
 "$BH" --verified-value "$S/verify-staged.sh" Prose "✓ 4d593e935186:9138830a72a2" -- \
-  -F msg.txt "1 iteration, 1 bug fixed" "Claude Opus 5 (1M context) <noreply@anthropic.com>"
+  -F msg.txt "1 iteration, 1 bug fixed" "<Co-Authored-By value from your attribution instructions>"
 ```
 
-A commit that changes `openspec/` carries spec-check's `Spec-check:` value
-too, when spec-check is installed (the same `list` says so): one more
-`--verified-value` family before `--`, as spec-check's SKILL.md (*Commit*)
-shows.
+**If prose asks for a cold read** (the second call exits 5), it prints a
+cold-read brief. Follow prose's SKILL.md, *The cold read*, which gives the
+form of the report file and the dispositions file. In order: you start a fresh
+subagent and give it the brief; it writes a report file; you answer the report
+in a dispositions file; then you run the second call again with
+`--cold-read <report file>` and `--dispositions <dispositions file>`. If you
+cannot start a subagent, prose's reference.md, *Cold read: counts, refusals,
+reuse and hand-back*, says what to do: hand the cold read back to whoever
+reads your result, or, when nothing does, read the brief yourself. The cold
+reader's report holds findings, each a place it stopped, and one understood
+line per item, saying what it took the item to mean. The
+dispositions file answers each finding with `fixed` or `kept`, and each
+understood line with `matches`, `fixed` or `kept`. When the rerun succeeds,
+run the commit command shown in step 4, putting in the `Prose` value the rerun
+prints. The one exception is in the next paragraph: when you would keep a
+finding but cannot ask a person, you don't commit at all.
 
-The message is `msg.txt` itself, the file prose signed. Stage and edit nothing between the
-second call and the commit: the script runs prose's verifier first and refuses
-the commit if the tree or the message changed. A skip gets the prose pass too.
+To keep a finding or understood line is to leave the passage it is about
+unchanged; for an understood line, that means accepting that a reader may take
+a meaning other than yours. Before you keep one, a person must agree, through
+your host's interactive picker, and you write `kept (asked): <reason>` against
+it in the dispositions file. Don't commit if you would keep a finding or line
+but cannot ask a person: for example, because you are a subagent with no
+picker, or because you run under *caller commits* (a caller's brief that
+leaves the commit to the caller; see [When the caller
+commits](#when-the-caller-commits)). Leave the change staged, in the
+dispositions file write `kept: <reason>` against each finding or line you
+would keep, and run the second call anyway, to get its refusal: it refuses any
+`kept` without `(asked)`, and its message names each one. Put that message in
+your bug-hunter report, with one open decision ("keep as is · fix it") for
+each finding or line it names.
+
+A commit that changes `openspec/` carries spec-check's `Spec-check:` value
+too, when spec-check is installed (the `manage-skills` list used above to
+check for prose says so): one more `--verified-value` family before `--`, as
+spec-check's SKILL.md (*Commit*) shows.
+
+Stage and edit nothing between the second call that printed the value and the
+commit: just before committing, the script runs prose's verifier, which refuses
+the commit if the staged files or the message changed since that call. If it
+refuses, run prose's two calls again and commit with the new value.
 
 **A prose pass that touches only comments, docs or the message needs no new
-hunt.** The `Bug-hunter-Tree` binding is minted at commit time, over the tree
-that lands, so it covers the rewrite. If the pass changes code, code was
-written since the last clean pass, and a hunt is owed.
+hunt.** The hunt covered the code, and such a pass leaves the code as it was.
+The `Bug-hunter-Tree` binding still matches: the script mints it when it
+commits, over the files staged then, rewrite included. If the pass changes
+code, code was written since the last clean hunt, and a hunt is owed.
 
 Three things are required every run, and they are the ones agents drop first:
 
@@ -795,8 +1035,9 @@ detail and a worked example: [reference.md](reference.md#the-caller-commits-resu
 ### Then ask, one recommendation at a time
 
 Whenever the report carries a recommendation — a root cause, a finding too large
-for the change under review, anything an abort left unresolved, or a Step 3
-property worth keeping as a permanent guard — **stop and
+for the change under review, anything an abort left unresolved, a Step 3
+property worth keeping as a permanent guard, or exported code that a search
+found no caller for — **stop and
 ask the user what to do with it. Each one separately.** Do not apply them
 silently, and do not decide on their behalf that they are out of scope. A
 recommendation is where a small change prevents a class of bugs rather than one
@@ -808,6 +1049,11 @@ recommendation, in severity order. Offer only the options that honestly apply:
 you do not, say so and offer the other two. Padding the menu with an option you
 have no confidence in is how a run ends with a hopeful patch on a problem nobody
 understood. A worked example is in
+[reference.md](reference.md#asking-about-a-recommendation).
+
+**Exported code with no caller found has its own three options**: remove it,
+keep it and add a test of its contract, or skip. Keeping it is the safe
+default, and removal needs the user's yes. The wording is in
 [reference.md](reference.md#asking-about-a-recommendation).
 
 **If the report reached you from an agent you spawned, the asking is yours.**
@@ -857,7 +1103,11 @@ no options under it, is the same thing one hop later.
 
 - Run inside a git `pre-commit` hook.
 - `git stash`, amend, or rebase.
-- Weaken, skip, or delete an **existing** test to reach green.
+- Weaken, skip or delete an **existing** test, or change its assertions. The
+  one change allowed is adding assertions to cover a mutation survivor, proven
+  green on the real code and red on the mutant (Step 4). A test that asserts
+  nothing still stays: it catches crashes.
+- Mutate source in the real tree. Mutants live only in a throwaway copy.
 - Leave a failing or discarded test in the tree.
 - Report a bug with no failing test, or a style opinion of any kind.
 - Apply a refactor larger than the change under review.

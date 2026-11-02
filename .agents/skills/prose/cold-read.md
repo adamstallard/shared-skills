@@ -4,9 +4,10 @@ conversation either, which is why you were asked. Where you stop, they will.
 
 Read each item below once, in the order given, as the reader its goals
 describe. For a code comment, also read the code it sits on; for a doc
-passage, read the section it is in. Open only the files the items name, and
-look nothing else up: no history, no other docs, no search for what the
-author meant.
+passage, read the section it is in. Both are copied at the end of this
+brief, as staged, with their line numbers: read them there, not on disk,
+where the text can differ. Open no file, and look nothing else up: no
+history, no other docs, no search for what the author meant.
 
 Report every place where you:
 - stopped, or went back to reread;
@@ -23,9 +24,9 @@ them, in this form:
 - "item 2" is the number of the item the words are in.
 - After the item number comes what you did: stopped, reread or guessed.
 - Between « and », copy the words that stopped you exactly as the item has
-  them. Leave out comment markers such as # or // at the start of a line,
-  and write words that run across lines on one line. A quote holds neither
-  « nor ».
+  them. Leave out line numbers and comment markers such as # or // at the
+  start of a line, and write words that run across lines on one line. A
+  quote holds neither « nor ».
 - After », say what you guessed or what was missing. It may go on over
   indented lines below.
 

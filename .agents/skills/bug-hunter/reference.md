@@ -109,6 +109,46 @@ Rules for the report:
   reason is a shrug.
 - Say `clean` for an iteration that found nothing, rather than omitting it. A
   missing iteration reads like it was skipped.
+- **When mutants ran**, the result block carries one `mutation` line and
+  the report carries a per-operator table:
+
+  ```
+    mutation  14 mutants of 4 changed functions — 11 killed (1 by timeout),
+              2 survivors killed by new or strengthened tests, 1 dead code
+              removed, 0 stale, 0 ignored
+
+  ── mutation ─────────────────────────────  14 mutants · 4 functions
+
+    operator            mutants  killed  timeout  new test  finding  stale  ignored  dead code
+    relational                5       4        0         1        0      0        0          0
+    logical                   3       3        1         0        0      0        0          0
+    statement deletion        4       2        0         1        0      0        0          1
+    return value              2       2        0         0        0      0        0          0
+    gh calls refused  0
+  ```
+
+  `killed` includes the mutants killed by timeout, and `timeout` counts
+  them again, so the count can be read either way. `stale` counts
+  survivors dropped because a fix had already removed the mutant's
+  original text ([Survivors that arrive during Steps
+  4–7](mutation.md#survivors-that-arrive-during-steps-47)).
+
+  The `new test` column counts strengthened tests too, and the tests
+  written for trust-boundary checks and for exported code a search found a
+  caller of. The `dead code` column counts both dead code removed and exported
+  code kept as a recommendation because a search found no caller; the
+  line counts only the removed, and each is listed in its iteration. Exported
+  code the user later says to remove counts once, as removed. A survivor
+  that led to a bug is not on the line: it is reported as a finding, in
+  the iteration it was proven in, and counted in the `finding` column. The table keeps all
+  of these so each operator's productivity can be reviewed across runs.
+  The line's counts need not add up to its total: findings, and exported
+  code kept as a recommendation, are in the table and the report but not on
+  the line. Each
+  removal of dead code is listed in its iteration as `REMOVED`, with where
+  it was and one of three reasons: `provably dead` and why, `refuter found
+  no live path`, or `exported, no caller found; the user said nothing
+  outside uses it`.
 - On `SKIP` at triage, print **one line** and nothing else —
   `🔍 bug-hunter · skipped at triage — <reason>`. It is worth printing rather
   than staying silent: knowing the check ran and why it stopped is useful, and
@@ -458,6 +498,38 @@ property's run time lands on every suite run.
    3  skip              — no property, no note
 ```
 
+**Exported code that a search found no caller for** is asked around the
+one fact only the user may know: whether anything outside the repository
+uses it. Keep this wording, filling the brackets: what the code is, what
+was searched, and what the mutant changed.
+
+```
+Dead code? `<file>: <name>` is exported but has no caller in this repository, and a search of <what was searched> found none. The mutation run found no test that notices <what the mutant changed>. If nothing outside uses it, it can be removed; if something does, it is a public contract that deserves a test.
+1. Remove it — nothing outside uses it.
+2. Keep it and add a test of its contract.
+3. Skip.
+```
+
+For example:
+
+```
+④ Dead code? `src/duration.ts: formatDuration` is exported but has no
+   caller in this repository, and a search of the adamstallard and
+   acme-tools organisations and this repository's configuration found
+   none. The mutation run found no test that notices its `>= 60` made
+   `> 60`. If nothing outside uses it, it can be removed; if something
+   does, it is a public contract that deserves a test.
+
+   1. Remove it — nothing outside uses it.
+   2. Keep it and add a test of its contract.
+   3. Skip.
+```
+
+Option 2 is the safe default, since removal needs the user's yes: mark it
+as the recommended option in the picker. Option 1 removes the code as Step 6 does, keeping
+every test green, and option 2 writes the test as Step 4 does, reviewed by
+a fresh refuter.
+
 An agent running this for another agent has no picker that reaches the user. It
 prints this shape, in full, with [the hand-off footer](#the-hand-off-footer)
 under it, and the agent that spawned it does the asking — through its own
@@ -530,6 +602,22 @@ through the picker, in severity order:
   next reply, before anything else — through its picker, one question per
   cause, or the root-causes block above verbatim. A summary is not the
   question.
+```
+
+**Mutation leftovers are `budget` entries** ([mutation.md](mutation.md#at-the-cap)): one entry for
+the survivors the finder had not answered when iteration 3's Step 7 ended,
+listing each mutant, and one for each survivor answered as a candidate but not
+yet proven, with its concrete input and wrong outcome. Option 1 is a new run scoped to them:
+
+```
+  ③ 2 mutation survivors were never answered
+     kind        budget — inside the change under review, unjudged
+     affects     M7 parser.py:41 `<` → `<=` · M12 parser.py:88 `return x` → `return None`
+     odds        unknown — the finder never read them against the code
+
+     1  new run         — iteration 1, these survivors re-mutated and judged
+     2  write it down   — record them as a known gap, change nothing
+     3  skip            — no pass, no note
 ```
 
 An abort's headline reads `3 iterations · aborted · … · 2 to decide`, and the
@@ -689,6 +777,9 @@ library: even seeded, its red can come from another counterexample, and its
 inputs change with the library. Keeping it as a guard beside this test is the
 user's decision, in Step 9.
 
+A test for a mutation survivor is proven differently, on the mutant:
+[mutation.md](mutation.md#step-4--a-test-for-a-survivor).
+
 ### Step 5 — Refute
 
 Delegate each proven bug to a **separate** subagent that has not seen the
@@ -740,8 +831,8 @@ information, not a failure.
 
 One more question waits for the parallel pass to come back, because it needs the
 survivors: ask a single **fresh** agent, about the set as a whole, **do any of
-these fixes fight each other?** Fresh, not the resumed Step 6 finder — that
-agent is about to author the fix plan this question is meant to check. Name every case of:
+these fixes fight each other?** Fresh, not whoever will write the Step 6 fix —
+that agent is about to author the fix plan this question is meant to check. Name every case of:
 
 - **Fixing A reopens B.** The cheap fix for one finding creates a hole another
   finding is about. (Real example: excluding any command containing
@@ -755,31 +846,39 @@ agent is about to author the fix plan this question is meant to check. Name ever
 Carry that list into Step 6 and fix in an order that respects it. A conflict
 found here costs a sentence; found after both fixes are written, it costs both.
 
+**Survivor tests and judged-dead code** get fresh refuters of their own, launched
+with these: [mutation.md](mutation.md#step-5--survivor-tests-and-dead-code).
+
 ### Step 6 — Fix
 
-**Resume this iteration's Step 3 finder via `SendMessage` — do not spawn a
-fresh fixer by default.** Nothing has mutated the source between Find and Fix:
-Step 4 only added test files, Step 5 only read. The finder has already read
-every changed file in full, traced each candidate's reachability, and run the
-candidates — exactly the context a cold fixer would spend its first tokens
-rebuilding. The message hands it what it does not have:
+**Who writes the fix is your choice; what it is given is not.** Three ways,
+all allowed:
 
-- **the surviving findings** — which of its candidates were proven red and not
+- **Write it yourself**, in the loop you are already in, when you hold the
+  findings and the code.
+- **Resume this iteration's Step 3 finder via `SendMessage`** when that
+  saves tokens: it has already read every changed file in full, traced each
+  candidate's reachability and run the candidates, which a cold fixer would
+  spend its first tokens rebuilding. Only this iteration's finder, never an
+  earlier one's: Step 6 rewrote the files since that one read them.
+- **Start a fresh agent on the strongest available model**, with the files
+  under review in the brief.
+
+Whoever writes it works from:
+
+- **the surviving findings** — which candidates were proven red and not
   refuted, with the failing test for each;
-- **the refuter verdicts** — what was refuted and why, so it does not re-fix a
-  dropped finding;
+- **the refuter verdicts** — what was refuted and why, so a dropped finding is
+  not re-fixed;
 - **the fix-conflict notes** from Step 5's cross-finding question, and the fix
   order they imply;
+- **the dead code to remove**, by
+  [mutation.md](mutation.md#step-6--removing-dead-code);
 - the fix instructions below (prevention question, scope confinement).
 
-**Fall back to a fresh `Agent` call — strongest available model — only when
-that finder is no longer available**: the `SendMessage` errors or the agent
-cannot be reached, its session has ended, or the finder belongs to an earlier
-iteration than this Step 6 (each iteration's Step 3 spawns fresh, so each
-Step 6 resumes only its *own* iteration's finder, never a previous one's). The
-fresh fixer then gets the full brief: the files under review, the surviving
-findings with their failing tests, the refuter verdicts, and the conflict
-notes.
+The independence that matters is elsewhere, and it stays: Step 5's refuters
+never see the finder's reasoning, and each iteration's Step 3 finder is
+fresh.
 
 Before writing the fix, it must answer: **"Is there a better approach that
 would have prevented bugs like this from ever happening?"** When more than one
@@ -793,15 +892,13 @@ do not fix it here and do not iterate on it. Report it (Step 9) with a
 recommendation, and only recommend the larger change if it has a high chance
 of success.
 
-**Keep the prompt's prefix byte-stable across iterations**, here and at Step 3 —
-these are the two strong-model delegations and a run repeats each up to three
+**Keep the prompt's prefix byte-stable across iterations** whenever Step 3, or a
+fresh Step 6 fixer, starts a strong-model agent — a run repeats each up to three
 times. Put the skill instructions and the file content under review first,
 identical every iteration, and append the per-iteration specifics — the fix just
 applied, what the last pass found — at the end rather than weaving them through.
 An unchanged prefix hits prompt caching instead of re-billing the same context
-each time. Resuming the finder at Step 6 does not retire this rule: it governs
-the fallback path when a fresh fixer is spawned, and the Step 3 spawns
-themselves, which repeat every iteration regardless.
+each time.
 
 ### Step 7 — Verify
 
@@ -814,9 +911,11 @@ themselves, which repeat every iteration regardless.
   committed until it holds. Where the project cannot select a subset cheaply,
   the targeted run *is* the full run and this changes nothing.
 
-**Never modify, weaken, delete, or skip an existing test to get to green.** If
-a pre-existing test now fails, the fix broke it — fix the fix. If you cannot,
-revert that fix and report it as unresolved.
+**Never weaken, delete or skip an existing test, or change its assertions,
+to get to green.** The only change an existing test ever gets is added
+assertions for a mutation survivor, under Step 4's proof. If a pre-existing
+test now fails, the fix broke it — fix the fix. If you cannot, revert that
+fix and report it as unresolved.
 
 ## Committing
 

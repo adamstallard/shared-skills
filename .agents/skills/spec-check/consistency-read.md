@@ -15,8 +15,23 @@ Read, in this order:
 2. Every spec under openspec/specs/ on the base branch:
    `git show <base>:openspec/specs/<capability>/spec.md`. Read all of them,
    not only those the change names.
-3. Every other open change under openspec/changes/ (not archive/).
-4. Every open pull request that touches openspec/: list them with
+3. Each dependency the proposal declares, if it is a stacked change: a line
+   `Builds on: <change> (<owner>/<repo>#<number>)`. Run
+   `git fetch origin pull/<number>/head`, which works for an open or merged
+   pull request, from a fork too, and read every file of the dependency's
+   change with `git show FETCH_HEAD:openspec/changes/<change>/<file>`. If the
+   fetch fails, or the change is not there, report that as a finding and
+   read on without it. Apply the dependencies to the base branch's specs in
+   the order listed, each delta's RENAMED, REMOVED, MODIFIED and ADDED
+   requirements in that order. From here on, "the base" means the base
+   branch plus those dependencies: a requirement a dependency removes or
+   renames is gone, and one it rewrites reads as the dependency wrote it.
+   Compare the change against that base, and check that what it modifies or
+   removes still matches what the dependency now says. Do not report a
+   dependency as a conflicting change for what it defines; the change builds
+   on it.
+4. Every other open change under openspec/changes/ (not archive/).
+5. Every open pull request that touches openspec/: list them with
    `gh pr list --state open --json number,title,files`. Then, for each pull
    request that changes a spec this change also touches, or that adds or
    edits an OpenSpec change naming the same capability, read `gh pr view <n> --json title,body,comments` and
@@ -24,11 +39,11 @@ Read, in this order:
    `gh issue view --comments`: when output is not a terminal they print only
    the comments and drop the title and body. Read an issue the change cites
    with `gh issue view <n> --json title,body,comments`.
-5. The repository's architecture or design docs, if it has them (for example
+6. The repository's architecture or design docs, if it has them (for example
    docs/architecture.md, ARCHITECTURE.md, docs/design/).
 
 Then go through the checklist below. For a finding that sets the change
-against something else (items 1, 2, 3, 7, 9, 11, 12), quote both sides: the
+against something else (items 1, 2, 3, 7, 9, 11), quote both sides: the
 change's words with file:line, and the words it conflicts with, with
 file:line, PR number or issue number. Such a finding with one quote is a
 guess. A finding about the change alone (items 4, 5, 6, 8, 10) quotes the
@@ -57,15 +72,10 @@ change and says what is missing.
    another, so a label built on it carries no information).
 10. A fact the change depends on that nobody has measured (whether a stream
     reports exit codes), stated as if known. It belongs in tasks.md as a task
-    to measure it and in the proposal as an open question, and anything built
-    on it must degrade honestly when it turns out false.
+    to measure it and in design.md's Open Questions, and anything built on it
+    must degrade honestly when it turns out false.
 11. Evidence shown as checked when its source does not exist yet. A value
     from something unbuilt must read "not checked", never pass by default.
-12. Decisions the proposal does not open with: a choice the reviewer is asked
-    to accept that is not in its decisions section, or a question still open
-    that is not listed as open. Check this item only when the repository's
-    `openspec/spec-check.yaml` says `decisions-first: enforce`: otherwise its
-    team has not chosen to open proposals with their decisions.
 
 Write each finding as:
 
@@ -74,7 +84,7 @@ Write each finding as:
     Conflicts with: «exact words» (<file>:<line> | PR #<n> | issue #<n>),
                     or "none" for a finding about the change alone
     Why they cannot both hold, or what is missing: <one or two sentences>
-    Who decides: author | a person (a question for the decisions section) |
+    Who decides: author | a person (a question for design.md's Open Questions) |
                  another change or PR (report it; do not edit it)
 
 End with one line per checklist item you found nothing for:

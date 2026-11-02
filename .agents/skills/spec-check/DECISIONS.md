@@ -6,9 +6,8 @@ serves the spec stage of review: a change's specification is reviewed and
 approved before any code for it is written, and that review is where a
 reviewer's time goes. It has two parts: a script, `scripts/spec_check.py`,
 and a consistency read done by a fresh subagent. The script's `check`
-subcommand runs the mechanical checks, `sign` runs them on the staged tree
-and prints the commit trailer, and `setup` records whether the repository
-enforces the decisions-first rule.
+subcommand runs the mechanical checks, and `sign` runs them on the staged tree
+and prints the commit trailer.
 This file is why it works the way it does.
 
 Each entry: the decision, why, and what was rejected.
@@ -42,9 +41,10 @@ consistency read, the fixing and the commit.
 **Why.** Most of the 44 amendments were judgment: whether two rules can both
 hold, whether a hazard is handled, whether a fact was measured. Of the eleven
 kinds, only a SHALL with no scenario, a rule stated twice and stale
-citations can be decided by a program. The script also checks one thing
-outside them: that the proposal opens with its decisions. A script alone would pass the
-specs that needed the most work.
+citations can be decided by a program. A script alone would pass the
+specs that needed the most work. Beyond those kinds, the script also runs
+`openspec archive` on the change, to catch what OpenSpec would refuse at
+archive time (see *Every change is archived into a scratch copy*).
 
 **Rejected.**
 - **Repeating what `openspec validate --strict` checks.** The script runs it
@@ -88,14 +88,6 @@ Each narrower guess fixed one input and broke another. A path with a `/` that
 neither tree has, at that line, is the one citation the script can be sure is
 broken.
 
-**The decisions section is read with the same caution: only an
-unmistakable label ends it.** Each list item is a decision until the "still
-open" label, and a label guessed wrongly would leave decisions unchecked or
-call open questions decisions. The label counts only
-as a whole label: a heading, a bold or italic label, a line ending in a
-colon, or a line saying nothing else. An indented line continues the
-decision above it, whatever it says.
-
 **Rejected:**
 - An allowlist of file extensions deciding which bare names are files. Each
   version of the list had a gap the next pass found. A list of host
@@ -103,6 +95,349 @@ decision above it, whatever it says.
   are never files.
 - Treating every citation as a check. That would drop the error for a
   citation copied from another branch, whose line no longer exists here.
+
+---
+
+## A stacked change declares what it builds on
+
+**Decision (Adam, 2026-10-21; on 2026-10-24: the severities, reading an
+open dependency's presence from the specs' content, the real `openspec
+archive`, judging merged dependencies without replaying them, and archiving
+the stacked change itself).** A change that applies
+on top of another open change says so in its `proposal.md`, one line per
+dependency, right after the title:
+
+```markdown
+Builds on: seat-files (adamstallard/igor#171)
+```
+
+The syntax is exactly `Builds on: <change> (<owner>/<repo>#<number>)`, alone
+on its line. Several lines list a chain in the order it applies to main.
+`check` and `sign` then read each dependency's change from its pull
+request's branch. They copy the checked tree's `openspec/specs` and
+OpenSpec's config files, never `changes/`, into a temporary directory. Then,
+in the listed order, they take each open dependency, drop the delta items
+that the copy already shows, and archive the rest into the copy with one run
+of the real `openspec archive <change> --yes --no-validate`. A merged
+dependency is never archived: it is looked for in the tree by requirement
+name (see
+*A merged dependency is judged, never replayed*). Every check on the
+stacked change then runs against the specs in the copy (see *Why the real
+`openspec archive`*). Because the archive runs the OpenSpec CLI, the CLI is
+required: a change with a `Builds on:` line, checked where `openspec` is not
+on PATH, gets a blocking `stack` error, never a pass.
+
+A declaration brings two more kinds of finding:
+- `stack`, about the dependencies. It is an error for:
+  - a line that cannot be read, or a change that names itself;
+  - a dependency that cannot be read, or a pull request that holds no
+    change of the declared name;
+  - deltas `openspec archive` refuses (the error quotes the CLI's message
+    and names the dependency);
+  - a merged dependency whose result the tree does not show;
+  - a delta with text but no requirement header the script can read, so
+    that no dependency is left out silently;
+  - a missing OpenSpec CLI.
+
+  When the combined state cannot be built, the duplicate and drift checks
+  do not run for the change, and the error says so. The other checks, such
+  as `no-scenario` and `citation`, do not depend on it and still run. A
+  dependency whose deltas are all already in the tree, or a merged one
+  whose result shows there, gets a non-blocking check instead, telling the
+  author to remove the line. An open one whose deltas are partly there gets
+  a check naming each delta.
+- `drift`, about the stacked change. It is an error when the stacked change
+  modifies, removes or renames a requirement that main plus its
+  dependencies no longer define, or when `openspec archive` refuses the
+  stacked change itself on top of them. It is a non-blocking check, quoting
+  both texts, when a modified requirement keeps a sentence the dependency
+  has since replaced, or when the tree already holds a requirement a
+  dependency adds, with another text (see *Why sentence drift is a check*).
+
+**Whether the specs hold an open dependency is read from its content.**
+For a dependency whose pull request is open or closed without merging, the
+only question is which of its deltas the specs so far (the tree plus the
+open dependencies listed before it) already show, and the specs answer it
+directly. Each delta item, read from its pull request's branch, is
+compared with them, and only what is not already there is archived:
+- **ADDED:** already there when the specs have that requirement with that
+  text. With another text, it is dropped and the tree's text kept, with a
+  non-blocking drift check quoting both.
+- **REMOVED:** already there when the requirement is absent.
+- **RENAMED:** one delta's renames are read in order, as OpenSpec applies
+  them, and are kept unless that reading shows every pair already done.
+  When every rename applies in turn, each from a name that is there to one
+  that is not, they are not done. A swap through a temporary name (X to T,
+  Y to X, T to Y) applies that way to the specs as they stand before the
+  swap, though X and Y are both there before and after. Otherwise the renames are done when the
+  names they end on are there and the names they leave behind are absent,
+  so a chain (X to Y, then Y to Z) is done when the specs show Z alone.
+  Kept renames move their names before the other items are read, as the
+  archive applies renames first.
+- **MODIFIED:** already there when the specs' text is the dependency's.
+  Otherwise it is kept and archived (see *A modified requirement is
+  decided by its pull request's state*).
+
+Each open dependency then ends in one of three states:
+- every delta already there and none the tree holds with another text: a
+  check that the `Builds on:` line is stale;
+- none there: all archived;
+- some there and some not: the missing ones archived, and a check naming
+  each delta and which state it is in.
+
+Names match exactly, as OpenSpec matches them, so a rename that only
+changes case is read as one, in the drift check, the duplicate check's
+exemptions and the hints too. "The same text" means the whole block below
+the header, as OpenSpec replaces it, subsections and case included; only
+line endings and blank space around lines are ignored. A requirement block's
+header matches in any case, as OpenSpec's `/^###\s*Requirement:/i` does, in
+specs and in deltas alike. A reader that took only `### Requirement:` would
+drop a dependency written with `### requirement:` from the stack, silently.
+The bullet forms, a REMOVED bullet and a rename's FROM and TO lines, match
+with their case, as OpenSpec matches them.
+
+`openspec archive` refuses what does not fit: a requirement modified or
+removed that is not there, a rename whose old name is missing or whose new
+name is taken. Each refusal is a blocking `stack` error that quotes the
+CLI and names the dependency.
+
+**The stacked change itself is archived too,** after its open dependencies,
+into a second copy of the temporary specs, as every change is (see *Every
+change is archived into a scratch copy*). Its refusals are `archive` errors,
+like any change's. This second copy is used only for the refusals: the
+duplicate and drift checks still read the specs before the stacked change is
+applied. A refusal is left out only when a drift error already sits on its
+line, so a requirement is not reported twice; an error of any other kind on
+that line does not hide it. A refusal saying a capability has no spec names
+no requirement, so it is placed at the first rename or modification in that
+capability's delta. The drift check reports an error on that line too, so the
+refusal is not repeated there.
+
+A dependency's own proposal may build on a change that the stacked change
+does not list before it. If that change's pull request cannot be read, it
+is an error. A merged one must show in the tree, by the rules for merged
+dependencies below, or it is an error saying to merge main. An open or
+closed one must already be held, by content, in the specs so far, with
+nothing of it left to archive; otherwise it is an error saying to list it
+before the dependency. Without these, the stack would leave out what the
+dependency rests on, and a duplicate of it would pass.
+
+**A merged dependency is judged, never replayed** (Adam, 2026-10-24). A
+dependency whose pull request has merged is never archived into the
+temporary specs, and no later dependency is taken back out to judge it. Its
+result is already in main, so the only question is whether the branch
+being checked holds it, and that is read from the tree's requirements by
+name:
+- each requirement it adds or modifies is there by name, with any text,
+  since main may have reworded it since (Adam's decision, 2026-10-24);
+- each requirement it removes is absent;
+- its renames, read in order, are done: the names they end on are there and
+  the names they leave behind are absent.
+
+A later merged dependency, one listed after this one or building on it, may
+have changed those names since. A name the later one removes or renames
+away need not be there (Adam's decision, 2026-10-24), and a name it adds or
+renames onto need not be absent, so a fully merged stack passes whichever
+of its dependencies are listed. When the tree shows all of a merged
+dependency's result, the dependency gets a non-blocking check that its
+`Builds on:` line is stale. When any of it is missing, it is a blocking
+error that names what is missing and says the branch does not hold the
+merged dependency's result: merge main into the branch.
+
+The one exception is a dependency merged into main but not yet archived
+there: when the tree still holds its change open with the same deltas, the
+archive that updates the specs is still to come, so it is handled as an
+open one and archived. igor merges a change and archives it later, in the
+order its issue #204 sets, so without this exception every change stacked
+on it would fail in between.
+
+**A modified requirement is decided by its pull request's state.** When
+the tree's text of a requirement a dependency modifies differs from the
+dependency's, one fact settles it: whether the dependency's pull request
+has merged, from one `gh pr view <n> --json state`.
+- **Open, or closed without merging:** the difference is expected, since
+  the dependency has not reached main. Its text is archived into the
+  checked state, quietly. A closed pull request also gets its own
+  non-blocking check.
+- **Merged:** the requirement only has to be there by name. Main may have
+  reworded it since, and Adam accepts that the author then gets only the
+  stale-line check.
+
+An open dependency listed later may replace text that an earlier one put
+in, without building on the earlier one, directly or through another
+listed dependency. The earlier text would then be left out with nothing to
+show it, so it gets a non-blocking check. The check compares texts, not
+names: after each archive run, any text an earlier dependency archived that
+no longer appears in that capability is reported.
+
+**Why the real `openspec archive`, and only for open dependencies**
+(Adam, 2026-10-24). The first design replayed OpenSpec's archive by hand,
+in memory: renames, then removals, modifications and additions. Every
+bug-hunter iteration over it found another sequence it misread: a rename
+chain in one delta, a shift (Y to Z, then X to Y), a removal undone by a
+later re-add, a rename onto a name an earlier dependency removed. Each fix
+added a rule, and the rules were a second, partial definition of what
+OpenSpec does. The CLI is the definition, so open dependencies are
+archived with it, once each, and its refusals are the errors.
+
+Merged dependencies went the same way. To judge an earlier dependency
+against the specs as they stood before a later merged one, the script
+took the later one back out by hand, reversing its renames, additions and
+removals, and decided whether a later dependency set a requirement again
+by replaying the later ones with and without it. That was a hand-written
+reversal of the archive, and the next bug-hunter run found nine more
+problems in it, mostly from those two pieces: a merged stack listed in
+part failing, a swap read as done, the CLI run many times per dependency.
+A merged dependency's result is already in main, so there is nothing to
+replay: the branch either holds it or is behind main, and the content of
+the tree says which. Both pieces were removed.
+
+The content rules above still decide what an open dependency adds that the
+specs already hold, since only what is not there is archived. The cost is
+a requirement: the OpenSpec CLI must be on PATH wherever a stacked change
+is checked. A run without it is an error, not a silent pass, since a
+stacked change checked against main alone reports false duplicates and
+misses real ones.
+
+The tree's specs, the dependencies' deltas and the stacked change's own
+delta are all read with `openspec show --json` (see *spec-check reads
+OpenSpec only through its CLI*), so a requirement's name and text are what
+OpenSpec reads. Two versions of a requirement are the same when OpenSpec
+reads the same text and scenarios from both and their fenced code matches,
+since `show` leaves fenced code out and the archive writes it.
+
+When none of a capability's delta items is dropped as already there, the
+archive gets the dependency's delta file for it verbatim. Otherwise the
+archive gets a delta rebuilt from the kept items. Each item is written as
+the dependency's delta file writes it: its lines from its header to the next
+requirement header or section (see *A finding's line is a text search*).
+
+**Why the pull request's state, and not the text it was written against.**
+The design before this one inferred, for every differing modification,
+which text the dependency had replaced. It rebuilt that base from the
+dependency's branch, the changes it builds on and their archives, and
+called anything else a third version. Every bug-hunter run over it found
+new states it misread (a reverted rewording, an unrelated open change, a
+rename-only dependency, a stale copy), and two let a real duplicate pass.
+The pull request's state is one fact GitHub reports reliably. A merged
+dependency whose result the branch lacks means the stacked change rests on
+something the branch does not hold yet. That is an error, because a
+non-blocking warning would bury it among routine checks. A merged
+dependency whose text main has reworded since is not an error: the
+requirement is there, main's text is the one to build on, and the
+stale-line check tells the author so.
+
+The pull request must still hold the change: its file list must touch
+`openspec/changes/<change>/`, or an archive directory of it that the pull
+request itself adds, and then the deltas are read from there. `gh pr view`
+lists only a pull request's first 100 files. When a list of 100 files shows
+neither, the list is read in full from GitHub's files API. If that cannot
+be read, or stops at the API's limit of 3,000 files without showing the
+change, the `Builds on:` line is an error.
+
+**Why content and not history.** The earlier designs asked whether a
+dependency had been archived. They read it from archive directories, then
+from merge commits and archive events in git history. Three bug-hunter runs
+each found about seven git states the rule misread:
+- reverts of a merge or of an archive;
+- a change name reused after its archive;
+- squash merges, and merges still in progress;
+- a pull request merged into another pull request's branch;
+- a stale local base ref;
+- file lists cut short, or listing deleted files.
+
+Two of them let a real problem pass `sign`. Whether a dependency was
+archived was never the question; whether the tree holds its result was,
+and the content answers that whatever path the history took.
+
+**Why.** igor PR #216 (change `lore-search`) builds on igor PR #171 (change
+`seat-files`), which renames a `task-execution` requirement and rewrites it.
+Once #216's delta restated #171's new requirement, `check` reported
+duplicates on #216: sentences of #171's new requirement are also in main's
+old requirement, which only #171 removes. The duplicate check excuses such a
+pair only when the change being checked removes or renames the old
+requirement itself. A removal by another change does not count, even with
+both changes in one tree, and #216 had no way to say that it applies on top
+of #171. In igor, stacking is normal: igor issue #204 sets the order in
+which about twenty open changes are archived.
+
+**Why a line in the proposal.** It sits in the change that depends, so a
+reviewer reading the proposal sees what it rests on, and the change's checks
+depend on nothing outside the change and the pull requests it names. Its
+form is fixed so that a near miss (`**Builds on:**`, a bare `#171`, a list
+item) is a `stack` error rather than a line silently ignored.
+
+**Why the dependency is read from its pull request.** The pull request is
+where its current text is, and where its author keeps changing it. A copy
+in the stacked branch would go stale silently, which is exactly what the
+drift check exists to catch. Reading the head commit with `git show` checks
+nothing out. When the branch is gone, as after a merge, GitHub's
+`refs/pull/<n>/head` still has it.
+
+**Why sentence drift is a check.** A requirement the stacked change edits
+that its dependencies no longer define is certain to be wrong, so it stays
+an error. A kept sentence is not: the rule below cannot tell a sentence the
+author missed from one the author chose to keep while dropping the
+dependency's new one. So it is a check that never fails the run, and it
+shows the kept sentence beside the dependency's new ones for the author to
+judge.
+
+**Why drift reads the dependency's history.** The stacked change's MODIFIED
+text is a full restatement, so nothing in it records which version of the
+dependency it was written against. The mechanical sign that the dependency
+has moved on is a replacement the stacked change missed. The check compares
+three texts of the requirement: an earlier one from the history of the
+dependency's delta, the dependency's current one, and the stacked change's.
+A sentence of the stacked text is reported when the earlier text had it,
+the current text has dropped it, and the current text has also gained a
+sentence the stacked text lacks.
+
+A sentence the dependency only dropped is not reported. A stack is often made
+by moving a rule out of the dependency into the stacked change, so that
+sentence is in the dependency's history and now belongs to the stacked
+change. The check reads at most the fifty latest commits that touched the
+delta, which bounds the work on a long-lived branch; a sentence kept from an
+older text is not reported.
+
+**A hint between declaring and guessing.** Without the line, a duplicate
+against a main requirement that an open pull request removes or renames
+ends with the exact line to add. It stays an error until the line is added:
+the hint guesses, as the rejected inference below would, and only the
+author knows whether the change builds on that pull request. The lookup is
+one `gh pr list` and at most twenty file reads per run. Without `gh`, or
+when GitHub cannot be reached, the hint is left out and the plain error
+stands.
+
+**Left for a later spec-check change.** Three gaps remain in the checks
+that run on every change, outside what archiving a stacked change covers:
+- a requirement block holding a `###` subheading that is not a requirement
+  header gets a false `no-scenario` error;
+- a change with no `Builds on:` line that ADDs a name main already has is
+  not reported;
+- the duplicate check's same-name exemption holds across capabilities, so
+  the same requirement name in two capabilities excuses a duplicate.
+
+**Rejected:**
+- **A repository-wide order file.** igor already keeps the archive order in
+  an issue, #204, and a second copy would drift from it. It would also make a
+  change's checks depend on a file outside the change.
+- **Inferring the stack from open pull requests**, with no declaration. It
+  guesses: two open changes may retire the same requirement, and a change
+  may duplicate a rule by mistake while another pull request happens to
+  remove it. Inference survives only as the hint.
+- **Deciding "archived" from archive directories, or from git history.**
+  Every such rule misread some state of the repository; see *Why content
+  and not history*.
+- **Replaying OpenSpec's archive by hand**, including taking a later
+  merged dependency back out to judge an earlier one, and replaying later
+  dependencies with and without an item to decide whether it was set
+  again. See *Why the real `openspec archive`, and only for open
+  dependencies*.
+- **Archiving merged dependencies.** Their result is already in main; see
+  *A merged dependency is judged, never replayed*.
+- **Inferring the text a dependency's modification was written against.**
+  See *Why the pull request's state, and not the text it was written
+  against*.
 
 ---
 
@@ -153,8 +488,7 @@ them. A reader using them sees the discussion and misses the decision.
 ## Findings go into the spec, not into comments
 
 **Decision.** A finding is fixed by amending the spec. A question only a
-person can decide goes into the proposal's decisions section as an open
-question. A conflict with another change or pull request is reported, not
+person can decide goes into design.md's *Open Questions*. A conflict with another change or pull request is reported, not
 edited.
 
 **Why.** The spec is what `openspec validate` checks, what an implementer
@@ -168,134 +502,250 @@ nobody is doing.
 
 ---
 
-## Proposals open with their decisions
+## Decisions live in design.md
 
-**Decision.** A proposal opens with the decisions the reviewer is asked to
-make; then what is still open; then everything else. In a repository that
-enforces this rule, the script fails a proposal whose first section is not a
-decisions section, or whose decisions section lists no decisions, and the
-agent puts the rule in `openspec/config.yaml`. OpenSpec prints config rules
-to the agent drafting a proposal (verified with OpenSpec 1.6.0: they appear
-inside `<rules>` in `openspec instructions proposal`).
+**Decision.** A change states each decision once, as it stands now, in
+design.md's *Decisions*, and each undecided item in its *Open Questions*,
+both sections OpenSpec's instructions for design.md name. No record is kept
+of how a decision was amended: git and pull request comments hold that.
+spec-check does not check where a decision sits; the reviewer judges it.
 
-**Why.** At the spec stage, the reviewer's job is the decisions.
+**Why.** OpenSpec keeps a proposal to one or two pages of why and what, and
+puts decisions and their rationale in design.md. Reviews of this repository's
+changes read the specs first, then design.md, then proposal.md, so a review can fail fast on
+the specs. A proposal that collects rulings grows without bound: one reached
+275 KB by appending rulings and amendment notes.
 
-**Rejected:** a decisions section anywhere in the proposal. OpenSpec's own
-template opens with "Why", and a reviewer reads in order.
-
-**A decision names a rejected alternative only when it has one** (Adam,
-2026-10-14). Where a real alternative was considered and turned down, the
-decision says what it was and why. Nothing checks for one. Not every
-decision has a real alternative. Requiring one invites weak ones written to
-fill the slot, which add to the reader's work.
-
-**Rejected:** requiring every decision to name a rejected alternative, which
-the script once checked by searching each decision for the word "reject". A
-search like that cannot judge a decision anyway: it finds the word, not a
-real alternative.
+**Rejected:**
+- **Decisions first:** a proposal opening with a `## Decisions` list, checked
+  by the script where a repository chose to enforce it in
+  `openspec/spec-check.yaml`, with a `setup` command to record the choice and
+  a proposal hook asking for it. It rested on a reviewer reading the proposal
+  in order, which is not how reviews happen here, and it put decisions where
+  OpenSpec does not.
+- **Keeping an amendment history beside each decision.** It is what made the
+  proposal above reach 275 KB, and git already keeps it.
 
 ---
 
-## Each repository's decisions-first answer lives in spec-check's own file
+## Every change is archived into a scratch copy
 
-**Decision (Adam, 2026-10-14).** Each repository decides whether its
-proposals must open with their decisions, and `openspec/spec-check.yaml`
-records the answer in one line: `decisions-first: enforce` or
-`decisions-first: off`. With no file, the repository has not decided. Only
-`setup` writes the file: `setup` writes `enforce`, `setup --decline` writes
-`off`.
+**Decision.** `check` copies the tree's specs into a temporary directory and
+archives the checked change, and only that change, into the copy with the
+real `openspec archive <change> --yes --no-validate`. Each refusal is an
+`archive` error at the requirement it is about, quoting the CLI: an ADDED
+requirement whose name is already there, a RENAMED onto a taken name, a
+MODIFIED that drops a scenario the requirement holds, and a requirement
+modified, removed or renamed that is not there. A refusal about a delta file
+as a whole, such as two sections naming one requirement, is reported at line
+0 of that file. Without OpenSpec 1.15.0 or later, the archive is reported
+"not run", like every check that needs the CLI. The tree is never touched.
 
-`check` and `sign` read the file from where they read the change: the
-working tree, the `--ref` branch, or the staged files. From a git tree they
-read it with git and never follow a link. With `enforce`, a proposal that
-does not open with its decisions is an error. With `off`, it is not checked.
-Undecided, no proposal is checked, and the run adds one finding of severity
-`check` saying how to enforce or turn off the rule. A file that holds
-anything else, or a link, directory or submodule in its place, gets one
-`check` naming the problem, and decisions-first is not checked. `check
---json` reports the state as `decisions_first`.
+**Why.** Each of these passes `openspec validate`, which reads a change on
+its own, and fails only when the change is archived, after review. The CLI
+is the definition of what it refuses, as for stacked changes (see *Why the
+real `openspec archive`*). Archiving only the
+checked change keeps one open change's deltas from failing another's check:
+which lands first is not known.
 
-**Why its own file.** Recording a decision should not depend on reading or
-writing a file OpenSpec owns. When the decision was kept as marker comments
-in `openspec/config.yaml`, telling the states apart meant parsing a file teams
-edit by hand, and each round of bug-hunting found another layout it misread:
-a commented-out rule, a rewording below a comment, a `config.yml`. Reading it
-from a git tree for `sign` meant resolving links by hand, through symlinks
-and into submodules, and each of those found another case too. A file only
-`setup` writes, holding one of two lines, has no such cases. Anything else in
-it is reported, never guessed at.
+OpenSpec stops at its first refusal, so one run shows at most one.
 
-**Why the check follows the decision.** A team that turned the rule off chose
-not to follow it, and failing their proposals for it would overrule that
-choice. An undecided repository has not chosen either; failing its proposals
-would decide for it, and saying nothing would leave it undecided for good. A
-`check` never fails a run, so the question is raised without stopping work.
-
-**Why in the repository.** Installing a skill happens once per machine; the
-decision belongs to the repository. Committed there, it is shared: every
-agent on the team reads it, and none asks again.
-
-**The script never edits OpenSpec's config.** Editing a file it does not
-own, as text, in YAML it cannot parse, caused most of the bugs found while
-building this: a rule appended after a document end, a second `rules:` key
-that makes OpenSpec ignore the whole file, a write that failed half way, a
-config that was a link. The agent's own edit tools follow links and
-understand YAML. So when the user chooses to enforce the rule, the agent adds
-it to `openspec/config.yaml` (or `config.yml`), under the existing `rules:`
-→ `proposal:`, and shows the user the change. On a decline, it looks for the
-rule and asks before removing it. SKILL.md, "Setting up a repository", says
-how.
-
-**The rule in OpenSpec's config is best-effort.** It only helps the agent
-drafting a proposal; `check` enforces the rule from `spec-check.yaml` either
-way. Where the agent cannot edit the config, it gives the user the lines and
-says adding them is optional.
+`check` reads the archive's result from `archive --json`. It reads
+`openspec --version` first and treats a CLI older than 1.15.0, or one whose
+version it cannot read, as a missing one, naming the version to install. An
+older CLI's errors, such as "unknown option '--json'", are never read as a
+refusal of the change.
 
 **Rejected:**
-- **Marker comments in `openspec/config.yaml` as the record**, read back to
-  decide the state. That is the design above that kept misreading layouts.
-- **The script editing OpenSpec's config as text.** See above.
-- **Following links to read OpenSpec's config from a git tree**, the way the
-  file system would, while the answer was kept there. Each kind of link (out of `openspec/`, into a submodule, out
-  of a submodule) needed its own resolution code and turned up the next case.
-- **Asking at install time.** The installer cannot know which repositories a
-  person will work in, and an answer kept on one machine leaves every
-  teammate's agent asking again.
+- **Archiving each capability separately.** It would show one refusal per
+  capability, but still only one within a capability, where the requirements
+  interact, and it costs a run per capability on every check.
+- **An error without the CLI.** That is right for a stacked change, whose
+  other checks are wrong without its dependencies. Here the other checks
+  still hold, so "not run" says exactly what is missing.
+- **Skipping the archive under spec-check's `--no-validate`.** That flag
+  skips the whole `openspec validate --strict` run and nothing else. The
+  archive is a check of its own, and only a missing CLI skips it. The
+  `--no-validate` in the `openspec archive` command above is a different
+  flag, OpenSpec's own: it stops `archive` running OpenSpec's validation
+  before it applies the change. spec-check never passes its own flag through.
 
 ---
 
-## The proposal hook asks before a proposal is finished
+## A same-name pair is exempt only as a modification
 
-**Decision.** Besides the commit hook, a proposal hook runs after the agent
-writes or edits a file:
-`PostToolUse` on `Write`, `Edit` and `MultiEdit` in Claude Code, and
-`postToolUse` on `Write` in Cursor. If the file is
-`openspec/changes/<name>/proposal.md`, at any depth, inside a git repository
-whose top has an `openspec/` but no `openspec/spec-check.yaml`, the hook tells
-the agent to ask the user whether to enforce or turn off the rule, giving
-both commands for the repository top. Otherwise it prints nothing. It never
-blocks, and any error means silence.
+**Decision.** `check_duplicates` skips a pair of requirements sharing a
+sentence only when they have the same name and one of them is a MODIFIED
+requirement in the same capability as the other. Text under a REMOVED
+requirement is never compared: the change deletes it, so it states no rule.
+A change that moves a requirement to another capability, quoting the old
+text in its removal, passes.
 
-A proposal under a nested `openspec/` is judged by the top's decision,
-because `check`, `sign` and the commit hook read only the top's `openspec/`.
-A decision recorded beside a nested one would be read by nothing.
+**Why.** A MODIFIED requirement restates the one it modifies, so its
+sentences are expected to repeat. Skipping every same-name pair let an ADDED
+requirement, or one in another capability, repeat a rule word for word under
+the same name and pass.
 
-**Why.** The moment to settle the rule is while a proposal is being drafted,
-before anyone reviews it. A hook fires at that moment every time.
+---
+
+## spec-check reads OpenSpec only through its CLI
+
+**Decision.** spec-check reads specs and deltas only through the public
+commands of the OpenSpec CLI, 1.15.0 or later:
+
+- `openspec show --json` gives each requirement's name, text and scenarios:
+  `--type spec` for a main spec, `--deltas-only` for a change. A change's
+  deltas are read beside a stub proposal in an empty directory, since `show`
+  refuses a change whose own proposal lacks "Why" or "What Changes".
+- `openspec validate --strict --json` reports what a delta drops or
+  misfiles, and spec-check relays each issue with OpenSpec's own line and
+  message: a misspelt section title, a requirement above the first `##` or
+  under another section, a section or text above the first `##` that the
+  archive does not carry, and a `###` heading that is not a requirement
+  header.
+- `openspec archive --json`, into a scratch copy, says whether a change
+  applies, alone or on top of what it builds on.
+
+`show --json` gives no line numbers, so a finding's line comes from a plain
+text search for the names `show` gives (see *A finding's line is a text
+search*). What a delta holds is decided by `show` alone.
+
+Each relayed issue keeps OpenSpec's level. Under `--strict` an ERROR or a
+WARNING fails validation, so it is an error. An INFO note, such as the one on
+a stray heading, never fails it, so it is a check, and the advice spec-check
+adds to it does not change that.
+
+Below 1.15.0, or with no CLI, every check that needs a requirement reports
+`not run: install OpenSpec 1.15.0 or later`: the scenario, duplicate and
+drift checks, the archive and validation. A stacked change gets a `stack`
+error, since its other checks are wrong without its dependencies. The checks
+that read no requirement still run: citations, `Builds on:` lines and the
+RENAMED scan below.
+
+spec-check adds to OpenSpec's output in two places only:
+
+- **Advice on a stray heading.** OpenSpec notes a `###` heading in a delta
+  that is not a requirement header and ignores it, while the archive keeps it
+  inside the requirement above, where a later change to that requirement
+  replaces or removes it. spec-check adds where the rule goes. A MODIFIED
+  `### Requirement:` must name a requirement the specs have, and an ADDED
+  one a requirement they lack, or the archive refuses it. So the advice is
+  to restate the rule under MODIFIED when the specs the change is checked
+  against (main, plus any dependencies) already have its title, and to move
+  it to ADDED when they do not. When a stacked change's dependencies could
+  not be read, it gives both, with the condition.
+- **A requirement written out under `## RENAMED Requirements`.** OpenSpec
+  reads only FROM and TO lines there, so the archive renames the
+  requirement, keeps the specs' text, and drops the text written there.
+  Neither `show` nor `validate` says so. A line scan finds it: each `###`
+  heading in that section, outside a code fence, with anything under it
+  besides FROM and TO lines is a `renamed-block` error. A heading over only
+  FROM and TO lines is a rename written under a heading, and passes. The fix
+  is to restate the requirement under `## MODIFIED Requirements` with its
+  new name.
+
+**Why.**
+
+- **Hand-written readers drifted.** spec-check carried a port of OpenSpec
+  1.6.0's delta reader, and walkers of its own for sections, fences and
+  stray headings. Each round of review found another place where they read
+  a delta differently from OpenSpec, or from each other. Meanwhile OpenSpec
+  1.14 and 1.15 changed what it reads: when a delta has two sections with
+  the same title, such as two `## ADDED Requirements`, both are now
+  applied, and `## ` lines inside a fence no longer split a delta. Every
+  finding the walkers made about those cases became wrong.
+- **A fallback runs exactly where nothing checks it.** A reader kept for
+  CLIs too old to ask would run only on machines whose OpenSpec nobody
+  tests against.
+- **OpenSpec now says it itself.** From 1.14.0 `show --json` names
+  requirements and scenarios, and from 1.15.0 `validate` reports, with
+  lines, each section and text the archive does not carry.
 
 **Rejected:**
-- **Relying on the skill's description alone.** The description says to use
-  the skill when drafting a change, but a model decides by judgement whether
-  to load a skill, so the description alone does not reliably fire.
-- **A session-start hook.** It would fire in every session, in every
-  repository, whether or not anyone is writing a proposal.
 
-**In Cursor, `postToolUse` on `Write`, not `afterFileEdit`** (Adam,
-2026-10-14). Cursor's documentation gives `postToolUse` an
-`additional_context` output, which reaches the agent, and gives
-`afterFileEdit` no output at all. It does not document the Write tool's
-input, so the hook reads the path from `file_path`, `path` or `target_file`.
-The hook has not been tried in Cursor itself.
+- **Importing OpenSpec's parsers.** They sit outside the package's
+  `exports`, which list only its entry point, so any release may move or
+  change them.
+- **1.14.0 as the minimum.** Its `validate` reports a requirement under a
+  section it does not read, but not a section or preamble of plain text that
+  the archive drops. Only 1.15.0 reports both.
+- **Keeping spec-check's own section and fence findings beside OpenSpec's.**
+  Where OpenSpec reports a case, its report is the definition; a second
+  report of it would only disagree with it.
+
+**Where it stops.** These are gaps OpenSpec leaves and no narrow line scan
+can find, so spec-check reports nothing more for them:
+
+- **Text under a `###` heading that is not a requirement header.** `openspec
+  show` ends the requirement's text at the heading, while the archive keeps
+  the heading and what follows inside the requirement. So the scenario,
+  duplicate and drift checks do not see that text, and a dependency that
+  changes only that text reads as already in the tree. OpenSpec's note on
+  the heading, with spec-check's advice, is the only finding.
+- **A header with no space after its hashes.** `show` reads `###Requirement:`
+  as a header in a delta but not in a main spec, and the archive copies the
+  header into the spec as written. So once a dependency's such requirement
+  is archived into the scratch specs, spec-check no longer sees it there,
+  and a stacked change that modifies it gets a `drift` error saying no one
+  defines it.
+- **A section or requirement written inside a code fence.** OpenSpec 1.15.0
+  reads every fenced line as text, in `show`, `validate` and the archive, so
+  a `## ` line or `### Requirement:` header inside a fence is never a
+  section or a header. If an author fences one by mistake, nothing reports
+  it: spec-check reads fenced lines as OpenSpec does.
+
+---
+
+## A finding's line is a text search
+
+**Decision.** A finding's line is found by searching the file's text for the
+names `openspec show --json` gives, with no grammar of OpenSpec's headers:
+
+- A requirement is at the first line, not taken by another, on which its
+  name follows "Requirement:", compared ignoring case, backticks, `#`s and
+  runs of space.
+- When several lines match, a line starting with `###` wins over any other,
+  such as an example quoted in a requirement's text. Among those, a line
+  naming it exactly wins over one that matches only with case and the rest
+  ignored, so two names OpenSpec tells apart keep their own lines.
+- A rename is at its FROM line, the line that also holds `FROM:`.
+- A requirement's text and scenarios are searched between its line and the
+  next line starting with `## ` or `### `, each scenario after the one
+  before it, on lines starting with `####`, with or without "Scenario:".
+- A name the search cannot find gives line 0, and the finding names the
+  file only.
+- Where OpenSpec trims a header more than this search does, a finding can
+  name the wrong line. Take a spec with `### Requirement: Foo ##` followed by
+  a no-break space, and later `### Requirement: Foo`. OpenSpec reads both
+  names as "Foo", but only the second header names "Foo" exactly, so the
+  first requirement gets the second one's line. Matching OpenSpec's
+  trimming would be the grammar this decision drops.
+
+Two questions are about what the archive writes rather than where a name
+is, and they use OpenSpec's one test for a requirement header,
+`^###\s*Requirement:\s*\S`, ignoring case:
+
+- The stray-heading advice asks whether a requirement header comes between
+  the `## ` line that starts the section and the stray heading. A looser test
+  told the author the archive keeps text that it drops.
+- A requirement's lines, from its header to the next `## ` line or
+  requirement header, are kept as the file writes them. A dependency
+  delta rebuilt from some of its items writes those lines, so it keeps
+  what `openspec show` leaves out, such as fenced code and the text under
+  a stray heading, as the archive would. Fenced code also counts when two
+  versions of a requirement are compared.
+
+**Why.** The locator first matched OpenSpec's header grammar: optional
+bullets, `FROM:`/`TO:` prefixes, a backtick closed only when one opened,
+closing `#` runs, block ends. One bug-hunter run found 11 bugs, and every
+one was that copy of the grammar disagreeing with OpenSpec 1.15 on some form
+of header. That is the drift the CLI-only decision removed from reading
+requirements, kept in a smaller place. A search with no grammar has nothing
+to drift from, and a wrong guess only puts a finding on the wrong line.
+
+**Rejected:** keeping the grammar as a best-effort locator. Each form
+OpenSpec accepts and the copy does not is another wrong line, found one
+review at a time.
 
 ---
 
@@ -324,6 +774,12 @@ nothing.
 proves the checks ran on what landed, and an edit staged after signing breaks
 it. This is the commit-trailer library's design
 ([its DECISIONS.md](../../lib/commit-trailer/DECISIONS.md#the-trailer-is-minted-from-the-tree-not-recalled-by-the-agent)).
+
+Without OpenSpec 1.15.0 or later, `sign` still signs, and the value names
+everything that did not run in place of the validate result: `show,
+validate and archive not run (install OpenSpec 1.15.0 or later)`. A reader
+of the trailer then knows that no requirement was checked, and how to fix
+that.
 
 **The value carries the binding** (`--verified-value`), rather than a separate
 `Spec-check-Tree:` line (`--minted`). bug-hunter's commit script forwards
@@ -359,23 +815,20 @@ OpenSpec puts it.
 
 ---
 
-## The hooks are enabled by default
+## The hook is enabled by default
 
-**Decision.** `hook.json` says `"default": "enabled"`, for both hooks: the
-commit hook and the proposal hook. A skill's hooks are switched on and off
-together.
+**Decision.** `hook.json` says `"default": "enabled"` for the commit hook.
 
 **Why.** Several organizations install from this repository, each with its
 own repositories, so the default must suit a repository that uses OpenSpec and
 one that does not:
-- Installing spec-check is itself the opt-in. Nobody gets either hook without
+- Installing spec-check is itself the opt-in. Nobody gets the hook without
   asking for the skill.
-- In a repository without OpenSpec, neither hook speaks. The commit hook
-  judges only commits that change `openspec/`. The proposal hook speaks only
-  after a proposal is written, and only until the repository decides.
-- Neither blocks.
+- In a repository without OpenSpec, the hook does not speak: it judges only
+  commits that change `openspec/`.
+- It never blocks.
 - Off by default, an installed spec-check would leave the spec stage
   unchecked, and nothing would say so.
 
 **Rejected:** off by default. It suits a hook that reports on every commit,
-which neither of these does.
+which this one does not.

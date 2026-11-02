@@ -88,6 +88,35 @@ docs/api.md: call the API correctly
 
 [SKILL.md](SKILL.md) has the details.
 
+## Docs agents read before working stay compact
+
+Agents reread docs such as `SKILL.md`, `AGENTS.md` and open OpenSpec
+proposals before every task, so history, repetition and padding left in them
+cost tokens on every read. When a commit changes a doc agents read often,
+and the history, repetition and padding added since it was last compacted
+make up a tenth of the doc and at least 1,000 bytes, or the doc has grown by
+half since then, prose prints `compaction due for <file>`. The agent then
+has a fresh subagent rewrite the file to what is current, answering for
+every passage a script flagged, and runs a script that checks those answers
+and that no link into the file broke. A second fresh subagent then checks
+every removal against the old text and the code, and anything lost is put
+back. The agent commits the result in a commit of its own, and asks you first
+only when the rewrite would drop a conclusion.
+[compaction.md](compaction.md) has the steps.
+
+You can ask your agent to:
+- compact a specific file now, whether or not it is due;
+- mark a file as read often, so it's checked for compaction;
+- exempt a file from compaction;
+- drop "who decided" credits, such as "(Adam, 2026-10-24)", when files are
+  compacted;
+- change when compaction is due.
+
+For all but the first, the agent edits the repository's `.gitattributes`,
+in a commit of its own. When you ask for one of them, it makes the edit
+directly. It never adds such a line unasked: when it thinks one would help,
+it proposes the line, and once you confirm, the agent makes the edit.
+
 ## What is enforced where
 
 | What | Check |
@@ -150,9 +179,21 @@ run it in your own terminal, or, as a last resort, turn the hooks off as in
 
 ## Tests
 
-From the root of your clone:
+From the root of your clone, all of them:
 
 ```sh
-python3 .agents/skills/prose/scripts/test_prose.py
-python3 .agents/skills/prose/scripts/test_comment_scan.py
+python3 -m unittest discover -s .agents/skills/prose/scripts
 ```
+
+Or run one file, such as `python3 .agents/skills/prose/scripts/test_compact.py`:
+
+| File | Tests |
+|---|---|
+| `test_check.py` | `prose check` and `prose sign`: the rules file, signatures, pass tokens |
+| `test_hooks.py` | the posting hook, the commit hook and commit script, the first-call gate |
+| `test_cold_read.py` | the cold read: briefs, reports, findings, saved brief files |
+| `test_compact_triggers.py` | which docs are due for compaction, and the bloat detectors |
+| `test_compact.py` | compaction itself: `prose compact`, `--verify`, the gate on signing |
+| `test_comment_scan.py` | `comment_scan.py` |
+
+Their shared helpers are in `prose_test_support.py`.

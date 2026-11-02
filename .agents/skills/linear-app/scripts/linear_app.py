@@ -125,14 +125,44 @@ def read_keychain(service, account, run=subprocess.run, which=shutil.which):
     return value or None
 
 
+SECURITY_PROMPTS = re.compile(r"(?:password data|retype password) for new item: ")
+
+
+def store_in_macos_keychain(service, account, value, run=subprocess.run):
+    """Store `value` with `security`, never on its command line, and check that it reads back.
+
+    Given `-w` last with no value, `security` asks for the password twice.
+    It reads the answers from standard input only when it has no terminal,
+    so it runs in a new session, which leaves it no controlling terminal.
+    Given one copy instead of two, it stores an empty password and still
+    exits 0, so the entry is read back to check it.
+    See DECISIONS.md.
+    """
+    where = f"(service {service!r}, account {account!r})"
+    cmd = ["security", "add-generic-password", "-U", "-s", service, "-a", account, "-w"]
+    result = run(cmd, input=f"{value}\n{value}\n", capture_output=True, text=True, start_new_session=True)
+    if result.returncode != 0:
+        raise Failure(f"storing {account} failed: {SECURITY_PROMPTS.sub('', result.stderr).strip()}")
+    cmd = ["security", "find-generic-password", "-s", service, "-a", account, "-w"]
+    result = run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise Failure(f"could not read back the keychain entry {where} to check it: {result.stderr.strip()}")
+    # The read-back is stripped as read_keychain strips what it reads, so this
+    # passes only when later commands would get this value; store-credentials
+    # strips both values before storing them. A wrong entry is left in place:
+    # find-generic-password searches every keychain in the search list, so the
+    # entry it found may be another keychain's. DECISIONS.md says more.
+    if result.stdout.strip() != value:
+        raise Failure(f"the keychain entry {where} does not hold the value entered; "
+                      "run store-credentials again, or add the entry with Keychain Access")
+
+
 def write_keychain(service, account, value, label, run=subprocess.run, which=shutil.which):
     tool = keychain_tool(which)
     if tool == "security":
-        # `security` takes the secret only as an argument, so it is briefly
-        # visible to other processes of this user; see DECISIONS.md.
-        result = run(["security", "add-generic-password", "-U", "-s", service, "-a", account, "-w", value],
-                     capture_output=True, text=True)
-    elif tool == "secret-tool":
+        store_in_macos_keychain(service, account, value, run)
+        return
+    if tool == "secret-tool":
         result = run(["secret-tool", "store", "--label", label, "service", service, "account", account],
                      input=value, capture_output=True, text=True)
     else:

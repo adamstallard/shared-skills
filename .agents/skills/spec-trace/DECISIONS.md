@@ -353,8 +353,7 @@ default.
   only its comment line, and such a file makes every `openspec` command warn,
   so `decline` would refuse instead. spec-trace's own file,
   `openspec/spec-trace.yaml`, can be written in any repository with
-  `openspec/`. spec-check keeps its decision the same way, in
-  `openspec/spec-check.yaml`.
+  `openspec/`.
 - **A decision file (`openspec/spec-trace.yaml`) that says anything other
   than `adoption: declined` is `unknown`**, not undecided:
   the hook stays silent and `decline` refuses, so neither overwrites what

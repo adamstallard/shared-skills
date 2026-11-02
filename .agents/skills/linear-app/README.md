@@ -17,8 +17,10 @@ this skill gives that server an identity. Programs can also take a token from
 
 ## Setup
 
-You need **Python 3.8+**, and a workspace admin for step 1. Allow about 10
-minutes per identity.
+You need the minimum Python version in the
+[root README](../../../README.md#requirements), and, for step 1, a workspace admin
+(you, or someone you ask).
+Allow about 10 minutes per identity.
 
 ### 1. Create the OAuth application in Linear
 

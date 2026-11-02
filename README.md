@@ -9,10 +9,18 @@ Licensed under the [MIT License](LICENSE).
 ## Requirements
 
 - **macOS or Linux.** Skills are installed as symlinks. Windows is not tested.
-- **Python 3.8 or later**, as `python3`.
-- **git 2.32 or later.** In a repository that has a `pre-commit` hook,
-  `bug-hunter` and `prose` need git 2.36 or later; on an older git they refuse
-  to commit there rather than skip the hook.
+- **Python 3.9 or later**, as `python3`. Check with `python3 --version`.
+  - macOS: `brew install python` (Homebrew), or `xcode-select --install`,
+    which installs Apple's Command Line Tools, including git and Python 3.9
+    (check git with `git --version`). Until those tools are installed and their
+    licence accepted, `/usr/bin/python3` is only a stub that prompts you to
+    install them.
+  - Linux: your distribution's `python3` package.
+- **git 2.32 or later.** Check with `git --version`. The commit scripts of
+  `bug-hunter` and `prose` use `git commit --trailer`, which adds a footer line
+  to a commit message and arrived in 2.32. In a repository that has a
+  `pre-commit` hook, those skills need git 2.36 or later; on an older git their
+  commit scripts stop with an error rather than skip the hook.
 
 ## Install
 
@@ -59,9 +67,11 @@ and refreshes `manage-skills`, the one skill installed as a copy.
 | --------------- | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------ | ------------------------------------------------- |
 | `manage-skills` | Installs, removes, and diagnoses the skills below. Start here                                         | [README](.agents/skills/manage-skills/README.md) | [SKILL.md](.agents/skills/manage-skills/SKILL.md) |
 | `bug-hunter`    | Catch bugs in code just written, before it is committed — every bug proven with a failing test first | [README](.agents/skills/bug-hunter/README.md)    | [SKILL.md](.agents/skills/bug-hunter/SKILL.md)    |
+| `commit`        | Splits the working tree into commits in your repository's own convention and creates them, and, when bug-hunter is installed, runs it on each commit that contains code | [README](.agents/skills/commit/README.md) | [SKILL.md](.agents/skills/commit/SKILL.md) |
 | `prose`         | Makes agents rewrite the text you review — docs, comments, commit messages, PR descriptions — so it reads in one pass, and proves the pass ran | [README](.agents/skills/prose/README.md) | [SKILL.md](.agents/skills/prose/SKILL.md) |
 | `spec-check`    | Checks an OpenSpec change before you review it: mechanical checks, then a fresh agent reads it against every other spec, change and open PR, and fixes go into the spec | [README](.agents/skills/spec-check/README.md) | [SKILL.md](.agents/skills/spec-check/SKILL.md) |
 | `linear-app`    | Gives an agent its own Linear identity, an app user that can be delegated issues, with tokens minted on demand so nothing is renewed by hand | [README](.agents/skills/linear-app/README.md) | [SKILL.md](.agents/skills/linear-app/SKILL.md) |
+| `discord-bot`   | Post to, read and manage Discord channels and threads as a bot account, from a laptop or a server, with no service to run | [README](.agents/skills/discord-bot/README.md) | [SKILL.md](.agents/skills/discord-bot/SKILL.md) |
 | `github-app`    | Gives an agent its own GitHub identity, a GitHub App whose work shows as a bot, with tokens minted on demand and its identity only in the environment of the processes that act as it | [README](.agents/skills/github-app/README.md) | [SKILL.md](.agents/skills/github-app/SKILL.md) |
 | `spec-trace`    | Links each test to the OpenSpec scenario it checks with an `@scenario` tag, and fails CI on a scenario no test tags | [README](.agents/skills/spec-trace/README.md) | [SKILL.md](.agents/skills/spec-trace/SKILL.md) |
 | `worktrees`     | Has agents work in locked git worktrees and remove each one as soon as its work has landed: your checkout is never switched, no agent removes another's, and the branch is free for you to review | [README](.agents/skills/worktrees/README.md) | [SKILL.md](.agents/skills/worktrees/SKILL.md) |
