@@ -2,9 +2,11 @@
 
 - [x] G.1 Adam approves the prototype build covering thread replies and
       the recorded answer shown beside the question, and task 6.1's rule
-      (d) names its tag (decision 258). Done: Adam approved build v0.1-33
-      by use on 2026-10-24, tagged `answer-session-ui-approved-v0.1-33`
-      (decision 263)
+      (d) names its tag (design.md: *The separate build was approved
+      before gate one*). Done: Adam approved build v0.1-33 by use on
+      2026-10-24, tagged `answer-session-ui-approved-v0.1-33` (design.md:
+      *The UI is built from prototype build v0.1-33*; *The separate build
+      was approved before gate one*)
 
 Gate two: the tasks below follow on this branch once Adam approves the
 spec.
@@ -30,7 +32,7 @@ contradicts what design.md assumed.
       returns, or the script must skip that candidate
 - [ ] 0.6 Record, from igor PR #216, the form of the fixed marker igor
       chooses for its handback comments
-      (decision 347), one that text the Igor quotes from its item cannot
+      (design.md: *igor's handback marker*), one that text the Igor quotes from its item cannot
       produce, by which the answer session tells a handback from the
       Igor's other comments
 - [ ] 0.7 How the script can learn which login a post goes out as, when the
@@ -41,31 +43,36 @@ contradicts what design.md assumed.
 - [ ] 0.9 How the script tells a session with a person in it from a
       headless run, such as an Igor worker or `claude -p`, and
       whether a headless session that is not an Igor worker can post.
-      Whether it runs in an Igor's run, and whether that is a worker's
-      run or the Igor's own, it reads from
-      `IGOR_RUN` (decision 235); once igor builds it, check that igor
-      sets it as igor PR #216 specifies
+      The script reads from `IGOR_RUN` whether it runs in an Igor's run,
+      and whether that is a worker's run or the Igor's own (design.md: *The script tells an Igor's run by
+      `IGOR_RUN`*); once igor builds it, check that igor sets it as igor
+      PR #216 specifies
 - [ ] 0.10 Whether the agent can open, and write in, a repository's private
       security advisory, and what access that needs
 - [ ] 0.11 GitHub's API gives a comment's or review's author, and whether a
-      commit's signature is verified and for which account, as decision 78
-      needs
+      commit's signature is verified and for which account, as design.md's
+      *A questions-branch decision needs a proven writer* needs
 - [x] 0.12 Whether an Igor's worker can run this skill, with a lore clone and
-      `inquisitor.json` in reach, as the spec assumed before decision
-      144 moved a worker's lore search into igor, measured before this pull request or
-      igor PR #216 lands (decision 141). It can't today, measured from
-      igor's code; read from igor PRs #174's and #175's specs, not checked
-      since neither is built, it can't once they land either; design.md, *What task 0.12
-      measured*, gives the evidence. Gate two builds
+      `inquisitor.json` in reach, as the spec assumed before design.md's
+      *Filter 1 in an Igor's run searches through `igor lore-search`*
+      moved a worker's lore search into igor, measured before this pull
+      request or igor PR #216 lands (design.md's decision *Task 0.12: an
+      Igor worker cannot run the skill*). It can't today, as igor's code
+      shows. It can't once igor PRs #174 and #175 land either, as their
+      specs show; that is not checked, since neither is built. design.md's
+      *What task 0.12 measured* gives the evidence. Gate two builds
       everything except Igor-worker mode, which waits for igor to give the
-      worker what proposal.md's *Still open* names
+      worker what design.md's *Open Questions* names
 - [ ] 0.13 Whether GitHub lets a security advisory's private-fork pull
-      request be merged before the advisory is published, as decision 108
-      needs. Until this shows the merge waits for publication, fork commit
-      messages describe no weakness (decision 127)
+      request be merged before the advisory is published, as design.md's
+      *Weaknesses stay out of public text until disclosure* needs. Until
+      this shows the merge waits for publication, fork commit messages
+      describe no weakness (design.md: *Weaknesses stay out of public text
+      until disclosure*)
 - [ ] 0.14 Whether an Igor worker's `gh` can post, from a login stored in
       the home directory igor gives it rather than in its environment, as
-      decision 126 assumes it can't
+      design.md's *An Igor worker asks only in its handback comment*
+      assumes it can't
 - [ ] 0.15 Which reasons GitHub's notifications endpoint gives, read with
       the person's `gh` login, for a mention, a review request, an
       assignment and a later comment in a thread the person was mentioned
@@ -85,14 +92,16 @@ contradicts what design.md assumed.
       message, with discord-bot as merged in shared-skills PR #1. Reading the content
       of a message that doesn't mention the bot needs Discord's privileged
       Message Content intent, which PR #1 turns on for reading and its
-      `check` reports as `messageContent` (decision 238); record that a
+      `check` reports as `messageContent` (design.md: *The Discord relay
+      needs the Message Content intent*); record that a
       relay whose `check` reports `true` reads such a message. If it
       can't read them, Discord stays off and the README says so
 - [ ] 0.18 That a command the mod runs with `$.process.run`, the mod API's
       call that runs a host command, reaches no
-      `PreToolUse` hook, so neither post hook sees a relay post (decision
-      170). If a `PreToolUse` hook does see such a command, record it and
-      stop: decision 170 needs Adam again
+      `PreToolUse` hook, so neither post hook sees a relay post
+      (design.md: *A relay post gets no prose pass and no vetting*). If a
+      `PreToolUse` hook does see such a command, record it and stop: that
+      decision needs Adam again
 - [ ] 0.19 That a mod's timers keep polling every 60 seconds and
       refreshing the lock every 30 seconds while its session is idle or
       runs as a Claude Code background session, and how a session tells
@@ -106,24 +115,28 @@ contradicts what design.md assumed.
       Linear and Discord, record whether the skill's own check reads a
       team's or channel's permission, or setup must read it itself. Where
       no check can, setup runs the skill's own check only, and a post a
-      channel refuses later turns that channel off (decision 211)
+      channel refuses later turns that channel off (design.md: *A failed
+      relay check turns off only its channel*)
 - [ ] 0.21 That GitHub's API reports, for a comment, the slug of the
-      GitHub App that wrote it, which the relay file names (decision 216),
-      in a form no account can take on: such as the author login
+      GitHub App that wrote it, which the relay file names (design.md:
+      *Only a listed relay App speaks for a person on GitHub*; *One relay
+      file per person*), in a form no account can take on: such as the author login
       `<slug>[bot]` with the type `Bot`, or the comment's
       `performed_via_github_app`. Until this task shows GitHub does, no
       comment counts as a relayed answer, and an agent treats an
       `Inquisitor: ` reply as input. If GitHub does not, both stay so for
       good, record that, and stop for Adam
 - [ ] 0.22 What a reader needs to tie a relay file to its person
-      (decision 225): that GitHub's API gives, for the newest commit that
+      (design.md: *Who last changed a relay file ties it to its person*;
+      *A notice workflow mentions a relay file's person*): that GitHub's API gives, for the newest commit that
       changed `relays/<login>.yaml`, the merged pull request it came from
       and that pull request's author, after a merge commit, a squash and a
       rebase alike, such as through `commits/<sha>/pulls`; and whether a
       commit GitHub signs itself, from its web editor or its contents API,
       is verified for an account other than its author's, which would let
       anyone with push access make a commit verified for another person.
-      This applies to decision 78's signature proof as well. Also record
+      This applies as well to the signature proof of design.md's *A
+      questions-branch decision needs a proven writer*. Also record
       how a reader tells a signature GitHub made from the person's own,
       such as GraphQL's `wasSignedByGitHub`; if it can't, no signature
       counts. Task 0.11
@@ -132,8 +145,11 @@ contradicts what design.md assumed.
       GitHub never verifies such a commit for someone who didn't make it,
       a signature GitHub made itself proves nothing
 - [ ] 0.23 That the URL an asking agent records as `asked_in` for its post
-      (decision 299), and the handback comment URL an Igor records for
-      its worker's question (decisions 326 and 345), equals, character for character, the URL the answer
+      (design.md: *A log file follows its thread message by exact link*),
+      and the handback comment URL an Igor records for its worker's
+      question (design.md: *Each Igor log file follows its own handback
+      comment*; *Only an item's newest handback is open*), equals,
+      character for character, the URL the answer
       session builds for that message from what it polls, on GitHub,
       Linear and Discord: an issue comment against a pull request
       comment, `html_url` against the notifications API's URL,
@@ -144,12 +160,14 @@ contradicts what design.md assumed.
       it as written
 - [ ] 0.24 How setup can tell ahead of time that a commit the script
       pushes to a lore questions branch will be verified for the person
-      (decision 322): git's `commit.gpgsign` and `user.signingkey` in
+      (design.md: *Setup checks questions-branch commits are the
+      person's*): git's `commit.gpgsign` and `user.signingkey` in
       the lore clone, the signing keys GitHub lists for the account, and
       whether the committer email is a verified address there. Until
       measured, setup shows the check as not checked. Also measure that
       the `log` command, run with the `GIT_AUTHOR_*` and `GIT_COMMITTER_*` variables and the `GIT_CONFIG_*` entries that github-app sets removed, commits
-      as the person in a project wired for an App (decision 331)
+      as the person in a project wired for an App (design.md: *Setup
+      checks questions-branch commits are the person's*)
 
 ## 1. Shared post reader
 
@@ -160,16 +178,16 @@ contradicts what design.md assumed.
       spec's scenario it checks
 - [ ] 1.3 The library also handles the following. prose's existing tests
       still pass unchanged, except a test that expects one of these to
-      pass, which now expects it blocked: an inline-code command naming
-      `gh`, a title built by the shell, or a title edit chained to another
-      command; add tests for each to prose's and the
-      library's tests.
+      pass, which now expects it blocked: a data command given code to
+      run, such as `python3 -c`, whose code names `gh`; a title built by
+      the shell; or a title edit chained to another command. Add tests
+      for each to prose's and the library's tests.
       - It reads a post's title, as a literal word, from `--title` or
         `-t`, a `gh api` `title` field under `issues` or `pulls`, the
         `title` argument of the GraphQL mutations that create or update
         an issue or pull request, and a GitHub MCP `title` key, and
-        reports a call whose title it can't read as unreadable (decision
-        206), and a title edit chained to another command as unreadable.
+        reports a call whose title it can't read as unreadable
+        (design.md: *A post's title is read and vetted*), and a title edit chained to another command as unreadable.
         prose's hook lets a call with a title and no body through, and
         this task rewrites the paragraph "Titles are not checked" in
         prose's `DECISIONS.md`, under *The posting hook reads an
@@ -182,7 +200,8 @@ contradicts what design.md assumed.
         `comments[][body]` fields.
       - It reports whether a post creates an issue.
       - It reads every `body` argument of the GraphQL mutations that post
-        text to an issue or pull request (decision 132), and reports any
+        text to an issue or pull request (design.md: *GraphQL mutations
+        that post text*), and reports any
         other mutation as no post, or as unreadable when it has a `body`.
       - It blocks as unreadable a `gh api` call that writes (its method
         `POST`, `PATCH` or `PUT`, given or implied by fields, or a GraphQL
@@ -195,7 +214,8 @@ contradicts what design.md assumed.
       - It blocks as unreadable a data command given code to run, such
         as `python3 -c`, `node -e` or `git -c`, whose arguments name
         `gh`, and treats `python3` or `node` reading its program from a
-        pipe or heredoc as no data command (decision 139). prose's hook
+        pipe or heredoc as no data command (design.md: *Code given on the
+        command line that names gh*). prose's hook
         blocks these too, so a prose test that expects one of them to
         pass is changed to expect it blocked
       - As part of this task, once the reader has moved, prose's
@@ -203,7 +223,8 @@ contradicts what design.md assumed.
         the library's list instead of restating it, and its section *A
         command that runs no gh post is not a post* no longer says that
         `python3 - <<'EOF'`, `node -e` and `git -c` are outside the
-        hook's reach (decision 139)
+        hook's reach (design.md: *Code given on the command line that
+        names gh*)
 
 ## 2. The script
 
@@ -214,73 +235,110 @@ contradicts what design.md assumed.
       verdicts and their fields, the three categories recorded by hash only,
       the refusals, and the records the hooks read, each deleted once it is
       more than 2 hours old except a `deferred` record without a category
-- [ ] 2.3 Filter 1's search over decision documents, issues through `gh`, the
-      repository's question log and misses, and configured lore clones' entries and
-      `questions` branch, fetched and read with `git show`, matched as
-      plain text and ranked by terms matched, with a cap it reports
-      (decision 229), and during an Igor's run lore only through `igor
-      lore-search` (decisions 133 and 229); the authority
-      rules, with scope as igor's `scopeMatches` gives it inside an Igor
-      and by the short name outside one, and a decision record counted
-      only when `accepted`, a change's own decisions within that change, and
-      a questions-branch `decision` file only with its writer proven by a
-      linked comment or a verified signature (decision 78), the comment
-      holding the file's answer when its text equals the file's answer
-      once both are reduced (decision 236),
-      a relayed answer only from an App the person's `relays/<login>.yaml`
-      lists, counted only when its last change came from that person
-      (decisions 216, 224 and 225), never from a slug starting with
-      `igor-` (decision 232), only the
-      newest answer counting among a question's files there (decision
-      220), a file's visibility taken from the more private of its
-      `repository` and `asked_from` (decision 221), and, during an Igor's
-      run, a file about a repository other than the
-      item's shown as input (decision 214), while an
-      `agent` file on a questions branch is always input; each source not searched; when
-      each clone's remote-tracking default branch was last updated by a
-      fetch
+- [ ] 2.3 Filter 1's search. This task builds the script's search;
+      igor PR #216 builds `igor lore-search`, which applies the parts
+      marked as igor's below.
+      - It searches decision documents, issues through `gh`, the
+        repository's question log and misses, and configured lore
+        clones' entries and `questions` branch, fetched and read with
+        `git show`.
+      - It matches as plain text and ranks by terms matched, with a cap
+        it reports.
+      - During an Igor's run it searches lore only through `igor
+        lore-search` (design.md: *Filter 1 in an Igor's run searches
+        through `igor lore-search`*).
+      - It applies the authority rules:
+        - scope by the short name outside an Igor, and inside one as
+          igor's `scopeMatches` gives it (igor's);
+        - a decision record counted only when `accepted`;
+        - a change's own decisions counted within that change;
+        - a questions-branch `decision` file counted only with its
+          writer proven by a linked comment or a verified signature
+          (design.md: *A questions-branch decision needs a proven
+          writer*), the comment holding the file's answer when its text
+          equals the file's answer once both are reduced (design.md: *A
+          linked comment holds the answer only when the texts are
+          equal*);
+        - a relayed answer counted only from an App the person's
+          `relays/<login>.yaml` lists, only when that file's last change
+          came from that person (design.md: *Only a listed relay App
+          speaks for a person on GitHub*; *One relay file per person*;
+          *Who last changed a relay file ties it to its person*), and
+          never from a slug starting with `igor-` (design.md: *An
+          Igor's App is never a relay App*);
+        - only the newest answer counting among a question's files on a
+          questions branch (design.md: *The newest proven answer
+          counts*);
+        - a file's visibility taken from the more private of its
+          `repository` and `asked_from` (design.md: *The Igor writes
+          `asked_from` on every file it pushes*);
+        - during an Igor's run, a file about a repository other than the
+          item's shown as input (igor's; design.md: *Questions-branch
+          files and `project:` entries in a run's search*);
+        - an `agent` file on a questions branch always input.
+      - It reports each source it did not search, and when a fetch last
+        updated each clone's remote-tracking default branch.
 - [ ] 2.4 The `log` command, writing one file per question or miss in the
-      format of *A log file and a miss file have one format*, with an
-      `authority` of `decision`, `input` or `agent`, and `answered_by: agent` for an agent's choice,
-      a log file for a question also asked in a post holding that
-      post's URL as `asked_in`, a Linear or Discord one only in a private
-      lore repository and a GitHub one only in a lore repository no more
-      visible than the repository it points into (decisions 299, 302
-      and 315),
-      an answer file naming the file it answers in `answers`, refused
-      when the named file is not on the branch or already holds an answer
-      (decisions 303 and 310), the Igor writing `answers` for a later run only
-      for a file it finds by its own record's suffix and date (decisions
-      324, 327 and 334), which igor builds and this task does not, and
-      no `asked_in` in Igor-worker mode (decision 345),
-      a handled file for a questions-branch question the answer session
-      marks handled (only `handled` and `closes`, that file's name, with
-      no body; decisions 273, 276, 277, 297 and 305), written
-      only through the command's handled option, which only the answer
-      session passes, a `handled` or `closes` key being refused without
-      it, the command not checking its caller,
-      an answer with a github.com `answer_link` read from the linked
-      comment and recorded word for word (decision 236), an answer with
-      a Linear or Discord `answer_link` recorded as given, its link
-      never fetched (decision 248) and written only into a private lore
-      repository (decision 251), and any answer a person
-      gave without an `answer_link` in their own words as given
-      (decision 240), each in quote lines
-      (decision 239's item 1): in the
-      repository's `.inquisitor/` for a
-      question about it (by a pull request when it is not the repository
-      holding the current work), or pushed to the team's lore repository's
-      `questions` branch for a question about the organization or project,
-      fetching and pushing again when rejected; the secret scan and the
-      visibility refusal; `misses`, listing the misses by filter for a review
+      format of *A log file and a miss file have one format*. This task
+      builds the command; igor builds the one part marked as igor's
+      below.
+      - `authority` is `decision`, `input` or `agent`, with
+        `answered_by: agent` for an agent's choice.
+      - A log file for a question also asked in a post holds that post's
+        URL as `asked_in`: a Linear or Discord one only in a private
+        lore repository, and a GitHub one only in a lore repository no
+        more visible than the repository it points into (design.md: *A
+        log file follows its thread message by exact link*;
+        *`answer_link` and `asked_in` are withheld where they would
+        leak*). In Igor-worker mode the command writes no `asked_in`
+        (design.md: *Each Igor log file follows its own handback
+        comment*).
+      - An answer file names the file it answers in `answers`, refused
+        when the named file is not on the branch or already holds an
+        answer (design.md: *An answer file names the file it answers*).
+      - Built by igor, not this task: the Igor writes `answers` for a
+        later run only for a file it finds by its own record's suffix
+        and date (design.md: *A later run names the answered file from
+        the Igor's record*).
+      - A handled file for a questions-branch question the answer
+        session marks handled holds only `handled` and `closes`, that
+        file's name, with no body (design.md: *The answer session writes
+        a handled file on every close of a questions-branch file*;
+        *Closing works by exact identity, never by matching*). It is
+        written only through the command's handled option, which only
+        the answer session passes; a `handled` or `closes` key is
+        refused without it; the command does not check its caller.
+      - Each answer is written in quote lines (design.md: *A log file's
+        answer is written as quote lines*):
+        - with a github.com `answer_link`, read from the linked comment
+          and recorded word for word (design.md: *A linked comment holds
+          the answer only when the texts are equal*);
+        - with a Linear or Discord `answer_link`, recorded as given, its
+          link never fetched (design.md: *Questions-branch answers
+          relayed on Linear or Discord*), and written only into a
+          private lore repository (design.md: *`answer_link` and
+          `asked_in` are withheld where they would leak*);
+        - any other answer a person gave, without an `answer_link`, in
+          their own words as given (design.md: *A logged answer is the
+          person's own words*).
+      - A file goes in the repository's `.inquisitor/` for a question
+        about it, by a pull request when it is not the repository
+        holding the current work; or it is pushed to the team's lore
+        repository's `questions` branch for a question about the
+        organization or project, fetching and pushing again when
+        rejected.
+      - The secret scan and the visibility refusal.
+      - `misses`, listing the misses by filter for a review.
 - [ ] 2.4b `cite`, pushing a citation file in the format of *A citation
       file has one format* (`entry` and `date`, no `run`) to the
       `questions` branch of the lore repository holding the entry, once,
       when filter 1 stops a question with a lore entry, or when the
       person answers in the answer session by citing an `active` entry
       in scope, a decline under reason 2 with filter 1 naming such an
-      entry included (decisions 257, 259, 262 and 275),
-      committed unsigned with `git -c commit.gpgsign=false`. It sends none
+      entry included (design.md: *A person's cite pushes a citation file*),
+      committed unsigned with `git -c commit.gpgsign=false`, so a
+      person's signing setup never signs a citation with their key
+      (design.md: *A citation's commit names no person*). It sends none
       for a question with a category, none to a lore repository more
       visible than the repository the question concerns, and none for a
       cited entry that is not `active` or is out of scope. During an Igor's run it pushes
@@ -289,7 +347,8 @@ contradicts what design.md assumed.
 - [ ] 2.5 The question finder for posts, as one function the post hook also
       calls, finding questions in a post's title and body, with an
       open-questions section begun only by a label that names questions
-      or a deferral label (decision 204)
+      or a deferral label (design.md: *What counts as a question in a
+      post*)
 - [ ] 2.6 `tag`, choosing whom a post's question tags. It takes the first
       candidate with write access. When there is none, it turns to the login
       configured for the person running the session, if it equals the
@@ -310,12 +369,17 @@ contradicts what design.md assumed.
       "id taken"
 - [ ] 2.8 `relay-notice.yml`, the workflow template a lore repository
       carries to mention a relay file's person, modelled on igor PR #171's
-      `templates/seat-notice.yml` (decision 228)
-- [ ] 2.9 The `log` command's input file, refused unless it has mode 0600
-      in a private directory (decision 230); the post reader's git forms
-      that run a command (`rebase -x`, `submodule foreach`, `bisect run`)
-      as code to run, and a `gh` alias or extension as unreadable
-      (decision 230)
+      `templates/seat-notice.yml` (design.md: *A notice workflow mentions
+      a relay file's person*)
+- [ ] 2.9 Two separate refusals, which tasks 1.3 and 2.4 do not list:
+      - the `log` command's input file, refused unless it has mode 0600
+        in a private directory (design.md: *The `log` command reads its
+        inputs and the linked comments itself*);
+      - in the post reader, git forms that run a command (`rebase -x`,
+        `submodule foreach`, `bisect run`) treated as code to run, and a
+        `gh` alias or extension as unreadable (design.md: *Code given on
+        the command line that names gh*; *Which commands the reader
+        judges, and which are unreadable*)
 
 ## 3. Hooks
 
@@ -328,7 +392,8 @@ contradicts what design.md assumed.
       only*), blocking a post with a question when it can't read
       its records, passing a `deferred` question that tags no one in an
       open-questions section or a new issue, and vetting every post it
-      sees, one carrying igor's handback marker included (decision 350)
+      sees, one carrying igor's handback marker included (design.md: *No
+      exemption for an Igor's handback*)
 - [ ] 3.3 `hook.json` with both hooks, `"default": "enabled"`
 
 ## 4. Tests
@@ -343,12 +408,14 @@ contradicts what design.md assumed.
       igor's unbuilt work can make pass, since task 0.12 measured that
       an Igor worker can't run the skill: it gets no test, not
       even a skipped one, and design.md's *Expected gaps* lists it by name
-      (decision 249)
+      (design.md: *Igor-worker scenarios stay untagged until igor builds
+      what they need*)
 - [ ] 4.3 Once igor provides `igor lore-search` and a role's `commands`
       can list the skill's script, build Igor-worker mode, write a tagged
       test for each expected gap, and remove it from design.md's list.
       Archiving with a gap still untagged would fail spec-trace's CI, so
-      the archive waits for this task (task 7.0, decision 253)
+      the archive waits for this task (task 7.0; design.md: *The change is
+      archived only after every expected gap is tagged*)
 
 ## 5. Docs and registration
 
@@ -368,17 +435,19 @@ contradicts what design.md assumed.
       blocked picker or post. Until github-app refuses `token` for an
       identity marked as a relay, it says that any agent on the person's
       machine can print a relay App's token and post `User says: ` unseen
-      (decision 233)
+      (design.md: *github-app refuses `token` for a relay identity*)
 - [ ] 5.3 A row in the README's skills table, and `inquisitor` in its list of
       skills that turn on a hook
 - [ ] 5.4 `manage-skills` installs it and wires its hooks: check with
       `skills.py install inquisitor` and `skills.py doctor`
 - [ ] 5.5 github-app's `SKILL.md`: every example that runs `python3 $G`
       sets `G` in the same command, or writes the script's full path, so
-      the post hooks don't block it (decision 135)
+      the post hooks don't block it (design.md: *Posts sent through the
+      github-app skill's script*)
 - [ ] 5.6 prose's file filter skips files under `.inquisitor/`, so prose's
       pass never rewrites a log or miss file, which quotes a question and a
-      person's words exactly (decision 134). It ships with the skill,
+      person's words exactly (design.md: *prose's pass skips
+      `.inquisitor/`*). It ships with the skill,
       which writes such files from gate two on
 - [ ] 5.7 Change bug-hunter's SKILL.md so that Step 9 runs each
       recommendation in its report through the inquisitor skill's four
@@ -403,22 +472,28 @@ contradicts what design.md assumed.
 ## 6. The answer session
 
 - [ ] 6.0 Build on discord-bot as shared-skills PR #1 merged it
-      (decision 165). The Discord relay posts with no header option and
-      with mention rewriting on, as discord-bot always posts (decisions
-      230 and 246)
+      (design.md: *Discord is in the first version, through discord-bot*).
+      The Discord relay posts with no header option and with mention
+      rewriting on, as discord-bot always posts (design.md: *Discord relay
+      posts: no header, mentions that ping*)
 - [ ] 6.1 The mod, built into the inquisitor skill from the tag
       `answer-session-ui-approved-v0.1-33` on shared-skills (build v0.1-33,
       commit fc3c35f; `ui-approved-v0.1-33` in Adam's local prototype
       repository, `~/answer-session-prototype`). That build descends from
       v0.1-30 (`answer-session-ui-approved-v0.1-30`, commit c9c6eb5), the
       whole UI Adam approved on 2026-10-20, so it contains all of
-      v0.1-30. Its only additions are rule (d)'s two screens, the
-      recorded answer one covering a questions-branch question too, and
+      v0.1-30. Its only additions are rule (d)'s two screens, of
+      which the recorded-answer screen covers a questions-branch question
+      too, and
       a corrected notice for a stopped post, a post the answer session holds back because a reply arrived in the thread since the person last read it. So it is the one
-      base (decision 263). It includes declining and the list of
+      base (design.md: *The UI is built from prototype build v0.1-33*;
+      *The separate build was approved before gate one*). It includes declining and the list of
       questions answered or handled for the person. The mod takes its questions from the polls of task 6.3
       instead of the prototype's made-up ones. Four rules decide what is
-      built (decision 254):
+      built (design.md: *How the approved prototype meets the spec*; *The
+      UI is built from prototype build v0.1-33*; *UI is prototyped and
+      approved by use, not specified*; *The separate build was approved
+      before gate one*):
       - (a) Keep the approved screens' layout and interaction: the band,
         the keys, the prompt-box flow and the declining screens. Changes
         needed to wire them to real data are fine; restyling or
@@ -432,17 +507,21 @@ contradicts what design.md assumed.
         previews that show the `Re: <URL>` line; the decline reasons, two
         where the prototype has three, its first two merged as reason 1,
         "Nothing to answer: the conversation is over, or it isn't a
-        question" (decision 330), under which declining closes only that
+        question" (design.md: *Two reasons to decline*), under which declining closes only that
         question and every later
         message in its thread that the sources name is a new question,
-        where the prototype ends the thread (decision 291);
+        where the prototype ends the thread (design.md: *Declining with
+        nothing to answer closes only that question*);
         reopening offered only for a thread copy declined with nothing
         posted, on its own machine, where the
-        prototype offers it for any decline under its first two reasons (decisions
-        255, 260, 274 and 297); the handled file the answer session
+        prototype offers it for any decline under its first two reasons
+        (design.md: *Reopening a declined question*; *Closing works by
+        exact identity, never by matching*); the handled file the answer session
         pushes naming each questions-branch file a closed question was
-        shown from, or that holds it through `asked_in`, which the prototype does not write (decisions 273
-        and 297); a
+        shown from, or that holds it through `asked_in`, which the
+        prototype does not write (design.md: *The answer session writes a
+        handled file on every close of a questions-branch file*; *Closing
+        works by exact identity, never by matching*); a
         recorded answer the person agreed to and posted, whose question
         the spec shows as answered for the person, where the prototype
         shows it as answered by the person's own relay post;
@@ -455,7 +534,9 @@ contradicts what design.md assumed.
         questions-branch question, logs the recorded answer in a new
         file, while the spec treats it as a decline under reason 2 with
         filter 1 and writes no answer file, only the handled file
-        (decisions 266, 270 and 273);
+        (design.md: *Agreeing to a recorded answer is a filter 1 decline*;
+        *The answer session writes a handled file on every close of a
+        questions-branch file*);
         and the question that was on screen, kept in the state
         folder so a restarted session opens on it, not in the mod's
         `$.store`
@@ -464,15 +545,18 @@ contradicts what design.md assumed.
         setup, the lock message, the relay notice, a post's failure and
         discord-bot's warnings, why no miss was logged, a channel
         that is off, and the pending list, which reuses the approved
-        queue's screens (decisions 311 and 317) and waits for no
+        queue's screens (design.md: *An answer that cannot reach its
+        thread is kept pending*; *The push order for a questions-branch
+        answer*) and waits for no
         prototype round of its own
       - (d) A screen Adam approves separately is taken from its own
-        approved tag. Tag: `answer-session-ui-approved-v0.1-33` (decisions
-        258 and 263), approved on 2026-10-24. It is also the base, so this
+        approved tag. Tag: `answer-session-ui-approved-v0.1-33` (design.md:
+        *The separate build was approved before gate one*; *The UI is
+        built from prototype build v0.1-33*), approved on 2026-10-24. It is also the base, so this
         rule only records which screens that approval added: the thread's
         replies since the question, and filter 1's recorded answer shown
-        with the question. The approval covers the whole build (decision
-        265), including the replies when the asker withdraws their
+        with the question. The approval covers the whole build (design.md:
+        *The UI is built from prototype build v0.1-33*), including the replies when the asker withdraws their
         question, and the notice for a post held back because a reply
         arrived. Each screen goes where the tagged
         build puts it. A later separately approved screen would come from
@@ -483,15 +567,16 @@ contradicts what design.md assumed.
       off and checked again at each opening, the Linear key in the
       keychain, `~/.local/bin/answer`, the pull request writing the
       person's `relays/<login>.yaml` in each serving lore repository
-      (decision 224), the one adding `relay-notice.yml` where it is
+      (design.md: *One relay file per person*), the one adding `relay-notice.yml` where it is
       missing, and the check, made by resolving what the `log` command
       would commit with once the github-app variables are removed, that
       the answer session's commits to each lore questions branch use the
       person's identity, never an App's,
-      and are signed, warning with how to fix it when not (decisions 322
-      and 331). Filter 1, and every check that reads a comment's author,
-      reads that file from the lore clone's default branch, and counts it
-      only when its last change came from its person (decision 225)
+      and are signed, warning with how to fix it when not (design.md:
+      *Setup checks questions-branch commits are the person's*). Filter 1, and every check that reads a comment's author,
+      reads each `relays/<login>.yaml` from the lore clone's default branch, and counts it
+      only when its last change came from its person (design.md: *Who last
+      changed a relay file ties it to its person*)
 - [ ] 6.3 Polling: the four sources, only while open, the catch-up on
       opening, 60 seconds or GitHub's `X-Poll-Interval`, conditional
       requests, poll positions, and the lore questions branches
@@ -499,136 +584,209 @@ contradicts what design.md assumed.
       relay identity's skill as host commands, post ids, editing in place,
       the thread read before a question is shown and before each post, and
       a questions-branch question answered by a new log file, and a new
-      log file again when its relayed answer is edited (decision 220);
+      log file again when its relayed answer is edited (design.md:
+      *Editing a relay post*; *The newest proven answer counts*);
       discord-bot's warnings shown after each Discord relay post and each
-      edit of one (decisions 247 and 252); and, off GitHub, the relayed
-      text logged with the relay post's URL as an unfetched
-      `answer_link` (decision 248)
+      edit of one (design.md: *Discord relay posts: no header, mentions
+      that ping*); and, off GitHub, the relayed text logged with the relay
+      post's URL as an unfetched `answer_link` (design.md:
+      *Questions-branch answers relayed on Linear or Discord*)
 - [ ] 6.5 State: the state folder, a question's state read from its
       thread, closed questions, discussion records deleted once their
       question is answered or closed, the question on screen, and the lock,
       which a second session reports and offers to take over
-- [ ] 6.6 The discussion's context, `propose_reply`, and the rephrased
-      answer's post. SKILL.md tells an agent that records an answer from a
+- [ ] 6.6 The discussion's context, `propose_reply` (refusing a
+      subagent's call, and filling the record's URL for a filter 1
+      decline), and the rephrased answer's post. SKILL.md tells an agent that records an answer from a
       relay post to log its rephrasing and summary
 - [ ] 6.7 prose's SKILL.md and `DECISIONS.md` say that a relay post is
-      the person's words and gets no prose pass (decision 170), and that an
-      automatic post, whose text is fixed, gets
-      none either (decision 200)
+      the person's words and gets no prose pass (design.md: *A relay post
+      gets no prose pass and no vetting*), and that an automatic post,
+      whose text is fixed, gets none either (design.md: *What the answer
+      session posts by itself*)
 - [ ] 6.8 Tests, each tagged `@scenario answer-session: <Scenario name>`,
       and the README's section on the answer session: setup, the `answer`
       command, what to do when a relay check fails, and that no post but
       the answer session's starts with a reserved prefix
 - [x] 6.9 Adam's approval, by use, of the screens prototyped after the
-      first approved build (decisions 147 and 226): declining a question,
-      with its three reasons as approved then (decision 330 has since
-      merged the first two), reason 3's choice of filter and the exact
-      post shown before it goes out (decision 209), and the list of
-      questions answered and handled for the person. Adam approved build
-      v0.1-30 by use on 2026-10-20 (decision 231), tagged
+      first approved build (design.md: *UI is prototyped and approved by
+      use, not specified*; *The UI is built from prototype build
+      v0.1-33*): declining a question, with its three reasons as that
+      build had them (design.md's *Two reasons to decline* merges the
+      first two into one), the choice of filter under "the inquisitor
+      should have handled it" (reason 2 in the spec) and the exact post shown
+      before it goes out (design.md: *Two reasons to decline*; *Misses the
+      answer session logs*), and the list of questions answered and
+      handled for the person. Adam approved build v0.1-30 by use on
+      2026-10-20 (design.md: *The UI is built from prototype build
+      v0.1-33*), tagged
       `answer-session-ui-approved-v0.1-30` on shared-skills
-- [ ] 6.10 Filter 1 on every incoming question and the `Recorded answer: `
-      post; filters 2 to 4 and the three fixed `Inquisitor: ` texts;
-      declining with its two reasons, and reason 2's posts; the misses
-      on the questions branch, none for the first reason (decisions
-      298 and 330), a miss against
-      filter 1 for an agent's question the answer session answers by
-      itself; a recorded answer by itself on a
-      relayed question, and no `Inquisitor: ` post on one (decision 223),
-      and no automatic post that repeats an automatic post made earlier in
-      its chain of replies (decision 219); a
-      questions-branch question asked in a post answered in its thread
-      and by a log file; a refused post turning off a channel no check
-      can read; the post hook's block of a
-      tool-call post that starts with a reserved prefix (decision 203). SKILL.md tells an agent how to
-      act on a `Recorded answer: ` or `Inquisitor: ` reply: a recorded
-      answer only once filter 1 counts its record, and an `Inquisitor: `
-      reply only when it names filter 2, or names filter 3 or 4 and its
-      last line apart from a `Re: ` line says the person chose it, which
-      reason 2's posts add (decision 234; the line is decision 239's
-      item 6). The tests also cover the answer session's handled file, pushed whenever it
-      closes a question a questions-branch file holds, whether from that
-      branch or linked to a thread message by its `asked_in`, which
-      closes exactly the file it names, for good; a thread copy declined
-      with nothing posted closed on that machine only; a log file
-      following its thread message by `asked_in`; a later message in a
-      closed question's thread, a follow-up or a reply, shown as a new
-      question; a message that is not really a question ignored, and one
-      that reaches the queue declined under reason 1 with no miss, or
-      under reason 2 with filter 3's "the agent shouldn't have asked", posting nothing,
-      with a filter 3 miss against the asking agent; a log file whose link
-      this machine does not read shown on its own; a log file with no
-      `asked_in` always shown as its own question, never paired with a
-      message (decision 352); an
-      answer that cannot reach its thread kept as answered, not relayed,
-      returned to the queue, with the answer kept, once its channel
-      passes its check, and posted only after the person approves it
-      again, while another machine asks the question again (decisions
-      311, 316 and 317); an answer kept for a reason no check covers, a
-      refused text, a reply that arrived or an unsubscribed channel,
-      staying on the pending list, and any pending answer posted, edited
-      or dropped by the person at any time (decision 321); filter 1's
-      search grouping every answer file by hash, among answer files
-      naming one file the newest being its answer, and the older one
-      superseded in the search too, and only an answer file whose proof is
-      the person's and whose commit adds that answer file alone counting as a named
-      file's answer (decisions 312, 319, 323 and 328); the answer file
-      pushed only after the thread is checked, none for an
-      answer held back or dropped, and at once only for one whose thread
-      cannot be read (decision 325); a later run naming a file only from the Igor's own record
-      (decision 327); the relay post first, then the answer file's push,
-      retried at each poll and each opening, the owed push recorded in
-      the state folder before the post (decisions 332 and 338); a
-      github.com `answer_link` withheld where the lore repository is more
-      visible than the repository it points into (decision 337); every
-      Igor log file following its own handback comment.
-      For Igor items the tests also cover: an item shown only through its
-      newest handback, an older unanswered handback passed over with
-      nothing written and its file never shown again; a bot's message
-      reaching only the first person it mentions, a person's message
-      reaching each, and a handback that mentions no one reaching the
-      assignee; a handback that mentions no one on an unassigned item
-      shown to no one, and one on an
-      item assigned to someone else never shown to this person (decisions
-      333, 339, 345 and 346). The remaining tests cover
-      the Igor's record's file-name suffix and date finding the file, and more
-      than one match naming none (decisions 334 and 342); a file that
-      tags no one answered only by an account with write access to the
-      lore repository (decision 340); an Igor's handback link followed
-      only from a marked `igor-` App handback in the repository the file's
-      `asked_from` names, which an Igor's file always holds (decisions
-      339, 345 and 347);
-      the relay post's URL added to the owed push record once the post
-      goes out, and
-      the record dropped when the post never went out (decision 338);
-      declining with two reasons, the first, nothing to
-      answer, merging the old first two (decision 330); a named file still shown, with the
-      answer beside it as input, when its answer file does not count
-      (decision 320); the `log` command refusing an
-      `answers` that names no file on the branch (decision 310); an answer file holding the question the person
-      saw and naming the file it answers; a second machine's miss pushed
-      even when a matching one is on the branch; and a miss for a
-      question a questions-branch file holds copying that file's
-      `asked_from` (decisions 273, 274, 278, 282, 283, 291 and 297 to
-      320)
+- [ ] 6.10 The answer session's handling of incoming questions,
+      SKILL.md's guidance on its automatic replies, and the tests below.
+      This change builds all of it except the two items marked igor's,
+      which igor builds, as igor PR #216 is asked to.
+      - Built in this task:
+        - filter 1 on every incoming question and the `Recorded answer:
+          ` post;
+        - filters 2 to 4 and the three fixed `Inquisitor: ` texts;
+        - declining with its two reasons, and reason 2's posts;
+        - the misses on the questions branch, none for the first reason
+          (design.md: *Messages that are not questions are ignored*;
+          *Misses the answer session logs*; *Two reasons to decline*),
+          and a miss against filter 1 for an agent's question the
+          answer session answers by itself;
+        - a recorded answer by itself on a relayed question, and no
+          `Inquisitor: ` post on one (design.md: *Which questions count
+          as an agent's*; *Filter 1 runs on every incoming question*);
+        - no automatic post that repeats an automatic post made earlier
+          in its chain of replies (design.md: *No automatic post repeats
+          one in its chain of replies*);
+        - a questions-branch question asked in a post answered in its
+          thread and by a log file;
+        - a refused post turning off a channel no check can read;
+        - the post hook's block of a tool-call post that starts with a
+          reserved prefix (design.md: *The post hook blocks a reserved
+          prefix on GitHub*).
+      - SKILL.md tells an agent how to act on a `Recorded answer: ` or
+        `Inquisitor: ` reply: a recorded answer only once filter 1
+        counts its record, and an `Inquisitor: ` reply only when it
+        names filter 2, or names filter 3 or 4 and its last line apart
+        from a `Re: ` line says the person chose it, which reason 2's
+        posts add (design.md: *What an asking agent does with an
+        automatic reply*; *A post the person chose says so*).
+      - The tests also cover:
+        - the answer session's handled file, pushed whenever it closes a
+          question a questions-branch file holds, whether from that
+          branch or linked to a thread message by its `asked_in`, which
+          closes exactly the file it names, for good;
+        - a thread copy declined with nothing posted closed on that
+          machine only;
+        - a log file following its thread message by `asked_in`;
+        - a later message in a closed question's thread, a follow-up or
+          a reply, shown as a new question;
+        - a message that is not really a question ignored, and one that
+          reaches the queue declined under reason 1 with no miss, or
+          under reason 2 with filter 3's "the agent shouldn't have
+          asked", posting nothing, with a filter 3 miss against the
+          asking agent;
+        - a log file whose link this machine does not read shown on its
+          own;
+        - a log file with no `asked_in` always shown as its own
+          question, never paired with a message (design.md: *A log file
+          without `asked_in` is never merged*);
+        - an answer that cannot reach its thread kept as answered, not
+          relayed, returned to the queue, with the answer kept, once its
+          channel passes its check, and posted only after the person
+          approves it again, while another machine asks the question
+          again (design.md: *An answer that cannot reach its thread is
+          kept pending*; *The push order for a questions-branch
+          answer*);
+        - an answer kept for a reason no check covers, a refused text, a
+          reply that arrived or an unsubscribed channel, staying on the
+          pending list, and any pending answer posted, edited or dropped
+          by the person at any time (design.md: *An answer that cannot
+          reach its thread is kept pending*);
+        - filter 1's search grouping every answer file by hash, among
+          answer files naming one file the newest being its answer, and
+          the older one superseded in the search too, and only an answer
+          file whose proof is the person's and whose commit adds that
+          answer file alone counting as a named file's answer
+          (design.md: *`answers` decides a named file's answer; the
+          search groups by hash*; *A named file's answer must be the
+          person's own, added alone*);
+        - the answer file pushed only after the thread is checked, none
+          for an answer held back or dropped, and at once only for one
+          whose channel is off or not subscribed, including one whose
+          refused post turned it off (design.md: *The push order for a
+          questions-branch answer*);
+        - a later run naming a file only from the Igor's own record
+          (igor's; design.md: *A later run names the answered file from
+          the Igor's record*);
+        - the relay post first, then the answer file's push, retried at
+          each poll and each opening, the owed push recorded in the
+          state folder before the post (design.md: *The push order for a
+          questions-branch answer*);
+        - a github.com `answer_link` withheld where the lore repository
+          is more visible than the repository it points into (design.md:
+          *`answer_link` and `asked_in` are withheld where they would
+          leak*);
+        - every Igor log file following its own handback comment.
+      - For Igor items the tests also cover (design.md: *A handback that
+        mentions no one reaches the assignee*; *Each Igor log file
+        follows its own handback comment*; *Only an item's newest
+        handback is open*; *A bot's question reaches only the first
+        person it mentions*):
+        - an item shown only through its newest handback, an older
+          unanswered handback passed over with nothing written and its
+          file never shown again;
+        - a bot's message reaching only the first person it mentions,
+          and a person's message reaching each;
+        - a handback that mentions no one reaching the assignee;
+        - a handback that mentions no one on an unassigned item shown to
+          no one, and one on an item assigned to someone else never
+          shown to this person.
+      - The remaining tests cover:
+        - the Igor's record's file-name suffix and date finding the
+          file, and more than one match naming none (igor's; design.md:
+          *A later run names the answered file from the Igor's record*);
+        - a file that tags no one answered only by an account with write
+          access to the lore repository (design.md: *A named file's
+          answer must be the person's own, added alone*);
+        - an Igor's handback link followed only from a marked `igor-`
+          App handback in the repository the file's `asked_from` names,
+          which an Igor's file always holds (design.md: *Each Igor log
+          file follows its own handback comment*; *Only an item's newest
+          handback is open*; *igor's handback marker*);
+        - the relay post's URL added to the owed push record once the
+          post goes out, and the record dropped when the post never went
+          out (design.md: *The push order for a questions-branch
+          answer*);
+        - declining with two reasons, the first, nothing to answer,
+          merging the old first two (design.md: *Two reasons to
+          decline*);
+        - a named file still shown, with the answer beside it as input,
+          when its answer file does not count (design.md: *A named file
+          stays shown until its answer counts*);
+        - the `log` command refusing an `answers` that names no file on
+          the branch (design.md: *An answer file names the file it
+          answers*);
+        - an answer file holding the question the person saw and naming
+          the file it answers;
+        - a second machine's miss pushed even when a matching one is on
+          the branch;
+        - a miss for a question a questions-branch file holds copying
+          that file's `asked_from`.
+      - The decisions behind these tests, in design.md: *The answer
+        session writes a handled file on every close of a
+        questions-branch file*; *Reopening a declined question*; *Misses
+        the answer session logs*; *Declining with nothing to answer
+        closes only that question*; *Closing works by exact identity,
+        never by matching*; *Messages that are not questions are
+        ignored*; *A log file follows its thread message by exact link*;
+        *A link this machine never reads is not followed*; *An answer
+        file records the question the person saw*; *`answer_link` and
+        `asked_in` are withheld where they would leak*; *A log file
+        without `asked_in` is never merged*; *An answer file names the
+        file it answers*; *An answer that cannot reach its thread is
+        kept pending*; *The push order for a questions-branch answer*;
+        *`answers` decides a named file's answer; the search groups by
+        hash*; *A named file stays shown until its answer counts*.
 - [ ] 6.11 Decide at implementation, with no requirement added
-      (decision 256), and record each choice in design.md while the
+      (design.md: *Some answer-session details are decided at
+      implementation*), and record each choice in design.md while the
       change is open. Agreeing to a shown recorded answer is not among
-      them: decisions 264, 266, 270 and 273 to 275 set it; 270 also folds in 267 and 268. The choices: how a question's options are parsed from its
-      thread; `propose_reply`, the tool Claude calls to put a draft reply in the
-      prompt box, refusing a call from a subagent (Adam confirmed this);
-      a draft's privacy, beyond the existing rule that the draft is
+      them: design.md's *Agreeing to a recorded answer is a filter 1
+      decline*, *The answer session writes a handled file on every close
+      of a questions-branch file*, *Reopening a declined question* and
+      *A person's cite pushes a citation file* set it. The choices: how a question's options are parsed from its
+      thread; a draft's privacy, beyond the existing rule that the draft is
       written at the privacy of what the question concerns; an asker's
       reply revising the options; what agreeing with a suggested verdict
       and citing a lore entry post, each within the reserved-prefix rules
       of *Four reserved prefixes mark the answer session's posts*, though
       citing an `active` entry in scope also pushes a citation file
-      (decisions 257 and 259);
-      Claude's draft, through `propose_reply`, filling the place the person
-      gives when declining under reason 2 with filter 1, that is, the URL of
-      the record for the `Recorded in: ` line (Adam confirmed this,
-      since the draft lands in the prompt box for the person to confirm),
-      the post keeping its fixed form; and the relay notice's UI, the notice shown for the comment GitHub Actions
+      (design.md: *A person's cite pushes a citation file*); and the
+      relay notice's UI, the notice shown for the comment GitHub Actions
       posts when a pull request changes the person's relay file,
       under task 6.1's rule (c)
 
@@ -638,10 +796,15 @@ contradicts what design.md assumed.
       search in an Igor worker depends on it, after igor PR #202 has set
       the path of the scribe's records, and after task 4.3 has
       tagged every expected gap, since spec-trace's CI fails on an
-      untagged scenario once archived (decision 253). Make filter 1
+      untagged scenario once archived (design.md: *The change is archived
+      only after every expected gap is tagged*). Make filter 1
       search the scribe's records where igor PR #202 puts them, in the
       repository a question concerns and in the lore repository
-      (decisions 63, 66, 109 and 349). Once #216 has merged,
+      (design.md: *Filter 1 searches igor's scribe's records where #202
+      puts them*; *A decision record counts only when accepted*; *An
+      answer typed on another surface counts only through a decision
+      document*; *igor-dependent rules state the end state*). Once #216
+      has merged,
       point the spec's links to *An Igor publishes the citations its worker
       reports*, *An Igor publishes the questions-branch files its worker
       reports* and *An Igor runs its worker's lore searches* at igor's
@@ -652,9 +815,10 @@ contradicts what design.md assumed.
       inquisitor's commits to a lore `questions` branch are machine records,
       exempt from their trailers, and say in prose's `DECISIONS.md` why its
       file filter skips files under `.inquisitor/` (task 5.6): they are
-      records quoted word for word (decision 134)
-- [ ] 7.2 Fold this change's lasting reasoning, from proposal.md and
-      design.md, into a new `.agents/skills/inquisitor/DECISIONS.md`,
-      the answer session's included, and
+      records quoted word for word (design.md: *prose's pass skips
+      `.inquisitor/`*)
+- [ ] 7.2 Fold this change's lasting reasoning, from design.md, into a
+      new `.agents/skills/inquisitor/DECISIONS.md`, the answer session's
+      included, and
       fold the reasoning for moving the post reader into prose's
       `DECISIONS.md`, as `AGENTS.md` says

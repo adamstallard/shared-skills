@@ -32,7 +32,7 @@ is the step of a bug-hunter run that reports a root cause, a finding too
 large for the change, anything left unresolved when the run aborted, or a
 property from its hunt worth keeping as a permanent guard. Each such
 recommendation SHALL pass all four filters like any other question
-(design.md, *bug-hunter's Step 9 recommendations go through the filters*).
+(design.md: *bug-hunter's Step 9 recommendations go through the filters*).
 Except for a rhetorical question, under filters 3 and 4 the agent SHALL
 record what it chose, and why, where the question's answer is recorded.
 
@@ -58,9 +58,9 @@ Terms used throughout this spec:
   serves, when the question holds beyond that one repository; or one
   person's way of working. The agent judges which.
 - **A decision document** is a `DECISIONS.md` file, an OpenSpec spec or
-  change, a decision record igor's scribe writes, at the path igor PR
-  #202 sets, which this change adopts, an issue's decision block, or a lore entry, and nothing else
-  (proposal decision 349).
+  change, a decision record igor's scribe writes (at the path igor PR
+  #202 sets; this change adopts that path), an issue's decision block, or a lore entry, and nothing else
+  (design.md: *igor-dependent rules state the end state*).
 - **An issue's decision block** is the start of the issue's body, before its
   first heading, or the first of its sections whose heading starts with
   "Decision". It states what is decided.
@@ -120,7 +120,7 @@ Terms used throughout this spec:
   item back is not a post in this spec, and nothing here batches or tags
   it; an Igor posts it through its own code, which the post hook never
   sees, and any post the hook does see is vetted, whatever marker it
-  carries (proposal decision 350).
+  carries (design.md: *No exemption for an Igor's handback*).
 - **The person running the session's login** is the GitHub login the
   inquisitor's configuration names, when it equals the login of the account
   `gh` is logged in as, read by the script running as the person. When they
@@ -209,7 +209,7 @@ Terms used throughout this spec:
   more visible place, except a recorded answer's link that the person
   confirms after being shown that posting it shows the record exists,
   as the `answer-session` spec's *Filter 1 runs on every incoming
-  question* allows (proposal decision 264). A question about an organization or project is
+  question* allows (design.md: *Agreeing to a recorded answer is a filter 1 decline*). A question about an organization or project is
   bounded by the visibility of the repository the question concerns, which
   for such a question is the repository holding the current work; a
   question about one person's way of working is never posted. Wherever
@@ -257,9 +257,10 @@ Terms used throughout this spec:
   1 stopped the question with it, or the person of an answer session
   cited it, as the `answer-session` spec defines citing. Either way the
   entry was `active` and its scope covered the question, as *Filter 1 searches every place an answer is recorded*
-  defines scope (proposal decisions 257, 259 and 262); *A question that should not have been asked is logged as a miss*
-  and *Every answer is recorded and every asked question logged* define
-  them, and *A citation file has one format* gives a citation file's form.
+  defines scope; *A question that should not have been asked is logged as
+  a miss* and *Every answer is recorded and every asked question logged*
+  define them, and *A citation file has one format* gives a citation
+  file's form (design.md: *A person's cite pushes a citation file*).
 - **A relayed answer** is a GitHub comment that starts with `User says: `
   and whose author is a person's relay App: an answer that person's answer
   session posted for them, on their confirmation. It counts as that
@@ -390,7 +391,8 @@ as the paragraph on Igor workers below says; `igor` marks the Igor's own
 run; and any other value, or no variable, marks no run. In either run the
 script SHALL read no lore clone and push nothing to a lore repository
 itself, and its output SHALL say each time that it runs as in an Igor's
-run because `IGOR_RUN` is set (proposal decision 239's item 9).
+run because `IGOR_RUN` is set
+(design.md: *The script tells an Igor's run by `IGOR_RUN`*).
 Outside a run, a session with no
 person in it, such as `claude -p`, searches lore as any other session
 does.
@@ -656,17 +658,20 @@ Filter 1's search groups every file this way, by hash, whether or not it
 holds `answers`. Separately, `answers` decides which answer a file it
 names has: the newest of the answer files naming it that would count,
 whose proof, a comment link or a signature, is that of the person the
-named file asks, and whose commit adds that answer file alone (proposal
-decisions 312, 319 and 328). For a named file that tags no one, an
+named file asks, and whose commit adds that answer file alone
+(design.md: *`answers` decides a named file's answer; the search groups by hash*; *A named file's answer must be the person's own, added alone*). For a named file that tags no one, an
 answer file counts only when the account its proof is for has the write
 access the `answered_by` rule above asks of a `decision` entry on a
 questions branch:
-write access to the lore repository (proposal decision 340). An older answer file that a newer one
+write access to the lore repository (design.md: *A named file's answer must be the person's own, added alone*). An older answer file that a newer one
 naming the same file replaces SHALL also be shown in the search as
 input, labelled as superseded, and SHALL stop counting for its own
-question. It still supersedes the older files in its own hash group, so
-that group is left with no answer that counts, and the search shows all
-its files as input, labelled as superseded (proposal decision 323). Whether a named file is answered is
+question. The replaced file still supersedes the older files in its own
+hash group. So that group is left with no answer that counts: its newest
+file no longer counts, and the older ones are superseded by it. That
+way no older answer counts beside the person's changed answer. The
+search shows all the group's files as input, labelled as superseded
+(design.md: *`answers` decides a named file's answer; the search groups by hash*). Whether a named file is answered is
 decided only by the answer files naming it: a file that hash grouping
 supersedes for its words still counts as the answer of the file it
 names, unless a newer answer file naming that file replaces it. A named file and its answer files can
@@ -694,11 +699,12 @@ Slack message or a Linear comment, SHALL be input until a decision
 document that the list above counts records it. One such document is the
 `accepted` decision record igor's scribe writes at the path igor PR #202
 sets, in the repository the question concerns or in the lore repository,
-both of which filter 1 searches at that path (proposal decision 349). An answer the person typed in an
+both of which filter 1 searches at that path (design.md: *igor-dependent rules state the end state*). An answer the person typed in an
 answer session, which the session relayed on such a surface and logged,
 is not an answer typed there: its questions-branch log file can count
 through a signature on the commit that added it, the second of the two
-proofs a `decision` file's writer has above (proposal decision 250). A link to a message on such a surface SHALL NOT prove a
+proofs a `decision` file's writer has above
+(design.md: *Questions-branch answers relayed on Linear or Discord*). A link to a message on such a surface SHALL NOT prove a
 questions-branch file's writer.
 
 Every other hit the search shows SHALL be shown to the agent as input,
@@ -1373,8 +1379,8 @@ flag instead, as *Some questions are recorded by hash only* says. When
 igor counts the run flagged, as the definition of a flagged run above
 says, the Igor posts the handoff, which asks
 nothing, in place of the handback comment; what it does with the
-question instead is igor PR #216's, as the proposal's decision 243
-cites. A session with no person in it that can post, such
+question instead is igor PR #216's, as design.md's *A flagged run asks nothing and pushes
+nothing* cites. A session with no person in it that can post, such
 as a scheduled agent, SHALL ask the question in a post, tagged as *A
 question in a post tags one person who can decide* says. A session
 with no person in it that can neither post nor hand back SHALL ask nowhere: it stops only if the work
@@ -1789,7 +1795,7 @@ as a private key or a GitHub access token.
 - **WHEN** an agent's post that the post hook sees carries igor's handback
   marker, in the form task 0.6 records, and asks an unvetted question
 - **THEN** the post hook blocks it, as it blocks any post with an
-  unvetted question (proposal decision 350)
+  unvetted question (design.md: *No exemption for an Igor's handback*)
 
 #### Scenario: A post with a stale verdict is blocked
 
@@ -2132,7 +2138,7 @@ record. A later run on the item that publishes an artifact SHALL log the
 question in it, with its answer from the start once a person has given
 one. That rule does not apply to the question that stopped a flagged
 run: no log file SHALL record it, neither from that run nor from a later
-one (proposal decision 243). A citation file
+one (design.md: *A flagged run asks nothing and pushes nothing*). A citation file
 is never an answer. Every commit
 the script makes to a lore repository's questions branch SHALL have the
 message `inquisitor: log <file>`, and SHALL carry no prose or bug-hunter
@@ -2144,8 +2150,8 @@ one, as the `answer-session` spec's *A handled file closes a
 questions-branch question* says. The script's `log` command SHALL write
 a handled file only when called with its handled option, and SHALL
 refuse a `handled` or `closes` key passed without that option. The
-skill's instructions SHALL tell an agent never to pass it (proposal
-decision 273).
+skill's instructions SHALL tell an agent never to pass it
+(design.md: *The answer session writes a handled file on every close of a questions-branch file*).
 
 The skill's script SHALL write every log file and miss file through its
 `log` command, which takes the file's place, its keys and its body
@@ -2162,30 +2168,33 @@ when it cannot read the comment, it SHALL write nothing and say why. For
 an answer whose `answer_link` is a Linear or Discord URL, as *A log file
 and a miss file have one format* defines them, the command SHALL fetch
 nothing, and SHALL record the answer it was given, word for word
-(proposal decision 248). Such a link comes only from an answer session,
+(design.md: *Questions-branch answers relayed on Linear or Discord*). Such a link comes only from an answer session,
 which logs only to a lore repository's questions branch. The command
 SHALL write the link only when it reads that lore repository's
 visibility as private, and otherwise SHALL write the file without an
-`answer_link` (proposal decision 251). It SHALL write a github.com
+`answer_link` (design.md: *`answer_link` and `asked_in` are withheld where they would leak*). It SHALL write a github.com
 `answer_link` only when the lore repository is no more visible than the
 repository the URL points into, as *More visible* defines it, and
-otherwise SHALL write the file without it (proposal decision 337). Likewise it SHALL write a Linear
+otherwise SHALL write the file without it (design.md: *`answer_link` and `asked_in` are withheld where they would leak*). Likewise it SHALL write a Linear
 or Discord `asked_in` only when it reads the lore repository's
 visibility as private, and a github.com `asked_in` only when the lore
 repository is no more visible than the repository the URL points into,
 as *More visible* defines it; otherwise it SHALL write the file without
-the `asked_in` (proposal decision 315).
+the `asked_in` (design.md: *`answer_link` and `asked_in` are withheld where they would leak*).
 
 The command SHALL write `answers` only when it names a log file already
 on that questions branch that holds no answer; otherwise it SHALL write
-nothing and say why (proposal decision 310). It SHALL also write
+nothing and say why (design.md: *An answer file names the file it answers*). It SHALL also write
 nothing and say why for an
 `asked_in` that is not a github.com, Linear or Discord URL of the forms
 given for `answer_link`. In Igor-worker mode the command writes no
 `asked_in`: the worker cannot know its handback comment's URL, so the
-Igor adds the key once it has posted that comment (proposal decisions
-326, 339 and 345). The command does not check who passed an `asked_in`
-or an `answer_link`; such a link proves no writer, whoever passed it. For an `answer_link` that is none
+Igor adds the key once it has posted that comment
+(design.md: *Each Igor log file follows its own handback comment*; *Only an item's newest handback is open*). The command does not check who passed an `asked_in`
+or an `answer_link`: who passed a link proves nothing about who wrote
+the answer. Any proof of the writer comes from the linked comment
+itself or the commit's signature, as *Only an answer with authority
+stops a question* says. For an `answer_link` that is none
 of these, it SHALL write nothing and say why. In
 Igor-worker mode it SHALL read no comment: it writes the answer it was
 given, which only identifies the comment, and the Igor replaces it.
@@ -2201,30 +2210,33 @@ No log file SHALL be written outside a repository, such as under
 A log file for a question that was asked SHALL hold the question as asked and the day it was
 asked. A questions-branch log file for a question also asked in a post
 SHALL hold that post's URL as `asked_in`, so the agent SHALL post the
-question before it writes the log file (proposal decision 299). An Igor
+question before it writes the log file
+(design.md: *A log file follows its thread message by exact link*). An Igor
 worker's log file instead holds the URL of the handback comment that
 asks its question, which the Igor writes after it has posted that
 comment and before it pushes the file, applying the `log` command's
 withholding rule itself
-(proposal decisions 326, 339 and 345). The
+(design.md: *Each Igor log file follows its own handback comment*; *Only an item's newest handback is open*). The
 `log` command leaves the URL out where its rule for `asked_in`, above,
-withholds it (proposal decisions 302 and 315). A questions-branch file
+withholds it
+(design.md: *`answer_link` and `asked_in` are withheld where they would leak*; *A log file without `asked_in` is never merged*). A questions-branch file
 that answers a question an earlier file there logged unanswered SHALL
-name that file in `answers`, one answer file for each such file it
-knows exactly: the agent that pushed the earlier file has its name, and
-a later Igor run on the item has it only from the Igor's own record of
-the handback, the record igor PR #216 is asked to keep (#216's decision
-59),
-which holds the 6-hex-digit suffix and the date in the name of the
+name that file in `answers`, one answer file for each such file whose
+exact name it knows. The agent that pushed the earlier file has its name. A
+later Igor run on the item has it only from the Igor's own record of the
+handback, the record igor PR #216 is asked to keep (#216's decision 59).
+That record holds the 6-hex-digit suffix and the date in the name of the
 questions-branch log file the Igor pushed for that question, and no
-question text; the run finds the file on the branch by them, and when
-more than one file matches, it names none (proposal decisions 334 and
-342); the handback comment may show that name for people, but the run
-never reads it from there. The Igor adds that `answers` itself. When no
+question text. The run finds the file on the branch by them, and when
+more than one file matches, it names none (design.md: *A later run names
+the answered file from the Igor's record*). The handback comment may
+show that name for people, but the run never reads it from there. The
+Igor adds that `answers` itself. When no
 record holds them, or no file on the branch matches them, the Igor SHALL write no `answers` for that run, and the earlier file
-stays shown until the person answers it (proposal decisions 303, 324
-and 327). When the answer comes, it gains who answered (its `answered_by`),
-the answer's `authority`, the answer, and where the
+stays shown until the person answers it
+(design.md: *An answer file names the file it answers*; *A later run
+names the answered file from the Igor's record*). When the answer comes, a log file in a repository gains who answered
+(its `answered_by`), the answer's `authority`, the answer, and where the
 question's answer is recorded, in the format *A log file and a miss file
 have one format* states. A questions-branch file pushed with its answer,
 and a file a later Igor run logs with its answer, hold these from the
@@ -2233,7 +2245,7 @@ repository by a further pull request, as the file did. The question, and an agen
 at the privacy of what the question concerns: private context generalised
 or left out. A person's answer is never generalised: it is recorded in
 their words or not at all, so when its words hold such context the file
-gets no answer (proposal decision 240).
+gets no answer (design.md: *A logged answer is the person's own words*).
 When the answer cannot be recorded at that privacy, the agent SHALL add no answer to the question's file, which stays as it was
 written, and the question stays open; it uses the answer in the work, and
 its report says the answer could not be recorded at this privacy.
@@ -2636,18 +2648,19 @@ written.
   repository's root or a URL, never a lore entry; `answer_link`, only when there is one,
   the github.com URL of the comment or review holding the answer,
   written only in a lore repository no more visible than the repository
-  it points into (proposal decision 337), or,
+  it points into
+  (design.md: *`answer_link` and `asked_in` are withheld where they would leak*), or,
   for an answer an answer session relayed on Linear or Discord, the URL
   of that relay comment or message, kept as a pointer that nothing
-  fetches and written only in a private lore repository (proposal
-  decisions 248 and 251): on Discord
+  fetches and written only in a private lore repository
+  (design.md: *Questions-branch answers relayed on Linear or Discord*; *`answer_link` and `asked_in` are withheld where they would leak*): on Discord
   `https://discord.com/channels/<id>/<id>/<id>` with decimal ids, and on
   Linear a URL starting `https://linear.app/`; `handled`, the day, as
   `yyyy-mm-dd` in UTC, on which an answer session closed the question,
   even when the push itself succeeds on a later poll, held only
   in a **handled file**: a questions-branch file holding `handled` and
-  `closes` and no other key, and no body (proposal decisions 273, 276,
-  277, 297 and 305);
+  `closes` and no other key, and no body
+  (design.md: *The answer session writes a handled file on every close of a questions-branch file*; *Closing works by exact identity, never by matching*);
   `closes`, only in a handled file, the file name of the one
   questions-branch file it closes, `<date>-<slug>-<6 hex digits>.md`,
   without its directory, as the `answer-session` spec's *A handled file closes
@@ -2655,16 +2668,16 @@ written.
   `asked_in`, only in a questions-branch log file for a question the
   asking agent also asked in a post, the URL of that post, or, for an
   Igor worker's question, the URL of the handback comment that asks it
-  (proposal decisions 326, 339 and 345), a Linear or
+  (design.md: *Each Igor log file follows its own handback comment*; *Only an item's newest handback is open*), a Linear or
   Discord URL being written only in a private lore repository, as for
   `answer_link`, and a github.com URL only in a lore repository no more
-  visible than the repository it points into (proposal decisions 299,
-  302 and 315);
+  visible than the repository it points into
+  (design.md: *A log file follows its thread message by exact link*; *`answer_link` and `asked_in` are withheld where they would leak*; *A log file without `asked_in` is never merged*);
   `answers`, only in a questions-branch file holding an answer, the file
-  name of the questions-branch file it answers, one that holds no answer
-  inside it, written as
-  `closes` is, and only when that file is on the branch (proposal
-  decisions 303 and 310);
+  name of the questions-branch file it answers, a file that itself
+  holds no answer, written as
+  `closes` is, and only when that file is on the branch
+  (design.md: *An answer file names the file it answers*);
   `asked_from`, only in a questions-branch file an Igor pushes, whether
   its worker reported it or the Igor's own inquisitor run wrote it, or in
   a miss or an answer file an answer session logs for a question such a
@@ -2680,8 +2693,8 @@ written.
   that choice in one sentence. An answer keeps as many lines as it has. Each line of
   the answer is written as a quote line: `> `
   followed by the line, or `>` alone for a blank line, with line ends made
-  LF and blank lines at the answer's start and end dropped (proposal
-  decisions 239 and 240). When the person answered the
+  LF and blank lines at the answer's start and end dropped
+  (design.md: *A log file's answer is written as quote lines*; *A logged answer is the person's own words*). When the person answered the
   question as rephrased in an answer session, the body also holds, between
   those two sections, the rephrased question under `## Rephrased question`
   and the discussion in one sentence under `## Discussion`. The script
@@ -2703,9 +2716,10 @@ written.
   refusing any such file that already holds one, as
   igor PR #216's *An Igor publishes the questions-branch files its worker
   reports* says. A citation file never holds it.
-  The skill's script never writes it, except that a miss an answer session
-  logs for a question a questions-branch file holds copies that file's
-  `asked_from` (proposal decision 282). A file holding it is as private as
+  The skill's script never writes it, except in the files an answer
+  session logs for a question a questions-branch file holds, as listed
+  above: a miss, or an answer file, copies that file's `asked_from`
+  (design.md: *Misses the answer session logs*). A file holding it is as private as
   the more private of its two repositories, as *More visible* says.
 - **Reading a log file:** it is answered when its frontmatter holds
   `authority`, and only then; nothing in its body decides it. It is
@@ -2935,8 +2949,8 @@ once, whether or not its question stopped the worker. It SHALL mark
 each listed category that belongs to a question that stopped the
 worker. The flag SHALL not say
 which stopped question had which category, nor how many questions had
-one; a stopped question with no category adds nothing to it (proposal
-decisions 244 and 245). What the Igor does with the words is igor PR
+one; a stopped question with no category adds nothing to it
+(design.md: *The flag a worker raises for a question with a category*). What the Igor does with the words is igor PR
 #216's, including its rule that a word counts as a category only when
 it is exactly one of the three (its decisions 92 and 97).
 igor's task-execution requirement
@@ -3334,7 +3348,7 @@ the post as a person's answer. When the post starts with `Inquisitor: `
 and names filter 2, or names filter 3 or 4 and holds, as its last line
 apart from a `Re: ` line, the line the `answer-session` spec adds when
 the person chose that filter under decline reason 2,
-`The person chose this filter.` (proposal decision 239's item 6), the agent SHALL take
+`The person chose this filter.` (design.md: *A post the person chose says so*), the agent SHALL take
 that filter's action, as if its own filter had stopped the question, and
 record its choice where that filter says, but only when both of these
 hold: the post's author is
