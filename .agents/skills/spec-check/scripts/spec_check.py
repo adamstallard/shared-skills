@@ -40,6 +40,7 @@ Standard library only. Read DECISIONS.md next to SKILL.md before changing this.
 from __future__ import annotations
 
 import argparse
+import bisect
 import io
 import json
 import os
@@ -1049,6 +1050,192 @@ def judge_citation(m, base):
     if holds(base.line_count(found)) or holds(base.change_line_count(found)):
         return None
     return "check", f"{found}, the one file named {cited}, has no line {line}"
+
+
+# -- document-evolution text -----------------------------------------------------
+
+# A change states what is true now; git and pull request comments hold how
+# it got there (DECISIONS.md, "Decisions live in design.md"). Each entry is
+# (name, pattern, what the phrase does, veto). A veto is matched against the
+# text left of the hit and suppresses it, as prose's history patterns for
+# code comments do. EVOLUTION_DETERMINER is the one veto: a determiner
+# directly before the hit, as in `a previously rejected rule` (behaviour);
+# in `the rule previously said` (history) nothing vetoes it. Behaviour text
+# uses `supersedes`, `reversible` and `no longer` freely, so every verb here
+# is pinned to a decision, a person, a date or the document itself. The bare
+# adverbs (`previously`, `originally`) are the exception, held back by the
+# veto and by EVOLUTION_PARTICIPLE. DECISIONS.md, "Document-evolution text is a warning", has
+# what the patterns were measured on.
+
+EVOLUTION_DETERMINER = re.compile(
+    r"(?:\b(?:a|an|the|any|all|some|its|their|every|each|no|one)|'s|’s)[\s-]+$", re.I)
+# A veto reads only this many characters left of the hit. Reading the whole
+# text left of each hit took quadratic time on a long line with many hits.
+EVOLUTION_LOOKBACK = 80
+# Headings often capitalise every word ("#### Scenario: Claim confirmed"),
+# so a capitalised word before a decision verb there is rarely a name. The
+# person-decided pattern does not fire up to the end of this match.
+EVOLUTION_HEADING = re.compile(r"[ \t]*#+[^:]*:?\s*")
+# A past participle right after `previously` is almost always adjectival in a
+# spec ("a candidate previously rejected is not proposed again").
+EVOLUTION_PARTICIPLE = re.compile(r"\s+\w+(?:ed|en|wn)\b", re.I)
+_DATE = r"\d{4}-\d{2}-\d{2}"
+_RULING = r"(?:decisions?|rulings?)"
+_EARLIER = r"(?:(?:the|an?|its|this|that|their|#\d+['’]s|\w+['’]s)\s+)?" \
+           r"(?:(?:earlier|previous|prior|original|first|old|later|last)\s+)?"
+_RULED = (r"(?i:decided|approved|ruled|agreed|amended|reversed|narrowed|widened|"
+          r"loosened|tightened|overruled|settled|chose|chosen|recorded)")
+
+EVOLUTION_PATTERNS = [
+    ("amended",
+     re.compile(r"\b(?:amend(?:s|ed|ing)?|revers(?:es|ed|ing)|supersed(?:es|ed|ing)|"
+                r"replac(?:es|ed|ing)|narrow(?:s|ed|ing)|widen(?:s|ed|ing)|"
+                r"overrul(?:es|ed|ing)|revis(?:es|ed|ing)|withdr(?:aws|ew|awn)|"
+                r"retract(?:s|ed|ing)?)\s+(?:by\s+|on\s+|in\s+)?" + _EARLIER + _RULING + r"\b"
+                r"|\bamended\s+(?:by|on|in)\b|\bamendments?\b", re.I),
+     "records how a decision was amended", None),
+    ("attribution",
+     re.compile(r"\(\s*@?[A-Z][\w.-]*,\s*(?:" + _DATE + r"|$)" +
+                r"|\b" + _RULED + r"\s+by\s+@?[A-Z][a-z]\w*\b"
+                r"|\b" + _RULED + r"\b[^.;]{0,40}?\bon\s+" + _DATE +
+                r"|\b(?i:" + _RULING + r")\s+[\d, ]+(?:(?:and|to)\s+\d+\s+)?on\s+" + _DATE +
+                r"|\b(?i:recorded)\s+(?:on\s+)?" + _DATE),
+     "credits a decision to a person or a date", None),
+    ("person-decided",
+     re.compile(r"(?<![\w@])@?(?!(?:It|This|That|He|She|They|We|You|Who|Which|Nobody|Somebody|"
+                r"Someone|Everyone|Everybody|Anyone|Each|Every|Both|All|None|One|The|An?|Its|Their|"
+                r"His|Her|Our|My|Your|Any|Some|No)\b)"
+                r"[A-Z][a-z]+\s+(?:decided|ruled|approved|agreed|chose|confirmed|accepted|adopted|"
+                r"narrowed|widened|amended|reversed|overruled|settled)\b"),
+     "credits a decision to a person", EVOLUTION_DETERMINER),
+    ("previously",
+     re.compile(r"\b(?:previously|originally|formerly|hitherto)\b", re.I),
+     "narrates an earlier state of the document", EVOLUTION_DETERMINER),
+    ("earlier-draft",
+     re.compile(r"\b(?:earlier|previous|prior|older|original|first|former)\s+"
+                r"(?:drafts?|wording|phrasing)\b"
+                r"|\b(?:earlier|previous|prior|older|original|first|former|last|next)\s+"
+                r"(?:versions?|revisions?)\s+of\s+(?:this|the)\s+(?:change|spec|proposal|design|"
+                r"document|requirement|rule|decision|section)\b"
+                r"|\b(?:this|the\s+next|the\s+previous|the\s+last|a\s+later|an\s+earlier)\s+"
+                r"revision\b"
+                r"|\b(?:change|proposal|spec|design)['’]s\s+(?:next|previous|last|first)\s+"
+                r"revision\b", re.I),
+     "refers to another draft of the document", None),
+    ("was-changed",
+     re.compile(r"\b(?:the|this|that)\s+(?:decision|requirement|rule|scenario|section|wording|"
+                r"text|entry|proposal|design|spec)\s+(?:was|were|has\s+been|had\s+been)\s+"
+                r"(?:changed|amended|reversed|narrowed|widened|reworded|rewritten|revised|"
+                r"dropped|tightened|loosened|relaxed)\b"
+                r"|\b(?:it|this)\s+(?:was|has\s+been|had\s+been)\s+(?:amended|reworded|"
+                r"rewritten|revised)\b", re.I),
+     "narrates a change to the document", None),
+    ("review-round",
+     re.compile(r"\bthis\s+(?:push|round|review\s+round)\b"
+                r"|\bsince\s+(?:the\s+(?:last|previous|first)\s+)?review\b"
+                r"|\b(?:after|in|during|since)\s+(?:the\s+)?(?:first|second|third|last|"
+                r"previous|latest|earlier)\s+(?:review|round)\b"
+                r"|\b(?:first|second|third|fourth|fifth|last|latest|later|next|previous|earlier)"
+                r"\s+(?:(?:to|and)\s+\w+\s+)?(?:consistency\s+reads?|review\s+rounds?)\b", re.I),
+     "dates the text against a review round a later reader cannot see", None),
+]
+
+# Text quoted in backticks or double quotes is an example, not the document
+# speaking: a spec about a checker quotes the phrases it checks for.
+# Code spans are paired by a scan in evolution_mask, not by one regex. A
+# regex such as (`+).*?\1 can start at the second backtick of a ``` run and
+# pair it with a lone backtick later, and it backtracks in cubic time on a
+# long run with no closer.
+EVOLUTION_BACKTICKS = re.compile(r"`+")
+EVOLUTION_QUOTED = re.compile(r"\"[^\"\n]*\"|“[^”\n]*”")
+# Masked text keeps its width, so positions hold, but is neither a space nor
+# a word: a veto or a pattern never reads across it as if the quoted words
+# were gone ("The `claim` previously held" keeps "The" away from the hit).
+EVOLUTION_MASK = "\u2063"
+EVOLUTION_QUOTE_MAX = 160
+
+
+def evolution_mask(line: str) -> str:
+    r"""line with its code spans and double-quoted text masked. As in
+    CommonMark, a run of backticks opens a code span only when a later run
+    of exactly its length closes it, and a run with no closer is literal
+    text. Outside a span, a backslash makes the one backtick after it
+    literal: in \```x``, the escaped backtick is text, and the two after
+    it open a span that the last two close. Inside a span a backslash is plain text, so a
+    closer is never escaped.
+
+    Each line is masked on its own. A code span wrapped across two lines is
+    therefore read as prose, and can give a false warning on the second
+    line."""
+    runs = [(m.start(), m.end()) for m in EVOLUTION_BACKTICKS.finditer(line)]
+    by_length: dict[int, list[int]] = {}
+    for i, (start, end) in enumerate(runs):
+        by_length.setdefault(end - start, []).append(i)
+    chars = list(line)
+    i = 0
+    while i < len(runs):
+        start, end = runs[i]
+        slashes = 0
+        while start - slashes > 0 and line[start - slashes - 1] == "\\":
+            slashes += 1
+        if slashes % 2:
+            start += 1  # the escaped backtick is literal
+        later = by_length.get(end - start, [])
+        k = bisect.bisect_right(later, i)
+        if start == end or k == len(later):
+            i += 1
+            continue
+        j = later[k]
+        chars[start:runs[j][1]] = EVOLUTION_MASK * (runs[j][1] - start)
+        i = j + 1
+    masked = "".join(chars)
+    return EVOLUTION_QUOTED.sub(lambda m: EVOLUTION_MASK * len(m.group(0)), masked)
+
+
+def evolution_match(line: str) -> tuple[int, int, str] | None:
+    """(start, end, what it does) of the first pattern that fires on one
+    line of prose, quotes already masked, or None."""
+    heading = EVOLUTION_HEADING.match(line) if line.lstrip().startswith("#") else None
+    for name, pattern, why, veto in EVOLUTION_PATTERNS:
+        for m in pattern.finditer(line):
+            before = line[max(0, m.start() - EVOLUTION_LOOKBACK):m.start()]
+            if veto is not None and veto.search(before):
+                continue
+            if name == "person-decided" and heading and m.start() <= heading.end():
+                continue
+            if m.group(0).lower() == "previously" and EVOLUTION_PARTICIPLE.match(line, m.end()):
+                continue
+            return m.start(), m.end(), why
+    return None
+
+
+def evolution_hits(text: str) -> list[tuple[int, str, str, str]]:
+    """(line number, phrase, what it does, line) for each line of the
+    markdown text that records how the document changed, outside code fences
+    and quotes. One hit per line: the first pattern that fires."""
+    hits: list[tuple[int, str, str, str]] = []
+    for n, raw, fenced in markdown_lines(text):
+        if fenced:
+            continue
+        # The mask keeps positions, so the phrase is read from the line as
+        # written, quotes included.
+        hit = evolution_match(evolution_mask(raw))
+        if hit:
+            hits.append((n, raw[hit[0]:hit[1]].strip(), hit[2], raw.strip()))
+    return hits
+
+
+def check_evolution(paths: list[str], corpus: Corpus, out: list[Finding]) -> None:
+    """A warning on each line of the change's files that records how the
+    document got to its shape rather than what is true now."""
+    for path in paths:
+        text: str = corpus.texts[path]
+        for n, phrase, why, line in evolution_hits(text):
+            quote = line if len(line) <= EVOLUTION_QUOTE_MAX \
+                else line[:EVOLUTION_QUOTE_MAX - 1] + "…"
+            out.append(Finding(path, n, "check", "evolution",
+                               f'"{phrase}" {why}; state what holds now and leave the history '
+                               f'to git: {quote}'))
 
 
 # -- stacked changes -------------------------------------------------------------
@@ -2507,6 +2694,7 @@ def run_checks(root, repo, base_ref, targets, validate, base_required=False, cha
                                f"`openspec show` cannot read this change's deltas: "
                                f"{corpus.unread[change]}"))
         check_scenarios(reqs, own)
+        check_evolution(corpus.files_of(change), corpus, own)
         stack, problems, complete = build_stack(change, corpus, repo, base)
         findings += own + problems
         # The specs the change is checked against, for the advice on a stray

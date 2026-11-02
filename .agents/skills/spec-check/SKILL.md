@@ -69,6 +69,7 @@ stacked change gets a `stack` error.
 | `openspec-show` | error, or check | `openspec show` cannot read a change's deltas or a main spec, so no requirement check read it. A main spec is a check when only changes are checked |
 | `stack` | error, or check | Error: a `Builds on:` line that cannot be read or is listed twice; a change that names itself; the OpenSpec CLI missing from PATH, or older than 1.15.0; a pull request that holds no change of that name; a dependency that cannot be read, or whose deltas `openspec archive` refuses; a merged dependency whose result your branch does not hold; a dependency that builds on a change this one does not list before it, whose result your tree lacks. Check: a dependency whose result your tree already holds, so its line should be removed; one only partly there; one whose version a later dependency replaces without building on it; one whose pull request was closed without merging (see [Stacked changes](#stacked-changes)) |
 | `drift` | error, or check | Error: a stacked change modifies, removes or renames a requirement that main plus its dependencies no longer define. Check, quoting both texts: a modified requirement keeps a sentence its dependency has since replaced, or a requirement a dependency adds is already in your tree with another text |
+| `evolution` | check | A line in the change's files records how the change got to its shape, not what holds now: an amendment, a credit to a person or a date, an earlier draft, or a review round. It quotes the line. Text in a code fence, backticks or double quotes is skipped. See [Decisions and open questions](#decisions-and-open-questions) |
 
 A **check** is a heuristic: judge it, and fix it or leave it. An `openspec
 archive` or `openspec validate` result of "not run" means it was not
@@ -239,6 +240,12 @@ sections OpenSpec's instructions for design.md name; create design.md when the
 change has none. When a decision changes, rewrite its entry: keep no record of
 how it was amended. Git and pull request comments hold the history.
 proposal.md stays OpenSpec's one or two pages of why and what.
+
+`check` gives an `evolution` check on each line of a change's files that
+records history: an amendment ("amending decision 79"), a credit ("(Adam,
+2026-10-21)", "Adam decided"), an earlier draft, or a review round ("this
+push", "since review"). Restate the line as what holds now, or delete it.
+The same words can describe behaviour, so it is a check, never an error.
 
 ## When to write a TLA+ model
 

@@ -13,11 +13,13 @@ unless OpenSpec 1.15.0 or later is on PATH.
 import json
 import os
 import pathlib
+import random
 import re
 import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from unittest import mock
 
@@ -1472,6 +1474,210 @@ class CitationRuleTests(unittest.TestCase):
         r = self.sign()
         self.assertEqual(r.returncode, 1, r.stdout)
         self.assertIn("error [citation] src/gone.py:5", r.stdout)
+
+
+class EvolutionTextTests(unittest.TestCase):
+    """Text recording how a change got to its shape is a warning, never an
+    error. The examples are taken from real changes the patterns were
+    measured on (DECISIONS.md, "Document-evolution text is a warning")."""
+
+    HISTORY = [
+        "Amended by Adam's decision 298: no decline can be reopened.",
+        "This rule amends decision 4.",
+        "It reverses the earlier decision to keep records.",
+        "That paragraph is superseded by decision 12.",
+        "104. **A release deletes the files** (Adam, 2026-10-21, amending decision 79).",
+        "Its scope was narrowed by decision 9.",
+        "and Adam narrowed it on 2026-10-20.",
+        "The store keeps records (Adam, 2026-10-21).",
+        "A fetch authenticates as the App (Adam,",
+        "Adam decided that a seat's reserve is a line.",
+        "Issue #212, decided by Adam and recorded in igor.",
+        "Approved by Adam (2026-10-20), as written.",
+        "- decisions 21 and 22 on 2026-10-20, answering two questions.",
+        "Recorded 2026-09-28. This changes no requirement.",
+        "The rule previously said thirty days.",
+        "Previously, records were kept forever.",
+        "This change originally assumed a weaker signal.",
+        "An earlier draft defined a role file here.",
+        "The earlier wording kept records forever.",
+        "This rule was changed to ninety days.",
+        "It was reworded after the read.",
+        "This requirement was narrowed to one store.",
+        "Fixed in this push.",
+        "Found this round.",
+        "## Since review: the reserve becomes a line",
+        "Findings for this change's next revision.",
+        "Hitherto it said thirty days.",
+        "Then this was amended.",
+        "It moves to the next version of this spec.",
+        "Questions this change's second to fourth consistency reads raised.",
+    ]
+
+    BEHAVIOUR = [
+        "A newer file supersedes an older one.",
+        "The item is no longer claimed.",
+        "The derived length supersedes the built-in one.",
+        "The new session replaces the lock and holds it.",
+        "Every action is cheap to reverse.",
+        "A candidate previously rejected is not proposed again.",
+        "New evidence may raise a previously rejected rule.",
+        "#### Scenario: Claim confirmed",
+        "No link is kept, since the review is planned and has no spec.",
+        "Its accepted cost is that Igor sees its spend late.",
+        "An added seat file has no earlier version in the first parent.",
+        "The agent decided it on its own.",
+        "- **WHEN** on 2026-10-20 the agent logs the question",
+        "The record names who asked and what they said.",
+        "A comment that was changed by a later commit is not counted.",
+        "Each field that was changed is listed.",
+        "The decision is recorded where the question was asked.",
+        "One previously held claim is released.",
+        "Adam's previously held claim is released.",
+        "A claim previously shown is hidden.",
+        "A previously held claim is released.",
+    ]
+
+    def test_each_kind_of_history_is_flagged(self):
+        for line in self.HISTORY:
+            with self.subTest(line=line):
+                self.assertEqual(len(spec_check.evolution_hits(line + "\n")), 1)
+
+    def test_behaviour_using_the_same_words_is_not_flagged(self):
+        for line in self.BEHAVIOUR:
+            with self.subTest(line=line):
+                self.assertEqual(spec_check.evolution_hits(line + "\n"), [])
+
+    def test_code_fences_and_quoted_examples_are_not_flagged(self):
+        text = ("A checker flags `amended by` and \"this round\" in a change.\n\n"
+                "```\nAmended by decision 3 (Adam, 2026-10-21)\n```\n")
+        self.assertEqual(spec_check.evolution_hits(text), [])
+
+    def test_property_a_history_line_is_found_at_its_own_line_number(self):
+        # Seeded, so a failure reproduces: any mix of behaviour lines and blank
+        # lines, with history lines dropped in at random places, reports each
+        # history line once, at its own number, quoting it, and nothing else.
+        rng = random.Random(20261102)
+        for trial in range(200):
+            lines, expected = [], []
+            for _ in range(rng.randint(1, 12)):
+                kind = rng.random()
+                if kind < 0.3:
+                    lines.append(rng.choice(self.HISTORY))
+                    expected.append((len(lines), lines[-1]))
+                elif kind < 0.8:
+                    lines.append(rng.choice(self.BEHAVIOUR))
+                else:
+                    lines.append("")
+            with self.subTest(trial=trial):
+                hits = spec_check.evolution_hits("\n".join(lines) + "\n")
+                self.assertEqual([(n, quote) for n, _, _, quote in hits], expected)
+                for _, phrase, _, quote in hits:
+                    self.assertIn(phrase.lower(), quote.lower())
+
+    def test_property_quoting_a_history_line_silences_it(self):
+        for line in self.HISTORY:
+            with self.subTest(line=line):
+                self.assertEqual(spec_check.evolution_hits(f"`{line}`\n"), [])
+
+    def test_a_quoted_word_does_not_make_the_text_before_it_a_determiner(self):
+        # A mask of spaces would put "The" right before "previously" in the
+        # first line, and right before "Adam" in the second, so the
+        # determiner veto would silence both.
+        # The mask is neither space nor word. Found by bug-hunter.
+        self.assertEqual(len(spec_check.evolution_hits("The `claim` previously held for an hour.\n")), 1)
+        self.assertEqual(len(spec_check.evolution_hits("The \"Claim\" Adam decided on.\n")), 1)
+
+    def test_a_code_span_holding_a_backtick_is_skipped_whole(self):
+        # A ``double-backtick`` span may hold a single backtick. Found by
+        # bug-hunter.
+        self.assertEqual(spec_check.evolution_hits("``Adam decided ` x``\n"), [])
+
+    def test_a_long_line_of_vetoed_hits_is_read_in_linear_time(self):
+        # A veto that reads all the text before each hit takes 11 s on the
+        # first line. Found by bug-hunter.
+        start = time.monotonic()
+        spec_check.evolution_hits("a previously " * 8000 + "\n")
+        spec_check.evolution_hits("the " + "previously rejected " * 5000 + "\n")
+        self.assertLess(time.monotonic() - start, 2.0)
+
+    def test_a_backtick_run_opens_a_span_only_as_a_whole_run(self):
+        # ``x ... ` is no code span in CommonMark: two backticks never close on
+        # one. Found by bug-hunter, iteration 2.
+        self.assertEqual(len(spec_check.evolution_hits("A ``x Adam decided it` y.\n")), 1)
+        self.assertEqual(spec_check.evolution_hits("A ``x Adam decided it`` y.\n"), [])
+
+    def test_the_phrase_is_the_line_as_written(self):
+        # The phrase carried the invisible mask character where a quote sat.
+        # Found by bug-hunter, iteration 2.
+        hit = spec_check.evolution_hits("Adam decided `the scope` on 2026-01-01.\n")
+        self.assertEqual(hit[0][1], "decided `the scope` on 2026-01-01")
+        self.assertEqual(spec_check.evolution_hits("(Adam,   \n")[0][1], "(Adam,")
+
+    def test_a_veto_reads_past_a_run_of_spaces_and_late_in_a_long_line(self):
+        self.assertEqual(spec_check.evolution_hits("every      previously held claim\n"), [])
+        self.assertEqual(spec_check.evolution_hits("x " * 60 + "the previously held claim\n"), [])
+        self.assertEqual(spec_check.evolution_hits("The previously held claim stays. " + "x " * 60 + "\n"),
+                         [])
+
+    def test_an_escaped_backtick_opens_no_code_span(self):
+        # A backslash makes the backtick after it literal, so it opens no code
+        # span and the text after it is still read. Found by bug-hunter,
+        # iteration 3.
+        self.assertEqual(len(spec_check.evolution_hits("The rule \\`previously` held.\n")), 1)
+        self.assertEqual(spec_check.evolution_hits("Write \\`x` previously `y` here.\n"), [])
+
+    def test_a_change_with_history_passes_with_a_check_naming_the_line(self):
+        repo = Repo(self)
+        repo.change("x")
+        repo.write("openspec/changes/x/design.md",
+                   "## Decisions\n\nRecords expire after ninety days (Adam, 2026-10-21).\n")
+        r = repo.check("x")
+        self.assertEqual((r.returncode, kinds(r)), (0, ["evolution"]), r.stdout + r.stderr)
+        self.assertIn("openspec/changes/x/design.md:3: check [evolution] \"(Adam, 2026-10-21\"",
+                      r.stdout)
+        self.assertIn("to git: Records expire after ninety days (Adam, 2026-10-21).", r.stdout)
+
+    def test_history_does_not_block_sign(self):
+        repo = Repo(self)
+        repo.change("x", proposal=GOOD_PROPOSAL.replace("- Records expire.",
+                                                        "- Records expire. An earlier draft kept them."))
+        repo.git("add", "-A")
+        r = repo.run("sign", "--read", "self", "--base", "main", "--no-validate")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("check [evolution]", r.stdout)
+
+    def test_main_specs_are_not_scanned(self):
+        repo = Repo(self)
+        repo.write("openspec/specs/cap/spec.md",
+                   MAIN_SPEC.replace("What cap does.", "What cap does (Adam, 2026-10-21)."))
+        repo.change("x")
+        r = repo.check("x", "specs")
+        self.assertNotIn("evolution", kinds(r), r.stdout)
+
+    def test_the_finding_says_what_the_phrase_does_and_quotes_the_line_stripped(self):
+        hit = spec_check.evolution_hits("  - The rule previously said thirty days.\n")
+        self.assertEqual(hit, [(1, "previously", "narrates an earlier state of the document",
+                                "- The rule previously said thirty days.")])
+
+    def test_a_line_of_exactly_the_limit_is_quoted_whole(self):
+        corpus = mock.Mock(texts={})
+        for length, quote in ((160, None), (161, 159)):
+            line = "Adam decided " + "x" * (length - len("Adam decided "))
+            corpus.texts["d.md"] = line + "\n"
+            out = []
+            spec_check.check_evolution(["d.md"], corpus, out)
+            with self.subTest(length=length):
+                tail = out[0].message.split("to git: ", 1)[1]
+                self.assertEqual(tail, line if quote is None else line[:quote] + "…")
+
+    def test_a_long_line_is_quoted_cut_short(self):
+        repo = Repo(self)
+        repo.change("x")
+        repo.write("openspec/changes/x/design.md", "Adam decided " + "x" * 300 + "\n")
+        r = repo.check("x")
+        line = next(l for l in r.stdout.splitlines() if "[evolution]" in l)
+        self.assertTrue(line.endswith("…"), line)
 
 
 class FencesAndLinksTests(unittest.TestCase):

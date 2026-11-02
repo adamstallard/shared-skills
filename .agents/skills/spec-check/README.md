@@ -24,7 +24,10 @@ Before an agent commits, or opens a pull request for, anything under
      drops a scenario. `check` archives the change into a scratch copy of
      your specs to find out;
    - a requirement written out under `## RENAMED Requirements`, whose text
-     the archive drops.
+     the archive drops;
+   - as a check that never fails the run, a line recording how the change
+     got to its shape,
+     such as "amending decision 79" or "(Adam, 2026-10-21)".
 
    It also runs `openspec validate --strict` and includes what it reports,
    such as a misspelt section title or a section the archive drops.

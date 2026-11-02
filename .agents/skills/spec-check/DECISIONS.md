@@ -98,6 +98,64 @@ broken.
 
 ---
 
+## Document-evolution text is a warning
+
+**Decision.** `check` gives an `evolution` check, never an error, on each line
+of a checked change's files that records how the change got to its shape
+rather than what holds now:
+- an amendment: "amending decision 79", "superseded by decision 12";
+- a credit naming who decided or when: "(Adam, 2026-10-21)", "Adam decided",
+  "decided by Adam", "decisions 21 and 22 on 2026-10-20";
+- "previously" or "originally", an earlier draft, the next revision;
+- a review round: "this push", "since review", "the second consistency read".
+
+The finding quotes the line. Text in a code fence, a code span or double
+quotes is skipped, since a spec about a checker quotes what it checks for.
+Only a change's files are read. The specs under `openspec/specs` are the
+archived result of earlier changes, which no author is reviewing now.
+
+**Limits.** Each line is read on its own, so a code span wrapped across two
+lines reads as prose, and its second line can draw a false warning. An
+indented code block also reads as prose, as it does for every other check
+that reads lines through `markdown_lines`.
+
+**Why a warning.** Behaviour uses the same words: a newer file supersedes an
+older one, a candidate previously rejected is not proposed again, the agent
+decided. So every pattern is pinned to a decision, a person, a date or the
+document itself. The patterns were measured on two kinds of text:
+- About 25,000 lines of open changes: shared-skills #25's `inquisitor`; in
+  the igor repository (adamstallard/igor), the six changes open on its main
+  branch and the changes in four of its spec pull requests. The patterns
+  flagged 292 lines, of which 2 were not history.
+- igor's 5,000 lines of main specs, which describe settled behaviour and so
+  show how often behaviour text is flagged. The patterns flagged 1 line
+  there, and it was history.
+
+Even 2 false hits in 292 would block correct specs if they were errors,
+because `sign` refuses while any error remains. A check costs the author one
+look.
+
+**Why its own patterns, not prose's.** prose's history patterns, in its
+`comment_scan.py`, catch a code comment narrating the code's past: "the old
+implementation", "we refactored". A change's history is about decisions,
+people, dates and review rounds, and none of prose's patterns covers those.
+The three that carry over ("previously", "originally", an earlier draft) are
+adapted here. So is prose's veto: no hit when a word such as "a" or "the"
+sits right before "previously", as in "a previously rejected rule". spec-check
+uses only the standard library and installs without prose, so it cannot
+import them.
+
+**Rejected:**
+- **An error.** See *Why a warning*.
+- **The bare words**: `supersedes`, `replaces`, `reversed`, `was changed`,
+  `no longer`. In the `inquisitor` change's specs they describe behaviour on
+  31 lines, and each of those would fire.
+- **A list of people's names.** A credit is found as a capitalised word before
+  a decision verb ("Adam decided"), excluding pronouns, determiners and
+  headings, so it works in any repository.
+
+---
+
 ## A stacked change declares what it builds on
 
 **Decision (Adam, 2026-10-21; on 2026-10-24: the severities, reading an
@@ -508,7 +566,8 @@ nobody is doing.
 design.md's *Decisions*, and each undecided item in its *Open Questions*,
 both sections OpenSpec's instructions for design.md name. No record is kept
 of how a decision was amended: git and pull request comments hold that.
-spec-check does not check where a decision sits; the reviewer judges it.
+The reviewer judges where a decision sits; `check` warns on a line that
+records how one was amended (*Document-evolution text is a warning*).
 
 **Why.** OpenSpec keeps a proposal to one or two pages of why and what, and
 puts decisions and their rationale in design.md. Reviews of this repository's
