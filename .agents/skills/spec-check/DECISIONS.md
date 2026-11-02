@@ -572,6 +572,56 @@ refusal of the change.
 
 ---
 
+## A new capability's Purpose is checked in its delta
+
+**Decision.** When a change creates a capability, its delta must carry a
+`## Purpose` that `openspec archive` will write into the new spec, or
+`check` reports a `purpose` error on that delta. A capability is new when
+the specs the change is archived onto, main's or main plus its
+dependencies, have no spec for it. Whether the Purpose is usable is asked of
+the real CLI: the new capabilities' deltas are archived into an empty specs
+directory, and the result is validated with `openspec validate --strict`.
+The error follows OpenSpec: a missing, empty or placeholder Purpose, one
+under 50 characters (OpenSpec's `MIN_PURPOSE_LENGTH`), or one archive
+refuses as unreadable. A `## Purpose` in a delta for a capability that
+already exists is a `purpose` check, since archive ignores it. The one
+exception is a Purpose whose text, trimmed, is the spec's own: archive does
+not warn about that one, and neither does `check`.
+
+**Why.** Archive seeds a new spec's Purpose from the delta and nowhere
+else. Without one it writes "TBD - created by archiving change <x>. Update
+Purpose after archive.", and nobody goes back: adamstallard/igor, a repository built with OpenSpec,
+had 11 specs stuck on it. Once archived, the placeholder is reported by `openspec validate
+--strict` on the main spec, which fires on every change in the repository
+and names none of them. In the delta, the finding lands on the one change
+that causes it, while its author is still writing it.
+
+Whether there is an error is decided by the CLI alone: archive writes the
+new spec's Purpose, and `validate --strict` judges it. So the rule errors
+exactly where the spec archive would write fails strict validation.
+`delta_purpose` is a port of OpenSpec's `extractPurposeSection` and its
+fence mask, written with JavaScript's character classes. It decides only what the CLI does not say:
+the line a finding sits on, which reason the error gives, and whether an
+existing capability's Purpose differs from the delta's. If the port drifts
+from OpenSpec, a message gives the wrong reason or a check is wrong; no
+error changes.
+
+**Rejected:**
+- **Checking the main specs for the placeholder.** That is what `validate
+  --strict` already does, after the damage, and on every change.
+- **Reading the existing-capability check from archive's own warning.**
+  Archive warns only when the spec has a Purpose that differs, and only when
+  the whole change applies: a capability whose spec has no Purpose, or a
+  refusal on another capability, would lose a true check.
+- **Finding the Purpose with `markdown_lines`**, spec-check's CommonMark
+  line reader. OpenSpec closes a fence at any indentation; CommonMark ends
+  a fence opened in a list item when the item ends. For a fence in a list
+  item closed at column 0, CommonMark then reads the rest of the file as
+  fenced, so each Purpose would run on into its requirements, and two equal
+  Purposes would compare as different.
+
+---
+
 ## A same-name pair is exempt only as a modification
 
 **Decision.** `check_duplicates` skips a pair of requirements sharing a
