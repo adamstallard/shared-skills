@@ -3,7 +3,7 @@
 
     spec_check.py check [<target>...] [--repo DIR] [--ref REF] [--base REF]
                         [--no-validate] [--json]
-    spec_check.py sign --read subagent|self [--amended N] [--open N]
+    spec_check.py sign --read subagent|self|deferred [--amended N] [--open N]
                        [--base REF] [--no-validate]
     spec_check.py verify-staged "Spec-check: <value>"   (message on stdin)
     spec_check.py verify-commit <sha> <value>
@@ -33,6 +33,13 @@ reported as not run, and a stacked change gets an error.
 
 check exits 0 with no errors, 1 with errors, 2 when it cannot run. Findings
 marked `check` are heuristics for a person or agent to judge; they never fail.
+
+sign runs check on the staged tree and, when no error remains, prints the
+`Spec-check:` trailer value bound to that tree. `--read` says what the value
+records of the consistency read: `subagent` or `self` for a read done this
+round, `deferred` for a commit before the round's end. sign searches the
+branch's git history for each change's last read to name the changes that
+are due, and ends the value with `no read due` when none is.
 
 Standard library only. Read DECISIONS.md next to SKILL.md before changing this.
 """
@@ -2430,19 +2437,247 @@ def staged_targets(repo):
     return paths, sorted(changes), specs
 
 
+# -- rounds: where the last consistency read was ---------------------------
+#
+# A consistency read runs once per review round, at the push or the hand-back
+# to a person that ends it (DECISIONS.md, "One consistency read per round").
+# Its record is the Spec-check: trailer of the commit that ends the round:
+# `read by a fresh subagent: <change>, <change>; ...` names the changes it
+# read, at that commit's tree. A commit inside a round says `read deferred to
+# the round's end`. A value from before rounds, `read by a fresh subagent;
+# ...` with no names, read every change its commit touched.
+
+READ_FIELD = re.compile(r"; read by (?:a fresh subagent|its author, no subagent)(?:: ([^;]*))?;")
+DEFERRED = "read deferred to the round's end"
+NO_READ_DUE = "no read due"
+# How many commits of history are searched for a change's last read. A read
+# older than this is not found, so the change counts as never read and is
+# due again.
+READ_HISTORY = 1000
+
+
+def touched_changes(repo, sha):
+    """The open changes one commit changes a file of: against its first parent,
+    so a merge counts what it brought in; a root commit, against nothing."""
+    parent = git(repo, "rev-parse", "-q", "--verify", f"{sha}^1", check=False)
+    against = [parent.stdout.strip(), sha] if parent.returncode == 0 else ["--root", sha]
+    out = git(repo, "diff-tree", "--no-commit-id", "--name-only", "-r", *against,
+              "--", ":(top)openspec/changes/", check=False).stdout.splitlines()
+    return {p.split("/")[2] for p in out if p.count("/") >= 3 and p.split("/")[2] != "archive"}
+
+
+def read_record(repo, sha, tree, value):
+    """The changes covered by the consistency read that a trailer value
+    records, or None when it records no read. A value not bound to its commit's tree
+    records nothing."""
+    m = VALUE.match(value.strip())
+    if not m or not tree.startswith(m.group(1)):
+        return None
+    r = READ_FIELD.search(value)
+    if not r:
+        return None
+    if r.group(1) is None:
+        return touched_changes(repo, sha)
+    return {c.strip() for c in r.group(1).split(",") if c.strip()}
+
+
+def last_reads(repo, head, names):
+    """{change: (commit, tree)}: for each change in names, the newest commit
+    in head's history, within READ_HISTORY commits, whose Spec-check:
+    trailer records a read of it. A change with no such commit is left out."""
+    want, found = set(names), {}
+    if not want:
+        return found
+    out = git(repo, "log", "--topo-order", f"--max-count={READ_HISTORY}",
+              "--format=%H%x00%T%x00%(trailers:key=Spec-check,valueonly,separator=%x1f)%x1e",
+              head, "--", check=False)
+    if out.returncode != 0:
+        return found
+    for rec in out.stdout.split("\x1e"):
+        rec = rec.strip("\n")
+        if not rec:
+            continue
+        sha, tree, values = (rec.split("\x00", 2) + ["", ""])[:3]
+        for value in values.split("\x1f"):
+            covered = read_record(repo, sha, tree, value) if value.strip() else None
+            for c in sorted((covered or set()) & want - set(found)):
+                found[c] = (sha, tree)
+        if len(found) == len(want):
+            break
+    return found
+
+
+def blob_ids(repo, treeish, prefix):
+    """{path: blob id} of every file under prefix in a git tree."""
+    out = git(repo, "ls-tree", "-r", treeish, "--", prefix, check=False)
+    ids = {}
+    for line in out.stdout.splitlines() if out.returncode == 0 else []:
+        meta, _, path = line.partition("\t")
+        ids[path] = meta.split()[2]
+    return ids
+
+
+def merge_base_tree(repo, head, base_ref):
+    """The tree of head's merge base with base_ref, or None."""
+    out = git(repo, "merge-base", head, base_ref, check=False)
+    if out.returncode != 0 or not out.stdout.strip():
+        return None
+    return git(repo, "rev-parse", f"{out.stdout.split()[0]}^{{tree}}").stdout.strip()
+
+
+def is_ancestor(repo, a, b):
+    """Whether commit a is b or an ancestor of it."""
+    return git(repo, "merge-base", "--is-ancestor", a, b, check=False).returncode == 0
+
+
+def due_reads(repo, head, base_ref, names, files_now):
+    """[(change, last read or None)] for each change in names that the branch
+    adds or edits and that differs from its last read. A change the branch
+    leaves as it was at the merge base of head and base_ref is not due; with
+    no merge base (or base_ref HEAD), every change counts as the branch's.
+    files_now(prefix) gives {path: blob id} of the state being judged."""
+    reads = last_reads(repo, head, names)
+    start = None if base_ref == "HEAD" else merge_base_tree(repo, head, base_ref)
+    due = []
+    for c in sorted(names):
+        prefix = f"openspec/changes/{c}/"
+        now = files_now(prefix)
+        if start is not None and blob_ids(repo, start, prefix) == now:
+            continue
+        since = reads.get(c)
+        if since is None or blob_ids(repo, since[1], prefix) != now:
+            due.append((c, since))
+    return due
+
+
+def current_branch(repo):
+    """HEAD's branch name, or None when HEAD is detached."""
+    # Not --short, which says heads/<name> when a tag has the same name.
+    ref = git(repo, "symbolic-ref", "-q", "HEAD", check=False).stdout.strip()
+    return ref[len("refs/heads/"):] if ref.startswith("refs/heads/") else None
+
+
+def branch_of(repo, ref):
+    """The branch a ref names: <b> for refs/heads/<b>, or for a remote's copy
+    of it, refs/remotes/<remote>/<b>; None for anything else."""
+    full = ref if ref.startswith("refs/") else git(
+        repo, "rev-parse", "--symbolic-full-name", ref, check=False).stdout.strip()
+    if full.startswith("refs/heads/"):
+        return full[len("refs/heads/"):]
+    for r in git(repo, "remote", check=False).stdout.split():
+        if full.startswith(f"refs/remotes/{r}/"):
+            return full[len(f"refs/remotes/{r}/"):]
+    return None
+
+
+def on_base_branch(repo, base_ref):
+    """Whether HEAD's branch is base_ref's branch: base_ref names it, or names
+    a remote's copy of it."""
+    branch = current_branch(repo)
+    return branch is not None and base_ref != "HEAD" and branch_of(repo, base_ref) == branch
+
+
+def round_left_open(repo, ref, change):
+    """Whether, in ref's history since change's last read there, a commit
+    touching change carries `read deferred to the round's end` bound to its
+    tree: a review round that ended without its read. A squash merge is not
+    one: it carries no deferred value bound to its own tree."""
+    out = git(repo, "log", "--topo-order", f"--max-count={READ_HISTORY}",
+              "--format=%H%x00%T%x00%(trailers:key=Spec-check,valueonly,separator=%x1f)%x1e",
+              ref, "--", check=False)
+    for rec in out.stdout.split("\x1e") if out.returncode == 0 else []:
+        rec = rec.strip("\n")
+        if not rec:
+            continue
+        sha, tree, values = (rec.split("\x00", 2) + ["", ""])[:3]
+        values = [v.strip() for v in values.split("\x1f") if v.strip()]
+        if any(change in (read_record(repo, sha, tree, v) or set()) for v in values):
+            return False
+        bound = [v for v in values if (m := VALUE.match(v)) and tree.startswith(m.group(1))]
+        if any(v.endswith(DEFERRED) for v in bound) and change in touched_changes(repo, sha):
+            return True
+    return False
+
+
+def pushed_ref(repo):
+    """The remote-tracking ref holding what HEAD's branch was pushed as, or
+    None: @{push}, else <remote>/<branch> for the remote it pushes to. Not
+    @{upstream}, which may be the base branch."""
+    push = git(repo, "rev-parse", "--symbolic-full-name", "@{push}", check=False).stdout.strip()
+    if push.startswith("refs/remotes/"):
+        return push
+    branch = current_branch(repo)
+    if branch is None:
+        return None
+    # "." is this repository: a branch tracking a local branch pushes nowhere.
+    remote = next((v for k in (f"branch.{branch}.pushRemote", "remote.pushDefault",
+                               f"branch.{branch}.remote")
+                   if (v := git(repo, "config", k, check=False).stdout.strip()) not in ("", ".")),
+                  "origin")
+    ref = f"refs/remotes/{remote}/{branch}"
+    if git(repo, "rev-parse", "-q", "--verify", ref, check=False).returncode != 0:
+        return None
+    return ref
+
+
+def pushed_unread(repo, base_ref, due):
+    """The due changes that are also due at the ref HEAD's branch was pushed
+    to, by the same due rule applied to that ref in place of HEAD: a round
+    pushed without its read. A change whose
+    last read at HEAD came after the push is not one, since that read covered
+    the pushed state; nor is one with no files there."""
+    ref = pushed_ref(repo)
+    if ref is None:
+        return []
+    tree = git(repo, "rev-parse", f"{ref}^{{tree}}").stdout.strip()
+    after = {c for c, since in due if since and is_ancestor(repo, ref, since[0])}
+    pushed = [c for c, _ in due if c not in after and blob_ids(repo, tree, f"openspec/changes/{c}/")]
+    files = lambda prefix: blob_ids(repo, tree, prefix)  # noqa: E731
+    if base_ref == "HEAD" or branch_of(repo, ref) != branch_of(repo, base_ref):
+        return [c for c, _ in due_reads(repo, ref, base_ref, pushed, files)]
+    # Pushed to the base branch itself (from it, or by push.default=upstream on
+    # a branch tracking it). A pull request squash-merged there shows its
+    # change with no read bound to the base's tree, though it was read on its
+    # branch. So a change the base holds unread counts only when a deferred
+    # commit shows a review round ended without its read.
+    there = due_reads(repo, ref, "HEAD", pushed, files)
+    return [c for c, _ in there if round_left_open(repo, ref, c)]
+
+
 def cmd_sign(args):
     repo = repo_root(args.repo)
-    paths, changes, specs = staged_targets(repo)
-    if not paths:
-        print("spec-check sign: nothing staged under openspec/, so this commit needs no "
-              "Spec-check trailer", file=sys.stderr)
+    if args.read == "deferred" and (args.amended or args.open):
+        print("spec-check sign: --amended and --open count what a read led to; a deferred read "
+              "has none", file=sys.stderr)
         return 1
+    paths, changes, specs = staged_targets(repo)
     tree = git(repo, "write-tree").stdout.strip()
     base_ref = args.base or default_base(repo)
+    # On the base branch itself the merge base would be HEAD, leaving nothing
+    # due. Base "HEAD" turns that filter off, so every open change counts as
+    # the branch's own.
+    due_base = "HEAD" if on_base_branch(repo, base_ref) else base_ref
+    head = "HEAD" if git(repo, "rev-parse", "-q", "--verify", "HEAD", check=False).returncode == 0 \
+        else None
+    open_now = {p.split("/")[2] for p in blob_ids(repo, tree, "openspec/changes/")
+                if p.count("/") >= 3 and p.split("/")[2] != "archive"}
+    due = due_reads(repo, head, due_base, open_now, lambda prefix: blob_ids(repo, tree, prefix)) \
+        if head else [(c, None) for c in sorted(open_now)]
+    reading = args.read in ("subagent", "self")
+    if not paths and not (reading and due):
+        print("spec-check sign: nothing staged under openspec/, and no change waits for its "
+              "consistency read, so this commit needs no Spec-check trailer", file=sys.stderr)
+        return 1
+    if args.read == "deferred":
+        for c in pushed_unread(repo, base_ref, due) if head else []:
+            print(f"spec-check sign: {c} is on the pushed branch unread: a round was pushed "
+                  "without its consistency read. Do the read now.", file=sys.stderr)
     with tempfile.TemporaryDirectory(prefix="spec-check-") as tmp:
         materialize(repo, tree, tmp, allow_empty=True)
         staged = Corpus(tmp)
         targets = [c for c in changes if c in staged.changes]
+        if reading:
+            targets += [c for c, _ in due if c in staged.changes and c not in targets]
         targets += ["specs"] if specs and staged.specs else []
         if not targets:
             # Only deletions or archive moves: nothing open is left to check.
@@ -2469,9 +2704,15 @@ def cmd_sign(args):
         validate = f"show, validate and archive not run ({NEEDS_OPENSPEC})"
     else:
         validate = f"validate {validate}"
-    reader = "a fresh subagent" if args.read == "subagent" else "its author, no subagent"
-    print(f"\n{KEY}: \u2713 {tree[:12]} 0 errors, {len(res[2])} checks; {validate}; "
-          f"read by {reader}; {args.amended} amended, {args.open} open")
+    if not due:
+        read = NO_READ_DUE
+    elif args.read == "deferred":
+        read = DEFERRED
+    else:
+        reader = "a fresh subagent" if args.read == "subagent" else "its author, no subagent"
+        read = (f"read by {reader}: {', '.join(c for c, _ in due)}; "
+                f"{args.amended} amended, {args.open} open")
+    print(f"\n{KEY}: \u2713 {tree[:12]} 0 errors, {len(res[2])} checks; {validate}; {read}")
     return 0
 
 
@@ -2534,8 +2775,8 @@ def main(argv=None):
     c.set_defaults(fn=cmd_check)
 
     g = sub.add_parser("sign", help="check the staged openspec change and print the trailer")
-    g.add_argument("--read", required=True, choices=["subagent", "self"],
-                   help="who did the consistency read")
+    g.add_argument("--read", required=True, choices=["subagent", "self", "deferred"],
+                   help="who did the round's consistency read, or deferred inside a round")
     g.add_argument("--amended", type=int, default=0, help="amendments the read led to")
     g.add_argument("--open", type=int, default=0, help="open questions left in design.md")
     g.add_argument("--repo")

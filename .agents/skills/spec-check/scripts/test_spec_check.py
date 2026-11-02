@@ -1440,7 +1440,7 @@ class TrailerTests(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(self.hook().returncode, 0)
         body = self.repo.git("log", "-1", "--format=%B")
-        self.assertIn("read by a fresh subagent; 2 amended, 0 open", body)
+        self.assertIn("read by a fresh subagent: good; 2 amended, 0 open", body)
 
     def test_a_skip_note_is_quiet(self):
         self.stage_change()
@@ -3957,6 +3957,548 @@ class StackedChangeArchiveTests(unittest.TestCase):
         self.s.repo.write("openspec/changes/lore-search/specs/cap/v2-spec.md", self.added("Search", SEARCH))
         line = self.refused(self.s.check("lore-search"), "Audit trail", "already exists")
         self.assertIn(f"{self.DELTA}:3:", line)
+
+
+def signed_commit(test, repo, read="subagent", message="Change the spec", extra=()):
+    """Signs the staged tree with sign --read <read> and commits it with that
+    trailer; returns the trailer's value."""
+    r = repo.run("sign", "--read", read, "--base", "main", "--no-validate", *extra)
+    test.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+    value = r.stdout.strip().splitlines()[-1][len("Spec-check: "):]
+    repo.git("commit", "-q", "-m", message, "--trailer", f"Spec-check: {value}")
+    return value
+
+
+class RoundTests(unittest.TestCase):
+    """One consistency read per round: the trailer records where it ran
+    (DECISIONS.md, "One consistency read per round")."""
+
+    def setUp(self):
+        self.repo = Repo(self)
+        self.repo.git("checkout", "-q", "-b", "spec")
+
+    def sign(self, read, *extra):
+        return self.repo.run("sign", "--read", read, "--base", "main", "--no-validate", *extra)
+
+    def value(self, r):
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        return r.stdout.strip().splitlines()[-1]
+
+    def test_a_deferred_read_says_so(self):
+        self.repo.change("good")
+        self.repo.git("add", "-A")
+        r = self.sign("deferred")
+        line = self.value(r)
+        self.assertTrue(line.endswith("; read deferred to the round's end"), line)
+        self.assertNotIn("on the pushed branch unread", r.stderr)  # no upstream: nothing pushed
+
+    def test_a_deferred_read_takes_no_counts(self):
+        self.repo.change("good")
+        self.repo.git("add", "-A")
+        r = self.sign("deferred", "--amended", "1")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("a deferred read has none", r.stderr)
+
+    def test_a_read_names_the_changes_it_read(self):
+        self.repo.change("good")
+        self.repo.change("other", delta=GOOD_DELTA.replace("Records expire", "Records are counted")
+                         .replace("delete a record ninety", "count a record each"))
+        self.repo.git("add", "-A")
+        line = self.value(self.sign("subagent", "--amended", "2", "--open", "1"))
+        self.assertTrue(line.endswith("; read by a fresh subagent: good, other; 2 amended, 1 open"), line)
+
+    def test_after_a_read_an_unchanged_change_is_not_due(self):
+        self.repo.change("good")
+        self.repo.git("add", "-A")
+        signed_commit(self, self.repo)
+        self.repo.write("openspec/specs/cap/spec.md", MAIN_SPEC + "\n")
+        self.repo.git("add", "-A")
+        line = self.value(self.sign("subagent"))
+        self.assertTrue(line.endswith("; no read due"), line)
+
+    def test_a_change_edited_after_its_read_is_due_again(self):
+        self.repo.change("good")
+        self.repo.git("add", "-A")
+        signed_commit(self, self.repo)
+        self.repo.write("openspec/changes/good/design.md", "## Context\n\nMore.\n")
+        self.repo.git("add", "-A")
+        line = self.value(self.sign("subagent"))
+        self.assertIn("read by a fresh subagent: good;", line)
+
+    def test_a_deferred_commit_does_not_count_as_a_read(self):
+        self.repo.change("good")
+        self.repo.git("add", "-A")
+        signed_commit(self, self.repo, read="deferred")
+        self.repo.write("src/app.py", "changed\n")
+        self.repo.git("add", "-A")
+        # Nothing under openspec/ is staged, but the change still waits for
+        # its read, so a code commit can carry it.
+        line = self.value(self.sign("subagent"))
+        self.assertIn("read by a fresh subagent: good;", line)
+
+    def test_a_code_commit_needs_no_trailer_when_no_read_waits(self):
+        self.repo.change("good")
+        self.repo.git("add", "-A")
+        signed_commit(self, self.repo)
+        self.repo.write("src/app.py", "changed\n")
+        self.repo.git("add", "-A")
+        r = self.sign("subagent")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("no change waits for its consistency read", r.stderr)
+
+    def test_a_value_from_before_rounds_read_the_changes_its_commit_touched(self):
+        self.repo.change("good")
+        self.repo.git("add", "-A")
+        tree = self.repo.git("write-tree")
+        self.repo.git("commit", "-q", "-m", "Old style", "--trailer",
+                      f"Spec-check: ✓ {tree[:12]} 0 errors, 0 checks; validate passed; "
+                      "read by a fresh subagent; 3 amended, 0 open")
+        self.repo.write("openspec/specs/cap/spec.md", MAIN_SPEC + "\n")
+        self.repo.git("add", "-A")
+        self.assertTrue(self.value(self.sign("subagent")).endswith("; no read due"))
+
+    def test_a_read_whose_tree_is_not_its_commits_records_nothing(self):
+        self.repo.change("good")
+        self.repo.git("add", "-A")
+        self.repo.git("commit", "-q", "-m", "Copied trailer", "--trailer",
+                      "Spec-check: ✓ 0123456789ab 0 errors, 0 checks; validate passed; "
+                      "read by a fresh subagent: good; 0 amended, 0 open")
+        self.repo.write("openspec/specs/cap/spec.md", MAIN_SPEC + "\n")
+        self.repo.git("add", "-A")
+        self.assertIn("read by a fresh subagent: good;", self.value(self.sign("subagent")))
+
+    def test_a_round_pushed_without_its_read_is_named(self):
+        upstream = pathlib.Path(tempfile.mkdtemp(prefix="spec-check-up-")).resolve()
+        self.addCleanup(shutil.rmtree, upstream, ignore_errors=True)
+        subprocess.run(["git", "init", "-q", "--bare", str(upstream)], check=True, env=ENV)
+        self.repo.git("remote", "add", "origin", str(upstream))
+        self.repo.change("good")
+        self.repo.git("add", "-A")
+        signed_commit(self, self.repo)
+        self.repo.write("openspec/changes/good/design.md", "## Context\n\nMore.\n")
+        self.repo.git("add", "-A")
+        signed_commit(self, self.repo, read="deferred")
+        self.repo.git("push", "-q", "-u", "origin", "spec")
+        self.repo.write("openspec/changes/good/tasks.md", TASKS + "- [ ] 1.2 More\n")
+        self.repo.git("add", "-A")
+        r = self.sign("deferred")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("good is on the pushed branch unread", r.stderr)
+
+
+@unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.15.0 or later")
+class FoundByBugHunterRoundsTests(unittest.TestCase):
+    """Bug-hunter's first run over rounds."""
+
+    def setUp(self):
+        self.repo = Repo(self)
+        self.repo.git("checkout", "-q", "-b", "spec")
+
+    def upstream(self):
+        up = pathlib.Path(tempfile.mkdtemp(prefix="spec-check-up-")).resolve()
+        self.addCleanup(shutil.rmtree, up, ignore_errors=True)
+        subprocess.run(["git", "init", "-q", "--bare", str(up)], check=True, env=ENV)
+        self.repo.git("remote", "add", "origin", str(up))
+
+    def sign(self, read):
+        return self.repo.run("sign", "--read", read, "--base", "main", "--no-validate")
+
+    def test_a_never_read_change_pushed_unread_is_named(self):
+        self.upstream()
+        self.repo.change("good")
+        self.repo.git("add", "-A")
+        signed_commit(self, self.repo, read="deferred")
+        self.repo.git("push", "-q", "-u", "origin", "spec")
+        self.repo.write("openspec/changes/good/tasks.md", TASKS + "- [ ] 1.2 More\n")
+        self.repo.git("add", "-A")
+        r = self.sign("deferred")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("good is on the pushed branch unread", r.stderr)
+
+    def test_a_read_upstream_state_is_not_named_as_unread(self):
+        self.upstream()
+        self.repo.change("good")
+        self.repo.git("add", "-A")
+        signed_commit(self, self.repo)
+        self.repo.git("push", "-q", "-u", "origin", "spec")
+        self.repo.write("openspec/changes/good/tasks.md", TASKS + "- [ ] 1.2 More\n")
+        self.repo.git("add", "-A")
+        signed_commit(self, self.repo)  # read, handed back, not pushed
+        self.repo.write("openspec/changes/good/tasks.md", TASKS + "- [ ] 1.3 Yet more\n")
+        self.repo.git("add", "-A")
+        r = self.sign("deferred")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertNotIn("unread", r.stderr)
+
+
+class RoundStartTests(unittest.TestCase):
+    """Which commit a never-read change's edits are counted from (the merge
+    base, or HEAD on the base branch), and which changes count as open (DECISIONS.md, "One consistency read per round")."""
+
+    def setUp(self):
+        self.repo = Repo(self)
+
+    def value(self, *args):
+        r = self.repo.run("sign", *args)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        return r.stdout.strip().splitlines()[-1]
+
+    def test_a_change_on_the_base_that_the_branch_leaves_alone_is_not_due(self):
+        self.repo.change("onmain")
+        self.repo.git("add", "-A")
+        self.repo.git("commit", "-q", "-m", "A change on main")
+        self.repo.git("checkout", "-q", "-b", "spec")
+        self.repo.write("openspec/specs/cap/spec.md", MAIN_SPEC + "\n")
+        self.repo.git("add", "-A")
+        self.assertTrue(self.value("--read", "subagent", "--base", "main", "--no-validate")
+                        .endswith("; no read due"))
+
+    def test_with_the_base_at_head_an_unread_change_is_due(self):
+        self.repo.git("checkout", "-q", "-b", "spec")
+        self.repo.change("good")
+        self.repo.git("add", "-A")
+        self.repo.git("commit", "-q", "-m", "Unread")
+        self.repo.write("openspec/specs/cap/spec.md", MAIN_SPEC + "\n")
+        self.repo.git("add", "-A")
+        self.assertIn("read by a fresh subagent: good;",
+                      self.value("--read", "subagent", "--base", "HEAD", "--no-validate"))
+
+    def test_a_change_with_no_deltas_is_open_and_its_read_is_recorded(self):
+        self.repo.git("checkout", "-q", "-b", "spec")
+        self.repo.write("openspec/changes/bare/proposal.md", GOOD_PROPOSAL)
+        self.repo.git("add", "-A")
+        self.assertIn("read by a fresh subagent: bare;",
+                      self.value("--read", "subagent", "--base", "main", "--no-validate"))
+
+    def test_a_value_from_before_rounds_covers_a_commit_of_top_level_files(self):
+        self.repo.git("checkout", "-q", "-b", "spec")
+        self.repo.change("good")
+        self.repo.git("add", "-A")
+        self.repo.git("commit", "-q", "-m", "Unread")
+        self.repo.write("openspec/changes/good/tasks.md", TASKS + "- [ ] 1.2 More\n")
+        self.repo.git("add", "-A")
+        tree = self.repo.git("write-tree")
+        self.repo.git("commit", "-q", "-m", "Old style", "--trailer",
+                      f"Spec-check: ✓ {tree[:12]} 0 errors, 0 checks; validate passed; "
+                      "read by a fresh subagent; 0 amended, 0 open")
+        self.repo.write("openspec/specs/cap/spec.md", MAIN_SPEC + "\n")
+        self.repo.git("add", "-A")
+        self.assertTrue(self.value("--read", "subagent", "--base", "main", "--no-validate")
+                        .endswith("; no read due"))
+
+    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.15.0 or later")
+    def test_a_change_that_validates_says_validate_passed(self):
+        self.repo.git("checkout", "-q", "-b", "spec")
+        self.repo.change("good")
+        self.repo.git("add", "-A")
+        self.assertIn("; validate passed;", self.value("--read", "subagent", "--base", "main"))
+
+
+class FoundByBugHunterRoundsIteration2Tests(unittest.TestCase):
+    """Bug-hunter's second iteration over rounds."""
+
+    def setUp(self):
+        self.repo = Repo(self)
+        up = pathlib.Path(tempfile.mkdtemp(prefix="spec-check-up-")).resolve()
+        self.addCleanup(shutil.rmtree, up, ignore_errors=True)
+        subprocess.run(["git", "init", "-q", "--bare", str(up)], check=True, env=ENV)
+        self.repo.git("remote", "add", "origin", str(up))
+        self.repo.git("push", "-q", "origin", "main")
+
+    def test_a_merged_change_with_an_edit_after_its_read_is_not_due_on_another_branch(self):
+        r = self.repo
+        r.git("checkout", "-q", "-b", "pr1")
+        r.change("x")
+        r.git("add", "-A")
+        signed_commit(self, r)
+        r.write("openspec/changes/x/tasks.md", TASKS + "- [ ] 1.2 Suggested\n")
+        r.git("add", "-A")
+        r.git("commit", "-q", "-m", "Apply suggestion from code review")
+        r.git("checkout", "-q", "main")
+        r.git("merge", "-q", "--no-ff", "pr1", "-m", "Merge PR 1")
+        r.git("push", "-q", "origin", "main")
+        r.git("checkout", "-q", "-b", "pr2", "origin/main")
+        r.change("y", delta=GOOD_DELTA.replace("Records expire", "Logs rotate").replace(
+            "delete a record ninety days after its last read", "rotate a log file weekly"))
+        r.git("add", "-A")
+        out = r.run("sign", "--read", "subagent", "--base", "origin/main", "--no-validate")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertIn("read by a fresh subagent: y;", out.stdout)
+
+    def test_a_pushed_state_read_by_a_later_unpushed_read_is_not_named_as_unread(self):
+        r = self.repo
+        r.git("checkout", "-q", "-b", "spec")
+        r.change("x")
+        r.git("add", "-A")
+        signed_commit(self, r, read="deferred")
+        r.git("push", "-q", "-u", "origin", "spec")
+        r.write("openspec/changes/x/tasks.md", TASKS + "- [ ] 1.2 A\n")
+        r.git("add", "-A")
+        signed_commit(self, r)  # the read, covering the pushed state too
+        r.write("openspec/changes/x/tasks.md", TASKS + "- [ ] 1.3 B\n")
+        r.git("add", "-A")
+        out = r.run("sign", "--read", "deferred", "--base", "main", "--no-validate")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertNotIn("on the pushed branch unread", out.stderr)
+
+
+    def test_a_change_never_pushed_is_not_named_with_no_base_branch(self):
+        r = self.repo
+        r.git("checkout", "-q", "-b", "feat")
+        r.git("push", "-q", "-u", "origin", "feat")
+        r.change("x")
+        r.git("add", "-A")
+        out = r.run("sign", "--read", "deferred", "--base", "HEAD", "--no-validate")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertNotIn("on the pushed branch unread", out.stderr)
+
+
+
+class FoundByBugHunterWholeReadTests(unittest.TestCase):
+    """Bug-hunter's run over whole-change rounds."""
+
+    def setUp(self):
+        self.repo = Repo(self)
+
+    def origin(self):
+        up = pathlib.Path(tempfile.mkdtemp(prefix="spec-check-up-")).resolve()
+        self.addCleanup(shutil.rmtree, up, ignore_errors=True)
+        subprocess.run(["git", "init", "-q", "--bare", str(up)], check=True, env=ENV)
+        self.repo.git("remote", "add", "origin", str(up))
+        self.repo.git("push", "-q", "origin", "main")
+
+    def test_a_round_committed_on_the_base_branch_keeps_its_read_due(self):
+        r = self.repo
+        r.change("good")
+        r.git("add", "-A")
+        signed_commit(self, r, read="deferred")
+        r.write("src/app.py", "x = 1\n")
+        r.git("add", "-A")
+        out = r.run("sign", "--read", "subagent", "--no-validate")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertIn("read by a fresh subagent: good;", out.stdout)
+
+    def test_a_branch_tracking_the_base_warns_about_its_own_pushed_round(self):
+        r = self.repo
+        self.origin()
+        r.git("checkout", "-q", "-b", "feat", "--track", "origin/main")
+        r.change("good")
+        r.git("add", "-A")
+        signed_commit(self, r, read="deferred")
+        r.git("push", "-q", "origin", "feat")
+        r.write("openspec/changes/good/tasks.md", TASKS + "- [ ] 1.2 More\n")
+        r.git("add", "-A")
+        out = r.run("sign", "--read", "deferred", "--base", "origin/main", "--no-validate")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertIn("good is on the pushed branch unread", out.stderr)
+
+    def test_a_round_pushed_to_the_base_through_push_default_upstream_is_named(self):
+        r = self.repo
+        self.origin()
+        r.git("config", "push.default", "upstream")
+        r.git("checkout", "-q", "-b", "feat", "--track", "origin/main")
+        r.change("good")
+        r.git("add", "-A")
+        signed_commit(self, r, read="deferred")
+        r.git("push", "-q", "origin", "feat")
+        r.write("openspec/changes/good/tasks.md", TASKS + "- [ ] 1.2 More\n")
+        r.git("add", "-A")
+        out = r.run("sign", "--read", "deferred", "--base", "origin/main", "--no-validate")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertIn("good is on the pushed branch unread", out.stderr)
+
+    def test_a_round_pushed_on_the_base_branch_is_named_against_a_local_base(self):
+        r = self.repo
+        self.origin()
+        r.change("good")
+        r.git("add", "-A")
+        signed_commit(self, r, read="deferred")
+        r.git("push", "-q", "origin", "main")
+        r.write("openspec/changes/good/tasks.md", TASKS + "- [ ] 1.2 More\n")
+        r.git("add", "-A")
+        out = r.run("sign", "--read", "deferred", "--base", "main", "--no-validate")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertIn("good is on the pushed branch unread", out.stderr)
+
+    def test_a_round_pushed_to_the_push_default_remote_is_named(self):
+        r = self.repo
+        self.origin()
+        fork = pathlib.Path(tempfile.mkdtemp(prefix="spec-check-fork-")).resolve()
+        self.addCleanup(shutil.rmtree, fork, ignore_errors=True)
+        subprocess.run(["git", "init", "-q", "--bare", str(fork)], check=True, env=ENV)
+        r.git("remote", "add", "fork", str(fork))
+        r.git("config", "remote.pushDefault", "fork")
+        r.git("checkout", "-q", "-b", "feat", "--track", "origin/main")
+        r.change("good")
+        r.git("add", "-A")
+        signed_commit(self, r, read="deferred")
+        r.git("push", "-q", "fork", "feat")
+        r.write("openspec/changes/good/tasks.md", TASKS + "- [ ] 1.2 More\n")
+        r.git("add", "-A")
+        out = r.run("sign", "--read", "deferred", "--base", "origin/main", "--no-validate")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertIn("good is on the pushed branch unread", out.stderr)
+
+    def test_a_branch_tracking_a_local_branch_warns_about_its_pushed_round(self):
+        r = self.repo
+        self.origin()
+        r.git("checkout", "-q", "-b", "feat", "--track", "main")
+        r.change("good")
+        r.git("add", "-A")
+        signed_commit(self, r, read="deferred")
+        r.git("push", "-q", "origin", "feat")
+        r.write("openspec/changes/good/tasks.md", TASKS + "- [ ] 1.2 More\n")
+        r.git("add", "-A")
+        out = r.run("sign", "--read", "deferred", "--base", "main", "--no-validate")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertIn("good is on the pushed branch unread", out.stderr)
+
+    def test_a_tag_named_like_the_branch_does_not_hide_the_base_branch(self):
+        r = self.repo
+        self.origin()
+        r.git("tag", "main")
+        r.change("good")
+        r.git("add", "-A")
+        signed_commit(self, r, read="deferred")
+        r.git("push", "-q", "origin", "refs/heads/main:refs/heads/main")
+        r.write("src/app.py", "x = 1\n")
+        r.git("add", "-A")
+        out = r.run("sign", "--read", "subagent", "--base", "origin/main", "--no-validate")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertIn("read by a fresh subagent: good;", out.stdout)
+
+
+
+class FoundByBugHunterPushTargetTests(unittest.TestCase):
+    """Bug-hunter's run over where a round was pushed."""
+
+    def setUp(self):
+        self.repo = Repo(self)
+        up = pathlib.Path(tempfile.mkdtemp(prefix="spec-check-up-")).resolve()
+        self.addCleanup(shutil.rmtree, up, ignore_errors=True)
+        subprocess.run(["git", "init", "-q", "--bare", str(up)], check=True, env=ENV)
+        self.repo.git("remote", "add", "origin", str(up))
+        self.repo.git("push", "-q", "origin", "main")
+
+    def test_a_branch_that_pushed_nothing_is_not_warned_about_a_change_on_the_base(self):
+        r = self.repo
+        r.change("x")
+        r.git("add", "-A")
+        r.git("commit", "-q", "-m", "A squash merge, its read bound to another tree")
+        r.git("push", "-q", "origin", "main")
+        r.git("config", "push.default", "upstream")
+        r.git("checkout", "-q", "-b", "feat", "--track", "origin/main")
+        r.write("openspec/changes/x/tasks.md", TASKS + "- [ ] 1.2 More\n")
+        r.git("add", "-A")
+        out = r.run("sign", "--read", "deferred", "--base", "origin/main", "--no-validate")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertNotIn("on the pushed branch unread", out.stderr)
+
+    def test_a_merge_commit_carrying_a_deferred_round_is_seen(self):
+        r = self.repo
+        r.change("a")
+        r.git("add", "-A")
+        signed_commit(self, r)
+        r.git("push", "-q", "origin", "main")
+        r.git("branch", "f")
+        r.write("openspec/changes/a/tasks.md", TASKS + "- [ ] 1.2 main\n")
+        r.git("add", "-A")
+        signed_commit(self, r, read="deferred")
+        r.git("checkout", "-q", "f")
+        r.write("openspec/changes/a/tasks.md", TASKS + "- [ ] 1.2 feature\n")
+        r.git("add", "-A")
+        signed_commit(self, r)
+        r.git("checkout", "-q", "main")
+        r.git("merge", "-q", "f", check=False)
+        r.write("openspec/changes/a/tasks.md", TASKS + "- [ ] 1.2 main\n- [ ] 1.3 feature\n")
+        r.git("add", "-A")
+        signed_commit(self, r, read="deferred", message="Merge f")
+        r.git("push", "-q", "origin", "main")
+        r.write("openspec/changes/a/tasks.md",
+                TASKS + "- [ ] 1.2 main\n- [ ] 1.3 feature\n- [ ] 1.4 next\n")
+        r.git("add", "-A")
+        out = r.run("sign", "--read", "deferred", "--base", "origin/main", "--no-validate")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertIn("a is on the pushed branch unread", out.stderr)
+
+    def test_a_commit_adding_only_under_archive_touches_no_open_change(self):
+        r = self.repo
+        r.write("openspec/changes/archive/2026-01-01-y/tasks.md", TASKS)
+        r.git("add", "-A")
+        r.git("commit", "-q", "-m", "Archive y")
+        self.assertEqual(spec_check.touched_changes(str(r.path), r.git("rev-parse", "HEAD")), set())
+
+    def test_a_root_commit_touches_the_changes_it_adds(self):
+        r = self.repo
+        r.git("checkout", "-q", "--orphan", "fresh")
+        r.change("x")
+        r.git("add", "-A")
+        r.git("commit", "-q", "-m", "A history that starts with a change")
+        self.assertEqual(spec_check.touched_changes(str(r.path), r.git("rev-parse", "HEAD")), {"x"})
+
+    def edit(self, line, value=None):
+        r = self.repo
+        r.write("openspec/changes/x/tasks.md", TASKS + line)
+        r.git("add", "-A")
+        if value is None:
+            r.git("commit", "-q", "-m", "An edit with no trailer")
+        elif value == "read" or value == "deferred":
+            signed_commit(self, r, read="subagent" if value == "read" else "deferred")
+        else:
+            r.git("commit", "-q", "-m", "Copied trailer", "--trailer", f"Spec-check: {value}")
+
+    def sign_on_main(self):
+        r = self.repo
+        r.git("push", "-q", "origin", "main")
+        r.write("openspec/changes/x/tasks.md", TASKS + "- [ ] 1.9 Next\n")
+        r.git("add", "-A")
+        out = r.run("sign", "--read", "deferred", "--base", "origin/main", "--no-validate")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        return out.stderr
+
+    def test_a_read_after_a_deferred_round_on_the_base_closes_it(self):
+        self.repo.change("x")
+        self.repo.git("add", "-A")
+        signed_commit(self, self.repo, read="deferred")
+        self.edit("- [ ] 1.2 Read\n", "read")
+        self.edit("- [ ] 1.3 Web edit\n")
+        self.assertNotIn("on the pushed branch unread", self.sign_on_main())
+
+    def test_a_deferred_value_copied_from_another_tree_opens_no_round(self):
+        r = self.repo
+        r.change("x")
+        r.git("add", "-A")
+        r.git("commit", "-q", "-m", "x (#1)", "--trailer", "Spec-check: \u2713 0123456789ab 0 errors, "
+              "0 checks; validate passed; read deferred to the round's end")
+        self.assertNotIn("on the pushed branch unread", self.sign_on_main())
+
+    def test_a_feature_branch_pushed_unread_is_named_without_a_deferred_commit(self):
+        r = self.repo
+        r.git("checkout", "-q", "-b", "feat")
+        r.change("x")
+        r.git("add", "-A")
+        r.git("commit", "-q", "-m", "Work in progress", "--trailer", "Spec-check: skipped (wip)")
+        r.git("push", "-q", "-u", "origin", "feat")
+        r.write("openspec/changes/x/tasks.md", TASKS + "- [ ] 1.9 Next\n")
+        r.git("add", "-A")
+        out = r.run("sign", "--read", "deferred", "--base", "origin/main", "--no-validate")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertIn("x is on the pushed branch unread", out.stderr)
+
+    def test_a_round_pushed_to_the_base_is_named_against_the_local_base(self):
+        r = self.repo
+        r.git("config", "push.default", "upstream")
+        r.git("checkout", "-q", "-b", "feat", "--track", "origin/main")
+        r.change("good")
+        r.git("add", "-A")
+        signed_commit(self, r, read="deferred")
+        r.git("push", "-q", "origin", "feat")
+        r.git("branch", "-f", "main", "origin/main")
+        r.write("openspec/changes/good/tasks.md", TASKS + "- [ ] 1.2 More\n")
+        r.git("add", "-A")
+        out = r.run("sign", "--read", "deferred", "--base", "main", "--no-validate")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertIn("good is on the pushed branch unread", out.stderr)
 
 
 if __name__ == "__main__":

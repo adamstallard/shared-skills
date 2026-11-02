@@ -43,11 +43,11 @@ Read, in this order:
    docs/architecture.md, ARCHITECTURE.md, docs/design/).
 
 Then go through the checklist below. For a finding that sets the change
-against something else (items 1, 2, 3, 7, 9, 11), quote both sides: the
+against something else (items 1, 2, 3, 7, 9, 11, 12), quote both sides: the
 change's words with file:line, and the words it conflicts with, with
 file:line, PR number or issue number. Such a finding with one quote is a
-guess. A finding about the change alone (items 4, 5, 6, 8, 10) quotes the
-change and says what is missing.
+guess. A finding about the change alone (items 4, 5, 6, 8, 10, 13) quotes
+the change and says what is missing.
 
 1. Contradiction inside the change: two of its rules that cannot both hold
    (a rule that the log keeps no file contents, beside a rule that keeps shell
@@ -76,6 +76,12 @@ change and says what is missing.
     must degrade honestly when it turns out false.
 11. Evidence shown as checked when its source does not exist yet. A value
     from something unbuilt must read "not checked", never pass by default.
+12. Two decisions that contradict or repeat each other, in design.md's
+    Decisions or wherever the change states its decisions (one decision lets
+    a release delete files, another says a release never deletes).
+13. A decision not needed to build the change: one that only records who
+    asked what or when, or settles something no requirement, task or other
+    decision rests on.
 
 Write each finding as:
 

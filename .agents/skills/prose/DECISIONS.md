@@ -413,20 +413,24 @@ compaction repays its 300k to 500k tokens; size does not.
   - by place: every `CLAUDE.md`, `AGENTS.md` and `SKILL.md`; a file a
     `SKILL.md` or `AGENTS.md` links in a paragraph asking to read it first or
     before something; and an open change's `proposal.md`, `design.md` and
-    delta specs, since spec-check's consistency read, run for every commit
-    that changes `openspec/`, opens each of them in every open change. A link asking to read its file before changing the skill does not
-    count, and no commit counts a read of that file either, since a commit
+    delta specs, since spec-check's consistency read, run once per review
+    round, opens each of them in every open change. A link asking to read
+    its file before changing the skill does not count, and no commit counts a read of that file either, since a commit
     in a skill reads only its `SKILL.md` and read-first files;
   - by `prose-compact` in `.gitattributes`;
   - or by the commits since the doc's last compaction, each counting as one
     read of the docs a fixed map gives it. A commit changing a file in a
     skill's directory counts as a read of its `SKILL.md` and read-first
     files. A `Bug-hunter:`, `Prose:` or `Spec-check:` trailer counts as a
-    read of that skill's `SKILL.md`, and `Spec-check:` also of the main
-    specs and open changes. The log is capped at 300 commits. So in practice
-    this path makes a main spec read often; a `DECISIONS.md` or
-    architecture doc not linked to be read first gains no reads, and is read
-    often only when declared.
+    read of that skill's `SKILL.md`, whatever its value. A `Spec-check:`
+    trailer also counts as a read of the main specs and open changes,
+    unless its value says no consistency read ran: `read deferred to the
+    round's end`, on a commit before the end of a spec-check review round,
+    or `no read due`. Each round's last commit still carries a read, so
+    in a repository with regular spec work this path makes a main spec
+    read often. The log is capped at 300 commits. A
+    `DECISIONS.md` or architecture doc not linked to be read first gains no
+    reads, and is read often only when declared.
 - **The last compaction** is the newest commit behind HEAD, merged
   branches included, whose `Prose:` trailer lists the file after
   `compacted:`, or that shrank it by 10% or more, or that committed a copy

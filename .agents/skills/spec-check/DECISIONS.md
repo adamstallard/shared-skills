@@ -28,6 +28,13 @@ exist. The script takes the kinds a program can detect, and the subagent's
 consistency read takes the rest, undefined terms among them (see *Undefined
 terms are left to the consistency read*).
 
+Two items came later, once decisions moved to design.md (see *Decisions live
+in design.md*): decisions that contradict or repeat each other (item 12), and
+a decision not needed to build the change (item 13). Because every read
+checks decisions, they need no check of their own, even after `prose
+compact` shortens a change's docs: whether a compaction kept every
+conclusion is checked by `prose compact`'s own review.
+
 **Why.** Those are the mistakes a careful author made. A checklist from
 first principles would rank them by guesswork.
 
@@ -485,6 +492,147 @@ them. A reader using them sees the discussion and misses the decision.
 
 ---
 
+## One consistency read per round
+
+**Decision.** The mechanical checks run before every commit. The
+consistency read runs once per review round. A **review round** is the
+agent's work between two hand-overs for review, each a push or a hand-back
+to a person; the read runs before the hand-over that ends the round.
+
+The round's commits carry `read deferred to the round's end`, and its last
+commit carries the read, as `read by a fresh subagent: <change>, ...; N
+amended, M open`. That trailer is the record of the read. A change's
+**last read** is the newest commit, among the branch's last 1,000, whose
+`Spec-check:` value names it and is bound to that commit's own tree.
+
+A change is **due** when the branch adds or edits it (its files differ from
+the merge base with the base branch) and any of its files differs from its
+last read's tree. On the base branch itself the merge base is HEAD, which
+would leave nothing due, so there every open change counts as the branch's
+own. Each read is of the whole change. A value from before rounds, `read by
+...` with no names, counts as a read of every change its commit touched,
+which is what each commit's read was then.
+
+- `sign` computes the names, from what is due, rather than taking them from
+  the agent: the read covers every due change.
+- A read that led to amendments is recorded on the commit holding them, so
+  the amendments count as read. Reading them again would never end.
+- `sign --read subagent` signs a code-only commit while a change is due, so
+  the round's last commit can carry the read whatever it changes. When every
+  edit is already committed, the agent undoes the last unpushed commit with
+  `git reset --soft` and commits it again with the read.
+- `sign --read deferred` warns about a round pushed without its read. It
+  names any due change that is also due at the ref the branch was pushed
+  to (`@{push}`, or `<remote>/<branch>`), by the same due rule applied to
+  that ref in place of HEAD. A read made after the push covers the pushed
+  state, and a change with no files there was never pushed. The ref is not
+  `@{upstream}`: a branch made with `git worktree add -b <name> <path>
+  origin/main` tracks the base branch.
+- A push can land on the base branch itself: from the base branch, or from
+  a branch tracking it under `push.default=upstream`. There, a change
+  counts only when a commit carrying `read deferred` touched it after its
+  last read. A pull request squash-merged into the base lands as one commit
+  whose trailer, if any, is bound to the pull request's tree, not to that
+  commit's. The base then shows the change with no read recorded, though
+  it was read on its branch. Only the deferred commit marks a round that
+  really ended unread.
+- A change on the base branch that this branch does not touch is not due,
+  even when it changed after its own last read: its own pull request read
+  it.
+
+**Why.** In two long sessions, agents in review rounds re-reading large
+documents were about 69% of spend, and spec-check's consistency reads were
+13% and 19%. A read on every commit read the same change again for each
+small fix. The record lives in git, in the trailer that already binds the
+mechanical checks to the tree, so another agent, another worktree or a
+reviewer finds it with no state of its own. A trailer whose tree is not its
+commit's records nothing, so a value copied from another commit cannot
+excuse a read.
+
+The benchmark in the next section supports reading once per round: each
+round-end read caught every problem planted in the round's edits, so
+deferring the read to the round's end missed none of them. The saving
+depends on how many commits a round holds. igor PR #216 had 40 commits with
+a read and about 27 pushes, so one read per push would have made about a
+third fewer reads. shared-skills PR #25 had 54 and about 53 pushes, so
+almost nothing would have been saved.
+
+**Accepted: merging the base branch in mid-round.** spec-check judges a
+commit by what differs from its first parent, so a merge commit counts every
+change it brings in. If a branch merged the base mid-round with a `read
+deferred` commit and was then merged into the base, that commit would count
+the base's unarchived changes as open rounds. `sign --read deferred` on the
+base would then ask for one extra read. The worst case is that duplicate
+read, and handling merges more precisely was the most bug-prone part of
+this rule. Revisit this if it proves frequent.
+
+**Rejected:**
+- **A state file under `.git/`.** It is per clone: another machine, or a
+  reviewer, would read everything again, and nothing in the history would
+  show that a read happened.
+- **An empty commit for a read that amends nothing.** The shared commit
+  script refuses an empty commit; recommitting the round's last commit
+  records the same thing without one.
+- **Warning when the pushed state differs from the newest read at HEAD.**
+  Instead of applying the due rule to the pushed ref, this compared the
+  pushed files with HEAD's newest read. It warned about a pushed state
+  that an earlier, pushed read had covered, and skipped a change no commit
+  had read yet.
+- **Main's spec changes making every open change due.** A spec change on
+  main came through its own pull request, whose read held it against the
+  open pull requests, this one included. Each read of this change reads
+  main's specs whole anyway.
+
+---
+
+## The read is of the whole change, and the reader finds what is related
+
+**Decision.** Each round's read covers the whole change, and the reader
+searches the specs, open changes, pull requests and architecture docs for
+what relates to it, as the brief says. Neither a script-built reading pack
+nor a read of only what changed since the last read is used.
+
+**Why.** Both were built and benchmarked against the brief before them
+(2026-11-01), and neither earned its place.
+
+The benchmark: four rounds from real history, each a sandbox whose last read
+is the round's start and whose working tree is the round's end: igor PR
+#216 from `974d106` to `83d01a1` and from `8600ffe` to `3cd96d3`, and
+shared-skills PR #25 from `9f93f19` to `1d19e58` and from `dfa9f36` to
+`3576599`. Into each, six contradictions were planted: five in the round's
+edits, against main's specs, the unchanged change or its decisions, and one
+already present at the last read. Each sandbox was read once by each brief:
+this one, one reading a pack built from the whole change, and one reading a
+pack of only what changed since the last read. No pull requests were read:
+the sandboxes have no remote.
+
+| Round | This brief: tokens, caught | Whole-change pack | Incremental pack |
+|---|---|---|---|
+| #216, 974d106 | 99k, 6/6 | 256k, 5/6 | 161k, 5/6 |
+| #216, 8600ffe | 222k, 6/6 | 246k, 6/6 | 133k, 5/6 |
+| #25, 9f93f19 | 72k, 5/6 | 228k, 6/6 | 119k, 6/6 |
+| #25, dfa9f36 | 87k, 5/6 | 297k, 6/6 | 84k, 5/6 |
+| Total | 481k, 22/24 | 1,028k, 23/24 | 497k, 21/24 |
+
+Every brief caught all 20 problems planted in the rounds' edits. Of the four
+present at the last read, this brief caught two, the whole-change pack
+three, and the incremental pack one. This brief's readers did not read
+every spec in full: they searched, at 72k to 222k tokens. Single runs, with
+planted problems, so the figures are a sign, not a measure.
+
+**Rejected:**
+- **A reading pack built by a script** (`spec_check.py pack`): the
+  requirement paragraphs, scenarios and decisions elsewhere that share a
+  name or IDF-weighted terms with the change. Built from the whole change,
+  it cost twice this brief's tokens for one more catch; the readers it
+  replaced were already searching, not reading everything.
+- **Reading only what changed since the last read.** It cost what this
+  brief did (3% more over the four rounds) and caught the fewest problems
+  already present at the last read: one of four, which its pack happened to
+  quote.
+
+---
+
 ## Findings go into the spec, not into comments
 
 **Decision.** A finding is fixed by amending the spec. A question only a
@@ -765,7 +913,9 @@ understood.
 ## The trailer is bound to the tree
 
 **Decision.** `sign` runs the mechanical checks on the staged tree and prints
-`Spec-check: ✓ <tree> <summary>`. The commit script runs `verify-staged.sh`
+`Spec-check: ✓ <tree> <summary>`. The summary ends with the round's read:
+deferred, the changes read, or `no read due` (see *One consistency read per
+round*). The commit script runs `verify-staged.sh`
 before committing, and the commit hook runs `verify-commit` after. Both
 compare the value's tree with the tree that lands. A value starting `skipped` binds
 nothing.

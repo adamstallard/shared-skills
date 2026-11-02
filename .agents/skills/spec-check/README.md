@@ -10,10 +10,10 @@ right ones.
 
 ## What you get
 
-Before an agent commits, or opens a pull request for, anything under
-`openspec/`, it:
+When an agent works on anything under `openspec/`, it:
 
-1. **Runs the mechanical checks** in `scripts/spec_check.py`:
+1. **Runs the mechanical checks** in `scripts/spec_check.py` before every
+   commit:
    - a requirement with a SHALL or MUST and no scenario;
    - a scenario with no WHEN or THEN;
    - the same rule stated under two requirements;
@@ -51,7 +51,10 @@ Before an agent commits, or opens a pull request for, anything under
    `Builds on:` line to add.
 2. **Has a fresh subagent read the change** against every spec, every other
    open change, every open pull request touching the same specs, and your
-   architecture docs. Findings come with quotes from both sides.
+   architecture docs. Findings come with quotes from both sides. The read
+   runs once per review round: the agent's work between two hand-overs for
+   review, each a push or a hand-back to you. It runs before the hand-over
+   that ends the round.
 3. **Fixes the spec itself.** A question only you can answer goes into
    design.md's *Open Questions*, not into a pull request comment.
 
@@ -61,9 +64,12 @@ what. This is a convention for authors; `check` does not test it.
 
 Each commit that changes `openspec/` carries a `Spec-check:` trailer, such as
 `Spec-check: ✓ 4d593e935186 0 errors, 2 checks; validate passed; read by a
-fresh subagent; 3 amended, 1 open`. The hash is the tree the checks ran on,
-so staging anything afterwards breaks it. "read by its author, no subagent"
-means no fresh reader was available.
+fresh subagent: keep-action-log; 3 amended, 1 open`. The hash is the tree the
+checks ran on, so staging anything afterwards breaks it. The end names the
+changes the round's read covered at that tree; a change is read again only
+once it differs from that tree. A commit inside a round ends `read deferred to the round's end`
+instead. "read by its author, no subagent" means no fresh reader was
+available.
 
 **What it proves.** The trailer proves the mechanical checks passed on exactly
 what was committed. It does not prove a fresh subagent did the read: it
@@ -132,6 +138,11 @@ python3 ~/.agents/skills/manage-skills/scripts/skills.py disable-hook spec-check
   `--ref`, or the staged files when signing), and the file is in neither at
   that line. If the change
   targets another branch, pass `--base`.
+- **A change is due for a read, though it was read before.** The read is
+  found from `Spec-check:` trailers in the branch's history. A rebase or
+  squash that drops the commit carrying it, a trailer typed by hand whose
+  tree is not its commit's, or a read more than 1,000 commits back leaves
+  none, and the change is due again.
 - **The agent cannot make the trailer.** `spec_check.py sign`, which prints
   the `Spec-check:` line, refuses while errors remain, and prints them. For
   work in progress, the agent commits with `Spec-check: skipped (<reason>)`.
