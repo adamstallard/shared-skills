@@ -49,8 +49,9 @@ judged well.
 Tokens and records live in `${XDG_STATE_HOME:-$HOME/.local/state}/inquisitor/`,
 where prose keeps its session marks, and for the same reason: a session spans
 repositories, and the hook's working directory can differ from the one `vet`
-ran in (prose's DECISIONS.md, *The gate*). These records are the hooks'
-state, not a question log: they hold no question's text, and whichever
+ran in (prose's DECISIONS.md, *The gate blocks a session's first file
+write*). These records are the hooks' state, not a question log: they
+hold no question's text, and whichever
 call or hook next reads them deletes each one more than 2 hours old, with a
 category or without one, except a `deferred` record without a category.
 That one is kept until
@@ -568,9 +569,9 @@ and filter 1's search says lore was not searched.
 
 Reviewers live in the repository the question concerns, in
 `.inquisitor/reviewers`, one GitHub login per line. A team decides them
-there, in review, so every teammate's agent tags the same person. #211
-proposed "a reviewer or expert named in the team's configuration"; a
-repository's own file is that configuration for questions about it.
+there, in review, so every teammate's agent tags the same person. A listed
+reviewer is the second candidate the script tries in *One person who can
+decide is tagged*, under *Decisions*.
 
 Visibility, of a lore repository or the repository a question concerns, is
 read with `gh repo view --json visibility` on the clone's `origin`, which
@@ -1025,11 +1026,16 @@ unshown (*Only an item's newest handback is open*; *Each Igor log file
 follows its own handback comment*, under *Decisions*). A bot's message,
 an Igor's handback included, reaches only the first person it mentions,
 so each bot question has one owner and two people cannot give a bot
-conflicting answers; a handback that mentions no one reaches the item's
-assignee. Each Igor orders its mentions by importance, operator,
-assignee, creator, its operator being the person who runs that Igor, as
-igor issue #229 asks, so the answer session never needs to know who an
-operator is (*A bot's question reaches only the first person it
+conflicting answers. Adam decided, in igor issue #229, the order in which
+an Igor mentions people; #229 is open, and igor's specs do not state that
+order. When an Igor stops for a reason it detects itself, such as an
+unrecoverable failure, its handback mentions its operator, the person who
+runs that Igor, first, then the item's assignee and creator. Every other
+handback, a question included, mentions the assignee and then the
+creator. A handback that mentioned no one would reach the item's
+assignee; #229 states that rule too, and names no case in which a
+handback mentions no one. The answer session never needs to know
+who an operator is (*A bot's question reaches only the first person it
 mentions*; *A handback that mentions no one reaches the assignee*, under
 *Decisions*).
 
@@ -1588,8 +1594,7 @@ prose signs it. design.md's *Questions in posts* gives the reasoning for colon
 lines and for the order with prose.
 
 **Why:** this change took the rule under filter 4, without asking, since it
-lives in one function and is cheap to change. It settles igor #211's first
-open question.
+lives in one function and is cheap to change.
 
 *Rejected:* letting any colon line starting with "Open" begin a section: "Open
 a terminal and run:" would turn its commands into questions.
@@ -1615,14 +1620,12 @@ finds with write access to what the question concerns, among whoever approved
 the related earlier decision, a login in `.inquisitor/reviewers`, then whoever
 last changed the files involved.** For a question about an organization or
 project, the reviewers file is the team's lore repository's. Unreadable access
-counts as none. igor #211 proposed the fewest who can decide; this skill tags
-one. The spec's requirement *A question in a post tags one person who can
-decide, if there is one* holds the skip rules and login check.
+counts as none. The spec's requirement *A question in a post tags one person
+who can decide, if there is one* holds the skip rules and login check.
 
-**Why:** only a person with write access can decide. igor #211 named "a
-reviewer or expert named in the team's configuration"; a file in the
-repository is that configuration, so every teammate's agent tags the same
-person (design.md's *Configuration*).
+**Why:** only a person with write access can decide. The reviewers are listed
+in a file in the repository, so every teammate's agent tags the same person
+(design.md's *Configuration*).
 
 #### The configured login names the person
 
@@ -2060,11 +2063,24 @@ An answer about one repository lives in that repository. An answer that spans
 repositories goes to the team's lore repository's questions branch, or into
 lore itself when it is important enough.
 
-Four kinds of question get no log file, each by its own decision below: a
-question about one person's way of working; a question with a category; a
-question about a repository more private than the lore repository it would be
-logged in; and a question about an organization or project for which no lore
-repository is configured.
+These kinds of asked question get no log file. The spec's requirement *Every
+answer is recorded and every asked question logged* holds each rule but the
+second, which is in its requirement *Some questions are recorded by hash
+only*. Each of the last two names, in parentheses, the entry under
+*Decisions* that sets it.
+- a question about one person's way of working;
+- a question with a category;
+- a question about an organization or project, raised by work in a
+  repository more private than the team's lore repository: the script
+  refuses to push it to that lore repository's questions branch;
+- a question about an organization or project for which no lore repository
+  is configured, or that the agent asks while working in no git repository;
+- a question an Igor worker asks in a handback when the run publishes no
+  artifact, that is, nothing such as a pull request: the handback comment
+  is its record until a later run on the item publishes an artifact
+  (*An Igor worker asks only in its handback comment*);
+- the question that stopped a flagged run (*A flagged run asks nothing and
+  pushes nothing*).
 
 **Why:** design.md's *Where the logs live* gives the reasoning.
 
@@ -2172,15 +2188,22 @@ to a lore repository's questions branch, and promoting an answer from there
 into lore.
 
 An unreadable visibility counts the cautious way: the repository the question
-concerns counts as private, and a lore repository or a post's target counts as
-public. The spec's definition *More visible*, under its requirement *Every
+concerns counts as private, a lore repository or a post's target counts as
+public, and a repository an `asked_in` URL points into counts as private. The
+spec's definition *More visible*, under its requirement *Every
 question passes four filters before a person sees it*, holds the ranking, the
 defaults, and how a file's visibility is judged. The one exception, a recorded
 answer's link that the person confirms, is in *Agreeing to a recorded answer
 is a filter 1 decline*.
 
-**Why:** design.md's *Configuration* gives how visibility is read and why each
-default fails closed.
+**Why:** a question's record keeps the privacy of what it concerns, which
+that place's maintainers decide (*Every asked question is logged with what it
+concerns*). Each default for an unreadable visibility makes the more cautious
+choice, so nothing is sent somewhere that might be more visible. For an
+`asked_in` target, counting it private means the URL is withheld unless the
+lore repository is private too (*`answer_link` and `asked_in` are withheld
+where they would leak*).
+*Configuration*, before *Decisions*, gives how visibility is read.
 
 #### Records are written at the question's privacy
 
@@ -2249,7 +2272,9 @@ One is Linear's API keys and OAuth tokens (`lin_api_`, `lin_oauth_`): the
 discussion's model runs with the person's tools, so it can read the person's
 Linear key from the keychain (*A discussion runs in the session's own
 conversation*). The other is a Discord relay's bot token, three base64 parts
-separated by dots.
+separated by dots. That pattern also matches a JSON Web Token, on purpose: a
+JWT in a post or a log file is usually a credential, so the scan refuses it
+too.
 
 The scan catches known shapes only: a `DB_PASSWORD=…` passes it. So the agent
 never puts a credential into a question, an answer or a verdict field, and a
@@ -2956,12 +2981,13 @@ repository into a more public item.
 
 **During a run, a questions-branch file whose `repository` key names a
 repository other than the item's always shows as input,** labelled
-unconfirmed, whatever its proofs (#216's decision 44). The proofs show who
-answered, not that the answer belongs to the item's repository. The spec's
+unconfirmed, whatever its proofs (#216's decision 44). Being in scope lets the
+search return the file; this rule sets how the run shows it. The spec's
 requirement *Only an answer with authority stops a question* states it.
 
-**Why:** the file informs, and decides nothing until it is proven where it
-belongs.
+**Why:** a file's proofs show who answered, not that the answer belongs to the
+item's repository. So the file informs the run, and decides nothing until it
+is proven where it belongs.
 
 #### The Igor writes `asked_from` on every file it pushes
 
@@ -4160,6 +4186,15 @@ means a crash between them does not lose the answer file. Checking the thread
 first lets the person see a new message before anything is pushed. design.md's
 *What the answer session posts, and what it logs* gives the same reasoning.
 
+A failed push's retry is also dropped once an answer file that counts as the
+person's answer names the same questions-branch file, and this machine
+first saw that answer file at a fetch after it recorded the owed push. The
+second condition keeps a file this machine already knew from cancelling the
+push. For example, an answer pushed at once and then posted edited owes a new
+file; without the condition, the file pushed at once would cancel that push.
+That reason is the author's inference, which *Conflicts for Adam to decide*,
+under *Open Questions*, asks Adam to confirm.
+
 **Accepted:** a file pushed at once gives up the comment link that would prove
 it on GitHub, and counts only through its signature. A dropped pending answer
 of that kind leaves its file on the branch, still answering the file it names.
@@ -4767,10 +4802,14 @@ closed or answered the wrong asker's question.
 **A message by a bot reaches only the first person it mentions; a message by a
 person reaches each person it mentions.** A bot here is any bot or agent
 account: an Igor, an agent running the inquisitor, or any other bot. The bot
-orders its mentions by importance; an Igor orders them operator, assignee,
-creator, which igor issue #229 provides. The answer session does not know who
-an operator is and needs no rule about it. The rule applies to Igors directly,
-with no routing by assignment alone while #229 is open. The answer-session
+orders its mentions by importance. For an Igor, Adam decided the order in igor
+issue #229, which is open: igor's specs do not state the order. Under it, an
+Igor mentions its operator first only when it stops for a reason it detects
+itself, then the assignee and the creator; every other handback, a question
+included, mentions the assignee and then the creator. The answer session does
+not know who an operator is and needs no rule about it. The rule applies to
+Igors directly, with no routing by assignment alone while igor's specs lack
+#229's order. The answer-session
 spec's requirement *A question asked of the person comes from one of four
 sources* holds the details: what counts as a bot account and as a mention.
 
@@ -4781,8 +4820,8 @@ reasoning.
 
 *Rejected:* a handback reaching the assignee unless it mentions someone else
 and not them: it gives a bot question more than one owner.
-*Rejected:* routing an Igor's handback by assignment until igor #229 lands: no
-one uses igor yet, so the spec states only the end state.
+*Rejected:* routing an Igor's handback by assignment until igor's specs state
+#229's order: no one uses igor yet, so the spec states only the end state.
 
 #### igor's handback marker
 
@@ -4863,7 +4902,9 @@ from one of four sources* holds when the link is followed.
 
 **Why:** each file follows exactly one comment, so one answer never closes the
 log files of two handbacks, and the newest-handback rule needs no other
-mechanism. It is the simplest mechanism that guarantees this.
+mechanism. It is the simplest mechanism that guarantees this. The Igor
+writes `asked_in`, not the worker, because the worker cannot know its
+handback comment's URL: the comment exists only once the Igor posts it.
 
 *Rejected:* linking the log file to the assigned item instead of the handback
 comment: two handbacks on one item would share one link.
@@ -4999,6 +5040,12 @@ measured; design.md's *What task 0.12 measured* gives its result.
 - **Does GitHub's API give a comment's author and a commit's verified
   signer, as the proof of a questions-branch writer needs?** (task 0.11) If
   not, every questions-branch `decision` or `agent` file counts as input.
+- **Does a comment's `updated_at` change only when its text is edited?**
+  (task 0.11) *The newest proven answer counts* dates a comment link's
+  proof from the comment's last edit, so "newest proof wins" relies on
+  GitHub's `updated_at` not moving on a reaction, a hide or minimize, or
+  other metadata. If it does move, the spec states no fallback until task
+  0.11 has measured it; the ordering for that case is decided then.
 - **Can an Igor worker post?** (task 0.14) igor's task-execution
   requirement keeps every credential but its seat's out of the worker's
   environment. A `gh` login stored in the home directory the worker is
@@ -5144,15 +5191,20 @@ nothing and pushes nothing* at d3b7740 (2026-10-21).
   does a decline under the reason "the inquisitor should have handled it"
   with filter 1 naming such an entry, for a question that did reach the
   person.
-- **How an Igor runs the inquisitor skill itself** has no mechanism yet in
+- **How an Igor runs the inquisitor skill itself** has no mechanism in
   #216 or igor #211. Decided: igor marks that run with `IGOR_RUN=igor`, and
   the script then searches lore only through `igor lore-search` and pushes
   nothing. Open: which other sources that run's filter 1 covers, how the
   run hands its files to the Igor, and whether it can read GitHub.
-- **igor issue [#229](https://github.com/adamstallard/igor/issues/229)
-  should have each Igor order the people it mentions by importance:
-  operator, assignee, creator.** Only the first person a bot mentions gets
-  its question, so this routing relies on the order.
+- **igor's specs must state the order in which each Igor mentions people,
+  which Adam decided in igor issue
+  [#229](https://github.com/adamstallard/igor/issues/229).** #229 is open,
+  and no igor spec states the order. When an Igor stops for a reason it
+  detects itself, such as an unrecoverable failure, a stuck condition or
+  budget exhaustion, it mentions its operator first, then the item's
+  assignee, then its creator. Every other handback, a question included,
+  mentions the assignee and then the creator. Only the first person a bot
+  mentions gets its question, so this routing relies on the order.
 - **igor PR #153, signed publishing,** would have an Igor whose role lists
   prose or bug-hunter push only commits that went through those skills and
   carry their trailers. Citation commits carry none, so #153 should exempt
@@ -5171,9 +5223,25 @@ nothing and pushes nothing* at d3b7740 (2026-10-21).
   - #202's spec puts a decision about several repositories in the lore
     repository. Filter 1 reads the lore repository's decision records
     where #202 puts them (task 7.0).
-- **igor #211's two other open questions concern the role only:** how long
-  to wait before following up, and whether a discussion is a new kind of
-  surface for Igor. They are out of this change's scope.
+- **igor issue #211's body should record that the post hook vets every
+  post it sees, a handback included** (*No exemption for an Igor's
+  handback*). #211 is the igor issue that proposes this skill and the Igor
+  inquisitor role. Its body lists five open questions:
+  - Three concern the role only, and are out of this change's scope (*The
+    Igor inquisitor role is out of scope*): the Igor inquisitor role
+    itself, which nobody has claimed; how long it waits before following
+    up; and whether a team discussion, such as a chat channel or a shared
+    document, is a new kind of surface for Igor, beside the tracker and
+    the code host.
+  - The fourth, when an Igor's worker can run the skill, is this change's
+    Igor-worker mode, which waits on what this section lists.
+  - The fifth asks whether the post hook can tell a handback comment from
+    other posts, and says a hook that cannot would block an unvetted
+    question in a handback comment that an agent posts with `gh`. This
+    change accepts that outcome: the hook vets every post it sees, so it
+    blocks an unvetted question in such a comment as in any post. That
+    blocks no real handback, since an Igor posts its handbacks through its
+    own code, which the hook never sees.
 
 ### What other changes must provide
 
@@ -5229,7 +5297,7 @@ nothing and pushes nothing* at d3b7740 (2026-10-21).
   current work's branch answers that work* and *An agent's choice counts
   only in the work it belongs to* let an `agent` entry count on the work's
   own branch, and say nothing of a `decision` entry there. The spec
-  (openspec/changes/inquisitor/specs/inquisitor/spec.md:603-606) counts a
+  (openspec/changes/inquisitor/specs/inquisitor/spec.md:604-607) counts a
   `decision` or `agent` log entry on the current work's own branch.
 - **What the Igor's record of a handback holds.** *A person's answer to a
   handback* matches an answer against "the Igor's own record of the
@@ -5270,6 +5338,11 @@ nothing and pushes nothing* at d3b7740 (2026-10-21).
   "pushed in one commit with other files". A copy that carries the
   person's comment link and is pushed alone passes both tests. No ruling
   says whether that is accepted or why it cannot happen.
+- **Why an owed push's retry ignores an answer file this machine already
+  knew.** *The push order for a questions-branch answer* gives its reason:
+  so that a file pushed at once does not cancel the push of an edited
+  answer's file. No ruling records that reason; it is the author's
+  inference, and Adam is to confirm it.
 
 ### Where the spec and a decision differ
 
@@ -5284,7 +5357,7 @@ These are listed for Adam; the spec is not changed here.
   spec's mention is for Adam to remove.
 
 - **A new issue that tags someone elsewhere**
-  (openspec/changes/inquisitor/specs/inquisitor/spec.md:1680),
+  (openspec/changes/inquisitor/specs/inquisitor/spec.md:1652-1654),
   *A deferred question passes only untagged and listed*. The decision: "a
   question in a new issue that tags no one". The spec: the question "tags
   no one and either appears as an item of an open-questions section or is
@@ -5293,43 +5366,43 @@ These are listed for Adam; the spec is not changed here.
   decision does not let it. design.md's *Questions in posts* follows the
   spec's reading.
 - **A private file in a readable directory**
-  (openspec/changes/inquisitor/specs/inquisitor/spec.md:1497),
+  (openspec/changes/inquisitor/specs/inquisitor/spec.md:1470-1471),
   *Files passed to the two calls stay private*. The decision: the script
   "refuses a file that its group or others can read". The spec adds "or
   one whose own directory they can read". An addition, not a
   contradiction.
 - **Which questions go on standard input**
-  (openspec/changes/inquisitor/specs/inquisitor/spec.md:2953),
+  (openspec/changes/inquisitor/specs/inquisitor/spec.md:3023-3025),
   *Files passed to the two calls stay private*. The decision: "A question
   with a category reaches the script on standard input". The spec passes
   "such a question and its verdict, with every other question of the same
   picker call, on standard input". An addition, not a contradiction.
 - **A gh read through an unset `$G`**
-  (openspec/changes/inquisitor/specs/gh-post/spec.md:324-325 and its
-  scenario at :480), *Posts sent through the github-app skill's script*.
+  (openspec/changes/inquisitor/specs/gh-post/spec.md:362-363 and its
+  scenario at :518), *Posts sent through the github-app skill's script*.
   The decision: a command that runs `python3 $G`, "mentions `gh`" and
   assigns `G` nowhere earlier is unreadable. The spec: one that "mentions a
   gh post verb", with the scenario "A gh read through an unset G is no
   post". The spec lets a read through.
 - **An unparseable GraphQL query**
-  (openspec/changes/inquisitor/specs/gh-post/spec.md:334-335), *GraphQL
+  (openspec/changes/inquisitor/specs/gh-post/spec.md:372-373), *GraphQL
   mutations that post text*. The decision: "A mutation the reader cannot
   parse ... is unreadable". The spec: "a GraphQL query it cannot parse",
   read or mutation.
 - **`gh` inside an unquoted word**
-  (openspec/changes/inquisitor/specs/gh-post/spec.md:90-91), *Which
+  (openspec/changes/inquisitor/specs/gh-post/spec.md:91-92), *Which
   commands the reader judges, and which are unreadable*. The decision: a
   data command "naming `gh` only inside a quoted argument". The spec:
   "names `gh` only inside a longer word, such as a quoted argument", which
   also covers an unquoted word.
 - **Other git forms that run a command**
-  (openspec/changes/inquisitor/specs/gh-post/spec.md:101-103), *Code
+  (openspec/changes/inquisitor/specs/gh-post/spec.md:101-104), *Code
   given on the command line that names gh*. The decision covers `git
   rebase -x`/`--exec`, `git submodule foreach`, `git bisect run` "and any
   other git form that runs a command it is given". The spec names the
   three forms and `-c`, and "keeps that list fixed".
 - **How a body is reduced before the reserved-prefix check**
-  (openspec/changes/inquisitor/specs/inquisitor/spec.md:1691-1693), *The post
+  (openspec/changes/inquisitor/specs/inquisitor/spec.md:1664-1666), *The post
   hook blocks a reserved prefix
   on GitHub*. The decision: the body is reduced "as [the answer-comparison
   rule] reduces a comment". The spec: "as a question in a post is reduced
@@ -5337,26 +5410,26 @@ These are listed for Adam; the spec is not changed here.
   The comment reduction also drops list markers; it also ignores a leading
   `User says: `, which, taken literally, would defeat the block.
 - **Which `CLAUDE.md` holds a way-of-working answer**
-  (openspec/changes/inquisitor/specs/inquisitor/spec.md:2099-2102, with :92
-  and :2536), *A way-of-working
+  (openspec/changes/inquisitor/specs/inquisitor/spec.md:2072-2075, with :92
+  and :2528), *A way-of-working
   question gets no log*. The decision: "that person's memory or
   `CLAUDE.md`". The spec: "their user-level `CLAUDE.md` ... and never in a
   committed one". The spec narrows the decision.
 - **The scribe's records at `docs/decisions/`**
-  (openspec/changes/inquisitor/specs/inquisitor/spec.md:552
-  and :1035), *Filter 1 searches igor's scribe's records where #202 puts
+  (openspec/changes/inquisitor/specs/inquisitor/spec.md:553
+  and :1008), *Filter 1 searches igor's scribe's records where #202 puts
   them*. The decision: "at the path igor PR #202 sets". Two scenarios fix
   the path: "a decision record under `docs/decisions/`". The requirement
   text itself says "at the path igor PR #202 sets".
 - **When #208 has applied no commit**
-  (openspec/changes/inquisitor/specs/inquisitor/spec.md:155-158), *An
+  (openspec/changes/inquisitor/specs/inquisitor/spec.md:154-157), *An
   Igor reads relay files as of igor PR #208's applied commit*. The
   decision covers `igor run` "and ... a lore repository #208 never
   fetches", and says "An answer in the person's own comment still counts".
   The spec names only `igor run`, and says nothing of the person's own
   comment.
 - **Who keeps the handback record**
-  (openspec/changes/inquisitor/specs/inquisitor/spec.md:2220-2221), *A
+  (openspec/changes/inquisitor/specs/inquisitor/spec.md:2194-2195), *A
   later run names the answered file from the Igor's record*. The decision
   states the end state: "The record holds only the 6-hex-digit suffix and
   the date". The spec calls it "the record igor PR #216 is asked to keep
@@ -5370,46 +5443,42 @@ These are listed for Adam; the spec is not changed here.
   `relay` and a subscription". Under the spec, one complete surface beside
   an incomplete one opens no setup.
 - **An answer file copying `asked_from`**
-  (openspec/changes/inquisitor/specs/answer-session/spec.md:1542,
-  openspec/changes/inquisitor/specs/inquisitor/spec.md:2676 and :2712), *The
+  (openspec/changes/inquisitor/specs/answer-session/spec.md:1616-1617,
+  openspec/changes/inquisitor/specs/inquisitor/spec.md:2720-2722 and
+  :2757-2760), *The
   Igor writes `asked_from` on
   every file it pushes*. The decision: the script "never writes
   `asked_from`, apart from the miss an answer session logs". The spec also
   has an answer file copy it: "copying that file's `asked_from`, when it
-  has one" (answer-session :1542) and "in a miss or an answer file"
-  (inquisitor :2676). The spec
-  disagrees with itself: :2712 names only the miss.
+  has one" (answer-session :1616-1617) and "in a miss or an answer file"
+  (inquisitor :2720-2722), and its definition of `asked_from`
+  (inquisitor :2757-2760) names both.
 - **Where filter 1's recorded place comes from**
-  (openspec/changes/inquisitor/specs/answer-session/spec.md:1819),
+  (openspec/changes/inquisitor/specs/answer-session/spec.md:1897-1898),
   *Two reasons to decline*. The decision: "naming the place the person
   gave or the model found". The spec: "the place the person gave, or of a
   place filter 1 found that the person chose". *Claude drafts a reply only
   into the prompt box* has Claude's draft fill in the place, which may be
   what "the model found" means.
 - **An Igor log file whose link this machine never reads**
-  (openspec/changes/inquisitor/specs/answer-session/spec.md:488-492), *A link
+  (openspec/changes/inquisitor/specs/answer-session/spec.md:503-509), *A link
   this machine never reads is
   not followed*. The decision has no exception. The spec: "That rule does
-  not apply to an Igor's log file, one holding `asked_from`, whose link is
-  followed". The exemption fits *Each Igor log file follows its own
+  not apply to an Igor's log file, one holding `asked_from`: when this
+  machine does not read the file's item, it still follows the link". The exemption fits *Each Igor log file follows its own
   handback comment*, but no decision states it. The spec also adds a
   channel "that is off".
 - **Which login an unknown post goes out as**
-  (openspec/changes/inquisitor/specs/inquisitor/spec.md:1873-1874), the bullet
+  (openspec/changes/inquisitor/specs/inquisitor/spec.md:1846-1847), the bullet
   *Can the script learn which
   login a post goes out as?* above. The bullet: "it treats every post as
   going out as the person". The spec: "as the configured login". Probably
   the same login, in different words.
 - **How an Igor's own run hands over its files**
   (openspec/changes/inquisitor/specs/inquisitor/spec.md:248-251 and
-  :2113-2116), the bullet *How an Igor runs
+  :2089-2090), the bullet *How an Igor runs
   the inquisitor skill itself* above, and *The script tells an Igor's run
   by `IGOR_RUN`*. The bullet calls "how the run hands its files to the
   Igor" open. The spec: "putting each file it would push in the run's
   report instead, for the Igor to push". What is open may be only how the
   report reaches the Igor, which is #216's.
-- **A relay file's name compared with the login without regard to case**
-  (inquisitor/spec.md, the definition of *a person's relay file*), *Who last
-  changed a relay file ties it to its person*. The decision: "the name is
-  compared with the login without regard to case". The spec states no case
-  rule.

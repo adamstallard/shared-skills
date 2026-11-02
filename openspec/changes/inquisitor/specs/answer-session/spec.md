@@ -1000,8 +1000,7 @@ whose text is this answer, the retry uses its URL; otherwise the answer was neve
 the answer is kept as answered, not relayed. The answer session
 SHALL drop the retry once an answer file that counts as the person's
 answer names the same file, provided this machine first saw that answer
-file at a fetch made after it recorded the owed push, so that an answer
-file it already knew, such as one pushed at once, does not cancel it, and
+file at a fetch made after it recorded the owed push, and
 SHALL NOT retry a push the `log` command refuses for a reason that will
 not change, such as lack of access, a relay post the command cannot
 read, or an answer whose words the lore repository is too visible to
@@ -2434,9 +2433,8 @@ reason logs none (design.md: *Misses the answer session logs*; *Two
 reasons to decline*). A
 miss the answer session logs by itself, under *Filter 1 runs on every
 incoming question* or *Filters 2 to 4 judge every incoming question*, has
-`said` `answer session: clearly filter <n>`, so a review of misses can
-tell it from a person's word. The answer session SHALL log a miss whether or not
-the asker logged the question. A miss logged for a question that a
+`said` `answer session: clearly filter <n>`. The answer session SHALL log a
+miss whether or not the asker logged the question. A miss logged for a question that a
 questions-branch file holds SHALL copy that file's `asked_from`, when it
 has one, passing it to the `log` command with the miss's other keys, so
 the miss is as private as the file. When several such files hold the

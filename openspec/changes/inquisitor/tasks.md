@@ -51,7 +51,11 @@ contradicts what design.md assumed.
       security advisory, and what access that needs
 - [ ] 0.11 GitHub's API gives a comment's or review's author, and whether a
       commit's signature is verified and for which account, as design.md's
-      *A questions-branch decision needs a proven writer* needs
+      *A questions-branch decision needs a proven writer* needs. It also
+      measures whether a comment's `updated_at` changes only when the
+      comment's text is edited, and not on a reaction, a hide or minimize,
+      or other metadata, as design.md's *The newest proven answer counts*
+      needs
 - [x] 0.12 Whether an Igor's worker can run this skill, with a lore clone and
       `inquisitor.json` in reach, as the spec assumed before design.md's
       *Filter 1 in an Igor's run searches through `igor lore-search`*

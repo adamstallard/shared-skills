@@ -118,9 +118,9 @@ Terms used throughout this spec:
   or issue comment, sent through `gh` or a GitHub MCP tool. The comment an
   Igor, one of the AI teammates of the igor project, posts when it hands an
   item back is not a post in this spec, and nothing here batches or tags
-  it; an Igor posts it through its own code, which the post hook never
-  sees, and any post the hook does see is vetted, whatever marker it
-  carries (design.md: *No exemption for an Igor's handback*).
+  it. A comment the post hook sees is a post, and is vetted, even when it
+  carries the marker igor puts on handback comments; the hook does not
+  read that marker (design.md: *No exemption for an Igor's handback*).
 - **The person running the session's login** is the GitHub login the
   inquisitor's configuration names, when it equals the login of the account
   `gh` is logged in as, read by the script running as the person. When they
@@ -203,9 +203,9 @@ Terms used throughout this spec:
   the question concerns whose visibility cannot be read counts as private;
   a lore repository, or the repository a post goes to, whose visibility
   cannot be read counts as public; and a repository an `asked_in` URL
-  points into, whose visibility cannot be read, counts as private. Each
-  default makes the more cautious choice: nothing is sent somewhere that
-  might be more visible. Nothing about one repository goes to a
+  points into, whose visibility cannot be read, counts as private
+  (design.md: *Nothing goes somewhere more visible than its source*).
+  Nothing about one repository goes to a
   more visible place, except a recorded answer's link that the person
   confirms after being shown that posting it shows the record exists,
   as the `answer-session` spec's *Filter 1 runs on every incoming
@@ -402,9 +402,9 @@ The search SHALL run the same way in an Igor worker as in any other
 session, except for its sources, which the paragraph on Igor workers below
 sets. It SHALL hide every lore entry whose scope is not in the
 question's scope, and never show, count or mention it, even as input.
-Inside an Igor it SHALL follow the rule for a search during a run that
-igor PR #216 adds to igor's lore-firing requirement *Lore reaches the
-worker unbidden*: it shows only entries whose scope covers the run's role
+Inside an Igor it SHALL follow the rule for a search during a run in
+igor PR #216's lore-firing requirement *Lore reaches the worker unbidden,
+beside a search it may run*: it shows only entries whose scope covers the run's role
 by firing's scope rule, which includes `project:` entries for every
 repository the role works. #216 applies its visibility rule for
 questions-branch files to `project:` entries too, in a search (its
@@ -685,8 +685,8 @@ naming the same file replaced it is the one exception.
 
 During an Igor's run, a questions-branch file whose `repository` key names
 a repository other than that of the item the run works SHALL be shown as
-input, labelled unconfirmed, whatever its proofs: they show who
-answered, not that the answer belongs to the item's repository.
+input, labelled unconfirmed, whatever its proofs (design.md:
+*Questions-branch files and `project:` entries in a run's search*).
 
 A logged question concerns what its log file names, whatever the agent's
 current question concerns. For a file in a repository, that is the
@@ -1353,7 +1353,7 @@ nothing, in place of the handback comment; what it does with the
 question instead is igor PR #216's, as design.md's *A flagged run asks nothing and pushes
 nothing* cites. A session with no person in it that can post, such
 as a scheduled agent, SHALL ask the question in a post, tagged as *A
-question in a post tags one person who can decide* says. A session
+question in a post tags one person who can decide, if there is one* says. A session
 with no person in it that can neither post nor hand back SHALL ask nowhere: it stops only if the work
 needs the answer, and reports the question in its output. In every
 session with no person in it, a question with a category is governed by
@@ -2156,8 +2156,8 @@ nothing and say why (design.md: *An answer file names the file it answers*). It 
 nothing and say why for an
 `asked_in` that is not a github.com, Linear or Discord URL of the forms
 given for `answer_link`. In Igor-worker mode the command writes no
-`asked_in`: the worker cannot know its handback comment's URL, so the
-Igor adds the key once it has posted that comment
+`asked_in`, and the Igor adds the key once it has posted the handback
+comment
 (design.md: *Each Igor log file follows its own handback comment*; *Only an item's newest handback is open*). The command does not check who passed an `asked_in`
 or an `answer_link`: who passed a link proves nothing about who wrote
 the answer. Any proof of the writer comes from the linked comment
@@ -2784,9 +2784,9 @@ written.
 - **Checked before use:** filter 1 SHALL pass a file's `repository` or
   `asked_from` to no GitHub API call, and SHALL treat the file as input
   labelled as unreadable, unless it is `<owner>/<repo>`, where `<owner>` has GitHub's
-  login syntax (*A question in a post tags one person who can decide*)
-  and `<repo>` is 1 to 100 letters, digits, `.`, `_` and `-`, and is not
-  `.` or `..`. It SHALL pass an `answer_link` to no GitHub API call, and
+  login syntax, which *A question in a post tags one person who can decide,
+  if there is one* defines, and `<repo>` is 1 to 100 letters, digits,
+  `.`, `_` and `-`, and is not `.` or `..`. It SHALL pass an `answer_link` to no GitHub API call, and
   the link SHALL prove no writer, unless it is
   `https://github.com/<owner>/<repo>/issues/<n>` or
   `https://github.com/<owner>/<repo>/pull/<n>`, with the same `<owner>`
@@ -3399,8 +3399,8 @@ When an agent reads, in reply to its question, a post from a person's
 answer session that starts with `Recorded answer: `, it SHALL check the
 place the post's `Recorded in: ` line names through filter 1, and act on
 it only as filter 1 counts it. It SHALL push no citation for a lore entry
-that post names, since the answer session pushes the citation when
-one is due. It SHALL NOT log
+that post names (design.md: *What an asking agent does with an
+automatic reply*). It SHALL NOT log
 the post as a person's answer. When the post starts with `Inquisitor: `
 and names filter 2, or names filter 3 or 4 and holds, as its last line
 apart from a `Re: ` line, the line the `answer-session` spec adds when
