@@ -541,6 +541,33 @@ class NewCapabilityPurposeTests(unittest.TestCase):
         hit, _ = self.purpose(purposed(PURPOSE + " <!-- owner: b -->"), cap="cap")
         self.assertIn("check [purpose] cap already exists", hit)
 
+    def test_purpose_headers_match_openspec_s_pattern(self):
+        # Repo's main spec (MAIN_SPEC) gives the existing capability `cap` the
+        # Purpose "What cap does.". OpenSpec's `openspec archive` warns that a
+        # delta's Purpose is ignored when the capability exists and the delta
+        # has a `## Purpose` with prose that differs from the existing one.
+        # spec-check should print a `[purpose]` line in exactly those cases.
+        # OpenSpec is JavaScript, so its whitespace rules are JavaScript's,
+        # where Python's strip() would get the last two cases backwards.
+        cases = [
+            # No space after `##`: OpenSpec does not see a header.
+            ("##Purpose\n\nOther.\n\n", False),
+            # Words after `Purpose`: OpenSpec does not see a header.
+            ("## Purpose of this\n\nOther.\n\n", False),
+            # `###` does not end the section, so `### Note` and "More." stay in
+            # the body, which then differs from "What cap does.".
+            ("## Purpose\n\nWhat cap does.\n\n### Note\n\nMore.\n\n", True),
+            # JavaScript's trim() removes U+FEFF, so the section has no prose.
+            ("## Purpose\n\n\ufeff\n\n", False),
+            # JavaScript's trim() keeps U+0085, so the section has prose.
+            ("## Purpose\n\n\x85\n\n", True),
+        ]
+        for block, reported in cases:
+            with self.subTest(block=block):
+                self.repo.change("x", delta=block + GOOD_DELTA, cap="cap")
+                r = self.repo.check("x")
+                self.assertEqual("[purpose]" in r.stdout, reported, r.stdout + r.stderr)
+
     def test_a_spec_path_that_is_a_directory_gets_only_the_archive_error(self):
         self.repo.write("openspec/specs/audit/spec.md/notes.md", "notes\n")
         self.repo.change("x", delta=purposed(PURPOSE), cap="audit")
