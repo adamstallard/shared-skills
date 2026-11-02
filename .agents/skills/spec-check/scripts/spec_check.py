@@ -1432,15 +1432,19 @@ class Scratch:
     directory under parent, where dependencies are archived with the real
     `openspec archive`. Never the tree being checked."""
 
-    def __init__(self, src, parent):
+    def __init__(self, src, parent, specs=True):
         self.parent = parent
         self.root = tempfile.mkdtemp(prefix="scratch-", dir=parent)
+        self.warnings = []  # the warnings of the last archive that succeeded
         home, there = os.path.join(src, "openspec"), os.path.join(self.root, "openspec")
         os.makedirs(there)
+        if not specs:
+            os.makedirs(os.path.join(there, "specs"))
         for name in sorted(os.listdir(home)) if os.path.isdir(home) else []:
             p = os.path.join(home, name)
             if name == "specs" and os.path.isdir(p):
-                shutil.copytree(p, os.path.join(there, "specs"), ignore_dangling_symlinks=True)
+                if specs:
+                    shutil.copytree(p, os.path.join(there, "specs"), ignore_dangling_symlinks=True)
             elif os.path.isfile(p):
                 shutil.copyfile(p, os.path.join(there, name))
 
@@ -1485,7 +1489,9 @@ class Scratch:
         rc, data, tail = openspec_json(self.root, "archive", name, "--yes", "--no-validate", "--json")
         shutil.rmtree(home, ignore_errors=True)
         shutil.rmtree(os.path.join(self.root, "openspec", "changes", "archive"), ignore_errors=True)
-        if rc == 0 and data is not None and data.get("archive"):
+        if rc == 0 and data is not None and isinstance(data.get("archive"), dict):
+            said = data["archive"].get("warnings")
+            self.warnings = [w for w in said if isinstance(w, str)] if isinstance(said, list) else []
             return []
         status = data.get("status") if data is not None else None
         said = [s["message"] for s in status or [] if isinstance(s, dict) and s.get("message")]
@@ -1842,12 +1848,17 @@ def archive_own(change, corpus, copy, stacked):
     specs with its open dependencies archived; otherwise it is a copy of the
     tree's specs. Each refusal is an archive error in the delta file of the
     capability it names, at the requirement it is about or at line 0
-    (refusal_place), quoting the CLI. copy is never the stack's base, so the
-    duplicate and drift checks still read the specs before the change is
-    applied."""
+    (refusal_place), quoting the CLI. copy is never the specs the stack's
+    duplicate and drift checks read (Stack.caps), so those checks still read
+    the specs before the change is applied.
+
+    check_purposes runs before the archive: after it, every capability the
+    change creates would already have a spec in copy. Its findings come
+    after the refusals in the list returned."""
     rels = change_deltas(corpus, change)
     files = {cap: corpus.texts[rel] for cap, rel in rels.items()}
     proposal = corpus.texts.get(f"openspec/changes/{change}/proposal.md")
+    purposes = check_purposes(change, corpus, rels, copy)
     out = []
     for said in copy.archive_files(change, files, proposal):
         cap, line, name = refusal_place(said, corpus.items.get(change, {}))
@@ -1860,6 +1871,214 @@ def archive_own(change, corpus, copy, stacked):
             why = (f"`openspec archive` would refuse this change on the specs it is checked "
                    f"against: {said.rstrip('.')}")
         out.append(Finding(rel, line, "error", "archive", f"{what}: {why}"))
+    return out + purposes
+
+
+# `openspec archive` (OpenSpec 1.15.0 and 1.16.0, dist/core/specs-apply.js,
+# buildUpdatedSpec) uses a delta's `## Purpose` only when the delta creates
+# the spec, and ignores it for a spec that exists. When a new spec's delta
+# has no Purpose, an empty one, or one that would leave the spec unreadable,
+# archive writes "TBD - created by archiving change <change>. Update Purpose
+# after archive.", and nobody goes back to replace it. OpenSpec builds that
+# sentence from PURPOSE_PLACEHOLDER_PREFIX and PURPOSE_PLACEHOLDER_SUFFIX in
+# dist/core/validation/constants.js.
+#
+# The three strings after MIN_PURPOSE_LENGTH are the starts of the archive
+# warning and validate messages that check_purposes matches, as OpenSpec
+# 1.16.0 prints them. If OpenSpec rewords one, check_purposes stops
+# reporting that case, with no error of its own.
+#
+# OpenSpec's MIN_PURPOSE_LENGTH, from the same file. It appears only in
+# messages: validate decides whether a Purpose is too brief.
+MIN_PURPOSE_LENGTH = 50
+UNREADABLE_PURPOSE = " - delta Purpose ignored (it would leave the new spec unreadable)"
+PLACEHOLDER_PURPOSE = "Purpose section is still a placeholder"
+BRIEF_PURPOSE = "Purpose section is too brief"
+
+
+def mask_html_comments(text):
+    """text with each `<!-- ... -->` blanked out, line breaks kept, as
+    OpenSpec's maskHtmlComments does: `--!>` also closes a comment, and one
+    never closed runs to the end of the text."""
+    out, at = [], 0
+    while True:
+        start = text.find("<!--", at)
+        if start < 0:
+            return "".join(out) + text[at:]
+        out.append(text[at:start])
+        ends = [e + n for e, n in ((text.find("-->", start + 4), 3), (text.find("--!>", start + 4), 4))
+                if e >= 0]
+        end = min(ends) if ends else len(text)
+        out.append(re.sub(r"[^\n]", " ", text[start:end]))
+        at = end
+
+
+# OpenSpec's fence rule for the Purpose (dist/core/parsers/code-fence.js):
+# any indentation opens or closes a fence, with no list-item or blockquote
+# handling. markdown_lines follows CommonMark instead, and must not be used
+# to read a Purpose: the two disagree on a fence in a list item closed at
+# column 0.
+#
+# Every pattern here uses JavaScript's character classes, not Python's:
+# - JS_SPACE is JavaScript's \s, which is also what its trim() strips.
+#   Python's \s and strip() differ: they leave out a byte-order mark, and
+#   take in \x1c-\x1f and \x85.
+# - JavaScript's `.` stops at U+2028 and U+2029, so `.*` is written
+#   `[^\n\r\u2028\u2029]*`.
+# - OpenSpec's case-insensitive /i folds ASCII letters only, so
+#   OPENSPEC_PURPOSE spells out both cases. Python's re.I would also take
+#   `ſ` for `s`.
+JS_SPACE = ("\t\n\v\f\r \u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006"
+            "\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff")
+_S = f"[{JS_SPACE}]"
+OPENSPEC_FENCE = re.compile(rf"^{_S}*(`{{3,}}|~{{3,}})([^\n\r\u2028\u2029]*)")
+OPENSPEC_FENCE_CLOSE = re.compile(rf"^{_S}*(`{{3,}}|~{{3,}}){_S}*$")
+OPENSPEC_PURPOSE = re.compile(rf"^##{_S}+[Pp][Uu][Rr][Pp][Oo][Ss][Ee]{_S}*$")
+OPENSPEC_SECTION = re.compile(rf"^##{_S}+")
+
+
+def openspec_fence_mask(lines):
+    """For each line, whether OpenSpec's buildCodeFenceMask counts it inside
+    a fenced block, fence lines included."""
+    mask, active = [], None
+    for line in lines:
+        if active is None:
+            m = OPENSPEC_FENCE.match(line)
+            if m and not (m.group(1)[0] == "`" and "`" in m.group(2)):
+                active = (m.group(1)[0], len(m.group(1)))
+            mask.append(active is not None)
+            continue
+        mask.append(True)
+        m = OPENSPEC_FENCE_CLOSE.match(line)
+        if m and m.group(1)[0] == active[0] and len(m.group(1)) >= active[1]:
+            active = None
+    return mask
+
+
+def delta_purpose(text):
+    """(line of the `## Purpose` header or 0, its body or None) for one spec
+    or delta, as OpenSpec's extractPurposeSection reads it.
+
+    The header and the section's end are found with code fences and HTML
+    comments blanked out, and so is whether the section holds any prose:
+    with none, the body is None. The body returned is the section's lines
+    as written, comments and fences included, so that two Purposes compare
+    as archive compares them. A byte-order mark before `## Purpose` on the
+    first line hides the header, as it does from OpenSpec."""
+    original = normalize_line_endings(text).split("\n")
+    masked = mask_html_comments("\n".join(original)).split("\n")
+    fenced = openspec_fence_mask(masked)
+    start = next((i for i, line in enumerate(masked)
+                  if not fenced[i] and OPENSPEC_PURPOSE.match(line)), None)
+    if start is None:
+        return 0, None
+    end = next((i for i in range(start + 1, len(masked))
+                if not fenced[i] and OPENSPEC_SECTION.match(masked[i])), len(masked))
+    if not "\n".join(masked[i] for i in range(start + 1, end) if not fenced[i]).strip(JS_SPACE):
+        return start + 1, None
+    return start + 1, "\n".join(original[start + 1:end]).strip(JS_SPACE)
+
+
+def existing_purpose(path):
+    """The Purpose body of the spec at path (delta_purpose), or None when it
+    has none or cannot be read."""
+    try:
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            return delta_purpose(fh.read())[1]
+    except OSError:
+        return None
+
+
+def check_purposes(change, corpus, rels, copy):
+    """[Finding] of kind `purpose` for change's delta specs ({capability:
+    rel path}), judged against copy before the change is archived into it
+    (DECISIONS.md, "A new capability's Purpose is checked in its delta").
+
+    A capability is created by the change when copy has no spec for it. Its
+    delta is an error unless `openspec archive` would carry its `## Purpose`
+    into the new spec and `openspec validate --strict` would accept it
+    there. Both are asked of the real CLI: the change's deltas for the new
+    capabilities are archived into an empty specs directory, and the specs
+    it writes are validated.
+
+    When copy already has a spec for the capability, from main or a
+    dependency, archive ignores the delta's Purpose. A check says so, unless
+    the two bodies are the same after JavaScript's trim(): archive does not
+    warn about that case."""
+    out, created = [], {}
+    for cap, rel in rels.items():
+        line, body = delta_purpose(corpus.texts[rel])
+        prose = body is not None
+        target = os.path.join(copy.root, "openspec", "specs", cap, "spec.md")
+        if not os.path.lexists(target):
+            created[cap] = (rel, line, prose)
+        elif prose and os.path.isfile(target) and body != existing_purpose(target):
+            # A spec.md that is not a file makes archive refuse the change,
+            # which archive_own reports; there is no Purpose to point to.
+            where = (f"edit openspec/specs/{cap}/spec.md directly"
+                     if f"openspec/specs/{cap}/spec.md" in corpus.specs
+                     else "edit it in the change this one builds on that creates it")
+            out.append(Finding(rel, line, "check", "purpose",
+                               f"{cap} already exists, so `openspec archive` will ignore this "
+                               f"`## Purpose`: it reads a delta's Purpose only when it creates "
+                               f"the capability. To change {cap}'s Purpose, {where}"))
+    if not created:
+        return out
+    judged = {}  # capability -> ([archive's warnings], [validate's messages on its Purpose])
+    unread = {}  # capability -> what validate said when its output could not be read
+    groups = [sorted(created)]
+    while groups:
+        caps = groups.pop()
+        probe = Scratch(corpus.root, copy.parent, specs=False)
+        if probe.archive_files(change, {cap: corpus.texts[created[cap][0]] for cap in caps}):
+            # archive_own reports the refusal. It may be about one delta
+            # only, so each capability is tried alone.
+            if len(caps) > 1:
+                groups += [[cap] for cap in caps]
+            continue
+        _, data, tail = openspec_json(probe.root, "validate", "--specs", "--strict", "--json",
+                                      "--no-interactive")
+        items = {i.get("id"): i for i in (data or {}).get("items", []) if isinstance(i, dict)}
+        for cap in caps:
+            if data is None:
+                unread[cap] = tail
+                continue
+            issues = items.get(cap, {}).get("issues", [])
+            judged[cap] = (probe.warnings, [str(i.get("message", "")) for i in issues
+                                            if isinstance(i, dict) and i.get("path") == "overview"])
+    for cap, tail in sorted(unread.items()):
+        rel, line, _ = created[cap]
+        out.append(Finding(rel, line, "check", "purpose",
+                           f"{change} creates {cap}, and whether `openspec archive` would give it a "
+                           f"real Purpose was not checked: `openspec validate` said {tail}"))
+    placeholder = f'"TBD - created by archiving change {change}. Update Purpose after archive."'
+    for cap, (warnings, issues) in sorted(judged.items()):
+        rel, line, prose = created[cap]
+        if any(w.startswith(cap + UNREADABLE_PURPOSE) for w in warnings):
+            why = (f"`openspec archive` would not use its `## Purpose`, because carried into the "
+                   f"new spec it would leave that spec unreadable (an HTML comment, a heading or "
+                   f"an unclosed code fence in it), and would write the placeholder {placeholder} "
+                   f"instead")
+        elif any(m.startswith(PLACEHOLDER_PURPOSE) for m in issues):
+            if not line:
+                why = (f"its delta has no `## Purpose` that `openspec archive` reads, so archive would write the "
+                       f"placeholder {placeholder} as its Purpose")
+            elif not prose:
+                why = (f"its `## Purpose` is empty, so `openspec archive` would write the placeholder "
+                       f"{placeholder} as its Purpose")
+            else:
+                why = ("its `## Purpose` is a placeholder (a `TBD` or `TODO` marker, or the sentence "
+                       "`openspec archive` writes), which archive would copy into the new spec")
+        elif any(m.startswith(BRIEF_PURPOSE) for m in issues):
+            why = (f"its `## Purpose` is under {MIN_PURPOSE_LENGTH} characters: `openspec archive` "
+                   f"would carry it into the new spec, and `openspec validate --strict` would report "
+                   f"it there as too brief")
+        else:
+            continue
+        out.append(Finding(rel, line, "error", "purpose",
+                           f"{change} creates {cap}, and {why}. Write what {cap} is for under "
+                           f"`## Purpose` in this delta, in {MIN_PURPOSE_LENGTH} characters or "
+                           f"more: archive takes a new capability's Purpose only from its delta"))
     return out
 
 
@@ -1872,7 +2091,7 @@ def archive_alone(change, corpus):
         return [], f"not run: {corpus.missing}"
     with tempfile.TemporaryDirectory(prefix="spec-check-archive-") as tmp:
         refusals = archive_own(change, corpus, Scratch(corpus.root, tmp), stacked=False)
-    return refusals, "refused" if refusals else "passed"
+    return refusals, "refused" if any(f.kind == "archive" for f in refusals) else "passed"
 
 
 def read_dep(repo, dep, corpus):
@@ -2318,7 +2537,7 @@ def run_checks(root, repo, base_ref, targets, validate, base_required=False, cha
             said = {(f.path, f.line) for f in findings
                     if f.severity == "error" and f.kind == "drift"}
             findings += [f for f in stack.refusals if not f.line or (f.path, f.line) not in said]
-            archived = "refused" if stack.refusals else "passed"
+            archived = "refused" if any(f.kind == "archive" for f in stack.refusals) else "passed"
         archives.append((change, archived))
         check_citations(corpus.files_of(change), corpus, base, findings)
         if validate:

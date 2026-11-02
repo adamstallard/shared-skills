@@ -371,6 +371,232 @@ class ArchiveRefusalTests(unittest.TestCase):
         self.assertEqual((self.repo.path / "openspec/specs/cap/spec.md").read_text(), MAIN_SPEC)
 
 
+PURPOSE = "Keeps the audit log every reviewer reads when a record changes owner."
+
+
+def purposed(purpose, delta=GOOD_DELTA):
+    """delta with `purpose` written under a `## Purpose` above it."""
+    return f"## Purpose\n\n{purpose}\n\n" + delta
+
+
+class NewCapabilityPurposeTests(unittest.TestCase):
+    """A delta that creates a capability carries the new spec's Purpose:
+    `openspec archive` seeds it from the delta's `## Purpose`, and writes a
+    placeholder nobody replaces when there is none. Archive ignores a delta
+    Purpose for a capability that exists, so that is a check, unless it
+    matches the spec's Purpose."""
+
+    DELTA = "openspec/changes/x/specs/audit/spec.md"
+
+    def setUp(self):
+        if not HAS_OPENSPEC:
+            self.skipTest("needs OpenSpec 1.15.0 or later")
+        self.repo = Repo(self)
+
+    def purpose(self, delta, cap="audit"):
+        """The one purpose finding for change x, and the result."""
+        self.repo.change("x", delta=delta, cap=cap)
+        r = self.repo.check("x")
+        hits = [l for l in r.stdout.splitlines() if "[purpose]" in l]
+        self.assertEqual(len(hits), 1, r.stdout + r.stderr)
+        self.assertIn("openspec archive (x): passed", r.stdout)
+        return hits[0], r
+
+    def error(self, delta, line, why):
+        hit, r = self.purpose(delta)
+        self.assertEqual(r.returncode, 1, r.stdout)
+        where = f"{self.DELTA}:{line}:" if line else f"{self.DELTA}:"
+        self.assertTrue(hit.startswith(where + " error [purpose] x creates audit, and "), hit)
+        self.assertIn(why, hit)
+        self.assertIn("Write what audit is for under `## Purpose` in this delta, in 50 characters or more", hit)
+        return hit
+
+    def test_no_purpose_is_an_error(self):
+        hit = self.error(GOOD_DELTA, 0, "its delta has no `## Purpose`")
+        self.assertIn('"TBD - created by archiving change x. Update Purpose after archive."', hit)
+
+    def test_an_empty_purpose_is_an_error_at_its_header(self):
+        self.error("## Purpose\n\n" + GOOD_DELTA, 1, "its `## Purpose` is empty")
+
+    def test_a_purpose_that_is_only_a_comment_is_empty(self):
+        self.error(purposed("<!-- say what audit is for, at some length, before review -->"), 1,
+                   "its `## Purpose` is empty")
+
+    def test_a_purpose_only_in_a_fence_is_missing(self):
+        self.error("```\n## Purpose\n\n" + PURPOSE + "\n```\n\n" + GOOD_DELTA, 0,
+                   "its delta has no `## Purpose`")
+
+    def test_a_tbd_marker_is_an_error(self):
+        self.error(purposed("TBD - write this once we know what the audit capability covers."), 1,
+                   "is a placeholder")
+
+    def test_a_lowercase_todo_with_punctuation_is_an_error(self):
+        self.error(purposed("todo: write this once we know what the audit capability covers."), 1,
+                   "is a placeholder")
+
+    def test_the_placeholder_sentence_copied_in_is_an_error(self):
+        self.error(purposed("TBD - created by archiving change y. Update Purpose after archive."), 1,
+                   "is a placeholder")
+
+    def test_a_purpose_under_fifty_characters_is_an_error(self):
+        self.error(purposed("Keeps the audit log."), 1, "under 50 characters")
+
+    def test_a_purpose_archive_would_not_carry_is_an_error(self):
+        hit = self.error(purposed(PURPOSE + " <!-- reviewed -->"), 1, "would leave that spec unreadable")
+        self.assertIn('"TBD - created by archiving change x. Update Purpose after archive."', hit)
+
+    def test_a_real_purpose_passes(self):
+        self.repo.change("x", delta=purposed(PURPOSE), cap="audit")
+        r = self.repo.check("x")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(kinds(r), [])
+
+    def test_a_spanish_sentence_starting_todo_passes(self):
+        self.repo.change("x", delta=purposed("Todo el registro de auditoría que lee quien revisa un cambio."),
+                         cap="audit")
+        self.assertEqual(kinds(self.repo.check("x")), [])
+
+    def test_a_purpose_for_an_existing_capability_is_a_check(self):
+        hit, r = self.purpose(purposed(PURPOSE), cap="cap")
+        self.assertEqual(r.returncode, 0, r.stdout)
+        self.assertTrue(hit.startswith("openspec/changes/x/specs/cap/spec.md:1: check [purpose] "
+                                       "cap already exists, so `openspec archive` will ignore this "
+                                       "`## Purpose`"), hit)
+        self.assertIn("edit openspec/specs/cap/spec.md directly", hit)
+
+    def test_an_existing_capability_needs_no_purpose(self):
+        self.repo.change("x")
+        r = self.repo.check("x")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(kinds(r), [])
+
+    def test_each_new_capability_is_judged_on_its_own(self):
+        self.repo.change("x", delta=purposed(PURPOSE), cap="audit")
+        self.repo.write("openspec/changes/x/specs/search/spec.md", GOOD_DELTA)
+        r = self.repo.check("x")
+        hits = [l for l in r.stdout.splitlines() if "[purpose]" in l]
+        self.assertEqual(len(hits), 1, r.stdout)
+        self.assertTrue(hits[0].startswith("openspec/changes/x/specs/search/spec.md: error [purpose] "
+                                           "x creates search"), hits[0])
+
+    def test_a_refused_delta_does_not_hide_another_capability(self):
+        self.repo.change("x", delta=GOOD_DELTA, cap="audit")
+        self.repo.write("openspec/changes/x/specs/search/spec.md", modified("Records are kept", SEARCH))
+        r = self.repo.check("x")
+        self.assertEqual(kinds(r), ["archive", "purpose"], r.stdout)
+        self.assertIn("openspec/changes/x/specs/search/spec.md:3: error [archive]", r.stdout)
+        self.assertIn(f"{self.DELTA}: error [purpose] x creates audit, and its delta has no", r.stdout)
+        self.assertNotIn("x creates search", r.stdout)
+
+    def test_a_purpose_header_behind_a_byte_order_mark_is_not_read(self):
+        # OpenSpec matches `## Purpose` on the raw first line, so a byte-order
+        # mark hides it and archive writes the placeholder.
+        hit = self.error("\ufeff" + purposed(PURPOSE), 0, "its delta has no `## Purpose` that `openspec archive` reads")
+        self.assertNotIn("is a placeholder", hit)
+
+    def test_a_purpose_that_repeats_the_existing_one_is_not_reported(self):
+        self.repo.change("x", delta=purposed("What cap does."), cap="cap")
+        r = self.repo.check("x")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(kinds(r), [])
+
+    def test_a_repeated_purpose_with_a_fence_in_a_list_is_not_reported(self):
+        # OpenSpec closes a fence at any indentation, so the column-0 fence
+        # below ends the block, and both Purposes end at the next `##`. A
+        # CommonMark reader would keep the fence open to the end of the file,
+        # run each Purpose on into its requirements, and report a check for
+        # two equal Purposes.
+        purpose = (f"{PURPOSE}\n\n- An example record:\n  ```json\n  {{\"id\": 1}}\n```")
+        self.repo.write("openspec/specs/cap/spec.md", MAIN_SPEC.replace("What cap does.", purpose))
+        self.repo.git("commit", "-qam", "purpose")
+        self.repo.change("x", delta=purposed(purpose), cap="cap")
+        r = self.repo.check("x")
+        self.assertEqual(kinds(r), [], r.stdout + r.stderr)
+
+    def test_a_repeated_purpose_archive_reads_as_equal_is_not_reported(self):
+        # Archive trims a byte-order mark off the Purpose before comparing.
+        self.repo.write("openspec/specs/cap/spec.md", MAIN_SPEC.replace("What cap does.", "\ufeff" + PURPOSE))
+        self.repo.git("commit", "-qam", "purpose")
+        self.repo.change("x", delta=purposed(PURPOSE), cap="cap")
+        r = self.repo.check("x")
+        self.assertEqual(kinds(r), [], r.stdout + r.stderr)
+
+    def test_a_fence_opener_ending_in_a_line_separator_hides_the_purpose(self):
+        # A backtick in a fence's info string makes the line inline code, not
+        # a fence. JavaScript's `.` stops at U+2028, so OpenSpec never sees the
+        # backtick after it, reads the line as a fence, and finds no prose.
+        self.error(purposed("```\u2028`\n" + PURPOSE + "\n```"), 1, "its `## Purpose` is empty")
+
+    def test_purposes_that_differ_after_a_fenced_heading_are_reported(self):
+        fence = f"{PURPOSE}\n\n```\n## example\n```\n\n"
+        self.repo.write("openspec/specs/cap/spec.md", MAIN_SPEC.replace("What cap does.", fence + "Old tail."))
+        self.repo.git("commit", "-qam", "purpose")
+        hit, _ = self.purpose(purposed(fence + "New tail."), cap="cap")
+        self.assertIn("check [purpose] cap already exists", hit)
+
+    def test_purposes_that_differ_only_in_a_comment_are_reported(self):
+        self.repo.write("openspec/specs/cap/spec.md",
+                        MAIN_SPEC.replace("What cap does.", PURPOSE + " <!-- owner: a -->"))
+        self.repo.git("commit", "-qam", "purpose")
+        hit, _ = self.purpose(purposed(PURPOSE + " <!-- owner: b -->"), cap="cap")
+        self.assertIn("check [purpose] cap already exists", hit)
+
+    def test_purpose_headers_match_openspec_s_pattern(self):
+        # Repo's main spec (MAIN_SPEC) gives the existing capability `cap` the
+        # Purpose "What cap does.". OpenSpec's `openspec archive` warns that a
+        # delta's Purpose is ignored when the capability exists and the delta
+        # has a `## Purpose` with prose that differs from the existing one.
+        # spec-check should print a `[purpose]` line in exactly those cases.
+        # OpenSpec is JavaScript, so its whitespace rules are JavaScript's,
+        # where Python's strip() would get the last two cases backwards.
+        cases = [
+            # No space after `##`: OpenSpec does not see a header.
+            ("##Purpose\n\nOther.\n\n", False),
+            # Words after `Purpose`: OpenSpec does not see a header.
+            ("## Purpose of this\n\nOther.\n\n", False),
+            # `###` does not end the section, so `### Note` and "More." stay in
+            # the body, which then differs from "What cap does.".
+            ("## Purpose\n\nWhat cap does.\n\n### Note\n\nMore.\n\n", True),
+            # JavaScript's trim() removes U+FEFF, so the section has no prose.
+            ("## Purpose\n\n\ufeff\n\n", False),
+            # JavaScript's trim() keeps U+0085, so the section has prose.
+            ("## Purpose\n\n\x85\n\n", True),
+        ]
+        for block, reported in cases:
+            with self.subTest(block=block):
+                self.repo.change("x", delta=block + GOOD_DELTA, cap="cap")
+                r = self.repo.check("x")
+                self.assertEqual("[purpose]" in r.stdout, reported, r.stdout + r.stderr)
+
+    def test_a_spec_path_that_is_a_directory_gets_only_the_archive_error(self):
+        self.repo.write("openspec/specs/audit/spec.md/notes.md", "notes\n")
+        self.repo.change("x", delta=purposed(PURPOSE), cap="audit")
+        r = self.repo.check("x")
+        self.assertEqual(kinds(r), ["archive"], r.stdout)
+
+    def test_a_purpose_closed_by_the_other_comment_terminator_is_empty(self):
+        self.error(purposed("<!-- say what audit is for --!>"), 1, "its `## Purpose` is empty")
+
+    def test_a_purpose_that_is_only_a_code_block_is_empty(self):
+        self.error(purposed("```\nAudit records everything a reviewer changes, by seat.\n```"), 1,
+                   "its `## Purpose` is empty")
+
+    def test_prose_after_the_first_comment_terminator_counts(self):
+        hit, r = self.purpose(purposed("<!-- a --> Lets reviewers search the audit log by seat --!>"),
+                              cap="cap")
+        self.assertIn("check [purpose] cap already exists", hit)
+
+    def test_an_unclosed_comment_hides_the_purpose_below_it(self):
+        self.repo.change("x", delta="<!-- draft\n\n" + purposed(PURPOSE), cap="cap")
+        self.assertNotIn("[purpose]", self.repo.check("x").stdout)
+
+    def test_without_the_cli_it_is_not_run(self):
+        self.repo.change("x", delta=GOOD_DELTA, cap="audit")
+        r = self.repo.check("x", env=dict(ENV, PATH=git_only_path(self)))
+        self.assertNotIn("[purpose]", r.stdout)
+        self.assertIn("openspec archive (x): not run", r.stdout)
+
+
 class SameNameDuplicateTests(unittest.TestCase):
     """A same-name pair may share sentences only when one of the two is a
     MODIFIED requirement in the other's capability (issue #37, item 4)."""
@@ -388,7 +614,8 @@ class SameNameDuplicateTests(unittest.TestCase):
 
     @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.15.0 or later")
     def test_the_same_name_in_another_capability_is_a_duplicate(self):
-        self.repo.change("x", delta=added_req("Records are kept", MAIN_RULE), cap="archive-store")
+        self.repo.change("x", delta=purposed(PURPOSE, added_req("Records are kept", MAIN_RULE)),
+                         cap="archive-store")
         r = self.repo.check("x")
         self.assertEqual(kinds(r), ["duplicate"], r.stdout)
 
@@ -1076,8 +1303,8 @@ class FoundByBugHunterIteration2Tests(unittest.TestCase):
         self.repo.change("x", delta="## REMOVED Requirements\n\n### Requirement: Records are kept\n\n"
                                     "**Reason**: moved to retention.\n")
         self.repo.write("openspec/changes/x/specs/retention/spec.md",
-                        "## ADDED Requirements\n" + MAIN_SPEC.split("## Requirements\n", 1)[1]
-                        .replace("Records are kept", "Records are retained"))
+                        purposed(PURPOSE, "## ADDED Requirements\n" + MAIN_SPEC.split("## Requirements\n", 1)[1]
+                                 .replace("Records are kept", "Records are retained")))
         self.assertEqual(kinds(self.repo.check("x")), [])
 
     def test_check_on_a_ref_without_openspec_cannot_run(self):
@@ -1990,6 +2217,39 @@ class StackedChangeTests(unittest.TestCase):
         self.s.repo.git("checkout", "-q", "main")
         r = self.s.check("--ref", "lore", "lore-search")
         self.assertEqual(kinds(r), [], r.stdout + r.stderr)
+
+
+class StackedNewCapabilityTests(unittest.TestCase):
+    """A capability a dependency creates already exists for the change built
+    on it: its Purpose came from the dependency's delta."""
+
+    def setUp(self):
+        self.s = Stack(self)
+        self.s.dependency(171, "audit-log", purposed(PURPOSE, added_req("Audit trail", AUDIT)), cap="audit")
+        self.later = added_req("Audit search", SEARCH)
+
+    def stacked(self, delta):
+        self.s.repo.change("lore-search", proposal=stacked_proposal("audit-log (acme/widgets#171)"),
+                           delta=delta, cap="audit")
+        return self.s.check("lore-search")
+
+    def test_no_purpose_is_needed(self):
+        r = self.stacked(self.later)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(kinds(r), [])
+
+    def test_a_purpose_is_a_check_that_it_is_ignored(self):
+        r = self.stacked(purposed("Lets a reviewer search the audit log by seat and by record.", self.later))
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(kinds(r), ["purpose"])
+        self.assertIn("openspec/changes/lore-search/specs/audit/spec.md:1: check [purpose] audit already "
+                      "exists", r.stdout)
+        self.assertIn("edit it in the change this one builds on that creates it", r.stdout)
+
+    def test_without_the_declaration_it_is_new(self):
+        self.s.repo.change("lore-search", delta=self.later, cap="audit")
+        r = self.s.check("lore-search", gh=False)
+        self.assertIn("lore-search creates audit, and its delta has no `## Purpose`", r.stdout)
 
 
 class StackedChainTests(unittest.TestCase):
