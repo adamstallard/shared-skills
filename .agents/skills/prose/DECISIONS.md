@@ -111,6 +111,27 @@ passage that labelled its past ("the argument once made … does not apply")
 passed the pass, because rule 5 only asks that the past be labelled. Rule 8
 says whether the past belongs in the text at all.
 
+**Rule 8 splits the past into why a decision holds and how the text
+evolved,** and says where each goes. The reasons, measurements and rejected
+alternatives stay true while the decision stands, so a decision record keeps
+them, stated as the decision stands now. Amendments, reversals, credits and
+review rounds help only someone following the change as it happens, so they
+go in commit messages and pull requests. The test, whether a piece would
+still help someone changing the decision a year from now, follows from
+that: a reason does, an amendment doesn't.
+
+This matches spec-check's *Decisions and open questions*: an OpenSpec change
+states each decision once, in its design.md, and keeps no record of how the
+decision was amended. An implementer, and the subagent spec-check starts to
+read a change against every other spec, take design.md as the current
+design; an amendment chain there would make them replay it.
+
+Rule 8 covers what an author writes, not text a file already holds.
+Compaction, which rewrites a whole doc (*Compaction keeps docs read before
+work compact*, below), keeps existing "who decided" credits unless the file
+sets `prose-compact-attribution=drop`, because removing credits from a
+team's docs is the team's choice.
+
 **Rule 9, spend words where they save reading time,** has *one claim per
 sentence* as its point. Its sentence "a longer sentence that reads once beats a
 shorter one read twice" allows words that serve the sentence's one claim, not
@@ -128,6 +149,10 @@ headings without their reasons or examples.
   different questions: whether the past belongs in the text, and how to mark
   it when it does. Kept apart, rule 5 can say outright that labelling the past
   does not justify keeping it.
+- **A decision record that logs how each decision changed.** It is read to
+  learn which decision is in force and why; a log makes every reader find
+  the last entry and check whether each earlier reason still applies. `git
+  log` and the pull requests already keep that log, in order.
 - **Merging rule 6 into rule 11 (*One topic per block*).** Rule 11 is about
   how text is divided; rule 6 is about whether one sentence leads to the next.
 - **A mechanical lint for passives** such as "is searched" with no "by". It
