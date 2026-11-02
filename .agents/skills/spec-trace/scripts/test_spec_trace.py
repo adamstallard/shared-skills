@@ -331,6 +331,15 @@ class NoSpecsYet(Repo):
         self.assertEqual(code, 0, out)
         self.assertIn("| Not built yet (change: add-x) | test/x.test.ts:1 |", out)
 
+    def test_a_capability_only_a_change_adds_counts_only_when_report_includes_changes(self):
+        self.write("test/x.test.ts", f"// {AT} work-claiming: Nope\n")
+        out = self.run_cmd("report")[1]
+        self.assertIn("tag '@scenario work-claiming: Nope' names no capability under openspec/specs", out)
+        out = self.run_cmd("report", "--include-changes")[1]
+        self.assertIn("tag '@scenario work-claiming: Nope' names no scenario in "
+                      "openspec/specs/work-claiming/spec.md.", out)
+        self.assertNotIn("names no capability", out)
+
 
 class Search(Repo):
     """Tags are found with git grep over every file git tracks or would track under the root."""
@@ -1039,6 +1048,36 @@ class ReadByOpenSpec(Repo):
                       "openspec/changes/mod-y/specs/work-claiming/spec.md.", out)
         self.assertNotIn("reads no requirement", out)
 
+    def test_a_capability_whose_only_requirement_a_change_removes_still_exists(self):
+        self.tag_both()
+        self.write("openspec/changes/drop/specs/work-claiming/spec.md",
+                   "## REMOVED Requirements\n### Requirement: An Igor claims before it starts\n")
+        out = self.run_cmd("report", "--include-changes")[1]
+        self.assertIn("test/claim.test.ts:1: tag '@scenario work-claiming: Claim precedes work' names no "
+                      "scenario in openspec/specs/work-claiming/spec.md.", out)
+        self.assertNotIn("names no capability", out)
+
+    def test_a_capability_left_with_no_scenario_by_a_misread_modification_still_exists(self):
+        self.tag_both()
+        self.write("openspec/changes/mod-y/specs/work-claiming/spec.md",
+                   "## MODIFIED Requirements\n### Requirement: An Igor claims before it starts\n"
+                   "Every pickup SHALL take a claim.\n\n#### Scenario: Claim precedes work\n")
+        out = self.run_cmd("report", "--include-changes")[1]
+        self.assertIn("test/claim.test.ts:1: tag '@scenario work-claiming: Claim precedes work' names no "
+                      "scenario in openspec/specs/work-claiming/spec.md.", out)
+        self.assertIn("`openspec show` reads no scenario under requirement 'An Igor claims before it starts' "
+                      "in openspec/changes/mod-y/specs/work-claiming/spec.md.", out)
+        self.assertNotIn("names no capability", out)
+
+    def test_a_main_spec_with_no_scenario_is_still_a_capability(self):
+        self.tag_both()
+        self.write("openspec/specs/bare/spec.md", spec("### Requirement: R\nIt SHALL hold.\n"))
+        self.write("test/b.test.ts", f"// {AT} bare: Something\n")
+        code, out = self.run_cmd("check")
+        self.assertEqual(code, 1, out)
+        self.assertIn("tag '@scenario bare: Something' names no scenario in openspec/specs/bare/spec.md.", out)
+        self.assertNotIn("names no capability", out)
+
     def test_a_delta_that_only_removes_or_renames_brings_no_note(self):
         self.tag_both()
         self.write("openspec/changes/drop/specs/work-claiming/spec.md",
@@ -1360,6 +1399,12 @@ class Prune(Repo):
 
 
 class Report(Repo):
+    def test_a_misspelled_capability_gets_a_suggestion(self):
+        self.write("test/x.test.ts", f"// {AT} work-claim: Claim precedes work\n")
+        out = self.run_cmd("report")[1]
+        self.assertIn("tag '@scenario work-claim: Claim precedes work' names no capability under "
+                      "openspec/specs. Did you mean 'work-claiming'?", out)
+
     def test_a_table_per_capability_with_file_and_line(self):
         self.write("test/claim.test.ts", f"\n// {AT} work-claiming: Claim precedes work\n")
         code, out = self.run_cmd("report")

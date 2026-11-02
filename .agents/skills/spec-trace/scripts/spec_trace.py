@@ -320,16 +320,25 @@ class OpenSpec:
 
     specs: [(capability, rel path, [Req])], one per openspec/specs/<capability>/spec.md.
     changes: [(change, capability, rel path, Delta)], one per delta spec of an open change.
+    main_caps: the capability of each openspec/specs/<capability>/spec.md.
+    change_caps: the capability of each delta spec of an open change.
+    Both hold every such file, whether or not `show` can read it. capabilities() builds
+    from them the set of capabilities a tag may name. Never build that set from the
+    scenarios left after applying deltas, which `report --include-changes` judges tags
+    against: a capability can keep its spec file and have no scenario left, as when a
+    change removes its only requirement.
     unread_specs, unread_changes: a message for each spec or change `show` cannot read.
     unread_caps: the capabilities whose spec `show` cannot read. Tags and baseline lines
     naming one are not judged: without its scenarios, nothing can be said about them.
-    misread_deltas: {capability: [(change, rel path, what `show` reads there, such as "no
-    requirement" or "no scenario under requirement 'New'")]} for each delta spec
-    in which `show` reads no requirement, such as one whose only section title OpenSpec
-    does not know, and for each requirement a delta adds or modifies that `show` reads with
-    no scenario, such as one whose scenario heading has no text under it. A tag naming a
-    scenario written there fails, and tag_problem names the file and the change to run
-    `openspec validate` on.
+    misread_deltas: {capability: [(change, rel path, what)]}, where what says what `show`
+    reads in that delta spec. It holds two kinds of entry:
+    - "no requirement": `show` reads no requirement in the file, as when its only section
+      title is one OpenSpec does not know.
+    - "no scenario under requirement 'New'": the delta adds or modifies requirement New,
+      and `show` reads it with no scenario, as when its scenario heading has no text
+      under it.
+    A tag naming a scenario written in such a delta spec fails, and tag_problem adds a note
+    naming the file and the change to run `openspec validate` on.
     """
 
     def __init__(self, root):
@@ -361,6 +370,8 @@ class OpenSpec:
                          for cap, rel in rels.items()}
                 files[f"openspec/changes/{SHOWN_CHANGE}/proposal.md"] = STUB_PROPOSAL
                 changes.append((change, rels, files))
+        self.main_caps = {cap for cap, _, _ in specs}
+        self.change_caps = {cap for _, rels, _ in changes for cap in rels}
         show_all([("spec", cap, files) for cap, _, files in specs]
                  + [("change", SHOWN_CHANGE, files) for _, _, files in changes])
 
@@ -745,14 +756,18 @@ def repeats(scenarios):
     return out
 
 
-def scan_tags(lines, scenarios, pending=()):
+def scan_tags(lines, scenarios, capabilities, pending=()):
     """The tags in lines, the (path, line number, text) tuples tag_lines returns.
 
-    Each Tag names a main scenario or carries a problem: "capability" (no such
-    capability), "orphan" (no such scenario) or "ambiguous" (a repeated name without its
-    requirement). A tag naming a scenario in pending (one that an open change adds,
-    restates or moves to a renamed requirement) gets no Tag: it is neither counted nor an
-    error.
+    Each Tag either counts for one of scenarios or carries a problem:
+    - "capability": the tag's capability is not in the set passed as capabilities, which
+      the caller builds with capabilities().
+    - "orphan": the capability is in that set, but no scenario has the tag's name.
+    - "ambiguous": the name repeats under more than one requirement, and the tag does not
+      name the requirement.
+    A tag whose best reading is a scenario in pending, one that an open change brings in,
+    gets no Tag: it is neither counted nor an error. The comment in the loop below says
+    which reading is best.
     """
     index, waiting = name_index(scenarios), name_index(pending)
     repeated, repeated_waiting = repeats(scenarios), repeats(pending)
@@ -789,7 +804,7 @@ def scan_tags(lines, scenarios, pending=()):
                                     choices=[s.key for s in what]))
                 continue
             text = shown(rest)
-            if capability not in index:
+            if capability not in capabilities:
                 tags.append(Tag(rel, number, capability, text, problem="capability"))
             else:
                 tags.append(Tag(rel, number, capability, text, problem="orphan"))
@@ -856,7 +871,13 @@ def misread_delta_note(t, misread_deltas):
                    for change, rel, what in misread_deltas.get(t.capability, []))
 
 
-def tag_problem(t, scenarios, misread_deltas):
+def capabilities(found, include_changes=False):
+    """The capabilities a tag may name: one per main spec file, and with include_changes,
+    one per delta spec file of an open change too."""
+    return found.main_caps | (found.change_caps if include_changes else set())
+
+
+def tag_problem(t, scenarios, capabilities, misread_deltas):
     if t.problem == "ambiguous":
         # The choice lines leave out `@scenario` so that no line of this message could make a
         # scenario count as tested. spec-trace never saves its output, but if a person saved
@@ -867,7 +888,7 @@ def tag_problem(t, scenarios, misread_deltas):
                 f"appears under more than one requirement. Name the requirement too: write `@scenario` "
                 f"followed by one of these lines:\n{lines}")
     if t.problem == "capability":
-        caps = sorted({s.capability for s in scenarios})
+        caps = sorted(capabilities)
         hint = difflib.get_close_matches(t.capability, caps, n=1)
         if hint:
             more = f" Did you mean '{hint[0]}'?"
@@ -895,7 +916,9 @@ PRUNE_BLOCKED_HINT = ("Fix the spec problems above first, since `baseline --prun
 def check(root, lines, baseline_path):
     scenarios, problems = load_scenarios(root)
     prune_hint = PRUNE_BLOCKED_HINT if problems else PRUNE_HINT
-    tags = scan_tags(lines, scenarios, pending_scenarios(root))
+    found = read_openspec(root)
+    caps = capabilities(found)
+    tags = scan_tags(lines, scenarios, caps, pending_scenarios(root))
     covered = coverage(scenarios, tags)
     baseline = read_baseline(baseline_path)
     rel_baseline = os.path.relpath(baseline_path, root)
@@ -906,8 +929,7 @@ def check(root, lines, baseline_path):
             problems.append(
                 f"{s.where}: no test tags scenario '{s.key}'. Tag the test that checks it with "
                 f"`@scenario` followed by this line, or write that test:\n      {s.key}")
-    found = read_openspec(root)
-    problems += [tag_problem(t, scenarios, found.misread_deltas) for t in tags
+    problems += [tag_problem(t, scenarios, caps, found.misread_deltas) for t in tags
                  if t.problem and t.capability not in found.unread_caps]
     problems += found.unread_changes
     for entry, number in sorted(baseline.items(), key=lambda e: e[1]):
@@ -943,7 +965,8 @@ def tagged_scenarios(root, lines):
         for p in problems:
             print(p)
         return None
-    return scenarios, coverage(scenarios, scan_tags(lines, scenarios, pending_scenarios(root)))
+    caps = capabilities(read_openspec(root))
+    return scenarios, coverage(scenarios, scan_tags(lines, scenarios, caps, pending_scenarios(root)))
 
 
 def write_baseline(root, lines, baseline_path):
@@ -1047,7 +1070,9 @@ def where_found(lines):
 
 def report(root, lines, include_changes):
     scenarios, problems = load_scenarios(root, include_changes)
-    tags = scan_tags(lines, scenarios, () if include_changes else pending_scenarios(root))
+    found = read_openspec(root)
+    caps = capabilities(found, include_changes)
+    tags = scan_tags(lines, scenarios, caps, () if include_changes else pending_scenarios(root))
     covered = coverage(scenarios, tags)
     print(f"{len(covered)} of {len(scenarios)} scenarios are tagged by a test.")
     for capability in sorted({s.capability for s in scenarios}):
@@ -1061,8 +1086,7 @@ def report(root, lines, include_changes):
             where = "<br>".join(t.where for t in covered.get(s.key, [])) or "none"
             print(f"| {cell(name)} | {cell(where)} |")
     where_found(lines)
-    found = read_openspec(root)
-    bad = ([tag_problem(t, scenarios, found.misread_deltas) for t in tags
+    bad = ([tag_problem(t, scenarios, caps, found.misread_deltas) for t in tags
             if t.problem and t.capability not in found.unread_caps]
            + problems + found.unread_changes)
     if bad:

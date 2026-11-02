@@ -326,6 +326,19 @@ spec-trace finds the files by listing directories:
 `openspec/changes/<change>/specs/<capability>/spec.md`, one level deep, with
 `changes/archive/` skipped. What each file holds is decided by `show` alone.
 
+The same files decide which capabilities a tag may name. `check` and plain
+`report` count one capability per main spec file. `report --include-changes`
+also counts one per delta spec file of an open change. When a tag's
+capability is counted but no scenario has the tag's name, the tag fails as
+naming no scenario, never as naming no capability.
+
+That holds even for a capability with no scenario left after applying the
+open changes, which `report --include-changes` judges tags against. A change
+can remove a capability's only requirement. A change can also restate the
+only requirement, and `show` can read the restatement with no scenario. So
+the set of capabilities is never built from those scenarios: either case
+would make a capability with a spec file look missing.
+
 Without the CLI, or below 1.15.0, `check`, `report` and `baseline` (with or
 without `--prune`) print `not run: install OpenSpec 1.15.0 or later`, with
 the reason, and exit 2. `state`, `decline` and the hook read no spec, so they
@@ -348,7 +361,8 @@ error:
 
 A tag naming a scenario written there then fails as naming no scenario. When
 the delta was to bring in a new capability and `show` read none of its
-requirements, the tag fails as naming no capability instead. Either message
+requirements, `check` and plain `report` fail the tag as naming no capability
+instead, since they count only main spec files as capabilities. Either message
 points the author at the tag instead of the file. So when a tag names no
 scenario, or no capability, and its capability has such a delta spec, the
 tag's message says what `show` read in which file, and to run `openspec
