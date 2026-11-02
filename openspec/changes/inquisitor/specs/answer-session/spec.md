@@ -3,9 +3,47 @@
 The answer session is the part of the inquisitor in which a person does
 nothing but answer the questions asked of them. Questions reach it from
 the channels the person subscribes to on GitHub, Linear and Discord, and
-from the questions branches of lore repositories. Its user interface is a Claude Code mod that ships with the skill. This
-spec names that interface only by what it does, never by how it looks or
-which keys it takes.
+from the questions branches of lore repositories. Its user interface is a
+Claude Code mod that ships with the inquisitor skill; this spec names that
+interface only by what it does, never by how it looks or which keys it
+takes.
+
+These terms come from the inquisitor spec, whose requirements this spec
+cites by title as the inquisitor's, or that spec's, *Title*:
+
+- **The skill** is the inquisitor skill, and its **script** the inquisitor
+  script.
+- **Filters 1 to 4** are the skill's four filters, which stop a question
+  before a person sees it: 1, already answered; 2, deferrable; 3, not a
+  real question; 4, cheap to reverse (the inquisitor's *Every question
+  passes four filters before a person sees it*). Filters 2 to 4 each have
+  a fixed `Inquisitor: ` text, which *Filters 2 to 4 judge every incoming
+  question* gives.
+- A question's **category** is `vulnerability`, `secret` or `personal`, as
+  the inquisitor's *Some questions are recorded by hash only* defines them.
+- An **Igor** is one of the igor project's AI teammates, and an **Igor
+  worker** the agent an Igor starts to do an item (the inquisitor's *An
+  Igor is an igor teammate, and its worker does an item*). **An Igor's log
+  file** is an unanswered questions-branch log file holding `asked_from`,
+  a key that only an Igor writes on such a file (design.md: *The Igor
+  writes `asked_from` on every file it pushes*).
+- A person's **relay file** is `relays/<login>.yaml` in a lore repository,
+  listing their relay identities (the inquisitor's *A relay file names the
+  bots that post for its person*).
+- **The `log` command** is the script's command that writes and pushes
+  every log and miss file, answer and handled files included (the
+  inquisitor's *The script writes every log and miss file through its log
+  command*).
+- `answers`, `asked_in`, `asked_from`, `answer_link`, `answered_by`, who
+  answered, and `authority`, one of `decision`, `input` or `agent`, are
+  keys of a log file, as the inquisitor's *A log file and a miss file have
+  one format* gives them. A file is **proven** to be a writer's by its
+  linked comment or its commit's signature (the inquisitor's *A
+  questions-branch file's writer is proven by its comment or its
+  signature*).
+- discord-bot's **header options** are `--agent`, `--session` and
+  `--project`.
+- **Task 0.N** is that task in this change's tasks.md.
 
 ## ADDED Requirements
 
@@ -13,111 +51,105 @@ which keys it takes.
 
 The answer session SHALL count as a **relay post** only a message a relay
 identity posted that starts with one of the four **reserved prefixes**:
-`User says: `, `User asks: `, `Recorded answer: ` or `Inquisitor: `. A
-relay identity's other posts SHALL NOT count as relay posts, and nothing
-in this spec reads them.
+`User says: `, `User asks: `, `Recorded answer: ` or `Inquisitor: `.
+Nothing in this spec reads a relay identity's other posts.
 
 #### Scenario: A prefixed post by a relay identity is a relay post
 
-- **WHEN** the person's Linear relay identity posts a comment that starts
-  with `User asks: `
-- **THEN** the answer session counts that comment as a relay post
+- **WHEN** the person's Linear relay identity posts a comment starting
+  `User asks: `
+- **THEN** that comment counts as a relay post
 
 #### Scenario: A relay identity's post without a prefix is not read
 
 - **WHEN** the person's Discord relay identity posts, for other work, a
-  message that starts with no reserved prefix
-- **THEN** the answer session counts it as no relay post, and no rule of
-  this spec acts on it
+  message with no reserved prefix
+- **THEN** it is no relay post, and no rule of this spec acts on it
 
 ### Requirement: An automatic post's text is fixed by the answer session
 
-An **automatic post** is a relay post that starts with `Recorded answer: `
-or `Inquisitor: `. The answer session SHALL fix its text, never the
-person. It SHALL make one in one of two ways: by itself, or, when the
-person declines a question because the inquisitor should have handled
-it, only once the person confirms it. Agreeing to a shown recorded answer
-is such a decline.
+An **automatic post** is a relay post starting `Recorded answer: ` or
+`Inquisitor: `. The answer session, never the person, SHALL fix its text.
+It SHALL make one in one of two ways: by itself, or, when the person
+declines a question because the inquisitor should have handled it, only
+once the person confirms it. Agreeing to a shown recorded answer is such a
+decline.
 
 #### Scenario: An automatic post holds no words the person wrote
 
 - **WHEN** the answer session posts filter 4's `Inquisitor: ` reply by
   itself on an agent's question
-- **THEN** the post's text is filter 4's fixed text, which the person did
-  not write
+- **THEN** the post is filter 4's fixed text, none of it the person's
 
 #### Scenario: An automatic post on a decline waits for confirmation
 
 - **WHEN** the person declines an agent's question as one the inquisitor
   should have handled, picks filter 3, and has not yet confirmed the post
   shown to them
-- **THEN** the answer session posts nothing
+- **THEN** nothing is posted
 
 ### Requirement: A question's thread is where a reply to it goes
 
 The answer session SHALL treat as a question's **thread** the place a
-reply to the question goes: the conversation of the GitHub issue or pull
-request that holds it, or the review thread when the question is a review
-comment; the comment thread of the Linear comment, or the Linear issue,
-that holds it; or, on Discord, the channel or thread that holds it.
+reply to it goes: on GitHub, the conversation of the issue or pull request
+holding it, or the review thread for a review comment; on Linear, the
+comment thread of the comment, or the issue, holding it; on Discord, the
+channel or thread holding it.
 
 #### Scenario: A review comment's thread is its review thread
 
 - **WHEN** a question is a review comment on a GitHub pull request
-- **THEN** the question's thread is that review thread, not the pull
-  request's conversation
+- **THEN** its thread is that review thread, not the pull request's
+  conversation
 
 #### Scenario: A Discord question's thread is the thread that holds it
 
 - **WHEN** a question is a message in a thread of a subscribed Discord
   channel
-- **THEN** the question's thread is that Discord thread
+- **THEN** its thread is that Discord thread
 
 ### Requirement: A relayed question is a person's question
 
-The answer session SHALL treat as a **relayed question** any message that
-starts with `User says: ` or `User asks: `, posted by any bot account, on
+The answer session SHALL treat as a **relayed question** any message
+starting `User says: ` or `User asks: ` that any bot account posted on
 any surface, and SHALL count it as a person's question. One posted on
 GitHub by a person's relay App, as the inquisitor's spec defines it, is
-that person's; one from any other bot is a relayed question too, the
-words of a person whose relay it is, though which person can't be proved.
+that person's; one from any other bot is still a person's, though which
+person can't be proved.
 
 #### Scenario: A relayed question from a listed relay App is that person's
 
-- **WHEN** a GitHub comment that starts with `User says: ` comes from the
-  relay App that Maya's relay file lists, and mentions the person
-- **THEN** the answer session counts it as Maya's question, a person's
-  question
+- **WHEN** a GitHub comment starting `User says: ` comes from the relay
+  App that Maya's relay file lists, and mentions the person
+- **THEN** it counts as Maya's question, a person's question
 
 ### Requirement: An agent's question comes from a bot account or a log file
 
 **The asker** is whoever asked the question: a person, or an agent such
-as an Igor's worker. The answer session SHALL count as **an agent's
-question** one whose message's author is a bot account, such as a GitHub
-App, a Linear app user, or a Discord bot or webhook, or a log file of the
-fourth source in *A question asked of the person comes from one of four
-sources*, unless it is a relayed question. Every other question SHALL
-count as **a person's question**.
+as an Igor's worker. Unless it is a relayed question, the answer session
+SHALL count as **an agent's question** a log file of the fourth source in
+*A question asked of the person comes from one of four sources*, and one
+whose message's author is a bot account, such as a GitHub App, a Linear
+app user, or a Discord bot or webhook. Every other question SHALL count
+as **a person's question**.
 
 #### Scenario: A Linear app user's question is an agent's
 
 - **WHEN** a Linear app user comments, in a subscribed team, a question
-  that mentions the person, and the comment starts with no reserved
-  prefix
-- **THEN** the answer session counts it as an agent's question
+  mentioning the person, with no reserved prefix
+- **THEN** it counts as an agent's question
 
 #### Scenario: A questions-branch log file is an agent's question
 
-- **WHEN** a log file of the fourth source holds a question that tags the
+- **WHEN** a log file of the fourth source holds a question tagging the
   person
-- **THEN** the answer session counts it as an agent's question
+- **THEN** it counts as an agent's question
 
 #### Scenario: An agent posting with a person's credentials asks a person's question
 
 - **WHEN** an agent posts, through Maya's own `gh` login, a GitHub comment
-  that mentions the person
-- **THEN** the answer session counts it as a person's question, as it
-  does a relayed question
+  mentioning the person
+- **THEN** it counts as a person's question, as a relayed question does
 
 ### Requirement: A closed question is shown neither in the queue nor as new
 
@@ -131,15 +163,14 @@ as new.
 #### Scenario: A question declined on this machine stays out of the queue
 
 - **WHEN** the person declined a question on this machine with nothing
-  posted, and the answer session polls its channel again
-- **THEN** the question is neither in the queue nor shown as new on this
-  machine
+  posted, and its channel is polled again
+- **THEN** this machine shows it neither in the queue nor as new
 
 #### Scenario: A questions-branch file a handled file names is not shown as new
 
-- **WHEN** the answer session fetches a questions branch that holds a log
-  file tagging the person and a handled file naming it
-- **THEN** the log file is neither in the queue nor shown as new
+- **WHEN** the answer session fetches a questions branch holding a log
+  file that tags the person and a handled file naming it
+- **THEN** the log file is not queued, nor shown as new
 
 ### Requirement: The queue shows unanswered questions one at a time
 
@@ -151,24 +182,23 @@ back to; the answer session SHALL show it after the new ones.
 #### Scenario: The queue shows one question at a time
 
 - **WHEN** three questions asked of the person are unanswered
-- **THEN** the answer session shows the person one of them, and the next
-  only once the person has dealt with it or moved on
+- **THEN** the person is shown one of them, and the next only once they
+  have dealt with it or set it aside for later
 
 #### Scenario: A question set aside comes after the new ones
 
 - **WHEN** the person sets a question aside for later, and a new question
   then reaches the queue
-- **THEN** the answer session shows the new question before the one set
-  aside
+- **THEN** the new question is shown before the one set aside
 
 ### Requirement: A question with a pending answer is out of the queue
 
-**The pending list** is this machine's list of answers held as answered,
-not relayed, as *An answer that cannot reach its thread is kept pending*
-says. Every answer this machine holds as answered, not relayed, SHALL be
-on the pending list, apart from the queue. A question whose answer is on
-it SHALL NOT be in the queue on this machine until the answer goes back
-there.
+**The pending list** is this machine's list, apart from the queue, of
+answers held as answered, not relayed, as *An answer that cannot reach
+its thread is kept pending* says; every such answer SHALL be on it. A
+question whose answer is on it SHALL NOT be in this machine's queue until
+the answer goes back into the queue, as *A pending answer whose channel
+was off returns to the queue* says.
 
 #### Scenario: A pending answer's question leaves this machine's queue
 
@@ -179,8 +209,8 @@ there.
 
 - **WHEN** an answer on this machine's pending list goes back into the
   queue
-- **THEN** its question is in the queue on this machine again, with the
-  answer kept
+- **THEN** its question is in this machine's queue again, with the answer
+  kept
 
 ### Requirement: An unanswered log file holds no answer the person gave
 
@@ -190,52 +220,54 @@ file counting as the person's answer names in `answers`.
 
 #### Scenario: A log file with no answer and no counting answer file is unanswered
 
-- **WHEN** a log file on a questions branch holds no answer, and the only
+- **WHEN** a questions-branch log file holds no answer, and the only
   answer file naming it in `answers` has `authority: input`
-- **THEN** the answer session counts the log file as unanswered
+- **THEN** the log file counts as unanswered, since an `input` file never
+  counts as an answer (design.md: *The newest proven answer counts*)
 
 #### Scenario: A counting answer file makes a log file answered
 
 - **WHEN** an answer file that counts as the person's answer names a log
   file in `answers`
-- **THEN** the answer session no longer counts that log file as
-  unanswered
+- **THEN** that log file no longer counts as unanswered
 
 ### Requirement: The person's answer to a named file is their own, added alone
 
 For an answer file, **the person's answer** SHALL be the named file's
 answer under the inquisitor's *A named file's answer is the newest proven
-answer file naming it*: its proof is that of the person the named file
-asks, or, for a file that tags no one, of an account with write access
-to the lore repository, which filter 1 requires for a questions-branch
-file, and its commit adds that answer file alone (design.md: *A named
-file's answer must be the person's own, added alone*).
+answer file naming it*: proven to be by the person the named file asks or,
+for a file that tags no one, an account with write access to the lore
+repository, as filter 1 requires for a questions-branch file; and added
+alone by its commit (design.md: *A named file's answer must be the
+person's own, added alone*).
 
 #### Scenario: An answer file proven to be the asked person's counts
 
-- **WHEN** an answer file names a log file that tags the person, its proof
-  is the person's, and its commit adds that answer file alone
-- **THEN** the answer session counts it as the person's answer
+- **WHEN** an answer file naming a log file that tags the person is
+  proven to be the person's, and its commit adds it alone
+- **THEN** it counts as the person's answer
 
 #### Scenario: An answer file committed with another file does not count
 
-- **WHEN** an answer file's proof is that of the person the named file
-  asks, and its commit also adds another file
-- **THEN** the answer session does not count it as the person's answer
+- **WHEN** an answer file is proven to be the asked person's, but its
+  commit also adds another file
+- **THEN** it does not count as the person's answer
 
 #### Scenario: A file that tags no one is answered by an account with write access
 
 - **WHEN** a log file tags no one, and an answer file naming it, added
   alone, is proven to be an account's with write access to the lore
   repository
-- **THEN** the answer session counts it as the person's answer
+- **THEN** it counts as the person's answer, since that write access is
+  `decision` authority for a questions-branch file (design.md: *What the
+  answer session posts, and what it logs*)
 
 ### Requirement: A poll position marks the newest message a poll read
 
-A channel's **poll position** SHALL be the time of the newest message
-that the channel's last poll read. GitHub's notifications endpoint is one
-feed for every GitHub channel, and SHALL have one poll position of its
-own: the `Last-Modified` time of its last response.
+A channel's **poll position** SHALL be the time of the newest message its
+last poll read. GitHub's notifications endpoint, one feed for every
+GitHub channel, SHALL have one poll position of its own: the
+`Last-Modified` time of its last response.
 
 #### Scenario: A channel's poll position is its newest message read
 
@@ -247,27 +279,27 @@ own: the `Last-Modified` time of its last response.
 
 - **WHEN** GitHub's last notifications response carried a `Last-Modified`
   time
-- **THEN** that time is the notifications feed's poll position, the one
-  position for every GitHub channel read through it
+- **THEN** that time is the notifications feed's poll position, for every
+  GitHub channel read through it
 
 ### Requirement: The same question means the same hash
 
 Two questions SHALL count as **the same question** when they have the
-same hash. The inquisitor spec defines a question's text and its hash for
-a question in a post; for a log file, the question is the one the
-inquisitor spec's *Among files with the same question, only the newest
-proven answer counts* reads from it.
+same hash. The inquisitor spec defines a post's question text and its
+hash; a log file's question is the text under its `## Question`, hashed
+as that spec's *Among files with the same question, only the newest
+proven answer counts* says.
 
 #### Scenario: Two questions with one hash are the same question
 
 - **WHEN** a miss file on a questions branch holds a question whose hash
   equals that of the question the answer session logs a miss for
-- **THEN** the answer session counts the two as the same question
+- **THEN** the two count as the same question
 
 #### Scenario: Questions with different hashes are different questions
 
 - **WHEN** two posts ask questions whose hashes differ
-- **THEN** the answer session counts them as different questions
+- **THEN** they count as different questions
 
 ### Requirement: A thread copy is a question shown from a thread
 
@@ -278,8 +310,8 @@ follows its thread message by exact link*).
 
 #### Scenario: A question shown from a linked message is a thread copy the file holds
 
-- **WHEN** the answer session shows a question from a GitHub comment, and
-  a questions-branch log file's `asked_in` links that comment
+- **WHEN** the answer session shows a question from a GitHub comment that
+  a questions-branch log file's `asked_in` links
 - **THEN** the question is a thread copy, and that log file holds it
 
 ### Requirement: The state folder is under the XDG state home
@@ -302,9 +334,9 @@ The answer session's **state folder** SHALL be
 
 The answer session SHALL count as **the holder** the Claude Code session
 whose answer session holds the lock that *One answer session runs on each
-machine* defines. It SHALL count as **a Claude Code background session**
-any Claude Code session with no terminal attached, such as one that an app
-starts from its list of sessions rather than from a terminal.
+machine* defines, and as **a Claude Code background session** any Claude
+Code session with no terminal attached, such as one started from an
+app's list of sessions rather than from a terminal.
 
 #### Scenario: A session started with no terminal that takes the lock is a background holder
 
@@ -317,9 +349,9 @@ starts from its list of sessions rather than from a terminal.
 
 **What the question concerns**, **the repository the question concerns**,
 **the team's lore repository** and **more visible** SHALL be as the
-inquisitor's spec defines them. The session's model SHALL judge what a
-question concerns as that spec has an agent judge it. On GitHub, when it
-can't tell, the repository the question concerns SHALL be the repository
+inquisitor's spec defines them, and the session's model SHALL judge what
+a question concerns as that spec has an agent judge it. On GitHub, when
+it can't tell, the repository the question concerns SHALL be the one
 holding the question's thread.
 
 #### Scenario: A GitHub question whose subject is unclear concerns its thread's repository
@@ -330,20 +362,19 @@ holding the question's thread.
 
 #### Scenario: The model judges what a question concerns as an agent does
 
-- **WHEN** a question in an issue of `o/web` asks about code in `o/api`
+- **WHEN** a question in an `o/web` issue asks about code in `o/api`
 - **THEN** the session's model judges what it concerns as the inquisitor's
-  spec has an agent judge it, and the repository the question concerns is
-  `o/api`
+  spec has an agent judge it, and the repository it concerns is `o/api`
 
 ### Requirement: The answer session's configuration is a section of the inquisitor's configuration
 
 The answer session SHALL read its configuration only from `answer_session`
-in the inquisitor's configuration. Under `github`, `linear` or `discord`,
-an object per **surface** used names its relay identity, its **channels**
-(the person's subscriptions there, a Discord channel including its
-threads) and, on Discord only, the person's user id. The file SHALL hold no
-token or key, the Linear API key staying in the keychain, and a save SHALL
-keep keys it does not write.
+in the inquisitor's configuration, where an object per **surface** used,
+`github`, `linear` or `discord`, names its relay identity, its
+**channels** (the person's subscriptions there, a Discord channel with its
+threads) and, on Discord only, the person's user id. The file SHALL hold
+no token or key, the Linear API key staying in the keychain, and a save
+SHALL keep keys it does not write.
 
 #### Scenario: The answer session finds its configuration
 
@@ -357,12 +388,11 @@ keep keys it does not write.
 
 - **WHEN** `answer_session` holds a `github`, a `linear` and a `discord`
   object
-- **THEN** each object's `relay` names the surface's relay identity as
-  the github-app, linear-app or discord-bot skill names it with
-  `--identity`, and its `subscriptions` lists its channels: on GitHub a
-  repository as `owner/repo`, or every repository of an owner as
-  `owner`; on Linear team keys; on Discord channel ids, each with the
-  threads in it
+- **THEN** each object's `relay` names the surface's relay identity, by
+  the name its skill, github-app, linear-app or discord-bot, takes with
+  `--identity`, and its `subscriptions` lists its channels: on GitHub
+  `owner/repo`, or `owner` for every repository of an owner; on Linear
+  team keys; on Discord channel ids, a channel's id covering its threads
 - **AND** only the `discord` object also holds `user`, the person's
   Discord user id
 
@@ -372,30 +402,28 @@ keep keys it does not write.
 - **THEN** `inquisitor.json` holds the Linear team key and the relay's
   identity name, the relay's token stays with linear-app, and the
   person's Linear API key, which the answer session reads Linear with,
-  is in the system keychain only
+  is only in the system keychain
 
 #### Scenario: A hand-written key survives a save
 
-- **WHEN** the person has added a key the answer session does not know to
-  `inquisitor.json`, and setup saves a new subscription
+- **WHEN** the person has added to `inquisitor.json` a key the answer
+  session does not know, and setup saves a new subscription
 - **THEN** that key is still in the file, unchanged
 
 ### Requirement: The person runs the session, and a relay identity posts for them
 
 **The person** SHALL be the one whose questions the answer session shows:
-the one running the session, whose login is the one the inquisitor's *A
-configured login counts only when gh is logged in as it* sets; with no
-login configured, as that requirement says, GitHub SHALL be off. A
-**relay identity** SHALL be the bot of a surface's skill, github-app,
-linear-app or discord-bot, that posts for them there, and its token
-SHALL stay with that skill.
+the one running it, whose login is the one the inquisitor's *A configured
+login counts only when gh is logged in as it* sets; with no login
+configured, as that requirement says, GitHub SHALL be off. A **relay
+identity** SHALL be the bot of a surface's skill, github-app, linear-app
+or discord-bot, that posts for them there, its token staying with that
+skill.
 
 #### Scenario: A login gh does not confirm turns GitHub off
 
-- **WHEN** `inquisitor.json` names the login `adamstallard`, and `gh` is
-  logged in as another account, so the session has no login configured
-  as the inquisitor's *A configured login counts only when gh is logged
-  in as it* says
+- **WHEN** `inquisitor.json` names the login `adamstallard` but `gh` is
+  logged in as another account, so no login is configured
 - **THEN** the answer session reads no GitHub channel and posts nothing on
   GitHub
 
@@ -404,7 +432,7 @@ SHALL stay with that skill.
 - **WHEN** the answer session posts a relay post on Discord through the
   relay identity its `discord` object names
 - **THEN** discord-bot posts it with the token discord-bot holds, and no
-  file of the answer session holds that token
+  answer-session file holds that token
 
 ### Requirement: Setup checks each relay identity before its channels are used
 
@@ -418,22 +446,22 @@ rerun any check that failed or never ran.
 
 #### Scenario: A channel the relay cannot post in is off alone
 
-- **WHEN** setup's check finds that the Discord relay cannot post in one
-  of two subscribed Discord channels, and can post in the other
-- **THEN** setup shows the failure and how to fix it, saves both channels,
-  and the answer session reads and posts in the other channel only
+- **WHEN** setup finds that the Discord relay cannot post in one of two
+  subscribed Discord channels, and can post in the other
+- **THEN** setup shows the failure and its fix, saves both channels, and
+  the answer session reads and posts in the other channel only
 
 #### Scenario: A failed identity check turns off its whole surface
 
 - **WHEN** the GitHub relay's own github-app check fails
-- **THEN** setup shows that failure and how to fix it, as github-app
-  reports them, and every subscribed GitHub channel stays off
+- **THEN** setup shows the failure and its fix, as github-app reports
+  them, and every subscribed GitHub channel stays off
 
 #### Scenario: A relay that cannot read message content keeps Discord off
 
-- **WHEN** discord-bot's `check` reports `messageContent` as `false` or
-  `null`, the value when it could not read the bot's application flags,
-  for the Discord relay
+- **WHEN** discord-bot's `check` reports, for the Discord relay,
+  `messageContent` as `false`, or as `null` when it could not read the
+  bot's application flags
 - **THEN** setup shows that failure and says to turn on the bot's Message
   Content intent, or why the check could not read it, and every Discord
   channel stays off (design.md: *The Discord relay needs the Message
@@ -446,24 +474,24 @@ rerun any check that failed or never ran.
 
 - **WHEN** no check can read whether the Linear relay may post in a
   subscribed team (task 0.20), and Linear refuses a relay post there
-- **THEN** the refusal counts as a failed check of posting there: nothing
-  is posted, the person is told why, the question keeps its state, and
-  the team stays off until a check at a later opening passes
+- **THEN** the refusal counts as a failed posting check: the refused post
+  is handled as *A failed relay post is reported to the person* says, a
+  refused answer kept pending, and the team stays off until a check at a
+  later opening passes
 
 #### Scenario: A posting check no check can read is shown as not checked
 
-- **WHEN** no check can read whether the Linear relay may post in a
-  subscribed team, and the Linear relay's own check passes
+- **WHEN** no check can read the Linear relay's right to post in a
+  subscribed team, and the relay's own check passes
 - **THEN** setup shows the team's posting check as not checked, never as
-  passed, and the team counts as on, as *A pending answer whose channel
-  was off returns to the queue* says
+  passed, and the team counts as on, since an unreadable posting check
+  passes (design.md: *A failed relay check turns off only its channel*)
 
 #### Scenario: A passing recheck turns the channel on
 
 - **WHEN** the Discord relay's last check of posting in a channel failed,
-  the person fixes its permission, and opens the answer session
-- **THEN** the answer session checks that channel again, and, once that
-  check passes, reads the channel
+  and the person fixes its permission and opens the answer session
+- **THEN** that channel is checked again and, once the check passes, read
 
 ### Requirement: Setup opens on an incomplete configuration and checks questions-branch commits
 
@@ -479,15 +507,15 @@ showing that check as not checked when it cannot tell.
 
 - **WHEN** the person opens the answer session and `inquisitor.json` has no
   `answer_session` key
-- **THEN** the answer session runs setup instead of showing the queue
+- **THEN** setup runs instead of the queue
 
 #### Scenario: Setup offers the person's channels
 
 - **WHEN** setup runs, `gh` lists the repository `o/api` and the owner `o`
   for the person, their Linear key can read the team `ENG`, and the
   Discord relay has been added to a channel
-- **THEN** setup offers `o/api`, `o`, `ENG` and that Discord channel as
-  channels to subscribe to
+- **THEN** setup offers `o/api`, `o`, `ENG` and that Discord channel to
+  subscribe to
 
 #### Scenario: Unsigned commits get a warning
 
@@ -495,20 +523,20 @@ showing that check as not checked when it cannot tell.
   repository's questions branch would not be signed
 - **THEN** setup warns that their answer files without a link will not
   count, says how to turn on signing, and saves the rest
-- **AND** the warning turns nothing off, and setup runs the check again
-  at each opening until it passes
+- **AND** the warning turns nothing off, and setup reruns the check at
+  each opening until it passes
 
 #### Scenario: Answer files are committed as the person in an App project
 
 - **WHEN** the answer session runs in a Claude Code session whose
   environment sets `GIT_AUTHOR_NAME` to a GitHub App's bot and turns
   signing off through `GIT_CONFIG_*`
-- **THEN** the `log` command commits the answer file as the person, never
-  as the App, signed, with those variables removed
+- **THEN** `log` commits the answer file as the person, signed, never as
+  the App, with those variables removed
 - **AND** setup checks the identity and signing `log` would commit with
-  once the `GIT_AUTHOR_*` and `GIT_COMMITTER_*` variables and the
-  `GIT_CONFIG_*` entries that github-app sets are removed (design.md:
-  *Setup checks questions-branch commits are the person's*)
+  once github-app's `GIT_AUTHOR_*`, `GIT_COMMITTER_*` and `GIT_CONFIG_*`
+  settings are removed (design.md: *Setup checks questions-branch
+  commits are the person's*)
 
 #### Scenario: A signing key GitHub does not verify gets a warning
 
@@ -524,7 +552,7 @@ showing that check as not checked when it cannot tell.
 
 #### Scenario: Setup runs again on request
 
-- **WHEN** the person types `/answer setup` while the configuration is
+- **WHEN** the person types `/answer setup` with the configuration
   complete
 - **THEN** setup runs, showing the saved subscriptions as chosen
 
@@ -532,9 +560,9 @@ showing that check as not checked when it cannot tell.
 
 In each configured lore repository serving a subscribed GitHub channel,
 setup SHALL open as the person, by host command, a pull request writing
-their relay file, newly dated, if it is missing, lacks a relay of theirs
-or was last changed by another, and one adding a missing
-`relay-notice.yml`, each unless theirs is open. It SHALL report links,
+their relay file, newly dated, if missing, lacking a relay or last changed
+by another, and one adding a missing `relay-notice.yml`, each unless the
+person has one open. It SHALL report links,
 never push to the default branch, say when their relayed answers there
 count, and say what a refused notice pull request loses, then carry on.
 
@@ -544,19 +572,19 @@ count, and say what a refused notice pull request loses, then carry on.
   repository serves `o`, and its default branch has no
   `relays/<the person's login>.yaml`
 - **THEN** setup opens, through the person's `gh` login, a pull request
-  to that lore repository writing that file, with the relay's App slug
-  under `github` and any Linear or Discord relay's id under `linear` or
-  `discord`, its first line the comment `# confirmed by <login> on
-  <date>`, reports its link, pushes nothing to the default branch, and
-  says that the person's
-  relayed answers there count only as input until it merges and the lore
-  clone has fetched its default branch, or, for an Igor, until igor PR
-  #208's lore read applies that commit, and that a later change to the
-  file by anyone else makes them input again
-- **AND** setup opens it as a host command, as a relay post is posted,
-  with a fixed title and body the script writes, holding no word from
-  the session's model, so no post hook sees it and it gets no prose pass
-  (design.md: *Setup's relay pull request*)
+  to that lore repository writing that file: the relay's App slug under
+  `github`, any Linear or Discord relay's id under `linear` or
+  `discord`, and first the line `# confirmed by <login> on <date>`. It
+  reports the link, pushes nothing to the default branch, and says the
+  person's relayed answers there count only as input until it merges
+  and the lore clone has fetched its default branch, or, for an Igor,
+  until igor PR #208's lore read applies that commit (design.md: *An
+  Igor reads relay files as of igor PR #208's applied commit*), and
+  become input again if anyone else later changes the file
+- **AND** setup opens it as a host command, like a relay post, with a
+  fixed title and body the script writes and no word of the model's, so
+  no post hook sees it and no prose pass applies (design.md: *Setup's
+  relay pull request*)
 
 #### Scenario: Setup opens no second relay pull request
 
@@ -567,29 +595,28 @@ count, and say what a refused notice pull request loses, then carry on.
 
 #### Scenario: Setup proposes nothing when the relays are listed
 
-- **WHEN** setup runs, and the person's relay file on the lore
-  repository's default branch, last changed by a pull request they
-  authored, lists each of their relay identities on every surface the
-  configuration names, and the default branch holds
-  `.github/workflows/relay-notice.yml`
+- **WHEN** setup runs, the person's relay file on the lore repository's
+  default branch, last changed by a pull request they authored, lists
+  each of their relay identities on every surface configured, and that
+  branch holds `.github/workflows/relay-notice.yml`
 - **THEN** setup opens no pull request to it
 
 #### Scenario: Setup proposes the file again after someone else changed it
 
 - **WHEN** setup runs, and the person's relay file lists each of their
-  relay identities, but its last change came from a pull request another
-  person authored, so the file does not count
-- **THEN** setup opens a pull request from the person rewriting the file
-  with a new first line, `# confirmed by <login> on <date>`, so the pull
-  request changes it even when the relays listed are the same, and says
-  that their relayed answers there count only as input until it
-  merges
+  relay identities but was last changed by another person's pull
+  request, so it does not count (design.md: *Who last changed a relay
+  file ties it to its person*)
+- **THEN** setup opens a pull request from the person rewriting it with a
+  new first line, `# confirmed by <login> on <date>`, so it changes the
+  file even when the relays listed are the same, and says their relayed
+  answers there count only as input until it merges
 
 #### Scenario: Setup proposes the notice workflow
 
-- **WHEN** setup runs, the lore repository's default branch has no
-  `.github/workflows/relay-notice.yml`, and no such pull request from
-  the person is open
+- **WHEN** setup runs, the lore repository's default branch lacks
+  `.github/workflows/relay-notice.yml`, and the person has no such pull
+  request open
 - **THEN** setup opens a separate pull request adding the inquisitor's
   `relay-notice.yml`, and reports its link
 
@@ -612,17 +639,17 @@ environment variable SHALL open the answer session.
 
 #### Scenario: The answer command starts an answer session
 
-- **WHEN** the person runs `answer`, setup's `~/.local/bin/answer`, whose
-  second line is `# written by inquisitor answer-session setup`, in a
-  terminal
-- **THEN** Claude Code starts with the name `Answers`, in its fullscreen
-  layout, and opens the answer session
+- **WHEN** the person runs, in a terminal, `answer`, setup's
+  `~/.local/bin/answer`, whose second line is
+  `# written by inquisitor answer-session setup`
+- **THEN** Claude Code starts named `Answers`, in its fullscreen layout,
+  and opens the answer session
 
 #### Scenario: Setup leaves another answer command alone
 
 - **WHEN** setup runs and `~/.local/bin/answer` is a file without setup's
   comment line
-- **THEN** setup does not change it, and says that the `answer` command was
+- **THEN** setup leaves it unchanged, and says the `answer` command was
   not installed
 
 #### Scenario: Setup says when the command is not on PATH
@@ -647,7 +674,7 @@ unanswered one of these, and nothing else:
 #### Scenario: An agent's mention is a question
 
 - **WHEN** an agent running the inquisitor posts, in a subscribed
-  repository, a question that tags `@adamstallard`, the configured login
+  repository, a question tagging `@adamstallard`, the configured login
 - **THEN** the answer session shows it as a question asked of the person
 
 #### Scenario: A Linear issue assigned to the person is a question
@@ -660,15 +687,13 @@ unanswered one of these, and nothing else:
 
 - **WHEN** a pull request in a subscribed repository requests the person's
   review
-- **THEN** the answer session shows it, and an answer to it posts a comment
-  on that pull request
+- **THEN** it is shown, and an answer to it comments on that pull request
 
 #### Scenario: A questions-branch file that tags the person is a question
 
 - **WHEN** a configured lore repository's questions branch holds an
-  unanswered log file whose question tags the person, and that holds no
-  `asked_in`
-- **THEN** the answer session shows it as a question asked of the person
+  unanswered log file, with no `asked_in`, whose question tags the person
+- **THEN** it is shown as a question asked of the person
 
 #### Scenario: A message in an unsubscribed channel is not a question
 
@@ -688,19 +713,18 @@ answers*; *A named file stays shown until its answer counts*).
 #### Scenario: A log file named only by input answers is shown with the newest
 
 - **WHEN** a configured lore repository's questions branch holds an
-  unanswered log file whose question tags the person, two answer files
-  with `authority: input` that name it in `answers`, and a handled file
-  naming another log file that tags the person
+  unanswered log file tagging the person, two `authority: input` answer
+  files naming it in `answers`, and a handled file naming another log
+  file that tags the person
 - **THEN** the answer session shows the log file as a question, with the
-  newer answer file beside it as input, and shows neither answer file,
-  the handled file nor the other log file as a question
+  newer answer file beside it as input, and none of the answer files,
+  the handled file or the other log file as a question
 
 ### Requirement: A reply to a relay post is read per surface
 
 A message SHALL count as replying to a relay post as this requirement's
-scenarios show for each surface. In an unthreaded GitHub conversation,
-only the asker's next comment after the relay post SHALL count as
-replying to it.
+scenarios show for each surface; in an unthreaded GitHub conversation,
+only the asker's next comment after the relay post SHALL count.
 
 #### Scenario: A reply to the relay is a question
 
@@ -732,15 +756,14 @@ durable record of an answer* says.
 
 - **WHEN** a comment in a subscribed repository mentions the person only
   to thank them, or asks a rhetorical question
-- **THEN** the answer session does not show it, posts nothing on it, and
-  closes nothing
+- **THEN** it is not shown, nothing is posted on it, and nothing closes
 
 #### Scenario: The asker's thanks after a clarifying question is not ignored
 
 - **WHEN** the latest relay post naming a question starts with
   `User asks: `, and the asker replies to it only to thank the person
-- **THEN** the answer session does not ignore the reply, and puts the
-  question back in the queue with it
+- **THEN** the reply is not ignored, and puts the question back in the
+  queue with it
 
 ### Requirement: Whom a message reaches is set by its mentions
 
@@ -771,11 +794,11 @@ none.
 
 #### Scenario: A team mention or a mention in code is no mention
 
-- **WHEN** an Igor's handback on an issue assigned to the person mentions
-  the team `@o/devs`, and mentions `@maya` only in a code span, a code
-  block, a quoted line or a link
-- **THEN** it counts as mentioning no one, and the person's answer
-  session shows it under the third source
+- **WHEN** an Igor's handback, on an issue assigned to the person,
+  mentions the team `@o/devs`, and `@maya` only in a code span, code
+  block, quoted line or link
+- **THEN** it mentions no one, and the person's answer session shows it
+  under the third source
 
 ### Requirement: A handback is an igor- App's comment holding igor's marker
 
@@ -812,25 +835,24 @@ review request alone SHALL NOT make such an item a question (design.md:
 
 #### Scenario: A handed-back pull request is not also a review request
 
-- **WHEN** a pull request assigned to the person holds an Igor's
-  handback, and it requests the person's review
-- **THEN** the answer session shows the pull request only through its
-  newest handback, not also as a review request
+- **WHEN** a pull request assigned to the person holds an Igor's handback
+  and requests the person's review
+- **THEN** it is shown only through its newest handback, not also as a
+  review request
 
 ### Requirement: An item's newest handback is open until a relay post names it
 
 The newest handback SHALL be **open** until a relay post whose `Re: `
 line holds its URL answers or handles it; while a `User asks: ` post
-names it, it waits for the asker and leaves the queue, as any question
-does (design.md: *Only an item's newest handback is open*).
+names it, it waits for the asker, out of the queue, like any question
+(design.md: *Only an item's newest handback is open*).
 
 #### Scenario: An answered handback is no longer open
 
 - **WHEN** the relay posts `User says: ` on an issue assigned to the
-  person, with a `Re: ` line holding the URL of the issue's newest
-  handback
-- **THEN** that handback is no longer open, and the answer session shows
-  it as answered, not in the queue
+  person, its `Re: ` line holding the URL of the issue's newest handback
+- **THEN** that handback is no longer open, and is shown as answered, not
+  in the queue
 
 ### Requirement: A handback that mentions no one goes to the item's assignee
 
@@ -842,15 +864,15 @@ issue [igor #229](https://github.com/adamstallard/igor/issues/229)).
 
 #### Scenario: A handback that mentions the assignee first reaches them
 
-- **WHEN** an Igor's handback on an issue assigned to the person mentions
-  the person first and then `@maya`
-- **THEN** the person's answer session shows it
+- **WHEN** an Igor's handback, on an issue assigned to the person,
+  mentions the person and then `@maya`
+- **THEN** it reaches the person's answer session
 
 #### Scenario: A handback that mentions no one reaches the assignee
 
-- **WHEN** an Igor's handback on an issue assigned to the person mentions
-  no one
-- **THEN** the person's answer session shows it under the third source
+- **WHEN** an Igor's handback, on an issue assigned to the person,
+  mentions no one
+- **THEN** it reaches the person's answer session under the third source
 
 #### Scenario: An Igor log file on someone else's item is not shown
 
@@ -861,37 +883,35 @@ issue [igor #229](https://github.com/adamstallard/igor/issues/229)).
 
 #### Scenario: An Igor log file on an unassigned item is shown to no one
 
-- **WHEN** an Igor's log file links a handback comment on an issue
-  assigned to no one
+- **WHEN** an Igor's log file links a handback comment on an unassigned
+  issue
 - **THEN** no answer session shows the handback or its log file until
   someone is assigned the issue, and then only the assignee's
 
 ### Requirement: A log file follows the thread message its asked_in links
 
 A log file whose `asked_in` links a thread message this machine reads
-SHALL follow that message by that exact link, taking whatever the answer
-session decides about it, and is not shown on its own (design.md: *A log
-file follows its thread message by exact link*).
+SHALL follow that message by exact link, taking whatever the answer
+session decides about it, never shown on its own (design.md: *A log file follows its thread message by exact link*).
 
 #### Scenario: A questions-branch file follows the message it links
 
 - **WHEN** an agent's post in a subscribed repository tags the person, and
   the lore repository's questions branch holds a log file whose
   `asked_in` is that post's URL
-- **THEN** the answer session shows the question once, from the post's
-  thread
+- **THEN** the question is shown once, from the post's thread
 
 #### Scenario: Declining the linked message declines the file
 
 - **WHEN** the person declines a message that a questions-branch log
   file's `asked_in` links
-- **THEN** the answer session does not show the log file on its own
+- **THEN** the log file is not shown on its own either
 
 #### Scenario: Ignoring the linked message ignores the file
 
-- **WHEN** the answer session ignores, as not a question, a message that
-  a questions-branch log file's `asked_in` links
-- **THEN** it shows the log file neither on its own nor with the message
+- **WHEN** a message that a questions-branch log file's `asked_in` links
+  is ignored as not a question
+- **THEN** the log file is shown neither on its own nor with the message
 
 ### Requirement: A log file with no followed link is judged on its own
 
@@ -906,34 +926,36 @@ never reads is not followed*).
 
 - **WHEN** a questions-branch log file's `asked_in` links a Discord
   message in a channel this machine does not subscribe to
-- **THEN** the answer session shows the log file on its own, as a
-  question of the fourth source
+- **THEN** the log file is shown on its own, as a question of the fourth
+  source
 
 #### Scenario: A log file linking an off channel or surface is shown on its own
 
 - **WHEN** a log file's `asked_in` links a message in a channel this
   machine has off, or on a surface it has off or cannot read
-- **THEN** the answer session shows the log file on its own, as a
-  question of the fourth source
+- **THEN** the log file is shown on its own, as a question of the fourth
+  source
 
 #### Scenario: A log file whose Discord link was withheld is shown on its own
 
-- **WHEN** a lore repository that is not private holds a log file with no
-  `asked_in` whose question tags `@adamstallard`, and a Discord message
-  this machine has polled that mentions the person's Discord user asks
-  the same question, its text the same once mentions are removed
-- **THEN** the answer session shows the log file and the message as two
-  questions, and pairs neither with the other
+- **WHEN** a lore repository that is not private holds a log file whose
+  `asked_in` the `log` command withheld (design.md: *`answer_link` and
+  `asked_in` are withheld where they would leak*), whose question tags
+  `@adamstallard`, and a Discord message
+  this machine has polled, mentioning the person's Discord user, asks the
+  same question, its text the same once mentions are removed
+- **THEN** the log file and the message are shown as two questions, and
+  neither is paired with the other
 
 ### Requirement: An Igor's log file follows its own handback comment
 
 An Igor worker's log file SHALL follow the handback comment its `asked_in`
 links, shown only while that comment is its item's newest handback
 (design.md: *Each Igor log file follows its own handback comment*), if
-that handback is on an issue or pull request in the repository named by
-its `asked_from`, or by its `repository` when it has none; else it is
-shown on its own. An Igor's log file, one holding `asked_from`, SHALL
-follow its link even on a machine that does not read its item.
+that handback is on an issue or pull request in the repository its
+`asked_from`, or else its `repository`, names; otherwise it is shown on
+its own. An Igor's log file SHALL follow its link even on a machine that
+does not read its item.
 
 #### Scenario: An Igor's log file follows its handback comment
 
@@ -949,9 +971,9 @@ follow its link even on a machine that does not read its item.
   and a later run on that issue posts a new handback comment and writes
   a new log file whose `asked_in` is that comment's URL, and the person
   answers the new handback
-- **THEN** the answer session shows the new handback as the issue's open
-  handback, relays the person's answer on the issue, and pushes an answer
-  file naming the new log file
+- **THEN** the new handback is shown as the issue's open handback, the
+  answer is relayed on the issue, and an answer file naming the new log
+  file is pushed
 
 #### Scenario: An Igor question about another repository follows its handback
 
@@ -964,14 +986,14 @@ follow its link even on a machine that does not read its item.
 
 - **WHEN** a log file's `asked_in` links a comment by an `igor-` App that
   holds no handback marker
-- **THEN** the answer session shows the log file on its own
+- **THEN** the log file is shown on its own
 
 #### Scenario: A handback link from another App is not followed
 
-- **WHEN** a log file's `asked_in` links a comment whose author is not an
-  App with an `igor-` slug
-- **THEN** the answer session shows the log file on its own, and does
-  not follow the comment
+- **WHEN** a log file's `asked_in` links a comment by an author that is
+  not an App with an `igor-` slug
+- **THEN** the comment is not followed, and the log file is shown on its
+  own
 
 ### Requirement: A relay-notice comment is shown as a notice
 
@@ -999,26 +1021,25 @@ question*; *The push order for a questions-branch answer*).
 
 #### Scenario: A held thread copy is resolved once its answer file is pushed
 
-- **WHEN** the person answered a thread copy that a questions-branch file
-  holds, in a GitHub issue, its answer file was pushed, and the asker
+- **WHEN** the person answered, in a GitHub issue, a thread copy that a
+  questions-branch file holds, its answer file was pushed, and the asker
   then comments again there without a mention
 - **THEN** every machine shows the comment as a new question, under the
   second source
 
 #### Scenario: A failed answer-file push is retried
 
-- **WHEN** the relay post of an answer goes out, for a thread copy (a
-  question shown from its thread) that a questions-branch file holds
-  through `asked_in`, and the push of its answer file
-  then fails
-- **THEN** the answer session tries the push again at each poll until it
+- **WHEN** the relay post of an answer to a thread copy (a question shown
+  from its thread) that a questions-branch file holds through `asked_in`
+  goes out, and the push of its answer file then fails
+- **THEN** the answer session retries the push at each poll until it
   succeeds, with the post's URL as the file's `answer_link`
 
 ### Requirement: Later messages after an answer or a decline are new questions
 
 Each later message in a resolved question's thread that a source names,
 and that *Messages judged clearly not questions are ignored* does not
-ignore, SHALL be shown on its own, on every machine, as a new question
+ignore, SHALL be shown on every machine as a new question of its own,
 under that source (design.md: *Declining with nothing to answer closes
 only that question*; *Closing works by exact identity, never by
 matching*).
@@ -1030,8 +1051,8 @@ matching*).
   it, and the asker then comments again without a mention, or someone
   mentions the person there
 - **THEN** every machine shows the comment as a new question, under the
-  second source or the first, and the declined question stays closed on
-  the machine that declined it
+  second source or the first, and the declined question stays closed
+  where it was declined
 
 ### Requirement: The answer session polls only while it is open
 
@@ -1039,14 +1060,14 @@ The answer session SHALL poll its channels only while it is open in the
 holder, and nothing SHALL poll while none is open. It SHALL poll each
 channel that is on when it opens and about every 60 seconds after, for
 everything since its poll position, or the last 14 days without one,
-saving each poll position in the state folder. At each poll it SHALL
-also fetch the questions branch of each configured lore repository.
+saving each poll position in the state folder, and at each poll SHALL
+fetch the questions branch of each configured lore repository.
 
 #### Scenario: Opening catches up
 
 - **WHEN** the answer session opens after two days closed
 - **THEN** it polls each channel that is on for everything since that
-  channel's poll position, and saves each channel's new poll position
+  channel's poll position, and saves each new poll position
 
 #### Scenario: A new channel is read from 14 days back
 
@@ -1069,11 +1090,10 @@ also fetch the questions branch of each configured lore repository.
 ### Requirement: The answer session polls GitHub's notifications and comments
 
 On GitHub the answer session SHALL read notifications conditionally,
-sending the previous response's `Last-Modified` time, and no sooner than
-the `X-Poll-Interval` GitHub's last response set. While task 0.15 has
-not shown that notifications report every GitHub message of the first
-three sources in *A question asked of the person comes from one of four
-sources*, it SHALL also read each subscribed repository's issue and pull
+sending the previous response's `Last-Modified` time, no sooner than the
+`X-Poll-Interval` of GitHub's last response. Unless task 0.15 has shown
+that notifications report every GitHub message of the first three
+sources, it SHALL also read each subscribed repository's issue and pull
 request comments since its poll position.
 
 #### Scenario: GitHub's poll interval is honoured
@@ -1086,30 +1106,29 @@ request comments since its poll position.
 #### Scenario: Comments are read until the notifications endpoint is measured
 
 - **WHEN** task 0.15 has not shown that the notifications endpoint reports
-  every GitHub message of the first three sources in *A question asked
-  of the person comes from one of four sources*, and the answer session
-  polls a subscribed repository
-- **THEN** it also reads that repository's issue and pull request comments
-  since its poll position
+  every GitHub message of the first three sources, and the answer
+  session polls a subscribed repository
+- **THEN** it reads that repository's issue and pull request comments
+  since its poll position as well
 
 ### Requirement: The answer session reads with the person's credentials, except on Discord
 
-The answer session SHALL read GitHub with the person's `gh` login, and
+The answer session SHALL read GitHub with the person's `gh` login and
 Linear with the person's Linear API key, and SHALL use the GitHub and
-Linear relay identities only to check them, to post, and to edit their own
-relay posts. On Discord, the Discord relay identity SHALL both read and
-post, in the channels it has been added to.
+Linear relay identities only to check them, to post, and to edit their
+own relay posts. On Discord, the Discord relay identity SHALL both read
+and post, in the channels it has been added to.
 
 #### Scenario: Reading uses the person's gh login
 
 - **WHEN** the answer session reads a subscribed repository's notifications
-- **THEN** it reads them through the person's `gh` login, and not as the
+- **THEN** it reads them through the person's `gh` login, not as the
   GitHub relay identity
 
 #### Scenario: Discord is read by its relay
 
-- **WHEN** the answer session reads a subscribed Discord channel
-- **THEN** it reads it as the Discord relay identity, which also posts
+- **WHEN** a subscribed Discord channel is read
+- **THEN** it is read as the Discord relay identity, which also posts
   there
 
 #### Scenario: Posting uses the relay identity
@@ -1124,8 +1143,8 @@ For an answer, the answer session SHALL post `User says: ` and the
 answer exactly as confirmed, as the relay identity in the question's
 thread, keeping the post's id in the state folder; a GitHub post outside
 a review thread ends with a `Re: ` line holding the question's URL. On
-Discord it SHALL use discord-bot with no header option and mention
-rewriting on, and show the person its warnings after each post and edit
+Discord it SHALL use discord-bot without header options and mention
+rewriting on, showing the person its warnings after each post and edit
 (design.md: *Discord relay posts: no header, mentions that ping*).
 
 #### Scenario: An answer is posted with its prefix
@@ -1134,8 +1153,8 @@ rewriting on, and show the person its warnings after each post and edit
   question asked in a comment on a GitHub issue
 - **THEN** the relay identity comments on that issue
   `User says: Back off, capped at a minute.`, ending with a `Re: ` line
-  holding the question comment's URL, and the comment's id is saved in the
-  state folder
+  holding the question comment's URL, and the comment's id is saved in
+  the state folder
 
 #### Scenario: A GitHub answer to an item or a handback names it in its Re line
 
@@ -1143,7 +1162,7 @@ rewriting on, and show the person its warnings after each post and edit
   request's description, a review request, an assignment, or an Igor's
   handback
 - **THEN** the relay's comment ends with `Re: ` and the URL of the issue
-  or pull request, or, for the handback, of the handback comment
+  or pull request, or, for a handback, of the handback comment
 
 #### Scenario: An answer in a review thread or on Linear stays in its thread
 
@@ -1165,14 +1184,14 @@ rewriting on, and show the person its warnings after each post and edit
   and the channel's server has a member maya and a channel ops
 - **THEN** the relay posts through discord-bot with none of `--agent`,
   `--session` or `--project`, so the message starts `User says: ask `,
-  followed by a mention of maya that notifies her, and `#ops` is a link
-  to that channel
+  then a mention of maya that notifies her, and `#ops` links to that
+  channel
 
 #### Scenario: An unmatched Discord name is shown to the person
 
 - **WHEN** the person confirms the Discord answer "ask @maya", and
-  discord-bot posts it with a warning that `@maya` matched no single
-  member, because no member's name or several members' names match it
+  discord-bot posts it warning that `@maya` matched no single member, as
+  no member's name, or several members' names, match it
 - **THEN** `@maya` stays plain text and pings no one, and the answer
   session shows the person that warning after the post
 
@@ -1183,25 +1202,23 @@ rewriting on, and show the person its warnings after each post and edit
   passes
 - **THEN** setup counts the Discord relay's check as passed
 - **AND** a later Discord relay post leaves every `@name` plain text,
-  under one warning that says so, which the answer session shows the
-  person
+  under one warning saying so, which the person is shown
 
 #### Scenario: Warnings are shown after an edit too
 
 - **WHEN** the person edits a Discord relay post to "ask @maya", and
   discord-bot's `edit` returns a warning that `@maya` matched no member
-- **THEN** the answer session shows the person that warning after the
-  edit
+- **THEN** the person is shown that warning after the edit
 
 ### Requirement: A relay post is posted by a host command, unvetted
 
-The answer session SHALL post through the relay identity's skill, as a
-command it runs on the host, never as a tool call of the session's
-model, as an argument vector with no shell, passing the post's text on
-standard input or in a private file. Neither prose's pass nor the
-inquisitor's filters SHALL apply to a relay post. The answer session
-SHALL scan every relay post for the inquisitor's credential patterns,
-and SHALL post nothing that matches.
+The answer session SHALL post through the relay identity's skill as a
+command it runs on the host, never as a tool call of the session's model,
+as an argument vector with no shell, passing the post's text on standard
+input or in a private file. Neither prose's pass nor the inquisitor's
+filters SHALL apply to a relay post. The answer session SHALL scan every
+relay post for the inquisitor's credential patterns, and SHALL post
+nothing that matches.
 
 #### Scenario: A relay post carries no prose footer and is not vetted
 
@@ -1211,8 +1228,8 @@ and SHALL post nothing that matches.
 
 #### Scenario: A post's text file is private
 
-- **WHEN** the answer session passes a relay post's text to the relay
-  identity's skill in a file
+- **WHEN** a relay post's text is passed to the relay identity's skill in
+  a file
 - **THEN** the file has mode 0600, in a directory only the person's user
   can read
 
@@ -1231,11 +1248,11 @@ and SHALL post nothing that matches.
 
 When a surface refuses a relay post or its command fails, the answer
 session SHALL tell the person why nothing was posted, as the surface or
-skill says. A failed answer stays pending, as *An answer that cannot
-reach its thread is kept pending* says; a failed question to the asker
-leaves its question as it was; a failed automatic post shows its
-question as unanswered. A refused post can also turn its channel off, as
-*Setup checks each relay identity before its channels are used* says.
+skill says. A failed answer stays pending; a failed question to the
+asker leaves its question as it was; a failed automatic post leaves its
+question shown as unanswered. A refused post can also turn its channel
+off, as *Setup checks each relay identity before its channels are used*
+says.
 
 #### Scenario: A post the surface refuses keeps the answer pending
 
@@ -1248,24 +1265,24 @@ question as unanswered. A refused post can also turn its channel off, as
 
 - **WHEN** the person asks the asker of an unanswered question what they
   mean, and the relay's command fails
-- **THEN** the answer session says that nothing was posted and why, and
-  the question stays unanswered, not waiting for the asker
+- **THEN** the person is told nothing was posted and why, and the
+  question stays unanswered, not waiting for the asker
 
 #### Scenario: A failed automatic post shows its question as unanswered
 
 - **WHEN** the answer session makes a `Recorded answer: ` post by itself
   on an incoming question, and the relay's command fails
-- **THEN** the answer session says that nothing was posted and why, and
-  shows the question to the person as unanswered
+- **THEN** the person is told nothing was posted and why, and is shown
+  the question as unanswered
 
 ### Requirement: An answer that cannot reach its thread is kept pending
 
-The answer session SHALL keep an answer the person confirmed that cannot
+The answer session SHALL keep, never drop, a confirmed answer that cannot
 be posted in its thread, as **answered, not relayed**, with its thread,
-on the pending list, and SHALL NOT drop it: when its channel is off or
-not read here (design.md: *A link this machine never reads is not
-followed*), or its post is refused, fails or is held back by a reply. It
-tells the person, as *Only the person is told an answer is pending* says.
+on the pending list: when its channel is off or not read here (design.md:
+*A link this machine never reads is not followed*), or its post is
+refused, fails or is held back by a reply. It tells the person, as *Only
+the person is told an answer is pending* says.
 
 #### Scenario: A refused answer is kept pending
 
@@ -1277,19 +1294,20 @@ tells the person, as *Only the person is told an answer is pending* says.
 #### Scenario: An answer given where the thread is not read is kept pending
 
 - **WHEN** a log file's `asked_in` links a Discord message, and the person
-  answers the log file on a machine that does not subscribe to that
-  message's channel
-- **THEN** the inquisitor script's `log` command pushes an answer file
-  naming the log file, and the answer is kept as answered, not relayed,
-  and the person is told the asker has not got it (design.md: *A link this
-  machine never reads is not followed*)
+  answers the log file on a machine not subscribed to that message's
+  channel
+- **THEN** the `log` command pushes an answer file naming the log file,
+  the answer is kept as answered, not relayed, and the person is told
+  the asker has not got it (design.md: *A link this machine never reads
+  is not followed*)
 
 ### Requirement: Only the person is told an answer is pending
 
 Each time it keeps an answer pending, the answer session SHALL tell the
-person that the asker has not got the answer, and show it to relay by
-hand. No other machine is told of it (design.md: *An answer that cannot
-reach its thread is kept pending*).
+person that the asker has not got it, and show the answer's text for
+them to relay by hand; no
+other machine is told (design.md: *An answer that cannot reach its thread
+is kept pending*).
 
 #### Scenario: Another machine asks again while an answer is pending
 
@@ -1301,45 +1319,45 @@ reach its thread is kept pending*).
 
 ### Requirement: A pending answer whose channel was off returns to the queue
 
-An answer kept because its channel was off, or because a refused post
-turned it off, SHALL go back into the queue, its answer kept, once
-setup's check of posting there passes, as *Setup checks each relay
-identity before its channels are used* runs it, and SHALL be posted only
-once the person confirms it again. Where no check can read posting
-rights (task 0.20), that check passes once setup, at the next opening,
-runs the relay identity's own check again and it passes.
+An answer kept because its channel was off, or a refused post turned it
+off, SHALL go back into the queue, its answer kept, once setup's check of
+posting there passes, as *Setup checks each relay identity before its
+channels are used* runs it, and SHALL be posted only once the person
+confirms it again. Where no check can read posting rights (task 0.20),
+that check passes once setup, at the next opening, reruns the relay
+identity's own check and it passes.
 
 #### Scenario: A pending answer returns to the queue once its channel passes its check
 
-- **WHEN** this machine holds an answer as answered, not relayed, for a
-  channel that was off, and that channel's check then passes
+- **WHEN** a pending answer's channel was off, and that channel's check
+  then passes
 - **THEN** the question goes back into the queue with the answer kept,
-  and the answer session posts it once the person approves it again
+  and is posted once the person approves it again
 
 #### Scenario: An answer refused for permission returns once the relay's own check passes
 
-- **WHEN** no check can read whether the Linear relay may post in a
-  team, Linear refuses a relay post there for lack of permission, which
-  turns the team off, and at the next opening setup runs the Linear
-  relay's own check again and it passes
-- **THEN** the answer goes back into the queue with the answer kept, and
-  is posted only once the person confirms it again
+- **WHEN** no check can read the Linear relay's right to post in a team,
+  Linear refuses a relay post there for lack of permission, turning the
+  team off, and at the next opening the Linear relay's own check passes
+  again
+- **THEN** the answer returns to the queue, kept, and is posted only once
+  the person confirms it again
 
 ### Requirement: A pending answer no check returns waits for the person
 
 A pending answer that *A pending answer whose channel was off returns to
 the queue* does not return SHALL stay until the person acts on it,
-whatever check passes, even one whose post the surface refused because of
-its text, such as its length, where that refusal turned its channel off.
-The person SHALL be able to edit or drop a pending answer at any time, and
-post it while its channel is on and subscribed here; a dropped answer is
-never posted.
+whatever check passes, even when the surface refused its post for its
+text, such as its length, not for permission, and that refusal turned its
+channel off. The person SHALL be able to edit or drop
+a pending answer at any time, and post it while its channel is on and
+subscribed here; a dropped answer is never posted.
 
 #### Scenario: A text refused for its length stays pending after a recheck
 
-- **WHEN** no check can read whether the Linear relay may post in a
-  channel, Linear refuses a relay post there because its text is too
-  long, and setup's check of that channel later passes
+- **WHEN** no check can read the Linear relay's right to post in a
+  channel, Linear refuses a relay post there as too long, and setup's
+  check of that channel later passes
 - **THEN** the answer stays on the pending list, and does not go back
   into the queue
 
@@ -1347,20 +1365,20 @@ never posted.
 
 - **WHEN** this machine holds an answer refused for its length, and the
   check of posting in its channel then passes
-- **THEN** the answer stays on the pending list until the person edits,
-  posts or drops it
+- **THEN** the answer stays pending until the person edits, posts or
+  drops it
 
 #### Scenario: The person edits and posts a pending answer
 
 - **WHEN** the person edits an answer on the pending list for a channel
   that is on, and confirms it
-- **THEN** the answer session posts the edited text in the thread
+- **THEN** the edited text is posted in the thread
 
 #### Scenario: A dropped pending answer is never posted
 
 - **WHEN** the person drops an answer from the pending list
-- **THEN** the answer session posts nothing for it, and the question's
-  state is read from its thread
+- **THEN** nothing is posted for it, and the question's state is read
+  from its thread
 
 ### Requirement: A pending answer leaves the list once it is settled
 
@@ -1372,8 +1390,8 @@ questions-branch file.
 
 #### Scenario: A relay from another machine clears a pending answer
 
-- **WHEN** this machine holds an answer as answered, not relayed, and
-  another machine relays it in the thread
+- **WHEN** another machine relays in the thread an answer this machine
+  holds as answered, not relayed
 - **THEN** the answer leaves this machine's pending list, and the question
   shows as answered
 
@@ -1382,7 +1400,7 @@ questions-branch file.
 - **WHEN** this machine holds an answer whose file it pushed, and another
   machine, or any other writer, pushes a newer answer file naming the
   same questions-branch file
-- **THEN** the answer leaves this machine's pending list
+- **THEN** this machine's pending list no longer holds the answer
 
 ### Requirement: A questions-branch answer's file is pushed after its post
 
@@ -1396,10 +1414,10 @@ answer*).
 
 #### Scenario: An owed push survives a crash
 
-- **WHEN** the relay post of an answer goes out, and the answer session
-  stops before it pushes the answer file
-- **THEN** the next time the answer session opens, it pushes the answer
-  file it recorded as owed
+- **WHEN** an answer's relay post goes out, and the answer session stops
+  before pushing the answer file
+- **THEN** at its next opening it pushes the answer file it recorded as
+  owed
 
 ### Requirement: An owed push with no URL is settled from the thread
 
@@ -1413,22 +1431,22 @@ the record and keeps the answer pending.
 - **WHEN** the answer session recorded an owed push and stopped before
   the relay post went out, and the thread holds no relay post naming the
   question
-- **THEN** it drops the record, pushes no file, and keeps the answer as
-  answered, not relayed
+- **THEN** it drops the record, pushes no file, and keeps the answer
+  pending
 
 #### Scenario: An owed push whose post went out takes its URL from the thread
 
-- **WHEN** the answer session recorded an owed push with no post's URL,
-  and the thread holds a relay post naming the question whose text is
-  this answer
+- **WHEN** an owed push was recorded with no post's URL, and the thread
+  holds a relay post naming the question whose text is this answer
 - **THEN** at the next poll or opening, the retry pushes the answer file
   with that post's URL as its `answer_link`
 
 ### Requirement: An owed push's retry stops when answered or refused for good
 
 The answer session SHALL drop an owed push's retry once an answer file
-that counts as the person's answer names the same file, if this machine
-first saw it at a fetch after recording the push. It SHALL NOT retry a
+counting as the person's answer names the same file, if this machine
+first saw it at a fetch after recording the push (design.md: *The push
+order for a questions-branch answer*). It SHALL NOT retry a
 push the `log` command refuses for a reason that will not change,
 telling the person the answer was relayed but not logged, and why.
 
@@ -1437,31 +1455,31 @@ telling the person the answer was relayed but not logged, and why.
 - **WHEN** the `log` command refuses an owed push for lack of access, for
   a relay post it cannot read, or for an answer whose words the lore
   repository is too visible to hold
-- **THEN** the answer session does not retry it, and tells the person the
-  answer was relayed but not logged, and why
+- **THEN** it is not retried, and the person is told the answer was
+  relayed but not logged, and why
 
 #### Scenario: An answer file first seen after the record drops the retry
 
-- **WHEN** this machine retries an owed push, and a fetch after it
-  recorded the push first shows an answer file that counts as the
-  person's answer and names the same questions-branch file
+- **WHEN** this machine retries an owed push, and a fetch after recording
+  it first shows an answer file counting as the person's answer that
+  names the same questions-branch file
 - **THEN** the answer session drops the retry and pushes no file for it
 - **AND** an answer file naming that file that this machine had already
   seen when it recorded the push does not drop the retry
 
 ### Requirement: The log command commits with the person's git identity
 
-The answer session SHALL run the `log` command with the `GIT_AUTHOR_*`,
-`GIT_COMMITTER_*` and `GIT_CONFIG_*` settings github-app sets removed
-from its environment, so that it commits with the person's git identity
-and signing, never a GitHub App's (design.md: *Setup checks
-questions-branch commits are the person's*).
+The answer session SHALL run the `log` command without the
+`GIT_AUTHOR_*`, `GIT_COMMITTER_*` and `GIT_CONFIG_*` settings github-app
+sets, so that it commits with the person's git identity and signing,
+never a GitHub App's (design.md: *Setup checks questions-branch commits
+are the person's*).
 
 #### Scenario: The log command drops github-app's git settings
 
 - **WHEN** the answer session pushes an answer file from a Claude Code
-  session whose environment holds the `GIT_AUTHOR_*`, `GIT_COMMITTER_*`
-  and `GIT_CONFIG_*` settings github-app sets
+  session whose environment holds github-app's `GIT_AUTHOR_*`,
+  `GIT_COMMITTER_*` and `GIT_CONFIG_*` settings
 - **THEN** it runs the `log` command without them, and the commit carries
   the person's git identity and signing, not the App's
 
@@ -1477,29 +1495,29 @@ before its post.
 
 #### Scenario: An answer to a questions-branch question is logged at once
 
-- **WHEN** the person confirms an answer to a thread copy that a
+- **WHEN** the person confirms an answer to a thread copy a
   questions-branch file holds, and the thread's channel is off
-- **THEN** the inquisitor script's `log` command pushes an answer file
-  naming that file, with no `answer_link`, holding the answer as the
-  person confirmed it, and the answer is kept as answered, not relayed
+- **THEN** the `log` command pushes an answer file naming that file, with
+  no `answer_link`, holding the answer as confirmed, and the answer is
+  kept as answered, not relayed
 
 #### Scenario: A refusal that turns the channel off pushes the file at once
 
-- **WHEN** the person confirms an answer to a thread copy that a
-  questions-branch file holds, and the surface refuses the relay post,
-  and the refusal turns the thread's channel off
-- **THEN** the inquisitor script's `log` command pushes an answer file
-  naming that file, with no `answer_link`, holding the answer as the
-  person confirmed it, and the answer is kept as answered, not relayed
+- **WHEN** the person confirms an answer to a thread copy a
+  questions-branch file holds, and the surface's refusal of the relay
+  post turns the thread's channel off
+- **THEN** the `log` command pushes an answer file naming that file, with
+  no `answer_link`, holding the answer as confirmed, and the answer is
+  kept as answered, not relayed
 
 #### Scenario: An answer held back by a new message pushes no file
 
-- **WHEN** the person confirms an answer to a thread copy that a
+- **WHEN** the person confirms an answer to a thread copy a
   questions-branch file holds, and the fetch before the post, under *The
   thread is read again before a question is shown and before a post*,
   finds a new message in the thread
-- **THEN** nothing is posted, no answer file is pushed, and the answer
-  is kept as answered, not relayed, until the person posts or drops it
+- **THEN** nothing is posted or pushed, and the answer stays pending
+  until the person posts or drops it
 
 ### Requirement: An answer logged at once gets a new file only when posted edited
 
@@ -1512,8 +1530,8 @@ person's answer.
 
 #### Scenario: An edited answer pushed at once pushes a new file when posted
 
-- **WHEN** this machine holds an answer whose file it pushed at once, and
-  the person edits it and posts it once its channel is on
+- **WHEN** the person edits an answer whose file this machine pushed at
+  once, and posts it once its channel is on
 - **THEN** the `log` command pushes a new answer file naming the same
   file, with the relay post's URL as its `answer_link`; posted unedited,
   it pushes no second file
@@ -1549,9 +1567,9 @@ new post is.
 
 #### Scenario: An edit is scanned as a new post is
 
-- **WHEN** the person edits a relay post so that it holds a string shaped
-  like a GitHub access token
-- **THEN** the answer session does not change the post, and says why
+- **WHEN** the person's edit of a relay post holds a string shaped like a
+  GitHub access token
+- **THEN** the post is not changed, and the person is told why
 
 #### Scenario: An edit on another machine finds the post in the thread
 
@@ -1565,10 +1583,10 @@ new post is.
 When an edit leaves a `User says: ` answer to a question an unanswered
 questions-branch log file holds, the answer session SHALL push a new log
 file naming that file in `answers`, as *A questions-branch question is
-answered by a new log file* does, but holding the question the earlier
-answer file holds, if one was pushed. It SHALL leave every earlier file
-unchanged; the newest counts, as the inquisitor's *A named file's answer
-is the newest proven answer file naming it* says.
+answered by a new log file* does, holding the earlier answer file's
+question or, if none, the question the person saw. Every earlier file SHALL stay unchanged;
+the newest counts, by the inquisitor's *A named file's answer is the
+newest proven answer file naming it*.
 
 #### Scenario: Editing an agreed recorded answer into the person's words pushes a log file
 
@@ -1578,30 +1596,26 @@ is the newest proven answer file naming it* says.
   it starts with `User says: `
 - **THEN** the relay updates its post, and the script pushes a new log
   file holding the question as the person saw it and the edited answer,
-  which is the question's first answer file there, since agreeing pushed
-  none
+  the question's first answer file there, since agreeing pushed none
 
 #### Scenario: Editing an answer the questions branch also logged pushes a new log file
 
-- **WHEN** the person edits a `User says: ` answer they relayed in a
-  GitHub thread to a question that an unanswered log file on the lore
-  repository's questions branch also holds, and the answer session had
-  pushed a log file recording that answer
+- **WHEN** the person edits a `User says: ` answer relayed in a GitHub
+  thread to a question an unanswered questions-branch log file holds,
+  whose answer the answer session had logged
 - **THEN** the relay updates its post, and the script pushes a new log
-  file naming the unanswered file in `answers`, holding the question the
-  earlier answer file holds and the edited answer, with the relay post's
-  URL as its `answer_link`, leaving the unanswered file and the earlier
-  answer's file unchanged
-- **AND** the new file is the one that counts, as the inquisitor's *A
-  named file's answer is the newest proven answer file naming it* says
+  file naming the unanswered file in `answers`, with the earlier answer
+  file's question, the edited answer and the relay post's URL as
+  `answer_link`, leaving both earlier files unchanged
+- **AND** the new file is the one that counts
 
 ### Requirement: The person can ask the asker
 
 The answer session SHALL let the person ask the asker for clarification
 instead of answering. It SHALL post the clarifying question as it posts an
-answer, naming the question in the same way, except that the post starts
-with `User asks: `, and that it tags the asker when the asker is a person.
-The question then waits for the asker.
+answer, naming the question the same way, except that the post starts
+with `User asks: ` and tags the asker when the asker is a person. The
+question then waits for the asker.
 
 #### Scenario: A clarifying question goes to the asker's thread
 
@@ -1612,8 +1626,8 @@ The question then waits for the asker.
 
 #### Scenario: A clarifying question to an Igor worker goes on the item
 
-- **WHEN** an issue in a subscribed repository is assigned to the person,
-  an Igor's worker asked a question in its handback comment on it, and the
+- **WHEN** an Igor's worker asked a question in its handback comment on
+  an issue, in a subscribed repository, assigned to the person, and the
   person asks back
 - **THEN** the relay posts the clarifying question on that issue, starting
   with `User asks: `, where whichever worker next takes the item reads it
@@ -1625,7 +1639,7 @@ post naming it in its thread: `User says: ` answered; `Recorded answer: `
 answered, and `Inquisitor: ` handled, for the person, listed apart from
 the queue; `User asks: ` waiting for the asker, whose reply returns it to
 the queue with the reply; otherwise unanswered. This machine adds only a
-pending answer and a close; a close wins over the thread (design.md:
+pending answer and a close; the close wins over the thread (design.md:
 *Closing works by exact identity, never by matching*).
 
 #### Scenario: A relay reply marks the question answered on every machine
@@ -1639,17 +1653,16 @@ pending answer and a close; a close wins over the thread (design.md:
 
 - **WHEN** a GitHub issue's conversation holds two comments that each tag
   the person, and the relay has answered the second, naming it
-- **THEN** the answer session shows the second as answered and the first
-  as unanswered
+- **THEN** the second shows as answered and the first as unanswered
 
 #### Scenario: An automatic post marks the question answered or handled for the person
 
 - **WHEN** the latest relay post naming one question starts with
   `Recorded answer: `, and the latest naming another starts with
   `Inquisitor: `
-- **THEN** the answer session lists the first as answered for the person
-  and the second as handled for them, where the person can see and edit
-  what was posted, and shows neither in the queue
+- **THEN** the first is listed as answered for the person and the second
+  as handled for them, where the person can see and edit what was
+  posted, and neither is in the queue
 
 #### Scenario: A question declined on one machine is open on another
 
@@ -1662,48 +1675,47 @@ pending answer and a close; a close wins over the thread (design.md:
 
 #### Scenario: A clarifying question marks it waiting
 
-- **WHEN** the latest relay post naming a question starts with
+- **WHEN** a question's latest relay post naming it starts with
   `User asks: `, and the asker has posted nothing since
-- **THEN** the answer session shows the question as waiting for the asker
+- **THEN** the question shows as waiting for the asker
 
 #### Scenario: The asker's reply brings the question back
 
 - **WHEN** the asker replies to the relay's clarifying question, whether
   or not the reply is itself a question
-- **THEN** the answer session shows the reply as a question asked of the
-  person, with the question it answers
+- **THEN** the reply is shown as a question asked of the person, with the
+  question it answers
 
 #### Scenario: A post lost from local state still marks the question answered
 
 - **WHEN** a relay post succeeded, and the state folder holds no record of
   it
-- **THEN** the answer session shows the question as answered, from the
-  thread
+- **THEN** the question shows as answered, from the thread
 
 ### Requirement: A questions-branch question's state is read from its branch
 
-A questions-branch file SHALL count as answered once an answer file
-there names it in `answers` and counts as the person's answer (design.md:
-*An answer file names the file it answers*; *A named file stays shown
-until its answer counts*). Only a handled file naming it SHALL close it,
-on every machine and for good, as *A handled file closes a
-questions-branch question* says; nothing reopens it. A closed file stays
-unanswered: answering its open thread copy still pushes a log file.
+A questions-branch file SHALL count as answered once an answer file naming
+it in `answers` counts as the person's answer (design.md: *An answer file
+names the file it answers*; *A named file stays shown until its answer
+counts*). Only a handled file naming it SHALL close it, on every machine
+and for good, under *A handled file closes a questions-branch question*.
+A closed file stays unanswered: answering its open thread copy still
+pushes a log file.
 
 #### Scenario: An answer file that does not count leaves its file shown
 
-- **WHEN** an answer file with `authority: input` names a questions-branch
-  file in `answers`
-- **THEN** the answer session still shows the named file as a question,
-  with that answer beside it as input
+- **WHEN** an `authority: input` answer file names a questions-branch file
+  in `answers`
+- **THEN** the named file is still shown as a question, with that answer
+  beside it as input
 
 #### Scenario: An answer to a closed file's thread copy still logs
 
-- **WHEN** a handled file names a questions-branch file, and on a machine
-  where the thread copy that file holds is still open, the person
-  answers that thread copy
-- **THEN** the answer session relays the answer and pushes a log file
-  naming that questions-branch file
+- **WHEN** a handled file names a questions-branch file, and the person
+  answers the thread copy it holds on a machine where that copy is still
+  open
+- **THEN** the answer is relayed, and a log file naming that
+  questions-branch file is pushed
 
 ### Requirement: The thread is read again before a question is shown and before a post
 
@@ -1719,21 +1731,21 @@ not seen, showing that reply and keeping a held-back answer pending.
 
 - **WHEN** a question comes on screen, its channel was last polled 3
   minutes ago, and two people have replied in its thread since the question
-- **THEN** the answer session fetches the thread and shows both replies,
-  and leaves the question unanswered
+- **THEN** the thread is fetched and both replies shown, and the question
+  stays unanswered
 
 #### Scenario: An answer relayed elsewhere is not posted twice
 
 - **WHEN** the person relays an answer, and the thread already holds a
   relay post answering the question, made from another machine
-- **THEN** the answer session posts nothing, and shows the question as
-  answered, as *The thread is the durable record of an answer* says
+- **THEN** nothing is posted, and the question shows as answered, as *The
+  thread is the durable record of an answer* says
 
 #### Scenario: A new reply stops the post
 
-- **WHEN** the person relays an answer, and the asker has replied in the
+- **WHEN** the person relays an answer after the asker has replied in the
   thread since the question was shown
-- **THEN** the answer session posts nothing, and shows the asker's reply
+- **THEN** nothing is posted, and the asker's reply is shown
 
 ### Requirement: Local state is per machine, in the state folder
 
@@ -1748,13 +1760,13 @@ answered.
 #### Scenario: The state folder holds all working state
 
 - **WHEN** the answer session saves its working state
-- **THEN** it writes to the state folder, and nowhere else, the questions
-  set aside for later, the closed questions, each open question's
-  discussion record, each channel's and the GitHub notifications feed's
-  poll position, each check's last result, the ids of relay posts, the
-  question on screen, the answers held as answered, not relayed, each owed
-  answer-file or handled-file push (design.md: *The push order for a
-  questions-branch answer*), and the lock
+- **THEN** it writes only to the state folder: the questions set aside
+  for later, the closed questions, each open question's discussion
+  record, each channel's and the notifications feed's poll position,
+  each check's last result, relay post ids, the question on screen, the
+  answers held as answered, not relayed, each owed answer-file or
+  handled-file push (design.md: *The push order for a questions-branch
+  answer*), and the lock
 
 #### Scenario: Filter 1 never searches the state folder
 
@@ -1773,8 +1785,8 @@ answered.
 
 - **WHEN** the question on screen when the answer session closed has since
   been answered from another machine
-- **THEN** on opening, the answer session opens on the next question in the
-  queue, not on that one
+- **THEN** on opening, the answer session shows the next question in the
+  queue instead
 
 #### Scenario: An answered question's discussion record is deleted
 
@@ -1784,9 +1796,9 @@ answered.
 
 #### Scenario: A question set aside on one machine is new on another
 
-- **WHEN** the person sets a question aside for later on one machine and
+- **WHEN** the person sets a question aside for later on one machine, then
   opens the answer session on another
-- **THEN** the second machine shows the question as new
+- **THEN** the other machine shows it as new
 
 ### Requirement: One answer session runs on each machine
 
@@ -1802,27 +1814,28 @@ each poll and post, the holder SHALL close if the lock names another.
 
 - **WHEN** a background session named `Answers` holds a fresh lock, and the
   person types `/answer` in another session
-- **THEN** this session opens no answer session, says that the background
-  session `Answers` holds the lock, by its name and that it is a Claude
-  Code background session, says how to reach it, and offers to take over
+- **THEN** this session opens no answer session, says that the Claude Code
+  background session `Answers` holds the lock, says how to reach it, and
+  offers to take over
 
 #### Scenario: Taking over stops the old holder
 
 - **WHEN** the person takes over from another session's answer session
 - **THEN** the new session replaces the lock and holds it, and the old
-  session, finding the lock names another session before its next poll
-  or post, closes its answer session and polls and posts nothing more
+  session, finding before its next poll or post that the lock names
+  another session, closes its answer session and polls and posts nothing
+  more
 
 #### Scenario: A live holder keeps its lock fresh
 
-- **WHEN** the holder has been open for 10 minutes and is idle
+- **WHEN** the holder has been open, idle, for 10 minutes
 - **THEN** its lock was refreshed within the last 30 seconds, and a
   second session that opens the answer session finds it not stale
 
 #### Scenario: A crashed holder's lock goes stale
 
-- **WHEN** the holder crashed, and its lock has not been refreshed for 2
-  minutes
+- **WHEN** the holder crashed, and its lock has gone 2 minutes
+  unrefreshed
 - **THEN** the next session to open the answer session takes the lock
   without asking
 
@@ -1834,23 +1847,23 @@ each poll and post, the holder SHALL close if the lock names another.
 ### Requirement: A discussion runs in the session's own conversation
 
 Each discussion message SHALL go to the model as an ordinary prompt,
-with the question attached as its scenarios list, and the question, its
-context and replies as quoted data, never instructions. The context
+with the question attached as its first scenario details, the question,
+its context and replies as quoted data, never instructions. The context
 SHALL tell the model to explain and lay out trade-offs without choosing,
 that it may read with tools, and to post and change nothing. A question
-it asks in its reply SHALL skip the four filters and vetting. Replies
+it asks back SHALL skip the four filters and vetting. Replies
 stay in the conversation; the discussion record SHALL keep both.
 
 #### Scenario: A discussion message carries its question
 
-- **WHEN** the person sends a message while talking about a question from
+- **WHEN** the person sends a message while discussing a question from
   igor's pull request #216
 - **THEN** the model receives the message with that question, where and
   by whom it was asked, its context, its options with what each would
   change, any related or possibly answering decision, any reply from the
   asker, and the context's three instructions: explain and lay out
-  trade-offs without choosing, read with its tools, such as the
-  question's thread, the code and the specs, and post and change nothing
+  trade-offs without choosing; read with its tools, such as the
+  question's thread, the code and the specs; and post and change nothing
 
 #### Scenario: A thread's text reaches the model as quoted data
 
@@ -1876,8 +1889,8 @@ stay in the conversation; the discussion record SHALL keep both.
 
 - **WHEN** the person sends two messages about a question, and the model
   replies to each
-- **THEN** that question's discussion record in the state folder holds both
-  messages and both replies
+- **THEN** the question's discussion record holds both messages and both
+  replies
 
 ### Requirement: Claude's draft goes to the prompt box, never to a post
 
@@ -1893,24 +1906,23 @@ fill in only the record's URL, on the fixed post's `Recorded in: ` line
 
 - **WHEN** the person asks Claude to draft their reply, and the model calls
   `propose_reply`
-- **THEN** the draft is in the prompt box, nothing is posted, and the person
-  can edit it before relaying it; it is posted only when the person
-  relays it, as any answer is
+- **THEN** the draft is in the prompt box, nothing is posted, and the
+  person can edit it; it is posted only when the person relays it, as
+  any answer is
 
 #### Scenario: A draft for an edit replaces the post's text
 
-- **WHEN** the person is editing a relay post and asks Claude to draft the
-  new text
-- **THEN** the draft is in the prompt box as the post's new text, and the
-  post is changed only when the person relays the edit
+- **WHEN** the person, editing a relay post, asks Claude to draft the new
+  text
+- **THEN** the draft lands in the prompt box as the post's new text, which
+  changes only when the person relays the edit
 
 #### Scenario: The context asks for a draft at the question's privacy
 
 - **WHEN** the person discusses a question asked in a public repository
-- **THEN** the context tells the model to call `propose_reply` for a draft,
-  and to write that draft at the privacy of that repository, by the
-  inquisitor's rule *A question is written at the privacy of what it
-  concerns*
+- **THEN** the context tells the model to call `propose_reply` for a
+  draft, written at that repository's privacy, by the inquisitor's rule
+  *A question is written at the privacy of what it concerns*
 
 #### Scenario: A subagent cannot call propose_reply
 
@@ -1919,17 +1931,17 @@ fill in only the record's URL, on the fixed post's `Recorded in: ` line
 
 #### Scenario: A draft fills the record's URL for a filter 1 decline
 
-- **WHEN** the person declines a question because the inquisitor should
-  have handled it, picks filter 1, and asks Claude to find the record
-- **THEN** Claude's draft through `propose_reply` puts the record's URL
-  in the prompt box as the place the person gives, and the answer
-  session shows the recorded-answer post in its fixed form, with that URL
-  on its `Recorded in: ` line, for the person to confirm
+- **WHEN** the person, declining a question because the inquisitor should
+  have handled it, picks filter 1 and asks Claude to find the record
+- **THEN** Claude's `propose_reply` draft puts the record's URL in the
+  prompt box as the place the person gives, and the answer session
+  shows the recorded-answer post in its fixed form, with that URL on its
+  `Recorded in: ` line, for the person to confirm
 
 ### Requirement: A rephrased question is answered with its rephrasing
 
 When the person answers a question rephrased after a discussion, the
-answer session SHALL post:
+answer session SHALL post, once they confirm all of it:
 
 ```
 User says: <the answer>
@@ -1938,32 +1950,31 @@ Rephrased question: <the question as rephrased>
 Discussion: <the discussion in one sentence>
 ```
 
-with its `Re: ` line on GitHub, once the person confirms the whole post.
-The model drafts both added lines at the question's privacy. The agent
-logging the answer SHALL record both in the log file, as the
-inquisitor's *A log file and a miss file have one format* states.
+with its `Re: ` line on GitHub. The model drafts both added lines at the
+question's privacy. The agent logging the answer SHALL record both in its
+log file, as the inquisitor's *A log file and a miss file have one
+format* states.
 
 #### Scenario: A rephrased answer carries the rephrasing
 
 - **WHEN** the person rephrases a question after a discussion, confirms the
   model's rephrasing and summary, and answers it
 - **THEN** the relay post starts with `User says: ` and the answer, then
-  gives the rephrased question and the one-sentence summary on lines of
-  their own, both drafted at the privacy of what the question concerns,
-  by the inquisitor's rule *A question is written at the privacy of what
-  it concerns*
+  gives the rephrased question and the one-sentence summary on their own
+  lines, both drafted at the privacy of what the question concerns, by
+  the inquisitor's rule *A question is written at the privacy of what it
+  concerns*
 
 #### Scenario: An unconfirmed rephrasing is not posted
 
-- **WHEN** the model has drafted a rephrasing, and the person has not
-  confirmed it
+- **WHEN** the model has drafted a rephrasing the person has not confirmed
 - **THEN** the answer session posts nothing
 
 #### Scenario: The asker logs the rephrasing
 
 - **WHEN** an agent records the answer to its question from a relay post
   that gives a rephrased question
-- **THEN** the question's log file holds the rephrased question under
+- **THEN** its log file holds the rephrased question under
   `## Rephrased question` and the summary under `## Discussion`
 
 ### Requirement: A questions-branch question is answered by a new log file
@@ -1979,41 +1990,40 @@ withheld, and offer the fourth source no ask-back or edit.
 #### Scenario: A questions-branch question is answered by a new file
 
 - **WHEN** the person answers a question of the fourth source
-- **THEN** the inquisitor script's `log` command pushes a new log file
-  holding the question and the answer to that branch, under the rules of
-  the inquisitor's *A file on a questions branch never changes once
-  pushed* and *An organization's question is pushed to its lore
-  repository's questions branch*, in a commit with the message
-  `inquisitor: log <file>`, naming the earlier file in `answers` and
-  copying its `asked_from`, when it has one, as *A miss records who
-  judged it and copies its file's asked_from* has a miss copy it; it posts
+- **THEN** the `log` command pushes to that branch, in a commit
+  `inquisitor: log <file>`, a new log file holding the question and the
+  answer, under the inquisitor's *A file on a questions branch never
+  changes once pushed* and *An organization's question is pushed to its
+  lore repository's questions branch*, naming the earlier file in
+  `answers` and copying any `asked_from` it has as a miss does; it posts
   nothing, and leaves the earlier file unchanged
 
 #### Scenario: A questions-branch question asked in a post is answered in both places
 
-- **WHEN** the person answers, from its GitHub thread, a question that an
-  unanswered log file on the lore repository's questions branch also holds
+- **WHEN** the person answers, from its GitHub thread, a question an
+  unanswered log file on the lore repository's questions branch also
+  holds
 - **THEN** the relay posts the answer in the thread, starting
-  `User says: `, as *An answer is relayed as the person's words* says,
-  and the script pushes a new log file holding the question and, as its
-  answer, that relay post's text word for word, to that branch, whose
-  `answer_link` is that relay post's URL, passed to the `log` command
+  `User says: `, and the script pushes to that branch a new log file
+  holding the question and, as its answer, that relay post's text word
+  for word, with the post's URL, passed to the `log` command, as its
+  `answer_link`
 
 #### Scenario: A late answer on another machine answers a closed file
 
-- **WHEN** the person declined with nothing to answer, on one machine, a thread copy that
-  a questions-branch file holds, and then answers that thread copy on
-  another machine
-- **THEN** the answer session relays the answer in the thread and pushes a
-  log file naming the closed file in `answers`
+- **WHEN** the person declined with nothing to answer, on one machine, a
+  thread copy a questions-branch file holds, then answers that thread
+  copy on another machine
+- **THEN** the answer is relayed in the thread, and a log file naming the
+  closed file in `answers` is pushed
 
 #### Scenario: A Linear link is left out of a lore repository that is not private
 
-- **WHEN** the person answers, from its Linear thread, a question that an
+- **WHEN** the person answers, from its Linear thread, a question an
   unanswered log file on an internal lore repository's questions branch
   also holds
 - **THEN** the script pushes a new log file holding the relayed answer
-  and no `answer_link`, which the `log` command withholds, as the
+  with no `answer_link`, which the `log` command withholds, as the
   inquisitor's *The log command withholds a link where it would leak*
   says (design.md: *`answer_link` and `asked_in` are withheld where they
   would leak*)
@@ -2044,11 +2054,11 @@ sent to the relay's skill, and the command fetches nothing.
 
 #### Scenario: An unrelayed answer is logged as the person confirmed it
 
-- **WHEN** the person answers a question of the fourth source in the
-  answer session
-- **THEN** the new log file's answer is the answer the person confirmed,
-  word for word, as quote lines (design.md: *A logged answer is the
-  person's own words*)
+- **WHEN** the person answers a fourth-source question in the answer
+  session
+- **THEN** the new log file's answer is the confirmed answer, word for
+  word, as quote lines (design.md: *A logged answer is the person's own
+  words*)
 
 #### Scenario: A GitHub relay's answer is read from the comment
 
@@ -2056,41 +2066,38 @@ sent to the relay's skill, and the command fetches nothing.
   question that a questions-branch file holds
 - **THEN** the `log` command reads the answer from the relay comment's
   own text, as the inquisitor's *An answer logged from a comment is the
-  comment's whole text* has every writer do, and the file's answer holds
-  the post's `Rephrased question: ` and `Discussion: ` lines, which its
-  `## Rephrased question` and `## Discussion` sections hold as well
+  comment's whole text* requires, and the file's answer holds the post's
+  `Rephrased question: ` and `Discussion: ` lines, also held in its
+  `## Rephrased question` and `## Discussion` sections
   (design.md: *A rephrased answer carries its rephrasing, and the asker
   logs it*)
 
 #### Scenario: A questions-branch answer relayed on Linear keeps its link unfetched
 
-- **WHEN** the person answers, from its Linear thread, a question that an
+- **WHEN** the person answers, from its Linear thread, a question an
   unanswered log file on a private lore repository's questions branch
-  also holds
-- **THEN** the answer session passes the `log` command the text it sent
-  to the relay's skill, its `User says: ` prefix included, and the
-  script pushes a new log file whose answer is that text, word for word,
-  as quote lines, and whose `answer_link` is that Linear comment's URL,
-  and nothing fetches that URL
-  (design.md: *Questions-branch answers relayed on Linear or Discord*)
+  holds
+- **THEN** the `log` command gets the text sent to the relay's skill,
+  `User says: ` included, and pushes a new log file whose answer is that
+  text word for word, as quote lines, and whose `answer_link`, that
+  Linear comment's URL, nothing fetches (design.md: *Questions-branch
+  answers relayed on Linear or Discord*)
 - **AND** the file counts only through its commit's signature
 
 #### Scenario: A signed log file of a Discord-relayed answer is a decision
 
-- **WHEN** the person answers in the answer session a question that a
-  private lore repository's questions branch holds, the session relays
-  it on Discord, and GitHub verifies a signature for `answered_by` on
-  the commit that adds the log file, which no later commit changed, and
-  `answered_by` has write access to what the question concerns
-- **THEN** the file's answer is the text the session sent to
-  discord-bot, before discord-bot rewrites any mention, its `authority`
-  is the one the inquisitor's *An answer is a decision only from a
-  proven writer with write access* sets for an answer given in the
-  session, filter 1
-  counts the file as a decision only through that signature, by the
-  inquisitor's *A link off GitHub proves no writer, but a relayed
-  answer's signature can*, and the file's Discord `answer_link` proves
-  nothing
+- **WHEN** the person answers a question a private lore repository's
+  questions branch holds, the session relays it on Discord, GitHub
+  verifies a signature for `answered_by` on the commit adding the log
+  file, which no later commit changed, and `answered_by` has write
+  access to what the question concerns
+- **THEN** the file's answer is the text sent to discord-bot, before any
+  mention is rewritten; its `authority` is what the inquisitor's *An
+  answer is a decision only from a proven writer with write access* sets
+  for a session answer; filter 1 counts it a decision only through that
+  signature, by the inquisitor's *A link off GitHub proves no writer,
+  but a relayed answer's signature can*; and its Discord `answer_link`
+  proves nothing
 
 #### Scenario: An unsigned log file of a Discord-relayed answer is input
 
@@ -2114,31 +2121,31 @@ closes only the file it names, on every machine, and answers nothing.
 #### Scenario: An automatic Inquisitor reply pushes a handled file
 
 - **WHEN** the answer session posts filter 4's `Inquisitor: ` reply by
-  itself on a question in a GitHub thread that an unanswered log file on
-  the lore repository's questions branch also holds
-- **THEN** it pushes a handled file naming that log file, through the
-  `log` command's handled option, as the inquisitor's *Only an answer
-  session writes a handled file* says, in the format its *A log file and
-  a miss file have one format* gives, as it does for a
-  `Recorded answer: ` post, or a decline, agreeing to a
-  shown recorded answer included, with a thread or without
+  itself on a question, in a GitHub thread, that an unanswered
+  questions-branch log file also holds
+- **THEN** it pushes, through the `log` command's handled option, a
+  handled file naming that log file, in the format of the inquisitor's
+  *A log file and a miss file have one format*
+- **AND** it does the same for a `Recorded answer: ` post and for any
+  decline, agreeing included, with a thread or without, being the only
+  writer of handled files under the inquisitor's *Only an answer session
+  writes a handled file*
 
 #### Scenario: A handled file closes a questions-branch question
 
 - **WHEN** a lore repository's questions branch holds an unanswered log
-  file whose question tags the person, and a handled file naming it
-- **THEN** the answer session shows neither file as a question, on any
-  machine
+  file tagging the person and a handled file naming it
+- **THEN** neither file is shown as a question, on any machine
 
 #### Scenario: A handled file closes only the file it names
 
 - **WHEN** a handled file names one questions-branch file, and another
   questions-branch file, or a thread, holds the same words
-- **THEN** the answer session still shows the other file and the thread
-  copy, and the handled file answers neither the file it names nor any
-  searching agent's question (design.md: *The answer session writes a
-  handled file on every close of a questions-branch file*; *Closing
-  works by exact identity, never by matching*)
+- **THEN** the other file and the thread copy are still shown, and the
+  handled file answers neither the file it names nor any searching
+  agent's question (design.md: *The answer session writes a handled file
+  on every close of a questions-branch file*; *Closing works by exact
+  identity, never by matching*)
 
 #### Scenario: Two questions-branch files get two handled files
 
@@ -2149,11 +2156,11 @@ closes only the file it names, on every machine, and answers nothing.
 
 #### Scenario: A thread copy declined with nothing posted shows again elsewhere
 
-- **WHEN** the person declines with nothing to answer, on one machine, a question in a
-  GitHub thread that a questions-branch file also holds
+- **WHEN** the person declines with nothing to answer, on one machine, a
+  question in a GitHub thread a questions-branch file also holds
 - **THEN** a handled file closes the questions-branch file on every
-  machine, the thread copy is closed on that machine only, and another
-  machine shows the thread copy, which the person can decline again
+  machine, the thread copy closes on that machine only, and another
+  machine shows the thread copy, for the person to decline again
 
 ### Requirement: A handled file is pushed once its close takes effect
 
@@ -2167,17 +2174,15 @@ until it succeeds.
 #### Scenario: A failed post pushes no handled file
 
 - **WHEN** the person declines under the second reason a question in a
-  GitHub thread that a questions-branch file also holds, and the post
-  fails
+  GitHub thread a questions-branch file also holds, and the post fails
 - **THEN** no handled file is pushed
 
 #### Scenario: A failed handled-file push is retried
 
 - **WHEN** the person confirms a decline with nothing posted, and the
   handled file's push fails
-- **THEN** the owed push stays recorded in the state folder, and the
-  answer session tries it again at each poll and each opening until it
-  succeeds
+- **THEN** the owed push stays recorded in the state folder, retried at
+  each poll and each opening until it succeeds
 
 ### Requirement: Four reserved prefixes mark the answer session's posts
 
@@ -2193,16 +2198,16 @@ the person's words.
 #### Scenario: The instructions reserve the prefixes
 
 - **WHEN** an agent reads the skill's instructions on relay identities
-- **THEN** they say that a relay identity may post for other work, and
-  that no post but the answer session's starts with `User says: `,
-  `User asks: `, `Recorded answer: ` or `Inquisitor: `
+- **THEN** they say a relay identity may post for other work, but only
+  the answer session's posts start with `User says: `, `User asks: `,
+  `Recorded answer: ` or `Inquisitor: `
 
 #### Scenario: A relay identity's other post sets no state
 
 - **WHEN** the GitHub relay identity, used by an agent for other work,
-  comments in a question's thread without a reserved prefix
-- **THEN** the answer session does not count that comment as a relay post,
-  and the question's state is unchanged
+  comments in a question's thread with no reserved prefix
+- **THEN** that comment is no relay post, and the question's state is
+  unchanged
 
 #### Scenario: A reserved prefix outside the answer session is checked only on GitHub
 
@@ -2214,8 +2219,8 @@ the person's words.
 
 #### Scenario: Automatic posts come only from the filters and the decline
 
-- **WHEN** the answer session makes a post starting `Recorded answer: `
-  or `Inquisitor: `
+- **WHEN** the answer session makes a `Recorded answer: ` or
+  `Inquisitor: ` post
 - **THEN** it makes it only as *Filter 1 posts a recorded answer by
   itself in the question's thread*, *Filters 2 to 4 judge every incoming
   question* or *Declining for the inquisitor posts the picked filter's
@@ -2224,13 +2229,13 @@ the person's words.
 #### Scenario: An automatic post is posted as a relay post is
 
 - **WHEN** the answer session makes an automatic post
-- **THEN** it posts it as *An answer is relayed as the person's words*
-  and *A relay post is posted by a host command, unvetted* have a relay
-  post posted: it runs the relay identity's skill as a host command with
-  no shell, names the question as a relay post does, keeps
-  the post's id in the state folder, scans it for the credential
-  patterns first, and applies neither prose's pass nor the inquisitor's
-  filters
+- **THEN** it posts it as a relay post is posted under *An answer is
+  relayed as the person's words* and *A relay post is posted by a host
+  command, unvetted*: through the relay identity's skill run as a host
+  command with no shell, naming the question as a relay post does,
+  keeping the post's id in the state folder, scanned first for the
+  credential patterns, with neither prose's pass nor the inquisitor's
+  filters applied
 
 #### Scenario: An automatic post is never shown as the person's words
 
@@ -2240,9 +2245,9 @@ the person's words.
 
 #### Scenario: Nothing starting with User says is posted unconfirmed
 
-- **WHEN** the session's model has drafted a reply, and the person has
-  not confirmed it
-- **THEN** the answer session posts nothing that starts with `User says: `
+- **WHEN** the session's model has drafted a reply the person has not
+  confirmed
+- **THEN** nothing starting with `User says: ` is posted
 
 ### Requirement: The person can decline to answer
 
@@ -2250,50 +2255,49 @@ On any open question, the person SHALL be able to decline to answer,
 giving one of two reasons (design.md: *Two reasons to decline*):
 
 1. **Nothing to answer:** the conversation is over, or it isn't a
-   question. Nothing is posted, no miss is logged, and only this question
-   closes (design.md: *Declining with nothing to answer closes only that
-   question*; *Misses the answer session logs*).
+   question. Nothing is posted, no miss logged, and only this question
+   closes (design.md: *Declining with nothing to answer closes
+   only that question*; *Misses the answer session logs*).
 2. **The inquisitor should have handled it.**
 
 #### Scenario: Declining with nothing to answer posts nothing
 
-- **WHEN** the person declines a question asked on GitHub under the
-  first reason, nothing to answer
+- **WHEN** the person declines a GitHub question under the first reason,
+  nothing to answer
 - **THEN** nothing is posted in its thread, and the question leaves the
   queue
 
 #### Scenario: A follow-up after a closed conversation is a new question
 
-- **WHEN** the person declines, because the conversation is over, a
-  question in a GitHub issue's conversation where the relay had posted
-  before it, and the asker then comments again in that conversation
-  without an @-mention
-- **THEN** the answer session shows the comment as a new question, on
-  every machine, as *Later messages after an answer or a decline are new
-  questions* says, and the declined question stays closed
+- **WHEN** the person declines, as the conversation is over, a question
+  in a GitHub issue's conversation where the relay had posted before it,
+  and the asker then comments again there without an @-mention
+- **THEN** the comment is shown on every machine as a new question, as
+  *Later messages after an answer or a decline are new questions* says,
+  and the declined question stays closed
 
 #### Scenario: A reply to a relay post after a closed conversation is a new question
 
-- **WHEN** the person declined a question because the conversation is
-  over, and the asker then replies on Discord to an earlier relay post in
-  that thread, without an @-mention
-- **THEN** the answer session shows the reply as a new question, and the
-  declined question stays closed
+- **WHEN** the person declined a question as the conversation is over,
+  and the asker then replies on Discord to an earlier relay post in that
+  thread, without an @-mention
+- **THEN** the reply is shown as a new question, and the declined
+  question stays closed
 
 #### Scenario: A reply after a decline is a new question
 
-- **WHEN** the person declined under the first reason, nothing to
-  answer, a message in a GitHub thread, and the asker then replies in a
-  review thread to an earlier relay post in that thread
-- **THEN** the answer session does not reopen the declined question, and
-  shows the reply on its own as a new question
+- **WHEN** the person declined, as nothing to answer, a message in a
+  GitHub thread, and the asker then replies in a review thread to an
+  earlier relay post there
+- **THEN** the declined question is not reopened, and the reply is shown
+  on its own as a new question
 
 #### Scenario: A mention after a closed conversation is a question
 
-- **WHEN** the person declined a question because the conversation is
-  over, and someone later writes in that thread a message that
-  @-mentions the person
-- **THEN** the answer session shows that message as a question
+- **WHEN** the person declined a question as the conversation is over,
+  and someone later writes in that thread a message @-mentioning the
+  person
+- **THEN** that message is shown as a question
 
 #### Scenario: A message picked up by mistake logs no miss
 
@@ -2308,20 +2312,20 @@ giving one of two reasons (design.md: *Two reasons to decline*):
 Under the second reason, on a person's question as on an agent's, the
 person SHALL pick the filter that should have stopped the question: 1,
 already answered; 2, can wait; 3, one option has merit; or 4, cheap to
-reverse. The answer session SHALL show the person the exact post of that
-filter's reply, and SHALL post it, naming the question, only once they
-confirm it.
+reverse. The answer session SHALL show them the exact post of that
+filter's reply, and post it, naming the question, only once they confirm
+it.
 
 #### Scenario: The inquisitor's reply is posted once the person confirms it
 
-- **WHEN** the person declines an agent's question on GitHub as one the
+- **WHEN** the person declines an agent's GitHub question as one the
   inquisitor should have handled, picks filter 4, and types the note "a
   config flag, easy to flip"
-- **THEN** the answer session shows the filter 4 `Inquisitor: ` text,
-  followed by the line `The person chose this filter.`, as it will be
-  posted, posts it naming the question only once the person confirms it,
-  and logs a miss file whose `filter` is `"4"` and whose `said` is that
-  note
+- **THEN** the answer session shows, as it will be posted, the filter 4
+  `Inquisitor: ` text followed by the line `The person chose this
+  filter.`, posts it naming the question only once the person confirms
+  it, and logs a miss file whose `filter` is `"4"` and whose `said` is
+  that note
 
 #### Scenario: A person's question can be answered for the inquisitor
 
@@ -2333,32 +2337,33 @@ confirm it.
 ### Requirement: A filter 2 to 4 reply the person chose says they chose it
 
 The person's post for filter 2, 3 or 4 SHALL be its fixed `Inquisitor: `
-text from *Filters 2 to 4 judge every incoming question*, then the line
+text from *Filters 2 to 4 judge every incoming question* plus the line
 `The person chose this filter.`, which no post the answer session makes
-by itself holds (design.md: *A post the person chose says so*).
+by itself holds (design.md: *A post the person chose says
+so*).
 
 #### Scenario: The person's filter 3 reply ends with the chosen line
 
-- **WHEN** the person declines an agent's question on GitHub as one the
+- **WHEN** the person declines an agent's GitHub question as one the
   inquisitor should have handled, picks filter 3, and confirms the post
-- **THEN** the relay posts filter 3's fixed `Inquisitor: ` text followed
-  by the line `The person chose this filter.`
+- **THEN** the relay posts filter 3's fixed `Inquisitor: ` text, then the
+  line `The person chose this filter.`
 
 ### Requirement: The person's filter 1 reply links the record they chose
 
 The person's post for filter 1 SHALL be a recorded answer in the form
 *Filter 1 posts a recorded answer by itself in the question's thread*
-gives, whose `Recorded in: ` line holds the URL of the place the person
+gives, its `Recorded in: ` line holding the URL of the place the person
 gave, or of one filter 1 found that they chose.
 
 #### Scenario: A filter 1 reply names the place the person gave
 
 - **WHEN** the person declines a question in a public repository as one
   the inquisitor should have handled, picks filter 1, and gives that
-  repository's `docs/retries.md` as the place it is decided
-- **THEN** once the person confirms it, the relay posts a reply starting
+  repository's `docs/retries.md` as where it is decided
+- **THEN** once they confirm it, the relay posts a reply starting
   `Recorded answer: ` whose `Recorded in: ` line holds that file's URL,
-  and a miss file whose `filter` is `"1"` is logged
+  and a miss file with `filter` `"1"` is logged
 
 ### Requirement: The preview warns when a filter 1 record is more private than the thread
 
@@ -2375,8 +2380,8 @@ filter 1 decline*).
 - **WHEN** the person picks filter 1 for a question in a public
   repository, and the place it is decided is a private repository's
   `DECISIONS.md`
-- **THEN** the answer session shows the person that posting the reply
-  shows the record exists, and posts it only once they confirm
+- **THEN** the person is shown that posting the reply shows the record
+  exists, and the reply is posted only once they confirm
 
 ### Requirement: A decline with no thread or with a category posts nothing
 
@@ -2387,23 +2392,23 @@ SHALL post nothing and close the question.
 
 #### Scenario: A filter 1 reply to a question with no thread is shown, not posted
 
-- **WHEN** the person picks filter 1 for a question of the fourth source,
-  giving a decision document as the place it is decided
+- **WHEN** the person picks filter 1 for a fourth-source question, giving
+  a decision document as where it is decided
 - **THEN** nothing is posted, the person is shown the recorded answer,
   the question closes, and a miss against filter 1 is logged
 
 #### Scenario: A decline on a question with a category posts nothing
 
-- **WHEN** the person declines under the second reason, picking filter
-  2, a question in a GitHub thread that the session's model judges has a
+- **WHEN** the person declines under the second reason, with filter 2, a
+  question in a GitHub thread that the session's model judges has a
   category
 - **THEN** nothing is posted in the thread, and the question closes
 
 ### Requirement: Filter 3 also offers that the agent shouldn't have asked
 
 Under the second reason, filter 3 SHALL also offer "the agent shouldn't
-have asked", for a message the asking agent should not have written,
-which posts nothing (design.md: *Messages that are not questions are
+have asked", for a message the asking agent should not have written; it
+posts nothing (design.md: *Messages that are not questions are
 ignored*).
 
 #### Scenario: The agent shouldn't have asked posts nothing
@@ -2418,15 +2423,15 @@ ignored*).
 Under the second reason, the answer session SHALL log a miss against the
 picked filter, at the privacy of what the question concerns, whose
 `said` is the person's note, or `the inquisitor should have handled it`
-when they typed none. It SHALL push the miss only once its post has gone
-out, or, with nothing posted, once the person has confirmed the decline.
+without one. It SHALL push the miss only once its post has gone out or,
+with nothing posted, once the person confirmed the decline.
 
 #### Scenario: A decline with no note logs the default said after its post
 
-- **WHEN** the person declines an agent's question on GitHub under the
+- **WHEN** the person declines an agent's GitHub question under the
   second reason, picks filter 2, types no note, and confirms the post
-- **THEN** the answer session pushes, only once the post has gone out, a
-  miss file whose `filter` is `"2"` and whose `said` is
+- **THEN** only once the post has gone out is a miss file pushed whose
+  `filter` is `"2"` and whose `said` is
   `the inquisitor should have handled it`
 
 ### Requirement: A filter 1 decline cites its lore entry once
@@ -2447,18 +2452,17 @@ a miss (design.md: *A person's cite pushes a citation file*).
 ### Requirement: A decline with nothing posted closes a thread copy on this machine only
 
 A question declined with nothing posted SHALL be recorded in the state
-folder, which closes a thread copy on this machine only. A
-questions-branch file its handled file names is closed everywhere
-(design.md: *Closing works by exact identity, never by matching*). One
-declined with a post SHALL take its state from its thread.
+folder, closing a thread copy on this machine only; a questions-branch
+file its handled file names closes everywhere (design.md: *Closing works
+by exact identity, never by matching*). One declined with a post SHALL
+take its state from its thread.
 
 #### Scenario: A decline with nothing posted is kept in the state folder
 
 - **WHEN** the person declines a thread copy with nothing to answer, on
   one machine
-- **THEN** the answer session records the decline in that machine's
-  state folder, and that machine shows the question neither in the queue
-  nor as new
+- **THEN** the decline is recorded in that machine's state folder, and
+  that machine neither queues the question nor shows it as new
 
 ### Requirement: Only a thread copy declined with nothing posted is reopened
 
@@ -2472,20 +2476,20 @@ reopen; one declined with a post is changed by editing that post
 
 - **WHEN** the person declined a question under the second reason, and
   the answer session posted that filter's reply
-- **THEN** the answer session offers no way to reopen the question, and
-  the person can change the handling only by editing that post, as *A
-  relay post can be edited where it was posted* says
+- **THEN** no way to reopen the question is offered, and the person can
+  change the handling only by editing that post, as *A relay post can be
+  edited where it was posted* says
 
 #### Scenario: A thread copy declined with nothing posted is reopened on its machine
 
-- **WHEN** the person declined a thread copy with nothing to answer,
-  with nothing posted, and then reopens it on the same machine
-- **THEN** the answer session puts it back in the queue on that machine
+- **WHEN** the person declined a thread copy with nothing to answer and
+  nothing posted, then reopens it on the same machine
+- **THEN** it is back in the queue on that machine
 
 #### Scenario: A declined questions-branch file is not offered for reopening
 
-- **WHEN** the person declined, because the conversation is over, a
-  question from a lore repository's questions branch
+- **WHEN** the person declined, as the conversation is over, a question
+  from a lore repository's questions branch
 - **THEN** the answer session pushed a handled file naming that file,
   which closes it everywhere, and offers no way to reopen it
 
@@ -2501,10 +2505,9 @@ shown with the question, and stops nothing.
 
 #### Scenario: Input does not answer by itself
 
-- **WHEN** the only hit for a question is a log file with
-  `authority: input`
-- **THEN** the answer session posts nothing by itself, and shows the
-  question with that hit labelled as input
+- **WHEN** a question's only hit is a log file with `authority: input`
+- **THEN** nothing is posted by itself, and the question is shown with
+  that hit labelled as input
 
 ### Requirement: A question with a category reaches filter 1 on standard input
 
@@ -2520,13 +2523,12 @@ calls' files and records stay private* keeps the two calls' files.
 
 - **WHEN** a Discord message that holds a password reaches the answer
   session
-- **THEN** the answer session passes it to the script on standard input,
-  the search reaches no source outside the machine, and nothing is posted
-  by itself
+- **THEN** it is passed to the script on standard input, the search
+  reaches no source off the machine, and nothing is posted by itself
 
 ### Requirement: Filter 1 posts a recorded answer by itself in the question's thread
 
-When an answer with authority is recorded, and the question has a
+When an answer with authority is recorded and the question has a
 thread, the answer session SHALL answer by itself, whoever asked, a
 relayed question included, posting through the relay
 
@@ -2535,26 +2537,25 @@ Recorded answer: see the record below.
 Recorded in: <the URL of where the answer is recorded>
 ```
 
-followed by its `Re: ` line on GitHub. It reads the thread again before
-each automatic post, as *The thread is read again before a question is
-shown and before a post* says.
+followed by its `Re: ` line on GitHub. Before each automatic post it
+reads the thread again, as *The thread is read again before a question
+is shown and before a post* says.
 
 #### Scenario: A relayed question gets a recorded answer by itself
 
-- **WHEN** a GitHub comment that starts with `User asks: `, from the
-  relay App of Maya, another person, tags the person, and the
-  repository's `DECISIONS.md` on its default branch decides it
+- **WHEN** a GitHub comment starting `User asks: ` from the relay App of
+  Maya, another person, tags the person, and the repository's
+  `DECISIONS.md` on its default branch decides it
 - **THEN** the relay posts, naming the question, a reply that starts with
   `Recorded answer: `, the question is listed as answered for the person,
   and no miss is logged
 
 #### Scenario: A relayed question from an App no relay file lists is a person's
 
-- **WHEN** a GitHub comment that starts with `User asks: ` comes from a
-  GitHub App that no relay file lists, tags the person, and clearly fails
-  filter 4
-- **THEN** the answer session posts nothing by itself, and shows the
-  question as a person's, with filter 4's verdict suggested
+- **WHEN** a GitHub comment starting `User asks: ` from a GitHub App that
+  no relay file lists tags the person and clearly fails filter 4
+- **THEN** nothing is posted by itself, and the question is shown as a
+  person's, with filter 4's verdict suggested
 
 #### Scenario: A reply since the question stops an automatic post
 
@@ -2575,10 +2576,11 @@ of it (design.md: *What the answer session posts by itself*).
 - **WHEN** an agent's question in a public repository asks whether retries
   back off, and that repository's `DECISIONS.md` on its default branch
   decides it
-- **THEN** the relay posts, naming the question, a reply that starts with
-  `Recorded answer: see the record below.`, gives a `Recorded in: ` line
-  with that file's URL and quotes no answer, the question is listed as answered for the person, and a miss against
-  filter 1 whose `said` is `answer session: clearly filter 1` is logged
+- **THEN** the relay posts, naming the question, a reply starting
+  `Recorded answer: see the record below.` with a `Recorded in: ` line
+  holding that file's URL and no answer quoted; the question is listed
+  as answered for the person; and a miss against filter 1 whose `said`
+  is `answer session: clearly filter 1` is logged
 
 ### Requirement: A recorded answer is posted by itself only when no more private than its thread
 
@@ -2594,8 +2596,8 @@ repository's.
 
 - **WHEN** a question in a public repository is answered by a decision
   document in a private repository
-- **THEN** the answer session posts nothing by itself, and shows the
-  person the question with the recorded answer beside it
+- **THEN** nothing is posted by itself, and the person is shown the
+  question with the recorded answer beside it
 
 ### Requirement: A recorded answer not posted by itself is shown beside its question
 
@@ -2606,57 +2608,56 @@ post only what the person relays or confirms.
 
 #### Scenario: A questions-branch question's recorded answer is shown, not posted
 
-- **WHEN** a question of the fourth source is answered by a decision
-  document in a public repository
-- **THEN** the answer session posts nothing by itself, and shows the
-  person the question with the recorded answer beside it
+- **WHEN** a fourth-source question is answered by a decision document in
+  a public repository
+- **THEN** nothing is posted by itself, and the recorded answer is shown
+  beside the question
 
 ### Requirement: Agreeing to a shown recorded answer is a filter 1 decline
 
-The person may agree to a recorded answer shown beside a question, which
-is declining it under the second reason of *The person can decline to
-answer* with filter 1, naming that record, and the answer session SHALL
-handle it exactly as *Declining for the inquisitor posts the picked
-filter's reply* and the requirements after it say (design.md: *Agreeing
-to a recorded answer is a filter 1 decline*). Agreeing takes no note, so
-its miss's `said` is `the inquisitor should have handled it`.
+The person may agree to a recorded answer shown beside a question: a
+decline under the second reason of *The person can decline to answer*
+with filter 1, naming that record, which the answer session SHALL handle
+exactly as *Declining for the inquisitor posts the picked filter's
+reply* and the requirements after it say (design.md: *Agreeing to a
+recorded answer is a filter 1 decline*). Agreeing takes no note, so its
+miss's `said` is `the inquisitor should have handled it`.
 
 #### Scenario: Agreeing to a more private record posts it after a warning
 
-- **WHEN** a question in a public repository is answered by a decision
-  document in a private repository, and the person agrees to the shown
-  recorded answer
-- **THEN** the answer session shows the person that posting it shows the
-  record exists, and once they confirm, the relay posts
+- **WHEN** the person agrees to the recorded answer shown for a question
+  in a public repository, a decision document in a private repository
+- **THEN** the person is shown that posting it shows the record exists,
+  and once they confirm, the relay posts
   `Recorded answer: see the record below.` with `Recorded in: ` and the
   record's URL
 
 #### Scenario: Agreeing on a question with no thread is a filter 1 decline
 
-- **WHEN** a question from a lore repository's questions branch (the
-  fourth source), which has no thread, is answered by a decision
-  document, and the person agrees to the shown recorded answer
-- **THEN** nothing is posted, the answer session pushes a handled file
-  naming the questions-branch file, which is then closed on every
-  machine and cannot be reopened, and a miss against filter 1 is logged with
+- **WHEN** a fourth-source question, which has no thread, is answered by
+  a decision document, and the person agrees to the shown recorded
+  answer
+- **THEN** nothing is posted, a handled file naming the questions-branch
+  file is pushed, closing it on every machine for good, and a miss
+  against filter 1 is logged with
   `said: "the inquisitor should have handled it"`
 
 #### Scenario: Agreeing in a thread on a questions-branch question pushes only a handled file
 
-- **WHEN** a question that an unanswered log file on the lore
-  repository's questions branch also holds is shown from its GitHub
-  thread, with a recorded answer more private than the thread shown
-  beside it, and the person agrees to it and confirms after the warning
+- **WHEN** a question an unanswered log file on the lore repository's
+  questions branch also holds is shown from its GitHub thread, beside a
+  recorded answer more private than the thread, and the person agrees
+  and confirms after the warning
 - **THEN** the relay posts the recorded answer in the thread, and the
-  answer session pushes a handled file naming that log file and no
-  answer file to the questions branch, besides the miss the decline logs
+  answer session pushes to the questions branch a handled file naming
+  that log file and no answer file, besides the decline's miss
 
 #### Scenario: Agreeing logs a miss on any question
 
 - **WHEN** the person agrees to the recorded answer shown beside a
-  question in a private repository's GitHub thread, whose lore
-  repository is private, whether a person or an agent asked it
-- **THEN** the answer session logs a miss against filter 1 with
+  question, asked by a person or an agent, in a private repository's
+  GitHub thread whose lore repository is private
+- **THEN** a miss against filter 1 is logged with
   `said: "the inquisitor should have handled it"`
 
 ### Requirement: A lore entry posted as a recorded answer gets a citation file
@@ -2669,61 +2670,59 @@ lore entry that stops a question gets a citation file* says.
 
 - **WHEN** an active lore entry answers an incoming question with a thread
 - **THEN** the relay posts the recorded answer, and the script pushes a
-  citation file to that lore repository's questions branch
+  citation file to the entry's lore repository's questions branch
 
 ### Requirement: A person cites a lore entry by naming it as an answer or a record
 
 The answer session SHALL count a person as one who **cites** a lore
 entry when they name it as the answer to a question, or as the record
 when declining one under the second reason with filter 1, agreeing
-included. A cite SHALL push a citation file as *A person's cite of an
-active entry in scope pushes a citation file* says.
+included. A cite SHALL push a citation file under *A person's cite of an
+active entry in scope pushes a citation file*.
 
 #### Scenario: Declining with filter 1 and a lore entry cites it
 
-- **WHEN** the person declines a question with no category, asked in a
-  GitHub thread of a private repository, under the second reason, picks
-  filter 1, and names as the record an `active` entry in a private lore
-  repository whose scope covers the question
+- **WHEN** the person declines under the second reason, with filter 1, a
+  question with no category in a private repository's GitHub thread,
+  naming as the record an `active` entry, in a private lore repository,
+  whose scope covers the question
 - **THEN** the relay posts in the thread the `Recorded answer: ` reply
-  whose `Recorded in: ` line names that entry, and the answer session
-  pushes a citation file for it
+  whose `Recorded in: ` line names that entry, and a citation file for
+  it is pushed
 
 #### Scenario: A filter-1 decline with no thread still cites its entry
 
 - **WHEN** the person declines under the second reason, with filter 1, a
-  question from a private lore repository's questions branch, which has
-  no thread, naming as the record an `active` entry of that lore
-  repository whose scope covers the question
-- **THEN** the answer session posts nothing, shows the person the
-  recorded answer beside the question as *A decline with no thread or
-  with a category posts nothing* has it for a question with no thread,
-  and pushes a citation file for that entry
+  question with no thread from a private lore repository's questions
+  branch, naming as the record an `active` entry of that lore repository
+  whose scope covers the question
+- **THEN** nothing is posted, the recorded answer is shown beside the
+  question as *A decline with no thread or with a category posts
+  nothing* has it, and a citation file for that entry is pushed
 
 #### Scenario: Agreeing to a lore entry's recorded answer cites it
 
-- **WHEN** the person agrees to a shown recorded answer whose record is
-  an `active` lore entry, in a private lore repository, whose scope
-  covers a question about a private repository
-- **THEN** the answer session pushes a citation file for that entry to
-  its lore repository
+- **WHEN** the person agrees to a shown recorded answer whose record, an
+  `active` entry of a private lore repository, has a scope covering a
+  question about a private repository
+- **THEN** a citation file for that entry is pushed to its lore
+  repository
 
 ### Requirement: A person's cite of an active entry in scope pushes a citation file
 
-The answer session SHALL push a citation file for a cited entry, under
-the citation rules of the inquisitor's *A lore entry that stops a
-question gets a citation file*, only when the entry is `active` and in
-scope for the question, as the inquisitor's *Filter 1 hides every lore
-entry outside the question's scope* defines scope; citing any other
-entry pushes nothing (design.md: *A person's cite pushes a citation
-file*).
+The answer session SHALL push a citation file for a cited entry, by the
+inquisitor's *A lore entry that stops a question gets a citation file*,
+which pushes none to a more visible lore repository, only when the entry is `active` and in scope for
+the question, as the inquisitor's *Filter 1 hides every lore entry
+outside the question's scope* defines scope; citing any other entry
+pushes nothing (design.md: *A person's cite pushes a citation file*).
 
 #### Scenario: Citing a lore entry sends a citation
 
 - **WHEN** the person answers a question about a private repository by
   citing an active entry in a private lore repository
-- **THEN** the answer session pushes a citation file for that entry to
-  that lore repository's questions branch
+- **THEN** a citation file for that entry is pushed to that lore
+  repository's questions branch
 
 #### Scenario: Citing an entry that is not active sends none
 
@@ -2733,20 +2732,20 @@ file*).
 
 #### Scenario: Citing an entry out of scope sends none
 
-- **WHEN** the person answers a question by citing an `active` lore
-  entry whose scope does not cover the question
+- **WHEN** the person answers a question by citing an `active` entry whose
+  scope does not cover it
 - **THEN** no citation file is pushed
 
 #### Scenario: Citing an entry in a more visible lore repository sends none
 
-- **WHEN** the person answers a question about a private repository by
-  citing an entry in a public lore repository
+- **WHEN** the person cites an entry in a public lore repository to answer
+  a question about a private repository
 - **THEN** no citation file is pushed
 
 #### Scenario: Agreeing to an inactive lore entry's recorded answer cites nothing
 
 - **WHEN** the person agrees to a shown recorded answer whose record is a
-  lore entry that is not `active`
+  lore entry not `active`
 - **THEN** no citation file is pushed
 
 ### Requirement: Filter 1's answer by itself to an agent's question logs a miss
@@ -2758,11 +2757,11 @@ a person's question it answers by itself logs none.
 
 #### Scenario: A person's question is answered by itself too
 
-- **WHEN** a person's question on Linear is answered by a decision
-  document in a public repository
+- **WHEN** a person's Linear question is answered by a decision document
+  in a public repository
 - **THEN** the Linear relay posts the recorded answer in its comment
-  thread, starting with `Recorded answer: `, never with `User says: `, and
-  no miss is logged
+  thread, starting with `Recorded answer: `, never `User says: `, and no
+  miss is logged
 
 ### Requirement: A reply to an automatic post is a new question
 
@@ -2775,8 +2774,7 @@ line), and so on back to a question that replies to no relay post.
 #### Scenario: A reply to an automatic post is judged again
 
 - **WHEN** an agent replies to a relay post holding filter 4's fixed
-  `Inquisitor: ` text, which *Filters 2 to 4 judge every incoming
-  question* gives, with a new question that the repository's
+  `Inquisitor: ` text with a new question the repository's
   `DECISIONS.md` on its default branch decides
 - **THEN** the relay posts, naming the reply, a recorded answer starting
   with `Recorded answer: `
@@ -2791,10 +2789,10 @@ answer: such a repeat goes to the person, as an ordinary question
 
 #### Scenario: A repeated automatic post goes to the person
 
-- **WHEN** an agent replies to a relay post holding filter 4's fixed
-  `Inquisitor: ` text with a question that clearly fails filter 4 again
-- **THEN** the answer session posts nothing by itself, and shows the reply
-  to the person
+- **WHEN** an agent replies to a relay post holding filter 4's fixed text
+  with a question that clearly fails filter 4 again
+- **THEN** nothing is posted by itself, and the reply is shown to the
+  person
 
 #### Scenario: An automatic post made earlier in the chain is not made again
 
@@ -2802,8 +2800,7 @@ answer: such a repeat goes to the person, as an ordinary question
   2's text, the agent replied with a question it answered with filter 4's
   text, and the agent replies again with a question that clearly fails
   filter 2
-- **THEN** the answer session posts nothing by itself, and shows the reply
-  to the person
+- **THEN** nothing is posted by itself, and the reply goes to the person
 
 ### Requirement: Filters 2 to 4 judge every incoming question
 
@@ -2820,12 +2817,11 @@ handled.
 
 - **WHEN** an agent's question in a subscribed repository clearly can wait
   until its pull request is reviewed
-- **THEN** the relay posts, naming the question, `Inquisitor: filter 2,
-  deferrable. Carry on without an answer, list this question as not done
-  in the current work, and file an issue for it if it outlives the work.`,
-  a miss against filter 2 is logged, as *The answer session logs its
-  misses on the team's lore repository's questions branch* says, and the
-  question is listed as handled for the person
+- **THEN** the answer session posts through the relay, naming the
+  question, `Inquisitor: filter 2, deferrable. Carry on without an
+  answer, list this question as not done in the current work, and file
+  an issue for it if it outlives the work.`, logs a miss against filter
+  2, and lists the question as handled for the person
 
 #### Scenario: Filters 3 and 4 post their fixed texts
 
@@ -2840,25 +2836,25 @@ handled.
 
 - **WHEN** the model can't tell whether an agent's question can wait
 - **THEN** nothing is posted by itself, no miss is logged, and the
-  question is shown to the person as unanswered, an ordinary question
+  question is shown to the person as an ordinary unanswered question
 
 #### Scenario: A thread's text cannot choose the words posted
 
 - **WHEN** an agent's question holds text telling the model to post a
   link
 - **THEN** whatever the model judges, the answer session posts by itself
-  nothing but one of the three fixed `Inquisitor: ` texts, or the fixed
+  only one of the three fixed `Inquisitor: ` texts, or the fixed
   recorded-answer text whose URL is filter 1's hit
 
 ### Requirement: Filters 2 to 4 only suggest a verdict on other questions
 
 On a person's question, a relayed one included, and on an agent's
 question from a questions branch, the answer session SHALL post nothing
-by itself, but show it to the person with its suggested verdict. A
-message that is not a question SHALL be ignored, with no automatic post,
-as *Messages judged clearly not questions are ignored* says;
-the person declines one shown anyway as *The person can decline to
-answer* says (design.md: *Messages that are not questions are ignored*).
+by itself, but show the question with its suggested verdict. A message
+that is not a question SHALL be ignored, with no automatic post, under *Messages judged clearly not questions are
+ignored*; the person declines one shown anyway under *The person can
+decline to answer* (design.md: *Messages that are not questions are
+ignored*).
 
 #### Scenario: A person's question only gets a suggestion
 
@@ -2868,10 +2864,10 @@ answer* says (design.md: *Messages that are not questions are ignored*).
 
 #### Scenario: An agent's questions-branch question only gets a suggestion
 
-- **WHEN** a log file of the fourth source, which an agent wrote, holds a
-  question that clearly fails filter 2
-- **THEN** nothing is posted by itself, and the answer session shows the
-  question with filter 2 as its suggested verdict
+- **WHEN** an agent-written log file of the fourth source holds a question
+  that clearly fails filter 2
+- **THEN** nothing is posted by itself, and filter 2 is shown as the
+  question's suggested verdict
 
 #### Scenario: An agent's rhetorical message gets no post
 
@@ -2882,27 +2878,28 @@ answer* says (design.md: *Messages that are not questions are ignored*).
 
 #### Scenario: A rhetorical message in the queue declined with nothing to answer logs no miss
 
-- **WHEN** a rhetorical message, found under the first source, reaches
-  the person's queue because the session judged it unclear, and the
-  person declines it under the first reason
-- **THEN** nothing is posted, and no miss file is logged
+- **WHEN** a rhetorical message under the first source reaches the
+  person's queue, judged unclear, and the person declines it under the
+  first reason
+- **THEN** nothing is posted and no miss file is logged
 
 #### Scenario: A non-question declined under reason 2 posts nothing
 
-- **WHEN** the person declines under the second reason, choosing filter 3's
-  "the agent shouldn't have asked", an agent's message in a GitHub thread
-- **THEN** the answer session posts nothing in the thread and logs a
-  filter 3 miss against the asking agent
+- **WHEN** the person declines an agent's message in a GitHub thread
+  under the second reason, choosing filter 3's "the agent shouldn't have
+  asked"
+- **THEN** nothing is posted in the thread, and a filter 3 miss against
+  the asking agent is logged
 
 ### Requirement: The answer session logs its misses on the team's lore repository's questions branch
 
 The answer session SHALL log each miss, whether or not the asker logged
-the question, as a miss file in the inquisitor's *A log file and a miss
-file have one format*. The inquisitor script SHALL push it, a duplicate
-included, to the questions branch of the team's lore repository serving
-the repository the question concerns, as that spec's *An organization's
-question is pushed to its lore repository's questions branch* pushes a
-file there.
+the question, as a miss file in the inquisitor's *A log file and a
+miss file have one format*, which the inquisitor script SHALL
+push, duplicates included, to the questions branch of the team's lore
+repository serving the repository the question concerns, as that spec's
+*An organization's question is pushed to its lore repository's questions
+branch* says.
 
 #### Scenario: A miss goes to the questions branch
 
@@ -2919,9 +2916,9 @@ file there.
 
 ### Requirement: A miss records who judged it and copies its file's asked_from
 
-An automatic miss, under *Filter 1's answer by itself to an agent's
+An automatic miss, by *Filter 1's answer by itself to an agent's
 question logs a miss* or *Filters 2 to 4 judge every incoming question*,
-SHALL have `said` `answer session: clearly filter <n>`. A miss on
+SHALL say `answer session: clearly filter <n>` in `said`. A miss on
 questions-branch files SHALL copy their most private `asked_from`, by
 the inquisitor's *Nothing about a repository goes somewhere more
 visible*, through the `log` command with its other keys; a file with no
@@ -2935,32 +2932,31 @@ visible*, through the `log` command with its other keys; a file with no
 
 #### Scenario: A miss copies the questions-branch file's asked_from
 
-- **WHEN** a questions-branch file holds a question, the file holds
-  `asked_from: "o/private-item"`, and the person declines the question
-  as one the inquisitor should have handled, picking filter 4
+- **WHEN** a questions-branch file holding `asked_from: "o/private-item"`
+  holds a question, and the person declines it as one the inquisitor
+  should have handled, picking filter 4
 - **THEN** the answer session passes that `asked_from` to the `log`
   command with the miss's other keys, and the miss file it pushes holds
   `asked_from: "o/private-item"`
 
 #### Scenario: A miss copies the most private asked_from
 
-- **WHEN** three questions-branch files hold a question, one with
-  `asked_from: "o/public-item"`, a public repository, one with
-  `asked_from: "o/private-item"`, a private one, and one with none, and
-  the person declines the question as one the inquisitor should have
-  handled, picking filter 4
-- **THEN** the miss file the answer session pushes holds
-  `asked_from: "o/private-item"`, and a file with no `asked_from` adds
-  none
+- **WHEN** three questions-branch files hold a question, with
+  `asked_from: "o/public-item"`, a public repository,
+  `asked_from: "o/private-item"`, a private one, and none, and the
+  person declines it as one the inquisitor should have handled, picking
+  filter 4
+- **THEN** the miss file pushed holds `asked_from: "o/private-item"`, and
+  the file with no `asked_from` adds none
 
 ### Requirement: The answer session writes no miss it cannot place privately
 
-The answer session SHALL write no miss file, and SHALL tell the person
-why, when the question has a category, as the model judges by the
+The answer session SHALL write no miss file, telling the person why,
+when the question has a category, as the model judges by the
 inquisitor's *Some questions are recorded by hash only*; concerns no
 repository; has no configured lore repository serving its repository; or
-that lore repository is more visible than its repository, than its thread,
-whose visibility its platform sets, or, with no thread, than its
+that lore repository is more visible than its repository, than its
+thread (on GitHub, as visible as its repository), or, with no thread, than its
 questions-branch file (design.md: *Misses the answer session logs*).
 
 #### Scenario: No lore repository means no miss file
@@ -2974,23 +2970,23 @@ questions-branch file (design.md: *Misses the answer session logs*).
 
 - **WHEN** the person declines, as one the inquisitor should have
   handled, a Discord message that concerns no repository
-- **THEN** no miss file is written, the person is told why, and the
-  question still closes
+- **THEN** the question closes with no miss file written, and the person
+  is told why
 
 #### Scenario: A more visible lore repository gets no miss
 
 - **WHEN** the question concerns a private repository, and its team's lore
   repository is public
-- **THEN** no miss file is written, and the person is told why
+- **THEN** the person is told why no miss file is written
 
 #### Scenario: A question with a category gets no miss
 
 - **WHEN** the person declines, as one the inquisitor should have
-  handled, a Discord message that the session's model judges holds a
-  password, a category as the inquisitor's *Some questions are recorded
-  by hash only* defines
-- **THEN** nothing is posted, no miss file is written, and the person is
-  told why
+  handled, a Discord message the session's model judges holds a
+  password, a category under the inquisitor's *Some questions are
+  recorded by hash only*
+- **THEN** nothing is posted, and the person is told why no miss file is
+  written
 
 #### Scenario: A private thread's miss does not go to a public lore repository
 
@@ -3003,12 +2999,12 @@ questions-branch file (design.md: *Misses the answer session logs*).
 
 - **WHEN** a question asked on Linear or Discord concerns a repository
   whose team's lore repository is not private
-- **THEN** no miss file is written, and the person is told why
+- **THEN** the person is told why no miss file is written
 
 #### Scenario: A file's visibility stands in for a missing thread
 
 - **WHEN** a questions-branch question with no thread, about a public
-  repository, comes from a private file, as the inquisitor's *A log or
-  miss file is as private as its more private repository* ranks it, and
-  its lore repository is public
-- **THEN** no miss file is written, and the person is told why
+  repository, comes from a file the inquisitor's *A log or miss file is
+  as private as its more private repository* ranks private, and its lore
+  repository is public
+- **THEN** the person is told why no miss file is written
