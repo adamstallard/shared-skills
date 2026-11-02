@@ -10,6 +10,7 @@ Run from the root of the shared-skills clone:  python3 .agents/skills/spec-trace
 import io
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -24,6 +25,10 @@ import spec_trace as st  # noqa: E402
 
 CLAIMING = """\
 # work-claiming Specification
+
+## Purpose
+
+Work is claimed before it starts.
 
 ## Requirements
 ### Requirement: An Igor claims before it starts
@@ -46,6 +51,35 @@ Every pickup SHALL take a claim.
 # repository that vendors spec-trace's scripts folder must list this file in its
 # openspec/spec-trace-ignore.txt, or check fails on those messages as tags.
 AT = "@" + "scenario"
+
+
+def openspec_version():
+    """The OpenSpec CLI's version on PATH, as a tuple, or None."""
+    exe = shutil.which("openspec")
+    if exe is None:
+        return None
+    m = re.search(r"(\d+)\.(\d+)\.(\d+)", subprocess.run([exe, "--version"], capture_output=True,
+                                                         text=True).stdout)
+    return tuple(map(int, m.groups())) if m else None
+
+
+# check, report and baseline read scenarios only through OpenSpec 1.15.0 or later.
+HAS_OPENSPEC = (openspec_version() or (0,)) >= (1, 15, 0)
+READS_SPECS = ("check", "report", "baseline")
+
+
+def skip_without_openspec(test, args):
+    """Skip test when args run a command that reads specs and OpenSpec 1.15.0 or later is
+    not on PATH."""
+    if not HAS_OPENSPEC and any(a in READS_SPECS for a in args):
+        test.skipTest("needs OpenSpec 1.15.0 or later on PATH")
+
+
+def spec(body):
+    """A main spec holding body, its requirements. OpenSpec reads a main spec only when it
+    has a Purpose section with text and a Requirements section, and a scenario only when
+    text follows its heading, so each fixture's scenario has a `- THEN` line."""
+    return "# Spec\n\n## Purpose\n\nTests.\n\n## Requirements\n\n" + textwrap.dedent(body)
 
 
 def setUpModule():
@@ -87,6 +121,7 @@ class Repo(unittest.TestCase):
             return f.read()
 
     def run_cmd(self, *args):
+        skip_without_openspec(self, args)
         out, err = io.StringIO(), io.StringIO()
         with redirect_stdout(out), redirect_stderr(err):
             code = st.main(["--root", self.root, *args])
@@ -113,7 +148,7 @@ class Check(Repo):
         self.write("test/claim.test.ts", f"// {AT} work-claiming: Claim precedes work\n")
         code, out = self.run_cmd("check")
         self.assertEqual(code, 1)
-        self.assertIn("openspec/specs/work-claiming/spec.md:13: no test tags scenario "
+        self.assertIn("openspec/specs/work-claiming/spec.md:17: no test tags scenario "
                       "'work-claiming: Unclaimed work refused'", out)
         self.assertIn(f"with `{AT}` followed by this line, or write that test:\n"
                       "      work-claiming: Unclaimed work refused", out)
@@ -200,7 +235,7 @@ class Check(Repo):
 
     def test_a_name_with_an_apostrophe_matches_whole(self):
         self.tag_both()
-        self.write("openspec/specs/kill/spec.md", "### Requirement: R\n#### Scenario: The worker's tree dies\n")
+        self.write("openspec/specs/kill/spec.md", spec("### Requirement: R\n#### Scenario: The worker's tree dies\n- THEN it holds\n"))
         self.write("test/kill.test.ts", f"it('kills', () => {{}}); // {AT} kill: The worker's tree dies\n")
         code, out = self.run_cmd("check")
         self.assertEqual(code, 0, out)
@@ -226,6 +261,7 @@ class Check(Repo):
             ## ADDED Requirements
             ### Requirement: New
             #### Scenario: Not built yet
+            - THEN it holds
             """)
         code, out = self.run_cmd("check")
         self.assertEqual(code, 0, out)
@@ -233,7 +269,7 @@ class Check(Repo):
     def test_a_scenario_in_a_code_fence_is_not_a_scenario(self):
         self.tag_both()
         self.write("openspec/specs/work-claiming/spec.md",
-                   CLAIMING + "\n```\n#### Scenario: An example in a fence\n```\n")
+                   CLAIMING + "\n```\n#### Scenario: An example in a fence\n- THEN it holds\n```\n")
         code, out = self.run_cmd("check")
         self.assertEqual(code, 0, out)
 
@@ -255,6 +291,7 @@ class NoSpecsYet(Repo):
             ## ADDED Requirements
             ### Requirement: New
             #### Scenario: Not built yet
+            - THEN it holds
             """)
 
     def test_check_passes_with_no_scenarios(self):
@@ -487,6 +524,7 @@ class SubdirectoryRoot(unittest.TestCase):
                 f.write(text)
 
     def run_cmd(self, *args):
+        skip_without_openspec(self, args)
         out = io.StringIO()
         with redirect_stdout(out), redirect_stderr(io.StringIO()):
             code = st.main(["--root", self.pkg, *args])
@@ -546,6 +584,7 @@ class SubdirectoryRoot(unittest.TestCase):
         shutil.copytree(self.pkg, tree)
         subprocess.run(["git", "init", "-q", "--separate-git-dir", gitdir, tree], check=True)
         os.remove(os.path.join(tree, ".git"))
+        skip_without_openspec(self, ["report"])
         out = io.StringIO()
         with mock.patch.dict(os.environ, {"GIT_DIR": gitdir, "GIT_CEILING_DIRECTORIES": base}), \
                 redirect_stdout(out), redirect_stderr(io.StringIO()):
@@ -623,15 +662,14 @@ class FoundByTheHunt(Repo):
 
     def test_an_escaped_apostrophe_in_a_single_quoted_name_matches(self):
         self.tag_both()
-        self.write("openspec/specs/cmd/spec.md", "### Requirement: R\n#### Scenario: A person's command is unchanged\n")
+        self.write("openspec/specs/cmd/spec.md", spec("### Requirement: R\n#### Scenario: A person's command is unchanged\n- THEN it holds\n"))
         self.write("test/a.test.ts", f"it('{AT} cmd: A person\\'s command is unchanged', () => {{}});\n")
         code, out = self.run_cmd("check")
         self.assertEqual(code, 0, out)
 
     def test_a_bare_repeated_name_in_a_single_quoted_name_is_ambiguous(self):
         self.tag_both()
-        self.write("openspec/specs/run/spec.md",
-                   "### Requirement: A\n#### Scenario: Ordinary\n### Requirement: B\n#### Scenario: Ordinary\n")
+        self.write("openspec/specs/run/spec.md", spec("### Requirement: A\n#### Scenario: Ordinary\n- THEN it holds\n### Requirement: B\n#### Scenario: Ordinary\n- THEN it holds\n"))
         self.write(st.DEFAULT_BASELINE, "run: A / Ordinary\nrun: B / Ordinary\n")
         self.write("test/a.test.ts", f"it('{AT} run: Ordinary', async () => {{\n")
         code, out = self.run_cmd("check")
@@ -653,7 +691,7 @@ class FoundByTheHunt(Repo):
 
     def test_an_empty_section_heading_in_a_change_does_not_crash(self):
         self.write("openspec/changes/ch/specs/work-claiming/spec.md",
-                   "## ADDED Requirements\n### Requirement: New\n#### Scenario: Fresh\n\n## \n")
+                   "## ADDED Requirements\n### Requirement: New\n#### Scenario: Fresh\n- THEN it holds\n\n## \n")
         code, out = self.run_cmd("report", "--include-changes")
         self.assertEqual(code, 0)
         self.assertIn("| Fresh (change: ch) | none |", out)
@@ -680,10 +718,9 @@ class FoundByTheSecondHunt(Repo):
 
     def test_a_bare_repeated_name_is_ambiguous_even_when_a_shorter_name_exists(self):
         self.tag_both()
-        self.write("openspec/specs/disc/spec.md",
-                   "### Requirement: A\n#### Scenario: Item assigned, on Linear\n"
-                   "### Requirement: B\n#### Scenario: Item assigned, on Linear\n"
-                   "#### Scenario: Item assigned\n")
+        self.write("openspec/specs/disc/spec.md", spec("### Requirement: A\n#### Scenario: Item assigned, on Linear\n- THEN it holds\n"
+                   "### Requirement: B\n#### Scenario: Item assigned, on Linear\n- THEN it holds\n"
+                   "#### Scenario: Item assigned\n- THEN it holds\n"))
         self.write(st.DEFAULT_BASELINE, "disc: A / Item assigned, on Linear\ndisc: B / Item assigned, on Linear\n"
                    "disc: Item assigned\n")
         self.write("test/d.test.ts", f"it('skips {AT} disc: Item assigned, on Linear', () => {{}});\n")
@@ -709,7 +746,9 @@ class FoundByTheSecondHunt(Repo):
             ## MODIFIED Requirements
             ### Requirement: An Igor claims before any work
             #### Scenario: Claim precedes work
+            - THEN it holds
             #### Scenario: Unclaimed work refused
+            - THEN it holds
             """)
         out = self.run_cmd("report", "--include-changes")[1]
         self.assertIn("2 of 2 scenarios are tagged", out)
@@ -729,9 +768,9 @@ class FoundByTheThirdHunt(Repo):
         # The implementation lands before the archive, so its tests are tagged first.
         self.tag_both()
         self.write("openspec/changes/add-new/specs/work-claiming/spec.md",
-                   "## ADDED Requirements\n### Requirement: N\n#### Scenario: New\n")
+                   "## ADDED Requirements\n### Requirement: N\n#### Scenario: New\n- THEN it holds\n")
         self.write("openspec/changes/add-new/specs/newcap/spec.md",
-                   "## ADDED Requirements\n### Requirement: M\n#### Scenario: Fresh\n")
+                   "## ADDED Requirements\n### Requirement: M\n#### Scenario: Fresh\n- THEN it holds\n")
         self.write("test/a.test.ts", f"// {AT} work-claiming: New\n// {AT} newcap: Fresh\n")
         code, out = self.run_cmd("check")
         self.assertEqual(code, 0, out)
@@ -742,7 +781,7 @@ class FoundByTheThirdHunt(Repo):
         self.write("openspec/changes/ex/specs/work-claiming/spec.md",
                    "## ADDED Requirements\n### Requirement: Examples are shown\n"
                    f"{fence}markdown\n## REMOVED Requirements\n### Requirement: An Igor claims before it starts\n{fence}\n"
-                   "#### Scenario: An example renders\n")
+                   "#### Scenario: An example renders\n- THEN it holds\n")
         out = self.run_cmd("report", "--include-changes")[1]
         self.assertIn("| Claim precedes work | test/claim.test.ts:1 |", out)
 
@@ -760,8 +799,8 @@ class FoundByTheScopedHunt(Repo):
         self.tag_both()
         self.write("openspec/changes/sharpen/specs/work-claiming/spec.md",
                    "## MODIFIED Requirements\n### Requirement: An Igor claims before it starts\n"
-                   "#### Scenario: Claim precedes work\n#### Scenario: Claim precedes work, always\n"
-                   "#### Scenario: Unclaimed work refused\n")
+                   "#### Scenario: Claim precedes work\n- THEN it holds\n#### Scenario: Claim precedes work, always\n- THEN it holds\n"
+                   "#### Scenario: Unclaimed work refused\n- THEN it holds\n")
         self.write("test/b.test.ts", f"// {AT} work-claiming: Claim precedes work, always\n")
         out = self.run_cmd("report")[1]
         self.assertIn("| Claim precedes work | test/claim.test.ts:1 |", out)
@@ -769,8 +808,8 @@ class FoundByTheScopedHunt(Repo):
     def test_a_bare_name_repeated_in_an_open_change_is_ambiguous(self):
         self.tag_both()
         self.write("openspec/changes/add-two/specs/roles/spec.md",
-                   "## ADDED Requirements\n### Requirement: Role names\n#### Scenario: Malformed input rejected\n"
-                   "### Requirement: Role permissions\n#### Scenario: Malformed input rejected\n")
+                   "## ADDED Requirements\n### Requirement: Role names\n#### Scenario: Malformed input rejected\n- THEN it holds\n"
+                   "### Requirement: Role permissions\n#### Scenario: Malformed input rejected\n- THEN it holds\n")
         self.write("test/r.test.ts", f"// {AT} roles: Malformed input rejected\n")
         code, out = self.run_cmd("check")
         self.assertEqual(code, 1, out)
@@ -783,7 +822,7 @@ class FoundByTheScopedHunt(Repo):
                    "## ADDED Requirements\n### Requirement: Examples\n"
                    f"{tilde}markdown\n{tick}python\n## REMOVED Requirements\n"
                    f"### Requirement: An Igor claims before it starts\n{tilde}\n"
-                   "#### Scenario: Example shown\n")
+                   "#### Scenario: Example shown\n- THEN it holds\n")
         out = self.run_cmd("report", "--include-changes")[1]
         self.assertIn("| Claim precedes work | test/claim.test.ts:1 |", out)
         self.assertIn("| Example shown (change: doc) | none |", out)
@@ -819,12 +858,14 @@ class RepeatedNames(Repo):
 
     def setUp(self):
         super().setUp()
-        self.write("openspec/specs/task-execution/spec.md", """\
+        self.write("openspec/specs/task-execution/spec.md", spec("""\
             ### Requirement: Names are text
             #### Scenario: An ordinary run is unaffected
+            - THEN it holds
             ### Requirement: No removal is lost
             #### Scenario: An ordinary run is unaffected
-            """)
+            - THEN it holds
+            """))
         self.tag_both()
 
     def test_the_qualified_tags_cover_each(self):
@@ -864,19 +905,300 @@ class RepeatedNames(Repo):
         self.assertEqual(code, 0, out)
 
     def test_the_same_name_under_the_same_requirement_fails(self):
-        self.write("openspec/specs/task-execution/spec.md", """\
+        self.write("openspec/specs/task-execution/spec.md", spec("""\
             ### Requirement: Names are text
             #### Scenario: Twice
+            - THEN it holds
             #### Scenario: Twice
-            """)
+            - THEN it holds
+            """))
         code, out = self.run_cmd("check")
         self.assertEqual(code, 1)
         self.assertIn("no tag can tell them apart. Rename one of them", out)
+        self.assertIn("openspec/specs/task-execution/spec.md:12: scenario 'Twice' repeats under requirement "
+                      "'Names are text' (openspec/specs/task-execution/spec.md:10)", out)
+
+
+class ReadByOpenSpec(Repo):
+    """Scenarios are what `openspec show` reads, and only that."""
+
+    def test_a_section_title_openspec_ignores_restates_nothing(self):
+        # OpenSpec reads no section titled "MODIFIED Requirements:", so it changes nothing.
+        self.tag_both()
+        self.write("openspec/changes/sharpen/specs/work-claiming/spec.md", """\
+            ## MODIFIED Requirements:
+            ### Requirement: An Igor claims before it starts
+            #### Scenario: Claim is logged
+            - THEN it holds
+            """)
+        self.write("test/log.test.ts", f"// {AT} work-claiming: Claim is logged\n")
+        out = self.run_cmd("report", "--include-changes")[1]
+        self.assertIn("| Claim precedes work | test/claim.test.ts:1 |", out)
+        self.assertNotIn("(change: sharpen)", out)
+        code, out = self.run_cmd("check")
+        self.assertEqual(code, 1, out)
+        self.assertIn("tag '@scenario work-claiming: Claim is logged' names no scenario", out)
+
+    def test_a_heading_s_closing_hashes_are_not_part_of_the_name(self):
+        self.write("openspec/specs/work-claiming/spec.md",
+                   CLAIMING.replace("Scenario: Unclaimed work refused", "Scenario: Unclaimed work refused ##"))
+        self.write("test/claim.test.ts", f"// {AT} work-claiming: Claim precedes work\n")
+        code, out = self.run_cmd("check")
+        self.assertEqual(code, 1, out)
+        self.assertIn("openspec/specs/work-claiming/spec.md:17: no test tags scenario "
+                      "'work-claiming: Unclaimed work refused'.", out)
+        self.tag_both()
+        self.assertEqual(self.run_cmd("check")[0], 0)
+
+    def test_a_scenario_heading_with_no_text_under_it_is_not_a_scenario(self):
+        self.tag_both()
+        self.write("openspec/specs/work-claiming/spec.md", CLAIMING + "\n#### Scenario: Empty\n")
+        code, out = self.run_cmd("check")
+        self.assertEqual(code, 0, out)
+        self.assertIn("2 of 2 scenarios are tagged", out)
+
+    def test_a_spec_openspec_cannot_read_fails_check_and_baseline(self):
+        self.tag_both()
+        self.write("openspec/specs/bad/spec.md", "### Requirement: R\n#### Scenario: S\n- THEN it holds\n")
+        code, out = self.run_cmd("check")
+        self.assertEqual(code, 1, out)
+        self.assertIn("openspec/specs/bad/spec.md: `openspec show` cannot read this spec (Spec must have "
+                      "a Purpose section), so none of its scenarios, and no tag or baseline line naming them, "
+                      "were checked.", out)
+        code, out = self.run_cmd("baseline")
+        self.assertEqual(code, 1, out)
+        self.assertFalse(os.path.exists(os.path.join(self.root, st.DEFAULT_BASELINE)))
+
+    def test_tags_and_baseline_lines_for_an_unreadable_spec_are_not_called_wrong(self):
+        self.tag_both()
+        self.write("openspec/specs/auth/spec.md",
+                   "## Requirements\n### Requirement: Login\n#### Scenario: Good password\n- THEN in\n"
+                   "#### Scenario: Bad password\n- THEN out\n")
+        self.write("test/a.test.js", f"// {AT} auth: Good password\n")
+        self.write(st.DEFAULT_BASELINE, "auth: Bad password\n")
+        code, out = self.run_cmd("check")
+        self.assertEqual(code, 1, out)
+        self.assertIn("openspec/specs/auth/spec.md: `openspec show` cannot read this spec", out)
+        self.assertNotIn("names no capability", out)
+        self.assertNotIn("'auth: Bad password' names no scenario", out)
+        self.assertIn("1 problem(s)", out)
+
+    def test_while_a_spec_is_unreadable_check_does_not_send_the_author_to_prune(self):
+        # `baseline --prune` refuses while a spec cannot be read.
+        self.tag_both()
+        self.write("openspec/specs/auth/spec.md", "## Requirements\n### Requirement: R\n#### Scenario: S\n- THEN it holds\n")
+        self.write(st.DEFAULT_BASELINE, "work-claiming: Claim precedes work\n")
+        code, out = self.run_cmd("check")
+        self.assertEqual(code, 1, out)
+        self.assertIn("'work-claiming: Claim precedes work' is now tagged by test/claim.test.ts:1.", out)
+        self.assertNotIn("Run `baseline --prune`", out)
+        self.assertEqual(self.run_cmd("baseline", "--prune")[0], 1)
+
+    def test_a_tag_failure_names_a_delta_spec_openspec_reads_as_empty(self):
+        # "## ADDED Requirement", singular, is not a section OpenSpec reads, so the delta is empty.
+        self.tag_both()
+        for cap in ("work-claiming", "newcap"):
+            self.write(f"openspec/changes/add-x/specs/{cap}/spec.md",
+                       "## ADDED Requirement\n### Requirement: New\n#### Scenario: Fresh\n- THEN it holds\n")
+        self.write("test/x.test.ts", f"// {AT} work-claiming: Fresh\n// {AT} newcap: Fresh\n")
+        code, out = self.run_cmd("check")
+        self.assertEqual(code, 1, out)
+        for cap in ("work-claiming", "newcap"):
+            self.assertIn(f"`openspec show` reads no requirement in openspec/changes/add-x/specs/{cap}/spec.md. "
+                          "If this tag names a scenario there, run `openspec validate add-x --type change` "
+                          "to see why.", out)
+        self.assertEqual(out.count("reads no requirement"), 2, out)
+        out = self.run_cmd("report", "--include-changes")[1]
+        self.assertIn("reads no requirement in openspec/changes/add-x/specs/newcap/spec.md", out)
+
+    def test_an_empty_delta_adds_nothing_to_a_tag_that_fails_elsewhere(self):
+        self.tag_both()
+        self.write("openspec/changes/add-x/specs/newcap/spec.md", "## ADDED Requirement\n")
+        self.write("test/x.test.ts", f"// {AT} work-claiming: Nothing\n")
+        out = self.run_cmd("check")[1]
+        self.assertIn("names no scenario", out)
+        self.assertNotIn("reads no requirement", out)
+
+    def test_a_delta_openspec_reads_brings_no_note(self):
+        self.tag_both()
+        self.write("openspec/changes/add-x/specs/work-claiming/spec.md",
+                   "## ADDED Requirements\n### Requirement: New\n#### Scenario: Fresh\n- THEN it holds\n")
+        self.write("openspec/changes/add-x/specs/newcap/spec.md", "## ADDED Requirement\n")
+        self.write("test/x.test.ts", f"// {AT} work-claiming: Nothing\n// {AT} newcap: Nothing\n")
+        out = self.run_cmd("check")[1]
+        self.assertEqual(out.count("reads no requirement"), 1, out)
+        self.assertNotIn("reads no requirement in openspec/changes/add-x/specs/work-claiming/spec.md", out)
+
+    def test_a_fenced_example_of_a_scenario_does_not_take_its_line(self):
+        fence = "`" * 3
+        self.write("openspec/specs/work-claiming/spec.md", CLAIMING.replace(
+            "Every pickup SHALL take a claim.\n",
+            f"Every pickup SHALL take a claim.\n\n{fence}\n#### Scenario: Unclaimed work refused\n{fence}\n"))
+        self.write("test/claim.test.ts", f"// {AT} work-claiming: Claim precedes work\n")
+        out = self.run_cmd("check")[1]
+        self.assertIn("openspec/specs/work-claiming/spec.md:21: no test tags scenario "
+                      "'work-claiming: Unclaimed work refused'", out)
+
+    def test_two_requirements_with_one_name_keep_their_own_lines(self):
+        self.write("openspec/specs/dup/spec.md", spec(
+            "### Requirement: R\n#### Scenario: X\n- THEN a\n### Requirement: R\n#### Scenario: Y\n- THEN b\n"))
+        self.tag_both()
+        self.write("test/x.test.ts", f"// {AT} dup: X\n")
+        out = self.run_cmd("check")[1]
+        self.assertIn("openspec/specs/dup/spec.md:13: no test tags scenario 'dup: Y'", out)
+
+    def test_a_removed_requirement_s_scenarios_leave_the_report(self):
+        self.tag_both()
+        self.write("openspec/changes/drop/specs/work-claiming/spec.md",
+                   "## REMOVED Requirements\n### Requirement: An Igor claims before it starts\n")
+        out = self.run_cmd("report", "--include-changes")[1]
+        self.assertIn("0 of 0 scenarios are tagged", out)
+        self.assertNotIn("Claim precedes work |", out)
+
+    def test_a_spec_edited_between_two_runs_in_one_process_is_read_again(self):
+        self.tag_both()
+        self.assertEqual(self.run_cmd("check")[0], 0)
+        self.write("openspec/specs/work-claiming/spec.md",
+                   CLAIMING + "\n#### Scenario: Claim is logged\n- THEN it holds\n")
+        code, out = self.run_cmd("check")
+        self.assertEqual(code, 1, out)
+        self.assertIn("no test tags scenario 'work-claiming: Claim is logged'", out)
+
+    def test_report_lists_a_change_openspec_cannot_read(self):
+        self.write("openspec/changes/add-x/specs/work-claiming/spec.md",
+                   "## ADDED Requirements\n### Requirement: New\n#### Scenario: Fresh\n- THEN it holds\n")
+        real = st.run_show
+
+        def refuse_changes(kind, name, files):
+            return (None, "no can do") if kind == "change" else real(kind, name, files)
+
+        with mock.patch.object(st, "run_show", side_effect=refuse_changes), \
+                mock.patch.dict(st._shown, clear=True):
+            out = self.run_cmd("report")[1]
+        self.assertIn("### Problems", out)
+        self.assertIn("- openspec/changes/add-x: `openspec show` cannot read its delta specs (no can do)", out)
+
+    def test_a_change_openspec_cannot_read_fails_check(self):
+        self.tag_both()
+        self.write("openspec/changes/add-x/specs/work-claiming/spec.md",
+                   "## ADDED Requirements\n### Requirement: New\n#### Scenario: Fresh\n- THEN it holds\n")
+        real = st.run_show
+
+        def refuse_changes(kind, name, files):
+            return (None, "no can do") if kind == "change" else real(kind, name, files)
+
+        with mock.patch.object(st, "run_show", side_effect=refuse_changes), \
+                mock.patch.dict(st._shown, clear=True):
+            code, out = self.run_cmd("check")
+        self.assertEqual(code, 1, out)
+        self.assertIn("openspec/changes/add-x: `openspec show` cannot read its delta specs (no can do)", out)
+
+    def test_each_file_is_read_once_per_run(self):
+        self.tag_both()
+        self.write("openspec/changes/add-x/specs/work-claiming/spec.md",
+                   "## ADDED Requirements\n### Requirement: New\n#### Scenario: Fresh\n- THEN it holds\n")
+        with mock.patch.object(st, "run_show", wraps=st.run_show) as shown, \
+                mock.patch.dict(st._shown, clear=True):
+            self.assertEqual(self.run_cmd("check")[0], 0)
+            self.assertEqual(shown.call_count, 2)
+            self.run_cmd("report", "--include-changes")
+            self.assertEqual(shown.call_count, 2)  # same content, so read from the cache
+
+
+class WithoutOpenSpec(unittest.TestCase):
+    """Below OpenSpec 1.15.0, or without its CLI, the commands that read specs refuse;
+    state and decline still work."""
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.root)
+        subprocess.run(["git", "init", "-q", self.root], check=True)
+        os.makedirs(os.path.join(self.root, "openspec/specs/work-claiming"))
+        with open(os.path.join(self.root, "openspec/specs/work-claiming/spec.md"), "w", encoding="utf-8") as f:
+            f.write(CLAIMING)
+        # A PATH holding git and, when a test writes one, a fake openspec.
+        self.bin = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.bin)
+        os.symlink(shutil.which("git"), os.path.join(self.bin, "git"))
+        patcher = mock.patch.dict(os.environ, {"PATH": self.bin})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def run_cmd(self, *args):
+        out = io.StringIO()
+        with redirect_stdout(out), redirect_stderr(io.StringIO()):
+            code = st.main(["--root", self.root, *args])
+        return code, out.getvalue()
+
+    def refused(self, says):
+        baseline = os.path.join(self.root, st.DEFAULT_BASELINE)
+        for command in (["check"], ["report"], ["report", "--include-changes"], ["baseline"],
+                        ["baseline", "--prune"]):
+            if command == ["baseline", "--prune"]:
+                with open(baseline, "w", encoding="utf-8") as f:
+                    f.write("work-claiming: Gone\n")
+            code, out = self.run_cmd(*command)
+            self.assertEqual(code, 2, f"{command}: {out}")
+            self.assertIn(f"spec-trace: not run: install OpenSpec 1.15.0 or later ({says})", out)
+            self.assertIn("state and decline do not", out)
+            if command == ["baseline"]:
+                self.assertFalse(os.path.exists(baseline))
+        with open(baseline, encoding="utf-8") as f:
+            self.assertEqual(f.read(), "work-claiming: Gone\n")
+
+    def test_without_the_cli_spec_commands_are_refused(self):
+        self.refused("the openspec CLI is not on PATH")
+
+    def test_an_older_cli_is_refused(self):
+        fake = os.path.join(self.bin, "openspec")
+        with open(fake, "w", encoding="utf-8") as f:
+            f.write("#!/bin/sh\necho 1.14.0\n")
+        os.chmod(fake, 0o755)
+        self.refused("this one is 1.14.0")
+
+    def fake_cli(self, show_output, exit_code):
+        fake = os.path.join(self.bin, "openspec")
+        with open(fake, "w", encoding="utf-8") as f:
+            f.write(f"#!/bin/sh\nif [ \"$1\" = --version ]; then echo 1.15.0; exit 0; fi\n"
+                    f"echo '{show_output}'\nexit {exit_code}\n")
+        os.chmod(fake, 0o755)
+        # Readings are kept by content, so one the real CLI made would answer for the fake.
+        patcher = mock.patch.dict(st._shown, clear=True)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_a_delta_naming_a_capability_it_was_not_given_is_ignored(self):
+        # The CLI's output is data from outside; a delta for another capability is skipped.
+        os.makedirs(os.path.join(self.root, "openspec/changes/ch/specs/work-claiming"))
+        with open(os.path.join(self.root, "openspec/changes/ch/specs/work-claiming/spec.md"), "w",
+                  encoding="utf-8") as f:
+            f.write("## ADDED Requirements\n")
+        self.fake_cli('{"requirements": [], "deltas": [{"spec": "other", "operation": "ADDED", '
+                      '"requirement": {"name": "N", "scenarios": [{"name": "S"}]}}]}', 0)
+        code, out = self.run_cmd("report", "--include-changes")
+        self.assertEqual(code, 0, out)
+        self.assertIn("0 of 0 scenarios are tagged", out)
+
+    def test_a_failing_show_is_unread_even_when_it_prints_a_list(self):
+        self.fake_cli('{"requirements": []}', 1)
+        code, out = self.run_cmd("check")
+        self.assertEqual(code, 1, out)
+        self.assertIn("`openspec show` cannot read this spec", out)
+
+    def test_a_show_that_prints_no_json_is_unread(self):
+        self.fake_cli("garbage", 0)
+        code, out = self.run_cmd("check")
+        self.assertEqual(code, 1, out)
+        self.assertIn("`openspec show` cannot read this spec (garbage)", out)
+
+    def test_state_and_decline_need_no_cli(self):
+        self.assertEqual(self.run_cmd("state"), (0, "undecided\n"))
+        self.assertEqual(self.run_cmd("decline")[0], 0)
 
 
 class Baseline(Repo):
     def test_writes_untagged_scenarios_sorted_and_check_then_passes(self):
-        self.write("openspec/specs/alpha/spec.md", "### Requirement: R\n#### Scenario: Zed\n#### Scenario: Ay\n")
+        self.write("openspec/specs/alpha/spec.md", spec("### Requirement: R\n#### Scenario: Zed\n- THEN it holds\n#### Scenario: Ay\n- THEN it holds\n"))
         self.write("test/claim.test.ts", f"// {AT} work-claiming: Claim precedes work\n")
         code, out = self.run_cmd("baseline")
         self.assertEqual(code, 0, out)
@@ -917,8 +1239,7 @@ class Prune(Repo):
 
     def setUp(self):
         super().setUp()
-        self.write("openspec/specs/alpha/spec.md",
-                   "### Requirement: R\n#### Scenario: Zed\n#### Scenario: Ay\n#### Scenario: Bee\n")
+        self.write("openspec/specs/alpha/spec.md", spec("### Requirement: R\n#### Scenario: Zed\n- THEN it holds\n#### Scenario: Ay\n- THEN it holds\n#### Scenario: Bee\n- THEN it holds\n"))
 
     def test_removes_a_now_tagged_line_and_one_naming_no_scenario(self):
         self.write("test/claim.test.ts", f"// {AT} work-claiming: Claim precedes work\n")
@@ -1021,12 +1342,14 @@ class Report(Repo):
             ## ADDED Requirements
             ### Requirement: New
             #### Scenario: Not built yet
+            - THEN it holds
             ## REMOVED Requirements
             ### Requirement: Old
             #### Scenario: Going away
+            - THEN it holds
             """)
         self.write("openspec/changes/archive/old/specs/work-claiming/spec.md",
-                   "### Requirement: A\n#### Scenario: Archived\n")
+                   "### Requirement: A\n#### Scenario: Archived\n- THEN it holds\n")
         self.assertNotIn("Not built yet", self.run_cmd("report")[1])
         out = self.run_cmd("report", "--include-changes")[1]
         self.assertIn("| Not built yet (change: add-x) | none |", out)
@@ -1036,7 +1359,7 @@ class Report(Repo):
     def test_include_changes_finds_tags_for_a_change_s_scenarios(self):
         self.tag_both()
         self.write("openspec/changes/add-x/specs/work-claiming/spec.md",
-                   "## ADDED Requirements\n### Requirement: New\n#### Scenario: Fresh\n#### Scenario: Stale\n")
+                   "## ADDED Requirements\n### Requirement: New\n#### Scenario: Fresh\n- THEN it holds\n#### Scenario: Stale\n- THEN it holds\n")
         self.write("src/fresh_test.go", f"// {AT} work-claiming: Fresh\n")
         code, out = self.run_cmd("report", "--include-changes")
         self.assertEqual(code, 0)
@@ -1062,7 +1385,7 @@ class Report(Repo):
     def test_where_tags_were_found_counts_tags_for_an_open_change(self):
         self.tag_both()
         self.write("openspec/changes/add-x/specs/work-claiming/spec.md",
-                   "## ADDED Requirements\n### Requirement: New\n#### Scenario: Fresh\n")
+                   "## ADDED Requirements\n### Requirement: New\n#### Scenario: Fresh\n- THEN it holds\n")
         self.write("pending/a.test.ts", f"// {AT} work-claiming: Fresh\n")
         for args in (["report"], ["report", "--include-changes"]):
             out = self.run_cmd(*args)[1]

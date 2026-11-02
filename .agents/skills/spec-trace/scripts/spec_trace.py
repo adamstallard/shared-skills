@@ -13,17 +13,26 @@ Tags are found with one `git grep` over every file under the root that .gitignor
 match, tracked or not, except DEFAULT_EXCLUDES and the patterns in IGNORE_FILE. A tag
 counts in any file the search reaches, not only in a test.
 
-Standard library only. check, report and baseline need git; state and decline do not.
+Scenarios are read only through the OpenSpec CLI, 1.15.0 or later: `openspec show --json`
+for each spec and each open change's delta specs. Line numbers come from a text search for
+the names `show` gives.
+
+Standard library only. check, report and baseline need git and the OpenSpec CLI; state and
+decline need neither.
 Why it is built this way, and what was rejected: ../DECISIONS.md.
 """
 
 import argparse
+import concurrent.futures
 import difflib
+import json
 import os
 import re
 import shlex
+import shutil
 import subprocess
 import sys
+import tempfile
 
 DEFAULT_BASELINE = "openspec/spec-trace-baseline.txt"
 # Paths never searched for tags: documentation, whose tag-shaped examples are not tests,
@@ -49,8 +58,6 @@ DECLINED_TEXT = "adoption: declined"
 DECISION_FILE_LIMIT = 4096
 WORKFLOWS = ".github/workflows"
 
-REQUIREMENT = re.compile(r"^###\s+Requirement:\s*(.+?)\s*$")
-SCENARIO = re.compile(r"^####\s+Scenario:\s*(.+?)\s*$")
 FENCE = re.compile(r"^\s*(`{3,}|~{3,})(.*)$")
 TAG = re.compile(r"@scenario\s+([A-Za-z0-9][A-Za-z0-9_.-]*)\s*:")
 # Where a tag's scenario name may end: at the end of the line, or before a closing quote,
@@ -68,10 +75,148 @@ NOT_AN_END = "\uE000"
 QUALIFIER = " / "
 
 
+def norm(text):
+    return " ".join(text.split())
+
+
+class Scenario:
+    def __init__(self, capability, requirement, name, path, line, change=None):
+        self.capability = capability
+        self.requirement = requirement
+        self.name = name
+        self.path = path
+        self.line = line  # 0 when the text search found neither it nor its requirement
+        self.change = change
+        self.ident = name  # the name a tag uses; assign_idents qualifies a repeated one
+
+    @property
+    def key(self):
+        return f"{self.capability}: {self.ident}"
+
+    @property
+    def where(self):
+        return f"{self.path}:{self.line}" if self.line else self.path
+
+
+# -- the OpenSpec CLI ----------------------------------------------------------
+#
+# spec-trace reads specs and deltas only through the OpenSpec CLI's public commands
+# (DECISIONS.md, "Scenarios are read only through the OpenSpec CLI"): `openspec show
+# --json`, `--type spec` for a main spec and `--deltas-only` for a change. 1.15.0 is the
+# minimum, as for spec-check. Without it, check, report and baseline refuse.
+
+OPENSPEC_SINCE = (1, 15, 0)
+NEEDS_OPENSPEC = "install OpenSpec 1.15.0 or later"
+CLI_TIMEOUT = 120
+# How many `openspec show` runs go at once. Each is a Node process reading one spec or change.
+CLI_WORKERS = 8
+# `openspec show` refuses a change whose proposal.md lacks "Why" or "What Changes", so a
+# change's delta specs are read beside this proposal instead of its own.
+STUB_PROPOSAL = ("## Why\n\nRead by spec-trace for its scenarios.\n\n"
+                 "## What Changes\n\n- Its delta specs.\n")
+SHOWN_CHANGE = "spec-trace-read"
+_versions = {}   # CLI path -> its version match, or None
+_shown = {}      # show_key() -> (data, None), or (None, what OpenSpec said)
+
+
+def openspec_exe():
+    """The OpenSpec CLI, or None when it is not on PATH."""
+    return shutil.which("openspec")
+
+
+def openspec_missing():
+    """None when the CLI on PATH is OPENSPEC_SINCE or later; otherwise why spec-trace
+    cannot use it, starting with NEEDS_OPENSPEC. A CLI whose version cannot be read is not
+    used."""
+    exe = openspec_exe()
+    if exe is None:
+        return f"{NEEDS_OPENSPEC} (the openspec CLI is not on PATH)"
+    if exe not in _versions:
+        try:
+            r = subprocess.run([exe, "--version"], stdin=subprocess.DEVNULL, capture_output=True,
+                               text=True, timeout=CLI_TIMEOUT)
+            out = r.stdout
+        except (OSError, subprocess.TimeoutExpired):
+            out = ""
+        _versions[exe] = re.search(r"\b(\d+)\.(\d+)\.(\d+)\b", out)
+    m = _versions[exe]
+    if m is None:
+        return f"{NEEDS_OPENSPEC} (`openspec --version` printed no version)"
+    if tuple(map(int, m.groups())) < OPENSPEC_SINCE:
+        return f"{NEEDS_OPENSPEC} (this one is {m.group(0)})"
+    return None
+
+
+def show_key(kind, name, files):
+    return kind, name, tuple(sorted(files.items()))
+
+
+def run_show(kind, name, files):
+    """`openspec show <name> --json --type <kind>` over files ({path such as
+    openspec/specs/<cap>/spec.md: text}), each written at that path inside an empty
+    temporary directory, so that nothing else is read; for a change, its deltas only. (data, None), or (None, what the CLI said)."""
+    with tempfile.TemporaryDirectory(prefix="spec-trace-show-") as tmp:
+        os.makedirs(os.path.join(tmp, "openspec"))
+        for rel, text in files.items():
+            full = os.path.join(tmp, rel)
+            os.makedirs(os.path.dirname(full), exist_ok=True)
+            with open(full, "w", encoding="utf-8", newline="") as f:
+                f.write(text)
+        args = ["show", name, "--json", "--type", kind, "--no-interactive"]
+        if kind == "change":
+            args.append("--deltas-only")
+        env = dict(os.environ, OPENSPEC_TELEMETRY="0", DO_NOT_TRACK="1")
+        try:
+            r = subprocess.run([openspec_exe() or "openspec", *args], cwd=tmp, stdin=subprocess.DEVNULL,
+                               capture_output=True, text=True, encoding="utf-8", errors="replace",
+                               timeout=CLI_TIMEOUT, env=env)
+        except (OSError, subprocess.TimeoutExpired) as e:
+            return None, f"`openspec show` could not run: {e}"
+    try:
+        data = json.loads(r.stdout[r.stdout.index("{"):])
+    except ValueError:
+        data = None
+    data = data if isinstance(data, dict) else None
+    listed = data.get("deltas" if kind == "change" else "requirements") if data else None
+    if r.returncode == 0 and isinstance(listed, list):
+        return data, None
+    status = data.get("status") if data else None
+    said = [s["message"] for s in status if isinstance(s, dict) and s.get("message")] \
+        if isinstance(status, list) else []
+    tail = (r.stderr or r.stdout).strip().splitlines()[-1:] or [f"exit {r.returncode}"]
+    return None, "; ".join(said) or tail[0]
+
+
+def show_all(requests):
+    """Read each (kind, name, files) request with run_show, several at once. Each reading
+    is kept for the run, by content, in _shown."""
+    todo = list({show_key(*r): r for r in requests if show_key(*r) not in _shown}.items())
+    if not todo:
+        return
+    with concurrent.futures.ThreadPoolExecutor(max_workers=min(CLI_WORKERS, len(todo))) as pool:
+        results = list(pool.map(lambda item: run_show(*item[1]), todo))
+    for (k, _), result in zip(todo, results):
+        _shown[k] = result
+
+
+# -- finding lines ---------------------------------------------------------------
+#
+# `openspec show --json` gives no line numbers. A scenario's line is found by searching
+# the file's text for the names `show` gives: a plain text search with no grammar of
+# OpenSpec's headers (DECISIONS.md, "A scenario's line is a text search"). A wrong guess
+# only puts a message on the wrong line. A scenario the search cannot find gets its
+# requirement's line; when neither is found, the line is 0 and the message names the file only.
+
+
+def search_key(text):
+    """text as the search compares it: case, backticks, #s and runs of space ignored."""
+    return " ".join(re.sub(r"[`#]", " ", text).lower().split())
+
+
 def fence_after(line, fence):
     """Track Markdown code fences: the fence open after this line, and whether this line
-    opens or closes one. The spec parsers skip fenced lines, so a scenario heading inside
-    an example is not a scenario.
+    opens or closes one. The search skips fenced lines, as OpenSpec reads a fenced heading
+    as text.
 
     A fence closes only on a line of the same character, at least as long, with nothing
     after it. Any other fence line inside it, such as ``` in a ~~~ example, is content.
@@ -87,91 +232,204 @@ def fence_after(line, fence):
     return fence, False
 
 
-def norm(text):
-    return " ".join(text.split())
+class Lines:
+    """The lines of one spec file outside code fences, searched for the names `openspec
+    show` gives."""
+
+    def __init__(self, text):
+        self.lines, fence = [], None
+        # Lines end at "\n" only, as git and editors count them.
+        for number, raw in enumerate(text.split("\n"), 1):
+            raw = raw.rstrip("\r")
+            fence, fence_line = fence_after(raw, fence)
+            if not (fence_line or fence):
+                self.lines.append((number, raw))
+        self.used = set()
+
+    def requirement(self, name):
+        """The first line, not already given to another name, on which name follows
+        "Requirement:"; 0 if none. A line starting with "###" wins over any other, such as
+        a rename's FROM line, and then a line naming it exactly over one that matches only
+        as search_key() compares."""
+        want, found = search_key(name), []
+        for n, raw in self.lines:
+            at = raw.lower().find("requirement:")
+            if at < 0 or n in self.used or search_key(raw[at + len("requirement:"):]) != want:
+                continue
+            exact = raw[at + len("requirement:"):].strip() == name.strip()
+            found.append((not raw.startswith("###"), not exact, n))
+        if not found:
+            return 0
+        n = min(found)[2]
+        self.used.add(n)
+        return n
+
+    def scenario(self, start, name):
+        """The first line after line start that starts with "####", names name with or
+        without "Scenario:", and is not already given to another name; 0 if none. When
+        start is a line, the search stops at the next line starting with "## " or "### ".
+        When start is 0, because the requirement's line was not found, it covers the file."""
+        want = search_key(name)
+        for n, raw in self.lines:
+            if n <= start or n in self.used:
+                continue
+            if start and raw.startswith(("## ", "### ")):
+                break
+            if not raw.startswith("####"):
+                continue
+            title = raw.lstrip("#")
+            at = title.lower().find("scenario:")
+            if search_key(title[at + len("scenario:"):] if at >= 0 else title) == want:
+                self.used.add(n)
+                return n
+        return 0
 
 
-class Scenario:
-    def __init__(self, capability, requirement, name, path, line, change=None):
-        self.capability = capability
-        self.requirement = requirement
-        self.name = name
-        self.path = path
-        self.line = line
-        self.change = change
-        self.ident = name  # the name a tag uses; assign_idents qualifies a repeated one
+class Req:
+    """One requirement as `openspec show` reads it: its name, and its scenarios as
+    (name, line) pairs."""
 
-    @property
-    def key(self):
-        return f"{self.capability}: {self.ident}"
+    def __init__(self, name, scenarios):
+        self.name, self.scenarios = name, scenarios
 
 
-def parse_spec(path, rel, capability, change=None):
-    """The scenarios in one spec file, each with the requirement heading above it.
-
-    Fenced lines are skipped. In a change's delta spec (change given), a REMOVED section's
-    scenarios are left out.
-    """
+def read_requirement(data, lines):
+    """A Req for one requirement of `openspec show`'s JSON, with each line number found
+    by searching the file's Lines."""
+    name = norm(str(data.get("name") or ""))
+    start = lines.requirement(str(data.get("name") or ""))
     scenarios = []
-    requirement = ""
-    fence = None
-    removed = False
-    with open(path, encoding="utf-8", errors="replace") as f:
-        for number, raw in enumerate(f, 1):
-            line = raw.rstrip("\r\n")
-            fence, fence_line = fence_after(line, fence)
-            if fence_line or fence:
-                continue
-            if re.match(r"^##(\s|$)", line):
-                removed = change is not None and line[2:].strip().upper().startswith("REMOVED")
-                continue
-            if removed:
-                continue
-            m = REQUIREMENT.match(line)
-            if m:
-                requirement = norm(m.group(1))
-                continue
-            m = SCENARIO.match(line)
-            if m:
-                scenarios.append(Scenario(capability, requirement, norm(m.group(1)), rel, number, change))
-    return scenarios
+    for s in data.get("scenarios") or []:
+        if isinstance(s, dict):
+            raw = str(s.get("name") or "")
+            scenarios.append((norm(raw), lines.scenario(start, raw) or start))
+    return Req(name, scenarios)
 
 
-RENAME = re.compile(r"^\s*-\s*(FROM|TO):\s*`?\s*###\s+Requirement:\s*(.+?)\s*`?\s*$")
+class Delta:
+    """What one change does to one capability, as `openspec show --deltas-only` reads it:
+    the requirement names it removes, renames (old name to new) and restates (adds or
+    modifies), and each restated requirement's Req."""
+
+    def __init__(self):
+        self.removed, self.renamed, self.restated = set(), {}, {}
 
 
-def parse_delta(path):
-    """The requirement names a change's delta spec removes, renames (a dict, old name to
-    new) and restates (adds or modifies)."""
-    removed, renamed, restated = set(), {}, set()
-    section = ""
-    old = None
-    fence = None
-    with open(path, encoding="utf-8", errors="replace") as f:
-        for raw in f:
-            line = raw.rstrip("\r\n")
-            fence, fence_line = fence_after(line, fence)
-            if fence_line or fence:
+class OpenSpec:
+    """Everything spec-trace reads under openspec/ at root, through `openspec show`.
+
+    specs: [(capability, rel path, [Req])], one per openspec/specs/<capability>/spec.md.
+    changes: [(change, capability, rel path, Delta)], one per delta spec of an open change.
+    unread_specs, unread_changes: a message for each spec or change `show` cannot read.
+    unread_caps: the capabilities whose spec `show` cannot read. Tags and baseline lines
+    naming one are not judged: without its scenarios, nothing can be said about them.
+    empty_deltas: {capability: [(change, rel path)]} for each delta spec in which `show`
+    reads nothing, such as one whose only section title OpenSpec does not know. A tag
+    naming a scenario written there fails, and tag_problem says which file to validate.
+    """
+
+    def __init__(self, root):
+        base = os.path.join(root, "openspec")
+        texts = {}
+
+        def text_of(rel):
+            # newline="" keeps line endings as written, so `show` reads the file's own text.
+            with open(os.path.join(root, rel), encoding="utf-8", errors="replace", newline="") as f:
+                texts[rel] = f.read()
+            return texts[rel]
+
+        specs = []
+        specs_dir = os.path.join(base, "specs")
+        for cap in sorted(os.listdir(specs_dir)) if os.path.isdir(specs_dir) else []:
+            rel = f"openspec/specs/{cap}/spec.md"
+            if os.path.isfile(os.path.join(root, rel)):
+                specs.append((cap, rel, {rel: text_of(rel)}))
+        changes = []
+        changes_dir = os.path.join(base, "changes")
+        for change in sorted(os.listdir(changes_dir)) if os.path.isdir(changes_dir) else []:
+            cdir = os.path.join(changes_dir, change, "specs")
+            if change == "archive" or not os.path.isdir(cdir):
                 continue
-            if re.match(r"^##(\s|$)", line):
-                section = line[2:].strip().upper()
+            rels = {cap: f"openspec/changes/{change}/specs/{cap}/spec.md" for cap in sorted(os.listdir(cdir))}
+            rels = {cap: rel for cap, rel in rels.items() if os.path.isfile(os.path.join(root, rel))}
+            if rels:
+                files = {f"openspec/changes/{SHOWN_CHANGE}/specs/{cap}/spec.md": text_of(rel)
+                         for cap, rel in rels.items()}
+                files[f"openspec/changes/{SHOWN_CHANGE}/proposal.md"] = STUB_PROPOSAL
+                changes.append((change, rels, files))
+        show_all([("spec", cap, files) for cap, _, files in specs]
+                 + [("change", SHOWN_CHANGE, files) for _, _, files in changes])
+
+        self.specs, self.unread_specs, self.unread_caps = [], [], set()
+        for cap, rel, files in specs:
+            data, said = _shown[show_key("spec", cap, files)]
+            if said is not None:
+                self.unread_specs.append(
+                    f"{rel}: `openspec show` cannot read this spec ({said}), so none of its scenarios, "
+                    "and no tag or baseline line naming them, were checked. Fix the spec until "
+                    f"`openspec validate {cap} --type spec` passes.")
+                self.unread_caps.add(cap)
                 continue
-            m = REQUIREMENT.match(line)
-            if m and section.startswith("REMOVED"):
-                removed.add(norm(m.group(1)))
-            elif m and (section.startswith("ADDED") or section.startswith("MODIFIED")):
-                restated.add(norm(m.group(1)))
-            m = RENAME.match(line)
-            if m and section.startswith("RENAMED"):
-                if m.group(1) == "FROM":
-                    old = norm(m.group(2))
-                elif old is not None:
-                    renamed[old] = norm(m.group(2))
-                    old = None
-    return removed, renamed, restated
+            lines = Lines(texts[rel])
+            self.specs.append((cap, rel, [read_requirement(d, lines) for d in data["requirements"]
+                                          if isinstance(d, dict)]))
+        self.changes, self.unread_changes, self.empty_deltas = [], [], {}
+        for change, rels, files in changes:
+            data, said = _shown[show_key("change", SHOWN_CHANGE, files)]
+            if said is not None:
+                self.unread_changes.append(
+                    f"openspec/changes/{change}: `openspec show` cannot read its delta specs ({said}), "
+                    "so a tag naming one of its scenarios fails as naming none. Fix the delta specs "
+                    f"until `openspec validate {change} --type change` passes.")
+                continue
+            deltas = {cap: Delta() for cap in rels}
+            lines = {cap: Lines(texts[rel]) for cap, rel in rels.items()}
+            for d in data["deltas"]:
+                cap = d.get("spec") if isinstance(d, dict) else None
+                if not isinstance(cap, str) or cap not in deltas:
+                    continue
+                kind = str(d.get("operation") or "").upper()
+                req = d.get("requirement") if isinstance(d.get("requirement"), dict) else {}
+                if kind == "RENAMED":
+                    ren = d.get("rename") if isinstance(d.get("rename"), dict) else {}
+                    deltas[cap].renamed[norm(str(ren.get("from") or ""))] = norm(str(ren.get("to") or ""))
+                elif kind == "REMOVED":
+                    deltas[cap].removed.add(norm(str(req.get("name") or "")))
+                elif kind in ("ADDED", "MODIFIED"):
+                    r = read_requirement(req, lines[cap])
+                    deltas[cap].restated[r.name] = r
+            self.changes += [(change, cap, rels[cap], deltas[cap]) for cap in rels]
+            for cap, d in deltas.items():
+                if not (d.removed or d.renamed or d.restated):
+                    self.empty_deltas.setdefault(cap, []).append((change, rels[cap]))
 
 
-def apply_delta(scenarios, changed, removed, renamed, restated, capability, change):
+_read = {}  # root -> OpenSpec, read once per run
+
+
+def read_openspec(root):
+    """The OpenSpec reading of root, read once per run.
+
+    Raises SystemExit when root has no openspec/: --root most likely names the wrong
+    folder, and a check that passed there would have checked nothing. Raises Refusal when
+    the OpenSpec CLI is missing or older than OPENSPEC_SINCE.
+    """
+    if not os.path.isdir(os.path.join(root, "openspec")):
+        raise SystemExit(f"spec-trace: no openspec/ under {root}")
+    missing = openspec_missing()
+    if missing:
+        raise Refusal(f"not run: {missing}. check, report and baseline read scenarios only "
+                      "through `openspec show`; state and decline do not.")
+    if root not in _read:
+        _read[root] = OpenSpec(root)
+    return _read[root]
+
+
+def scenarios_of(cap, rel, reqs, change=None):
+    return [Scenario(cap, r.name, name, rel, line, change) for r in reqs for name, line in r.scenarios]
+
+
+def apply_delta(scenarios, changed, delta, capability, change):
     """The scenarios as they will be once the change is archived.
 
     Only scenarios in the given capability change. A removed requirement's scenarios are
@@ -181,14 +439,14 @@ def apply_delta(scenarios, changed, removed, renamed, restated, capability, chan
     kept = []
     for s in scenarios:
         if s.capability == capability:
-            if s.requirement in removed:
+            if s.requirement in delta.removed:
                 continue
-            if s.requirement in renamed:
+            if s.requirement in delta.renamed:
                 # The new name exists only in the change until it is archived, so the
                 # scenario now belongs to the change. scan_tags neither counts a tag naming it
                 # as coverage nor reports that tag as an error.
-                s.requirement, s.change = renamed[s.requirement], change
-            if s.requirement in restated:
+                s.requirement, s.change = delta.renamed[s.requirement], change
+            if s.requirement in delta.restated:
                 continue
         kept.append(s)
     return kept + changed
@@ -214,8 +472,8 @@ def assign_idents(scenarios):
         if s.key in seen:
             first = seen[s.key]
             problems.append(
-                f"{s.path}:{s.line}: scenario '{s.name}' repeats under requirement "
-                f"'{s.requirement}' ({first.path}:{first.line}), so no tag can tell them apart. "
+                f"{s.where}: scenario '{s.name}' repeats under requirement "
+                f"'{s.requirement}' ({first.where}), so no tag can tell them apart. "
                 "Rename one of them in the spec.")
         else:
             seen[s.key] = s
@@ -224,41 +482,25 @@ def assign_idents(scenarios):
 
 def load_scenarios(root, include_changes=False):
     """Returns (scenarios, problems). scenarios are the main specs' scenarios, with each
-    open change applied when include_changes is set; problems are assign_idents'.
+    open change applied when include_changes is set. problems are a message for each main
+    spec `openspec show` cannot read, and assign_idents' messages.
 
     A missing openspec/specs/ means no main scenarios. A repository that has just
     adopted OpenSpec has no openspec/specs/ until it archives its first change, and git
-    keeps no empty folder, so a clone cannot have an empty one. A missing openspec/
-    raises SystemExit instead: --root most likely names the wrong folder, and a check
-    that passed there would have checked nothing.
+    keeps no empty folder, so a clone cannot have an empty one.
     """
-    if not os.path.isdir(os.path.join(root, "openspec")):
-        raise SystemExit(f"spec-trace: no openspec/ under {root}")
-    specs = os.path.join(root, "openspec", "specs")
-    scenarios = []
-    for capability in sorted(os.listdir(specs)) if os.path.isdir(specs) else []:
-        path = os.path.join(specs, capability, "spec.md")
-        if os.path.isfile(path):
-            scenarios += parse_spec(path, f"openspec/specs/{capability}/spec.md", capability)
+    found = read_openspec(root)
+    scenarios = [s for cap, rel, reqs in found.specs for s in scenarios_of(cap, rel, reqs)]
     if include_changes:
-        changes = os.path.join(root, "openspec", "changes")
-        for change in sorted(os.listdir(changes)) if os.path.isdir(changes) else []:
-            if change == "archive":
-                continue
-            cdir = os.path.join(changes, change, "specs")
-            for capability in sorted(os.listdir(cdir)) if os.path.isdir(cdir) else []:
-                path = os.path.join(cdir, capability, "spec.md")
-                if os.path.isfile(path):
-                    rel = f"openspec/changes/{change}/specs/{capability}/spec.md"
-                    scenarios = apply_delta(scenarios, parse_spec(path, rel, capability, change),
-                                            *parse_delta(path), capability, change)
-    problems = assign_idents(scenarios)
-    return scenarios, problems
+        for change, cap, rel, delta in found.changes:
+            changed = scenarios_of(cap, rel, delta.restated.values(), change)
+            scenarios = apply_delta(scenarios, changed, delta, cap, change)
+    return scenarios, found.unread_specs + assign_idents(scenarios)
 
 
 class Refusal(Exception):
-    """git cannot search the repository for tags. args[0] is the reason; main prints it
-    and exits 2."""
+    """git cannot search the repository for tags, or the OpenSpec CLI cannot read its
+    specs. args[0] is the reason; main prints it and exits 2."""
 
 
 def git_env(root):
@@ -597,7 +839,17 @@ def coverage(scenarios, tags):
 NOT_A_TEST = f"If the file is not a test, add a pattern for its path to {IGNORE_FILE}."
 
 
-def tag_problem(t, scenarios):
+def empty_delta_note(t, empty_deltas):
+    """For a tag that names no scenario or no capability, a sentence for each delta spec of
+    its capability in which `openspec show` reads nothing; "" when there is none. A tag
+    naming a scenario written in such a file counts for nothing, because OpenSpec does not
+    read that scenario."""
+    return "".join(f" `openspec show` reads no requirement in {rel}. If this tag names a scenario "
+                   f"there, run `openspec validate {change} --type change` to see why."
+                   for change, rel in empty_deltas.get(t.capability, []))
+
+
+def tag_problem(t, scenarios, empty_deltas):
     if t.problem == "ambiguous":
         # The choice lines leave out `@scenario` so that no line of this message could make a
         # scenario count as tested. spec-trace never saves its output, but if a person saved
@@ -617,20 +869,25 @@ def tag_problem(t, scenarios):
         else:
             more = " It holds no scenario yet: a change's scenarios arrive there when it is archived."
         return (f"{t.where}: tag '@scenario {t.capability}: {t.text}' names no capability under "
-                f"openspec/specs.{more} {NOT_A_TEST}")
+                f"openspec/specs.{more}{empty_delta_note(t, empty_deltas)} {NOT_A_TEST}")
     names = [s.ident for s in scenarios if s.capability == t.capability]
     hint = difflib.get_close_matches(t.text, names, n=1, cutoff=0.5)
     more = f" Did you mean '{hint[0]}'?" if hint else ""
     return (f"{t.where}: tag '@scenario {t.capability}: {t.text}' names no scenario in "
             f"openspec/specs/{t.capability}/spec.md.{more} If the scenario was renamed, change the "
-            f"tag to its new name; if it was removed, delete the tag. {NOT_A_TEST}")
+            f"tag to its new name; if it was removed, delete the tag."
+            f"{empty_delta_note(t, empty_deltas)} {NOT_A_TEST}")
 
 
 PRUNE_HINT = "Run `baseline --prune` to remove this line, and commit the result with the change."
+# `baseline --prune` refuses while load_scenarios reports a problem, so check says to fix it first.
+PRUNE_BLOCKED_HINT = ("Fix the spec problems above first, since `baseline --prune` refuses until then; "
+                      "then run it to remove this line, and commit the result with the change.")
 
 
 def check(root, lines, baseline_path):
     scenarios, problems = load_scenarios(root)
+    prune_hint = PRUNE_BLOCKED_HINT if problems else PRUNE_HINT
     tags = scan_tags(lines, scenarios, pending_scenarios(root))
     covered = coverage(scenarios, tags)
     baseline = read_baseline(baseline_path)
@@ -640,16 +897,21 @@ def check(root, lines, baseline_path):
     for s in scenarios:
         if s.key not in covered and s.key not in baseline:
             problems.append(
-                f"{s.path}:{s.line}: no test tags scenario '{s.key}'. Tag the test that checks it with "
+                f"{s.where}: no test tags scenario '{s.key}'. Tag the test that checks it with "
                 f"`@scenario` followed by this line, or write that test:\n      {s.key}")
-    problems += [tag_problem(t, scenarios) for t in tags if t.problem]
+    found = read_openspec(root)
+    problems += [tag_problem(t, scenarios, found.empty_deltas) for t in tags
+                 if t.problem and t.capability not in found.unread_caps]
+    problems += found.unread_changes
     for entry, number in sorted(baseline.items(), key=lambda e: e[1]):
+        if entry.partition(":")[0] in found.unread_caps:
+            continue
         if entry in covered:
             where = ", ".join(t.where for t in covered[entry])
-            problems.append(f"{rel_baseline}:{number}: '{entry}' is now tagged by {where}. {PRUNE_HINT}")
+            problems.append(f"{rel_baseline}:{number}: '{entry}' is now tagged by {where}. {prune_hint}")
         elif entry not in keys:
             problems.append(f"{rel_baseline}:{number}: '{entry}' names no scenario in openspec/specs. "
-                            f"{PRUNE_HINT}")
+                            f"{prune_hint}")
 
     if problems:
         for p in problems:
@@ -665,8 +927,9 @@ def check(root, lines, baseline_path):
 def tagged_scenarios(root, lines):
     """The main specs' scenarios, and coverage(): the tags naming each one.
 
-    Returns None, after printing load_scenarios' problems, when two scenarios share a name
-    under one requirement: no tag or baseline line could tell them apart.
+    Returns None, after printing load_scenarios' problems: a main spec `openspec show`
+    cannot read, or two scenarios that share a name under one requirement, which no tag or
+    baseline line could tell apart.
     """
     scenarios, problems = load_scenarios(root)
     if problems:
@@ -791,7 +1054,10 @@ def report(root, lines, include_changes):
             where = "<br>".join(t.where for t in covered.get(s.key, [])) or "none"
             print(f"| {cell(name)} | {cell(where)} |")
     where_found(lines)
-    bad = [tag_problem(t, scenarios) for t in tags if t.problem] + problems
+    found = read_openspec(root)
+    bad = ([tag_problem(t, scenarios, found.empty_deltas) for t in tags
+            if t.problem and t.capability not in found.unread_caps]
+           + problems + found.unread_changes)
     if bad:
         print("\n### Problems\n")
         for p in bad:
@@ -1045,6 +1311,7 @@ def main(argv=None):
 
     root = os.path.abspath(args.root)
     baseline = os.path.join(root, args.baseline)
+    _read.clear()  # files may have changed since an earlier call in this process
     if args.command == "state":
         state = adoption_state(root, args.baseline)
         print(state or "n/a")
@@ -1056,16 +1323,16 @@ def main(argv=None):
         return decline(root, args.baseline, args.dry_run)
     try:
         lines = tag_lines(root)
+        if args.command == "check":
+            return check(root, lines, baseline)
+        if args.command == "baseline" and args.prune:
+            return prune_baseline(root, lines, baseline)
+        if args.command == "baseline":
+            return write_baseline(root, lines, baseline)
+        return report(root, lines, args.include_changes)
     except Refusal as e:
         print(f"spec-trace: {e}")
         return 2
-    if args.command == "check":
-        return check(root, lines, baseline)
-    if args.command == "baseline" and args.prune:
-        return prune_baseline(root, lines, baseline)
-    if args.command == "baseline":
-        return write_baseline(root, lines, baseline)
-    return report(root, lines, args.include_changes)
 
 
 if __name__ == "__main__":

@@ -27,6 +27,10 @@ no tag and isn't in the repository's baseline, or when a tag names no
 scenario. CI runs it; nothing runs it on commit, so run `check` yourself
 after tagging.
 
+`check`, `report` and `baseline` read the specs only through the OpenSpec
+CLI, 1.15.0 or later, on `PATH`; without it they print `not run: install
+OpenSpec 1.15.0 or later` and exit 2. `state` and `decline` need no CLI.
+
 ```bash
 T="<base directory>/scripts/spec_trace.py"
 ```
@@ -44,8 +48,10 @@ above the test, or inside the test's name. Tags belong in tests; see *Where
 tags are found*, below.
 
 - `<capability>` is the directory name under `openspec/specs/`.
-- `<Scenario name>` is the text after `#### Scenario:` in that spec, as
-  written. Case counts; runs of spaces don't.
+- `<Scenario name>` is the scenario's name as OpenSpec reads it: the text
+  after `#### Scenario:` in that spec, without any closing `#`s. Case
+  counts; runs of spaces don't. A scenario heading with no text under it is
+  not a scenario to OpenSpec, so it needs no tag.
 - A test may carry several tags, one per line or several on a line. A
   scenario may be tagged by several tests.
 - **A name that repeats within one capability** is written with its
@@ -103,9 +109,12 @@ scenario counts as covering it, and one that names none fails `check`.
 | --- | --- |
 | `no test tags scenario 'cap: Name'` | Tag the test that checks it: `@scenario` followed by the printed `cap: Name` line. If no test checks it, write one. Never add the scenario to the baseline. |
 | `tag ... names no scenario` | The scenario was renamed: change the tag to the new name (the message suggests the closest). It was removed: delete the tag. |
+| `tag ... names no scenario` or `names no capability`, and the message says `openspec show` reads no requirement in a change's delta spec | If the tag names a scenario in that file, run the `openspec validate` command the message names and fix the delta spec. Otherwise, fix the tag as the row above says. |
 | `tag ... names no scenario` or `names no capability`, in a file that is not a test (a vendored file, a doc that is not `.md`, `.mdx`, `.rst`, `.adoc` or `.txt`) | Add a pattern for that path to `openspec/spec-trace-ignore.txt`, such as `vendor/**`, and commit it. |
 | `git grep failed` | Fix or remove the pattern git names in `openspec/spec-trace-ignore.txt`. |
 | `not inside a git work tree`, or `git could not be run` | Run it from a git clone, or pass `--root` inside one. |
+| `not run: install OpenSpec 1.15.0 or later` | Install it (`npm install -g @fission-ai/openspec`) or update it, then run the command again. |
+| `` `openspec show` cannot read this spec `` or `cannot read its delta specs` | Fix the file until the `openspec validate` command the message names passes. |
 | `tag ... is ambiguous` | Write `@scenario` followed by one of the qualified names the message lists. |
 | `baseline ... is now tagged` | Run `python3 $T baseline --prune`, and commit the pruned baseline with the change that added the tag. |
 | `baseline ... names no scenario` | Run `python3 $T baseline --prune`, and commit the pruned baseline with the change that renamed or removed the scenario. |
