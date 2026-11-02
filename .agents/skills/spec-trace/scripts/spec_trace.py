@@ -877,7 +877,13 @@ def capabilities(found, include_changes=False):
     return found.main_caps | (found.change_caps if include_changes else set())
 
 
-def tag_problem(t, scenarios, capabilities, misread_deltas):
+def tag_problem(t, scenarios, capabilities, misread_deltas, include_changes):
+    """The message for t, a Tag whose problem is set.
+
+    include_changes must be the value given to capabilities() when it built capabilities.
+    When it is true, that set counts open changes' delta specs too. The message for a tag
+    naming no capability then names both places searched: openspec/specs and the open
+    changes."""
     if t.problem == "ambiguous":
         # The choice lines leave out `@scenario` so that no line of this message could make a
         # scenario count as tested. spec-trace never saves its output, but if a person saved
@@ -894,10 +900,13 @@ def tag_problem(t, scenarios, capabilities, misread_deltas):
             more = f" Did you mean '{hint[0]}'?"
         elif caps:
             more = f" Capabilities: {', '.join(caps)}."
+        elif include_changes:
+            more = " There is no spec file in either yet."
         else:
             more = " It holds no scenario yet: a change's scenarios arrive there when it is archived."
-        return (f"{t.where}: tag '@scenario {t.capability}: {t.text}' names no capability under "
-                f"openspec/specs.{more}{misread_delta_note(t, misread_deltas)} {NOT_A_TEST}")
+        where = "in openspec/specs or an open change" if include_changes else "under openspec/specs"
+        return (f"{t.where}: tag '@scenario {t.capability}: {t.text}' names no capability {where}."
+                f"{more}{misread_delta_note(t, misread_deltas)} {NOT_A_TEST}")
     names = [s.ident for s in scenarios if s.capability == t.capability]
     hint = difflib.get_close_matches(t.text, names, n=1, cutoff=0.5)
     more = f" Did you mean '{hint[0]}'?" if hint else ""
@@ -929,7 +938,7 @@ def check(root, lines, baseline_path):
             problems.append(
                 f"{s.where}: no test tags scenario '{s.key}'. Tag the test that checks it with "
                 f"`@scenario` followed by this line, or write that test:\n      {s.key}")
-    problems += [tag_problem(t, scenarios, caps, found.misread_deltas) for t in tags
+    problems += [tag_problem(t, scenarios, caps, found.misread_deltas, False) for t in tags
                  if t.problem and t.capability not in found.unread_caps]
     problems += found.unread_changes
     for entry, number in sorted(baseline.items(), key=lambda e: e[1]):
@@ -1086,7 +1095,7 @@ def report(root, lines, include_changes):
             where = "<br>".join(t.where for t in covered.get(s.key, [])) or "none"
             print(f"| {cell(name)} | {cell(where)} |")
     where_found(lines)
-    bad = ([tag_problem(t, scenarios, caps, found.misread_deltas) for t in tags
+    bad = ([tag_problem(t, scenarios, caps, found.misread_deltas, include_changes) for t in tags
             if t.problem and t.capability not in found.unread_caps]
            + problems + found.unread_changes)
     if bad:

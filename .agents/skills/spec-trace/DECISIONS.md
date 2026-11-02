@@ -330,7 +330,10 @@ The same files decide which capabilities a tag may name. `check` and plain
 `report` count one capability per main spec file. `report --include-changes`
 also counts one per delta spec file of an open change. When a tag's
 capability is counted but no scenario has the tag's name, the tag fails as
-naming no scenario, never as naming no capability.
+naming no scenario, never as naming no capability. When a tag's capability is
+not counted, the tag fails as naming no capability. Its message says "under
+openspec/specs" in `check` and plain `report`, and "in openspec/specs or an
+open change" in `report --include-changes`, so it names every place searched.
 
 That holds even for a capability with no scenario left after applying the
 open changes, which `report --include-changes` judges tags against. A change

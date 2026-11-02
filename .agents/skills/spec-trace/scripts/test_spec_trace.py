@@ -1399,6 +1399,27 @@ class Prune(Repo):
 
 
 class Report(Repo):
+    def test_with_no_spec_files_at_all_report_says_so(self):
+        shutil.rmtree(os.path.join(self.root, "openspec", "specs"))
+        self.write("test/x.test.ts", f"// {AT} zzz: Nothing\n")
+        out = self.run_cmd("report", "--include-changes")[1]
+        self.assertIn("tag '@scenario zzz: Nothing' names no capability in openspec/specs or an open "
+                      "change. There is no spec file in either yet.", out)
+
+    def test_an_unknown_capability_s_message_names_where_report_looked(self):
+        self.write("openspec/changes/add-y/specs/billing/spec.md",
+                   "## ADDED Requirements\n### Requirement: B\nIt SHALL bill.\n\n#### Scenario: Bills\n- THEN it bills\n")
+        self.write("test/x.test.ts", f"// {AT} zzz: Nothing\n")
+        out = self.run_cmd("report")[1]
+        self.assertIn("tag '@scenario zzz: Nothing' names no capability under openspec/specs. "
+                      "Capabilities: work-claiming.", out)
+        out = self.run_cmd("report", "--include-changes")[1]
+        self.assertIn("tag '@scenario zzz: Nothing' names no capability in openspec/specs or an open "
+                      "change. Capabilities: billing, work-claiming.", out)
+        out = self.run_cmd("check")[1]
+        self.assertIn("tag '@scenario zzz: Nothing' names no capability under openspec/specs. "
+                      "Capabilities: work-claiming.", out)
+
     def test_a_misspelled_capability_gets_a_suggestion(self):
         self.write("test/x.test.ts", f"// {AT} work-claim: Claim precedes work\n")
         out = self.run_cmd("report")[1]
