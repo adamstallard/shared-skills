@@ -323,9 +323,13 @@ class OpenSpec:
     unread_specs, unread_changes: a message for each spec or change `show` cannot read.
     unread_caps: the capabilities whose spec `show` cannot read. Tags and baseline lines
     naming one are not judged: without its scenarios, nothing can be said about them.
-    empty_deltas: {capability: [(change, rel path)]} for each delta spec in which `show`
-    reads nothing, such as one whose only section title OpenSpec does not know. A tag
-    naming a scenario written there fails, and tag_problem says which file to validate.
+    misread_deltas: {capability: [(change, rel path, what `show` reads there, such as "no
+    requirement" or "no scenario under requirement 'New'")]} for each delta spec
+    in which `show` reads no requirement, such as one whose only section title OpenSpec
+    does not know, and for each requirement a delta adds or modifies that `show` reads with
+    no scenario, such as one whose scenario heading has no text under it. A tag naming a
+    scenario written there fails, and tag_problem names the file and the change to run
+    `openspec validate` on.
     """
 
     def __init__(self, root):
@@ -373,7 +377,7 @@ class OpenSpec:
             lines = Lines(texts[rel])
             self.specs.append((cap, rel, [read_requirement(d, lines) for d in data["requirements"]
                                           if isinstance(d, dict)]))
-        self.changes, self.unread_changes, self.empty_deltas = [], [], {}
+        self.changes, self.unread_changes, self.misread_deltas = [], [], {}
         for change, rels, files in changes:
             data, said = _shown[show_key("change", SHOWN_CHANGE, files)]
             if said is not None:
@@ -400,8 +404,11 @@ class OpenSpec:
                     deltas[cap].restated[r.name] = r
             self.changes += [(change, cap, rels[cap], deltas[cap]) for cap in rels]
             for cap, d in deltas.items():
-                if not (d.removed or d.renamed or d.restated):
-                    self.empty_deltas.setdefault(cap, []).append((change, rels[cap]))
+                reads = [] if d.removed or d.renamed or d.restated else ["no requirement"]
+                reads += [f"no scenario under requirement '{r.name}'" for r in d.restated.values()
+                          if not r.scenarios]
+                for what in reads:
+                    self.misread_deltas.setdefault(cap, []).append((change, rels[cap], what))
 
 
 _read = {}  # root -> OpenSpec, read once per run
@@ -839,17 +846,17 @@ def coverage(scenarios, tags):
 NOT_A_TEST = f"If the file is not a test, add a pattern for its path to {IGNORE_FILE}."
 
 
-def empty_delta_note(t, empty_deltas):
-    """For a tag that names no scenario or no capability, a sentence for each delta spec of
-    its capability in which `openspec show` reads nothing; "" when there is none. A tag
-    naming a scenario written in such a file counts for nothing, because OpenSpec does not
-    read that scenario."""
-    return "".join(f" `openspec show` reads no requirement in {rel}. If this tag names a scenario "
+def misread_delta_note(t, misread_deltas):
+    """For a tag that names no scenario or no capability, a sentence for each entry of
+    OpenSpec.misread_deltas in its capability; "" when there is none. A tag naming a
+    scenario written in such a file counts for nothing, because OpenSpec does not read that
+    scenario."""
+    return "".join(f" `openspec show` reads {what} in {rel}. If this tag names a scenario "
                    f"there, run `openspec validate {change} --type change` to see why."
-                   for change, rel in empty_deltas.get(t.capability, []))
+                   for change, rel, what in misread_deltas.get(t.capability, []))
 
 
-def tag_problem(t, scenarios, empty_deltas):
+def tag_problem(t, scenarios, misread_deltas):
     if t.problem == "ambiguous":
         # The choice lines leave out `@scenario` so that no line of this message could make a
         # scenario count as tested. spec-trace never saves its output, but if a person saved
@@ -869,14 +876,14 @@ def tag_problem(t, scenarios, empty_deltas):
         else:
             more = " It holds no scenario yet: a change's scenarios arrive there when it is archived."
         return (f"{t.where}: tag '@scenario {t.capability}: {t.text}' names no capability under "
-                f"openspec/specs.{more}{empty_delta_note(t, empty_deltas)} {NOT_A_TEST}")
+                f"openspec/specs.{more}{misread_delta_note(t, misread_deltas)} {NOT_A_TEST}")
     names = [s.ident for s in scenarios if s.capability == t.capability]
     hint = difflib.get_close_matches(t.text, names, n=1, cutoff=0.5)
     more = f" Did you mean '{hint[0]}'?" if hint else ""
     return (f"{t.where}: tag '@scenario {t.capability}: {t.text}' names no scenario in "
             f"openspec/specs/{t.capability}/spec.md.{more} If the scenario was renamed, change the "
             f"tag to its new name; if it was removed, delete the tag."
-            f"{empty_delta_note(t, empty_deltas)} {NOT_A_TEST}")
+            f"{misread_delta_note(t, misread_deltas)} {NOT_A_TEST}")
 
 
 PRUNE_HINT = "Run `baseline --prune` to remove this line, and commit the result with the change."
@@ -900,7 +907,7 @@ def check(root, lines, baseline_path):
                 f"{s.where}: no test tags scenario '{s.key}'. Tag the test that checks it with "
                 f"`@scenario` followed by this line, or write that test:\n      {s.key}")
     found = read_openspec(root)
-    problems += [tag_problem(t, scenarios, found.empty_deltas) for t in tags
+    problems += [tag_problem(t, scenarios, found.misread_deltas) for t in tags
                  if t.problem and t.capability not in found.unread_caps]
     problems += found.unread_changes
     for entry, number in sorted(baseline.items(), key=lambda e: e[1]):
@@ -1055,7 +1062,7 @@ def report(root, lines, include_changes):
             print(f"| {cell(name)} | {cell(where)} |")
     where_found(lines)
     found = read_openspec(root)
-    bad = ([tag_problem(t, scenarios, found.empty_deltas) for t in tags
+    bad = ([tag_problem(t, scenarios, found.misread_deltas) for t in tags
             if t.problem and t.capability not in found.unread_caps]
            + problems + found.unread_changes)
     if bad:

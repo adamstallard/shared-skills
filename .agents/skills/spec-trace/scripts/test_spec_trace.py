@@ -1019,6 +1019,39 @@ class ReadByOpenSpec(Repo):
         self.assertIn("names no scenario", out)
         self.assertNotIn("reads no requirement", out)
 
+    def test_a_tag_failure_names_a_restated_requirement_with_no_scenario(self):
+        # A scenario heading with no text under it is not a scenario to OpenSpec, so the
+        # requirement above it is read with none. add-x covers a requirement a delta adds,
+        # and mod-y one it modifies.
+        self.tag_both()
+        self.write("openspec/changes/add-x/specs/work-claiming/spec.md",
+                   "## ADDED Requirements\n### Requirement: New\nIt SHALL hold.\n\n#### Scenario: Fresh\n")
+        self.write("openspec/changes/mod-y/specs/work-claiming/spec.md",
+                   "## MODIFIED Requirements\n### Requirement: An Igor claims before it starts\n"
+                   "Every pickup SHALL take a claim.\n\n#### Scenario: Claim precedes work\n")
+        self.write("test/x.test.ts", f"// {AT} work-claiming: Fresh\n")
+        code, out = self.run_cmd("check")
+        self.assertEqual(code, 1, out)
+        self.assertIn("`openspec show` reads no scenario under requirement 'New' in "
+                      "openspec/changes/add-x/specs/work-claiming/spec.md. If this tag names a scenario "
+                      "there, run `openspec validate add-x --type change` to see why.", out)
+        self.assertIn("`openspec show` reads no scenario under requirement 'An Igor claims before it starts' in "
+                      "openspec/changes/mod-y/specs/work-claiming/spec.md.", out)
+        self.assertNotIn("reads no requirement", out)
+
+    def test_a_delta_that_only_removes_or_renames_brings_no_note(self):
+        self.tag_both()
+        self.write("openspec/changes/drop/specs/work-claiming/spec.md",
+                   "## REMOVED Requirements\n### Requirement: An Igor claims before it starts\n")
+        self.write("openspec/changes/ren/specs/work-claiming/spec.md",
+                   "## RENAMED Requirements\n- FROM: `### Requirement: An Igor claims before it starts`\n"
+                   "- TO: `### Requirement: An Igor claims first`\n")
+        self.write("test/x.test.ts", f"// {AT} work-claiming: Nothing\n")
+        code, out = self.run_cmd("check")
+        self.assertEqual(code, 1, out)
+        self.assertIn("names no scenario", out)
+        self.assertNotIn("reads no", out)
+
     def test_a_delta_openspec_reads_brings_no_note(self):
         self.tag_both()
         self.write("openspec/changes/add-x/specs/work-claiming/spec.md",

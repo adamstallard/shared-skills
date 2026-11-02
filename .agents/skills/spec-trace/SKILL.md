@@ -109,7 +109,7 @@ scenario counts as covering it, and one that names none fails `check`.
 | --- | --- |
 | `no test tags scenario 'cap: Name'` | Tag the test that checks it: `@scenario` followed by the printed `cap: Name` line. If no test checks it, write one. Never add the scenario to the baseline. |
 | `tag ... names no scenario` | The scenario was renamed: change the tag to the new name (the message suggests the closest). It was removed: delete the tag. |
-| `tag ... names no scenario` or `names no capability`, and the message says `openspec show` reads no requirement in a change's delta spec | If the tag names a scenario in that file, run the `openspec validate` command the message names and fix the delta spec. Otherwise, fix the tag as the row above says. |
+| `tag ... names no scenario` or `names no capability`, and the message says `openspec show` reads no requirement, or no scenario under a requirement, in a change's delta spec | If the tag names a scenario in that file, run the `openspec validate` command the message names and fix the delta spec. Otherwise, fix the tag: change it to the scenario's current capability and name, or delete it. |
 | `tag ... names no scenario` or `names no capability`, in a file that is not a test (a vendored file, a doc that is not `.md`, `.mdx`, `.rst`, `.adoc` or `.txt`) | Add a pattern for that path to `openspec/spec-trace-ignore.txt`, such as `vendor/**`, and commit it. |
 | `git grep failed` | Fix or remove the pattern git names in `openspec/spec-trace-ignore.txt`. |
 | `not inside a git work tree`, or `git could not be run` | Run it from a git clone, or pass `--root` inside one. |

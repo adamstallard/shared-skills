@@ -338,14 +338,22 @@ wrong would tell the author to delete good tags. An open change that `show`
 cannot read also fails `check`, as a problem of its own beside the tags it
 breaks: a tag naming one of its scenarios fails as naming none.
 
-A delta spec in which `show` reads nothing, such as one whose only section
-title is `## ADDED Requirement` (singular), is not an error: OpenSpec's own
-reading is that the file holds no requirement. But a tag naming a scenario
-written there then fails as naming none, which points the author at the tag
-instead of the file. So when a tag names no scenario, or no capability, and
-its capability has such a delta spec, the tag's message says which file
-`show` reads as empty and to run `openspec validate <change> --type change`. spec-trace says this
-itself because it cannot count on spec-check being installed.
+`show` can read less from a delta spec than its author wrote, without an
+error:
+- **No requirement at all**, when the file's only section title is one
+  OpenSpec does not know, such as `## ADDED Requirement` (singular).
+- **A requirement with no scenario**, when the delta adds or modifies a
+  requirement whose scenario headings `show` does not read, such as
+  `#### Scenario: Fresh` with no text under it.
+
+A tag naming a scenario written there then fails as naming no scenario. When
+the delta was to bring in a new capability and `show` read none of its
+requirements, the tag fails as naming no capability instead. Either message
+points the author at the tag instead of the file. So when a tag names no
+scenario, or no capability, and its capability has such a delta spec, the
+tag's message says what `show` read in which file, and to run `openspec
+validate <change> --type change`, which explains the cause. spec-trace says
+this itself because it cannot count on spec-check being installed.
 
 **Why.**
 - **A hand-written reader drifts from OpenSpec.** One that matches a
@@ -376,6 +384,13 @@ itself because it cannot count on spec-check being installed.
   1.15.0 leaves it out of `show`, and `openspec validate --strict` does not
   report it. So no test needs to tag it, and neither OpenSpec nor
   spec-trace warns the author that it is not a scenario.
+- **An ambiguous tag gets no note naming a misread delta.** In `report
+  --include-changes`, a tag can fail as ambiguous, its scenario name
+  repeating under two requirements, only because `show` read no requirement
+  in a delta meant to remove one of them, such as one titled `## REMOVED
+  Requirement` (singular). The message lists the two qualified tags and says nothing
+  about the delta. `check` judges tags against the main specs, where the
+  name does repeat, so only `report` is affected.
 - **Nested capabilities are not read.** OpenSpec 1.15 reads
   `openspec/specs/<area>/<capability>/spec.md` as capability
   `<area>/<capability>`, but a tag's capability cannot hold a `/`, so
