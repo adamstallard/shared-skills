@@ -431,11 +431,8 @@ anchors, and a rename breaks those links and any outside them. Naming each
 skill's own section costs nothing and is cheap to change later.
 
 **Out of scope.** The worktrees skill's hooks, whose messages are already
-short; spec-check's proposal hook; and spec-trace's hook, which speaks only
-once per repository, to ask whether to adopt spec-trace. spec-check's
-report keeps one more line, asking for setup when the repository has not
-decided on the decisions-first rule, since that line belongs to the rule
-(issue #37), not to the trailer.
+short, and spec-trace's hook, which speaks only once per repository, to ask
+whether to adopt spec-trace.
 
 ---
 

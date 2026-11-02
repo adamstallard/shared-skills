@@ -41,27 +41,6 @@ $(printf '%s' "$rejected")
 "
 fi
 
-# One more line, asking for setup, when the repository has an openspec/ at its
-# top but no openspec/spec-check.yaml, which records whether it enforces the
-# decisions-first rule. The proposal hook and `check` ask the agent the same
-# question; this line reaches whoever reads the report, in case neither did.
-#
-# A repository with no openspec/ at its top gets no line, because there is
-# nothing to set up: a commit deleting openspec/ is reported without it. The
-# proposal hook is silent there too.
-#
-# The top comes from git, not from the current directory. The library runs
-# this cd'd into the directory the hook's input names, which may be a
-# subdirectory, and again cd'd into each submodule, whose own top is the one
-# meant.
-top=$(git rev-parse --show-toplevel 2>/dev/null) || top=""
-if [ -n "$top" ] && [ -d "$top/openspec" ] &&
-   [ "$(python3 "${SPEC_CHECK_SCRIPTS:-.}/spec_check.py" state --repo "$top" 2>/dev/null)" = undecided ]; then
-REPORT="${REPORT}
-This repository has not decided on spec-check's decisions-first rule: ask your agent to set up spec-check in this repository.
-"
-fi
-
 REPORT="${REPORT}
 Ask before rewriting a pushed commit.
 Fix it with the spec-check skill's *Commit* steps.

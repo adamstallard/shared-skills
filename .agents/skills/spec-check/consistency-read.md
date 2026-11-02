@@ -43,7 +43,7 @@ Read, in this order:
    docs/architecture.md, ARCHITECTURE.md, docs/design/).
 
 Then go through the checklist below. For a finding that sets the change
-against something else (items 1, 2, 3, 7, 9, 11, 12), quote both sides: the
+against something else (items 1, 2, 3, 7, 9, 11), quote both sides: the
 change's words with file:line, and the words it conflicts with, with
 file:line, PR number or issue number. Such a finding with one quote is a
 guess. A finding about the change alone (items 4, 5, 6, 8, 10) quotes the
@@ -72,15 +72,10 @@ change and says what is missing.
    another, so a label built on it carries no information).
 10. A fact the change depends on that nobody has measured (whether a stream
     reports exit codes), stated as if known. It belongs in tasks.md as a task
-    to measure it and in the proposal as an open question, and anything built
-    on it must degrade honestly when it turns out false.
+    to measure it and in design.md's Open Questions, and anything built on it
+    must degrade honestly when it turns out false.
 11. Evidence shown as checked when its source does not exist yet. A value
     from something unbuilt must read "not checked", never pass by default.
-12. Decisions the proposal does not open with: a choice the reviewer is asked
-    to accept that is not in its decisions section, or a question still open
-    that is not listed as open. Check this item only when the repository's
-    `openspec/spec-check.yaml` says `decisions-first: enforce`: otherwise its
-    team has not chosen to open proposals with their decisions.
 
 Write each finding as:
 
@@ -89,7 +84,7 @@ Write each finding as:
     Conflicts with: «exact words» (<file>:<line> | PR #<n> | issue #<n>),
                     or "none" for a finding about the change alone
     Why they cannot both hold, or what is missing: <one or two sentences>
-    Who decides: author | a person (a question for the decisions section) |
+    Who decides: author | a person (a question for design.md's Open Questions) |
                  another change or PR (report it; do not edit it)
 
 End with one line per checklist item you found nothing for:
