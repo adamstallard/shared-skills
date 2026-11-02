@@ -85,8 +85,9 @@ simple command:
   or a read such as `gh pr list`;
 - a simple command that holds `gh` as a word of its own, or a path ending
   in `/gh`, anywhere but as its command, such as `echo gh pr create` or
-  `xargs gh pr comment`, is unreadable, except the github-app skill's form
-  that the next requirement reads;
+  `xargs gh pr comment`, is unreadable, even when its command is one of
+  prose's data commands, except the github-app skill's form that the next
+  requirement reads;
 - a simple command that names `gh` only inside a longer word, such as a
   quoted argument, is no post only when its command is one of prose's data
   commands: `echo`, `cat`, `tee`, `grep`, `egrep`, `fgrep`, `rg`, `git`,
@@ -262,6 +263,43 @@ exactly, such as one with a backtick, `$'…'` or an unterminated quote.
   and `b.md` exists
 - **THEN** the reader returns the file's text as the body, and says that
   the post creates an issue
+
+#### Scenario: A gh post chained to another command is unreadable
+
+- **WHEN** a hook asks about `cd /x && gh pr comment 5 --body-file c.md`,
+  where `c.md` exists
+- **THEN** the reader reports the command as unreadable
+
+#### Scenario: gh named as another command's argument is unreadable
+
+- **WHEN** a hook asks about `xargs gh pr comment 5 -b x`, or about
+  `echo gh pr create` with `gh` as a word of its own
+- **THEN** the reader reports each command as unreadable, the `echo` one
+  too, though `echo` is one of prose's data commands
+
+#### Scenario: A post that reads its body from a pipe is unreadable
+
+- **WHEN** a hook asks about `cat c.md | gh pr comment 5 -F -`
+- **THEN** the reader reports the command as unreadable
+
+#### Scenario: A body file that does not exist is unreadable
+
+- **WHEN** a hook asks about `gh pr comment 5 --body-file missing.md`,
+  where `missing.md` does not exist
+- **THEN** the reader reports the command as unreadable
+
+#### Scenario: An MCP comment field and an issue_write create are read
+
+- **WHEN** a hook asks about a GitHub MCP tool whose input holds the
+  string `ok` under a key named `comment`, and about an `issue_write`
+  call with the `method` `create` and the `body` `b`
+- **THEN** the reader returns `ok` as a body of the first, returns `b` as
+  the body of the second, and says that the second creates an issue
+
+#### Scenario: A close with a comment is read
+
+- **WHEN** a hook asks about `gh issue close 5 --comment 'done'`
+- **THEN** the reader returns `done` as the body
 
 ### Requirement: The reader reads posts sent through the github-app skill and gh api
 
@@ -482,39 +520,3 @@ no post:
 - **WHEN** a hook asks about `python3 "$G" gh pr view 12 --comments`, and
   the command assigns `G` nowhere
 - **THEN** the reader reports that the command sends no post
-
-#### Scenario: A gh post chained to another command is unreadable
-
-- **WHEN** a hook asks about `cd /x && gh pr comment 5 --body-file c.md`,
-  where `c.md` exists
-- **THEN** the reader reports the command as unreadable
-
-#### Scenario: gh named as another command's argument is unreadable
-
-- **WHEN** a hook asks about `xargs gh pr comment 5 -b x`, or about
-  `echo gh pr create` with `gh` as a word of its own
-- **THEN** the reader reports each command as unreadable
-
-#### Scenario: A post that reads its body from a pipe is unreadable
-
-- **WHEN** a hook asks about `cat c.md | gh pr comment 5 -F -`
-- **THEN** the reader reports the command as unreadable
-
-#### Scenario: A body file that does not exist is unreadable
-
-- **WHEN** a hook asks about `gh pr comment 5 --body-file missing.md`,
-  where `missing.md` does not exist
-- **THEN** the reader reports the command as unreadable
-
-#### Scenario: An MCP comment field and an issue_write create are read
-
-- **WHEN** a hook asks about a GitHub MCP tool whose input holds the
-  string `ok` under a key named `comment`, and about an `issue_write`
-  call with the `method` `create` and the `body` `b`
-- **THEN** the reader returns `ok` as a body of the first, returns `b` as
-  the body of the second, and says that the second creates an issue
-
-#### Scenario: A close with a comment is read
-
-- **WHEN** a hook asks about `gh issue close 5 --comment 'done'`
-- **THEN** the reader returns `done` as the body

@@ -1168,9 +1168,13 @@ see would forge the person's answer, so a person lists only an App
 nothing else posts through unseen. github-app's `token` command prints
 an App's token to any agent on the machine, which could then post with a
 plain HTTP call no hook sees. Adam decided that github-app is to let a
-person mark an identity as a relay and then refuse `token` for it, so
-that only its own posting command, which the post hook reads, can use it
-(*github-app refuses `token` for a relay identity*, under *Decisions*).
+person mark an identity as a relay and then refuse `token`, `run`,
+`credential get` and `wire` for it, so that only github-app's own posting
+command can use it: the answer session runs that command as a host command,
+and the post hook reads it whenever an agent runs it. Like the post hook, that guards
+against accidents, not against an agent set on forging a relayed answer
+(*github-app refuses `token`, `run`, `credential get` and `wire` for a relay
+identity*, under *Decisions*).
 That is a separate change to github-app, not yet written; until it
 ships, the cost is accepted and the README says so. Task 0.21 measures
 whether GitHub reports which App wrote a comment. Until that measurement
@@ -2239,7 +2243,13 @@ in a post, for the credential patterns, and refuses on a match.** The patterns
 are a closed list of known token shapes. The spec's definition *The credential
 patterns*, under its requirement *Every question passes four filters before a
 person sees it*, holds the list, which includes Anthropic API keys (`sk-ant-`)
-and GitHub's user-to-server and refresh tokens (`ghu_`, `ghr_`).
+and GitHub's user-to-server and refresh tokens (`ghu_`, `ghr_`). It also holds
+the two kinds of credential this change puts within the session model's reach.
+One is Linear's API keys and OAuth tokens (`lin_api_`, `lin_oauth_`): the
+discussion's model runs with the person's tools, so it can read the person's
+Linear key from the keychain (*A discussion runs in the session's own
+conversation*). The other is a Discord relay's bot token, three base64 parts
+separated by dots.
 
 The scan catches known shapes only: a `DB_PASSWORD=…` passes it. So the agent
 never puts a credential into a question, an answer or a verdict field, and a
@@ -2508,9 +2518,8 @@ make it needless.
 directory, never as arguments, and reads an `answer_link`'s comment itself,
 with the person's credentials, recording its text whatever answer the agent
 passed.** When it cannot read the comment, it writes nothing and says why. In
-Igor-worker mode it can't read GitHub, so the answer text the worker passed,
-which only identifies the comment, stands until the Igor replaces it with the
-comment's text. The inquisitor spec's requirement *Every answer is recorded
+Igor-worker mode it reads no comment, so it writes no answer, and the Igor
+writes it from the comment's text (*A worker logs no answer*). The inquisitor spec's requirement *Every answer is recorded
 and every asked question logged* holds the details.
 
 **Why:** a question's text and its answer passed as arguments are readable by
@@ -3066,7 +3075,9 @@ These rules are decided for both changes, and #216 states them:
 Igor pushes a log file recording the answer,** with an `answer_link` to the
 person's comment on that item. It is a new file beside the unanswered one,
 since a file on a questions branch is never changed once pushed. The worker's
-report holds the file, and the worker decides nothing about it. The Igor sets
+report holds the file, with the question and the `answer_link` but no answer,
+and the worker decides nothing about it. The Igor writes the answer from the
+comment's own words (*A worker logs no answer*), and sets
 `authority` under the authority checks of *Only an answer with authority stops
 a question*: `decision` when the person has write access to what the question
 concerns, and `input` otherwise. The spec's requirement *Every answer is
@@ -3082,6 +3093,26 @@ decision 41).
 **Why:** a worker steered by text in its item could otherwise pair a real
 comment with another question, and anyone who can edit the comment could
 change its text.
+
+#### A worker logs no answer
+
+**An Igor worker writes no answer into any log file, whether on a questions
+branch or in a repository's `.inquisitor/`; it writes only the question.** The
+answer is logged later by something that can read the comment: an answer
+session, the skill's script, or an Igor. That one records the comment's own
+words and sets `authority` by its checks. On a questions branch, that is the
+Igor, when it pushes the file. In a repository's `.inquisitor/questions/`,
+where an answer session never writes and the Igor does not edit the
+artifact, it is an agent outside Igor-worker mode that runs the skill's
+script there, as for any answer added to a file in that folder. The
+inquisitor spec's requirement *Every answer is recorded and every asked
+question logged* holds the rule.
+
+**Why:** a worker reads no comment, so any answer it wrote would be its own
+paraphrase, not the comment's words, and it could not check the writer's
+access to set `authority`.
+
+*Rejected:* a worker writing the answer for the Igor or a person to rewrite.
 
 #### An Igor reads relay files as of igor PR #208's applied commit
 
@@ -3251,7 +3282,11 @@ its channels are used* holds the on and off rule.
 channel (task 0.20), a post the surface refuses turns that channel off until a
 recheck passes. That comes on top of what every failed post gets: nothing is
 posted, and the person is told why. The answer is kept, as *An answer that
-cannot reach its thread is kept pending* says.
+cannot reach its thread is kept pending* says. In such a channel, the posting
+check counts as passed for the on and off rule once the relay identity's own
+check passes again, as the spec's requirement of that name says. Setup still
+shows that posting check as not checked, never as passed, because nothing
+checked it.
 
 #### Setup checks questions-branch commits are the person's
 
@@ -3509,17 +3544,23 @@ inquisitor spec's requirement *A pull request that changes a relay file
 mentions its person* holds the line, and the answer-session spec's *A question
 asked of the person comes from one of four sources* how it is shown.
 
-#### github-app refuses `token` for a relay identity
+#### github-app refuses `token`, `run`, `credential get` and `wire` for a relay identity
 
-**github-app's `token` command is to refuse an identity marked as a relay, so
-only the answer session's own posting command can post with it.** That is a
-change to the github-app skill, which this change depends on and does not
-make.
+**github-app's `token`, `run`, `credential get` and `wire` commands are to
+refuse an identity marked as a relay, so only the answer session's own posting
+command can post with it.** That is a change to the github-app skill, which
+this change asks for and does not make. This change ships without it, with
+the cost below accepted.
 
 **Why:** a relay App speaks for its person only while nothing posts through it
-unseen, and `token` prints the App's token to any agent on the machine.
+unseen. `token` prints the App's token to any agent on the machine, and `run`,
+`credential get` and `wire` hand that token to a command, to git, or to a
+clone's configuration.
 
-**Accepted:** until github-app's change ships, any agent on the person's
+**Accepted:** these refusals, like the post hook, guard against accidents, not
+against an agent set on forging a relayed answer. They stop an agent posting
+through a relay App by mistake; they do not stop one that sets out to get
+around them. Until github-app's change ships, any agent on the person's
 machine can print a relay App's token and post `User says: ` with a plain HTTP
 call no post hook sees. The inquisitor's README says so (task 5.2).
 
@@ -5142,9 +5183,11 @@ nothing and pushes nothing* at d3b7740 (2026-10-21).
   merges only at publication, the test goes in the fork only when the
   person who will publish the advisory has said the pull request merges at
   that moment. A separate change to bug-hunter carries the note.
-- **The github-app skill's `token` command must refuse an identity marked
-  as a relay.** No pull request for that change is open. This change
-  depends on it and does not make it.
+- **The github-app skill's `token`, `run`, `credential get` and `wire`
+  commands must refuse an identity marked as a relay.** No pull request for
+  that change is open. This change asks for it and does not make it, and
+  ships without it, with the cost *github-app refuses `token`, `run`,
+  `credential get` and `wire` for a relay identity* accepts.
 
 ### Outside this change
 

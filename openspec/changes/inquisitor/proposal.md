@@ -86,8 +86,12 @@ None.
 - github-app: its SKILL.md's examples hold the skill's script path in the
   shell variable `G`. They set `G` in the same command as each use, or write
   the script's full path, since the shared post reader reads `$G` only when
-  the same command sets it. A separate change to github-app, not made here,
-  has its `token` command refuse an identity marked as a relay.
+  the same command sets it.
+- github-app, in a separate change not made here: its `token`, `run`,
+  `credential get` and `wire` commands refuse an identity marked as a
+  relay, so that no agent posts through a person's relay App by mistake.
+  This change ships without it, and the inquisitor's README says what
+  that leaves open.
 - bug-hunter: its Step 9, the step that reports a run's recommendations
   and asks the person about each, runs each recommendation through the
   inquisitor's filters before asking (task 5.7).

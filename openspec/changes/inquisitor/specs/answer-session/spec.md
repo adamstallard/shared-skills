@@ -232,7 +232,10 @@ otherwise: a failed check of the identity turns off every channel of its
 surface, and a failed check of one channel turns off that channel alone.
 Where no check can read whether the relay identity may post in a channel
 (task 0.20), a post the surface refuses there SHALL count as a failed
-check of posting in that channel.
+check of posting in that channel, and setup SHALL show that channel's
+posting check as not checked, never as passed, even while that check
+counts as passed for the on and off rule, as *An answer that cannot
+reach its thread is kept pending* says.
 The answer session SHALL read nothing in an off channel and post nothing
 there. It SHALL record each check's last result in the state folder, and
 SHALL run again, each time it opens, every check that last failed or
@@ -298,6 +301,13 @@ never ran.
 - **THEN** nothing is posted, the person is told why, the question keeps
   its state, and the team stays off until a check at a later opening
   passes
+
+#### Scenario: A posting check no check can read is shown as not checked
+
+- **WHEN** no check can read whether the Linear relay may post in a
+  subscribed team, and the Linear relay's own check passes
+- **THEN** setup shows the team's posting check as not checked, never as
+  passed, and the team counts as on
 
 #### Scenario: A passing recheck turns the channel on
 
@@ -403,7 +413,10 @@ second source that is clearly not a question at all, such as a
 rhetorical one or a thank-you, as the session's model judges it, SHALL
 be ignored: it is not shown, nothing is posted on it, and nothing is
 closed. An unclear one is shown (design.md: *Messages that are not
-questions are ignored*).
+questions are ignored*). The asker's reply to a `User asks: ` relay post
+is the exception: whatever the reply says, it puts the person's question
+that the post asked about back in the queue, as *The thread is the
+durable record of an answer* says.
 
 1. a message in a subscribed channel that mentions the person, as `@login`
    on GitHub, or as a mention of their Linear user or Discord user, whoever
@@ -912,6 +925,20 @@ used* says.
 - **WHEN** the person's answer holds a string shaped like a GitHub access
   token
 - **THEN** the answer session posts nothing, and says why
+
+#### Scenario: A failed question to the asker leaves its question as it was
+
+- **WHEN** the person asks the asker of an unanswered question what they
+  mean, and the relay's command fails
+- **THEN** the answer session says that nothing was posted and why, and
+  the question stays unanswered, not waiting for the asker
+
+#### Scenario: A failed automatic post shows its question as unanswered
+
+- **WHEN** the answer session makes a `Recorded answer: ` post by itself
+  on an incoming question, and the relay's command fails
+- **THEN** the answer session says that nothing was posted and why, and
+  shows the question to the person as unanswered
 
 ### Requirement: An answer that cannot reach its thread is kept pending
 
@@ -2497,3 +2524,13 @@ the same question and `filter` is already on that branch (design.md:
 - **WHEN** the answer session on a second machine logs a miss whose
   question and filter match a miss file already on the branch
 - **THEN** it pushes its miss file too
+
+#### Scenario: A miss copies the most private asked_from
+
+- **WHEN** two questions-branch files hold a question, one with
+  `asked_from: "o/public-item"`, a public repository, and one with
+  `asked_from: "o/private-item"`, a private one, and the person declines
+  the question as one the inquisitor should have handled, picking
+  filter 4
+- **THEN** the miss file the answer session pushes holds
+  `asked_from: "o/private-item"`

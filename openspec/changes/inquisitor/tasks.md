@@ -432,10 +432,13 @@ contradicts what design.md assumed.
       misses, and lessons by scope
 - [ ] 5.2 `README.md`: what the skill is for, `inquisitor.json` and
       `.inquisitor/reviewers`, what to say to the agent, and troubleshooting a
-      blocked picker or post. Until github-app refuses `token` for an
-      identity marked as a relay, it says that any agent on the person's
-      machine can print a relay App's token and post `User says: ` unseen
-      (design.md: *github-app refuses `token` for a relay identity*)
+      blocked picker or post. The README also says that, until github-app
+      refuses `token`, `run`, `credential get` and `wire` for an identity
+      marked as a relay, any agent on the person's machine can print a
+      relay App's token and post `User says: ` unseen by the post hook
+      (design.md: *github-app
+      refuses `token`, `run`, `credential get` and `wire` for a relay
+      identity*)
 - [ ] 5.3 A row in the README's skills table, and `inquisitor` in its list of
       skills that turn on a hook
 - [ ] 5.4 `manage-skills` installs it and wires its hooks: check with

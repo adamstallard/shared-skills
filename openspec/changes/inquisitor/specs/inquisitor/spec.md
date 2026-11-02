@@ -273,8 +273,9 @@ Terms used throughout this spec:
   comment is a relayed answer, and every `User says: ` comment is input.
 - **The credential patterns** are a private key's `-----BEGIN` line, GitHub
   tokens (`ghp_`, `gho_`, `ghs_`, `ghu_`, `ghr_`, `github_pat_`),
-  Anthropic API keys (`sk-ant-`), AWS access key IDs (`AKIA`), and Slack
-  tokens (`xox`).
+  Anthropic API keys (`sk-ant-`), AWS access key IDs (`AKIA`), Slack
+  tokens (`xox`), Linear API keys (`lin_api_`, `lin_oauth_`), and Discord
+  bot tokens (three base64 parts separated by dots).
 
 #### Scenario: An answered question is not asked
 
@@ -908,13 +909,6 @@ agent. The search SHALL never show a rejected candidate.
   repository
 - **THEN** that answer file is not the named file's answer
 
-#### Scenario: A github.com link into a more private repository is left out of an answer file
-
-- **WHEN** an answer relayed in a private repository's issue is logged on
-  the questions branch of a public lore repository
-- **THEN** the answer file holds no `answer_link`, and counts only
-  through its signature
-
 #### Scenario: The newest answer naming a file counts
 
 - **WHEN** two answer files with different question text both name the
@@ -979,29 +973,6 @@ agent. The search SHALL never show a rejected candidate.
   minute, as the question suggests.`
 - **THEN** the file's answer is those two lines, word for word, whatever
   answer text the agent passed
-
-#### Scenario: A Discord answer link is recorded and never fetched
-
-- **WHEN** the answer session's `log` call passes an answer relayed on
-  Discord, with that Discord message's URL as its `answer_link`, for a
-  private lore repository
-- **THEN** the command fetches nothing, records the answer it was given
-  word for word as quote lines, and writes the URL as the file's
-  `answer_link`
-
-#### Scenario: A linked comment the script cannot read is not logged
-
-- **WHEN** the `log` command is given an answer whose `answer_link` names
-  a comment GitHub does not return
-- **THEN** the command writes nothing and says why
-
-#### Scenario: In Igor-worker mode the log command reads no comment
-
-- **WHEN** the `log` command runs under `IGOR_RUN=worker` with an answer
-  whose `answer_link` names a comment
-- **THEN** it makes no GitHub call, and the file it reports holds the
-  answer it was given, which only identifies the comment until the Igor
-  replaces it with the comment's text
 
 #### Scenario: A file about another repository is input during a run
 
@@ -2120,9 +2091,11 @@ itself. Each question file, miss file and `authority: agent`
 file it would push to a questions branch SHALL go in its report. So SHALL
 a log file recording a person's answer to its handback question, when a
 worker re-works the item after that answer: the file holds the question
-and the answer, with an `answer_link` to the person's comment on the
-item, and it is a new file, beside the unanswered one. The worker writes
-no `answers`; the Igor adds it, as below. The worker reports
+and an `answer_link` to the person's comment on the item, and no answer,
+and it is a new file, beside the unanswered one. An Igor worker SHALL
+write no answer into any log file; whatever later logs the answer reads
+the comment for it (design.md: *A worker logs no answer*). The worker
+writes no `answers`; the Igor adds it, as below. The worker reports
 the file, and the Igor decides its `authority`, its `answered_by` for a
 relay App's comment, and its answer, under this spec's checks in *Only an
 answer with authority stops a question*, as igor PR #216 has it. igor's lore-firing requirement
@@ -2135,8 +2108,11 @@ Igor publishes for the run, such as a pull request. When the
 run ends in the Igor's handback comment with no artifact, the worker
 SHALL write no such file, and the handback comment is the question's
 record. A later run on the item that publishes an artifact SHALL log the
-question in it, with its answer from the start once a person has given
-one. That rule does not apply to the question that stopped a flagged
+question in it, with no answer even once a person has given one. An
+agent outside Igor-worker mode that runs the skill's script in that
+repository and reads the comment adds the answer later, as for any
+question in `.inquisitor/questions/`, in the comment's own words and
+with the `authority` its checks give. That rule does not apply to the question that stopped a flagged
 run: no log file SHALL record it, neither from that run nor from a later
 one (design.md: *A flagged run asks nothing and pushes nothing*). A citation file
 is never an answer. Every commit
@@ -2170,17 +2146,9 @@ and a miss file have one format* defines them, the command SHALL fetch
 nothing, and SHALL record the answer it was given, word for word
 (design.md: *Questions-branch answers relayed on Linear or Discord*). Such a link comes only from an answer session,
 which logs only to a lore repository's questions branch. The command
-SHALL write the link only when it reads that lore repository's
-visibility as private, and otherwise SHALL write the file without an
-`answer_link` (design.md: *`answer_link` and `asked_in` are withheld where they would leak*). It SHALL write a github.com
-`answer_link` only when the lore repository is no more visible than the
-repository the URL points into, as *More visible* defines it, and
-otherwise SHALL write the file without it (design.md: *`answer_link` and `asked_in` are withheld where they would leak*). Likewise it SHALL write a Linear
-or Discord `asked_in` only when it reads the lore repository's
-visibility as private, and a github.com `asked_in` only when the lore
-repository is no more visible than the repository the URL points into,
-as *More visible* defines it; otherwise it SHALL write the file without
-the `asked_in` (design.md: *`answer_link` and `asked_in` are withheld where they would leak*).
+SHALL write an `answer_link` or an `asked_in` only as *A log file and a
+miss file have one format* allows, and otherwise SHALL write the file
+without that key.
 
 The command SHALL write `answers` only when it names a log file already
 on that questions branch that holds no answer; otherwise it SHALL write
@@ -2196,8 +2164,9 @@ the answer. Any proof of the writer comes from the linked comment
 itself or the commit's signature, as *Only an answer with authority
 stops a question* says. For an `answer_link` that is none
 of these, it SHALL write nothing and say why. In
-Igor-worker mode it SHALL read no comment: it writes the answer it was
-given, which only identifies the comment, and the Igor replaces it.
+Igor-worker mode it SHALL read no comment and SHALL write no answer:
+the file holds the question and any `answer_link` it was given, and the
+Igor writes the answer from that comment's text.
 
 A log file for a question that was never asked, such as an agent's choice
 under filter 3 or 4, SHALL follow the same privacy rules as any other: its
@@ -2214,11 +2183,11 @@ question before it writes the log file
 (design.md: *A log file follows its thread message by exact link*). An Igor
 worker's log file instead holds the URL of the handback comment that
 asks its question, which the Igor writes after it has posted that
-comment and before it pushes the file, applying the `log` command's
-withholding rule itself
-(design.md: *Each Igor log file follows its own handback comment*; *Only an item's newest handback is open*). The
-`log` command leaves the URL out where its rule for `asked_in`, above,
-withholds it
+comment and before it pushes the file, applying the rule for
+`asked_in` in *A log file and a miss file have one format* itself
+(design.md: *Each Igor log file follows its own handback comment*; *Only an item's newest handback is open*).
+Outside Igor-worker mode, the `log` command leaves the URL out where
+that rule withholds it
 (design.md: *`answer_link` and `asked_in` are withheld where they would leak*; *A log file without `asked_in` is never merged*). A questions-branch file
 that answers a question an earlier file there logged unanswered SHALL
 name that file in `answers`, one answer file for each such file whose
@@ -2359,6 +2328,14 @@ why.
   token starting `ghu_` or `ghr_`
 - **THEN** the script refuses to write it
 
+#### Scenario: A Linear key or a Discord bot token is not written
+
+- **WHEN** a log file, or a question in a post, would hold a string
+  starting `lin_api_` or `lin_oauth_`, or a Discord bot token's three
+  dot-separated base64 parts
+- **THEN** the script refuses to write the file, or the first call
+  refuses the post
+
 #### Scenario: Only the citation file names the lore entry
 
 - **WHEN** filter 1 stops a question about a repository because a lore
@@ -2410,10 +2387,19 @@ why.
   question an Igor worker asked in its handback comment, and a worker
   re-works the item
 - **THEN** the worker pushes nothing to the lore repository, and its
-  report holds a new log file holding the question and the answer, with
-  an `answer_link` to that comment, and the Igor sets the file's
-  `authority` when it pushes it, and, when the comment is a relay App's,
-  its `answered_by`
+  report holds a new log file holding the question and an
+  `answer_link` to that comment, and no answer, and the Igor writes the
+  answer from the comment's own words and sets the file's `authority`
+  when it pushes it, and, when the comment is a relay App's, its
+  `answered_by`
+
+#### Scenario: A worker logs an answered question in its repository without the answer
+
+- **WHEN** a person answers, in a comment on the item, a question about
+  the item's repository that an Igor worker asked in its handback
+  comment, and a later run on the item publishes a pull request
+- **THEN** the pull request's `.inquisitor/questions/` holds a log file
+  with the question and no answer
 
 #### Scenario: A flagged run's question is logged nowhere
 
@@ -2430,7 +2416,7 @@ why.
   question's record
 - **AND** when a later run on the item, after a person answered the
   question, publishes an artifact, the artifact adds the question's log
-  file holding the answer
+  file, holding the question and no answer
 
 #### Scenario: A rejected push to the questions branch is retried
 
@@ -2617,6 +2603,57 @@ why.
   repository's questions branch
 - **THEN** the log file holds the post's URL as `asked_in`
 
+#### Scenario: A Discord answer link is recorded and never fetched
+
+- **WHEN** the answer session's `log` call passes an answer relayed on
+  Discord, with that Discord message's URL as its `answer_link`, for a
+  private lore repository
+- **THEN** the command fetches nothing, records the answer it was given
+  word for word as quote lines, and writes the URL as the file's
+  `answer_link`
+
+#### Scenario: A linked comment the script cannot read is not logged
+
+- **WHEN** the `log` command is given an answer whose `answer_link` names
+  a comment GitHub does not return
+- **THEN** the command writes nothing and says why
+
+#### Scenario: In Igor-worker mode the log command reads no comment
+
+- **WHEN** the `log` command runs under `IGOR_RUN=worker` with an answer
+  whose `answer_link` names a comment
+- **THEN** it makes no GitHub call, and the file it reports holds no
+  answer, only the question and the `answer_link`, for the Igor to write
+  the answer from the comment's text
+
+#### Scenario: An asking agent writes no handled file
+
+- **WHEN** an agent's question about an organization, logged on the
+  lore repository's questions branch and asked in a post, gets a reply
+  starting `Recorded answer: `
+- **THEN** the agent pushes no handled file; the answer session that
+  made the post pushes it
+
+#### Scenario: The log command refuses a handled key without its handled option
+
+- **WHEN** the `log` command is called without its handled option, on a
+  file whose keys include `handled` or `closes`
+- **THEN** it refuses, and writes nothing
+
+#### Scenario: The log command refuses an asked_in of no given form
+
+- **WHEN** the `log` command is given an `asked_in` of
+  `https://example.com/t/5`, which is not a github.com, Linear or Discord
+  URL of the forms given for `answer_link`
+- **THEN** it writes nothing and says why
+
+#### Scenario: The log command refuses an answer_link of no given form
+
+- **WHEN** the `log` command is given an answer whose `answer_link` is
+  `https://example.com/a/5`, which is not a github.com, Linear or Discord
+  URL of the forms given
+- **THEN** it writes nothing and says why
+
 ### Requirement: A log file and a miss file have one format
 
 Every log file and miss file SHALL take this format, wherever it is
@@ -2648,11 +2685,12 @@ written.
   repository's root or a URL, never a lore entry; `answer_link`, only when there is one,
   the github.com URL of the comment or review holding the answer,
   written only in a lore repository no more visible than the repository
-  it points into
+  it points into, as *More visible* defines it
   (design.md: *`answer_link` and `asked_in` are withheld where they would leak*), or,
   for an answer an answer session relayed on Linear or Discord, the URL
   of that relay comment or message, kept as a pointer that nothing
-  fetches and written only in a private lore repository
+  fetches and written only in a lore repository whose visibility its
+  writer reads as private
   (design.md: *Questions-branch answers relayed on Linear or Discord*; *`answer_link` and `asked_in` are withheld where they would leak*): on Discord
   `https://discord.com/channels/<id>/<id>/<id>` with decimal ids, and on
   Linear a URL starting `https://linear.app/`; `handled`, the day, as
@@ -2669,9 +2707,10 @@ written.
   asking agent also asked in a post, the URL of that post, or, for an
   Igor worker's question, the URL of the handback comment that asks it
   (design.md: *Each Igor log file follows its own handback comment*; *Only an item's newest handback is open*), a Linear or
-  Discord URL being written only in a private lore repository, as for
-  `answer_link`, and a github.com URL only in a lore repository no more
-  visible than the repository it points into
+  Discord URL being written only in a lore repository whose visibility
+  its writer reads as private, as for `answer_link`, and a github.com URL
+  only in a lore repository no more visible than the repository it points
+  into, as *More visible* defines it
   (design.md: *A log file follows its thread message by exact link*; *`answer_link` and `asked_in` are withheld where they would leak*; *A log file without `asked_in` is never merged*);
   `answers`, only in a questions-branch file holding an answer, the file
   name of the questions-branch file it answers, a file that itself
@@ -2721,6 +2760,10 @@ written.
   above: a miss, or an answer file, copies that file's `asked_from`
   (design.md: *Misses the answer session logs*). A file holding it is as private as
   the more private of its two repositories, as *More visible* says.
+- **Withheld links:** where these rules do not let an `answer_link` or
+  an `asked_in` be written, the file is written without that key, and is
+  otherwise as it would be
+  (design.md: *`answer_link` and `asked_in` are withheld where they would leak*).
 - **Reading a log file:** it is answered when its frontmatter holds
   `authority`, and only then; nothing in its body decides it. It is
   **handled** when its frontmatter holds `handled`: closed, with no
@@ -2845,6 +2888,26 @@ written.
 - **WHEN** a question's text holds `../`, a `---` line and a colon
 - **THEN** the log file's name holds none of them, and its frontmatter still
   parses to the same text
+
+#### Scenario: A github.com link into a more private repository is left out of an answer file
+
+- **WHEN** an answer relayed in a private repository's issue is logged on
+  the questions branch of a public lore repository
+- **THEN** the answer file holds no `answer_link`, and counts only
+  through its signature
+
+#### Scenario: A handled file's keys
+
+- **WHEN** an answer session marks a questions-branch file handled
+- **THEN** the new file holds only `handled`, as the day in
+  `yyyy-mm-dd`, and `closes`, that file's name, and no body
+
+#### Scenario: A handled file never stops a question
+
+- **WHEN** a questions branch holds a handled file closing a question,
+  and an agent's filter 1 searches for the same question
+- **THEN** the search shows no hit from the handled file, and the
+  handled file stops nothing
 
 ### Requirement: A citation file has one format
 
@@ -3286,12 +3349,6 @@ outside a run.
 - **WHEN** the agent proposes a lore entry with the id `x`
 - **THEN** the pull request adds `entries/x.md`
 
-#### Scenario: A team lesson from a private repository's misses stays out of a public lore repository
-
-- **WHEN** a lesson for a team draws on misses logged in a private
-  repository, and the team's lore repository is public
-- **THEN** the agent opens no pull request, and tells the person why
-
 #### Scenario: An id outside igor's id rule is refused
 
 - **WHEN** the agent would propose a lore entry with the id `Retry_Policy`
@@ -3374,27 +3431,6 @@ treats the post as input, and its question stands.
   default branch
 - **THEN** the agent reads that file through filter 1, acts on the
   decision it holds, and logs no answer from the person
-
-#### Scenario: An asking agent writes no handled file
-
-- **WHEN** an agent's question about an organization, logged on the
-  lore repository's questions branch and asked in a post, gets a reply
-  starting `Recorded answer: `
-- **THEN** the agent pushes no handled file; the answer session that
-  made the post pushes it
-
-#### Scenario: A handled file's keys
-
-- **WHEN** an answer session marks a questions-branch file handled
-- **THEN** the new file holds only `handled`, as the day in
-  `yyyy-mm-dd`, and `closes`, that file's name, and no body
-
-#### Scenario: A handled file never stops a question
-
-- **WHEN** a questions branch holds a handled file closing a question,
-  and an agent's filter 1 searches for the same question
-- **THEN** the search shows no hit from the handled file, and the
-  handled file stops nothing
 
 #### Scenario: A recorded answer the asker cannot count is input
 
@@ -3558,3 +3594,9 @@ Nothing SHALL draft or send a lesson until a person asks for the review.
 - **WHEN** misses have been logged and nobody has asked for a review
 - **THEN** the script drafts no lesson, and no pull request or memory edit is
   made
+
+#### Scenario: A team lesson from a private repository's misses stays out of a public lore repository
+
+- **WHEN** a lesson for a team draws on misses logged in a private
+  repository, and the team's lore repository is public
+- **THEN** the agent opens no pull request, and tells the person why
