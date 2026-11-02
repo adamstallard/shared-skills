@@ -10,7 +10,7 @@ question it asks and each miss, and proposes lore from answers that
 generalize. It works in any session, and also serves the igor project's AI
 teammates, the Igors, and the workers they start.
 
-Throughout this spec, the following terms mean what is said here.
+These terms hold throughout this spec.
 
 *The current work* is what the agent was asked to do: an OpenSpec change,
 a pull request, or the task in hand. *A question within the current work*
@@ -98,16 +98,16 @@ mode.
 
 *A miss* is a question a person said need not have been asked, or that an
 answer session judged clearly need not have been. *A citation file*
-records that a lore entry answered a question: filter 1 stopped the
-question with it, or the person of an answer session cited it, as the
-`answer-session` spec defines citing. The entry is `active`, and its scope
-covers the question, scope being as *Filter 1 hides every lore entry
-outside the question's scope* defines it or, during an Igor's run, as *A
-run's lore search keeps to the Igor's lore repository and scope* does. *A
-question that should not have been asked is logged as a miss* and *A lore
-entry that stops a question gets a citation file* define them, and *A
-citation file has one format* gives a citation file's form (design.md: *A
-person's cite pushes a citation file*).
+records that an `active` lore entry whose scope covers a question answered
+it: filter 1 stopped the question with it, or the person answering in an
+answer session cited it, as the `answer-session` spec defines citing
+(design.md: *A person's cite pushes a citation file*). Scope is as
+*Filter 1 hides every lore entry outside the question's scope* defines it
+or, during an Igor's run, *A run's lore search keeps to the Igor's lore
+repository and scope*. *A question that should not have been asked is
+logged as a miss* defines a miss, *A lore entry that stops a question
+gets a citation file* defines a citation file, and *A citation file has
+one format* gives a citation file's form.
 
 ## ADDED Requirements
 
@@ -119,8 +119,8 @@ project, and as its **worker** the agent that Igor starts to do an item.
 #### Scenario: An agent an Igor starts for an item is its worker
 
 - **WHEN** an Igor starts an agent to work an item it holds
-- **THEN** that agent is the Igor's worker, and the rules this spec states
-  for an Igor worker apply to it
+- **THEN** that agent is the Igor's worker, and this spec's rules for an
+  Igor worker apply to it
 
 ### Requirement: Every question passes four filters before a person sees it
 
@@ -161,10 +161,10 @@ but switching between them later is cheap, and the agent chooses one.
 
 #### Scenario: A rhetorical question is rewritten
 
-- **WHEN** a post's body holds a rhetorical question, which nobody needs to
-  answer
-- **THEN** the agent rewrites it as a statement, and records the verdict
-  `decided` naming the post as where the choice is recorded
+- **WHEN** the agent finds a rhetorical question in a post's body
+- **THEN** the agent rewrites it there as a statement, and records the
+  verdict `decided` naming the post as where the choice is recorded, the
+  statement in the post being the whole of the choice
 
 #### Scenario: A question with one good option is decided
 
@@ -262,10 +262,9 @@ through the filters*).
 
 #### Scenario: A bug-hunter recommendation passes the filters
 
-- **WHEN** bug-hunter's Step 9, the step of its run that reports a root
-  cause, a finding too large for the change, anything left unresolved
-  when the run aborted, or a property from its hunt worth keeping as a
-  permanent guard, makes a recommendation
+- **WHEN** bug-hunter's Step 9 makes any recommendation, whether about a
+  root cause, a finding too large for the change, what an aborted run left
+  unresolved, or a property worth keeping as a permanent guard
 - **THEN** the agent runs it through the four filters like any other
   question, and asks the person only if no filter stops it
 
@@ -463,9 +462,9 @@ SHALL count as a **session with no person in it**.
 
 #### Scenario: A session of unknown start counts as having no person in it
 
-- **WHEN** the script cannot tell, from how a session was started,
-  whether a person started it and is reading it, and the agent has a
-  question that survives the filters
+- **WHEN** the script cannot tell whether a person started the session
+  and is reading it, and the agent has a question that survives the
+  filters
 - **THEN** the session counts as one with no person in it, and the agent
   does not call the picker
 
@@ -789,10 +788,10 @@ run, filter 1 SHALL need no Igor role, configuration or service.
 
 #### Scenario: A run is told by IGOR_RUN
 
-- **WHEN** filter 1 runs in a session whose environment holds
-  `IGOR_RUN=igor`, which igor sets in an inquisitor run the Igor starts
-  itself, as it sets `IGOR_RUN=worker` in a worker's environment, neither
-  holding a secret (igor PR #216's `task-execution` spec)
+- **WHEN** filter 1 runs with `IGOR_RUN=igor` in its environment, a plain
+  marker, unlike the seat token in `IGOR_RUN_TOKEN`, that igor sets in an
+  inquisitor run the Igor starts itself, as it sets `IGOR_RUN=worker` for a
+  worker (igor PR #216's `task-execution` spec)
 - **THEN** the search reads no lore clone, searches lore through `igor
   lore-search`, the script pushes nothing to a lore repository, and its
   output says it runs as in an Igor's run because `IGOR_RUN` is set
@@ -801,8 +800,8 @@ run, filter 1 SHALL need no Igor role, configuration or service.
 
 - **WHEN** a `claude -p` session with no person in it, whose environment
   holds no `IGOR_RUN`, runs filter 1
-- **THEN** the search reads the configured lore clones, as in any other
-  session, needing no Igor role, Igor configuration or Igor service
+- **THEN** the search reads the configured lore clones, needing no Igor
+  role, configuration or service
 
 #### Scenario: Only the exact name and value of IGOR_RUN mark a run
 
@@ -829,11 +828,11 @@ searches through `igor lore-search`*).
 #### Scenario: An Igor worker searches lore through igor's command
 
 - **WHEN** an Igor worker runs filter 1 on a question
-- **THEN** the search calls `igor lore-search`, the read-only command
-  igor's lore-firing requirement
+- **THEN** the search calls `igor lore-search`, as igor's lore-firing
+  requirement
   [*An Igor runs its worker's lore searches*](https://github.com/adamstallard/igor/blob/spec-lore-search/openspec/changes/lore-search/specs/lore-firing/spec.md)
-  defines, with no argument, passing the question's text or search terms
-  on standard input, for lore and the questions branch
+  defines it, with no argument and the question on standard input, for
+  lore and the questions branch
 - **AND** the search shows the labelled results it returns, and reads no
   lore clone
 
@@ -864,10 +863,9 @@ scope and the item's visibility (design.md: *Questions-branch files and
 #### Scenario: igor tells a worker's run and role by the request's connection
 
 - **WHEN** an Igor worker runs filter 1 on a question
-- **THEN** the Igor tells the run and role by the connection the request
-  arrives on, which only that run's worker can reach, and searches its own
-  lore checkout and questions branch, matching and ranking as filter 1
-  does (#216's decision 52)
+- **THEN** the Igor tells the run and role by the request's connection,
+  which only that run's worker can reach, and searches its own lore
+  checkout and questions branch as filter 1 does (#216's decision 52)
 
 #### Scenario: A run's search keeps to the role's scope and the item's visibility
 
@@ -881,8 +879,7 @@ scope and the item's visibility (design.md: *Questions-branch files and
   includes `project:` entries of each repository the role works
 - **AND** it does so under igor PR #216's requirements *Lore reaches the
   worker unbidden, beside a search it may run* and *An Igor runs its
-  worker's lore searches* and its decisions 53, 54 and 55, which this
-  spec does not restate
+  worker's lore searches* and its decisions 53, 54 and 55
 
 ### Requirement: igor's search labels each file by the authority checks
 
@@ -910,9 +907,8 @@ every other source as not searched.
 
 - **WHEN** an Igor worker runs filter 1 on a question
 - **THEN** beyond what `igor lore-search` returns, the search covers only
-  the decision documents, question log and misses in its working tree,
-  reports every other source, GitHub's issues included, as not searched,
-  and otherwise searches as any session does
+  the decision documents, question log and misses in its working tree, and
+  reports every other source, GitHub's issues included, as not searched
 
 ### Requirement: Only an answer with authority stops a question
 
@@ -1027,9 +1023,8 @@ shown labelled as the agent's choice, which a person can overrule.
 
 #### Scenario: A decision logged on an unmerged branch is input
 
-- **WHEN** a log entry with `authority: decision` matches the question, and
-  it is on a branch that has not merged into the default branch and is not
-  the current work's own branch
+- **WHEN** a log entry with `authority: decision` on an unmerged branch
+  other than the current work's own matches the question
 - **THEN** the search shows it labelled as unconfirmed, and the question is
   not treated as answered
 
@@ -1093,10 +1088,9 @@ GitHub verifies for `answered_by`'s account.
 #### Scenario: A questions-branch decision linking its comment is an answer
 
 - **WHEN** a `decision` file on a lore questions branch names `alice` as
-  `answered_by` and links a GitHub comment that GitHub says `alice` wrote
-  and whose text holds the answer the file records, `alice` has write
-  access to what the question concerns, and no commit after the one that
-  added the file changed it
+  `answered_by` and links a GitHub comment by `alice` holding the answer
+  the file records, `alice` has write access to what the logged question
+  concerns, and no later commit changed the file
 - **THEN** filter 1 treats it as an answer
 
 #### Scenario: A questions-branch decision with a verified signature is an answer
@@ -1104,14 +1098,14 @@ GitHub verifies for `answered_by`'s account.
 - **WHEN** a `decision` file on a lore questions branch names `alice` as
   `answered_by`, the commit that added it carries a signature GitHub
   verifies for `alice`'s account, `alice` has write access to what the
-  question concerns, and no later commit changed the file
+  logged question concerns, and no later commit changed the file
 - **THEN** filter 1 treats it as an answer
 
 #### Scenario: A questions-branch decision with no proven writer is input
 
 - **WHEN** a `decision` file on a lore questions branch names `alice` as
   `answered_by`, links no comment, and its commit has no signature GitHub
-  verifies for `alice`, though the commit's author email is hers
+  verifies for `alice`, though its author email is hers
 - **THEN** the search shows it labelled as unconfirmed
 
 #### Scenario: A relayed answer proves its writer
@@ -1121,8 +1115,9 @@ GitHub verifies for `answered_by`'s account.
   the answer the file records, and was written by the GitHub App
   `alice-relay`, which `relays/alice.yaml` in that lore repository lists
   under `github`, the last change to `relays/alice.yaml` came from a
-  merged pull request `alice` authored, `alice` has write access to what the question
-  concerns, no commit after the one that added the `decision` file changed
+  merged pull request `alice` authored, `alice` has write access to what
+  the logged question concerns, no commit after the one that added the
+  `decision` file changed
   it, and task 0.21 has shown that GitHub reports which App wrote a
   comment
 - **THEN** filter 1 treats it as an answer
@@ -1367,8 +1362,8 @@ groups by hash*).
   same file in `answers`, each would count, and the second's proof is
   newer
 - **THEN** the second is the named file's answer, and filter 1's search
-  shows the first as input, labelled as superseded, though its question's
-  hash differs
+  shows the first as input, labelled as superseded, though their questions'
+  hashes differ
 - **AND** the search shows the second as its own hash group's answer, and
   the answer session shows it as the named file's answer
 - **AND** the older files in the first's hash group stay superseded by the
@@ -2719,10 +2714,9 @@ its worker reports*; this spec does not restate them.
 
 - **WHEN** filter 1 stops a question that has no category with an `active`
   lore entry during an Igor's run
-- **THEN** the agent pushes no citation itself, and the citation is
-  handled as igor's *An Igor publishes the citations its worker reports*
-  says: how a worker reports it, and when and which the Igor pushes,
-  whether from a worker or from an inquisitor run the Igor starts itself
+- **THEN** the agent pushes no citation itself, and igor's *An Igor
+  publishes the citations its worker reports* governs how a worker reports
+  the citation, and when and which the Igor pushes
 
 ### Requirement: An Igor's run reports the questions-branch files it would push
 
@@ -3029,8 +3023,8 @@ answer, SHALL hold these from the start.
 
 ### Requirement: An agent's own choice is written at the question's privacy
 
-An agent's own choice, and a file for a question never asked, such as a
-filter-3 or filter-4 choice, which has `answered_by: agent`, SHALL be
+An agent's own choice, and a file with `answered_by: agent` for a
+question never asked, such as a filter-3 or filter-4 choice, SHALL be
 written at the privacy of what the question concerns, as *A question is
 written at the privacy of what it concerns* says for a question.
 
@@ -3177,9 +3171,8 @@ answer file an answer session logs for a file holding it.
   never merged*)
 - **AND** no other file holds `asked_in`
 - **AND** where these rules let no `answer_link` or `asked_in` be
-  written, the file is written without that key, and is otherwise as it
-  would be (design.md: *`answer_link` and `asked_in` are withheld where
-  they would leak*)
+  written, the file is written without that key (design.md:
+  *`answer_link` and `asked_in` are withheld where they would leak*)
 
 #### Scenario: A handled file's keys
 
@@ -3338,8 +3331,8 @@ read that way as input, labelled as unreadable.
 
 - **WHEN** a questions branch holds a handled file closing a question,
   and an agent's filter 1 searches for the same question
-- **THEN** the search shows no hit from the handled file, and the
-  handled file stops nothing, just as an unanswered file stops nothing
+- **THEN** the search shows no hit from the handled file, and it stops
+  nothing
 
 ### Requirement: A log file's repository keys and answer_link are checked before use
 
@@ -3776,10 +3769,10 @@ the lesson.
 #### Scenario: A general answer becomes a lore pull request
 
 - **WHEN** a person's answer holds for every repository the team works on,
-  the agent judges it important enough to be lore, and a lore repository is
-  configured for the team
-- **THEN** the agent opens a pull request to it adding the entry, and reports
-  its link
+  the agent judges it lore-worthy, and a configured lore repository serves
+  the question's repository
+- **THEN** the agent opens a pull request adding the entry to the team's
+  lore repository, and reports its link
 
 #### Scenario: A logged answer is promoted to lore
 
@@ -3791,8 +3784,8 @@ the lesson.
 
 #### Scenario: No lore repository is configured
 
-- **WHEN** an answer generalizes and no lore repository is configured for the
-  repository's owner
+- **WHEN** an answer generalizes and no configured lore repository serves
+  the question's repository
 - **THEN** the agent tells the person the lesson, and opens no pull request
 
 ### Requirement: A lore pull request goes to no lore repository more visible than its source
@@ -3922,9 +3915,8 @@ decide the question. Otherwise it is input.
 #### Scenario: An Inquisitor reply does not settle a question another skill requires a person to decide
 
 - **WHEN** an agent's question about a cold-read finding, which prose
-  requires a person to decide, so that *A question another skill requires
-  skips filters 2 to 4* exempts it from filters 2 to 4, gets a reply
-  starting `Inquisitor: filter 4` from the relay App of the person asked
+  requires a person to decide, gets a reply starting `Inquisitor: filter 4`
+  from the relay App of the person asked
 - **THEN** the agent treats the reply as input, and its question stands
 
 #### Scenario: An Inquisitor reply is acted on as its filter
