@@ -105,9 +105,10 @@ answer session cited it, as the `answer-session` spec defines citing
 *Filter 1 hides every lore entry outside the question's scope* defines it
 or, during an Igor's run, *A run's lore search keeps to the Igor's lore
 repository and scope*. *A question that should not have been asked is
-logged as a miss* defines a miss, *A lore entry that stops a question
-gets a citation file* defines a citation file, and *A citation file has
-one format* gives a citation file's form.
+logged as a miss* says when an agent logs a miss, and the
+`answer-session` spec when an answer session does; *A lore entry that
+stops a question gets a citation file* says when a citation file is
+pushed, and *A citation file has one format* gives its form.
 
 ## ADDED Requirements
 
@@ -247,10 +248,9 @@ through the filters*).
 #### Scenario: A question another skill requires is not decided by the agent
 
 - **WHEN** spec-trace requires the person to decide whether to adopt it,
-  or spec-check whether to enforce its decisions-first rule, and the
-  choice is cheap to reverse
+  and the choice is cheap to reverse
 - **THEN** filter 4 does not stop it, and the agent asks it with an `ask`
-  verdict naming spec-trace, or spec-check
+  verdict naming spec-trace
 
 #### Scenario: A question another skill requires is not deferred
 
@@ -306,6 +306,12 @@ the first of its sections whose heading starts with "Decision".
   agent records no choice in it
 - **AND** an issue whose body opens with "Decided: use Go." before any
   heading has that sentence as its decision block
+
+#### Scenario: An issue's Decision section is its decision block
+
+- **WHEN** an issue's body starts with the heading `## Context`, and a
+  later section is headed `## Decision`
+- **THEN** its decision block is that `## Decision` section
 
 ### Requirement: A lore entry is read from the remote-tracking default branch
 
@@ -431,9 +437,11 @@ file input, labelled unreadable, as that requirement says.
 
 #### Scenario: A file asked from a private repository is private
 
-- **WHEN** a miss file's `repository` is the public `o/web` and its
-  `asked_from` the private `o/api`
-- **THEN** the file's visibility is private
+- **WHEN** a miss file's or a questions-branch log file's `repository` is
+  the public `o/web` and its `asked_from` the private `o/api`
+- **THEN** the file's visibility is private, and every visibility rule in
+  this spec and the `answer-session` spec treats it as being about a
+  private repository
 - **AND** a file whose `asked_from` fails the syntax check counts as
   private, and is input labelled unreadable
 
@@ -545,6 +553,29 @@ cannot run, the file SHALL list no relay.
   changed by a pull request `carol` authored
 - **THEN** the reader counts `alice`'s file, and `bob`'s lists no relay
 
+#### Scenario: A relay file last changed by a signed commit of its person counts
+
+- **WHEN** the newest commit on the lore repository's default branch that
+  changed `relays/alice.yaml` was pushed directly, with no pull request,
+  and carries a signature GitHub verifies for `alice`'s account
+- **THEN** the Apps that file lists under `github` are `alice`'s relay
+  Apps
+
+#### Scenario: A relay file someone else last changed lists no relay
+
+- **WHEN** `relays/alice.yaml` lists `alice-relay`, and the newest commit
+  that changed it came from a pull request `bob` authored and merged, or
+  was pushed directly with no signature GitHub verifies for `alice`,
+  though its author email is hers
+- **THEN** `alice` has no relay App there, and a `decision` file linking a
+  `User says: ` comment by `alice-relay` is shown labelled as unconfirmed
+
+#### Scenario: A relay file whose last change cannot be checked lists no relay
+
+- **WHEN** the reader cannot read from GitHub which pull request last
+  changed `relays/alice.yaml`, or that commit's signature
+- **THEN** `alice` has no relay App there
+
 ### Requirement: A missing or malformed relay file lists no relay
 
 A relay file that is missing, does not parse, or whose name is not
@@ -559,13 +590,28 @@ counts.
 - **THEN** it lists no Linear relay, and the Apps under `github` still
   count
 
+#### Scenario: A malformed relay file lists no relay where it is malformed
+
+- **WHEN** a lore repository holds `relays/bad_login!.yaml`, and
+  `relays/alice.yaml` whose `github` is a string, not a list, and whose
+  `discord` is a list of strings, beside a well-formed
+  `relays/bob.yaml`, each last changed by its person
+- **THEN** neither `bad_login!` nor `alice` has a relay App, and `bob`'s
+  listed App is his relay App
+
+#### Scenario: An unparseable relay file lists no relay
+
+- **WHEN** `relays/alice.yaml` is not valid YAML
+- **THEN** `alice` has no relay App there, and every `User says: `
+  comment from an App she uses is input
+
 ### Requirement: A relay file is read as last fetched, or as igor last applied it
 
 Outside an Igor, a relay file SHALL be read from the lore repository's
 default branch as the clone's remote-tracking branch last fetched it. An
 Igor SHALL read it as of the last commit igor PR #208's lore read
-applied, so the relay files of a commit #208 refused never count (igor
-PR #216's decision 77).
+applied (igor PR #216's decision 77; design.md: *An Igor reads relay
+files as of igor PR #208's applied commit*).
 
 #### Scenario: A relay merged since the last fetch is not yet read
 
@@ -574,18 +620,38 @@ PR #216's decision 77).
   last fetched
 - **THEN** the reader reads the file without `alice-relay`
 
+#### Scenario: An Igor counts no relay from a commit igor refused
+
+- **WHEN** during an Igor's run, the newest commit on the lore
+  repository's default branch adds `alice-relay` to `relays/alice.yaml`
+  from a merged pull request `alice` authored, and igor PR #208's lore
+  read refused to apply that commit, as it refuses one failing igor's
+  startup checks
+- **THEN** the Igor reads `relays/alice.yaml` as of the commit #208 last
+  applied, where `alice-relay` is not listed, and `alice-relay` is not
+  `alice`'s relay App
+
 ### Requirement: Under igor run, no relayed answer is known
 
-Under `igor run`, which never fetches, #208 has applied no commit, so
-the Igor cannot tell whether a `User says: ` comment came from a
-person's relay App, and SHALL push such an answer as `input` (igor PR
-#216's decision 78).
+Under `igor run`, which never fetches, igor PR #208 has applied no lore
+commit, so no relay file is read. There the Igor SHALL push an answer
+from a `User says: ` comment as `input` (igor PR #216's decision 78;
+design.md: *An Igor reads relay files as of igor PR #208's applied
+commit*).
 
 #### Scenario: Under igor run, a listed App's answer is input
 
 - **WHEN** under `igor run`, the Igor logs an answer from a `User says: `
   comment by an App that `relays/alice.yaml` lists
 - **THEN** it pushes the answer's log file with `authority: input`
+
+#### Scenario: With no commit applied, a relayed answer is pushed as input
+
+- **WHEN** under `igor run`, where igor PR #208 has applied no commit of
+  the lore repository, a worker re-working an item reports a log file
+  linking a `User says: ` comment by `alice-relay`
+- **THEN** the relay check does not run, and the Igor pushes the file
+  with `authority: input`
 
 ### Requirement: A relay App is one its person's counted relay file lists
 
@@ -703,8 +769,8 @@ all if the agent works in no git repository.
 
 #### Scenario: A proposed decision record is input
 
-- **WHEN** a decision record under `docs/decisions/` whose status is
-  `proposed` answers the question
+- **WHEN** a decision record at the path igor PR #202 sets, whose status
+  is `proposed`, answers the question
 - **THEN** the search shows it labelled as not accepted, and the question
   is not treated as answered
 
@@ -737,6 +803,30 @@ labels it*).
   short name of `o/api`, the part after the `/`
 - **AND** it never shows, counts or mentions the `project:web` entry, even
   as input
+
+#### Scenario: A role entry is hidden outside that role
+
+- **WHEN** an `active` entry scoped `role:reviewer` matches a question in a
+  session that is not an Igor in the `reviewer` role
+- **THEN** the search does not show it
+
+#### Scenario: A project entry matches the repository's short name
+
+- **WHEN** an `active` entry scoped `project:igor` matches a question about
+  the repository `adamstallard/igor`
+- **THEN** filter 1 treats it as an answer
+
+#### Scenario: A hidden entry is not counted or mentioned
+
+- **WHEN** two `active` entries outside the question's scope match it
+- **THEN** the search output neither shows them nor gives any count or
+  mention of hidden entries
+
+#### Scenario: Another project's entry is hidden
+
+- **WHEN** an `active` entry scoped `project:other` matches a question about
+  repository `igor`
+- **THEN** the search does not show it, even as input
 
 ### Requirement: Filter 1 matches terms as plain text and caps its hits
 
@@ -881,6 +971,13 @@ scope and the item's visibility (design.md: *Questions-branch files and
   worker unbidden, beside a search it may run* and *An Igor runs its
   worker's lore searches* and its decisions 53, 54 and 55
 
+#### Scenario: Inside an Igor, a project entry about a more private repository is hidden
+
+- **WHEN** an Igor worker on an item in public `o/web`, whose role also
+  works private `o/api`, has a question that an `active` entry scoped
+  `project:api` matches
+- **THEN** the search does not show the entry
+
 ### Requirement: igor's search labels each file by the authority checks
 
 `igor lore-search` SHALL apply the checks of *Only an answer with
@@ -927,12 +1024,6 @@ status, such as a MADR, counts only when `accepted`.
 - **THEN** the search shows it as input, and the question is not treated as
   answered
 
-#### Scenario: A role entry is hidden outside that role
-
-- **WHEN** an `active` entry scoped `role:reviewer` matches a question in a
-  session that is not an Igor in the `reviewer` role
-- **THEN** the search does not show it
-
 #### Scenario: A role entry answers in that role's Igor
 
 - **WHEN** an `active` entry scoped `role:reviewer` matches a question in an
@@ -946,31 +1037,6 @@ status, such as a MADR, counts only when `accepted`.
   it
 - **AND** `o/web` is no more visible than `o/api`
 - **THEN** the search shows the entry, and filter 1 treats it as an answer
-
-#### Scenario: Inside an Igor, a project entry about a more private repository is hidden
-
-- **WHEN** an Igor worker on an item in public `o/web`, whose role also
-  works private `o/api`, has a question that an `active` entry scoped
-  `project:api` matches
-- **THEN** the search does not show the entry
-
-#### Scenario: A project entry matches the repository's short name
-
-- **WHEN** an `active` entry scoped `project:igor` matches a question about
-  the repository `adamstallard/igor`
-- **THEN** filter 1 treats it as an answer
-
-#### Scenario: A hidden entry is not counted or mentioned
-
-- **WHEN** two `active` entries outside the question's scope match it
-- **THEN** the search output neither shows them nor gives any count or
-  mention of hidden entries
-
-#### Scenario: Another project's entry is hidden
-
-- **WHEN** an `active` entry scoped `project:other` matches a question about
-  repository `igor`
-- **THEN** the search does not show it, even as input
 
 ### Requirement: A work-branch decision answers only its own work
 
@@ -1004,6 +1070,15 @@ access to that repository.
   holds a `DECISIONS.md` that answers the question
 - **THEN** the search shows it as input, and the question is not treated
   as answered
+
+#### Scenario: With no pull request, the session's login decides
+
+- **WHEN** the agent works on a branch of the repository itself that has
+  no pull request, the change's own spec on that branch decides the
+  question, and the person running the session's login has write access
+  to the repository
+- **THEN** filter 1 treats it as an answer, labelled as this change's, not
+  yet merged
 
 ### Requirement: A log entry counts only where its branch allows
 
@@ -1122,29 +1197,6 @@ GitHub verifies for `answered_by`'s account.
   comment
 - **THEN** filter 1 treats it as an answer
 
-#### Scenario: A relay file last changed by a signed commit of its person counts
-
-- **WHEN** the newest commit on the lore repository's default branch that
-  changed `relays/alice.yaml` was pushed directly, with no pull request,
-  and carries a signature GitHub verifies for `alice`'s account
-- **THEN** the Apps that file lists under `github` are `alice`'s relay
-  Apps
-
-#### Scenario: A relay file someone else last changed lists no relay
-
-- **WHEN** `relays/alice.yaml` lists `alice-relay`, and the newest commit
-  that changed it came from a pull request `bob` authored and merged, or
-  was pushed directly with no signature GitHub verifies for `alice`,
-  though its author email is hers
-- **THEN** `alice` has no relay App there, and a `decision` file linking a
-  `User says: ` comment by `alice-relay` is shown labelled as unconfirmed
-
-#### Scenario: A relay file whose last change cannot be checked lists no relay
-
-- **WHEN** the reader cannot read from GitHub which pull request last
-  changed `relays/alice.yaml`, or that commit's signature
-- **THEN** `alice` has no relay App there
-
 #### Scenario: An App the person owns but has not listed proves no writer
 
 - **WHEN** a `decision` file on a lore questions branch names `alice` as
@@ -1161,24 +1213,6 @@ GitHub verifies for `answered_by`'s account.
   file links a `User says: ` comment by `alice-relay`
 - **THEN** the search shows the file labelled as unconfirmed
 
-#### Scenario: An Igor counts no relay from a commit igor refused
-
-- **WHEN** during an Igor's run, the newest commit on the lore
-  repository's default branch adds `alice-relay` to `relays/alice.yaml`
-  from a merged pull request `alice` authored, and igor PR #208's lore
-  read refused that commit
-- **THEN** the Igor reads `relays/alice.yaml` as of the commit #208 last
-  applied, where `alice-relay` is not listed, and `alice-relay` is not
-  `alice`'s relay App
-
-#### Scenario: With no commit applied, a relayed answer is pushed as input
-
-- **WHEN** under `igor run`, where igor PR #208 has applied no commit of
-  the lore repository, a worker re-working an item reports a log file
-  linking a `User says: ` comment by `alice-relay`
-- **THEN** the relay check does not run, and the Igor pushes the file
-  with `authority: input`
-
 #### Scenario: A listed Igor's App proves no writer
 
 - **WHEN** `relays/alice.yaml`, last changed by `alice`, lists the App
@@ -1187,21 +1221,6 @@ GitHub verifies for `answered_by`'s account.
   records
 - **THEN** `igor-alice` is not `alice`'s relay App, and the search shows
   the file labelled as unconfirmed
-
-#### Scenario: A malformed relay file lists no relay where it is malformed
-
-- **WHEN** a lore repository holds `relays/bad_login!.yaml`, and
-  `relays/alice.yaml` whose `github` is a string, not a list, and whose
-  `discord` is a list of strings, beside a well-formed
-  `relays/bob.yaml`, each last changed by its person
-- **THEN** neither `bad_login!` nor `alice` has a relay App, and `bob`'s
-  listed App is his relay App
-
-#### Scenario: An unparseable relay file lists no relay
-
-- **WHEN** `relays/alice.yaml` is not valid YAML
-- **THEN** `alice` has no relay App there, and every `User says: `
-  comment from an App she uses is input
 
 #### Scenario: An answer session's automatic reply proves no writer
 
@@ -1423,8 +1442,8 @@ state the end state*).
 #### Scenario: The scribe's accepted record of a Discord answer is an answer
 
 - **WHEN** igor's scribe has recorded a maintainer's Discord answer as an
-  `accepted` decision record under `docs/decisions/` on the default branch
-  of the repository the question concerns
+  `accepted` decision record at the path igor PR #202 sets, on the default
+  branch of the repository the question concerns
 - **THEN** filter 1 treats the record as an answer, and the agent cites it
 
 ### Requirement: A link off GitHub proves no writer, but a relayed answer's signature can
@@ -1559,6 +1578,13 @@ their own pull request or an edit that keeps the base.
   `relays/alice.yaml` is edited, and its base branch is unchanged
 - **THEN** the workflow mentions no one
 
+#### Scenario: Renaming or deleting a relay file mentions its person
+
+- **WHEN** `bob` opens a pull request that renames `relays/alice.yaml`,
+  which the base holds, or one that deletes it
+- **THEN** the workflow comments under its fixed first line, mentioning
+  `@alice`
+
 ### Requirement: The relay notice reads only the names of the paths a pull request changes
 
 `relay-notice.yml` SHALL run on GitHub-hosted runners, on
@@ -1597,6 +1623,14 @@ head, matched to a relay file's pattern first, and run nothing.
 - **THEN** neither matches `^relays/[A-Za-z0-9][A-Za-z0-9-]*\.yaml$`,
   which each path is matched against before use, and the workflow
   mentions no one for that path
+
+#### Scenario: The workflow checks out nothing and runs nothing from the head
+
+- **WHEN** a pull request's head changes `relays/alice.yaml` and adds a
+  script, a workflow and a `package.json`
+- **THEN** the workflow fetches the commits as git data with no checkout,
+  takes only the changed path names from the head, and runs none of the
+  head's files
 
 ### Requirement: A question that is asked is prepared for a quick answer
 
@@ -2414,12 +2448,12 @@ it asks in a post, a handback or nowhere* says.
 ### Requirement: Every answer is recorded and every asked question logged
 
 When a person answers a question, the agent SHALL record the answer where
-the question's answer is recorded. Each question asked SHALL be logged,
-when it is asked, as one file with what it concerns, never outside a
-repository, such as under `~/.config/`. As their requirements say, these
-get no log file: a way-of-working question, a flagged run's, one with no
-team's lore repository or whose questions-branch push fails, and a
-worker's repository question in a handback with no artifact.
+the question's answer is recorded. Each question asked SHALL be logged
+when it is asked, as one file in its repository or its team's lore
+repository, never elsewhere. Their own requirements exempt some questions,
+such as a way-of-working question, a flagged run's, one with no team's
+lore repository or whose questions-branch push fails, and a worker's
+repository question in a handback with no artifact.
 
 #### Scenario: A question waiting for its answer is already logged
 
@@ -2428,7 +2462,8 @@ worker's repository question in a handback with no artifact.
 
 #### Scenario: An answer with no document is held in the log
 
-- **WHEN** a person answers a question that no decision document covers
+- **WHEN** a person answers a question that no decision document covers,
+  and the agent logs the answer with `authority: decision`
 - **THEN** the log file holds the answer, and filter 1 treats it as one once
   it is on the default branch and its `answered_by` has write access
 
@@ -2739,9 +2774,9 @@ A worker re-working an item after a person answered its handback question
 SHALL report a new questions-branch log file for that answer. A worker
 SHALL write no answer, nor `answers`, into any log file (design.md: *A
 worker logs no answer*): the Igor writes the answer from the linked
-comment, decides its `authority`, and its `answered_by` for a relay App's
-comment, under the checks of *Only an answer with authority stops a
-question*, as igor PR #216 has it, and adds `answers` itself.
+comment, decides its `authority` and, for a relay App's comment, its
+`answered_by`, under the checks of *Only an answer with authority stops a
+question*, and adds `answers` itself.
 
 #### Scenario: A worker re-working an answered handback reports the answer
 
@@ -2829,10 +2864,8 @@ a questions-branch file*).
 The skill's script SHALL write every log and miss file through its `log`
 command, in the format *A log file and a miss file have one format*
 states, pushing a questions-branch file as *An organization's question is
-pushed to its lore repository's questions branch* says. The command does
-not check who passed a link: the writer is proven only by the linked
-comment or the commit's signature, as *A questions-branch file's writer
-is proven by its comment or its signature* says.
+pushed to its lore repository's questions branch* says (design.md: *The
+`log` command reads its inputs and the linked comments itself*).
 
 #### Scenario: The log command writes and pushes a questions-branch file
 
@@ -2858,9 +2891,17 @@ can read.
 - **THEN** the command refuses, writes and pushes nothing, and says to
   write the file with mode 0600 in a private directory
 
+#### Scenario: A private input file in a directory others can read is refused
+
+- **WHEN** the agent passes the `log` command a file with mode 0600 in a
+  directory with mode 0755
+- **THEN** the command refuses, writes and pushes nothing, and says to
+  write the file in a private directory
+
 ### Requirement: The log command records a linked GitHub comment's own text
 
-For a github.com `answer_link`, the `log` command SHALL record the linked
+Outside Igor-worker mode, for a github.com `answer_link`, the `log`
+command SHALL record the linked
 comment's text, read through GitHub with the person's credentials, word
 for word as the answer, whatever answer it was passed, and SHALL write
 nothing and say why when it cannot read it.
@@ -2884,6 +2925,12 @@ answer, and writes no `asked_in`.
   answer, only the question and the `answer_link`, for the Igor to write
   the answer from the comment's text
 
+#### Scenario: In Igor-worker mode the log command writes no asked_in
+
+- **WHEN** the `log` command runs under `IGOR_RUN=worker` for a question
+  the worker asks in its handback comment
+- **THEN** the file it reports holds no `asked_in`
+
 ### Requirement: The log command fetches no Linear or Discord answer link
 
 For a Linear or Discord `answer_link`, which only an answer session
@@ -2904,8 +2951,8 @@ nothing and record the answer given, word for word (design.md:
 
 The `log` command SHALL write nothing, and say why, when an `answer_link`
 or `asked_in` is in none of the forms *A log file and a miss file have one
-format* gives, or when an `answers` key does not name an unanswered log
-file, one holding no answer, on that questions branch (design.md: *An
+format* gives, or when an `answers` key names no log file on that
+questions branch, or names one that already holds an answer (design.md: *An
 answer file names the file it answers*).
 
 #### Scenario: An answers key naming no file on the branch is refused
@@ -2932,7 +2979,8 @@ answer file names the file it answers*).
 
 The `log` command SHALL write an `answer_link` or `asked_in` only where *A
 log file and a miss file have one format* allows, and otherwise write the
-file without the key (design.md: *`answer_link` and `asked_in` are
+file without the key, even where another requirement says the file holds
+it (design.md: *`answer_link` and `asked_in` are
 withheld where they would leak*; *A log file without `asked_in` is never
 merged*).
 
@@ -3160,15 +3208,16 @@ answer file an answer session logs for a file holding it.
 #### Scenario: Where an asked_in may be written
 
 - **WHEN** a questions-branch log file is for a question the asking agent
-  also asked in a post, or for an Igor worker's question
-- **THEN** its `asked_in` is that post's URL, or the URL of the handback
-  comment that asks the question, a Linear or Discord URL written only
-  where an `answer_link` of that kind may be, and a github.com URL only
-  in a lore repository no more visible than the repository it points
-  into (design.md: *A log file follows its thread message by exact
-  link*; *Each Igor log file follows its own handback comment*; *Only an
-  item's newest handback is open*; *A log file without `asked_in` is
-  never merged*)
+  also asked in a post or in a Linear or Discord message, or for an Igor
+  worker's question
+- **THEN** its `asked_in` is that post's or message's URL, or the URL of
+  the handback comment that asks the question, a Linear or Discord URL
+  written only where an `answer_link` of that kind may be, and a
+  github.com URL only in a lore repository no more visible than the
+  repository it points into (design.md: *A log file follows its thread
+  message by exact link*; *Each Igor log file follows its own handback
+  comment*; *Only an item's newest handback is open*; *A log file
+  without `asked_in` is never merged*)
 - **AND** no other file holds `asked_in`
 - **AND** where these rules let no `answer_link` or `asked_in` be
   written, the file is written without that key (design.md:
@@ -3374,14 +3423,6 @@ private as its more private repository* says.
 - **THEN** filter 1 makes no GitHub API call with that value, shows the
   file as input, labelled as unreadable, and every visibility rule treats
   the file as being about a private repository
-
-#### Scenario: A file is as private as the more private of its two repositories
-
-- **WHEN** a questions-branch log file's `repository` names a public
-  repository and its `asked_from` names a private one
-- **THEN** every visibility rule in this spec and the `answer-session`
-  spec treats the file as being about a private repository, as *A log or
-  miss file is as private as its more private repository* says
 
 ### Requirement: A citation file has one format
 
@@ -3778,7 +3819,7 @@ the lesson.
 
 - **WHEN** a person asks the agent to promote an answer logged on the lore
   repository's questions branch
-- **THEN** the agent opens a pull request to that lore repository's main
+- **THEN** the agent opens a pull request to that lore repository's default
   branch adding the answer as a `provisional` entry, and the question's file
   stays on the questions branch
 

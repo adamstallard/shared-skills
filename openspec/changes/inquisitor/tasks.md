@@ -172,11 +172,23 @@ contradicts what design.md assumed.
       the `log` command, run with the `GIT_AUTHOR_*` and `GIT_COMMITTER_*` variables and the `GIT_CONFIG_*` entries that github-app sets removed, commits
       as the person in a project wired for an App (design.md: *Setup
       checks questions-branch commits are the person's*)
+- [ ] 0.25 How GitHub, Linear and Discord each report a relay post refused
+      for its text, such as its length, against one refused for lack of
+      permission, as the answer-session spec's *A pending answer no check
+      returns waits for the person* tells them apart. The spec states no
+      rule for a refusal the session cannot place; design.md's *Open
+      Questions* holds it
+- [ ] 0.26 Whether a tool a mod registers, such as `propose_reply`, can tell
+      a subagent's call from the main model's, as the answer-session
+      spec's *Claude's draft goes to the prompt box, never to a post*
+      requires it to refuse subagents. The spec states no rule for a call
+      it cannot attribute; design.md's *Open Questions* holds it
 
 ## 1. Shared post reader
 
 - [ ] 1.1 Move prose's `gh` and GitHub MCP body reader into `.agents/lib/gh-post/`,
       called from a thin script in each skill, with no change in behaviour
+      beyond what tasks 1.3 and 2.9 list
 - [ ] 1.2 prose's tests pass unchanged; add the library's own tests beside it,
       each tagged `@scenario gh-post: <Scenario name>` for the `gh-post`
       spec's scenario it checks
@@ -184,8 +196,12 @@ contradicts what design.md assumed.
       still pass unchanged, except a test that expects one of these to
       pass, which now expects it blocked: a data command given code to
       run, such as `python3 -c`, whose code names `gh`; a title built by
-      the shell; or a title edit chained to another command. Add tests
-      for each to prose's and the library's tests.
+      the shell; a title edit chained to another command; a `gh` alias or
+      extension, such as `gh co`, anywhere on a line; a git form that runs
+      a command naming `gh`, which task 2.9 builds, as it does the alias
+      and extension refusal; or a `--body` or `-b` given unquoted, such as
+      `gh pr comment 5 --body hi`. Add tests for each to prose's and the
+      library's tests.
       - It reads a post's title, as a literal word, from `--title` or
         `-t`, a `gh api` `title` field under `issues` or `pulls`, the
         `title` argument of the GraphQL mutations that create or update
@@ -224,11 +240,14 @@ contradicts what design.md assumed.
         pass is changed to expect it blocked
       - As part of this task, once the reader has moved, prose's
         `DECISIONS.md` section on the allow-list points at
-        the library's list instead of restating it, and its section *A
-        command that runs no gh post is not a post* no longer says that
-        `python3 - <<'EOF'`, `node -e` and `git -c` are outside the
-        hook's reach (design.md: *Code given on the command line that
-        names gh*)
+        the library's list instead of restating it. Its section *A
+        command that runs no gh post is not a post* keeps the finer
+        points of reading a line, such as heredocs, comments and line
+        continuations, which the `gh-post` spec takes from it, but no
+        longer says that `python3 - <<'EOF'`, `node -e` and `git -c` are
+        outside the hook's reach, nor lists `rebase -x` among the
+        disguises it calls out of scope (design.md: *Code given on the
+        command line that names gh*)
 
 ## 2. The script
 
@@ -375,7 +394,7 @@ contradicts what design.md assumed.
       carries to mention a relay file's person, modelled on igor PR #171's
       `templates/seat-notice.yml` (design.md: *A notice workflow mentions
       a relay file's person*)
-- [ ] 2.9 Two separate refusals, which tasks 1.3 and 2.4 do not list:
+- [ ] 2.9 Two separate refusals, which tasks 1.3 and 2.4 do not build:
       - the `log` command's input file, refused unless it has mode 0600
         in a private directory (design.md: *The `log` command reads its
         inputs and the linked comments itself*);

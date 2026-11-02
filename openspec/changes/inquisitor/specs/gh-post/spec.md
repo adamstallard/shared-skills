@@ -56,7 +56,8 @@ its scenarios list: verbs of `gh pr` and `gh issue`, and `gh api`, whose
 writes this spec's `gh api` requirements define. A command **mentions**
 one when its text, quoted or not, holds the word `gh` followed later by
 `pr` or `issue` and later by one of their verbs, or `gh` followed by
-`api`. A command that mentions no gh post verb SHALL send no post.
+`api`. A command that mentions no gh post verb SHALL send no post, but
+see *The reader reads only gh's own top-level commands*.
 
 #### Scenario: The gh post verbs are a closed list
 
@@ -133,6 +134,7 @@ issue.
   and `b.md` exists
 - **THEN** the reader returns the file's text as the body, and says that
   the post creates an issue
+- **AND** it says so for `gh issue new` too
 
 ### Requirement: A gh pr or gh issue body comes from a quoted option or an existing file
 
