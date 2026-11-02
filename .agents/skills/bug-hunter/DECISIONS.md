@@ -79,7 +79,7 @@ habit, the "trivial docs commit" arriving with `-m` composed. This incident is
 upstream of it: the agent had no reason to think the script applied at all.
 
 **Where this stops applying.** This does not license remedies in the hook's
-report. What this decision put in the report is now one line: the report's
+report. What this decision puts in the report is one line: the report's
 first, which says the commit has no trailer and carries no condition. The skip
 categories and the skip value are left to the SKILL.md section the report
 names (the library's
@@ -96,23 +96,19 @@ only ones read by an agent that has not invoked the skill.
 **Decision.** Nothing marks "a bug-hunter run is in flight". A commit that lands
 mid-run is reported exactly like any other commit without a trailer.
 
-**Why.** A marker file was sketched for this and deferred, and the reason on
-record was only sequencing — new code, so its own run. That is not a reason, so
-this entry is the real one, worked out afterwards.
-
-The marker would be a file the *agent* writes to tell the hook not to report the
+**Why.** The marker would be a file the *agent* writes to tell the hook not to report the
 agent. Every other thing this hook trusts is asked of git, which records what
 happened rather than what someone intended; the marker would be the single input
 supplied by the party being checked, and the failure mode is not a bug but a
 habit — a flag that suppresses a report is a flag that gets set early, and the
 skill's whole history here is of exceptions being widened until the rule is gone.
 
-**Rejected, and once already deleted.** The `Bug-hunter: run in progress, N
-iterations so far` trailer, removed in `6551f4a` with the note that an invented
-exception "does provide a documented reason to do the thing the rule forbids,
-which is how every other rule here has been walked around". The marker file is
-that same exception moved from the message into a dotfile, where it is less
-visible rather than more.
+**Rejected: a marker file, or the `Bug-hunter: run in progress, N iterations
+so far` trailer.** An invented exception like the trailer gives a documented
+reason to do the thing the rule forbids, which is how every other rule here
+has been walked around. The marker file is that same exception
+moved from the message into a dotfile, where it is less visible rather than
+more.
 
 **What it would have bought, honestly.** Nothing. `SKILL.md` already says the
 commit waits for the run, so a commit landing mid-run is a rule being broken and
@@ -129,7 +125,7 @@ is about forgeability, not about the feature, and it would not apply.
 
 Everything above is about `scripts/`. What follows is about `SKILL.md`: why its
 rules say what they say. The wording is load-bearing in a way the rule alone does
-not show, and each of these is a revert.
+not show, and each of these answers a failure that was observed.
 
 ## Every anti-evasion rule was added after it was walked through
 
@@ -139,9 +135,9 @@ evidence for each compressed to a clause. The evidence is here.
 **What was walked through.**
 - *Enumerating the moments a run is owed.* An agent finished a loop, committed,
   and asked whether to start the next one — not on the list, functionally
-  identical, and asked exactly when the user was most likely to say no. Replaced
-  with a property of the code: if code has been written since the last pass that
-  came back clean, a pass is owed.
+  identical, and asked exactly when the user was most likely to say no. The rule
+  is a property of the code instead: if code has been written since the last
+  pass that came back clean, a pass is owed.
 - *Announcing in the future tense.* "That's running next unless you want to stop
   here" · "I'll kick that off if you're happy with it". Each ends the turn with
   the check not running, which hands the decision back as plainly as asking.
@@ -151,7 +147,7 @@ evidence for each compressed to a clause. The evidence is here.
   question nobody wanted asked is usually no.
 - *Prose instead of the format.* Reads fine; not scannable, countable, or
   comparable to the last run.
-- *Committing mid-run.* Sixteen times, before the rule below existed.
+- *Committing mid-run.* Sixteen times, with no rule against it.
 
 **Rejected.** Stating the rules separately, one per situation. An agent looking
 for a way out of a check reliably finds the seam between separately-stated rules;
@@ -196,8 +192,7 @@ reset exists because without it the count climbed to "7 iterations, 45 found",
 which reads as though the cap had been ignored and hides that each run got its
 own clean decision point.
 
-**Rejected, and deleted once already.** The `Bug-hunter: run in progress` trailer
-— the same exception in another form as the marker file, and refused for the same
+**Rejected: the `Bug-hunter: run in progress` trailer** — the same exception in another form as the marker file, and refused for the same
 reason. See *The hook is never told that a run is in progress*.
 
 **The real distinction, which is not an escape.** The rule is about the change
@@ -213,8 +208,7 @@ root cause per unresolved thing and the same three choices on each — a new run
 iteration 1 scoped to that cause, write it down as a known gap, or skip. Never a
 fourth iteration, and never an offer of one.
 
-**Why.** Adam: *"We don't do 4th iterations in bug-hunter."* An open "want
-another pass?" at the cap is the future-tense announce this file already records
+**Why.** An open "want another pass?" at the cap is the future-tense announcement this file already records
 under *Every anti-evasion rule was added after it was walked through*, arriving
 at the moment the user is most likely to say no, and it makes a fixed budget
 read as an opening offer. The three choices are the same information with the
@@ -266,7 +260,8 @@ agent it spawned has received Step 9's input, not discharged Step 9: it asks
 every open decision in its next reply, before anything else, through its own
 picker. The report carries this itself — a headline count of open decisions
 and, on any text-form report, a footer addressed to whoever holds it — and the
-Step 3 background rule now says what happens when the pass comes back.
+Step 3 rule for a pass run in the background (*Run this pass in the background
+and keep working*) says what happens when the pass comes back.
 
 **Why.** The skill is written in one voice, to "you", and every rule about the
 report assumes your reply is the user's screen: *in the reply the user can
@@ -321,9 +316,9 @@ moves the picker to the hop that has one; it does not add a mechanism.
 - **Stating the rule more loudly in `SKILL.md` alone.** It was already there
   three times, and the agent that failed had read all three. Restating a rule
   where it was already stated changed nothing the last time either (*A skip is
-  a value for the trailer*). What went into `SKILL.md` is the distinction that
-  was missing — reached an agent versus reached the user — and the checklist
-  line, which is the one part of `SKILL.md` an agent carries forward as its own
+  a value for the trailer*). What `SKILL.md` carries instead is the distinction
+  — reached an agent versus reached the user — and a line in its *Workflow
+  checklist*, which is the one part of `SKILL.md` an agent carries forward as its own
   artifact.
 - **Letting the runner pick a default** — write every open cause down (choice
   2) when nobody can be asked. That is a choice made on the user's behalf, and
@@ -352,16 +347,16 @@ runs the new regression tests plus whatever existing tests cover the files the f
 touched.
 
 **Why.** Contract item 4 is a claim about what gets reported and committed —
-nothing leaves the run without the closing full run, so it is still checked before
-anyone is told the code is clean. What changed is how many times it is checked on
-the way there. A three-iteration run used to pay for four full suites and now pays
-for two — the last iteration's was always the closing gate; the two before it
-gated work nobody outside the run can see yet. On a project whose suite takes
-minutes that was the largest fixed cost in the loop. The signal an intermediate
+nothing leaves the run without the closing full run, so it is checked before
+anyone is told the code is clean. Only the checks on the way there are cut. A
+three-iteration run pays for two full suites, where a full suite per iteration
+costs four: the last iteration's would be the closing gate anyway, and the two
+before it would gate work nobody outside the run can see yet. On a project whose
+suite takes minutes, those two are the largest fixed cost in the loop. The signal an intermediate
 iteration actually needs is narrow: a fix breaking something is nearly always a
 fix breaking something near itself, minutes after it was written.
 
-**Rejected.** The full suite every iteration, which is what this replaces. It pays
+**Rejected.** The full suite every iteration. It pays
 for breadth at the moment the breadth is least likely to fire, and the run pays
 again at the end regardless. Also rejected: dropping the intermediate run to the
 *new tests alone*. Then a fix that breaks a neighbour survives to the closing
@@ -369,8 +364,9 @@ gate, where three iterations of fixes sit in the tree at once and nothing says
 which one did it — the targeted run is bought precisely to keep that attribution
 cheap.
 
-**Consequence, accepted.** A break in a file no iteration touched surfaces later
-than it used to — at the closing gate rather than the iteration that caused it.
+**Consequence, accepted.** When a fix breaks a test in a file no iteration
+touched, the break shows at the closing gate rather than in the iteration whose
+fix caused it.
 The response is unchanged (fix the fix, or revert it and report it unresolved),
 and the run does not end until it holds.
 
@@ -459,14 +455,11 @@ on the strongest available model. Resuming the finder is an option for when it
 saves tokens, not a rule. Whoever writes it gets the same inputs: the surviving
 findings, the refuter verdicts, and Step 5's fix-conflict notes.
 
-**Why.** Resuming the finder was always a token optimisation: it has already
-read every changed file, traced each candidate's reachability and run the
-candidates, which a cold fixer spends its first tokens rebuilding. There was no
+**Why.** Resuming the finder is a token optimisation: it has already read
+every changed file, traced each candidate's reachability and run the
+candidates, which a cold fixer spends its first tokens rebuilding. There is no
 independence to protect in who fixes: the fixer is handed the surviving
-findings as facts, and the refuters have already done the checking. As a rule
-it went unfollowed, since the orchestrator often holds the findings and the
-code already and writes the fix faster itself, and an unfollowed rule teaches
-agents to break rules quietly. A choice stated as a choice is followed.
+findings as facts, and the refuters have already done the checking.
 
 **Consequence, accepted.** A finder or orchestrator fixing findings it framed
 may defend that framing rather than notice a simpler fix. Two things bound
@@ -476,7 +469,10 @@ iteration's finder is cold, and when the cap ends a run on an iteration that
 fixed something, those fixes become a `budget` cause offering a new run.
 
 **Rejected.**
-- **Requiring the resumed finder**, which this replaces, for the reason above.
+- **Requiring the resumed finder.** As a rule it went unfollowed, since the
+  orchestrator often holds the findings and the code already and writes the
+  fix faster itself, and an unfollowed rule teaches agents to break rules
+  quietly. A choice stated as a choice is followed.
 - **Requiring a fresh strongest-model fixer every time.** It re-bills the
   finder's whole investigation for no independence gain.
 - **Retiring the byte-stable prompt prefix rule** shared between Steps 3 and 6.
@@ -530,16 +526,16 @@ interrupted that.
 **Rejected.** Copying the trailer-placement section into `SKILL.md`. What failed
 was not a missing explanation but a rule that was absent from the flow, and two
 copies of a table drift apart — the failure this file's opening is about. What
-went inline is the rule, the verify command, and the repair; the *why* stays
+is inline is the rule, the verify command, and the repair; the *why* stays
 here in one place.
 
-**Measured, because the received account was wrong.** "A blank line before it
+**Measured, because the usual account is wrong.** "A blank line before it
 makes it a new paragraph" is not the failure — a `Bug-hunter:` line alone in the
 last paragraph parses fine, blank line and all. The shapes that actually lose it
 are anything landing after it in a later paragraph (the mandated
 `Co-Authored-By` footer is the common one), a prose line beside it in the same
-paragraph, and an unindented wrap. `reference.md` asserted the blank-line
-version and is corrected. Run the shapes against a scratch repo before writing
+paragraph, and an unindented wrap. `reference.md` gives the measured shapes.
+Run the shapes against a scratch repo before writing
 this kind of claim down.
 
 **Where this stops applying.** Only to rules an agent *executes* at a named step,
@@ -586,8 +582,9 @@ own resolved location, so a path through a link works.
 
 **Where this stops applying.** This is only about *locating* the scripts. The
 minting mechanism — `git write-tree` over the staged index, run after the last
-`git add`, output passed as `--trailer` — is unchanged, and so is the rule that
-only the path to the script is absolute, never the git command it runs. The
+`git add`, output passed as `--trailer` — does not depend on it. Only the
+path to the script is absolute; the git commands the script runs act on the
+repository the agent is in. The
 hook is wired by `manage-skills` with the script's resolved path. Its report
 names no script; it names a SKILL.md section.
 
@@ -598,14 +595,14 @@ names no script; it names a SKILL.md section.
 [<Co-Authored-By value>]`, or with the message as `<subject> <body>` in place
 of `-F msg.txt` — for every commit this skill makes, skips included.
 The hook's report shows no `git commit … --trailer …` example and names no
-script. `--trailer` and `mint-trailer.sh` are still
-the mechanism; `reference.md` now documents them as what the script does, not
+script. `--trailer` and `mint-trailer.sh` are
+the mechanism; `reference.md` documents them as what the script does, not
 as what the agent types.
 
-**Why.** The previous two entries were each a response to the same failure —
-a `Bug-hunter:` line typed into the message body — and each was correct: the
-rule went inline, in bold, with the exact command shown twice, and the mint
-step got a path that resolves. Agents kept typing the trailer into `-m` anyway,
+**Why.** The two entries above each answer the same failure — a `Bug-hunter:`
+line typed into the message body — and each is correct: the rule is inline, in
+bold, with the exact command shown twice, and the mint step has a path that
+resolves. With both in place, agents still typed the trailer into `-m`,
 several times in one evening, in a session with `SKILL.md` loaded. So the
 failure is not ignorance of the rule. It is assembly under time pressure: a
 "trivial docs commit" arrives with the message already composed, `-m` is the
@@ -624,12 +621,11 @@ that was never the problem: where the skill is.
 
 The hook's report is the one text an agent provably reads at the moment of
 failure — every one of the repaired commits was repaired because the report
-said so — and its own example was a hand-built `git commit -m … --trailer …`.
-An agent acting on the report re-did the assembly step, by hand, that had just
-gone wrong. After that, the report showed the script's path instead of the
-hand-built example. It now names *If you are an agent about to commit*, whose
-first rule shows the commit script, so the agent reads the whole commit step
-rather than a copy of part of it.
+said so. When the report carried a hand-built `git commit -m … --trailer …`
+example, an agent acting on it re-did by hand the assembly step that had just
+gone wrong. So the report shows no command: it names *If you are an agent
+about to commit*, whose first rule shows the commit script, so the agent reads
+the whole commit step rather than a copy of part of it.
 
 **Rejected.**
 - Stronger prose, or a third example. Two bold statements and two examples had
@@ -639,15 +635,15 @@ rather than a copy of part of it.
   (*Committing*: never `git add -A`), and folding it in would make a
   correctness tool decide scope.
 - Having the hook print the exact repair for the reported commit. That is the
-  remedy machinery *The report states facts and stops* removed, and the reason
-  it was removed — the hook cannot see the reader's HEAD — is unchanged.
+  remedy machinery *The report states facts and stops* rejects: the hook
+  cannot see the reader's HEAD.
 - Keeping the hand-typed `git commit … --trailer` form in `SKILL.md` beside
   the script "for when the script is not installed". A second documented way
   is the one that gets used under pressure, and wherever the skill is, its
   `scripts/` directory carries the script.
 
-**Found by running this skill over the script before it landed.** Four
-reproduced, one refuted; each is a rule the script now enforces rather than a
+**The script's guards.** Running this skill over the script found each of
+these as a reproduced bug; each is a rule the script enforces rather than a
 one-off patch:
 
 - **A `$(...)` inside another command's argument list is not covered by
@@ -663,7 +659,8 @@ one-off patch:
   an unindented continuation that ended the trailer block for everything after
   it — the freshly minted binding included — with the wrapper exiting 0 and the
   hook then advising "use the wrapper". Both are refused with exit 2; trailing
-  whitespace is trimmed rather than refused, because a heredoc-built value ends
+  whitespace is trimmed rather than refused (the shared library trims
+  surrounding whitespace from every trailer value), because a heredoc-built value ends
   in a newline and git trims it anyway. *Rejected:* indenting the continuation
   so git reads one folded trailer — a legitimate shape the hook already
   `unfold`s, but a more generous contract with more surface, and a two-line
@@ -675,59 +672,55 @@ one-off patch:
   `doNothing` dropped the mint, `ifmissing=doNothing` dropped all three. The
   write side of the same principle the hook's `g()` applies with
   `log.showSignature=false`: git means git, not git plus the user's config.
-- **Refuted, and why:** a skip value with a leading space (`" skipped …"`)
-  missed the `[Ss]kipped*` test and got minted. Cosmetic — the binding is a
+- **Not guarded, on purpose:** a skip value with a leading space
+  (`" skipped …"`) would miss the `[Ss]kipped*` test and get minted. Cosmetic — the binding is a
   true statement about the landed tree, the hook and the audit ignore it, and
   the input is a typo. The trim above removes it incidentally; no code exists
   for it on purpose.
 
-The second pass, over those fixes, found two more of the same kind — a value
-the script trusted without looking at it:
+Two more guards of the same kind as the first three, each for a value the
+script would otherwise trust without looking at it:
 
 - **The subject is checked for emptiness too.** `git commit -m ""` is refused
   by git; `git commit -m "" --trailer "Bug-hunter: …"` is not, because the
   trailer makes the message non-empty — and then the trailer *is* the title
-  paragraph, so git reads no trailer at all. The wrapper had turned a refusal
-  git would have made into a landed, unchecked commit. Refused with exit 2; the
+  paragraph, so git reads no trailer at all. Unchecked, the wrapper would turn
+  a refusal git would have made into a landed, unchecked commit. Refused with
+  exit 2; the
   trim is used for the test only, and the subject reaches `-m` as given.
 - **The value the script mints is held to the same standard as the two it is
-  handed.** `mint-trailer.sh` captured `git write-tree 2>&1`, so anything git
-  said on stderr while succeeding — `GIT_TRACE=1`, a `core.fsmonitor` hook
-  path from another machine — arrived ahead of the hash, and the wrapper passed
-  that two-line value straight to `--trailer`. It now requires exactly one line
-  of `Bug-hunter-Tree: <hex>` and exits 1 otherwise, naming what it got. The
-  `2>&1` itself was the cause, in a committed sibling this change did not
-  originally touch — reported rather than fixed in that pass, and fixed as its
-  own follow-up (see below).
+  handed.** A `mint-trailer.sh` that captured `git write-tree 2>&1` put
+  anything git said on stderr while succeeding — `GIT_TRACE=1`, a
+  `core.fsmonitor` hook path from another machine — ahead of the hash, and
+  the wrapper passed that two-line value straight to `--trailer`. The wrapper
+  requires exactly one line of `Bug-hunter-Tree: <hex>` and exits 1 otherwise,
+  naming what it got, and `mint-trailer.sh` keeps stderr apart (below).
 
-The third pass, over those two guards, came back clean. Its one candidate —
-a `#`-first subject under a user's `commit.cleanup=strip`, which git deletes
-after the wrapper accepted it — was refuted: plain `git commit -m "#123 …"` is
-refused by git under that setting, so nobody who has both ever reaches this
-script. No guard was added; a `-c commit.cleanup=whitespace` pin would be the
-shape if one ever is, since `core.commentChar` makes any textual check a
-guess.
+**Not guarded: a `#`-first subject under a user's `commit.cleanup=strip`,**
+which git deletes after the wrapper accepts it. Plain `git commit -m "#123 …"`
+is refused by git under that setting, so a user with that setting already
+writes subjects git accepts. A `-c commit.cleanup=whitespace` pin would be the shape if a guard is
+ever wanted, since `core.commentChar` makes any textual check a guess.
 
 **Where this stops applying.** The script creates a commit; it does not amend
 one. Adding a trailer to a commit that already landed — the triage table, a
-hook report on a local commit — stays `git commit --amend --no-edit --trailer
+hook report on a local commit — is `git commit --amend --no-edit --trailer
 "…"`, because amend is exactly the case where "which commit is HEAD for the
-reader" matters and that judgement belongs to the reader. Nor does this change
-what the binding attests to: an agent that calls the script with counts it
+reader" matters and that judgement belongs to the reader. Nor does the script
+change what the binding attests to: an agent that calls the script with counts it
 invented still passes, as *The trailer is minted from the tree* already says.
 And the `commit` skill's own path when bug-hunter is not installed has no
 script to call and keeps `--trailer`.
 
-**Both root causes the run reported were fixed as a follow-up, same day.**
-`mint-trailer.sh` now captures `git write-tree`'s stdout and stderr
-separately — a temp file for stderr, read back only for the failure message —
-so a successful write-tree can no longer leak anything onto the same line as
-the hash, regardless of `GIT_TRACE` or a stale `core.fsmonitor` path. And the
-hook's `g()` now pins `trailer.separators=:` alongside `log.showSignature=false`,
-closing the read-side half of the trailer-config problem the write-side pin
-above only ever covered half of: a repo configured without `:` in that set no
-longer blinds the hook to a real, correctly-bound trailer. Both are exercised
-by their own tests (`test_mint_trailer_does_not_leak_stderr_into_a_successful_binding`,
+**The mint and the hook are guarded too.** `mint-trailer.sh` captures
+`git write-tree`'s stdout and stderr separately — a temp file for stderr, read
+back only for the failure message — so a successful write-tree cannot leak
+anything onto the same line as the hash, whatever `GIT_TRACE` or a stale
+`core.fsmonitor` path does. The hook's `g()` pins `trailer.separators=:`
+alongside `log.showSignature=false`, the read-side half of the trailer-config
+problem the write-side pin above covers: without it, a repo configured without
+`:` in that set blinds the hook to a real, correctly-bound trailer. Both are
+exercised by their own tests (`test_mint_trailer_does_not_leak_stderr_into_a_successful_binding`,
 `test_a_nondefault_trailer_separators_config_does_not_blind_it`), not just
 described here.
 
@@ -738,33 +731,35 @@ the user chose to accept — is knowledge about the codebase under review, and i
 is recorded there. This skill's `DECISIONS.md` is about this skill's design; a
 run touches it, or any other file of the skill's, only when the skill is itself
 the code under review. Stated in `SKILL.md`'s *Never* list, at Step 9's
-write-down, and in the header, which no longer sends Step 6 here before a fix.
+write-down, and in `SKILL.md`'s header, which sends Step 6 to the codebase's own record
+before a fix.
 Where in the codebase: its stated convention (`AGENTS.md`, `CLAUDE.md`,
 `CONTRIBUTING.md`) first, then a home it already has, then a comment at the
 site for a rejection about one site, and a new file only when none of those
 exist — `DECISIONS.md` beside a `SKILL.md`, `docs/decisions.md` elsewhere. Step
 5's refuter brief and Step 6's pre-fix read name the same record.
 
-**Why.** `SKILL.md` said "add it to the skill's `DECISIONS.md` (create one if
-there is none)", and its header sent Step 6 to this file "before writing a fix".
-Both sentences were written while this skill was developed by running it on
-itself, where the code under review and the skill are one directory and "the
-skill's `DECISIONS.md`" and "the codebase's record" name the same file. Pointed
-at anything else, the two meanings split, and the sentences resolve to the wrong
-one: a run over an ordinary TypeScript project reverted two approaches, and the
-agent following Step 9 proposed creating a `DECISIONS.md` for it — a note about
+**Why.** Wording such as "add it to the skill's `DECISIONS.md` (create one if
+there is none)", or a header sending Step 6 to this file "before writing a
+fix", reads correctly only while this skill reviews itself, where the code
+under review and the skill are one directory and "the skill's `DECISIONS.md`"
+and "the codebase's record" name the same file. Pointed at anything else, the
+two meanings split, and such sentences resolve to the wrong one: with that
+wording, a run over an ordinary TypeScript project reverted two approaches,
+and the agent following Step 9 proposed creating a `DECISIONS.md` for it — a note about
 that project's behaviour, headed for a file about how bug-hunter works, where
 nobody debugging that project would read it. The project's own `AGENTS.md`
 already said rejected alternatives belong in an OpenSpec change's `design.md`,
 and its source recorded one-site rejections as comments in a settled idiom.
 Neither passage led there; the user had to ask what the agent meant.
 
-The defect is one of kind, not of a missing fallback. Seventy lines below, option
-2 had a placement chain for accepted gaps — a spec's Open Questions, an existing
-change, `docs/`, the closest README — and the chain was fine; what it lacked was
-the first stop, the codebase's stated convention, and any notion of a comment at
-the site, which for a rejected implementation approach is where the record is
-read: by the person about to make the opposite choice, standing at that line.
+A fallback chain alone does not fix this. Step 9's option 2, writing an
+accepted gap down, places it by a chain — a spec's Open Questions, an existing
+change, `docs/`, the closest README — and that chain is fine for gaps. Both
+kinds of record start instead at the codebase's stated convention, and a
+rejected implementation approach goes in a comment at the site, which is where
+it is read: by the person about to make the opposite choice, standing at that
+line.
 
 **Rejected.**
 - Reading it as a gap and adding a chain under "the skill's `DECISIONS.md`, or
@@ -785,7 +780,7 @@ read: by the person about to make the opposite choice, standing at that line.
 
 **Where this stops applying.** When the subject under review is this skill, it
 is the codebase, and every rule above lands here: a run over `scripts/` or
-`SKILL.md` writes its reverts to this file, as this file's history shows. Nothing
+`SKILL.md` writes its reverts to this file. Nothing
 here changes what an entry contains — the decision, why, what was tried and
 rejected, and where it stops applying — only where it goes.
 
@@ -810,7 +805,7 @@ The mint moves with the commit, not ahead of it. A skill signs the snapshot it
 worked on, and whatever creates the commit makes its tree equal that snapshot —
 the same rule the commit script follows, where minting and committing happen
 at the same moment. Here they are two moments, so the caller carries the
-obligation the script used to discharge.
+obligation the commit script discharges on the ordinary path.
 
 Open decisions go into the block because a headless run has no picker that
 reaches anyone. *A question is asked when the user sees it* already says a
@@ -820,13 +815,13 @@ explicit and parseable.
 **A script prints the block; the agent never types it.** `scripts/caller-result.sh`
 takes the `Bug-hunter:` value and the open decisions, runs the mint itself
 (none for a skip), and prints the block through the shared library's
-`result-block.sh`, the format's one definition. The first version of this mode
-had the agent write the block by hand, copying the mint's output into it. That
-is the assembly *The commit is assembled by a script, not by hand* removed:
-hand-typed trailers went wrong under pressure however the rule was worded, and
-a block a program parses fails the same way — a line retyped, a count off by
-one, a tree line from an earlier mint. Decided by Adam, 2026-09-27, for every
-skill that ends this way, which is why the format lives in the library.
+`result-block.sh`, the format's one definition. An agent writing the block by
+hand, copying the mint's output into it, is the assembly *The commit is
+assembled by a script, not by hand* removes: hand-typed trailers went wrong
+under pressure however the rule was worded, and a block a program parses fails
+the same way — a line retyped, a count off by one, a tree line from an earlier
+mint. This holds for every skill that ends this way, which is why the format
+lives in the library.
 
 **Rejected.**
 - **A prompt-only convention in the caller** — "run bug-hunter, but don't
@@ -842,8 +837,8 @@ skill that ends this way, which is why the format lives in the library.
 - **Answering open decisions by default when nobody can be asked.** A choice
   made on the user's behalf; *A question is asked when the user sees it*
   rejects it for the same reason.
-- **The block written by hand from a documented format.** The first version
-  of this mode. See the paragraph above.
+- **The block written by hand from a documented format,** for the reasons in
+  the paragraph above.
 
 **Where this stops applying.** Only when the brief says so. A run inside
 another agent with no such phrase commits as usual — the `commit` skill relies
@@ -859,7 +854,7 @@ says to end with it whole and unedited; nothing enforces it.
 
 ## Other skills' trailers ride on this skill's commit
 
-**Decision (Adam, 2026-10-01).** Step 9 commits once with every installed
+**Decision.** Step 9 commits once with every installed
 trailer skill's value, under the shared library's rule
 ([Every installed skill's trailer, on one commit](../../lib/commit-trailer/DECISIONS.md#every-installed-skills-trailer-on-one-commit)).
 When prose is installed, Step 9 runs its two `check` calls and passes the
@@ -868,7 +863,7 @@ When prose is installed, Step 9 runs its two `check` calls and passes the
 **The script's argument rule.** Leading `--verified-value <verifier> <Key>
 <value>` families, any number, passed to the library unchanged, which
 validates them; then `--`, required after a family; then the four positional
-arguments as before. Why each part:
+arguments. Why each part:
 - **Only `--verified-value`.** The script adds the Bug-hunter family and
   `Co-Authored-By` itself. A `--minted` or `--minted-by` family would be a
   second mint path the script does not vouch for, and `--co-authored-by` a
@@ -891,14 +886,14 @@ needs them, and each is a way to land a family this skill did not mint.
 **Decision.** Triage classifies a change by what its diff touches —
 formatting only, a pure rename or move, only docs, tests or specs, git's own
 revert or merge — and reviews everything else. Nothing in this skill asks for
-a commit message first or reads a subject prefix. Decided by Adam, 2026-10-01.
+a commit message first or reads a subject prefix.
 
-**Why.** The public skills impose no commit convention, and
-triage built one in: agents were told to write the message first with an honest
-label (`WIP:`, `STYLE:`, `CHORE(move):`, `DOCS:` and so on) so triage could use
-it as a skip signal. The label was never decisive. "A label only skips if the
-diff agrees with it" meant the diff already made every call; the label was a
-hint that cost a convention in every repository that ran the skill.
+**Why.** The public skills impose no commit convention, and reading a label
+would build one in: agents would write the message first with an honest label
+(`WIP:`, `STYLE:`, `CHORE(move):`, `DOCS:` and so on) for triage to use as a
+skip signal. The label can never be decisive. A label skips only if the diff
+agrees with it, so the diff makes every call, and the label is a hint that
+costs a convention in every repository that runs the skill.
 
 **The exception: work in progress.** It is the one intent a diff can't show —
 half-finished logic looks exactly like finished logic. So a checkpoint is
@@ -918,28 +913,30 @@ it lands in a commit that is not a checkpoint.
 
 **Decision.** The run itself runs the test suite (Steps 2 and 7) and triages a
 diff of up to about 300 changed lines (Step 1). Neither is handed to a
-sub-agent; a larger diff is still triaged by a small, cheap model. Decided by
-Adam, 2026-10-05.
+sub-agent; a larger diff is still triaged by a small, cheap model.
 
 **Why.** Every sub-agent costs about 23k tokens before it does any work, so a
 "cheap" agent that only runs `python3 -m unittest` cost about 24k tokens, where
 reading the command's output in the main loop costs well under 1k. A benchmark
-of 7 staged changes, run twice each against the previous version with
-skill-creator's benchmark harness, measured it:
+of 7 staged changes, each run once with this design and once with a version
+that handed both to sub-agents (14 runs, with skill-creator's benchmark
+harness), measured it:
 
 - **Tokens:** 4.64M to 3.02M across the 14 runs, 35% fewer; 24 to 44% per
-  change. A clean change now spawns one sub-agent, the finder, not four.
+  change. A clean change spawns one sub-agent, the finder, not four.
 - **Time:** about 15% shorter.
 - **Effectiveness:** unchanged. Every seeded bug was found, proven red and
   fixed in both versions, clean changes were left alone, and docs-only changes
   skipped at triage.
 
 **Where it stops applying.** The test set had nothing that either version
-missed, so it shows this change costs no effectiveness, not that a riskier one
-would cost none. Running a command and reading a diff are the same work
-wherever they happen, which is why this change needed no harder cases.
+missed, so it shows this decision costs no effectiveness, not that a riskier
+one would cost none. Running a command and reading a diff are the same work
+wherever they happen, which is why this decision needed no harder cases.
 
 **Rejected.**
+- **Handing the test suite and small-diff triage to cheap sub-agents,** for
+  the cost above.
 - **Skipping the refuter when the red test matches the finder's prediction.**
   It would save about 15%, but in the benchmark the refuter killed real false
   positives (a rounding display, an extra-key crash outside the documented
@@ -956,7 +953,7 @@ written as an ordinary deterministic test, never the property. The search uses
 the project's own property library or a seeded loop in an unstaged scratch
 file, installs nothing, stops after a few hundred runs or a few seconds per
 property, and runs only where an invariant is stated. Keeping the property as a permanent test is a Step 9
-recommendation. Decided by Adam, 2026-10-13.
+recommendation.
 
 **Why.**
 - **The committed test is the example.** Step 4's contract is a red observed
@@ -1017,8 +1014,8 @@ author and never an external tool, each from
   tests, within what the cap has left.
 - **Where:** every mutant lives in a throwaway copy of the repository, never
   the real tree, and every test run has a `gh` shim first on `PATH` that logs
-  and refuses each call. `SKILL.md`'s *Never* list gains "mutate source in
-  the real tree".
+  and refuses each call. `SKILL.md`'s *Never* list includes "mutate source
+  in the real tree".
 - **When:** in Step 3, in the background, beside the finder and each other,
   and never holding up Steps 4–7
   ([below](#mutants-never-hold-up-the-hunt)).
@@ -1037,7 +1034,7 @@ author and never an external tool, each from
   and timeouts, which the brief lists. The cap is one mutant per line per
   operator and 40 a run, kept in the priority order the brief gives.
 
-**Defaults set by the implementation, not by that decision:**
+**Defaults set by the implementation, not by the decision in #39:**
 - At most three mutation subagents run at once.
 - A mutant killed only by a known-flaky test is rerun serially before it
   counts.
@@ -1046,8 +1043,8 @@ author and never an external tool, each from
   as a timeout so the count can be read either way.
 
 A mutant that survives the focused tests is rerun against the tests near
-its function before it counts as a survivor. That is Adam's decision, in
-[its own entry](#a-survivor-is-rechecked-against-the-tests-near-its-function).
+its function before it counts as a survivor, as
+[its own entry](#a-survivor-is-rechecked-against-the-tests-near-its-function) says.
 
 **Why: a trial on igor (TypeScript) at `75a2fb5`, whole modules, against
 [mutator](https://github.com/unclebob/mutator).**
@@ -1069,8 +1066,8 @@ its function before it counts as a survivor. That is Adam's decision, in
   gaps, and none was a bug.
 - **About a third of mutator's survivors were equivalent**, and it labels
   none, so each costs a reader's judgement.
-- **mutator found one class the agents' first checklist lacked,** removing
-  `?.`. It is the brief's item 7.
+- **mutator found one class the agents' checklist in the trial lacked:**
+  removing `?.`. It is the brief's item 7.
 - **The copy and the shim come from two incidents in the same trial.** An
   improvised mutant ran `git config` in a real working tree, and igor's
   suite called the real `gh` about 184 times.
@@ -1129,15 +1126,14 @@ doing work no measurement here has checked.
 
 ## The refuter checks survivor tests and dead code
 
-**Decision (Adam, 2026-10-30,
-[shared-skills#39](https://github.com/adamstallard/shared-skills/issues/39)).**
+**Decision ([shared-skills#39](https://github.com/adamstallard/shared-skills/issues/39)).**
 
 - **A fresh refuter reviews every survivor test**, against the spec and
   the code's callers: does it assert what the code should do? One it
   rejects is deleted, and its survivor goes back to the finder as a lead.
 - **A survivor test may strengthen an existing test** by adding assertions,
-  with the same proof: green on the real code, red on the mutant. The
-  existing-test rule narrows to match: never weaken, delete or skip an
+  with the same proof: green on the real code, red on the mutant. So
+  `SKILL.md`'s rule for existing tests is: never weaken, delete or skip an
   existing test, or change its assertions; adding assertions under that
   proof is the one change allowed. Deleting stays forbidden even for a
   test that asserts nothing, since it still catches a crash. The refuter
@@ -1197,8 +1193,7 @@ claims about the code, true or false, with a skeptic's job to break them.
 
 ## A boundary check gets a test; exported code gets a search
 
-**Decision (Adam, 2026-10-30,
-[shared-skills#39](https://github.com/adamstallard/shared-skills/issues/39)).**
+**Decision ([shared-skills#39](https://github.com/adamstallard/shared-skills/issues/39)).**
 
 - **A survivor in a check at a trust boundary, where outside data enters,
   is a gap, never dead code.** Step 4 writes a behavioural test that sends
@@ -1251,7 +1246,7 @@ claims about the code, true or false, with a skeptic's job to break them.
 
 ## A survivor is rechecked against the tests near its function
 
-**Decision (Adam, 2026-10-30, narrowed 2026-10-31).** A mutant that
+**Decision.** A mutant that
 survives its focused tests is rerun against the tests near its function,
 never the full suite. Two searches find them:
 - **The test files that name its source file**, by a `git grep` of the
@@ -1276,16 +1271,14 @@ run, on the code under review, immediately before the Step 9 report
 - In shared-skills the full suite, then 1,716 tests in 11 files, many of
   them starting git subprocesses, took more than 4.5 minutes. Every mutant
   that survived the focused tests paid that again.
-- One file can be most of that suite. When this was decided, prose kept
-  its tests in one file, `test_prose.py`, which ran `prose.py` by path: 617
-  of those tests, and about 4 of those minutes. Rechecking every test in
-  the files that name `prose.py` reran all of `test_prose.py` for every
-  survivor. A narrower focused command kills fewer mutants, so more of
-  them survive to the recheck, and that whole-file rerun happened more
-  often. Prose's tests are now in five files split by area, besides
-  `test_comment_scan.py`. Each of the five names `prose.py`, so the search
-  for the files that name it finds all five, and rerunning those files
-  whole would still rerun every one of those tests.
+- One source file's tests can be most of that suite. At that measurement,
+  the tests that run `prose.py` by path were 617 of those tests, and about
+  4 of those minutes. Rechecking every test in the files that name
+  `prose.py` reruns all of them for every survivor, however they are split
+  into files: prose's are in five files by area, besides
+  `test_comment_scan.py`, and each of the five names `prose.py`. A
+  narrower focused command kills fewer mutants, so more of them survive to
+  the recheck, and that whole rerun happens more often.
 
 **What it can miss, accepted.** The recheck leaves out a test that reaches
 the function without the searches finding it: through a deeper caller,
@@ -1337,9 +1330,9 @@ for every survivor to be answered.
   one rule, because a sentence buried at the end of a paragraph was missed.
 
 **Why.** The point of mutation testing here is that mutants run while the
-finder hunts ordinary bugs. When Step 4 waited for every survivor, the
-slowest mutant held up every fix. In one session each mutant reran prose's
-whole 617-test file, about four minutes, and the wait led agents to break
+finder hunts ordinary bugs. If Step 4 waits for every survivor, the slowest
+mutant holds up every fix. In one session that did, each mutant reran all 617 of
+prose's tests, about four minutes, and the wait led agents to break
 rules: one started Step 4 early, so its mutants tested stale code, and
 another replaced the finder with mutants of its own. Judging late
 survivors against the current tree is what makes not waiting safe: a fix
@@ -1349,8 +1342,7 @@ survivor loses nothing: the next iteration mutates the functions the fixes
 touched, and in iteration 3 those fixes are already a `budget` cause.
 
 **Rejected.**
-- **Step 4 waiting for every survivor**, which this replaces, for the cost
-  above.
+- **Step 4 waiting for every survivor**, for the cost above.
 - **Starting Step 4 early and judging survivors against the code they were
   made on.** A survivor of code a fix has since rewritten says nothing about
   the code being committed.
@@ -1380,13 +1372,12 @@ the file. [mutation-brief.md](mutation-brief.md) stays the subagents' brief.
 
 **Why.** `SKILL.md` loads on every run, and most runs mutate nothing or
 little, so a page of mutation procedure there is paid for on every load.
-Agents keep short rules and lose long ones: the mutation text in `SKILL.md`
-had grown to several paragraphs, and the rule about when Step 4 starts sat
-at the end of one of them. Prose moved its compaction steps into
+Agents keep short rules and lose long ones: with several paragraphs of
+mutation text in `SKILL.md`, the rule about when Step 4 starts, at the end
+of one of them, was missed. Prose keeps its compaction steps in
 `compaction.md` for the same reason.
 
-**This does not reverse *The trailer rule is stated inline, not only pointed
-at*.** That entry keeps inline the rules an agent executes at a step where a
+**This fits *The trailer rule is stated inline, not only pointed at*.** That entry keeps inline the rules an agent executes at a step where a
 wrong one produces a wrong artifact, because a pointer is followed after the
 mistake. The mutation rules of that kind stay in `SKILL.md`: never mutate
 source in the real tree, never improvise, don't hold Steps 4–7 for mutants.
@@ -1399,8 +1390,8 @@ the inline ones.
 and Steps 4–7 and is read before every report; mutation is read only when
 mutants run.
 
-**Where this stops applying.** Only the mutation procedure moved. Rules
-every run needs stay in `SKILL.md`.
+**Where this stops applying.** Only the mutation procedure lives there.
+Rules every run needs stay in `SKILL.md`.
 
 ## The agent that wrote the change runs bug-hunter itself
 
