@@ -172,8 +172,12 @@ After:  In the one place the rule is decided:
 ```
 
 ### 8. What is, not how it got here
-A doc or comment describes what *is*. No "previously", "we changed", "the old version", "the argument once made". A superseded or rejected design appears only where a reader would otherwise reinvent it, and then it stands on its own: what it was, and why it was rejected. Otherwise cut it; its history belongs in a decision record (a change's design, a decision log) or the commit message. A warning about a tempting change isn't history: keep it, and make it easy to find.
-*Why:* the reader came to learn how the thing works now. A past design they were never shown makes them reconstruct it before they can see why it no longer applies.
+A doc or comment describes what *is*. No "previously", "we changed", "the old version", "the argument once made". The past comes in two kinds:
+- **Why a decision holds:** what was decided, its reason or measurement, and each rejected alternative with why it was rejected. This stays true while the decision stands. It goes in a decision record (a skill's DECISIONS.md, the *Decisions* section of an OpenSpec change's design.md), stated as the decision stands now, never as a chain of amendments. A doc or comment that is not a decision record names a rejected design only where a reader would otherwise reinvent it: what it is, and why it was rejected.
+- **How the text evolved:** amendments, reversals, earlier wordings, who decided what on which date, what a push or a review round changed. This goes only in commit messages and pull request descriptions or comments, never in a doc, spec or decision record.
+
+To tell them apart, ask of each piece of the past whether it would still help someone changing the design it is about, a year from now. A warning about a tempting change isn't history: keep it beside the code or text that change would touch, and make it easy to find.
+*Why:* the reader came to learn how the thing works now. A past design they were never shown makes them reconstruct it before they can see why it no longer applies, and a decision recorded as its amendments makes them replay the chain to find the one in force.
 ```
 Before: **Several Igors may draw on one seat (§6.5).** The argument once made for
         multi-role Igors, that a second role absorbs the idle capacity of a seat
