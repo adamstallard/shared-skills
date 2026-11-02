@@ -29,7 +29,7 @@ repository the question concerns, or, for a question about an organization
 or project, to the team's lore repository.
 
 *Only five kinds of document are decision documents* defines a
-*decision document* and an issue's *decision block*.
+*decision document* and the *decision block* of an issue.
 
 *A lore repository* is a git repository of markdown files whose YAML
 frontmatter holds `conditions`, searched through a local clone of it that
@@ -291,10 +291,10 @@ names.
 ### Requirement: Only five kinds of document are decision documents
 
 A **decision document** SHALL be a `DECISIONS.md` file, an OpenSpec spec
-or change, a decision record igor's scribe writes at the path igor PR
-#202 sets, which this change adopts, an issue's decision block, or a
+or change, a decision record igor's scribe writes at the path that igor
+PR #202 sets and this change adopts, the decision block of an issue, or a
 lore entry, and nothing else (design.md: *igor-dependent rules state the
-end state*). An issue's **decision block**, which states what is
+end state*). The **decision block** of an issue, which states what is
 decided, SHALL be the start of its body, before its first heading, or
 the first of its sections whose heading starts with "Decision".
 
@@ -590,7 +590,7 @@ counts.
 - **THEN** it lists no Linear relay, and the Apps under `github` still
   count
 
-#### Scenario: A malformed relay file lists no relay where it is malformed
+#### Scenario: A relay file lists no relay in the parts that are malformed
 
 - **WHEN** a lore repository holds `relays/bad_login!.yaml`, and
   `relays/alice.yaml` whose `github` is a string, not a list, and whose
@@ -780,7 +780,7 @@ all if the agent works in no git repository.
   `openspec/changes/archive/`
 - **THEN** the search shows it
 
-#### Scenario: An issue's decision block is searched
+#### Scenario: A decision block in an issue's body is searched
 
 - **WHEN** an issue's body opens with a decision block that answers the
   question
@@ -982,7 +982,7 @@ scope and the item's visibility (design.md: *Questions-branch files and
 
 `igor lore-search` SHALL apply the checks of *Only an answer with
 authority stops a question*, labelling a file unconfirmed input when one
-can't run or fails (design.md: *igor's search applies these checks*).
+can't run or fails.
 
 #### Scenario: igor's results keep the authority labels
 
@@ -1011,7 +1011,7 @@ every other source as not searched.
 
 Filter 1 SHALL treat a search hit as an earlier answer only when it is a
 decision document on the default branch of the repository the question
-concerns, an issue's decision block whose author has write access to that
+concerns, the decision block of an issue whose author has write access to that
 repository, an in-scope lore entry whose `status` is `active`, or a hit
 that *A work-branch decision answers only its own work* or *A log entry
 counts only where its branch allows* counts. A decision record with a
@@ -2351,7 +2351,7 @@ and an answer whose author has one is input.
 
 #### Scenario: A decision with no known approver is skipped
 
-- **WHEN** the related earlier decision is an issue's decision block, which
+- **WHEN** the related earlier decision is the decision block of an issue, which
   no pull request added
 - **THEN** the script skips the first candidate and tries the next
 

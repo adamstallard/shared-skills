@@ -2,11 +2,9 @@
 
 - [x] G.1 Adam approves the prototype build covering thread replies and
       the recorded answer shown beside the question, and task 6.1's rule
-      (d) names its tag (design.md: *The separate build was approved
-      before gate one*). Done: Adam approved build v0.1-33 by use on
+      (d) names its tag. Done: Adam approved build v0.1-33 by use on
       2026-10-24, tagged `answer-session-ui-approved-v0.1-33` (design.md:
-      *The UI is built from prototype build v0.1-33*; *The separate build
-      was approved before gate one*)
+      *The UI is built from prototype build v0.1-33*)
 
 Gate two: the tasks below follow on this branch once Adam approves the
 spec.
@@ -512,14 +510,12 @@ contradicts what design.md assumed.
       which the recorded-answer screen covers a questions-branch question
       too, and
       a corrected notice for a stopped post, a post the answer session holds back because a reply arrived in the thread since the person last read it. So it is the one
-      base (design.md: *The UI is built from prototype build v0.1-33*;
-      *The separate build was approved before gate one*). It includes declining and the list of
+      base (design.md: *The UI is built from prototype build v0.1-33*). It includes declining and the list of
       questions answered or handled for the person. The mod takes its questions from the polls of task 6.3
       instead of the prototype's made-up ones. Four rules decide what is
       built (design.md: *How the approved prototype meets the spec*; *The
       UI is built from prototype build v0.1-33*; *UI is prototyped and
-      approved by use, not specified*; *The separate build was approved
-      before gate one*):
+      approved by use, not specified*):
       - (a) Keep the approved screens' layout and interaction: the band,
         the keys, the prompt-box flow and the declining screens. Changes
         needed to wire them to real data are fine; restyling or
@@ -577,8 +573,7 @@ contradicts what design.md assumed.
         prototype round of its own
       - (d) A screen Adam approves separately is taken from its own
         approved tag. Tag: `answer-session-ui-approved-v0.1-33` (design.md:
-        *The separate build was approved before gate one*; *The UI is
-        built from prototype build v0.1-33*), approved on 2026-10-24. It is also the base, so this
+        *The UI is built from prototype build v0.1-33*), approved on 2026-10-24. It is also the base, so this
         rule only records which screens that approval added: the thread's
         replies since the question, and filter 1's recorded answer shown
         with the question. The approval covers the whole build (design.md:
@@ -827,7 +822,7 @@ contradicts what design.md assumed.
       search the scribe's records where igor PR #202 puts them, in the
       repository a question concerns and in the lore repository
       (design.md: *Filter 1 searches igor's scribe's records where #202
-      puts them*; *A decision record counts only when accepted*; *An
+      puts them*; *An
       answer typed on another surface counts only through a decision
       document*; *igor-dependent rules state the end state*). Once #216
       has merged,
