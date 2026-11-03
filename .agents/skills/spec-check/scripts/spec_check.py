@@ -4,13 +4,14 @@
     spec_check.py check [<target>...] [--repo DIR] [--ref REF] [--base REF]
                         [--no-validate] [--json]
     spec_check.py sign --read subagent|self [--amended N] [--open N]
-                       [--kept FILE] [--base REF] [--no-validate]
+                       [--base REF] [--no-validate]
     spec_check.py verify-staged "Spec-check: <value>"   (message on stdin)
     spec_check.py verify-commit <sha> <value>
 
-`sign --kept FILE` clears `evolution` errors a person chose to keep: one
-line per finding, `<path>:<line> kept (asked): <reason>` (SKILL.md, "Keeping
-a line the evolution check flags").
+A change's committed `.spec-check-kept` file clears the `evolution` errors a
+person chose to keep, for check and sign alike: one entry per line,
+`<file>: «<line text>» kept (asked): <reason>` (SKILL.md, "Keeping a line
+the evolution check flags").
 
 A target is a change name, a change directory (openspec/changes/<name>), or
 `specs` for every spec under openspec/specs. With no target, every open change
@@ -713,6 +714,13 @@ class Finding:
         # the duplicate matched). add_hints looks for an open pull request
         # that retires one of them.
         self.retirable = None
+        # Set on an evolution finding: the flagged line, stripped, which a
+        # kept entry quotes.
+        self.quote = None
+        # Set on a kept entry that matches an evolution error but lacks
+        # `(asked)`: the text sign prints in its refusal, for the agent to
+        # pass to whoever started it, who asks a person.
+        self.handback = None
 
     def text(self):
         where = f"{self.path}:{self.line}" if self.line else self.path
@@ -1236,15 +1244,113 @@ def evolution_hits(text: str) -> list[tuple[int, str, str, str]]:
 def check_evolution(paths: list[str], corpus: Corpus, out: list[Finding]) -> None:
     """An error on each line of the change's files that records how the
     document got to its shape rather than what is true now. A person can
-    keep a false one through sign's --kept file (apply_kept)."""
+    keep a false one through the change's kept file (apply_kept)."""
     for path in paths:
         text: str = corpus.texts[path]
         for n, phrase, why, line in evolution_hits(text):
             quote = line if len(line) <= EVOLUTION_QUOTE_MAX \
                 else line[:EVOLUTION_QUOTE_MAX - 1] + "…"
-            out.append(Finding(path, n, "error", "evolution",
-                               f'"{phrase}" {why}; state what holds now and leave the history '
-                               f'to git: {quote}'))
+            f = Finding(path, n, "error", "evolution",
+                        f'"{phrase}" {why}; state what holds now and leave the history '
+                        f'to git: {quote}')
+            f.quote = line
+            out.append(f)
+
+
+# -- kept evolution errors ---------------------------------------------------------
+
+# A change's kept file, committed with it, holds the evolution errors a person
+# chose to keep. Each entry quotes the flagged line's text rather than its
+# number, so it survives edits elsewhere in the file and lapses only when the
+# line itself changes. The quote ends at the first `» kept`, so a line whose
+# text holds `» kept:` or `» kept (asked):` cannot be quoted.
+KEPT_FILE = ".spec-check-kept"
+KEPT_ENTRY = re.compile(r"^(?P<file>[^«]+?): «(?P<text>.+?)» kept(?P<asked> \(asked\))?:"
+                        r"(?P<reason>.*)$")
+KEPT_FORM = "`<file>: «<line text>» kept (asked): <reason>`"
+
+
+def kept_text(text: str) -> str:
+    """text with each run of whitespace made one space and the ends stripped:
+    an entry matches a line whatever its spacing."""
+    return " ".join(text.split())
+
+
+def apply_kept(change: str, corpus: Corpus, own: list[Finding]) -> list[str]:
+    """Read the change's kept file, if it has one, against own, the change's
+    findings. Each entry clears every evolution error in its file whose line
+    text equals its quote, after whitespace is normalised (kept_text); the
+    cleared findings leave own. These add a `kept` finding and clear
+    nothing:
+    - an unreadable file, or an entry that is malformed, gives no reason or
+      repeats an earlier entry: an error;
+    - an entry that matches no evolution error, with or without `(asked)`:
+      a check asking for its removal;
+    - an entry that matches but lacks `(asked)`: an error carrying the
+      text sign prints in its refusal (Finding.handback).
+    Returns one report line per cleared finding,
+    `<path>:<line>: kept (asked) [evolution] <reason>`, which check and
+    sign print and count. `(asked)` is the agent's statement that a person
+    approved the entry; nothing here can check it."""
+    prefix = f"openspec/changes/{change}/"
+    rel = prefix + KEPT_FILE
+    full = os.path.join(corpus.root, *rel.split("/"))
+    if not os.path.lexists(full):
+        return []
+    try:
+        with open(full, encoding="utf-8") as f:
+            # Split as markdown_lines splits a spec: at "\n" only, after a
+            # leading byte-order mark is dropped. str.splitlines() would also
+            # split at a form feed or a Unicode line separator, cutting an
+            # entry that quotes a line holding one; a kept byte-order mark
+            # would become part of the first entry's file name.
+            lines = normalize_line_endings(f.read()).removeprefix("\ufeff").split("\n")
+    except (OSError, UnicodeDecodeError) as e:
+        own.append(Finding(rel, 0, "error", "kept", f"cannot read the kept file: {e}"))
+        return []
+    errors: dict[tuple[str, str], list[Finding]] = {}
+    for f in own:
+        if f.severity == "error" and f.kind == "evolution" and f.quote is not None:
+            errors.setdefault((f.path[len(prefix):], kept_text(f.quote)), []).append(f)
+    seen: dict[tuple[str, str], int] = {}
+    cleared: list[tuple[Finding, str]] = []
+    for n, raw in enumerate(lines, 1):
+        if not raw.strip():
+            continue
+        m = KEPT_ENTRY.match(raw.strip())
+        if not m:
+            own.append(Finding(rel, n, "error", "kept", f"the entry is not {KEPT_FORM}"))
+            continue
+        name, text = m.group("file").strip(), kept_text(m.group("text"))
+        key = (name, text)
+        reason = m.group("reason").strip()
+        matched = errors.get(key, [])
+        if key in seen:
+            own.append(Finding(rel, n, "error", "kept",
+                               f"the entry quotes the same line of {name} as line {seen[key]}"))
+            continue
+        seen[key] = n
+        if not reason:
+            own.append(Finding(rel, n, "error", "kept", "the entry gives no reason"))
+        elif not matched:
+            # Checked before `(asked)`: an entry that keeps nothing is not
+            # handed to a person to approve.
+            own.append(Finding(rel, n, "check", "kept",
+                               f"«{text}» matches no evolution error in {name}: the line "
+                               f"changed or is gone, so remove the entry"))
+        elif not m.group("asked"):
+            f = Finding(rel, n, "error", "kept",
+                        "the entry has no `(asked)`, so no person approved keeping the line")
+            f.handback = "\n".join([f"{rel}:{n}: {name}: «{text}»"] +
+                                   [f"    {e.path}:{e.line}: {e.message}" for e in matched] +
+                                   [f"    reason: {reason}"])
+            own.append(f)
+        else:
+            cleared += [(e, reason) for e in matched]
+    gone = {id(e) for e, _ in cleared}
+    own[:] = [f for f in own if id(f) not in gone]
+    return [f"{e.path}:{e.line}: kept (asked) [evolution] {reason}"
+            for e, reason in sorted(cleared, key=lambda c: (c[0].path, c[0].line))]
 
 
 # -- stacked changes -------------------------------------------------------------
@@ -2690,7 +2796,7 @@ def run_checks(root, repo, base_ref, targets, validate, base_required=False, cha
     if not base.ok and base_required:
         raise Fatal(f"the base {base_ref!r} does not resolve to a commit")
     findings, statuses, archives = [], [], []
-    stacks, declared = [], {}
+    stacks, declared, kept = [], {}, []
     main_names = {(spec_cap(p), r.name) for p, rs in corpus.specs.items() for r in rs}
     for change in changes:
         reqs = [r for rs in corpus.changes[change].values() for r in rs]
@@ -2704,6 +2810,7 @@ def run_checks(root, repo, base_ref, targets, validate, base_required=False, cha
                                f"{corpus.unread[change]}"))
         check_scenarios(reqs, own)
         check_evolution(corpus.files_of(change), corpus, own)
+        kept += apply_kept(change, corpus, own)
         stack, problems, complete = build_stack(change, corpus, repo, base)
         findings += own + problems
         # The specs the change is checked against, for the advice on a stray
@@ -2760,18 +2867,19 @@ def run_checks(root, repo, base_ref, targets, validate, base_required=False, cha
                                     f"check read it: {why}"))
     add_hints(repo, findings, declared)
     shown = f"not run: {corpus.missing}" if corpus.missing else "read"
-    return changes, specs, findings, statuses, archives, stacks, shown
+    return changes, specs, findings, statuses, archives, stacks, shown, kept
 
 
-def print_report(changes, specs, findings, statuses, archives, stacks, shown, base_ref, source,
-                 as_json):
+def print_report(changes, specs, findings, statuses, archives, stacks, shown, kept, base_ref,
+                 source, as_json):
     errors = sum(1 for f in findings if f.severity == "error")
     checks = len(findings) - errors
     if as_json:
         print(json.dumps({
             "source": source, "base": base_ref, "changes": changes, "specs": specs,
-            "errors": errors, "checks": checks,
+            "errors": errors, "checks": checks, "evolution_kept": len(kept),
             "findings": [f.as_dict() for f in findings],
+            "kept": kept,
             "openspec_show": shown,
             "openspec_validate": {k: v for k, v in statuses},
             "openspec_archive": {k: v for k, v in archives},
@@ -2781,7 +2889,9 @@ def print_report(changes, specs, findings, statuses, archives, stacks, shown, ba
         return errors
     for f in findings:
         print(f.text())
-    if findings:
+    for line in kept:
+        print(line)
+    if findings or kept:
         print()
     for change, deps in stacks:
         print(f"{change} builds on " + ", then ".join(
@@ -2796,7 +2906,8 @@ def print_report(changes, specs, findings, statuses, archives, stacks, shown, ba
     if not statuses:
         print("openspec validate --strict: not run (--no-validate)")
     scope = ", ".join(changes + (["openspec/specs"] if specs else [])) or "nothing"
-    print(f"spec-check: {errors} error(s), {checks} check(s) in {scope}; "
+    count = f", {len(kept)} evolution kept" if kept else ""
+    print(f"spec-check: {errors} error(s), {checks} check(s){count} in {scope}; "
           f"read from {source}; citations checked against {base_ref}")
     return errors
 
@@ -2846,57 +2957,6 @@ def staged_targets(repo):
     return paths, sorted(changes), specs
 
 
-# One line of sign's --kept file: an evolution error a person chose to keep.
-KEPT_LINE = re.compile(r"^(?P<path>.+?):(?P<line>\d+) kept(?P<asked> \(asked\))?:(?P<reason>.*)$")
-
-
-def apply_kept(path: str, findings: list[Finding]
-               ) -> tuple[list[Finding], list[str], list[str], list[str]]:
-    """Read the --kept file at path against the findings sign found.
-    Returns (the findings left, one line per finding kept, problems, unasked):
-    problems are lines naming no current evolution error, naming one a
-    second time, malformed, or with no reason; unasked are lines without
-    `(asked)`, which an
-    agent that cannot ask writes for whoever it hands back to. Either list
-    refuses the signing. `(asked)` is the agent's statement that a person
-    approved the line; nothing here can check it."""
-    try:
-        with open(path, encoding="utf-8") as f:
-            lines = f.read().splitlines()
-    except (OSError, UnicodeDecodeError) as e:
-        raise Fatal(f"cannot read the --kept file {path}: {e}")
-    errors = {(f.path, f.line): f for f in findings
-              if f.severity == "error" and f.kind == "evolution"}
-    problems: list[str] = []
-    unasked: list[str] = []
-    named: dict[tuple[str, int], str] = {}
-    for n, raw in enumerate(lines, 1):
-        if not raw.strip():
-            continue
-        where = f"{path}:{n}: {raw.strip()!r}"
-        m = KEPT_LINE.match(raw.strip())
-        if not m:
-            problems.append(f"{where} is not `<path>:<line> kept (asked): <reason>`")
-            continue
-        key = (m.group("path"), int(m.group("line")))
-        reason = m.group("reason").strip()
-        if key not in errors:
-            problems.append(f"{where} names no current evolution error")
-        elif key in named:
-            problems.append(f"{where} names {key[0]}:{key[1]} a second time")
-        elif not reason:
-            problems.append(f"{where} gives no reason")
-        elif not m.group("asked"):
-            unasked.append(f"{key[0]}:{key[1]}: {errors[key].message}\n    reason: {reason}")
-        named[key] = reason
-    if problems or unasked:
-        return findings, [], problems, unasked
-    left = [f for f in findings
-            if not (f.severity == "error" and f.kind == "evolution" and (f.path, f.line) in named)]
-    kept = [f"{p}:{n}: kept (asked) [evolution] {reason}" for (p, n), reason in named.items()]
-    return left, kept, problems, unasked
-
-
 def cmd_sign(args):
     repo = repo_root(args.repo)
     paths, changes, specs = staged_targets(repo)
@@ -2917,28 +2977,16 @@ def cmd_sign(args):
             return 0
         res = run_checks(tmp, repo, base_ref, targets, not args.no_validate,
                          bool(args.base), tree)
-    kept: list[str] = []
-    if args.kept:
-        left, kept, problems, unasked = apply_kept(args.kept, res[2])
-        if problems or unasked:
-            for line in problems:
-                print(line)
-            if unasked:
-                print("These lines keep an evolution error that no person approved:")
-                for line in unasked:
-                    print(f"  {line}")
-                print(f"The --kept file: {os.path.abspath(args.kept)}")
-                print("Do not commit. Leave the change staged and put this message, whole, in "
-                      "your result. Whoever receives it asks a person about each line, makes "
-                      "the line `<path>:<line> kept (asked): <reason>` or fixes the text, and "
-                      "signs again.")
-            print("\nspec-check sign: not signed. Correct the --kept file and sign again.",
-                  file=sys.stderr)
-            return 1
-        res = (res[0], res[1], left, *res[3:])
     errors = print_report(*res, base_ref, "the staged tree", False)
-    for line in kept:
-        print(line)
+    unasked = [f.handback for f in res[2] if f.handback]
+    if unasked:
+        print("\nThese kept entries keep an evolution error that no person approved:")
+        for text in unasked:
+            print(f"  {text}")
+        print("Do not commit. Leave the change staged and put this message, whole, in your "
+              "result. Whoever receives it asks a person about each entry, adds `(asked)` to "
+              "each one the person keeps, fixes the text of the others and deletes their "
+              "entries, and signs again.")
     if errors:
         print("\nspec-check sign: not signed. Fix the errors and sign again, or commit "
               "work in progress with `Spec-check: skipped (<reason>)`.", file=sys.stderr)
@@ -2958,6 +3006,7 @@ def cmd_sign(args):
     else:
         validate = f"validate {validate}"
     reader = "a fresh subagent" if args.read == "subagent" else "its author, no subagent"
+    kept = res[7]
     counts = f"0 errors, {len(res[2])} checks" + (f", {len(kept)} evolution kept" if kept else "")
     print(f"\n{KEY}: \u2713 {tree[:12]} {counts}; {validate}; "
           f"read by {reader}; {args.amended} amended, {args.open} open")
@@ -3027,8 +3076,6 @@ def main(argv=None):
                    help="who did the consistency read")
     g.add_argument("--amended", type=int, default=0, help="amendments the read led to")
     g.add_argument("--open", type=int, default=0, help="open questions left in design.md")
-    g.add_argument("--kept", help="a file of evolution errors a person kept, one per line: "
-                                  "<path>:<line> kept (asked): <reason>")
     g.add_argument("--repo")
     g.add_argument("--base")
     g.add_argument("--no-validate", action="store_true")

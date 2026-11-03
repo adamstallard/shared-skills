@@ -28,7 +28,9 @@ Before an agent commits, or opens a pull request for, anything under
    - a line recording how the change got to its shape, such as "amending
      decision 79" or "(Adam, 2026-10-21)". The agent removes it; when the
      line is not history, the agent asks you, and only your answer keeps
-     it.
+     it. A kept line is recorded in the change's `.spec-check-kept` file,
+     committed with the change, which quotes the line's text. Anyone who
+     runs `check` on the change sees the line as kept, not as an error.
 
    It also runs `openspec validate --strict` and includes what it reports,
    such as a misspelt section title or a section the archive drops.

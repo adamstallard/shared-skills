@@ -69,7 +69,8 @@ stacked change gets a `stack` error.
 | `openspec-show` | error, or check | `openspec show` cannot read a change's deltas or a main spec, so no requirement check read it. A main spec is a check when only changes are checked |
 | `stack` | error, or check | Error: a `Builds on:` line that cannot be read or is listed twice; a change that names itself; the OpenSpec CLI missing from PATH, or older than 1.15.0; a pull request that holds no change of that name; a dependency that cannot be read, or whose deltas `openspec archive` refuses; a merged dependency whose result your branch does not hold; a dependency that builds on a change this one does not list before it, whose result your tree lacks. Check: a dependency whose result your tree already holds, so its line should be removed; one only partly there; one whose version a later dependency replaces without building on it; one whose pull request was closed without merging (see [Stacked changes](#stacked-changes)) |
 | `drift` | error, or check | Error: a stacked change modifies, removes or renames a requirement that main plus its dependencies no longer define. Check, quoting both texts: a modified requirement keeps a sentence its dependency has since replaced, or a requirement a dependency adds is already in your tree with another text |
-| `evolution` | error | A line in the change's files records how the change got to its shape, not what holds now: an amendment, a credit to a person or a date, an earlier draft, or a review round. It quotes the line. Text in a code fence, backticks or double quotes is skipped. Only a person can keep a line it flags wrongly: see [Keeping a line the evolution check flags](#keeping-a-line-the-evolution-check-flags) |
+| `evolution` | error | A line in the change's files records how the change got to its shape, not what holds now: an amendment, a credit to a person or a date, an earlier draft, or a review round. It quotes the line. Text in a code fence, backticks or double quotes is skipped. Only a person can keep a line it flags wrongly, in the change's `.spec-check-kept` file: see [Keeping a line the evolution check flags](#keeping-a-line-the-evolution-check-flags) |
+| `kept` | error, or check | Error: an entry in a change's `.spec-check-kept` file that is not in the entry form, gives no reason, or quotes the same line as an earlier entry; an entry that matches an `evolution` error but lacks `(asked)`, the mark that a person was asked; or a kept file that cannot be read. Check: an entry that matches no `evolution` error, because its line changed or is gone. Remove the entry |
 
 A **check** is a heuristic: judge it, and fix it or leave it. An `openspec
 archive` or `openspec validate` result of "not run" means it was not
@@ -275,7 +276,7 @@ one. This skill does not write models for you.
 After the last fix and the final `git add`, and after the consistency read:
 
 ```sh
-python3 "$SC/spec_check.py" sign --read subagent --amended <n> --open <n> [--kept kept.txt]
+python3 "$SC/spec_check.py" sign --read subagent --amended <n> --open <n>
 ```
 
 It runs the mechanical checks on the staged tree and refuses when any error
@@ -283,9 +284,10 @@ remains. Otherwise it prints `Spec-check: ✓ <tree> ...`, a value bound to the
 staged tree. Without OpenSpec 1.15.0 or later it still signs, and the value
 says `show, validate and archive not run (install OpenSpec 1.15.0 or
 later)`. `--amended` is how many amendments the read led to; `--open` is
-how many open questions design.md now lists. `--kept` names the
-`evolution` errors a person chose to keep
-([below](#keeping-a-line-the-evolution-check-flags)). For work in progress, skip
+how many open questions design.md now lists. The `evolution` errors a
+person chose to keep are cleared by the change's `.spec-check-kept` file
+([below](#keeping-a-line-the-evolution-check-flags)), staged like the rest
+of the change. For work in progress, skip
 `sign` and write the value yourself: `skipped (<reason>)`.
 
 Commit once, carrying every installed skill's trailer
@@ -313,41 +315,52 @@ the tree, and the commit script refuses the stale value.
 
 The same words can describe behaviour ("Each new vote amends the
 decision.", in a spec for a voting system), so an `evolution` error can be
-wrong. When you believe one is, don't reword the
-line; a person decides.
+wrong. When you believe one is, don't reword the line; a person decides.
 
 1. Ask a person one question per line through your host's interactive
    picker (in Claude Code, the `AskUserQuestion` tool): show the line, the
    error, and why you think it is not history, with two options. "Fix it":
    restate the line as what holds now and restage. "Keep as is": the line
    stays as written.
-2. Write each kept line in a file outside the commit, such as `kept.txt`
-   beside `msg.txt`, one line per finding, path and line as the error gives
-   them:
+2. Add an entry for each kept line to the change's kept file,
+   `openspec/changes/<name>/.spec-check-kept`, and stage it. It is part of
+   the change, so `check` reads it too, and a reviewer who runs `check` on
+   your branch sees the line as kept, not as an error. An entry names the
+   file, relative to the change, and quotes the flagged line's text between
+   `«` and `»`:
 
    ```text
-   openspec/changes/x/design.md:5035 kept (asked): compares the spec with a decision, not history
+   design.md: «The spec narrows the decision.» kept (asked): compares the spec with a decision, not history
    ```
 
-   `(asked)` is your statement that a person answered; the script cannot
-   check it.
-3. Sign with `--kept kept.txt`. The kept errors no longer fail the run, and
-   the value counts them: `Spec-check: ✓ <tree> 0 errors, 1 checks, 1
-   evolution kept; ...`, so the override shows in git.
+   The quote is the whole line as the file has it, without its indent. The
+   error cuts a long line short, so copy the line from the file. Spacing
+   does not matter: runs of spaces or tabs count as one space. The
+   entry keeps every `evolution` error in that file whose line has that
+   text, so it survives edits elsewhere and lapses only when the line
+   itself changes. Blank lines between entries are skipped. `(asked)` is
+   your statement that a person answered; the script cannot check it.
+3. Sign. The kept errors no longer fail the run, and the value counts them:
+   `Spec-check: ✓ <tree> 0 errors, 1 checks, 1 evolution kept; ...`, so
+   the override shows in git.
 
-`sign` refuses the whole file when a line names no current `evolution`
-error (a stale or wrong `<path>:<line>`, or another kind of error), names a
-finding twice, has no reason, or is not in that form. A commit that stages
-no open change or spec is not checked, so `sign` does not read the file.
+An entry that is not in that form, gives no reason, or quotes the same
+line as an earlier entry is a `kept` error. An entry whose line changed or
+is gone keeps nothing and is a `kept` check, with or without `(asked)`.
+Remove the entry. If the line's new text is still flagged, ask the person
+about the new text. An entry that
+matches but lacks `(asked)` is a `kept` error (see *When you cannot ask*,
+below). `openspec archive` moves the file with the rest of the change into
+`openspec/changes/archive/`, where spec-check does not read it.
 
 **When you cannot ask** (you are a subagent or a background job, or your
-host has no picker), you cannot sign, so don't commit. Write each line you
-would keep without `(asked)`, as `<path>:<line> kept: <reason>`, and run
-`sign --kept` anyway, to get its refusal. The refusal names each such line
-with its error and your reason, then the path of the `--kept` file. Leave
-the change staged and put that message, whole, in your result. Whoever
-receives it asks the person, adds `(asked)` to each line the person keeps,
-fixes the text of the others, and signs again.
+host has no picker), `sign` will refuse, so don't commit. Write each entry
+you would keep without `(asked)`, as `<file>: «<line text>» kept:
+<reason>`, stage it, and run `sign` anyway, to get its refusal. The refusal
+names each such entry with the errors it matches and your reason. Leave the
+change staged and put that message, whole, in your result. Whoever receives
+it asks the person, adds `(asked)` to each entry the person keeps, fixes
+the text of the others and deletes their entries, and signs again.
 
 The commit hook reports a commit that changes `openspec/` without a valid
 `Spec-check:` trailer. It never reports a commit that changes nothing under

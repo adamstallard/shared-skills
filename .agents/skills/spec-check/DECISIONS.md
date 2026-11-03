@@ -115,19 +115,41 @@ Every line of a change's files is read, not only the lines a branch
 changed. The specs under `openspec/specs` are not read: they are the
 archived result of earlier changes, which no author is reviewing now.
 
-**A person keeps a false `evolution` error.** `sign --kept <file>` takes one
-line per finding, `<path>:<line> kept (asked): <reason>`. The agent writes a
-line only after a person chose "Keep as is" in a question the agent asked
-through its host's interactive picker (in Claude Code, `AskUserQuestion`). A kept finding no longer fails the
-run, the spec text stays as written, and the trailer counts the kept lines
-(`1 evolution kept`), so the override shows in git. `sign` refuses the file
-when a line names no current `evolution` error, names one twice, has no
-reason, or lacks `(asked)`. An agent that cannot ask, such as a subagent,
-writes the line without `(asked)`. `sign` then refuses and names each such
-line, and the agent passes that message to whoever started it, who asks the
-person. The prose skill keeps a cold reader's finding the same way, with
-the same `kept (asked)` line. The script cannot check that a person
-answered: `(asked)` is the agent's statement.
+**A person keeps a false `evolution` error.** Each change can hold a
+`.spec-check-kept` file, committed with it, which `check` and `sign` both
+read. An entry names a file relative to the change and quotes the flagged
+line's text: `design.md: «The spec narrows the decision.» kept (asked):
+<reason>`. The agent writes an entry only after a person chose "Keep as is"
+in a question the agent asked through its host's interactive picker (in
+Claude Code, `AskUserQuestion`). The entry clears every `evolution` error in
+that file whose line has the quoted text, compared after runs of whitespace
+are made one space. The spec text stays as written, and the trailer counts
+the errors the file cleared (`1 evolution kept`), so the override shows in
+git. The quote ends at the first `» kept`, so a line holding `» kept:` or
+`» kept (asked):` cannot be kept. That limit is accepted: lifting it would
+need an escape syntax in the entry form.
+
+An entry that is malformed, gives no reason, or quotes the same line as an
+earlier entry is a `kept` error.
+
+An entry that matches no `evolution` error is a `kept` check asking for its
+removal, whether or not it has `(asked)`. Its line changed or is gone, so
+the person's answer no longer covers it. It is a check, not an error,
+because it keeps nothing.
+
+An entry that matches an error but lacks `(asked)` is a `kept` error. An
+agent that cannot ask, such as a subagent, writes its entries without
+`(asked)`. `sign` then refuses and names each such entry with the errors it
+matches. The agent passes that message to whoever started it, who asks the
+person. The prose skill uses the same `kept (asked)` wording when a person
+keeps a passage its reviewer flagged, so an agent learns one convention.
+The script cannot check that a person answered: `(asked)` is the agent's
+statement.
+
+The file is part of the change, so `openspec archive` moves it into
+`openspec/changes/archive/<date>-<name>/` with the change's other files,
+and spec-check never reads an archived change. `openspec validate --strict`
+accepts it.
 
 **Limits.** Each line is read on its own, so a code span wrapped across two
 lines reads as prose, and its second line can draw a false error. An
@@ -180,6 +202,14 @@ import them.
 - **A list of people's names.** A credit is found as a capitalised word before
   a decision verb ("Adam decided"), excluding pronouns, determiners and
   headings, so it works in any repository.
+- **A kept file outside the commit**, passed to `sign` as `--kept <file>`.
+  `check` does not read it, so a reviewer, or a reviewing agent, running
+  `check` on the branch sees each kept line as an error again, and may fix
+  a line a person kept.
+- **Entries keyed by line number** (`design.md:5035`). Any line added or
+  removed above a kept line makes the entry stale.
+- **An inline marker in the spec**, such as an HTML comment beside the
+  line. It puts tooling noise in text people read.
 
 ---
 
