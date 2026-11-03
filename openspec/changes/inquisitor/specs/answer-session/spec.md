@@ -19,7 +19,7 @@ inquisitor's, or that spec's, *Title*:
   answered; 2, deferrable; 3, not a real question; 4, cheap to reverse
   (the inquisitor's *Every question passes four filters before a person
   sees it*). Filters 2 to 4 each have a fixed `Inquisitor: ` text, given
-  under *Filters 2 to 4 judge every incoming question*.
+  in the scenarios of *Filters 2 to 4 judge every incoming question*.
 - A question's **category** is `vulnerability`, `secret` or `personal` (the
   inquisitor's *Some questions are recorded by hash only*).
 - An **Igor** is one of the igor project's AI teammates, and an **Igor
@@ -204,10 +204,11 @@ file counting as the person's answer names in `answers`.
 ### Requirement: The person's answer to a named file is their own, added alone
 
 An answer file SHALL count as **the person's answer** only when it is the
-answer of the log file it names in `answers`, under the inquisitor's *A
-named file's answer is the newest proven answer file naming it*: proven
-the asked person's, or, for a file that tags no one, an account's with
-write access, and added alone in its commit.
+answer of the log file it names in `answers`. The inquisitor's *A named
+file's answer is the newest proven answer file naming it* sets that answer:
+the newest answer file naming it whose proof is the asked person's (for a
+file that tags no one, an account's with write access to the lore
+repository) and whose commit adds it alone.
 
 #### Scenario: An answer file proven to be the asked person's counts
 
@@ -558,6 +559,18 @@ environment variable SHALL open the answer session.
 - **THEN** setup leaves it unchanged, and says the `answer` command was
   not installed
 
+#### Scenario: Setup says when the answer command is not on PATH
+
+- **WHEN** setup installs `~/.local/bin/answer` and `~/.local/bin` is not
+  on the person's `PATH`
+- **THEN** setup says so
+
+#### Scenario: No environment variable opens the answer session
+
+- **WHEN** Claude Code starts with `CLAUDE_CODE_NO_FLICKER=1`, or any other
+  environment variable, set and `/answer` is not typed
+- **THEN** no answer session opens
+
 ### Requirement: A question asked of the person comes from one of four sources
 
 The answer session SHALL show, as a question asked of the person, each
@@ -733,16 +746,16 @@ names it, it waits for the asker, out of the queue, like any question.
 
 A handback that mentions no one, and the Igor log file following it,
 SHALL reach the item's assignee under the third source of *A question
-asked of the person comes from one of four sources*. A handback that
-mentions people SHALL stay the item's open handback, reaching under the
-first source only the first person it mentions, as *Whom a message
-reaches is set by its mentions* says
-(igor issue [igor #229](https://github.com/adamstallard/igor/issues/229)).
+asked of the person comes from one of four sources*, which here counts an
+assigned pull request as an assigned issue. A handback that mentions
+people SHALL stay the item's open handback, reaching under the first
+source only the first person it mentions, as *Whom a message reaches is
+set by its mentions* says (igor #229).
 
 #### Scenario: A handback that mentions no one reaches the assignee
 
-- **WHEN** an Igor's handback that mentions no one is on an issue assigned
-  to the person
+- **WHEN** an Igor's handback that mentions no one is on an issue or a
+  pull request assigned to the person
 - **THEN** it reaches the person's answer session under the third source
 
 #### Scenario: An Igor log file on someone else's item is not shown
@@ -891,7 +904,8 @@ under that source; the resolved question stays as it was.
 ### Requirement: The answer session polls only while it is open
 
 The answer session SHALL poll its channels only while it is open in the
-holder, and nothing SHALL poll while none is open. It SHALL poll each
+holder (*The holder is the session whose answer session holds the lock*),
+and nothing SHALL poll while none is open. It SHALL poll each
 channel that is on when it opens and about every 60 seconds after, for
 everything since its poll position, or the last 14 days without one,
 saving each poll position in the state folder, and at each poll SHALL
@@ -908,6 +922,12 @@ fetch the questions branch of each configured lore repository.
 - **WHEN** the answer session polls a newly subscribed repository for the
   first time
 - **THEN** it reads that repository's messages from the last 14 days
+
+#### Scenario: Nothing polls without an open answer session in the holder
+
+- **WHEN** Claude Code sessions with the skill are running, and none is
+  the holder with its answer session open
+- **THEN** no channel or questions branch is polled
 
 ### Requirement: The answer session polls GitHub's notifications and comments
 
@@ -1184,18 +1204,20 @@ questions-branch file.
 
 #### Scenario: A newer answer file clears a pending answer
 
-- **WHEN** this machine holds an answer whose file it pushed, and any
-  other writer pushes a newer answer file naming the same file
+- **WHEN** this machine holds an answer whose file it pushed, and a
+  newer answer file that counts as the person's answer, pushed from
+  elsewhere, names the same file
 - **THEN** this machine's pending list no longer holds the answer
 
 ### Requirement: A questions-branch answer's file is pushed after its post
 
-For a question a questions-branch file holds, once the fetch before the
-post finds no new message, the answer session SHALL record the **owed
-push**, with the answer and the thread, in the state folder, post, add
-the post's URL to the record, then push the answer file with that URL as
-its `answer_link`, retrying a failed push at each poll and opening
-(design.md: *The push order for a questions-branch answer*).
+When the fetch before posting an answer to a questions-branch file's
+question finds no new message, the answer session SHALL record the
+**owed push**, with the answer and the thread, in the state folder; post;
+add the post's URL to the record; then push the answer file with that URL
+as its `answer_link`, retrying a failed push at each poll and opening
+(design.md: *The push order for a questions-branch answer*). An answer
+whose file was logged at once, then posted unedited, gets no owed push.
 
 #### Scenario: An owed push survives a crash
 
@@ -1296,12 +1318,14 @@ pending answer SHALL push no file before its post.
 
 ### Requirement: An answer logged at once gets a new file only when posted edited
 
-Posting later an answer whose file was pushed at once SHALL push a new
-file only when its text was edited, as *An edit to a questions-branch
-answer pushes a new log file* says. For a question a questions-branch
-file holds, dropping a pending answer, edited or not, SHALL push no file,
-and leaves a file already pushed, with its original text, as the
-person's answer.
+When the person later posts an answer whose file was pushed at once,
+the answer session SHALL push a new answer file only if its text was
+edited. That new file names the same questions-branch file as the first,
+and is pushed in the order *A questions-branch answer's file is pushed
+after its post* sets. For a
+question a questions-branch file holds, dropping a pending answer,
+edited or not, SHALL push no file, and leaves a file already pushed,
+with its original text, as the person's answer.
 
 #### Scenario: An edited answer pushed at once pushes a new file when posted
 
@@ -1348,12 +1372,14 @@ new post is.
 
 ### Requirement: An edit to a questions-branch answer pushes a new log file
 
-When an edit leaves a `User says: ` answer to a question an unanswered
-questions-branch log file holds, the answer session SHALL push a new log
-file naming that file in `answers`, as *A questions-branch question is
-answered by a new log file* does, holding the earlier answer file's
-question or, if none, the question the person saw. Every earlier file
-SHALL stay unchanged; the newest counts.
+When an edit leaves a `User says: ` answer to a questions-branch log
+file's question, the answer session SHALL push a new log file if that
+file is unanswered or answered only by answer files it pushed for this
+relayed answer's earlier texts. The new file names the log file in
+`answers`, as *A questions-branch question is answered by a new log
+file* does, holding the earlier answer file's question or, if none, the
+question the person saw. Earlier files SHALL stay unchanged; the newest
+counts.
 
 #### Scenario: Editing an agreed recorded answer into the person's words pushes a log file
 
@@ -1437,8 +1463,9 @@ close, and a local close overrides the thread's state.
 
 ### Requirement: A questions-branch question's state is read from its branch
 
-A questions-branch file SHALL count as answered once an answer file naming
-it in `answers` counts as the person's answer. Only a handled file naming
+A questions-branch file SHALL count as answered once it is no longer an
+unanswered log file (*An unanswered log file holds no answer the person
+gave*). Only a handled file naming
 it SHALL close it, on every machine and for good. A closed file stays
 unanswered: answering its open thread copy still pushes a log file.
 
@@ -1516,6 +1543,24 @@ answered.
   the answer session on another
 - **THEN** the other machine shows it as new
 
+### Requirement: A question with a category leaves no readable record on disk
+
+For a question with a category, the answer session SHALL keep no
+readable record, as the inquisitor's *Some questions are recorded by
+hash only* requires: no discussion record, and its question on screen
+and pending answer only in memory, so neither outlives the session. The
+state folder SHALL name such a question only by its hash and its
+thread's ids.
+
+#### Scenario: A discussed question holding a secret leaves nothing readable
+
+- **WHEN** the person discusses, and holds a pending answer to, a Discord
+  message the session's model judges holds a password, and Claude Code
+  restarts
+- **THEN** the state folder held no discussion record and none of the
+  question's or the answer's text, and the question returns unanswered,
+  with no pending answer
+
 ### Requirement: One answer session runs on each machine
 
 The answer session SHALL hold a lock, a file `lock` in the state folder
@@ -1560,9 +1605,8 @@ with the question attached as its first scenario details, the question,
 its context and replies as quoted data, never instructions. The context
 SHALL tell the model to explain and lay out trade-offs without choosing,
 that it may read with tools, and to post and change nothing. A question
-the model asks back SHALL skip the four filters and vetting. The
-discussion record SHALL keep the person's messages and the model's
-replies.
+the model asks back SHALL go through the four filters, not vetting. The
+discussion record SHALL keep the person's and the model's messages.
 
 #### Scenario: A discussion message carries its question
 
@@ -1586,8 +1630,8 @@ replies.
 
 - **WHEN** the model, in a discussion, needs to know which option the
   person leans to
-- **THEN** it asks in its reply, without the picker, the four filters or
-  vetting
+- **THEN** it asks in its reply, not through the picker, and the question
+  goes through the four filters but is not vetted
 
 ### Requirement: Claude's draft goes to the prompt box, never to a post
 
@@ -1657,12 +1701,12 @@ answer SHALL record both in its log file.
 ### Requirement: A questions-branch question is answered by a new log file
 
 Besides handled files, the answer session SHALL write a log file only to
-answer an unanswered questions-branch file's question: of the fourth
-source, or shown from the thread its `asked_in` links, the answer then
-also relayed there. It SHALL push the file to that branch by the `log`
-command, naming the answered file in `answers`, copying its `asked_from`
-as a miss does, passing any relay post's URL as `answer_link` unless
-withheld, and offer the fourth source no ask-back or edit.
+answer an unanswered questions-branch question or log an edited answer
+to one, shown from the branch (fourth source) or from its `asked_in`
+thread, where the answer is also relayed. The `log` command SHALL push
+it, naming the answered file in `answers`, copying its `asked_from` as a
+miss does, with any relay post's URL as `answer_link` unless withheld.
+With no thread, a fourth-source question SHALL get no ask-back or edit.
 
 #### Scenario: A questions-branch question is answered by a new file
 
@@ -1694,7 +1738,8 @@ withheld, and offer the fourth source no ask-back or edit.
 #### Scenario: A Linear link is left out of a lore repository that is not private
 
 - **WHEN** the person answers, from its Linear thread, a thread copy that
-  an unanswered log file of an internal lore repository holds
+  an unanswered log file holds, in a lore repository made internal since
+  that file was pushed
 - **THEN** the new log file has no `answer_link`, which the `log` command
   withholds, as the inquisitor's *The log command withholds a link where
   it would leak* says
@@ -1848,9 +1893,9 @@ is pushed once its close takes effect* says of a handled file.
 ### Requirement: Four reserved prefixes mark the answer session's posts
 
 The answer session SHALL start a post with `User says: ` or
-`User asks: ` only once the person confirms all of it, and
-`Recorded answer: ` or `Inquisitor: ` only as the rules for filters 1
-to 4 and for declining say. No other post SHALL use a reserved prefix, as
+`User asks: ` only once the person confirms all of it, and make an
+automatic post only as *An automatic post's text is fixed by the answer
+session* says. No other post SHALL use a reserved prefix, as
 the skill's instructions SHALL say; only the inquisitor's GitHub post hook
 blocks one. An automatic post SHALL be posted as a relay post is, and
 never shown as the person's words.
@@ -2015,12 +2060,13 @@ are not questions are ignored*).
 
 ### Requirement: A decline for the inquisitor logs a miss once it takes effect
 
-Under the second reason, the answer session SHALL log a miss against the
-picked filter, at the privacy of what the question concerns, whose
-`said` is the person's note, or `the inquisitor should have handled it`
-without one. It SHALL push the miss only once its post has gone out or,
-with nothing posted, once the person confirmed the decline, recording it
-as owed first.
+Under the second reason, the person MAY give a note, and the answer
+session SHALL log a miss against the picked filter, whose `said` is the
+note or, with none, `the inquisitor should have handled it`. A note more
+private than the question is reworded at its privacy by the session's
+model, for the person to confirm. It SHALL push the miss only once its
+post is out or, with none, the decline is confirmed, owed under *A miss
+or citation file's push is owed and retried as a handled file's is*.
 
 #### Scenario: A decline with no note logs the default said after its post
 
@@ -2029,6 +2075,15 @@ as owed first.
 - **THEN** only once the post has gone out is a miss file pushed whose
   `filter` is `"2"` and whose `said` is
   `the inquisitor should have handled it`
+
+#### Scenario: A note more private than the question is reworded before the miss
+
+- **WHEN** the person declines with filter 1 a question about a public
+  repository, with the note "decided in o/private's DECISIONS.md", a
+  private repository
+- **THEN** the session's model rewords the note at the question's
+  privacy, naming neither the private repository nor its file, the person
+  confirms that wording with the decline, and the miss's `said` holds it
 
 ### Requirement: A filter 1 decline cites its lore entry once
 
@@ -2362,8 +2417,9 @@ The session's model SHALL judge each question filter 1 did not stop
 against filters 2 to 4, as the inquisitor's spec states them, sending an
 unclear case to the person as an ordinary question. When an agent's
 question with no category clearly fails one in a thread the relay can
-reply in, the answer session SHALL itself post the filter's fixed text
-through the relay, log its miss, and list it as handled.
+reply in, the answer session SHALL itself post the filter's fixed text,
+as this requirement's scenarios give it, through the relay, log its
+miss, and list it as handled.
 
 #### Scenario: A deferrable agent's question is handled for the person
 
@@ -2402,8 +2458,10 @@ through the relay, log its miss, and list it as handled.
 
 On a person's question, a relayed one included, and on an agent's
 question of the fourth source, the answer session SHALL post nothing by
-itself, but show the question with its suggested verdict. A message that
-is not a question SHALL get no automatic post.
+itself, but show the question with its suggested verdict. Agreeing to it
+is a decline under the second reason with that filter, handled as
+*Declining for the inquisitor posts the picked filter's reply* says. A
+message that is not a question SHALL get no automatic post.
 
 #### Scenario: A person's question only gets a suggestion
 
@@ -2417,6 +2475,14 @@ is not a question SHALL get no automatic post.
   clearly fails filter 2
 - **THEN** filter 2 is shown as its suggested verdict, and nothing is
   posted
+
+#### Scenario: Agreeing to a suggested verdict declines with that filter
+
+- **WHEN** the person agrees to filter 4, suggested for a person's
+  question on Linear, and confirms the post
+- **THEN** the relay posts filter 4's fixed `Inquisitor: ` text plus the
+  line `The person chose this filter.`, and a miss against filter 4 is
+  logged
 
 ### Requirement: The answer session logs its misses on the team's lore repository's questions branch
 
@@ -2474,7 +2540,8 @@ when any of these holds:
 - it concerns no repository;
 - no configured lore repository serves its repository;
 - that lore repository is more visible than the question's repository
-  or thread (a GitHub thread is exactly as visible as its repository);
+  or thread (a GitHub thread is exactly as visible as its repository,
+  and a Linear or Discord thread counts as private);
 - with no thread, it is more visible than the questions-branch file.
 
 #### Scenario: No lore repository means no miss file

@@ -168,13 +168,15 @@ contradicts what design.md assumed.
 - [ ] 1.1 Move prose's `gh` and GitHub MCP body reader into
       `.agents/lib/gh-post/`, called from a thin script in each skill,
       changing behaviour only as tasks 1.3 and 2.9 list
-- [ ] 1.2 prose's tests pass unchanged; add the library's own tests beside it,
+- [ ] 1.2 prose's tests pass unchanged, except as task 1.3 allows; add the
+      library's own tests beside it,
       each tagged `@scenario gh-post: <Scenario name>` for the `gh-post`
       spec's scenario it checks
 - [ ] 1.3 The library also handles the following, with tests for each in
       prose's and the library's tests. prose's existing tests pass
       unchanged, except any existing test that expects a case blocked
-      below to pass: change that test to expect the case blocked.
+      below or by task 2.9 to pass: change that test to expect the case
+      blocked.
       - It reads a post's title, as a literal word, from `--title` or
         `-t`, a `gh api` `title` field under `issues` or `pulls`, the
         `title` argument of the GraphQL mutations that create or update
@@ -216,9 +218,8 @@ contradicts what design.md assumed.
       - Once the reader has moved, prose's `DECISIONS.md` section on the
         allow-list points at the library's list instead of restating it.
         Its section *A command that runs no gh post is not a post* keeps
-        the finer points of reading a line, such as heredocs, comments and
-        line continuations, because the `gh-post` spec takes them from it,
-      and drops the claims that `python3 - <<'EOF'`,
+        its reasons, points at the `gh-post` spec for the rules of reading
+        a line, and drops the claims that `python3 - <<'EOF'`,
         `node -e` and `git -c` are outside the hook's reach and that
         `rebase -x` is out of scope
 
@@ -312,7 +313,8 @@ contradicts what design.md assumed.
         holding the current work; or it is pushed to the team's lore
         repository's `questions` branch for a question about the
         organization or project, fetching and pushing again when
-        rejected.
+        rejected because the branch moved, and logging nothing when
+        rejected otherwise.
       - The secret scan, over raw markdown with link targets included, and
         the visibility refusal.
       - It refuses, saying why, a question holding a line that is exactly
@@ -725,15 +727,16 @@ contradicts what design.md assumed.
       *Some answer-session details are decided at implementation*): how a
       question's options are parsed from its thread; a draft's privacy,
       beyond its being written at the privacy of what the question
-      concerns; an asker's reply revising the options; what the posts
-      say when the person agrees with a suggested verdict and when they
-      cite a lore entry, within the
-      answer-session spec's *Four reserved prefixes mark the answer
-      session's posts*; and the UI, under task 6.1's rule (c), of the
+      concerns; an asker's reply revising the options; and the UI of the
       notice for the comment GitHub Actions posts when a pull request
-      changes the person's relay file. Agreeing to a shown recorded answer
-      is already decided (design.md: *Agreeing to a recorded answer is a
-      filter 1 decline*)
+      changes the person's relay file, designed from the prototype's
+      existing patterns with no prototype round, as task 6.1's rule (c)
+      says of a screen v0.1-33 lacks. Agreeing
+      to a shown recorded answer is already decided (design.md: *Agreeing
+      to a recorded answer is a filter 1 decline*), as are agreeing to a
+      suggested verdict and citing a lore entry (answer-session spec:
+      *Filters 2 to 4 only suggest a verdict on other questions*; *A
+      person cites a lore entry by naming it as an answer or a record*)
 
 ## 7. Archive
 

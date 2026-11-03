@@ -726,9 +726,9 @@ question's text, so they are the hooks' state, not a personal question log.
 
 #### An `ask` record drops the option's label
 
-**A picker `ask` record keeps, for each other option, the agent's own words
-from its verdict on what that option would change, but not the recommended
-option's label,** since the labels
+**A picker `ask` record keeps, for each option other than the one the agent
+recommends, the agent's own words from its verdict on what that option would
+change, but no option's label,** since the labels
 are part of the question's text, which no record holds.
 
 **Accepted:** the records can't show later whether the person took the
@@ -846,7 +846,8 @@ commands*, *A command that only runs prose's script sends no post*, *A line
 whose simple commands send no text is no post* and *Any other line that
 mentions a gh post verb is unreadable*.
 
-**Why:** these are prose's reader's rules, apart from the alias rule. An
+**Why:** these are prose's reader's rules, apart from the alias rule and
+counting `gh api` as a mention (*The post reader's open costs*). An
 allow-list fails closed: a form it cannot read, such as `sh -c '…'` or
 `eval '…'` around a gh post, is blocked, never let through unread. The reader
 cannot read what an alias or extension runs: with `c` aliased to `pr
@@ -897,7 +898,9 @@ spec's *The reader reads posts sent through the github-app skill and gh api*
 states the forms. Task 5.5 makes each example in the github-app skill's
 `SKILL.md` set `G` in the same command or write the script's path.
 
-**Why:** otherwise every post an agent sends as a GitHub App would be blocked.
+**Why:** otherwise every `gh pr` or `gh issue` post an agent sends as a GitHub
+App would be blocked. A `gh api` call through the script, a read included, is
+unreadable and so blocked (*The post reader's open costs*).
 The reader cannot know what any other script posts. An unset `$G` posts
 nothing in Claude Code, where each command starts a fresh shell, but could in
 a host whose shell keeps variables, such as Cursor; blocking it costs only a
@@ -1266,11 +1269,11 @@ answers relayed on Linear or Discord*).
 **A lore entry that stops a question gets a citation file on that lore
 repository's `questions` branch, holding nothing about the question.** A
 stopped question is not asked, so it gets no log file, and its citation is
-its only record. No log file names a lore entry by its id, because a log file
-is only for a question someone answered, and where that answer is recorded is
-never a lore entry. This change defines the one citation format, and igor
-PR #216 points to it, since the inquisitor and an Igor both write citation
-files and igor's review reads them all. The run's id in a citation is
+its only record. No log file names a lore entry by its id either: the
+`recorded_in` key of an answered log file, which says where the answer is
+recorded, is a path or URL and never a lore entry. This change defines the
+one citation format, and igor PR #216 points to it, since the inquisitor
+and an Igor both write citation files and igor's review reads them all. The run's id in a citation is
 opaque; the Igor records it in the run's row of its execution ledger on its
 `igor-state` branch, not with the transcript, and igor's review shows each
 citation's run and item (igor PR #216's decision 10).
@@ -1952,8 +1955,6 @@ lists them:**
 - how a question's options are parsed from its thread;
 - a draft's privacy;
 - an asker's reply revising the options;
-- what agreeing with a suggested verdict posts, and what citing a lore entry
-  posts;
 - the UI of the relay notice shown for the GitHub Actions comment on a pull
   request changing the person's relay file, designed under task 6.1's rule
   (c).
@@ -2877,13 +2878,20 @@ to its 149.
   entry in scope pushes a citation too, as does a decline under "the
   inquisitor should have handled it" with filter 1 naming such an entry (*A
   person's cite pushes a citation file*).
-- **How an Igor runs the inquisitor skill itself** has no mechanism in igor PR
-  #216 or igor #211. Decided: igor marks that run with `IGOR_RUN=igor`, and
-  the script then searches lore only through `igor lore-search` and pushes
-  nothing, putting each file it would push, and each lore entry it would
-  propose, in the run's report for the Igor. Open: which other sources that
-  run's filter 1 covers, how the report reaches the Igor, and whether the run
-  can read GitHub.
+- **How an Igor runs the inquisitor skill itself** is only partly set. igor
+  PR #216's `task-execution` spec sets `IGOR_RUN=igor` in that run's
+  environment, and the script then searches lore only through `igor
+  lore-search` and pushes nothing, putting each file it would push, and each
+  lore entry it would propose, in the run's report for the Igor. #216's task
+  3.6 waits for igor #211 to say how the Igor starts that run. Open: which
+  other sources that run's filter 1 covers, how the report reaches the Igor,
+  and whether the run can read GitHub.
+- **igor must say how `igor lore-search` identifies the Igor's own
+  inquisitor run.** #216 takes the run and role from the channel a request
+  arrives on, which only that run's worker can reach (its lore-firing
+  spec), and the Igor's own run has no worker. Until igor settles it, that run's search
+  fails, and the script searches no lore and says so, as *In an Igor's run,
+  filter 1 searches through igor* says of a failed command.
 - **igor's specs must state the order in which each Igor mentions people,**
   set in igor issue [#229](https://github.com/adamstallard/igor/issues/229),
   which is open. No igor spec states it, yet *A bot's question reaches only
@@ -2940,6 +2948,33 @@ to its 149.
   surface counts only through a decision document, such as the scribe's
   record; one typed in the answer session and relayed there counts through its
   log file's signature.
+
+### The answer session's open choices
+
+- **Should the answer session close an agent's question that another skill
+  requires a person to decide?** The inquisitor's *A question another skill
+  requires skips filters 2 to 4* exempts such a question, but the answer
+  session cannot tell one apart. So *Filters 2 to 4 judge every incoming
+  question* posts a filter's fixed text on it, logs a miss and lists it as
+  handled, while the asking agent treats the reply as input and the person
+  never sees the question. Until a person decides, the spec does exactly
+  that; the choices are that the asker marks such questions, or that the
+  answer session only suggests a verdict on every agent's question.
+
+### The post reader's open costs
+
+- **Whether `gh api` calls made as a GitHub App must work.** The `gh-post`
+  spec reads the github-app script's `gh pr` and `gh issue` forms only, so
+  `python3 $G gh api …`, a read included, mentions a gh post verb and is
+  unreadable. Until a person decides, the spec blocks every such call; the
+  choice is whether to read the script's `gh api` form too.
+- **Whether `gh api` counts as a mention for every prose user.** prose's
+  reader matches only `gh pr` and `gh issue`; the `gh-post` spec also counts
+  `gh api`, so a line such as `gh api … | python3 -c …`, which prose passes
+  today, becomes unreadable, a cost *Which commands the reader judges, and
+  which are unreadable* does not list. Until a person decides, the spec counts `gh api` as a mention;
+  the alternative applies the interpreter and input rules only to `gh pr`
+  and `gh issue` post verbs and to `gh api` calls that write.
 
 ### Left to implementation
 

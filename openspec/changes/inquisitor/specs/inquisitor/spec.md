@@ -840,12 +840,12 @@ through `igor lore-search`*).
 ### Requirement: A run's lore search keeps to the Igor's lore repository and scope
 
 During an Igor's run, igor's search SHALL cover only the lore repository the
-Igor injects lore from, its checkout and questions branch, telling the run
-and role by the connection the request arrives on, which only that run's
-worker can reach (#216's decision 52). It SHALL match terms as plain text
+Igor injects lore from, its checkout and questions branch, identifying the
+run and role by a request's channel, which only that run's worker can
+reach; how it identifies the Igor's own run is open
+(design.md: *What igor must provide*). It SHALL match terms as plain text
 and rank hits by terms matched, as filter 1 does, under #216's rules for a
-search during a run, which keep to the role's scope and the item's
-visibility.
+run's search, which keep to the role's scope and the item's visibility.
 
 #### Scenario: A run's search keeps to the role's scope and the item's visibility
 
@@ -1709,7 +1709,7 @@ The two calls' files SHALL have mode 0600, outside any repository, in a
 directory only the agent's user can read. Either call SHALL refuse a file
 its group or others can read, or whose directory they can, recording
 nothing and keeping any token. A picker `ask`'s record SHALL keep its field
-without the recommended label. The next call or hook reading the records
+without any option's label. The next call or hook reading the records
 SHALL delete each over 2 hours old, whatever its verdict or category.
 
 #### Scenario: A questions file others can read is refused
@@ -1737,9 +1737,10 @@ A question's **text** SHALL be built in four steps: leave out
 related-decision lines, matched after trimming; take its parts, inline
 markup reduced to text (a picker question's `question` field then its
 options' labels; a post question's list item without its marker, or its
-sentence); make each whitespace run one space, trimming each part; join the
-parts with one LF. Its **hash**, used by records and both hooks, SHALL be
-the SHA-256 of that text as UTF-8, in 64 lowercase hex digits.
+sentence; any other text whole); make each whitespace run one space,
+trimming each part; join the parts with one LF. Its **hash**, used by
+records and both hooks, SHALL be the SHA-256 of that text as UTF-8, in
+lowercase hex.
 
 #### Scenario: A picker question's text joins its parts with line feeds
 
@@ -1760,6 +1761,13 @@ the SHA-256 of that text as UTF-8, in 64 lowercase hex digits.
 - **WHEN** an open-questions section holds the item
   `- Should we **retry** [on 503](https://example.com)?`
 - **THEN** the question's text is "Should we retry on 503?"
+
+#### Scenario: A whole comment is one part
+
+- **WHEN** a linked comment's text is `**Back off**,` then a blank line,
+  then `capped at a minute.`
+- **THEN** its text, built by these four steps as one part, is "Back off,
+  capped at a minute.", one line
 
 ### Requirement: A hook blocks a picker question that was not vetted
 
@@ -2224,7 +2232,9 @@ A question about one repository SHALL be logged in `.inquisitor/questions/`
 at its root, where the agent SHALL add the answer to the file, committed
 with the work when that repository holds it, and otherwise added, answer
 included, by pull requests the agent opens without asking and whose links
-it reports.
+it reports. During an Igor's run, a question about a repository not the
+item's SHALL go in a questions-branch file the run reports (*An
+Igor's run reports the questions-branch files it would push*).
 
 #### Scenario: A question about a public repository is logged in it
 
@@ -2315,7 +2325,7 @@ SHALL log nothing and tell the person why.
 
 - **WHEN** the repository the question concerns is internal, and the team's
   lore repository is public
-- **THEN** no lore pull request is opened, and no question is pushed
+- **THEN** the script refuses to push the question
 
 ### Requirement: A question with no team's lore repository is not logged
 
@@ -2369,12 +2379,12 @@ never a committed one.
 ### Requirement: A lore entry that stops a question gets a citation file
 
 When filter 1 stops a question with a lore entry, the agent SHALL push a
-citation file, in the format *A citation file has one format* states, to
-the questions branch of the lore repository holding the entry, except for a
-question with a category, or when that lore repository is more visible than
-the repository the question concerns. A citation file is not a log file and
-never an answer, and the search never shows one. No log file names a lore
-entry by its id.
+citation file to the questions branch of the lore repository holding the
+entry, except in three cases: the question has a category; that lore
+repository is more visible than the repository the question concerns; or
+*No worker or Igor-started run pushes to a lore repository* or *An answer
+session's automatic reply is a verdict, not a person's answer* rules it
+out.
 
 #### Scenario: Only the citation file names the lore entry
 
@@ -2383,6 +2393,8 @@ entry by its id.
 - **THEN** the agent pushes a citation file holding the entry's id to the
   lore repository's questions branch, and no log file, in that repository
   or on the questions branch, holds the entry's id
+- **AND** a citation file is not a log file and never an answer, and the
+  search never shows one
 
 #### Scenario: No citation goes to a more visible lore repository
 
@@ -2540,11 +2552,9 @@ reads its inputs and the linked comments itself*).
 ### Requirement: The log command takes its input in a private file
 
 The `log` command SHALL take the file's place, keys and body sections in
-an input file, never as arguments. That input file SHALL be kept private
-as *The two calls' files and records stay private* keeps the two calls'
-files: mode 0600, outside any repository, in a directory only the agent's
-user can read. The `log` command SHALL refuse an input file its group or
-others can read, or whose directory they can, and then write nothing.
+an input file, never as arguments, kept and refused as *The two calls'
+files and records stay private* keeps and refuses the two calls' files; on
+refusing one, it SHALL write nothing.
 
 #### Scenario: A log command input others can read is refused
 
@@ -2619,8 +2629,7 @@ file names the file it answers*).
 
 The `log` command SHALL write nothing, and say why, when a question it is
 given holds a line that is exactly `## Rephrased question`, `## Discussion`
-or `## Answer`, since a reader reads those lines from a log file's end as
-its closing sections; the agent rewords the question and logs it again
+or `## Answer`; the agent rewords the question and logs it again
 (design.md: *The `log` command reads its inputs and the linked comments
 itself*).
 
@@ -3593,8 +3602,8 @@ SHALL log a **miss** in the format *A log file and a miss file have one
 format* states: the question, the filter that should have stopped it and
 what the person said, at the question's privacy. It goes where and as the
 question's file went, in `misses/` for `questions/`; on a questions branch
-it is pushed directly, by its Igor when an Igor worker logs it. Only an
-answer session logs a miss without a log file.
+it is pushed directly, by its Igor when an Igor worker logs it. An answer
+session's misses go as the `answer-session` spec says.
 
 #### Scenario: "That was obvious" is logged against a filter
 

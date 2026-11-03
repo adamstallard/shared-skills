@@ -75,15 +75,29 @@ send no post.
 ### Requirement: The reader reads only gh's own top-level commands
 
 A `gh` command whose first word after `gh` is not on gh's own list of
-top-level commands, fixed in the reader, such as an alias or an extension,
-SHALL be unreadable wherever it appears, even in a command that another
-requirement of this spec says sends no post.
+top-level commands, fixed in the reader, such as an alias or an
+extension, SHALL be unreadable wherever it appears, even in a command
+another requirement says sends no post. A `gh` command is a simple
+command (*The reader splits a command line into simple commands*) whose
+command is `gh`, or each place `gh` appears, quoted or not, in another
+simple command's text, unless that is one of prose's data commands.
 
 #### Scenario: A gh alias or extension is unreadable
 
 - **WHEN** a hook asks about `gh c 5 -b 'User says: yes'`, where `c` is
   not one of gh's own commands
 - **THEN** the reader reports the command as unreadable
+
+#### Scenario: A gh alias run by another command is unreadable
+
+- **WHEN** a hook asks about `env gh c 5 -b x`, `xargs gh c 5 -b x`, or
+  `sh -c 'gh c 5 -b x'`
+- **THEN** the reader reports each command as unreadable
+
+#### Scenario: A gh alias's name inside a data command's text is data
+
+- **WHEN** a hook asks about `git commit -m 'use gh dash'`
+- **THEN** the reader reports that the command sends no post
 
 ### Requirement: A command that only runs prose's script sends no post
 
@@ -197,22 +211,38 @@ one.
 ### Requirement: The reader splits a command line into simple commands
 
 The reader SHALL split a line into **simple commands**, each a command
-and its arguments, at the shell's control operators and line breaks,
-reading each unquoted `$(…)` as more commands; a `$(…)` inside double
-quotes makes the line unreadable. A simple command's command is its first
-word after any leading keyword its scenario lists. Heredocs, comments,
-line continuations and finer points SHALL follow
-`.agents/skills/prose/DECISIONS.md`, *A command that runs no gh post is
-not a post*.
+and its arguments, at the shell's control operators, parentheses and line
+breaks, reading an unquoted `$(…)` as more commands, a heredoc's body as
+its command's input, a backslash-newline as nothing, and a comment as
+nothing. A simple command's command is its first word, after quote
+removal, past any leading keyword its scenario lists. A line holding a form
+its scenarios list as unreadable SHALL be unreadable.
 
 #### Scenario: A command line splits into simple commands
 
 - **WHEN** a hook asks about a line that mentions a gh post verb
-- **THEN** the reader splits it at `|`, `|&`, `||`, `&&`, `;`, `&` and
-  line breaks
+- **THEN** the reader splits it at `|`, `|&`, `||`, `&&`, `;`, `&`, `(`,
+  `)` and line breaks
 - **AND** takes each simple command's command as its first word after any
   leading `if`, `then`, `elif`, `else`, `do`, `while`, `until`, `!`, `{`
-  or `time`
+  or `time`, and counts `fi`, `done` or `}` alone as no command
+- **AND** a simple command's text, quoted or not, names `gh` where `gh`
+  has no letter, digit or `_` just before it and no letter, digit, `_` or
+  `-` just after it
+
+#### Scenario: A subshell's commands are read
+
+- **WHEN** a hook asks about `(cd sub && gh pr edit 3 --add-assignee @me)`
+- **THEN** the reader reports that the line sends no post
+
+#### Scenario: A form the reader can't split exactly is unreadable
+
+- **WHEN** a hook asks about a line that mentions a gh post verb and holds
+  a backtick, `<(…)`, `$'…'`, `${…}` holding more than a name, `$(…)`
+  inside double quotes, an unterminated quote, a heredoc inside
+  parentheses or holding `$(`, a file descriptor of two or more digits, or
+  a comment holding a quote or a control operator
+- **THEN** the reader reports the line as unreadable
 
 ### Requirement: A line whose simple commands send no text is no post
 
@@ -352,6 +382,13 @@ words, since finding its script would mean reading its options.
   sending no post
 - **AND** input reaches several commands when it feeds `(`, `$(`, `{` or
   `while`
+
+#### Scenario: Input may reach one gh command that uses no post verb
+
+- **WHEN** a hook asks about `cat c.md | gh pr view 5`, and about `cat
+  c.md | gh pr edit 5 --add-label spec`
+- **THEN** the reader reports the first as sending no post and the second
+  as unreadable
 
 ### Requirement: Any other line that mentions a gh post verb is unreadable
 
