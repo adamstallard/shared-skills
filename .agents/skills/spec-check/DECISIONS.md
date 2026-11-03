@@ -98,11 +98,11 @@ broken.
 
 ---
 
-## Document-evolution text is a warning
+## Document-evolution text is an error
 
-**Decision.** `check` gives an `evolution` check, never an error, on each line
-of a checked change's files that records how the change got to its shape
-rather than what holds now:
+**Decision.** `check` gives an `evolution` error on each line of a checked
+change's files that records how the change got to its shape rather than what
+holds now:
 - an amendment: "amending decision 79", "superseded by decision 12";
 - a credit naming who decided or when: "(Adam, 2026-10-21)", "Adam decided",
   "decided by Adam", "decisions 21 and 22 on 2026-10-20";
@@ -111,19 +111,43 @@ rather than what holds now:
 
 The finding quotes the line. Text in a code fence, a code span or double
 quotes is skipped, since a spec about a checker quotes what it checks for.
-Only a change's files are read. The specs under `openspec/specs` are the
+Every line of a change's files is read, not only the lines a branch
+changed. The specs under `openspec/specs` are not read: they are the
 archived result of earlier changes, which no author is reviewing now.
 
+**A person keeps a false `evolution` error.** `sign --kept <file>` takes one
+line per finding, `<path>:<line> kept (asked): <reason>`. The agent writes a
+line only after a person chose "Keep as is" in a question the agent asked
+through its host's interactive picker (in Claude Code, `AskUserQuestion`). A kept finding no longer fails the
+run, the spec text stays as written, and the trailer counts the kept lines
+(`1 evolution kept`), so the override shows in git. `sign` refuses the file
+when a line names no current `evolution` error, names one twice, has no
+reason, or lacks `(asked)`. An agent that cannot ask, such as a subagent,
+writes the line without `(asked)`. `sign` then refuses and names each such
+line, and the agent passes that message to whoever started it, who asks the
+person. The prose skill keeps a cold reader's finding the same way, with
+the same `kept (asked)` line. The script cannot check that a person
+answered: `(asked)` is the agent's statement.
+
 **Limits.** Each line is read on its own, so a code span wrapped across two
-lines reads as prose, and its second line can draw a false warning. An
+lines reads as prose, and its second line can draw a false error. An
 indented code block also reads as prose, as it does for every other check
 that reads lines through `markdown_lines`.
 
-**Why a warning.** Behaviour uses the same words: a newer file supersedes an
-older one, a candidate previously rejected is not proposed again, the agent
-decided. So every pattern is pinned to a decision, a person, a date or the
-document itself. The patterns were measured on two kinds of text:
-- About 25,000 lines of open changes: shared-skills #25's `inquisitor`; in
+**Why an error.** A finding of `check` severity never fails the run, so it
+asks whoever runs spec-check to judge it. History is never worth keeping in
+a change: it should simply be removed before a person reviews the change. An error makes the agent remove
+it, and only a person can let a line through.
+
+Behaviour uses the same words: a newer file supersedes an older one, a
+candidate previously rejected is not proposed again, the agent decided. So
+most patterns fire only beside a decision, a person, a date, or a word
+naming the document's own drafts or review rounds ("an earlier draft",
+"this push"). The bare "previously" and "originally" fire alone, unless a
+determiner precedes them ("a previously rejected rule"). The patterns were
+measured on two kinds of text:
+- About 25,000 lines of open changes: the `inquisitor` change in this
+  repository's pull request #25; in
   the igor repository (adamstallard/igor), the six changes open on its main
   branch and the changes in four of its spec pull requests. The patterns
   flagged 292 lines, of which 2 were not history.
@@ -131,9 +155,7 @@ document itself. The patterns were measured on two kinds of text:
   show how often behaviour text is flagged. The patterns flagged 1 line
   there, and it was history.
 
-Even 2 false hits in 292 would block correct specs if they were errors,
-because `sign` refuses while any error remains. A check costs the author one
-look.
+So a false error is rare, and the override covers it.
 
 **Why its own patterns, not prose's.** prose's history patterns, in its
 `comment_scan.py`, catch a code comment narrating the code's past: "the old
@@ -146,7 +168,12 @@ uses only the standard library and installs without prose, so it cannot
 import them.
 
 **Rejected:**
-- **An error.** See *Why a warning*.
+- **A warning.** It asks whoever runs the check to review each line, when
+  the line should just be fixed.
+- **Rewording a false positive until the pattern misses it.** The words were
+  right; rewording them to suit a regex makes the spec worse and hides that
+  a person was needed. The override keeps the text and records the person's
+  call.
 - **The bare words**: `supersedes`, `replaces`, `reversed`, `was changed`,
   `no longer`. In the `inquisitor` change's specs they describe behaviour on
   31 lines, and each of those would fire.
@@ -566,8 +593,9 @@ nobody is doing.
 design.md's *Decisions*, and each undecided item in its *Open Questions*,
 both sections OpenSpec's instructions for design.md name. No record is kept
 of how a decision was amended: git and pull request comments hold that.
-The reviewer judges where a decision sits; `check` warns on a line that
-records how one was amended (*Document-evolution text is a warning*).
+The reviewer judges where a decision sits; the `check` command
+gives an error on a line that records how one was amended
+(*Document-evolution text is an error*).
 
 **Why.** OpenSpec keeps a proposal to one or two pages of why and what, and
 puts decisions and their rationale in design.md. Reviews of this repository's

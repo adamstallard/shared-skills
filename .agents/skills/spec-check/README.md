@@ -25,9 +25,10 @@ Before an agent commits, or opens a pull request for, anything under
      your specs to find out;
    - a requirement written out under `## RENAMED Requirements`, whose text
      the archive drops;
-   - as a check that never fails the run, a line recording how the change
-     got to its shape,
-     such as "amending decision 79" or "(Adam, 2026-10-21)".
+   - a line recording how the change got to its shape, such as "amending
+     decision 79" or "(Adam, 2026-10-21)". The agent removes it; when the
+     line is not history, the agent asks you, and only your answer keeps
+     it.
 
    It also runs `openspec validate --strict` and includes what it reports,
    such as a misspelt section title or a section the archive drops.
@@ -60,17 +61,22 @@ Before an agent commits, or opens a pull request for, anything under
 
 Decisions go in design.md: a change states each one once, as it stands now,
 in design.md's *Decisions*, and keeps proposal.md to OpenSpec's short why and
-what. This is a convention for authors; `check` does not test it.
+what. `check` does not test where a decision sits, but a line recording how
+one was amended is an error.
 
 Each commit that changes `openspec/` carries a `Spec-check:` trailer, such as
 `Spec-check: ✓ 4d593e935186 0 errors, 2 checks; validate passed; read by a
 fresh subagent; 3 amended, 1 open`. The hash is the tree the checks ran on,
 so staging anything afterwards breaks it. "read by its author, no subagent"
-means no fresh reader was available.
+means no fresh reader was available. When a person kept a flagged line (one
+recording how the change got to its shape) as written, the value adds a
+count after the checks, such as "1 evolution kept".
 
 **What it proves.** The trailer proves the mechanical checks passed on exactly
 what was committed. It does not prove a fresh subagent did the read: it
-records who the agent says did.
+records who the agent says did. Likewise, an "evolution kept" count
+records that the agent says a person approved each kept line; it does not
+prove it.
 
 ## Setup
 

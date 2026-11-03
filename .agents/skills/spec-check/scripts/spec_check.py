@@ -4,9 +4,13 @@
     spec_check.py check [<target>...] [--repo DIR] [--ref REF] [--base REF]
                         [--no-validate] [--json]
     spec_check.py sign --read subagent|self [--amended N] [--open N]
-                       [--base REF] [--no-validate]
+                       [--kept FILE] [--base REF] [--no-validate]
     spec_check.py verify-staged "Spec-check: <value>"   (message on stdin)
     spec_check.py verify-commit <sha> <value>
+
+`sign --kept FILE` clears `evolution` errors a person chose to keep: one
+line per finding, `<path>:<line> kept (asked): <reason>` (SKILL.md, "Keeping
+a line the evolution check flags").
 
 A target is a change name, a change directory (openspec/changes/<name>), or
 `specs` for every spec under openspec/specs. With no target, every open change
@@ -1057,15 +1061,19 @@ def judge_citation(m, base):
 # A change states what is true now; git and pull request comments hold how
 # it got there (DECISIONS.md, "Decisions live in design.md"). Each entry is
 # (name, pattern, what the phrase does, veto). A veto is matched against the
-# text left of the hit and suppresses it, as prose's history patterns for
-# code comments do. EVOLUTION_DETERMINER is the one veto: a determiner
+# text left of the hit and suppresses it, as the vetoes in the prose skill's
+# scripts/comment_scan.py do for code comments. EVOLUTION_DETERMINER is the
+# one veto: a determiner
 # directly before the hit, as in `a previously rejected rule` (behaviour);
 # in `the rule previously said` (history) nothing vetoes it. Behaviour text
-# uses `supersedes`, `reversible` and `no longer` freely, so every verb here
-# is pinned to a decision, a person, a date or the document itself. The bare
-# adverbs (`previously`, `originally`) are the exception, held back by the
-# veto and by EVOLUTION_PARTICIPLE. DECISIONS.md, "Document-evolution text is a warning", has
-# what the patterns were measured on.
+# uses `supersedes`, `reversible` and `no longer` freely, so a verb here
+# fires only beside a decision ("amends decision 4"), a person, a date, or a
+# word naming the document's own drafts or rounds ("an earlier draft", "this
+# push"). Three kinds of hit need no such word: `amendment`, `amended
+# by/on/in`, and the bare adverbs `previously` and `originally`. Behaviour
+# text in the measured changes did not use the first two; the adverbs are
+# held back by the veto and by EVOLUTION_PARTICIPLE. DECISIONS.md, "Document-evolution text
+# is an error", has what the patterns were measured on.
 
 EVOLUTION_DETERMINER = re.compile(
     r"(?:\b(?:a|an|the|any|all|some|its|their|every|each|no|one)|'s|’s)[\s-]+$", re.I)
@@ -1160,12 +1168,12 @@ def evolution_mask(line: str) -> str:
     CommonMark, a run of backticks opens a code span only when a later run
     of exactly its length closes it, and a run with no closer is literal
     text. Outside a span, a backslash makes the one backtick after it
-    literal: in \```x``, the escaped backtick is text, and the two after
-    it open a span that the last two close. Inside a span a backslash is plain text, so a
-    closer is never escaped.
+    literal. For example, in \```x`` the first backtick is escaped, so the
+    run of two after it opens a span, and the final run of two closes it.
+    Inside a span a backslash is plain text, so a closer is never escaped.
 
     Each line is masked on its own. A code span wrapped across two lines is
-    therefore read as prose, and can give a false warning on the second
+    therefore read as prose, and can give a false error on the second
     line."""
     runs = [(m.start(), m.end()) for m in EVOLUTION_BACKTICKS.finditer(line)]
     by_length: dict[int, list[int]] = {}
@@ -1226,14 +1234,15 @@ def evolution_hits(text: str) -> list[tuple[int, str, str, str]]:
 
 
 def check_evolution(paths: list[str], corpus: Corpus, out: list[Finding]) -> None:
-    """A warning on each line of the change's files that records how the
-    document got to its shape rather than what is true now."""
+    """An error on each line of the change's files that records how the
+    document got to its shape rather than what is true now. A person can
+    keep a false one through sign's --kept file (apply_kept)."""
     for path in paths:
         text: str = corpus.texts[path]
         for n, phrase, why, line in evolution_hits(text):
             quote = line if len(line) <= EVOLUTION_QUOTE_MAX \
                 else line[:EVOLUTION_QUOTE_MAX - 1] + "…"
-            out.append(Finding(path, n, "check", "evolution",
+            out.append(Finding(path, n, "error", "evolution",
                                f'"{phrase}" {why}; state what holds now and leave the history '
                                f'to git: {quote}'))
 
@@ -2837,6 +2846,57 @@ def staged_targets(repo):
     return paths, sorted(changes), specs
 
 
+# One line of sign's --kept file: an evolution error a person chose to keep.
+KEPT_LINE = re.compile(r"^(?P<path>.+?):(?P<line>\d+) kept(?P<asked> \(asked\))?:(?P<reason>.*)$")
+
+
+def apply_kept(path: str, findings: list[Finding]
+               ) -> tuple[list[Finding], list[str], list[str], list[str]]:
+    """Read the --kept file at path against the findings sign found.
+    Returns (the findings left, one line per finding kept, problems, unasked):
+    problems are lines naming no current evolution error, naming one a
+    second time, malformed, or with no reason; unasked are lines without
+    `(asked)`, which an
+    agent that cannot ask writes for whoever it hands back to. Either list
+    refuses the signing. `(asked)` is the agent's statement that a person
+    approved the line; nothing here can check it."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            lines = f.read().splitlines()
+    except (OSError, UnicodeDecodeError) as e:
+        raise Fatal(f"cannot read the --kept file {path}: {e}")
+    errors = {(f.path, f.line): f for f in findings
+              if f.severity == "error" and f.kind == "evolution"}
+    problems: list[str] = []
+    unasked: list[str] = []
+    named: dict[tuple[str, int], str] = {}
+    for n, raw in enumerate(lines, 1):
+        if not raw.strip():
+            continue
+        where = f"{path}:{n}: {raw.strip()!r}"
+        m = KEPT_LINE.match(raw.strip())
+        if not m:
+            problems.append(f"{where} is not `<path>:<line> kept (asked): <reason>`")
+            continue
+        key = (m.group("path"), int(m.group("line")))
+        reason = m.group("reason").strip()
+        if key not in errors:
+            problems.append(f"{where} names no current evolution error")
+        elif key in named:
+            problems.append(f"{where} names {key[0]}:{key[1]} a second time")
+        elif not reason:
+            problems.append(f"{where} gives no reason")
+        elif not m.group("asked"):
+            unasked.append(f"{key[0]}:{key[1]}: {errors[key].message}\n    reason: {reason}")
+        named[key] = reason
+    if problems or unasked:
+        return findings, [], problems, unasked
+    left = [f for f in findings
+            if not (f.severity == "error" and f.kind == "evolution" and (f.path, f.line) in named)]
+    kept = [f"{p}:{n}: kept (asked) [evolution] {reason}" for (p, n), reason in named.items()]
+    return left, kept, problems, unasked
+
+
 def cmd_sign(args):
     repo = repo_root(args.repo)
     paths, changes, specs = staged_targets(repo)
@@ -2857,7 +2917,28 @@ def cmd_sign(args):
             return 0
         res = run_checks(tmp, repo, base_ref, targets, not args.no_validate,
                          bool(args.base), tree)
+    kept: list[str] = []
+    if args.kept:
+        left, kept, problems, unasked = apply_kept(args.kept, res[2])
+        if problems or unasked:
+            for line in problems:
+                print(line)
+            if unasked:
+                print("These lines keep an evolution error that no person approved:")
+                for line in unasked:
+                    print(f"  {line}")
+                print(f"The --kept file: {os.path.abspath(args.kept)}")
+                print("Do not commit. Leave the change staged and put this message, whole, in "
+                      "your result. Whoever receives it asks a person about each line, makes "
+                      "the line `<path>:<line> kept (asked): <reason>` or fixes the text, and "
+                      "signs again.")
+            print("\nspec-check sign: not signed. Correct the --kept file and sign again.",
+                  file=sys.stderr)
+            return 1
+        res = (res[0], res[1], left, *res[3:])
     errors = print_report(*res, base_ref, "the staged tree", False)
+    for line in kept:
+        print(line)
     if errors:
         print("\nspec-check sign: not signed. Fix the errors and sign again, or commit "
               "work in progress with `Spec-check: skipped (<reason>)`.", file=sys.stderr)
@@ -2877,7 +2958,8 @@ def cmd_sign(args):
     else:
         validate = f"validate {validate}"
     reader = "a fresh subagent" if args.read == "subagent" else "its author, no subagent"
-    print(f"\n{KEY}: \u2713 {tree[:12]} 0 errors, {len(res[2])} checks; {validate}; "
+    counts = f"0 errors, {len(res[2])} checks" + (f", {len(kept)} evolution kept" if kept else "")
+    print(f"\n{KEY}: \u2713 {tree[:12]} {counts}; {validate}; "
           f"read by {reader}; {args.amended} amended, {args.open} open")
     return 0
 
@@ -2945,6 +3027,8 @@ def main(argv=None):
                    help="who did the consistency read")
     g.add_argument("--amended", type=int, default=0, help="amendments the read led to")
     g.add_argument("--open", type=int, default=0, help="open questions left in design.md")
+    g.add_argument("--kept", help="a file of evolution errors a person kept, one per line: "
+                                  "<path>:<line> kept (asked): <reason>")
     g.add_argument("--repo")
     g.add_argument("--base")
     g.add_argument("--no-validate", action="store_true")
