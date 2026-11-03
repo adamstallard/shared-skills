@@ -69,7 +69,8 @@ contradicts what design.md assumed.
       request be merged before the advisory is published, as design.md's
       *Weaknesses stay out of public text until disclosure* needs. Until
       this shows the merge waits for publication, fork commit messages
-      describe no weakness (design.md: *Weaknesses stay out of public text
+      describe the weakness only on the word of the person who will
+      publish the advisory (design.md: *Weaknesses stay out of public text
       until disclosure*)
 - [ ] 0.14 Whether an Igor worker's `gh` can post, from a login stored in
       the home directory igor gives it rather than in its environment, as
@@ -79,8 +80,10 @@ contradicts what design.md assumed.
       the person's `gh` login, for a mention, a review request, an
       assignment and a later comment in a thread the person was mentioned
       in, and that a conditional request answered `304` does not count
-      against the rate limit. Until then the answer session also reads the
-      comments of each subscribed repository since its poll position
+      against the rate limit. Until then the answer session also reads, since its
+      poll position, each subscribed repository's new issues and pull
+      requests, their comments, reviews and review-thread comments, and
+      the review requests and assignments naming the person
 - [ ] 0.16 How the answer session finds, on Linear with the person's key,
       mentions of the person and of the relay, and replies to a relay
       comment, in a subscribed team; that the answer session can post a
@@ -173,9 +176,9 @@ contradicts what design.md assumed.
 - [ ] 0.25 How GitHub, Linear and Discord each report a relay post refused
       for its text, such as its length, against one refused for lack of
       permission, as the answer-session spec's *A pending answer no check
-      returns waits for the person* tells them apart. The spec states no
-      rule for a refusal the session cannot place; design.md's *Open
-      Questions* holds it
+      returns waits for the person* tells them apart. A refusal the session
+      cannot place waits for the person under the same requirement; this
+      task records each surface's mapping
 - [ ] 0.26 Whether a tool a mod registers, such as `propose_reply`, can tell
       a subagent's call from the main model's, as the answer-session
       spec's *Claude's draft goes to the prompt box, never to a post*
@@ -192,14 +195,18 @@ contradicts what design.md assumed.
       spec's scenario it checks
 - [ ] 1.3 The library also handles the following. prose's existing tests
       still pass unchanged, except a test that expects one of these to
-      pass, which now expects it blocked: a data command given code to
-      run, such as `python3 -c`, whose code names `gh`; a title built by
-      the shell; a title edit chained to another command; a `gh` alias or
-      extension, such as `gh co`, anywhere on a line; a git form that runs
-      a command naming `gh`, which task 2.9 builds, as it does the alias
-      and extension refusal; or a `--body` or `-b` given unquoted, such as
-      `gh pr comment 5 --body hi`. Add tests for each to prose's and the
-      library's tests.
+      pass, which now expects it blocked: an interpreter with a code flag,
+      such as `python3 -c` or `node -e`, on a line that mentions a gh post
+      verb; a title built by the shell; a title edit chained to another
+      command; a `gh` alias or extension, such as `gh co`, anywhere on a
+      line; or a `git` command, on a line that mentions a gh post verb,
+      whose first word after `git` is not an allowlisted subcommand, such
+      as `git -C . status`, or that has an option that gives code to run.
+      This task builds three of the five refusals that sentence lists:
+      the interpreter with a code flag, the title built by the shell and
+      the chained title edit. Task 2.9 builds the other two: the `gh`
+      alias or extension refusal and the `git` refusal. Add tests for
+      each to prose's and the library's tests.
       - It reads a post's title, as a literal word, from `--title` or
         `-t`, a `gh api` `title` field under `issues` or `pulls`, the
         `title` argument of the GraphQL mutations that create or update
@@ -212,14 +219,20 @@ contradicts what design.md assumed.
         allow-list*, to say that a title is now read
       - It reads `python3 <github-app script> gh pr|issue …` posts,
         including `python3 $G …` only when the same command assigns `G`.
+      - It reads an unquoted `--body` or `-b` of one word holding no `$`,
+        backtick, `*`, `?`, `[`, `{`, `~` or `\`, such as `--body hi`,
+        `-bhi` or `--body=hi`, as that word, as prose's reader does
+        today.
       - It reads `gh api` comments whose body is given by `-f body=`,
         `--raw-field body=`, `-F body=` or `--field body=` (with or
         without `@<file>`), or by `--input`, and a review's
-        `comments[][body]` fields.
+        `comments[][body]` fields. A write that takes a field from a
+        file, by `@<file>` or `--input`, is readable only when it is the
+        whole command line (design.md: *The reader reads gh api writes, REST and GraphQL*).
       - It reports whether a post creates an issue.
       - It reads every `body` argument of the GraphQL mutations that post
-        text to an issue or pull request (design.md: *GraphQL mutations
-        that post text*), and reports any
+        text to an issue or pull request (design.md: *The reader reads gh api
+        writes, REST and GraphQL*), and reports any
         other mutation as no post, or as unreadable when it has a `body`.
       - It blocks as unreadable a `gh api` call that writes (its method
         `POST`, `PATCH` or `PUT`, given or implied by fields, or a GraphQL
@@ -229,13 +242,14 @@ contradicts what design.md assumed.
         unreadable, as prose's reader does today, a command that names
         `gh` in another command's arguments, such as `sh -c`, or that
         pipes into a command other than a data command.
-      - It blocks as unreadable a data command given code to run, such
-        as `python3 -c`, `node -e` or `git -c`, whose arguments name
-        `gh`, and treats `python3` or `node` reading its program from a
-        pipe or heredoc as no data command (design.md: *Code given on the
-        command line that names gh*). prose's hook
-        blocks these too, so a prose test that expects one of them to
-        pass is changed to expect it blocked
+      - On a line that mentions a gh post verb, it blocks as unreadable
+        an interpreter with a code flag anywhere among its words, such as
+        `python3 -W ignore -c`, `node -pe` or `perl -e`, whatever the code
+        runs, and input from a pipe or heredoc reaching `python`,
+        `python3` or `node` (design.md: *Code given on the command line
+        beside a gh post verb*). prose's hook blocks these too, so a prose
+        test that expects one of them to pass is changed to expect it
+        blocked
       - As part of this task, once the reader has moved, prose's
         `DECISIONS.md` section on the allow-list points at
         the library's list instead of restating it. Its section *A
@@ -245,7 +259,7 @@ contradicts what design.md assumed.
         longer says that `python3 - <<'EOF'`, `node -e` and `git -c` are
         outside the hook's reach, nor lists `rebase -x` among the
         disguises it calls out of scope (design.md: *Code given on the
-        command line that names gh*)
+        command line beside a gh post verb*)
 
 ## 2. The script
 
@@ -253,16 +267,16 @@ contradicts what design.md assumed.
       `--questions` and `--post`, which takes a post's body and title, printing the filters and filter 1's search
       results, issuing a token
 - [ ] 2.2 `vet --pass <token> --verdicts <file>` (second call): the four
-      verdicts and their fields, the three categories recorded by hash only,
-      the refusals, and the records the hooks read, each deleted once it is
-      more than 2 hours old except a `deferred` record without a category
+      verdicts and their fields, an `ask`'s related earlier decision, the
+      three categories recorded by hash only, the refusals, and the records
+      the hooks read, each deleted once it is more than 2 hours old
 - [ ] 2.3 Filter 1's search. This task builds the script's search;
       igor PR #216 builds `igor lore-search`, which applies the parts
       marked as igor's below.
       - It searches decision documents, issues through `gh`, the
         repository's question log and misses, and configured lore
-        clones' entries and `questions` branch, fetched and read with
-        `git show`.
+        clones' entries, `questions` branch and decision records at igor
+        PR #202's path, fetched and read with `git show`.
       - It matches as plain text and ranks by terms matched, with a cap
         it reports.
       - During an Igor's run it searches lore only through `igor
@@ -288,8 +302,9 @@ contradicts what design.md assumed.
           never from a slug starting with `igor-` (design.md: *An
           Igor's App is never a relay App*);
         - only the newest answer counting among a question's files on a
-          questions branch (design.md: *The newest proven answer
-          counts*);
+          questions branch, a signature dated no later than when this
+          machine first fetched its commit (design.md: *The newest proven
+          answer counts*);
         - a file's visibility taken from the more private of its
           `repository` and `asked_from` (design.md: *The Igor writes
           `asked_from` on every file it pushes*);
@@ -348,7 +363,12 @@ contradicts what design.md assumed.
         repository's `questions` branch for a question about the
         organization or project, fetching and pushing again when
         rejected.
-      - The secret scan and the visibility refusal.
+      - The secret scan, over raw markdown with link targets included, and
+        the visibility refusal.
+      - It refuses a question holding a line that is exactly
+        `## Rephrased question`, `## Discussion` or `## Answer`, saying why
+        (design.md: *The `log` command reads its inputs and the linked
+        comments itself*).
       - `misses`, listing the misses by filter for a review.
 - [ ] 2.4b `cite`, pushing a citation file in the format of *A citation
       file has one format* (`entry` and `date`, no `run`) to the
@@ -371,12 +391,13 @@ contradicts what design.md assumed.
       or a deferral label (design.md: *What counts as a question in a
       post*)
 - [ ] 2.6 `tag`, choosing whom a post's question tags. It takes the first
-      candidate with write access. When there is none, it turns to the login
-      configured for the person running the session, if it equals the
-      account `gh` is logged in as. The picker cases below apply only in a
-      session with a person in it; a session with no person in it tags the
-      login only when it has write access and the post goes out as someone
-      else, and otherwise tags no one:
+      candidate with write access, starting with the approver of the related
+      earlier decision the second call recorded. When there is none, it
+      turns to the login configured for the person running the session, if
+      it equals the account `gh` is logged in as. The picker cases below
+      apply only in a session with a person in it; a session with no person
+      in it tags the login only when it has write access and the post goes
+      out as someone else, and otherwise tags no one:
       - no login configured: ask through the picker instead;
       - the login has no write access: tag no one;
       - the login has write access and the post goes out as that login, or
@@ -385,9 +406,11 @@ contradicts what design.md assumed.
       - the login has write access and the post goes out as anyone else:
         tag it
 - [ ] 2.7 `lore`, opening a lore pull request, or a promotion from the
-      `questions` branch, or refusing it by visibility, by an id outside
-      igor's id rule, or, during an Igor's run, by an id reported only as
-      "id taken"
+      `questions` branch, or refusing it by visibility or by an id outside
+      igor's id rule. During an Igor's run it opens nothing and writes the
+      entry into the run's report for the Igor to propose, as igor PR #216
+      is asked to (design.md: *A general answer is proposed as a provisional
+      lore entry*)
 - [ ] 2.8 `relay-notice.yml`, the workflow template a lore repository
       carries to mention a relay file's person, modelled on igor PR #171's
       `templates/seat-notice.yml` (design.md: *A notice workflow mentions
@@ -396,25 +419,32 @@ contradicts what design.md assumed.
       - the `log` command's input file, refused unless it has mode 0600
         in a private directory (design.md: *The `log` command reads its
         inputs and the linked comments itself*);
-      - in the post reader, git forms that run a command (`rebase -x`,
-        `submodule foreach`, `bisect run`) treated as code to run, and a
-        `gh` alias or extension as unreadable (design.md: *Code given on
-        the command line that names gh*; *Which commands the reader
-        judges, and which are unreadable*)
+      - in the post reader, on a line that mentions a gh post verb, `git`
+        read as a data command only when the first word after `git` is an
+        allowlisted subcommand and none of its words gives code to run, any other use
+        unreadable; and a `gh` alias or extension unreadable on every line
+        (design.md: *Code given on the command line beside a gh post
+        verb*; *Which commands the reader judges, and which are
+        unreadable*)
 
 ## 3. Hooks
 
 - [ ] 3.1 `scripts/check-ask.sh`: `PreToolUse` on `AskUserQuestion` (Claude Code
       only), checking verdicts, blocking with exit 2, and failing open,
       including when it can't read its records
-- [ ] 3.2 `scripts/check-post.sh`: `PreToolUse` on Bash and the GitHub MCP tools,
-      through `.agents/lib/gh-post/`, blocking a post that holds a question
-      with a category (by the spec's *Some questions are recorded by hash
-      only*), blocking a post with a question when it can't read
-      its records, passing a `deferred` question that tags no one in an
-      open-questions section or a new issue, and vetting every post it
-      sees, one carrying igor's handback marker included (design.md: *No
-      exemption for an Igor's handback*)
+- [ ] 3.2 `scripts/check-post.sh`: `PreToolUse` on Bash and the GitHub MCP
+      tools, through `.agents/lib/gh-post/`, blocking every post that
+      holds a question whose latest verdict record has a category, since
+      such a question is asked only through the picker or the private
+      security advisory, never in a post (the spec's *A question with a
+      category is asked only through the picker or its advisory*); the
+      hook reads the category from that record (the spec's *Some
+      questions are recorded by hash only*). The hook also blocks a post
+      with a question when it can't read its records, blocks a question
+      whose raw markdown matches the credential patterns, passes a
+      `deferred` question less than 2 hours old that tags no one in an
+      open-questions section or a new issue, and vets every post it sees, one carrying igor's handback marker included
+      (design.md: *No exemption for an Igor's handback*)
 - [ ] 3.3 `hook.json` with both hooks, `"default": "enabled"`
 
 ## 4. Tests
@@ -602,7 +632,8 @@ contradicts what design.md assumed.
       opening, 60 seconds or GitHub's `X-Poll-Interval`, conditional
       requests, poll positions, and the lore questions branches
 - [ ] 6.4 Relaying: posts with the four reserved prefixes through the
-      relay identity's skill as host commands, post ids, editing in place,
+      relay identity's skill as host commands, the `Re: ` line on GitHub
+      and Linear posts, post ids, editing in place,
       the thread read before a question is shown and before each post, and
       a questions-branch question answered by a new log file, and a new
       log file again when its relayed answer is edited (design.md:
@@ -680,11 +711,16 @@ contradicts what design.md assumed.
           question a questions-branch file holds, whether from that
           branch or linked to a thread message by its `asked_in`, which
           closes exactly the file it names, for good;
+        - a miss or citation file's push recorded as owed before its post
+          and retried at each poll and each opening until it succeeds
+          (design.md: *Misses the answer session logs*; *A person's cite
+          pushes a citation file*);
         - a thread copy declined with nothing posted closed on that
           machine only;
         - a log file following its thread message by `asked_in`;
         - a later message in a closed question's thread, a follow-up or
-          a reply, shown as a new question;
+          a reply, shown as a new question, after an answer or a decline for
+          either reason;
         - a message that is not really a question ignored, and one that
           reaches the queue declined under reason 1 with no miss, or
           under reason 2 with filter 3's "the agent shouldn't have

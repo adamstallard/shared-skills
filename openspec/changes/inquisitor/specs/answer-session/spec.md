@@ -259,6 +259,13 @@ person's own, added alone*).
   commit also adds another file
 - **THEN** it does not count as the person's answer
 
+#### Scenario: A copy of another answer pushed alone counts
+
+- **WHEN** an answer file naming a log file that tags the person copies the
+  person's answer to another question, carries their comment link, and its
+  commit adds it alone
+- **THEN** it counts as the person's answer
+
 #### Scenario: A file that tags no one is answered by an account with write access
 
 - **WHEN** a log file tags no one, and an answer file naming it, added
@@ -1029,11 +1036,12 @@ nothing posted on it and no miss logged.
 
 ### Requirement: A question is resolved once answered or declined
 
-A question SHALL count as **resolved** once it is answered, with its
-file pushed where a questions-branch file holds it, as *A
-questions-branch answer's file is pushed after its post* and *An answer
-whose thread is unreachable here is logged at once* say, or once it is
-declined with nothing to answer, which keeps it closed on that machine
+A question SHALL count as **resolved** once it is answered and, if a
+questions-branch file holds it, its answer file is pushed (*A
+questions-branch answer's file is pushed after its post*; *An answer
+whose thread is unreachable here is logged at once*), or once its
+decline takes effect. A decline with nothing posted resolves it only on
+the declining machine
 (design.md: *Declining with nothing to answer closes only that
 question*; *The push order for a questions-branch answer*).
 
@@ -1063,6 +1071,14 @@ matching*).
 - **THEN** every machine shows the comment as a new question, under the
   second source or the first, and the declined question stays closed
   where it was declined
+
+#### Scenario: A later message after a decline for the inquisitor is a new question
+
+- **WHEN** the person declined a question in a GitHub issue as one the
+  inquisitor should have handled, picking filter 2, the relay posted
+  filter 2's reply, and the asker then comments again without a mention
+- **THEN** every machine shows the comment as a new question, under the
+  second source, and the declined question stays handled
 
 ### Requirement: The answer session polls only while it is open
 
@@ -1100,10 +1116,7 @@ fetch the questions branch of each configured lore repository.
 
 On GitHub the answer session SHALL read notifications conditionally,
 sending the previous response's `Last-Modified` time, no sooner than the
-`X-Poll-Interval` of GitHub's last response. Unless task 0.15 has shown
-that notifications report every GitHub message of the first three
-sources, it SHALL also read each subscribed repository's issue and pull
-request comments since its poll position.
+`X-Poll-Interval` of GitHub's last response.
 
 #### Scenario: GitHub's poll interval is honoured
 
@@ -1112,13 +1125,33 @@ request comments since its poll position.
   notifications endpoint again, and sends the `Last-Modified` time it
   received
 
+### Requirement: Until notifications are measured, the poll reads every GitHub question source
+
+Unless task 0.15 has shown that notifications report every GitHub
+mention, relay reply, review request and assignment (the first three
+sources of *A question asked of the person comes from one of four
+sources*), the answer session SHALL also read, at each
+GitHub poll and since its poll position, each subscribed repository's new
+issues and pull requests, their comments, reviews and review-thread
+comments, and the review requests and assignments naming the person.
+
 #### Scenario: Comments are read until the notifications endpoint is measured
 
 - **WHEN** task 0.15 has not shown that the notifications endpoint reports
-  every GitHub message of the first three sources, and the answer
-  session polls a subscribed repository
-- **THEN** it reads that repository's issue and pull request comments
-  since its poll position as well
+  every GitHub message of the first three question sources, and the
+  answer session polls a subscribed repository
+- **THEN** it reads that repository's new issues and pull requests, their
+  comments, reviews and review-thread comments, and the review requests
+  and assignments naming the person, since its poll position
+
+#### Scenario: A review request and a review-thread reply are found without notifications
+
+- **WHEN** task 0.15 has not shown that notifications report every GitHub
+  message of the first three question sources, and since the last poll a pull
+  request in a subscribed repository requested the person's review, and
+  someone replied in one of its review threads to a relay post, with
+  neither reported as a notification
+- **THEN** the answer session shows both as questions asked of the person
 
 ### Requirement: The answer session reads with the person's credentials, except on Discord
 
@@ -1150,8 +1183,9 @@ and post, in the channels it has been added to.
 
 For an answer, the answer session SHALL post `User says: ` and the
 answer exactly as confirmed, as the relay identity in the question's
-thread, keeping the post's id in the state folder; a GitHub post outside
-a review thread ends with a `Re: ` line holding the question's URL. On
+thread, keeping the post's id in the state folder, and naming the
+question as *A GitHub or Linear relay post names its question in a Re
+line* says. On
 Discord it SHALL use discord-bot without header options and mention
 rewriting on, showing the person its warnings after each post and edit
 (design.md: *Discord relay posts: no header, mentions that ping*).
@@ -1164,14 +1198,6 @@ rewriting on, showing the person its warnings after each post and edit
   `User says: Back off, capped at a minute.`, ending with a `Re: ` line
   holding the question comment's URL, and the comment's id is saved in
   the state folder
-
-#### Scenario: A GitHub answer to an item or a handback names it in its Re line
-
-- **WHEN** the person answers a question that is an issue's or pull
-  request's description, a review request, an assignment, or an Igor's
-  handback
-- **THEN** the relay's comment ends with `Re: ` and the URL of the issue
-  or pull request, or, for a handback, of the handback comment
 
 #### Scenario: An answer in a review thread or on Linear stays in its thread
 
@@ -1218,6 +1244,31 @@ rewriting on, showing the person its warnings after each post and edit
 - **WHEN** the person edits a Discord relay post to "ask @maya", and
   discord-bot's `edit` returns a warning that `@maya` matched no member
 - **THEN** the person is shown that warning after the edit
+
+### Requirement: A GitHub or Linear relay post names its question in a Re line
+
+A relay post on Linear, or on GitHub outside a review thread, SHALL end
+with a `Re: ` line holding the URL of the question it names. For a
+question in a comment, that is the comment's URL. For a handback, it is the
+handback comment's URL. For a question in an issue's or pull request's
+description, or a review request or assignment, it is the item's URL. On
+Discord a relay post SHALL name its question by replying to it.
+
+#### Scenario: A Linear relay post names its question in its Re line
+
+- **WHEN** the person answers a question asked in a comment on a Linear
+  issue, and another question that is a Linear issue assigned to them
+- **THEN** the Linear relay's comment answering the first ends with
+  `Re: ` and that comment's URL, and its comment answering the second
+  ends with `Re: ` and the Linear issue's URL
+
+#### Scenario: A GitHub answer to an item or a handback names it in its Re line
+
+- **WHEN** the person answers a question that is an issue's or pull
+  request's description, a review request, an assignment, or an Igor's
+  handback
+- **THEN** the relay's comment ends with `Re: ` and the URL of the issue
+  or pull request, or, for a handback, of the handback comment
 
 ### Requirement: A relay post is posted by a host command, unvetted
 
@@ -1389,6 +1440,22 @@ subscribed here; a dropped answer is never posted.
 - **THEN** nothing is posted for it, and the question's state is read
   from its thread
 
+### Requirement: A refusal the session cannot place waits for the person
+
+A refusal the session cannot place as one for its text or one for
+permission, by the mapping task 0.25 records for each surface, SHALL be
+handled as a refusal for its text: the answer stays pending until the
+person acts on it, shown with the surface's error, whatever check passes.
+
+#### Scenario: A refusal the session cannot place waits for the person
+
+- **WHEN** Discord refuses a relay post with an error that task 0.25's
+  mapping places neither as a refusal for its text nor as one for
+  permission, and the channel's check later passes
+- **THEN** the answer stays on the pending list, shown with Discord's
+  error, until the person edits, posts or drops it, and does not go back
+  into the queue
+
 ### Requirement: A pending answer leaves the list once it is settled
 
 An answer SHALL leave the pending list once it is back in the queue,
@@ -1484,6 +1551,16 @@ telling the person the answer was relayed but not logged, and why.
 - **THEN** the answer session drops the retry and pushes no file for it
 - **AND** an answer file naming that file that this machine had already
   seen when it recorded the push does not drop the retry
+
+#### Scenario: The machine's own earlier file does not cancel an edited answer's push
+
+- **WHEN** this machine pushed the answer "Use Postgres" at once while the
+  thread's channel was off, as *An answer whose thread is unreachable here
+  is logged at once* says
+- **AND** the person then edits it to "Use SQLite", it is posted once the
+  channel is on, and the push of the edited answer's file fails
+- **THEN** the answer session keeps retrying that push, and the
+  "Use Postgres" file does not drop the retry
 
 ### Requirement: The log command commits with the person's git identity
 
@@ -1783,9 +1860,10 @@ answered.
   for later, the closed questions, each open question's discussion
   record, each channel's and the notifications feed's poll position,
   each check's last result, relay post ids, the question on screen, the
-  answers held as answered, not relayed, each owed answer-file or
-  handled-file push (design.md: *The push order for a questions-branch
-  answer*), and the lock
+  answers held as answered, not relayed, each owed answer-file,
+  handled-file, miss-file or citation-file push (design.md: *The push
+  order for a questions-branch answer*; *Misses the answer session
+  logs*), and the lock
 
 #### Scenario: Filter 1 never searches the state folder
 
@@ -1969,7 +2047,7 @@ Rephrased question: <the question as rephrased>
 Discussion: <the discussion in one sentence>
 ```
 
-with its `Re: ` line on GitHub. The model drafts both added lines at the
+with its `Re: ` line on GitHub and Linear. The model drafts both added lines at the
 question's privacy. The agent logging the answer SHALL record both in its
 log file, as the inquisitor's *A log file and a miss file have one
 format* states.
@@ -2200,6 +2278,31 @@ until it succeeds.
 
 - **WHEN** the person confirms a decline with nothing posted, and the
   handled file's push fails
+- **THEN** the owed push stays recorded in the state folder, retried at
+  each poll and each opening until it succeeds
+
+### Requirement: A miss or citation file's push is owed and retried as a handled file's is
+
+The answer session SHALL record each miss or citation file it pushes as
+an owed push in the state folder before the post leading to it, or, with
+nothing posted, before the push. It SHALL drop the record when that post
+never went out, and retry a failed push at each poll and each opening
+until it succeeds, as *A handled file is pushed once its close takes
+effect* says of a handled file.
+
+#### Scenario: A miss owed when the session stopped is pushed at the next opening
+
+- **WHEN** the person declines an agent's GitHub question under the
+  second reason, picks filter 2 and confirms the post, and the answer
+  session stops after the post goes out but before pushing the miss file
+- **THEN** at its next opening it pushes the miss file it recorded as
+  owed
+
+#### Scenario: A failed citation push is retried
+
+- **WHEN** the answer session posts by itself a recorded answer whose
+  record is an `active` lore entry, and the push of the citation file
+  fails
 - **THEN** the owed push stays recorded in the state folder, retried at
   each poll and each opening until it succeeds
 
@@ -2443,7 +2546,9 @@ Under the second reason, the answer session SHALL log a miss against the
 picked filter, at the privacy of what the question concerns, whose
 `said` is the person's note, or `the inquisitor should have handled it`
 without one. It SHALL push the miss only once its post has gone out or,
-with nothing posted, once the person confirmed the decline.
+with nothing posted, once the person confirmed the decline, recording it
+as owed first, as *A miss or citation file's push is owed and retried as
+a handled file's is* says.
 
 #### Scenario: A decline with no note logs the default said after its post
 
@@ -2489,7 +2594,8 @@ The person SHALL be able to reopen, on the machine where they declined
 it, a thread copy declined with nothing posted, which puts it back in
 their queue, and SHALL NOT be offered any other declined question to
 reopen; one declined with a post is changed by editing that post
-(design.md: *Reopening a declined question*).
+(design.md: *Reopening a declined question*). A miss logged at the
+decline SHALL stay when the question is reopened.
 
 #### Scenario: A question declined with a post is not reopened
 
@@ -2504,6 +2610,15 @@ reopen; one declined with a post is changed by editing that post
 - **WHEN** the person declined a thread copy with nothing to answer and
   nothing posted, then reopens it on the same machine
 - **THEN** it is back in the queue on that machine
+
+#### Scenario: A reopened decline keeps its miss
+
+- **WHEN** the person declines an agent's thread copy under the second
+  reason, choosing filter 3's "the agent shouldn't have asked", so that
+  nothing is posted and a miss is pushed, then reopens it on the same
+  machine
+- **THEN** the question is back in the queue, and the miss file stays on
+  the questions branch
 
 #### Scenario: A declined questions-branch file is not offered for reopening
 
@@ -2556,7 +2671,7 @@ Recorded answer: see the record below.
 Recorded in: <the URL of where the answer is recorded>
 ```
 
-followed by its `Re: ` line on GitHub. Before each automatic post it
+followed by its `Re: ` line on GitHub and Linear. Before each automatic post it
 reads the thread again, as *The thread is read again before a question
 is shown and before a post* says.
 
@@ -2787,7 +2902,7 @@ a person's question it answers by itself logs none.
 The answer session SHALL judge a reply to an automatic post as a
 question, by filters 1 to 4 again, and may answer it by itself again. A
 question's **chain of replies** is the question, the relay post it
-replies to, the question that relay post names (on GitHub, by its `Re: `
+replies to, the question that relay post names (on GitHub and Linear, by its `Re: `
 line), and so on back to a question that replies to no relay post.
 
 #### Scenario: A reply to an automatic post is judged again

@@ -70,19 +70,24 @@ None.
   answer session's setup writes `~/.local/bin/answer`.
 - prose: its posting hook's command reader moves to `.agents/lib/gh-post/`,
   so the inquisitor's post hook reads posts the same way. The reader also
-  reads posts sent through the github-app skill and `gh api` comments, and
-  blocks a data command such as `python3 -c` that runs code naming `gh`. It
-  also reads a post's title, and a title it can't read makes the call
-  unreadable. It blocks as unreadable a `gh` alias or extension wherever
-  it appears, since an alias can send a post the reader takes for none;
-  so every prose user has read-only aliases such as gh's default `gh co`,
-  and extensions such as `gh dash`, blocked too. It blocks a git form that
-  runs a command naming `gh`, such as `git rebase -x`, since it can run a
-  post the reader never sees. It blocks a `--body` or `-b` given unquoted,
-  such as `--body hi`, which prose's reader reads today; no ruling records
-  why. design.md's *Open Questions* holds whether read-only aliases and
-  unquoted bodies should be blocked. prose's hook, which calls the reader,
-  gains all of these changes.
+  reads posts sent through the github-app skill and `gh api` comments.
+  A `gh api` write that takes a field from a file is readable only when
+  it is the whole command line, because an earlier command in the line
+  could rewrite the file. It also reads a post's title, and a title it can't
+  read makes the call unreadable. It blocks as unreadable a `gh` alias or
+  extension wherever it appears, since an alias can send a post the reader
+  takes for none; so every prose user has read-only aliases such as gh's
+  default `gh co`, and extensions such as `gh dash`, blocked too. On a
+  line that mentions a gh post verb, it blocks as unreadable an
+  interpreter with a code flag anywhere among its words, such as
+  `python3 -c` or `node -e`. On such a line it also blocks a `git`
+  command when the first word after `git` is not a subcommand on a fixed
+  allowlist, so `git -C . status` is blocked, or when the command has an
+  option that gives code to run, such as `-c`. Each of these can run a
+  post the reader never sees.
+  As prose's reader does today, it reads an unquoted `--body` or `-b` of
+  one plain word, such as `--body hi`. prose's hook, which calls the
+  reader, gains all of these changes.
 - In each repository where it runs, the skill writes `.inquisitor/`. In a
   team's lore repository, it pushes to an orphan branch named `questions`,
   and the answer session's setup proposes, by pull request, the person's

@@ -136,13 +136,14 @@ issue.
   the post creates an issue
 - **AND** it says so for `gh issue new` too
 
-### Requirement: A gh pr or gh issue body comes from a quoted option or an existing file
+### Requirement: A gh pr or gh issue body comes from a plain option value or an existing file
 
 The body of a command that *The reader reads a gh pr or gh issue post only
 as a whole command line* reads SHALL come from `--body` or `-b`, or for
-`close` and `reopen` `--comment` or `-c`, in single quotes or in double
-quotes with no `$`, backtick or backslash; or from `--body-file` or `-F`
-naming a file that exists.
+`close` and `reopen` `--comment` or `-c`, in single quotes, in double
+quotes with no `$`, backtick or backslash, or as one unquoted word
+holding none of `$`, backtick, `*`, `?`, `[`, `{`, `~` or `\`; or from
+`--body-file` or `-F` naming a file that exists.
 
 #### Scenario: A whole-command post with a body file is read
 
@@ -156,6 +157,18 @@ naming a file that exists.
 
 - **WHEN** a hook asks about `gh pr comment 5 --body "$(cat body.md)"`
 - **THEN** the reader reports the command as unreadable
+
+#### Scenario: A one-word unquoted body is read
+
+- **WHEN** a hook asks about `gh pr comment 5 --body hi`,
+  `gh pr comment 5 -bhi` and `gh pr comment 5 --body=hi`
+- **THEN** the reader returns `hi` as the body of each
+
+#### Scenario: An unquoted body with a shell-special character is unreadable
+
+- **WHEN** a hook asks about `gh pr comment 5 --body hi*`, or about
+  `gh pr comment 5 --body ~/notes`
+- **THEN** the reader reports each command as unreadable
 
 #### Scenario: A post that reads its body from a pipe is unreadable
 
@@ -241,10 +254,10 @@ records under *A command that runs no gh post is not a post*.
 A line mentioning a gh post verb SHALL send no post when its input obeys
 *Input to a no-post line reaches only data commands* and each simple
 command in it names no `gh`, is a `gh` command sending no text, or is one
-of prose's **data commands** given no code to run, with `gh` only inside a
-longer word that is not a path ending in `/gh`. Its scenarios list the
-data commands and the fixed forms that give code to run. The github-app
-skill's form counts as the `gh` command it runs.
+of prose's **data commands**. A data command counts only when none of
+its words is `gh` or a path ending in `/gh`. Its
+scenarios list the data commands. The
+github-app skill's form counts as the `gh` command it runs.
 
 #### Scenario: A command that sends no body is no post
 
@@ -269,34 +282,6 @@ skill's form counts as the `gh` command it runs.
 - **THEN** the reader reports each command as unreadable, the `echo` one
   too, though `echo` is one of prose's data commands
 
-#### Scenario: A gh post run as inline code is unreadable
-
-- **WHEN** a hook asks about
-  `python3 -c 'import os; os.system("gh pr comment 5 -b x")'`,
-  `node -e 'require("child_process").execSync("gh pr comment 5 -b x")'`,
-  `ruby -e 'system("gh pr comment 5 -b x")'`,
-  `perl -e 'system("gh pr comment 5 -b x")'` or
-  `git -c 'alias.p=!gh pr comment 5 -b x' p`
-- **THEN** the reader reports each command as unreadable
-- **AND** a data command is given code to run by an option before its
-  script or subcommand: `-c` for `python` or `python3`; `-e`, `--eval`,
-  `-p` or `--print` for `node`; or `-c` for `git`
-
-#### Scenario: Inline code after grouped options is unreadable
-
-- **WHEN** a hook asks about
-  `python3 -Ic 'import os; os.system("gh pr comment 5 -b x")'`
-- **THEN** the reader reports the command as unreadable, as `-c` after
-  any single-letter options gives code to run
-
-#### Scenario: A git subcommand that runs a gh post is unreadable
-
-- **WHEN** a hook asks about `git rebase -x 'gh pr comment 5 -b x' main`,
-  `git submodule foreach 'gh issue create -t x -b y'` or
-  `git bisect run gh pr comment 5 -b x`
-- **THEN** the reader reports each command as unreadable
-- **AND** `git rebase --exec` is given code to run, as `-x` is
-
 #### Scenario: A label edit through the github-app skill is no post
 
 - **WHEN** a hook asks about `python3 /abs/github_app.py gh pr edit 5
@@ -304,14 +289,103 @@ skill's form counts as the `gh` command it runs.
 - **THEN** the reader reports that the command sends no post, as it
   does for `gh pr edit 5 --add-label spec`
 
+### Requirement: An interpreter given a code flag makes a post-verb line unreadable
+
+On a line that mentions a gh post verb, a word naming an interpreter its
+scenarios list, alone or as a path ending in `/<name>`, followed anywhere
+later in its simple command by one of its code flags, SHALL make the line
+unreadable, even where another requirement of this spec says the line
+sends no post. The reader SHALL NOT parse the interpreter's options to
+find the flag. The github-app skill's form and a line that only runs
+prose's script SHALL be read by their own requirements.
+
+#### Scenario: A gh post run as inline code is unreadable
+
+- **WHEN** a hook asks about
+  `python3 -c 'import os; os.system("gh pr comment 5 -b x")'`,
+  `node -e 'require("child_process").execSync("gh pr comment 5 -b x")'`,
+  `ruby -e 'system("gh pr comment 5 -b x")'` or
+  `perl -e 'system("gh pr comment 5 -b x")'`
+- **THEN** the reader reports each command as unreadable
+- **AND** the interpreters and their code flags are `python`, `python3`
+  and `python3.<n>` with `-c`; `node` and `bun` with `-e`, `-p`, `--eval`
+  and `--print`; `perl` with `-e` and `-E`; `ruby` with `-e`; `php` with
+  `-r`; and `sh`, `bash`, `dash` and `zsh` with `-c`
+
+#### Scenario: Inline code after grouped options is unreadable
+
+- **WHEN** a hook asks about
+  `python3 -Ic 'import os; os.system("gh pr comment 5 -b x")'`, or about
+  `node -pe 'require("child_process").execSync("gh pr comment 5 -b x")'`
+- **THEN** the reader reports each command as unreadable
+- **AND** a short code flag counts alone or as one letter of a word that
+  starts with a single `-`, and a long one alone or followed by `=`
+
+#### Scenario: An option that takes a value does not hide inline code
+
+- **WHEN** a hook asks about
+  `python3 -W ignore -c 'import os; os.system("gh pr comment 5 -b x")'`
+- **THEN** the reader reports the command as unreadable, finding `-c`
+  among the command's words without reading `-W` or its value
+
+#### Scenario: Inline code beside a gh post verb is unreadable whatever it runs
+
+- **WHEN** a hook asks about `python3 -c 'print(1)' && gh pr edit 5
+  --add-label spec`, or about `timeout 5 node -e 'x()' && gh pr edit 5
+  --add-label spec`
+- **THEN** the reader reports each line as unreadable
+- **AND** `python3 -c 'print(1)'` alone, a line that mentions no gh post
+  verb, sends no post
+
+#### Scenario: A code flag given to gh through the github-app skill is gh's
+
+- **WHEN** a hook asks about `python3 /abs/github_app.py gh issue close 5
+  -c 'done'`
+- **THEN** the reader returns `done` as the body
+
+### Requirement: Only allowlisted git is a data command beside a gh post verb
+
+On a line that mentions a gh post verb, `git` SHALL count as a data
+command only when the first word after `git` is a subcommand on the
+allowlist its scenarios give, so `git -C . status` is not one, and none
+of its words is an option that those scenarios list as giving code to
+run. Any other `git` use SHALL make the line unreadable, even
+where another requirement of this spec says the line sends no post.
+
+#### Scenario: git outside its allowlist is unreadable on a post-verb line
+
+- **WHEN** a hook asks about a line that mentions a gh post verb and holds
+  `git rebase -x 'gh pr comment 5 -b x' main`,
+  `git submodule foreach 'gh issue create -t x -b y'`,
+  `git bisect run gh pr comment 5 -b x`,
+  `git config alias.p '!gh pr comment 5 -b x' && git p`,
+  `git difftool -x 'gh pr comment 5 -b x'`,
+  `git filter-branch --tree-filter 'gh pr comment 5 -b x'`,
+  `git -c 'alias.p=!gh pr comment 5 -b x' p`,
+  `git -C . -c 'alias.p=!gh pr comment 5 -b x' p` or
+  `git -C status rebase -x 'gh pr comment 5 -b x' main`
+- **THEN** the reader reports each line as unreadable
+- **AND** `git` is a data command on such a line only when the first word
+  after `git` is `add`, `branch`, `checkout`, `commit`, `diff`, `fetch`, `log`,
+  `ls-files`, `push`, `restore`, `rev-parse`, `show`, `stash`, `status`,
+  `switch` or `tag`, and none of its words starts with `-c`, or is
+  `--config-env`, `--exec-path`, `--upload-pack`, `--receive-pack` or
+  `--exec`, alone or followed by `=`
+
+#### Scenario: An allowlisted git command beside a gh post verb is a data command
+
+- **WHEN** a hook asks about `git push && gh pr edit 5 --add-label spec`
+- **THEN** the reader reports that the line sends no post
+
 ### Requirement: Input to a no-post line reaches only data commands
 
 In a line whose simple commands are all ones that *A line whose simple
 commands send no text is no post* allows, input from a pipe or an input
 redirection SHALL reach only data commands, or, when it reaches a single
 simple command, a `gh` command that sends no text and uses no gh post
-verb. Otherwise the line SHALL be unreadable. `python`, `python3` or
-`node` reading its program from that input is not a data command.
+verb. Otherwise the line SHALL be unreadable. Input reaching `python`,
+`python3` or `node` SHALL make the line unreadable, whatever its other
+words.
 
 #### Scenario: A gh post piped into a shell is unreadable
 
@@ -326,8 +400,9 @@ verb. Otherwise the line SHALL be unreadable. `python`, `python3` or
   about `python3 -` reading a heredoc that holds
   `os.system("gh pr comment 5 -b x")`
 - **THEN** the reader reports each command as unreadable
-- **AND** an interpreter reads its program from input when its script is
-  `-`, or it has no script and no `-c`, `-e`, `--eval`, `-p` or `--print`
+- **AND** so it does for input reaching `python`, `python3` or `node`
+  whatever its other words, as finding its script would mean reading its
+  options
 
 #### Scenario: Input that reaches several commands needs data commands only
 
@@ -465,7 +540,7 @@ creates an issue, as an MCP `create_issue` does.
 - **THEN** the reader returns `hi` as the body
 - **AND** the endpoint may have a leading `/` or none, its `{owner}` and
   `{repo}` are read as placeholders, and the unquoted field is read,
-  though a `--body` of `gh pr` or `gh issue` must be quoted
+  as a one-word `--body` of `gh pr` or `gh issue` is
 
 #### Scenario: A gh api review's nested comments are read
 
@@ -474,6 +549,30 @@ creates an issue, as an MCP `create_issue` does.
 - **THEN** the reader returns `ok` and `Why?` as bodies
 - **AND** for `--input r.json`, where `r.json` holds `body` and a
   `comments` array whose items hold `body`, it returns each of them
+
+### Requirement: A gh api write read from a file is read only as a whole command line
+
+The reader SHALL read a `gh api` write that takes a field from a file,
+through `-F` or `--field` with `@<file>`, or its input through
+`--input`, only when the whole command line is that `gh api` command,
+and SHALL report it as unreadable otherwise. A write whose fields are
+all given in the command SHALL be read in a longer line too.
+
+#### Scenario: A gh api body file after another command is unreadable
+
+- **WHEN** a hook asks about `printf 'unsigned' > c.md && gh api
+  repos/o/r/issues/5/comments -F body=@c.md`, and about the same line
+  with `--input c.json` in place of `-F body=@c.md`, where both files
+  exist
+- **THEN** the reader reports each line as unreadable
+- **AND** `gh api repos/o/r/issues/5/comments -F body=@c.md` alone
+  returns the file's text as the body
+
+#### Scenario: A gh api body given in the command is read in a longer line
+
+- **WHEN** a hook asks about `cd /x && gh api repos/o/r/issues/5/comments
+  -f body='done'`
+- **THEN** the reader returns `done` as the body
 
 ### Requirement: The reader reads GraphQL posts and blocks a gh api write it can't read
 

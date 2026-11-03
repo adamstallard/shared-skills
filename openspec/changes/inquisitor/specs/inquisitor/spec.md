@@ -84,16 +84,16 @@ tags* a person when its list item or sentence mentions their login as
 `@login`.
 
 An agent is *inside an Igor*, or works *during an Igor's run*, as igor PR
-#216 defines "during a run", when it works for an Igor under that Igor's
-role, as a worker on an item or as the Igor itself running the
-inquisitor's filters on a question that stopped its work. There the
-skill's script runs in *Igor-worker mode*, which `IGOR_RUN=worker` marks
-in a worker and `IGOR_RUN=igor` in an inquisitor run the Igor starts
-itself (*The script tells an Igor's run by IGOR_RUN*): filter 1 searches
-lore only through `igor lore-search`, and the script pushes nothing to a
-lore repository, putting each file it would push in the run's report for
-the Igor to push, as igor PR #216 says. What an Igor worker does as an
-agent, such as asking only in its handback comment, is no part of that
+#216 defines "during a run", when it works for an Igor under that Igor's role,
+as a worker on an item or as the Igor itself running the inquisitor's filters
+on a question that stopped its work. There the skill's script runs in
+*Igor-worker mode*, which `IGOR_RUN=worker` marks in a worker and
+`IGOR_RUN=igor` in an inquisitor run the Igor starts itself (*The script tells
+an Igor's run by IGOR_RUN*): filter 1 searches lore only through `igor
+lore-search`, and the script pushes nothing to a lore repository, putting each
+file it would push, and each lore entry it would propose, in the run's report
+for the Igor to push or propose, as igor PR #216 says. What an Igor worker does
+as an agent, such as asking only in its handback comment, is no part of that
 mode.
 
 *A miss* is a question a person said need not have been asked, or that an
@@ -178,6 +178,24 @@ but switching between them later is cheap, and the agent chooses one.
 - **WHEN** two options have merit and switching between them later is cheap
 - **THEN** the agent chooses one, records the choice and its reason, and asks
   nobody
+
+### Requirement: A rhetorical question outside a post is rewritten with nothing recorded
+
+A rhetorical question outside a post, one the agent would have put to the
+picker or in its report, SHALL be rewritten there as a statement with
+nothing recorded: the agent passes it to neither call, and, when the first
+call has already taken it, runs the first call again without it, since
+the second call refuses a question the first call took and left without a
+verdict. The
+`decided` verdict naming the post is for a rhetorical question in a post
+only (design.md: *Questions in posts*).
+
+#### Scenario: A rhetorical question meant for the picker is rewritten with nothing recorded
+
+- **WHEN** the agent finds that a question it would have put to the picker
+  is rhetorical
+- **THEN** it states it as a statement instead, records no verdict and no
+  log file for it, and opens no picker for it
 
 ### Requirement: An agent records its own choice where the question's answer is recorded
 
@@ -272,9 +290,10 @@ through the filters*).
 
 When the agent cannot tell which git repository's code, docs or
 decisions a question is about, **the repository the question concerns**
-SHALL be the one holding the current work. During an Igor's run, it
-SHALL be the repository of the item the run works, never one the worker
-names.
+SHALL be the one holding the current work, which during an Igor's run is
+the repository of the item the run works. A question clearly about
+another repository SHALL name that one, during an Igor's run too, where
+`asked_from` records the item's.
 
 #### Scenario: A question tied to no one repository concerns the current work's
 
@@ -282,11 +301,20 @@ names.
   cannot tie to the code, docs or decisions of any one repository
 - **THEN** the repository the question concerns is `o/api`
 
-#### Scenario: An Igor's worker does not choose the repository its question concerns
+#### Scenario: In an Igor's run, a question tied to no one repository concerns the item's
 
-- **WHEN**, during an Igor's run on an item of `o/api`, the worker names
-  `o/web` as the repository its question concerns
+- **WHEN**, during an Igor's run on an item of `o/api`, the worker has a
+  question it cannot tie to the code, docs or decisions of any one
+  repository
 - **THEN** the repository the question concerns is `o/api`
+
+#### Scenario: In an Igor's run, a question about another repository names it
+
+- **WHEN**, during an Igor's run on an item of `o/web`, the worker has a
+  question clearly about the code of `o/api`
+- **THEN** the repository the question concerns is `o/api`, and the file
+  the Igor pushes for it holds `repository` `o/api` and `asked_from`
+  `o/web`
 
 ### Requirement: Only five kinds of document are decision documents
 
@@ -397,11 +425,11 @@ decline*).
 
 ### Requirement: An unreadable visibility counts against sharing
 
-A visibility that cannot be read SHALL count as private for the
-repository the question concerns and for one an `asked_in` URL points
-into, and as public for a lore repository and for the repository a post
-goes to (design.md: *Nothing goes somewhere more visible than its
-source*).
+A visibility that cannot be read SHALL count as private for the repository
+the question concerns, for one an `asked_in` URL points into, and for one
+a log or miss file's `asked_from` names, and as public for a lore
+repository and for the repository a post goes to (design.md: *Nothing goes
+somewhere more visible than its source*).
 
 #### Scenario: Unreadable visibilities keep a question out of a post
 
@@ -409,6 +437,13 @@ source*).
   nor that of the repository a post would go to can be read
 - **THEN** the first counts as private and the second as public, so
   nothing about the question goes into that post
+
+#### Scenario: A well-formed asked_from whose visibility can't be read is private
+
+- **WHEN** a questions-branch file's `repository` is the public `o/web`,
+  its `asked_from` is `o/api`, which passes the syntax check, and the
+  visibility of `o/api` cannot be read
+- **THEN** the file counts as private
 
 ### Requirement: A question beyond one repository is bounded by the current work's
 
@@ -430,7 +465,8 @@ person's way of working SHALL never be posted.
 Wherever this spec or the `answer-session` spec compares a log file's or
 miss file's visibility, it SHALL be that of the more private of the
 repositories its `repository` and `asked_from` keys name, or of its
-`repository` alone when it holds no `asked_from`. A value that fails the
+`repository` alone when it holds no `asked_from`. A
+value that fails the
 syntax check *A log file's repository keys and answer_link are checked
 before use* sets SHALL count as a private repository, and also makes the
 file input, labelled unreadable, as that requirement says.
@@ -631,13 +667,14 @@ files as of igor PR #208's applied commit*).
   applied, where `alice-relay` is not listed, and `alice-relay` is not
   `alice`'s relay App
 
-### Requirement: Under igor run, no relayed answer is known
+### Requirement: Where igor PR #208 has applied no lore commit, no relayed answer is known
 
-Under `igor run`, which never fetches, igor PR #208 has applied no lore
-commit, so no relay file is read. There the Igor SHALL push an answer
-from a `User says: ` comment as `input` (igor PR #216's decision 78;
-design.md: *An Igor reads relay files as of igor PR #208's applied
-commit*).
+Under `igor run`, which never fetches, and for a lore repository igor PR
+#208 never fetches, #208 has applied no lore commit, so no relay file is
+read. There the Igor SHALL push an answer from a `User says: ` comment as
+`input`, and an answer in the person's own comment SHALL still count
+(igor PR #216's decision 78; design.md: *An Igor reads relay files as of
+igor PR #208's applied commit*).
 
 #### Scenario: Under igor run, a listed App's answer is input
 
@@ -652,6 +689,22 @@ commit*).
   linking a `User says: ` comment by `alice-relay`
 - **THEN** the relay check does not run, and the Igor pushes the file
   with `authority: input`
+
+#### Scenario: A lore repository #208 never fetches has no relayed answer
+
+- **WHEN** during an Igor's run, a worker re-working an item reports a log
+  file linking a `User says: ` comment by `alice-relay`, and the file goes to
+  a lore repository igor PR #208 never fetches
+- **THEN** no relay file of that lore repository is read, and the Igor pushes
+  the file with `authority: input`
+
+#### Scenario: A person's own comment counts with no relay file read
+
+- **WHEN** under `igor run`, a worker re-working an item reports a log file
+  linking a comment `alice` posted herself, not through any App, answering
+  the handback
+- **THEN** the answer counts as `alice`'s own comment, as it would with a
+  relay file read, and is not made `input` for want of one
 
 ### Requirement: A relay App is one its person's counted relay file lists
 
@@ -709,7 +762,8 @@ key's `-----BEGIN` line, GitHub tokens (`ghp_`, `gho_`, `ghs_`, `ghu_`,
 `ghr_`, `github_pat_`), Anthropic API keys (`sk-ant-`), AWS access key
 IDs (`AKIA`), Slack tokens (`xox`), Linear API keys (`lin_api_`,
 `lin_oauth_`), and Discord bot tokens (three base64 parts separated by
-dots).
+dots: the first of 24 or more characters, the second of exactly 6, the
+third of 27 or more).
 
 #### Scenario: The credential patterns
 
@@ -718,13 +772,19 @@ dots).
   `lin_oauth_`
 - **THEN** it matches the credential patterns
 
+#### Scenario: Dotted ordinary text is no Discord bot token
+
+- **WHEN** a string holds `1.15.0`, `www.example.com` or `spec.md.bak`
+- **THEN** it does not match the credential patterns
+- **AND** three dot-separated base64 parts of 24, 6 and 27 characters do
+
 ### Requirement: Filter 1 searches every place an answer is recorded
 
-Filter 1 SHALL search, as its scenarios list, the decision documents,
-issues with their comments, question log and misses of the repository the
-question concerns, and the lore entries and questions branch, read
-without a checkout, of each configured lore repository serving it, or of
-all if the agent works in no git repository.
+Filter 1 SHALL search, as its scenarios list, the decision documents, issues
+with their comments, question log and misses of the repository the question
+concerns, and the lore entries, questions branch and decision records, read
+without a checkout, of each configured lore repository serving it, or of all if
+the agent works in no git repository.
 
 #### Scenario: The repository's question log and misses are searched
 
@@ -1012,10 +1072,10 @@ every other source as not searched.
 Filter 1 SHALL treat a search hit as an earlier answer only when it is a
 decision document on the default branch of the repository the question
 concerns, the decision block of an issue whose author has write access to that
-repository, an in-scope lore entry whose `status` is `active`, or a hit
-that *A work-branch decision answers only its own work* or *A log entry
-counts only where its branch allows* counts. A decision record with a
-status, such as a MADR, counts only when `accepted`.
+repository, an in-scope `active` lore entry, or a hit counted by *A work-branch
+decision answers only its own work*, *A log entry counts only where its branch
+allows* or *A lore decision record counts*. A decision record with a status
+counts only when `accepted`.
 
 #### Scenario: A decision block by an outsider is input
 
@@ -1037,6 +1097,31 @@ status, such as a MADR, counts only when `accepted`.
   it
 - **AND** `o/web` is no more visible than `o/api`
 - **THEN** the search shows the entry, and filter 1 treats it as an answer
+
+### Requirement: A lore decision record counts
+
+igor's scribe puts a decision record in the repository the decision
+concerns, or in the team's lore repository when it spans repositories
+(igor PR #202's decision 5). Filter 1 SHALL count an `accepted` decision
+record at the path #202 sets, on the default branch of a lore repository
+it searches, as an answer to a question that lore repository serves
+(design.md: *Filter 1 searches igor's scribe's records where #202 puts
+them*).
+
+#### Scenario: A lore repository's accepted decision record is an answer
+
+- **WHEN** an `accepted` decision record at the path igor PR #202 sets, on
+  the default branch of the team's lore repository, which serves `o/api`,
+  answers a question about `o/api`
+- **THEN** the search shows it, and filter 1 treats it as an answer
+
+#### Scenario: A lore repository's proposed decision record is input
+
+- **WHEN** a decision record at the path igor PR #202 sets, on the default
+  branch of the team's lore repository, whose status is `proposed`, answers
+  a question about a repository it serves
+- **THEN** the search shows it labelled as not accepted, and the question
+  is not treated as answered
 
 ### Requirement: A work-branch decision answers only its own work
 
@@ -1102,6 +1187,14 @@ shown labelled as the agent's choice, which a person can overrule.
   other than the current work's own matches the question
 - **THEN** the search shows it labelled as unconfirmed, and the question is
   not treated as answered
+
+#### Scenario: A decision logged on the work's own branch answers within that work
+
+- **WHEN** a log entry with `authority: decision` on the current work's own
+  branch, in the repository itself, matches a question within that work, and
+  the work's pull request author has write access to the repository
+- **THEN** filter 1 treats it as an answer, labelled as this change's, not
+  yet merged
 
 ### Requirement: A questions-branch decision counts only unchanged and with a proven writer
 
@@ -1321,10 +1414,12 @@ labelled as superseded.
 ### Requirement: A file is as new as its proof, and supersedes only if it would count
 
 A file's newness SHALL be its proof's date: for a comment link, GitHub's time
-of the comment's last edit, or its creation; for a signature, the signed
-commit's committer date. A file that would not count, such as an
-`input`, unanswered or unproven one, SHALL supersede nothing, except one
-that stops counting only because it was replaced.
+of the comment's last edit, or its creation; for a signature, the earlier
+of the signed commit's committer date and the time this machine first
+fetched the commit that added the file. A file that would not count, such as an
+`input`, unanswered or unproven one, SHALL supersede nothing. One that
+would count but for a newer answer file naming the same file in
+`answers` SHALL still supersede older files.
 
 #### Scenario: A re-pushed copy of an older answer does not count
 
@@ -1340,6 +1435,14 @@ that stops counting only because it was replaced.
   added after it, an `input` file with the same question
 - **THEN** filter 1 treats the `decision` file as the answer, and shows
   the `input` file labelled as input
+
+#### Scenario: A signature dated in the future is dated by its first fetch
+
+- **WHEN** a signed `decision` file's commit carries a committer date a
+  year ahead, this machine first fetched it on 1 March, and a proven answer
+  with the same question is signed on 2 March
+- **THEN** the first file's newness is 1 March, and filter 1 treats the
+  2 March file as the answer
 
 ### Requirement: A named file's answer is the newest proven answer file naming it
 
@@ -1638,9 +1741,7 @@ An asked question SHALL state the answer the agent recommends (in a
 picker, as its first option, or the second call SHALL refuse its `ask`);
 what each other answer would change; and, on its related-decision line, a
 link to any related earlier decision that all its readers can read, as *A
-question is written at the privacy of what it concerns* says. A **related
-earlier decision** is one the agent names, when it runs the first call,
-from filter 1's hits as related to the question.
+question is written at the privacy of what it concerns* says.
 
 #### Scenario: The recommended answer comes first
 
@@ -1668,6 +1769,21 @@ from filter 1's hits as related to the question.
   `DECISIONS.md`, and the question, about a public repository, is to be
   asked in that public repository's pull request
 - **THEN** the question has no related-decision line linking that decision
+
+### Requirement: A related earlier decision is named at the second call
+
+A **related earlier decision** SHALL be one the agent names at the second
+call, with the question's verdict, from the filter 1 hits the first call
+printed for it, as related to the question; the second call SHALL record
+it with that verdict.
+
+#### Scenario: The related decision is named at the second call
+
+- **WHEN** the first call prints, among a question's filter 1 hits, an
+  earlier decision related to it, and the second call gives the question
+  an `ask` naming that decision as related
+- **THEN** the second call records the decision with the verdict, and the
+  agent adds its related-decision line after the second call
 
 ### Requirement: A related-decision line is one URL on a line of its own
 
@@ -1858,7 +1974,8 @@ The skill's script SHALL take questions in two calls. The first takes them
 as the person would see them, prints the four filters and filter 1's
 search results for each, and issues a token, recording no verdict. The
 second takes the token and a verdict per question, `answered`, `deferred`,
-`decided` or `ask`, with its field.
+`decided` or `ask`, with its field and, for an `ask`, any related earlier
+decision.
 
 #### Scenario: Each verdict carries its field
 
@@ -1874,9 +1991,10 @@ second takes the token and a verdict per question, `answered`, `deferred`,
 The second call SHALL refuse a field missing or matching the credential
 patterns, a question the first call did not take or left without a
 verdict, and a token spent or over 2 hours old, recording nothing and
-keeping the token. Else it SHALL record each verdict, its field and the
-time against the question's text (for a category, as *Some questions are
-recorded by hash only* says), and spend the token.
+keeping the token. Else it SHALL record each verdict, its field, any
+related earlier decision and the time, kept by the hash of the question's
+text, and spend the token. For a question with a category it SHALL record
+only what *Some questions are recorded by hash only* allows.
 
 #### Scenario: A verdict without its field is refused
 
@@ -1919,8 +2037,8 @@ directory only the agent's user can read. Either call SHALL refuse a file
 its group or others can read, or whose directory they can, recording
 nothing and keeping any token. A picker `ask`'s record SHALL keep its
 field without the recommended label. The next call or hook reading the
-records SHALL delete each over 2 hours old, except a `deferred` one
-without a category, kept until a later verdict on its text.
+records SHALL delete each over 2 hours old, whatever its verdict or
+category.
 
 #### Scenario: A questions file others can read is refused
 
@@ -1940,11 +2058,11 @@ without a category, kept until a later verdict on its text.
 - **THEN** the record holds none of the question's option labels, and
   keeps the rest of the verdict's field
 
-#### Scenario: A deferred record is kept
+#### Scenario: A deferred record without a category expires
 
 - **WHEN** a hook reads the records and a `deferred` record without a
   category was made more than 2 hours earlier
-- **THEN** that record is kept
+- **THEN** that record is deleted
 
 #### Scenario: A deferred record with a category expires
 
@@ -1954,8 +2072,8 @@ without a category, kept until a later verdict on its text.
 
 #### Scenario: An old record is deleted
 
-- **WHEN** a hook reads the records and one of them, not a `deferred` record
-  without a category, was made more than 2 hours earlier
+- **WHEN** a hook reads the records and one of them was made more than 2
+  hours earlier
 - **THEN** that record is deleted, whether or not it has a category
 
 ### Requirement: A question's text and hash are built one way
@@ -2043,12 +2161,12 @@ verdict records.
 ### Requirement: Questions in posts pass the same filters
 
 A `PreToolUse` hook SHALL block a post holding a question with no verdict,
-or whose most recent verdict is neither `ask` nor `deferred`, or is an
-`ask` over 2 hours old, and SHALL block a post holding a question when it
-cannot read its verdict records. A `deferred` verdict of any age SHALL
-pass only a question that tags no one and is an item of an open-questions
-section or in a post that creates an issue, as the shared post reader
-reports it; anywhere else it needs an `ask` verdict.
+or whose most recent verdict is neither `ask` nor `deferred`, or is over
+2 hours old, and SHALL block a post holding a question when it
+cannot read its verdict records. A `deferred` verdict less than 2 hours
+old SHALL pass only a question that tags no one and is an item of an
+open-questions section or in a post that creates an issue, as the shared
+post reader reports it; anywhere else it needs an `ask` verdict.
 
 #### Scenario: A post with an unvetted question is blocked
 
@@ -2072,9 +2190,16 @@ reports it; anywhere else it needs an `ask` verdict.
 #### Scenario: A deferred question may be listed in a post
 
 - **WHEN** a post lists, under "Still open", a question whose most recent
-  verdict is `deferred`, recorded three days earlier, and the item tags no
+  verdict is `deferred`, recorded within 2 hours, and the item tags no
   one
 - **THEN** the hook lets the post through
+
+#### Scenario: A post listing a stale deferral is blocked
+
+- **WHEN** a post lists, under "Still open", a question tagging no one
+  whose `deferred` verdict was recorded more than 2 hours earlier
+- **THEN** the hook blocks the post and names the question, and the agent
+  runs the two calls on it again
 
 #### Scenario: A deferred question that tags a person is blocked
 
@@ -2123,6 +2248,20 @@ reports it; anywhere else it needs an `ask` verdict.
 - **WHEN** the most recent verdict on every question the hook finds in a
   post is an `ask` recorded within 2 hours
 - **THEN** the hook lets the post through
+
+### Requirement: The post hook scans each question's raw markdown
+
+Just before a post goes out, the post hook SHALL block it when any of its
+questions, read as raw markdown with link targets included, matches the
+credential patterns (design.md: *The secret scan is only a backstop*).
+
+#### Scenario: A token added to a link target after vetting is blocked
+
+- **WHEN** a question in a post was vetted `ask`, and its link target is
+  then changed to `https://x/?token=ghp_…`, which leaves its reduced text
+  and hash unchanged
+- **THEN** the post hook blocks the post, since its scan reads the raw
+  markdown
 
 ### Requirement: A question in a post is a listed item or a sentence ending in a question mark
 
@@ -2239,8 +2378,8 @@ has a picker, an agent asks through it, never in its reply* says.
 
 #### Scenario: The approver of the earlier decision is tagged
 
-- **WHEN** a question relates to an earlier decision that a person with write
-  access approved
+- **WHEN** the second call recorded, with a question's `ask`, a related
+  earlier decision that a person with write access approved
 - **THEN** the question tags that person alone
 
 #### Scenario: A listed reviewer is tagged next
@@ -2975,6 +3114,22 @@ answer file names the file it answers*).
   URL of the forms given
 - **THEN** it writes nothing and says why
 
+### Requirement: The log command refuses a question holding a closing section's heading
+
+The `log` command SHALL write nothing, and say why, when a question it is
+given holds a line that is exactly `## Rephrased question`, `## Discussion`
+or `## Answer`, since a reader reads those lines from a log file's end as
+its closing sections; the agent rewords the question and logs it again
+(design.md: *The `log` command reads its inputs and the linked comments
+itself*).
+
+#### Scenario: A question holding a closing section's heading is refused
+
+- **WHEN** the `log` command is given a question whose text holds the line
+  `## Discussion`
+- **THEN** it writes nothing, and says that the line would be read as a
+  closing section
+
 ### Requirement: The log command withholds a link where it would leak
 
 The `log` command SHALL write an `answer_link` or `asked_in` only where *A
@@ -3030,12 +3185,12 @@ file it answers*).
 ### Requirement: A later Igor run names the answered file only from the Igor's record
 
 A later Igor run knows the answered file only from the Igor's handback
-record, never from the handback comment. That record, which igor PR #216
-is asked to keep (#216's decision 59), holds the 6-hex-digit suffix and
-date of the file's name and no question text. If no record holds them, or
-not exactly one file on the branch matches, the Igor SHALL write no
-`answers` for that run, the earlier file staying shown (design.md: *A
-later run names the answered file from the Igor's record*).
+record, one per handback, never from the comment. That record, which igor
+PR #216 is asked to keep (#216's decision 59), holds each posted
+question's hash and its file name's 6-hex-digit suffix and date, and no
+question text. If no record holds them, or not exactly one file on the
+branch matches, the Igor SHALL write no `answers` for that run (design.md:
+*A later run names the answered file from the Igor's record*).
 
 #### Scenario: A later run finds the file by the Igor's record
 
@@ -3114,7 +3269,8 @@ the answer could not be recorded at this privacy.
 
 The script SHALL refuse to write a log or miss file holding a string that
 matches the credential patterns, and the first call SHALL refuse a
-question in a post that holds such a string. The agent SHALL never put a
+question in a post that holds such a string.
+The agent SHALL never put a
 credential into a question, an answer or a verdict field; a question that
 needs one gets the `secret` category.
 
@@ -3140,9 +3296,23 @@ needs one gets the `secret` category.
 
 - **WHEN** a log file, or a question in a post, would hold a string
   starting `lin_api_` or `lin_oauth_`, or a Discord bot token's three
-  dot-separated base64 parts
+  dot-separated base64 parts of 24 or more, 6, and 27 or more characters
 - **THEN** the script refuses to write the file, or the first call
   refuses the post
+
+### Requirement: The credential scan reads raw markdown
+
+Each scan for the credential patterns SHALL read the raw markdown, link
+targets included, not the text *A question's text and hash are built one
+way* reduces it to; the hash still uses that reduced text.
+
+#### Scenario: A token in a link target is refused
+
+- **WHEN** a question in a post is
+  `Should we use [the docs](https://x/?token=ghp_…)?`, whose reduced text
+  holds no token
+- **THEN** the first call refuses the post, since the scan reads the link
+  target
 
 ### Requirement: A log file and a miss file have one format
 
@@ -3750,23 +3920,13 @@ will publish the advisory has said it will merge at that moment
 
 ### Requirement: A commit in an advisory's private fork is described as task 0.13 allows
 
-An advisory's private fork is the temporary fork GitHub creates for it,
-whose commits become public with it. A commit there SHALL describe neither
-the weakness nor how to exploit it unless task 0.13 has shown the fork's
-pull request merges only at publication, or can merge first and the
-person who will publish the advisory told the agent, before the commit,
-that it will merge then. Until task 0.13 is measured, the agent SHALL put
-the full description in the advisory's text.
-
-#### Scenario: A fork commit follows the public rule until task 0.13 settles it
-
-- **WHEN** task 0.13 has not yet shown whether the private fork's pull
-  request can be merged before the advisory is published, and the agent
-  commits a fix in the fork, whatever the person who will publish the
-  advisory has said
-- **THEN** its commit message describes neither the weakness nor how to
-  exploit it, and the agent writes the full description in the advisory's
-  text
+An advisory's private fork is GitHub's temporary fork for it, whose
+commits become public with it. A commit there SHALL describe neither
+the weakness nor its exploit unless, as for the regression test, task
+0.13 shows GitHub merges the fork's pull request only at publication, or
+the person who will publish the advisory has said it will merge at that
+moment. That statement holds even if task 0.13 shows otherwise. Else the
+agent SHALL put the full description in the advisory's text.
 
 #### Scenario: A fix in the private fork is described normally
 
@@ -3776,20 +3936,21 @@ the full description in the advisory's text.
 - **THEN** its commit message says what the weakness was and why the fix
   closes it
 
-#### Scenario: A fork commit merged before publication follows the public rule
+#### Scenario: A fork commit that might merge before publication follows the public rule
 
-- **WHEN** task 0.13 has shown that GitHub lets the private fork's pull
-  request be merged before the advisory is published, and the agent
+- **WHEN** task 0.13 has not shown that GitHub merges the private fork's
+  pull request only at publication, and the agent
   commits a fix in the fork while nobody who will publish the advisory has
   told it the pull request will be merged only at the moment of
   publication
 - **THEN** that commit's message describes neither the weakness nor how to
   exploit it
+- **AND** the agent writes the full description in the advisory's text
 
 #### Scenario: A fork commit the publisher will merge at publication is described normally
 
-- **WHEN** task 0.13 has shown that GitHub lets the private fork's pull
-  request be merged before the advisory is published, and the person who
+- **WHEN** task 0.13 has not shown that GitHub merges the private fork's
+  pull request only at publication, and the person who
   will publish the advisory has told the agent, before it writes the
   commit, that the pull request will be merged only at the moment of
   publication
@@ -3798,14 +3959,13 @@ the full description in the advisory's text.
 
 ### Requirement: An answer that generalizes is proposed as lore
 
-When a person's answer holds beyond the question's repository and the
-agent judges it lore-worthy, the agent SHALL, unasked, open a pull
-request adding it as a `provisional` entry to the team's lore
-repository's default branch and report the link. Asked to promote an
-answer from that repository's questions branch, it SHALL open such a pull
-request and leave the question's file there. If no configured lore
-repository serves the question's repository, it SHALL tell the person
-the lesson.
+Outside an Igor's run, when a person's answer holds beyond the question's
+repository and the agent judges it lore-worthy, it SHALL, unasked, open a pull
+request adding it as a `provisional` entry to the team's lore repository and
+report the link. Asked to promote an answer from that repository's questions
+branch, it SHALL open such a pull request and leave the question's file there.
+If no configured lore repository serves the question's repository, it SHALL
+tell the person the lesson.
 
 #### Scenario: A general answer becomes a lore pull request
 
@@ -3828,6 +3988,32 @@ the lesson.
 - **WHEN** an answer generalizes and no configured lore repository serves
   the question's repository
 - **THEN** the agent tells the person the lesson, and opens no pull request
+
+### Requirement: During an Igor's run, the Igor proposes the run's lore entries
+
+During an Igor's run, the agent SHALL open no lore pull request but put
+each entry it would propose in the run's report, as it does each file it
+would push, and the Igor SHALL open the pull request adding it as a
+`provisional` entry, under *A lore pull request goes to no lore repository
+more visible than its source* and *A proposed lore entry's path, fields
+and id follow igor's rules* (design.md: *A general answer is proposed as
+a provisional lore entry*).
+
+#### Scenario: A run's lore entry goes in its report
+
+- **WHEN** during an Igor's run, a worker re-working an item judges the
+  person's handback answer lore-worthy, and a configured lore repository
+  serves the item's repository
+- **THEN** the worker opens no pull request and puts the entry in the run's
+  report
+- **AND** the Igor opens a pull request adding it as a `provisional` entry
+  to that lore repository
+
+#### Scenario: The Igor proposes no run entry to a more visible lore repository
+
+- **WHEN** a run's report holds a lore entry, the lore repository is public,
+  and the repository the question concerns is private
+- **THEN** the Igor opens no pull request for it, and says why
 
 ### Requirement: A lore pull request goes to no lore repository more visible than its source
 
@@ -3852,13 +4038,13 @@ why.
 
 ### Requirement: A proposed lore entry's path, fields and id follow igor's rules
 
-A proposed lore entry SHALL be the lore repository's `entries/<id>.md`,
-with every frontmatter field igor's lore store requires and an id passing
-igor's id rule; the script SHALL refuse any other id. The agent SHALL pick
-another id for one an entry there holds, and propose nothing for one a
-rejection holds. During an Igor's run it SHALL propose nothing for an id
-igor reports only as "id taken", and SHALL say so in its report
-(design.md: *A proposed entry's id follows igor's id rules*).
+A proposed lore entry SHALL be the lore repository's `entries/<id>.md`, with
+every frontmatter field igor's lore store requires and an id passing igor's id
+rule; the script SHALL refuse any other id. The agent SHALL pick another id for
+one an entry there holds, and propose nothing for one a rejected candidate holds. During
+an Igor's run the Igor SHALL propose nothing for an id igor reports only as "id
+taken", and SHALL say so (design.md: *A proposed entry's id follows igor's id
+rules*).
 
 #### Scenario: A proposed entry goes in entries/
 
@@ -3888,14 +4074,13 @@ igor reports only as "id taken", and SHALL say so in its report
 
 #### Scenario: An out-of-scope id collision during a run names nothing
 
-- **WHEN** during an Igor's run the id the agent would propose is held by
-  an entry or rejection outside the run's role's scope, which igor reports
+- **WHEN** the id of a lore entry an Igor's run reports is held by an
+  entry or rejection outside the run's role's scope, which igor reports
   only as "id taken", naming nothing, as igor PR #216's lore-review
   requirement *An entry already in the store is never overwritten by
   proposing* says
-- **THEN** the agent does not propose the entry during the run, and its
-  report says so and names no entry, and a person can propose it outside
-  a run
+- **THEN** the Igor does not propose the entry, says so naming no entry,
+  and a person can propose it outside a run
 
 #### Scenario: A rejected candidate is not proposed again
 

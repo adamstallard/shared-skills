@@ -35,10 +35,9 @@ repositories, and a hook's working directory can differ from the one `vet`
 ran in (prose's DECISIONS.md, *The gate blocks a session's first file
 write*). They are the hooks' state, not a question log. Everything under one
 HOME shares them, concurrent Igor workers included, since a verdict is about
-the text, not the worker. The record of a question with a category (*Terms
-used throughout*) expires after 2 hours, so the skill keeps no lasting
-record of a vulnerability. Its lasting record is the repository's private
-security advisory.
+the text, not the worker. Every record expires after 2 hours, so the skill
+keeps no lasting record of any question, a vulnerability included. A
+vulnerability's lasting record is the repository's private security advisory.
 
 When a hook can't read the records, the picker hook lets the question
 through and the post hook blocks a post that holds one. A picker question
@@ -129,12 +128,19 @@ unchanged except where the reader changes:
   under prose's rules alone that is unreadable, so every post an agent
   sends as a GitHub App would be refused. A `gh api` comment whose body
   comes from a body field or `--input` passes prose's rules unread, so it
-  would skip both hooks.
-- **It reports code given on the command line as unreadable when the code
-  names `gh`,** as it does `sh -c`: `python3 -c`, `node -e`, `git -c`
-  (which can set an alias that runs a shell command), `python3` reading its
-  program from a heredoc or a pipe, and a git form such as `git rebase -x`.
-  Each can run a post the reader never sees.
+  would skip both hooks. Every `gh pr` or `gh issue` post is readable
+  only when it is the whole command line. A `gh api` write that takes a
+  field from a file, by `@<file>` or `--input`, is readable only when it
+  is the whole command line too, because an earlier command in the line
+  could rewrite the file. A `gh api` write whose fields are all given in
+  the command is read in a longer line as well.
+- **It reports code given on the command line as unreadable on a line that
+  mentions a gh post verb,** as it does `sh -c`: an interpreter, such as
+  `python3`, `node`, `perl` or `ruby`, with a code flag such as `-c` or
+  `-e` anywhere among its words, whatever the code runs, and `python3`
+  reading its program from a heredoc or a pipe. On such a line `git`
+  passes only with a subcommand on a fixed allowlist and no option that
+  gives code to run. Each can run a post the reader never sees.
 - **It reads a title,** so a question in a title is vetted as one in the
   body is. A title built by the shell, such as `--title "$(git log -1
   --format=%s)"`, or a title edit chained to another command, such as `cd
@@ -143,15 +149,14 @@ unchanged except where the reader changes:
   checked"); task 1.3 updates that paragraph. A footer can't go on a
   one-line title, so prose's hook checks only that a title is readable, and
   lets a call with a title and no body through.
-- **It blocks forms prose's reader lets through.** A `gh` alias, such as
-  `gh co`, or an extension, such as `gh dash`, is unreadable wherever it
-  appears, since an alias such as `c` for `pr comment` would send a post the
-  reader takes for none. An unquoted `--body` or `-b`, such as `gh pr
-  comment 5 --body hi`, is unreadable under the `gh-post` spec. No ruling
-  records why, so whether to keep that rule is open (*Whether the reader
-  blocks an unquoted body*). Whether prose's hook should block a
-  read-only alias or extension is open (*Whether prose's hook blocks gh's
-  read-only aliases and extensions*).
+- **It blocks a `gh` alias or extension,** such as `gh co` or `gh dash`,
+  wherever it appears, since an alias such as `c` for `pr comment` would
+  send a post the reader takes for none.
+- **It reads an unquoted body of one plain word,** such as `gh pr comment 5
+  --body hi`, `-bhi` or `--body=hi`, as the body `hi`, as prose's reader
+  does today. An unquoted body holding `$`, a backtick, `*`, `?`, `[`, `{`,
+  `~` or `\` is unreadable, since the shell may change it before `gh` sees
+  it.
 
 A plain or bold line ending in a colon begins an open-questions section only
 when its label names questions, such as "Open questions:". Agents often list
@@ -179,7 +184,10 @@ batch the subagent's questions with its own.
 `vet --post` finds a rhetorical question in a post too. Nobody needs to choose
 an answer to it, so filter 3 stops it, and the agent rewrites it as a
 statement. Its `decided` verdict names the post as where the choice is
-recorded, since the statement in the post is the whole of the choice.
+recorded, since the statement in the post is the whole of the choice. A
+rhetorical question outside a post, one the agent would have put to the picker
+or in its report, it just rephrases as a statement and records nothing; the
+`decided` verdict naming the post is for posts only.
 
 ## Where the logs live
 
@@ -223,8 +231,11 @@ beside it.
   a `provisional` entry; the question's file stays on its branch. Nothing
   goes to a lore repository more visible than the repository the question
   concerns.
-- **A question about one person's way of working:** no log. Its answer goes
-  into that person's memory or `CLAUDE.md`, which agents already read.
+- **A question about one person's way of working:** no log, because agents
+  already read where its answer goes: that person's agent memory or
+  user-level `CLAUDE.md`. The answer never goes into a committed
+  `CLAUDE.md`. Every agent in that repository reads a committed one, so it
+  would apply one person's way of working to everyone.
 - **A question in one of the three categories** (`vulnerability`, `secret`,
   `personal`): no log. Of this skill's records, only the hooks' verdict
   record holds it, as a hash. In an Igor's run, igor keeps the category
@@ -323,9 +334,6 @@ returns the person, which is why the script can confirm the configured login
 but can't tell which login a post sent with the github-app skill's token
 goes out as (task 0.7).
 
-During an Igor's run, the agent proposes no lore entry. The spec makes no
-such exception; *Where the spec and a decision differ* lists the conflict.
-
 ## The answer session
 
 The answer session gives a person one place to answer the questions asked of
@@ -378,9 +386,10 @@ The mod posts a relay post by running the relay identity's skill as a host
 command, not a tool call of the session's model, so no post hook sees it;
 task 0.18 measures that. The command runs as an argument vector with no
 shell, its text in a file or on standard input, because the person's answer
-and drafts built from a thread's untrusted text reach it. A GitHub relay post
-outside a review thread names its question with a last `Re: <URL>` line, so
-that a thread holding several questions keeps a state for each.
+and drafts built from a thread's untrusted text reach it. A relay post on
+Linear, or on GitHub outside a review thread, names its question with a last
+`Re: <URL>` line, so that a thread holding several questions keeps a state
+for each; on Discord a relay post replies to its question.
 
 The relay file is YAML, matching the lore repository's other configuration,
 under `relays/` in the lore repository holding the entries (igor PR #216's
@@ -614,22 +623,28 @@ posts* gives the reasoning for colon lines and for that order.
 *Rejected:* letting any colon line starting with "Open" begin a section: "Open
 a terminal and run:" would turn its commands into questions.
 
-#### A deferred question passes only untagged and listed
+#### A deferred question passes only untagged, listed or in a new issue
 
-**A `deferred` verdict of any age passes the post hook only for a question
-listed in an open-questions section and tagging no one, or a question in a new
-issue that tags no one; anywhere else the question needs an `ask` verdict.**
-These are filter 2's two places, the work's description and an issue.
+**A `deferred` verdict less than 2 hours old passes the post hook only for a
+question that itself tags no one and is an item of an open-questions section or
+in a post that creates an issue, even when another part of that issue tags
+someone; anywhere else the question needs an `ask` verdict.** Filter 2 defers a
+question to one of two places: a list of what is not done, or an issue when the
+question outlives the work. An open-questions section is where the agent writes
+that list, in whatever post reports the work, and a new issue is the second
+place. The hook lets a deferral through in those places only.
 
-**Why:** a deferral asks nothing, so its verdict need not expire. Tagging
-someone asks them, which needs an `ask` (*Questions in posts*).
+**Why:** tagging someone asks them, which needs an `ask` (*Questions in
+posts*). A deferral expires like any record (*Every verdict record expires
+after 2 hours*).
 
 #### One person who can decide is tagged
 
 **A question in a post tags the first candidate the script finds with write
 access to what the question concerns.** The spec's *A question in a post
 tags one person who can decide, if there is one* sets the tagging order: the
-approver of the related earlier decision, then a login in
+approver of the related earlier decision the second call recorded, then a
+login in
 `.inquisitor/reviewers`, then the last committer of the files involved.
 
 **Why:** only a person with write access can decide.
@@ -690,8 +705,11 @@ calls prove its pass ran, so no verdict exists without filter 1's search.**
 
 **The files an agent passes to the two calls go in a private directory made
 with `mktemp -d`, outside any repository, each with mode 0600; the script
-refuses a file readable by its group or others.** A question with a category
-reaches the script on standard input, never in a file.
+refuses a file its group or others can read, or whose directory they can.**
+The script takes a question with a category, and its verdict, only on
+standard input, never in a file. Every other question in the same picker
+call, with its verdict, goes on standard input with it, uncategorized ones
+included.
 
 **Why:** in a shared temporary directory such as `/tmp`, a file with the
 usual mode, and the question's text in it, is readable by every user of the
@@ -729,24 +747,26 @@ worker ask that text.
 **A verdict record identifies its question by the plain SHA-256 of its text.**
 
 **Accepted:** a short sensitive question could be guessed from its hash, but
-only for 2 hours, since every record with a category is deleted then. This
-rests on the agent categorizing every sensitive question (*Three categories
-are recorded by hash only*): an uncategorized `deferred` record lasts until a
-later verdict replaces it.
+only for 2 hours, since every record is deleted then, whether or not the
+agent gave the question a category.
 
 *Rejected:* an HMAC with a per-HOME key, which would stop that guessing: the
 2-hour limit already keeps the exposure brief.
 
 #### Every verdict record expires after 2 hours
 
-**Every verdict record is deleted 2 hours after it was made, except an
-uncategorized `deferred` one, kept until a later verdict on its text replaces
-it, since the post hook accepts a deferral of any age.** Two hours is how long
-a hook uses a record. A categorized `deferred` record expires like any other.
-Only the post hook accepts an old deferral, and an agent never puts a
-categorized question in a post, so nothing needs that record kept. No record
-the skill keeps lasts for a question with a category. A post edited more than
-2 hours after an `ask` is vetted again, which costs only one pair of calls.
+**Every verdict record is deleted 2 hours after it was made, whatever its
+verdict or category.** Each hook accepts a record only while it is less
+than 2 hours old and treats an older one as missing, so deleting a record at
+2 hours removes nothing a hook would still accept. A post
+edited more than 2 hours after an `ask`, or listing a question deferred more
+than 2 hours earlier, is vetted again, which costs only one pair of calls.
+
+**Why** a `deferred` record without a category expires as well: a deferral
+asks nothing, so its record could have been kept until the question is
+listed, sparing a second vetting. But the agent may leave a sensitive
+question uncategorized, and its plain hash could then be guessed for as long
+as the record lasts (*Records hash a question with plain SHA-256*).
 
 **Why:** a lasting record of a categorized question would be either personal
 or public. Kept on the person's machine, it would be a personal question log,
@@ -763,9 +783,11 @@ and the call's other questions need no vetting again.
 
 **The hooks match a question's text without its related-decision line.** That
 line is `Related: ` and one URL with no spaces, on a line of its own (spec *A
-related-decision line is one URL on a line of its own*). The related decision turns up in the first call's search, so the agent adds the
-line after that call with no second vetting. No vetting sees the line, which
-is why both hooks block one holding a credential pattern.
+related-decision line is one URL on a line of its own*). The related decision
+turns up in the first call's search; the agent names it at the second call,
+which records it with the verdict, and adds the line after that call with no
+further vetting. No vetting sees the line. That is why both hooks block a
+related-decision line holding a credential pattern.
 
 **Accepted:** the agent links only a decision that everyone who can read the
 question can read, and no hook checks that.
@@ -814,76 +836,93 @@ prose is not installed.
 
 #### Which commands the reader judges, and which are unreadable
 
-**A command line that mentions a gh post verb is read only through the
-allow-list: each simple command in it that names `gh` is unreadable unless the
-reader reads it or it is one of prose's data commands naming `gh` only inside
-a quoted argument.** A gh post verb is one of a closed list, the one prose's
-reader handles: certain verbs of `gh pr` and `gh issue`, and a `gh api`
-write. prose's data commands are a closed list of commands that
-read or print text, such as `echo`, `cat`, `grep`, `git` and `python3`. So
-`sh -c '…'`, `bash -c '…'`, `eval '…'` and a pipe into a shell around a `gh`
-post are unreadable. A command that runs only `prose.py` is no post, since its
-arguments may name a gh post as text. A `gh` alias or extension is unreadable
-on any line; whether that should reach a line naming no gh post verb is open
-(*Whether prose's hook blocks gh's read-only aliases and extensions*).
+**The reader judges only a command line that mentions a gh post verb, and
+reads it through an allow-list. It finds the line to be one of three things:
+a post it reads; no post, because no simple command in it sends text; or
+unreadable. Both post hooks block an unreadable line. A gh alias or extension
+is unreadable on every line.** The `gh-post` spec states the rules: *A command that mentions
+no gh post verb sends no post*, *The reader reads only gh's own top-level
+commands*, *A command that only runs prose's script sends no post*, *A line
+whose simple commands send no text is no post* and *Any other line that
+mentions a gh post verb is unreadable*.
 
-**Why:** most of these are prose's reader's rules. The alias and extension
-rule is new, and prose's hook gains it too (*Questions in posts*): with `c`
-aliased to `pr comment`, `gh c 5 -b 'User says: yes'` names no gh post verb,
-so without the rule it would reach neither hook's block on a forged relayed
-answer (*The post hook blocks a reserved prefix on GitHub*).
+**Why:** these are prose's reader's rules, apart from the alias rule. An
+allow-list fails closed: a form it cannot read, such as `sh -c '…'` or
+`eval '…'` around a gh post, is blocked, never let through unread. The reader
+cannot read what an alias or extension runs: with `c` aliased to `pr
+comment`, `gh c 5 -b 'User says: yes'` names no gh post verb, so passing it
+would forge a relayed answer past both hooks' block (*The post hook blocks a
+reserved prefix on GitHub*). prose's hook gains the alias rule too.
+
+**Accepted:** gh's default alias `gh co` and read-only extensions such as
+`gh dash` are blocked for every prose user.
 
 *Rejected:* letting a command through when `gh` appears in it only inside
 quotes: `sh -c 'gh pr comment …'` would then post unread.
 
-#### Code given on the command line that names gh
+#### Code given on the command line beside a gh post verb
 
-**A command that runs code given in the command, and whose code names `gh`,
-is unreadable, data commands included,** and both post hooks block it. Among
-the data commands that is `-c` for `python` or `python3`, `node -e`, `--eval`, `-p`
-or `--print`, and `git -c`, which can set an alias that runs a shell command;
-any git form that runs a command it is given, such as `git rebase
--x`/`--exec`, `git submodule foreach` and `git bisect run`, counts the same.
+**On a line that mentions a gh post verb, an interpreter with a code flag
+anywhere among its words, such as `python3 -W ignore -c` or `node -pe`, makes
+the line unreadable, whatever the code runs. On such a line `git` stays a
+data command only when the first word after `git` is a subcommand on a fixed
+allowlist of ones that take no code to run, and no option gives code to run,
+such as `-c`. So `git -C . status` is unreadable there, since `-C` is not an
+allowlisted subcommand.** The
+`gh-post` spec states the rules: *An interpreter given a code flag makes a
+post-verb line unreadable*, *Only allowlisted git is a data command beside a
+gh post verb* and, for a program read from a pipe or heredoc, *Input to a
+no-post line reaches only data commands*.
 
-**Why:** each of these can run a `gh` post that the reader never sees, as `sh
--c`, `ruby -e` and `perl -e` can.
+**Why:** each of these can run a post the reader never sees. Finding the code
+flag without reading the interpreter's options means an option that takes a
+value, such as `-W ignore`, cannot hide it. A list of git forms that run code
+is never complete, as prose's `DECISIONS.md` says (`git config alias.p '!…' &&
+git p`, `git difftool -x`, `git filter-branch --tree-filter`); a list of
+subcommands that never take code is. prose's hook calls the same reader, so it
+blocks these forms too. prose's `DECISIONS.md` today calls `python3 - <<'EOF'`,
+`node -e` and `git -c` outside its hook's reach, so task 1.3 removes that
+claim.
 
-**Accepted:** prose's hook blocks these forms too. A prose test expecting one
-to pass is changed, and prose's `DECISIONS.md` does not call them outside the
-hook's reach.
+**Accepted:** `git commit` and `git push` run the repository's git hooks,
+which can run anything; that is outside this reader.
 
 #### Posts sent through the github-app skill's script
 
-**A post sent through the github-app skill's script is read by the rules of
-the `gh` command it runs, when the script's path ends in `/github_app.py`,
-written out or as a `$G` the same command sets.** A command that runs `python3
-$G`, mentions `gh` and assigns `G` nowhere earlier in the same command is
-unreadable, and the block message says to set `G` in that command or write
-the script's path. Task 5.5 edits the github-app skill's SKILL.md so that each
-example does one or the other.
+**A post sent through the github-app skill's script is read as the `gh`
+command it runs, when the script's path ends in `/github_app.py` and is
+written out or a `$G` the line assigns first; a line that mentions a gh post
+verb and runs `python3 $G` with `G` unassigned is unreadable.** The `gh-post`
+spec's *The reader reads posts sent through the github-app skill and gh api*
+states the forms. Task 5.5 makes each example in the github-app skill's
+`SKILL.md` set `G` in the same command or write the script's path.
 
 **Why:** otherwise every post an agent sends as a GitHub App would be blocked.
-The path must end in `/github_app.py` because the reader cannot know what any
-other script posts, and prose's reader blocks a `gh` word passed to one. In
-Claude Code each command starts a fresh shell, so an unset `$G` fails and
-posts nothing; only a host whose shell keeps variables between commands, such
-as Cursor, could post through it. Blocking it costs only a rewrite of the
-command, so nothing needs measuring. With the SKILL.md edit, a post copied
-from its examples passes as written instead of being blocked and resent.
+The reader cannot know what any other script posts. An unset `$G` posts
+nothing in Claude Code, where each command starts a fresh shell, but could in
+a host whose shell keeps variables, such as Cursor; blocking it costs only a
+rewrite.
 
-#### GraphQL mutations that post text
+#### The reader reads gh api writes, REST and GraphQL
 
-**A `gh api` write, REST or GraphQL, is blocked when the reader can't read a
-field, title or `body` of it, or when it sends a `body` to an endpoint or
-mutation the reader does not read. A write the reader reads returns its body
-or title, and any other write sends no post.** The reader returns every
-`body` argument of the thirteen GraphQL mutations that post text, from
-`addComment` to `updatePullRequestReviewComment`. A mutation the reader cannot
-parse, or whose `body` it cannot read, is unreadable.
+**A `gh api` write returns the body and title the reader reads from it, and is
+unreadable when it has a field, title or `body` the reader can't read, or
+sends a `body` to an endpoint or mutation the reader does not read; any other
+`gh api` call sends no post. A write that takes a field from a file, by
+`@<file>` or `--input`, is readable only when it is the whole command line.** The
+`gh-post` spec states the rules: *The reader reads a gh api write to an issue
+or pull request*, *A gh api write read from a file is read only as a whole
+command line* and *The reader reads GraphQL posts and blocks a gh api write
+it can't read*, which lists the thirteen mutations that post text and makes
+any query the reader cannot parse unreadable.
 
 **Why:** otherwise a `gh api` comment would skip both hooks unread, while
-reads, such as GraphQL queries, and writes that send no text, such as label
-edits, pass. A mutation is a write like a REST one, so the same rule applies.
+reads and writes that send no text, such as label edits, pass. A GraphQL
+mutation is a write like a REST one, so the same rule applies. An earlier
+command in the line, such as `printf 'unsigned' > c.md`, can rewrite the file
+a write reads, as prose's `DECISIONS.md` says of `--body-file`; a field given
+in the command cannot be rewritten, so such a write may stand in a longer
+line.
 
 *Rejected:* reporting every GraphQL mutation as unreadable: it would block
 writes that send no text, which the REST rule lets through.
@@ -899,17 +938,13 @@ posts* says why prose's hook checks only readability.
 
 #### The post hook blocks a reserved prefix on GitHub
 
-**The inquisitor's post hook blocks a tool-call post on GitHub whose reduced
-body starts with a reserved prefix, so ` User says: ` and `**User says:**` are
-blocked too.** This decision reduces the body as a comment is reduced for
-comparison with a recorded answer (*A linked comment holds the answer only
-when the texts are equal*). That reduction also drops a leading `User says: `,
-so, taken literally, the block would never see the prefix it blocks. The spec
-instead reduces the body as a question in a post is reduced for its hash:
-inline markup to its text, whitespace joined. Which rule stands is Adam's to
-decide (*Where the spec and a decision differ*). The last paragraph of the
-overview's *Polling while open, with the person's credentials* gives the
-reasoning for reserving the prefixes.
+**The inquisitor's post hook blocks a tool-call post on GitHub whose body
+starts with a reserved prefix.** Before it compares, the hook reduces the
+body as a question in a post is reduced for its hash: inline markup becomes
+its text, and whitespace is joined. It then drops leading whitespace. So
+` User says: ` and `**User says:**` are blocked too.
+The last paragraph of the overview's *Polling while open, with the person's
+credentials* gives the reasoning for reserving the prefixes.
 
 **Why:** the answer session posts through a host command that no tool hook
 sees, so a tool-call post with a reserved prefix is never the answer
@@ -919,6 +954,11 @@ the App from forging an answer through `gh`.
 
 **Accepted:** nothing checks Linear or Discord, where a relayed answer proves
 nothing.
+
+*Rejected:* reducing the body as a comment is reduced for comparison with a
+recorded answer (*A linked comment holds the answer only when the texts are
+equal*): that drops a leading `User says: `, so the block would never see the
+prefix it blocks.
 
 #### No exemption for an Igor's handback
 
@@ -937,11 +977,12 @@ together, since no real handback reaches the hook.
 
 **Every question asked is logged with what it concerns, a repository or the
 team's lore repository, at the privacy that place's maintainers set, so the
-next agent finds the answer instead of asking again.** A question that
-concerns no repository, no organization or project, and not one person's way
-of working is not asked. No question log is
-kept anywhere personal. The spec names the questions that get no log file;
-*Where the logs live* gives the reasoning.
+next agent finds the answer instead of asking again.** The agent does not ask
+a question that concerns no repository, no organization or project, and not
+one person's way of working. The skill's instructions say so, and nothing
+enforces it. If the agent asks such a question anyway, it is logged nowhere.
+If it asks one in a post, the post tags no one. No question log is kept anywhere personal. The spec names the questions
+that get no log file; *Where the logs live* gives the reasoning.
 
 *Rejected:* a personal log under the home directory: it would keep a
 question, with its private context, where only one person finds it.
@@ -975,8 +1016,10 @@ default branch, and the question's file stays on the questions branch.
 #### A way-of-working question gets no log
 
 **One person's way-of-working question, such as "should I keep working while
-you're away?", is not logged:** its answer goes into the person's memory or
-`CLAUDE.md`, which agents already read.
+you're away?", is not logged,** because agents already read where its answer
+goes: that person's agent memory or user-level `CLAUDE.md`. The answer never
+goes into a committed `CLAUDE.md`. Every agent in that repository reads a
+committed one, so it would apply one person's way of working to everyone.
 
 #### prose's pass skips `.inquisitor/`
 
@@ -1013,8 +1056,14 @@ it, and a person's answer, kept in their own words, can't be generalised.
 #### Three categories are recorded by hash only
 
 **A `vulnerability`, `secret` or `personal` question is kept in none of the
-skill's records in readable form; the filters still run, and the agent may
-still ask.** The script records its hash, verdict, time and category, because
+skill's records in readable form. The filters still run on it, and the agent
+may still ask it, but only through the picker or, for a `vulnerability`, the
+repository's private security advisory.** A post would keep the question's
+text where the thread's readers see it, so such a question is never asked in
+a post (spec: *A question with a category is asked only through the picker or
+its advisory*). The post hook therefore blocks every post holding a question
+whose latest verdict record has a category (spec: *Some questions are recorded
+by hash only*). The script records its hash, verdict, time and category, because
 the picker hook matches a question's exact text against its latest verdict.
 Filter 1 searches for such a question only in files on the machine, never
 in GitHub's issues, so its text
@@ -1033,8 +1082,15 @@ question, an answer or a verdict field. The patterns include the two
 credentials this change puts within the session model's reach: Linear's keys,
 since the discussion's model runs with the person's tools and can read their
 Linear key from the keychain, and a Discord relay's bot token. That token's
-pattern also matches a JSON Web Token, on purpose: a JWT in a post or a log
-file is usually a credential. *Where the logs live* gives the reasoning.
+pattern bounds each part to Discord's shape, 24 or more characters, then 6,
+then 27 or more, so dotted text such as `1.15.0` or `spec.md.bak` is not
+refused. *Where the logs live* gives the reasoning.
+
+The scan reads raw markdown, link targets included, while the hash uses the
+reduced text, since a token in `[docs](https://x/?token=ghp_…)` reduces to
+`docs`. The post hook scans each question's raw markdown again just before
+posting, so a token added to a link target after vetting, which leaves the
+hash unchanged, is caught.
 
 #### Weaknesses stay out of public text until disclosure
 
@@ -1059,6 +1115,11 @@ fork's commit messages may do under each result, and before it is measured.
   message's body says why.
 - A fork pull request merged before publication would put the regression test,
   a working exploit, on a public branch early.
+- Until task 0.13 shows that the fork's pull request merges only at
+  publication, the person who will publish the advisory can tell the agent
+  that it will. That statement lets the agent commit the regression test in
+  the fork. It also lets a fork commit's message describe the weakness, since
+  the description reveals less than the test, which is a working exploit.
 
 *Rejected:* keeping a vulnerability question and its answer out of a fix's
 commit messages, pull request text and comments: the weakness can be described
@@ -1077,14 +1138,17 @@ conditions.
 #### A decision on the current work's branch answers that work
 
 The spec's *A work-branch decision answers only its own work* sets the
-conditions, and an `agent` log entry on that branch meets the same ones. No
+conditions. A `decision` or `agent` log entry on that branch counts only under
+those same conditions (*A log entry counts only where its branch allows*). No
 signature is required.
 
-**Why:** without them, an outside contributor could commit a decision that
+**Why:** without those conditions, an outside contributor could commit a decision that
 stops the agent's questions. Pushing a branch to the repository itself
 already needs write access; a fork's branch does not.
 
-#### A logged decision counts only when merged and its author has access
+#### A logged decision counts only where its branch allows and its author has access
+
+The spec's *A log entry counts only where its branch allows* says where.
 
 **Why:** `authority` is a field anyone can write, so the file alone proves
 nothing.
@@ -1169,6 +1233,15 @@ writer comes from the linked comment or the commit's signature.
 
 **Why** inputs go in a 0600 file, never arguments: a question's text and its
 answer passed as arguments are readable by every user of a shared host.
+
+**Why** it refuses a question holding a line `## Rephrased question`,
+`## Discussion` or `## Answer`: a reader takes those lines from a log file's
+end, so an untrusted question ending in forged rephrasing lines would read
+back as a shorter question, and a writer's answer would be recorded against
+a different text and hash. The agent rewords such a question.
+
+*Rejected:* escaping those lines: a reworded question reads the same to a
+person, and an escape is one more form every reader must undo.
 
 #### A linked comment holds the answer only when the texts are equal
 
@@ -1289,23 +1362,31 @@ counts as an answer only when its status is `accepted`; any other status is
 shown as input. That holds wherever filter 1 reads decision records, the lore
 repository's included.
 
-**Why:** a rule that depends on igor is specified in its end state.
+**Why:** #202's decision 5 puts a record in the repository the decision
+concerns, or in the team's lore repository when it spans repositories, so
+filter 1 reads both. A rule that depends on igor is specified in its end
+state.
 
 *Rejected:* a fixed `docs/decisions/` until #202 settles the path: an interim
 design for an igor dependency while igor has no users.
 
 #### A general answer is proposed as a provisional lore entry
 
-The agent opens the pull request without asking first.
+The agent opens the pull request without asking first. During an Igor's run,
+the run puts the entry in its report, as it does its question and miss files,
+and the Igor opens the pull request.
 
 **Why:** a pull request is itself a proposal, and closing it is cheap.
 
+**Why** the Igor opens it in a run: there the script pushes nothing to a lore
+repository, and the Igor already pushes the run's other files.
+
 #### A proposed entry's id follows igor's id rules
 
-**Why** a run stops on "id taken": igor reports a collision outside the run's
-scope only as "id taken", which does not say what holds the id. If an entry
-holds it, another id would do. If a rejection holds it, the entry may not be
-proposed at all. The run cannot tell which, so it proposes nothing.
+**Why** the Igor stops on "id taken": igor reports a collision outside the
+run's scope only as "id taken", which does not say what holds the id. If an
+entry holds it, another id would do. If a rejected candidate, a file under the
+lore repository's `rejected/`, holds it, the entry may not be proposed at all. The Igor cannot tell which, so it proposes nothing.
 
 #### Lessons from misses are drafted on request and land by scope
 
@@ -1332,10 +1413,12 @@ exact name, because igor PR #171 adds `IGOR_RUN_TOKEN`, a seat's token,
 which a prefix match would take for a run marker. It also matches the exact
 value, so any other value marks no run.
 
-**During an Igor's run, the repository a question concerns is the repository
-of the run's item, never one the worker names.** For a question with a
-category, the run is the whole execution on the item (igor PR #216's
-decision 22).
+**During an Igor's run, the repository of the run's item is the one a question
+concerns when the agent cannot tell which it is about.** A question with a
+category raises igor's flag on the run that met it. For that flag, the run is
+the whole execution on the item, not one worker's part of it (igor PR #216's
+decision 22). So a categorized question met by any worker flags the item's
+whole run.
 
 **Why** the script says so whenever it acts on the variable: a repository can
 set it in a person's session, through committed Claude Code settings or an
@@ -1418,6 +1501,14 @@ does.
 file about a private repository; `asked_from` still names the private one,
 so the question cannot be laundered.
 
+**Why** a run's file can name another repository: the item's repository is
+only the default for a question the agent cannot place, and a question
+clearly about another repository is filed with it, as #216's decision 33
+allows; `asked_from` keeps where it was asked. During a run such a file is
+only input (*Questions-branch files and `project:` entries in a run's
+search*), so a worker steered into naming another repository makes no
+answer count.
+
 #### The flag a worker raises for a question with a category
 
 The flag holds two lists: each category met in the run, as one of the three
@@ -1461,9 +1552,11 @@ change has it (*What igor must provide*).
 
 **The Igor pushes a handback answer's log file only when its question matches
 a question the Igor posted in the handback comment that the person's comment
-answers.** The match uses the Igor's own record of the questions it posted,
-never the comment's current text: two questions match when equal after the
-reduction this change applies before hashing (#216's decision 41).
+answers.** The match uses the question hashes in the Igor's record of the
+handback (*A later run names the answered file from the Igor's record*), never
+the comment's current text: a question matches when its hash, after the
+reduction this change applies before hashing, is in the record (#216's
+decision 41).
 
 **Why:** a worker steered by its item could otherwise pair a real comment
 with another question, and anyone who can edit the comment could change its
@@ -1492,8 +1585,10 @@ counts regardless (#216's decision 78).
 
 #### A later run names the answered file from the Igor's record
 
-The Igor's record holds only the 6-hex-digit suffix and date from the name
-of the log file it pushed, and the run finds the file by them.
+The Igor keeps one record of each handback. For each question it posted, the
+record holds the 6-hex-digit suffix and date from the name of the log file it
+pushed, and the question's hash; it holds no question text. The run finds the
+file by the suffix and date.
 
 **Why:** anyone who can edit a comment can change its text, so the run never
 reads a file's name from the comment. The random suffix makes a name unique,
@@ -1545,21 +1640,21 @@ it.
 **The spec states igor PR #216's rules where they touch this change, and
 points to the rest,** such as the Igor's `authority`, `answered_by` and relay
 files for a handback answer. *What igor must provide* lists where this change
-departs from #216. Among them, #216 writes the answer
-only into a worker file that already holds `authority` and an answer line,
-and this change asks it to write it into the file this change's worker
-reports. #216's decision 59, on a hashed record of handback
-questions, is in tension with *A later run names the answered file from the
-Igor's record* (*Conflicts for Adam to decide*). #216's decision 58, on
+departs from #216. Among them, #216 writes the answer only into a worker file
+that already holds `authority` and an answer line, and this change asks it to
+write it into the file this change's worker reports. #216's decision 59's
+hashed record of handback questions is the record *A later run names the
+answered file from the Igor's record* describes. #216's decision 58, on
 fetching under `igor run`, contradicts nothing here.
 
 ### Answer-session configuration, setup and relay identities
 
 #### Setup is part of the answer session
 
-**Setup runs inside the answer session: in place of the queue when the
-`answer_session` section is missing or incomplete, and again on
-`/answer setup`.** How setup looks is prototyped, not specified.
+**Setup runs inside the answer session: in place of the queue while the
+`answer_session` section is missing or no surface in it has both a `relay` and
+a subscription, and again on `/answer setup`.** How setup looks is prototyped,
+not specified.
 
 #### A failed relay check turns off only its channel
 
@@ -1735,12 +1830,17 @@ permanent connection, each a service to run. GitHub documents that the
 notifications endpoint's conditional requests do not count against the rate
 limit, and it sets the interval between polls; task 0.15 measures both.
 Unless task 0.15 shows notifications report every GitHub message the session
-needs, it also reads each subscribed repository's comments. Those comment
-reads catch a mention of the relay in a thread the person never subscribed
-to.
+needs, it also reads each subscribed repository's new issues and pull
+requests, their comments, reviews and review-thread comments, and the review
+requests and assignments naming the person, so a question of any source is
+found if notifications miss it. Those reads also catch a mention of the relay
+in a thread the person never subscribed to.
 
-**Accepted:** reading the comments costs a rate-limited request per repository
-per poll, and an owner subscription one per repository of that owner.
+**Accepted:** these reads cost rate-limited requests for each subscribed
+repository at each poll. A subscription can name a whole owner, such as
+`adamstallard` in the example configuration, rather than one repository. Such
+a subscription costs these requests at each poll for every repository of that
+owner.
 
 #### Local state is per machine, in the state folder
 
@@ -1863,7 +1963,8 @@ lists them:**
 #### The thread is the durable record of an answer
 
 The thread is fetched again before each relay post, so an answer relayed from
-another machine is never posted twice.
+another machine is never posted twice. A relay post names its question by its
+`Re: ` line on GitHub and Linear, and by replying to it on Discord.
 
 **Why:** the thread is the one place every machine, and the asker, can read.
 A crash after a post but before its id is saved loses nothing: the next read
@@ -1973,23 +2074,39 @@ a newer answer. If a file that would not count could supersede, a person
 without write access, whose answer to a handback an Igor logs as `input`,
 would undo a maintainer's answer.
 
+**Why** a signature's date is the earlier of the signed commit's committer
+date and the time this machine first fetched that commit: the signer sets the
+committer date, so a proven writer, or a skewed clock, could date a commit far
+in the future and outrank every later answer for good.
+
+**Accepted:** two machines that first fetched a file at different times can
+order it differently against a file pushed between those fetches.
+
 #### `answers` decides a named file's answer; the search groups by hash
 
 **Why both:** a later asker has no file of its own to name, so the search can
-find earlier answers only by hash. A replaced answer file stops counting even
+find earlier answers only by hash. An answer file is *replaced* when a newer
+answer file names the same questions-branch file in `answers`. A replaced
+answer file stops counting even
 in its own hash group, or the person's changed answer would not be the only
 one that counts.
 
+**Why** a replaced file still supersedes the older files in its hash group:
+the person's newer answer marks the older ones in that wording stale, so
+asking again is safer than reviving one, even when that leaves the group with
+no answer that counts.
+
 *Rejected:* deciding a named file's answer by hash grouping: `answers` names
 the file exactly.
+*Rejected:* letting the older files in a replaced file's hash group count
+again.
 
 #### A named file's answer must be the person's own, added alone
 
 **Why the commit test:** a copy of an answer the person gave to another
 question carries their proof too, so a copy pushed in one commit with other
-files could otherwise become a named file's answer. Whether such a copy,
-pushed alone in its own commit, can become one is undecided; *Conflicts for
-Adam to decide* lists it. A file that tags no one, such as an Igor's handback
+files could otherwise become a named file's answer. The test guards against
+such bundled copies only. A file that tags no one, such as an Igor's handback
 routed by assignment, names no person whose proof could be asked for, so
 write access to the lore repository, the test of `decision` authority for a
 questions-branch file, stands in for that proof.
@@ -1998,6 +2115,9 @@ questions-branch file, stands in for that proof.
 answer.
 *Rejected:* answering files that tag no one only through filter 1's hash
 search.
+
+**Accepted:** a copy of another of the person's answers, carrying their proof
+and pushed alone in its own commit, becomes the named file's answer.
 
 #### A named file stays shown until its answer counts
 
@@ -2015,12 +2135,16 @@ other surface has no such proof.
 
 #### `answer_link` and `asked_in` are withheld where they would leak
 
-**Why:** the URL would point the readers of a more visible lore repository
-into a more private thread. A Discord URL holds the server's and channel's
-ids, and a Linear URL the workspace, issue and title. A Linear or Discord
-thread counts as private, so a lore repository that is not private is more
-visible than it. A github.com link into a more private repository leaks the
-same way.
+**Why:** the URL would point the readers of a more visible lore repository into
+a more private thread. A Discord URL holds the server's and channel's ids, and
+a Linear URL the workspace, issue and title. A Linear or Discord thread's
+visibility is taken as whichever leaks less, which differs by direction. For
+what leaves the thread, it counts as private. So a lore repository that is not
+private counts as more visible than the thread, and a miss about a question
+asked in the thread needs a private lore repository. For what goes into the
+thread, it counts as possibly public. So a recorded answer is posted there by
+itself only when the record's repository is public. A github.com link into a more private repository
+leaks the same way.
 
 *Rejected:* always writing the URL, accepting the leak.
 *Rejected:* writing no log file in a lore repository that is not private:
@@ -2055,13 +2179,22 @@ file. Recording the owed push before the post means a crash between them
 does not lose the answer file. Checking the thread first lets the person see
 a new message before anything is pushed.
 
-A failed push is retried at each poll and opening. The retry is dropped once
-another answer file that counts names the same file, but only if this machine
-first saw that file after recording the owed push. So a file it already knew
-cannot cancel the push. For example, an answer pushed at once and later posted
-edited owes a new file, which the file pushed at once would otherwise cancel.
-This reason is inferred, not decided; *Conflicts for Adam to decide*, under
-*Open Questions*, asks for confirmation.
+A failed push is retried at each poll and opening.
+
+A retry stops when another answer file on the branch already answers the same
+question file. That is an answer file that counts as the person's answer and
+names the same questions-branch file. The answer session drops the retry only
+if this machine first saw that other answer file at a fetch after recording
+the owed push.
+
+**Why only a file first seen after the owed push was recorded drops the
+retry:** so the machine's own earlier file cannot cancel the push of the
+edited answer's file. That earlier file was pushed at once, before any post,
+because the answer's channel was off (*An answer whose thread is unreachable
+here is logged at once*). For example, "Use Postgres" is pushed at once while
+the channel is off. The person later edits it to "Use SQLite", and it is posted
+once the channel is on, but the push of the edited file fails. The "Use
+Postgres" file, already known here, does not drop the retry.
 
 **Accepted:** a file pushed at once, for an answer whose channel is off or
 not read here, gives up the comment link that would prove it on GitHub, and
@@ -2178,12 +2311,14 @@ agent rewrites a message that is not really a question as a statement, so
 an agent's rhetorical message gets no post.
 
 A non-question that reaches the queue is declined under reason 1 when the
-answer session's own judgement let it through, and under filter 3's "the
-agent shouldn't have asked" when the asking agent should not have written
-it, which logs a miss against that agent. The first logs no miss because no
-asker erred. The second posts nothing because filter 3's fixed text tells
-the agent to take an option that has merit, which a non-question does not
-offer.
+answer session's own judgement let it through, and under filter 3's "the agent
+shouldn't have asked" when the asking agent should not have written it. That
+second decline logs a miss against the asking agent at the decline. The
+question as the session shows it from its thread, called a thread copy (spec
+*A thread copy is a question shown from a thread*), can later be reopened, and
+the miss is kept even then (*Reopening a declined question*). The first logs no miss because no
+asker erred. The second posts nothing because filter 3's fixed text tells the
+agent to take an option that has merit, which a non-question does not offer.
 
 *Rejected:* filter 3's automatic reply on a rhetorical message, or a
 rhetorical fixed text of its own: filter 3 is for a real question that did
@@ -2199,6 +2334,11 @@ in its thread that a source names is a new question on every machine.** The
 decline is held in each machine's own state folder, so if it stopped later
 messages counting, a follow-up would count on one machine and not on
 another.
+
+A decline under the second reason resolves its question too, so later
+messages in its thread are new questions as well. Its post, or this
+machine's close where nothing was posted, already marks the question
+handled, so a later message is a new matter.
 
 *Rejected:* a threaded reply reopening the declined question on one machine,
 or dropping a reply that arrives after its question closed: the reply is
@@ -2259,10 +2399,22 @@ one file.
 **Only a thread copy declined with nothing posted can be reopened, and only
 on the machine that declined it.** After a post, the thread, which every
 machine reads, records how the question was handled, and the person changes
-that by editing the post. A handled file closes its file everywhere for
-good, though a thread copy of that file stays reopenable on its machine. A
-miss already logged for a reopened question stays, since a miss file never
-changes, and nothing records that the person took it back.
+that by editing the post. A handled file closes the questions-branch file it
+names, on every machine, for good. A thread copy, the question as the answer
+session shows it from a thread, is separate from that file. A thread copy
+declined with nothing posted stays reopenable on the machine that declined it,
+even after a handled file closes the questions-branch file.
+
+A decline under the second reason that posts nothing on a thread copy, such as
+filter 3's "the agent shouldn't have asked", still logs its miss at the
+decline, though the question can be reopened. If the person reopens the
+question, the miss stays. A miss file never changes, and nothing records that
+the person took the decline back.
+This is the one decline that can be reopened and still logs a miss.
+
+**Why:** misses feed *Lessons from misses are drafted on request and land by
+scope*, so a miss is not held back on the chance that the person reopens the
+question.
 
 *Rejected:* reopening a question on this machine whatever its thread shows.
 
@@ -2271,7 +2423,9 @@ changes, and nothing records that the person took it back.
 **A person's cite follows the rule of filter 1's own citation and igor PR
 #216's: a citation file only for an `active` entry in scope, and one per
 question.** igor PR #216 is asked to widen its definition of a citation to
-include a person's cite; that request is open on #216's side.
+include a person's cite; that request is open on #216's side. A citation
+file's push, the answer session's own included, is recorded as owed and
+retried as a miss's is (*Misses the answer session logs*).
 
 *Rejected:* pushing a decline's citation only when its miss is pushed: the
 only duplicate left without it is two machines declining one question,
@@ -2306,11 +2460,17 @@ and uses the decline's.
 team's lore repository, because it cannot see where the asker logged the
 question, often an unmerged branch, and the questions branch takes direct
 pushes with no pull request.** The fixed `said` of an automatic miss lets a
-review of misses tell the session's judgement from a person's word. A miss
-copying its file's `asked_from` is the one case where the script writes that
-key; igor PR #216 says only an Igor writes `asked_from`, and allowing this
-second writer is open on #216's side. The inquisitor's rule that a question
+review of misses tell the session's judgement from a person's word. A miss or
+answer file copying the `asked_from` of the questions-branch file it closes or
+answers is the only case where the script writes that key; igor PR #216 says
+only an Igor writes `asked_from`, and allowing this second writer is open on
+#216's side (*What igor must provide*). The inquisitor's rule that a question
 with no log file gets no miss does not apply to the answer session's misses.
+
+A miss's push, like a handled file's, is recorded as owed before the post
+that leads to it and retried at each poll and opening. Once the post is
+out, the thread shows the question handled, so nothing else would bring a
+lost miss back.
 
 *Rejected:* writing the miss where the asker's log file went: the answer
 session cannot know where, and each miss would take a pull request.
@@ -2337,8 +2497,11 @@ gives two machines different answers.
 #### A link this machine never reads is not followed
 
 **A log file whose `asked_in` links a message in a channel this machine does
-not subscribe to, or on a surface it has turned off or cannot read, is shown
-on its own.**
+not subscribe to or has off, or on a surface it has off or cannot read, is
+shown on its own. An Igor worker's log file whose handback comment is on an
+issue or pull request in the repository its `asked_from` names still follows
+that comment, even on a machine that does not read its item (*Each Igor log
+file follows its own handback comment*).**
 
 *Rejected:* showing the file nowhere on that machine: the person would never
 see the question there.
@@ -2515,11 +2678,11 @@ task 0.12 measured* gives its result.
   "Decision", which the spec counts as a decision document) counts as input, and a
   post's question tags no one.
 - **Can the script learn which login a post goes out as?** (task 0.7) An agent
-  using the github-app skill posts with a token only the posting command
-  holds, so the script's `gh api user` returns the person's login. If the
-  script can't learn the posting login, it treats every post as going out as
-  the person, and with a person in the session it asks through the picker
-  where it would have tagged them.
+  using the github-app skill posts with a token only the posting command holds,
+  so the script's `gh api user` returns the person's login. If the script can't
+  learn the posting login, it treats every post as going out as the configured
+  login, and with a person in the session it asks through the picker where it
+  would have tagged them.
 - **Can the script tell whether a person is in the session, and whether a
   headless session can post?** (task 0.9) If it can't tell whether a person is
   there, the session counts as having no one, so no picker opens with nobody
@@ -2544,10 +2707,10 @@ task 0.12 measured* gives its result.
   vulnerability question is blocking, with no text.
 - **Can the private fork's pull request be merged before the advisory is
   published?** (task 0.13) The spec's weakness requirements give what each result
-  means. Until it is measured, the fork's
-  commit messages describe no weakness, the advisory's text holds the full
-  description, and a regression test goes in the fork only on the word of the
-  person publishing the advisory.
+  means. Until it is measured, a fork commit's
+  message describes the weakness, and a regression test goes in the fork, only
+  on the word of the person publishing the advisory; without it, the
+  advisory's text holds the full description.
 - **Does GitHub's API give a comment's author and a commit's verified signer,
   as the proof of a questions-branch writer needs?** (task 0.11) If not, every
   questions-branch `decision` or `agent` file counts as input.
@@ -2575,10 +2738,13 @@ setup checks a relay's access to each channel; whether GitHub reports which
 App wrote a comment; whether a reader can read the pull request and
 signature behind a relay file's last change; whether the `asked_in` URL an
 asking agent records is the one the answer session reads; and how setup can
-tell that a questions-branch commit will be verified for the person. Tasks
-0.25 and 0.26 state no interim rule: see the bullet below, and *How the
-answer session tells a post refused for its text from one refused for
-permission* under *Conflicts for Adam to decide*.
+tell that a questions-branch commit will be verified for the person. Task
+0.25 records how each surface reports two kinds of refusal of a relay post:
+one for its text, such as its length, and one for lack of permission. A
+refusal the session
+cannot place waits for the person, as the answer-session spec's *A pending
+answer no check returns waits for the person* says. Task 0.26 states no
+interim rule: see the bullet below.
 
 - **Which App wrote a comment** is measured by both task 0.21 here and igor PR
   #216's task 4.8. Until a measurement shows GitHub reports it, every `User
@@ -2624,7 +2790,7 @@ to its 149.
     (its decision 8), shown as "not checked" when every Igor push of them
     failed (its decision 32).
   - Its id check reporting an out-of-scope collision during a run only as "id
-    taken" (its decision 6); such an entry is not proposed in the run.
+    taken" (its decision 6); the Igor proposes no such entry and says so.
   - A run's search reading only the lore repository the Igor injects from.
   - *Transcripts and outcomes are captured to the state branch*, in its
     task-execution spec: the flag for a question with a category, the
@@ -2644,7 +2810,9 @@ to its 149.
   - *An Igor runs its worker's lore searches*: `igor lore-search`, called by a
     worker and by the Igor's own inquisitor run. It matches plain text, ranks
     and caps hits as filter 1 does, and labels each question file an answer,
-    input, unanswered or a miss (its decision 23). It runs this change's
+    input, unanswered or a miss (its decision 23). It searches the lore
+    repository's decision records at the path igor PR #202 sets too, counting
+    an `accepted` one as this change does. It runs this change's
     authority checks first, and labels the file unconfirmed input when a check
     can't run or fails (its decision 34). Those checks count a relay file only
     when its last change was that person's, read as of igor PR #208's applied
@@ -2657,11 +2825,10 @@ to its 149.
   - Its `graceful-handoff` and `work-triage` deltas: igor's side of a flagged
     run, its handoff, its host file and the release of a held item.
 - **#216 must allow a second writer of `asked_from`.** #216 says only an Igor
-  writes `asked_from` (its decision 42), but an answer session's miss copies
-  the `asked_from` of the questions-branch file it closes, and under the spec
-  so does its answer file (*An answer file copying `asked_from`*, below).
-  #216's push conditions and its decision 42 should let the answer session
-  write `asked_from` into both while the spec stands.
+  writes `asked_from` (its decision 42), but an answer session's miss and its
+  answer file each copy the `asked_from` of the questions-branch file they
+  close or answer. #216's push conditions and its decision 42 should let the
+  answer session write `asked_from` into both.
 - **#216's Igor must write the answer into the file a worker reports for a
   handback answer.** #216's lore-firing spec (lines 484-489 at 59e7561) has
   the Igor write the comment's text "in place of the answer line the worker
@@ -2671,6 +2838,15 @@ to its 149.
   worker logs no answer*). #216 should recognise that file, write the answer
   from the linked comment, and set `authority` and `answered_by`; otherwise it
   pushes the file as an unanswered question and the answer is lost.
+- **#216's Igor must open the lore pull request for an entry its run
+  reports.** During an Igor's run the agent opens no lore pull request: it
+  puts each entry it would propose in the run's report, as it does its
+  question and miss files, and the Igor opens a pull request adding it as a
+  `provisional` entry to the lore repository. The Igor applies this change's
+  rules for a proposed entry's path, fields, id and visibility, and on "id
+  taken" proposes nothing and says so (*A general answer is proposed as a
+  provisional lore entry*).
+
 - **#216 must keep its decision 62:** an Igor whose App's slug lacks the
   `igor-` prefix refuses to start. *An Igor's App is never a relay App*
   rests on it. Without it, a relay file could list an Igor's App with no
@@ -2682,9 +2858,10 @@ to its 149.
   machine and for good, whichever file a planted `closes` names.
 - **#216's Igor should keep, in its own record of the handback (#216's
   decision 59), the 6-hex-digit suffix and the date of the name of the
-  questions-branch log file it pushed for the question, and no question
-  text.** A later run names that file in `answers` from this record, never
-  from the handback comment; without the record, it writes no `answers`.
+  questions-branch log file it pushed for each question, and each question's
+  hash, and no question text.** A later run names that file in `answers`
+  from this record, never from the handback comment; without the record, it
+  writes no `answers`.
 - **#216's Igor should write `asked_in`** in a worker's log file as the URL of
   the handback comment that asks it, once it has posted that comment,
   withholding it when the item's repository is more private than the lore
@@ -2703,8 +2880,10 @@ to its 149.
 - **How an Igor runs the inquisitor skill itself** has no mechanism in igor PR
   #216 or igor #211. Decided: igor marks that run with `IGOR_RUN=igor`, and
   the script then searches lore only through `igor lore-search` and pushes
-  nothing. Open: which other sources that run's filter 1 covers, how the run
-  hands its files to the Igor, and whether it can read GitHub.
+  nothing, putting each file it would push, and each lore entry it would
+  propose, in the run's report for the Igor. Open: which other sources that
+  run's filter 1 covers, how the report reaches the Igor, and whether the run
+  can read GitHub.
 - **igor's specs must state the order in which each Igor mentions people,**
   set in igor issue [#229](https://github.com/adamstallard/igor/issues/229),
   which is open. No igor spec states it, yet *A bot's question reaches only
@@ -2719,11 +2898,9 @@ to its 149.
   there. Two of #202's open points decide when an answer typed directly on
   another surface can count through a scribe's record:
   - #202 has not settled how the scribe recognises an approval given off
-    GitHub. Until it does, the scribe can't mark `accepted` a record of an
-    answer typed directly on Discord, Slack or Linear, and such an answer
-    counts only once a person writes it into another decision document filter
-    1 counts, such as one on the default branch of the repository the question
-    concerns.
+    GitHub. An answer typed directly on another surface counts only through a
+    decision document (*An answer typed on another surface counts only through
+    a decision document*).
   - #202's spec puts a decision about several repositories in the lore
     repository. Filter 1 reads the lore repository's decision records where
     #202 puts them (task 7.0).
@@ -2770,397 +2947,6 @@ to its 149.
   added,** and recorded in design.md while the change is open. *Some
   answer-session details are decided at implementation* lists them and what is
   decided around them.
-
-### Conflicts for Adam to decide
-
-- **Whether a `decision` log entry on the current work's own branch counts.**
-  In proposal.md at commit 5c9fcc6, ruling 56 counts a `decision` log entry
-  "only when it is on the default branch, or, for lore, on the `questions`
-  branch". Ruling 76 says an `agent` file "follows the same rules as a
-  `decision` file: it counts only on the default branch, on the current work's
-  own branch for questions within that work ..., or on a lore `questions`
-  branch", and ruling 80 says the current-branch condition "covers decision
-  documents and `agent` entries there". Neither says it changes 56. *A logged
-  decision counts only when merged and its author has access* states only the
-  undisputed part: the default branch, or a questions branch with a proven
-  writer. *A decision on the current work's branch answers that work* and *An
-  agent's choice counts only in the work it belongs to* count an `agent` entry
-  on the work's own branch and are silent on a `decision` entry there. The
-  inquisitor spec's *A log entry counts only where its branch allows* counts
-  either kind there.
-- **What the Igor's record of a handback holds.** *A person's answer to a
-  handback* matches an answer against the Igor's record of the questions it
-  posted, compared as reduced for their hash (#216's decision 41). *A later
-  run names the answered file from the Igor's record* has that record hold
-  only the log file name's suffix and date, never question text. They may be
-  two records (#216's decisions 41 and 59), or one that also holds question
-  hashes, which "only" would rule out. *Alignment with igor PR #216* calls
-  #216's decision 59 "the hashed record of handback questions". Meanwhile each
-  entry states its rule as written.
-- **Whether a reopened decline leaves its miss behind.** *Reopening a declined
-  question* keeps an already logged miss, since a miss file is never changed.
-  Its source is ruling 255 in proposal.md at commit 5c9fcc6. A note on that
-  ruling says Adam's later decision 298 amended it: "no decline that can be
-  reopened logs a miss". But under *Messages that
-  are not questions are ignored*, filter 3's choice "the agent shouldn't have
-  asked" posts nothing and logs a miss, and a decline that posts nothing on a
-  thread copy can be reopened on its machine. Meanwhile the entry keeps "the
-  miss stays".
-- **Whether to keep the "until #202 settles" sentence on off-GitHub
-  approvals** in the igor PR #202 bullet above. It may be an interim igor
-  design, which this change avoids while igor has no users, or may only
-  restate *An answer typed on another surface counts only through a decision
-  document*, true in the end state too. Meanwhile the bullet keeps it.
-- **Whether a copy of an answer, pushed alone, can become a named file's
-  answer.** *A named file's answer must be the person's own, added alone*
-  stops a copy of another question's answer pushed in one commit with other
-  files. A copy that carries the person's comment link and is pushed alone
-  passes both its tests. No ruling says whether that is accepted or why it
-  cannot happen.
-- **Why an owed push's retry ignores an answer file this machine already
-  knew.** *The push order for a questions-branch answer* gives the reason: so
-  that a file pushed at once does not cancel the push of an edited answer's
-  file. No ruling records that reason; it is the author's inference, for Adam
-  to confirm.
-- **Why a replaced answer file still supersedes the older files in its hash
-  group.** Under the inquisitor spec's *A replaced answer file stops counting
-  even in its own hash group*, such a file stops counting yet still supersedes
-  the older files, which can leave the group with no answer that counts.
-  *`answers` decides a named file's answer; the search groups by hash* says
-  why it stops counting; nothing says why it still supersedes.
-- **What an agent records for a rhetorical question outside a post.** The
-  spec's *Filters 3 and 4 have the agent decide the question itself* and its
-  scenario "A rhetorical question is rewritten" settle only one in a post's
-  body: the statement in the post is the whole of the choice, so the `decided`
-  verdict names the post. No ruling says what the agent records, or where, for
-  a rhetorical question it would have put to the picker or in its report.
-- **How the answer session tells a post refused for its text from one refused
-  for permission.** The answer-session spec's *A pending answer no check
-  returns waits for the person* treats the two differently, but no ruling says
-  how the session tells them apart, for example by the error each surface
-  returns, or whether that is left to implementation. Task 0.25 measures how
-  each surface reports the two refusals, and the spec states no rule for a
-  refusal the session cannot place.
-- **Whether the 2-hour bound on a sensitive question's hash must cover a
-  question left uncategorized.** *Records hash a question with plain SHA-256*
-  accepts that a short sensitive question could be guessed from its record
-  only because a record with a category is deleted after 2 hours. But a
-  sensitive question left uncategorized with a `deferred` verdict keeps its
-  record until a later verdict replaces it. Undecided: whether that gap is
-  accepted, or the spec should, for example, expire uncategorized `deferred`
-  records or use an HMAC.
-- **When the agent names a related earlier decision.** *A question that is
-  asked is prepared for a quick answer* has the agent name it "when it runs
-  the first call, from filter 1's hits", but the first call is what prints
-  those hits, and *The related-decision line is left out of the hash* has the
-  agent add the line after that call. Which decision it names decides who is
-  tagged first. Undecided: whether it names it at the second call or after
-  both.
-- **Whether a run's file can be about a repository other than its item's.**
-  *The repository a question concerns defaults to the current work's*: "During
-  an Igor's run, it SHALL be the repository of the item the run works, never
-  one the worker names", as *The script tells an Igor's run by `IGOR_RUN`*
-  also says. But the scenario *A file an Igor pushes names where
-  it was asked from*, in *A log file and a miss file have one format*, has a
-  run on an item in `o/web` push a file whose `repository` is `o/api`, and
-  #216's decision 33 lets a file's `repository` name any repository.
-  Undecided: whether the first rule holds only when the agent cannot tell
-  which repository a question is about, or for every question in a run, in
-  which case `asked_from` never differs from `repository`.
-- **What a file's visibility is when its `asked_from` is well formed but its
-  visibility cannot be read.** *An unreadable visibility counts against
-  sharing* counts a visibility that cannot be read as private for the
-  repository the question concerns and for a repository an `asked_in` URL
-  points into, and as public for a lore repository and for a post's
-  repository. *A log or miss file is as private as its more private
-  repository* counts only an `asked_from` failing the syntax check as private.
-  Undecided: how a well-formed `asked_from` with unreadable visibility counts;
-  until then private content could reach a public place.
-- **How long each part of a Discord bot token must be to match.** The
-  credential pattern in *The credential patterns are a closed list of token
-  shapes*, "three base64 parts separated by dots", has no length, so `1.15.0`,
-  `www.example.com` and `spec.md.bak` match. The second call would then refuse
-  such a verdict field, the script such a log file, and both hooks such a
-  related-decision line. Undecided: the bound, which trades missed tokens
-  against refused ordinary text.
-- **Whether the credential scan reads a question's raw markdown or its reduced
-  text.** *The secret scan is only a backstop* has the script scan every log
-  and miss file it writes and every question in a post; *A question's text and
-  hash are built one way* reduces inline markup to its text. Neither says
-  which form is scanned. On the reduced text, a token in a link target, such
-  as `[docs](https://x/?token=ghp_…)`, passes the scan; the post hook, which
-  compares only the reduced text's hash with the verdict record, lets it
-  through, and it is published. Undecided: which form is scanned.
-- **Whether a question may hold lines that look like a log file's closing
-  sections.** The scenario *A log file's body is read from its end*, in *A log
-  file is read by its frontmatter and its body's end*, reads the answer from
-  the end and, before it, a rephrasing's four lines: `## Rephrased question`,
-  the rephrased question, `## Discussion` and the discussion's one sentence.
-  "The question is everything between the body's first line, `## Question`,
-  and those last lines". Nothing refuses or escapes `## Rephrased question`,
-  `## Discussion` or `## Answer` lines inside a question. An untrusted
-  question ending in forged rephrasing lines is read back as a shorter
-  question, so a writer's answer is recorded as a `decision` against a
-  different text and hash. Undecided: whether the `log` command refuses such a
-  question, escapes those lines, or the risk is accepted.
-- **Whether the publisher's word admits a fork commit's description as it
-  admits the regression test.** *A weakness's regression test lands nowhere
-  public before publication* lets the test land in the advisory's private fork
-  once task 0.13 shows merge at publication "or the person who will publish
-  the advisory has said it will merge at that moment", and its scenario *The
-  regression test goes in the fork on the publisher's word* applies that
-  before task 0.13 is measured. *A commit in an advisory's private fork is
-  described as task 0.13 allows* takes the publisher's word only once task
-  0.13 has shown the pull request can merge first, and its scenario *A fork
-  commit follows the public rule until task 0.13 settles it* forbids a
-  description before then "whatever the person who will publish the advisory
-  has said". So the fork commit's description, which reveals less than the
-  test, a working exploit, gets the stricter rule, with no reason recorded.
-  Undecided: whether the two rules should match, and which way.
-- **Whether a signature's committer date is bounded.** *A file is as new as
-  its proof, and supersedes only if it would count* dates a signature by "the
-  signed commit's committer date", and *The newest proven answer counts* calls
-  it a date "only the signer could set". The signer sets any date: a proven
-  writer, or a skewed clock, can date a commit far in the future, and that
-  file then outranks every later answer for good. Nothing bounds it against
-  the time of the push or the fetch. Undecided: whether to bound it, or accept
-  it.
-- **Whether prose's hook blocks gh's read-only aliases and extensions.** The
-  `gh-post` spec's *The reader reads only gh's own top-level commands* makes a
-  `gh` command whose first word is not gh's own "unreadable wherever it
-  appears, even in a command that another requirement of this spec says sends
-  no post", so both post hooks block it. *Which commands the reader judges,
-  and which are unreadable* makes an alias or extension unreadable on any
-  line, and leaves open whether that should reach a line naming no gh post
-  verb. prose's reader today passes every line without one,
-  so under the spec every prose user has gh's default alias `gh co` and
-  extensions such as `gh dash` blocked. Undecided: whether the block covers
-  every line, only one that mentions a gh post verb, or spares aliases and
-  extensions that only read.
-- **Whether `git` stays a data command on a line that mentions a gh post
-  verb.** The `gh-post` spec's *A line whose simple commands send no text is
-  no post* keeps `git` a data command and lists a fixed set of forms that give
-  code to run: `-c`, and, in its scenario *A git subcommand that runs a gh
-  post is unreadable*, `rebase -x` or `--exec`, `submodule foreach` and
-  `bisect run`. prose's `DECISIONS.md` on origin/main rejects such a list as
-  never complete. Forms outside it still run a post unread: `git config
-  alias.p '!gh pr comment 5 -b x' && git p`, `git difftool -x 'gh …'` and `git
-  filter-branch --tree-filter 'gh …'`. The inquisitor's block on a reserved
-  prefix relies on this reader. Undecided: whether `git` leaves the data
-  commands on such a line, or the list is accepted as incomplete. See also
-  *Other git forms that run a command*, below.
-- **How the reader skips an option that takes a value before inline code.**
-  The `gh-post` spec's scenario *A gh post run as inline code is unreadable*
-  counts code "given ... by an option before its script or subcommand", and
-  *Inline code after grouped options is unreadable* covers grouped letters
-  only for `python`. Nothing says how an option that takes a value is skipped.
-  In `python3 -W ignore -c '…gh pr comment…'` and `git -C . -c 'alias.p=!gh pr
-  comment 5 -b x' p`, the reader may take `ignore` or `.` as the script or
-  subcommand and pass the line; `node -pe` is not covered either. Undecided:
-  the rule for such options.
-- **Whether a `gh api` body read from a file must be a whole command line.**
-  The `gh-post` spec's *The reader reads a gh api write to an issue or pull
-  request* reads each `body` field or `--input` key as a body; only a `gh pr`
-  or `gh issue` post must be a whole command line (*The reader reads a gh pr
-  or gh issue post only as a whole command line*). prose's `DECISIONS.md` on
-  origin/main rejects reading bodies in longer commands: "An earlier `cd` or
-  `printf > body.md` changes which file `--body-file` names." In `printf
-  'unsigned' > c.md && gh api …/comments -F body=@c.md`, or the same with
-  `--input`, an earlier command rewrites the file the reader reads. Undecided:
-  whether such a `gh api` write must also be the whole command line.
-- **Whether the post-reader entries under *Decisions* are cut to decision and
-  reason.** The `gh-post` spec holds the reader's rules, yet the entries from
-  *Which commands the reader judges, and which are unreadable* to *GraphQL
-  mutations that post text* restate them in detail, and the items below that
-  cite the `gh-post` spec record where that copy has drifted. Cutting the
-  entries would settle each difference for the spec's wording. Undecided:
-  whether to cut them.
-- **What the fallback poll reads for review requests and assignments.** *The
-  answer session polls GitHub's notifications and comments*: unless task 0.15
-  shows that notifications report every GitHub message of the first three
-  sources, the session "SHALL also read each subscribed repository's issue and
-  pull request comments". The third source of *A question asked of the person
-  comes from one of four sources* is a review request or an assignment, which
-  no comment read finds, and the spec does not say whether pull request
-  comments include review-thread comments, which the scenario *Replies to the
-  relay on Linear and GitHub are questions* relies on. Undecided: whether the
-  fallback also reads review requests, assignments and review-thread comments.
-- **Whether a miss or citation file's push is recorded as owed and retried.**
-  *A handled file is pushed once its close takes effect* records an owed push
-  before the post and retries a failed one, and the scenario *The state folder
-  holds all working state* lists only answer-file and handled-file pushes. *A
-  decline for the inquisitor logs a miss once it takes effect* pushes the miss
-  "only once its post has gone out", and the citation files of *A lore entry
-  posted as a recorded answer gets a citation file* and *A filter 1 decline
-  cites its lore entry once* are neither recorded nor retried. A crash or
-  failed push after the post loses them for good, since the thread then shows
-  the question as handled. Undecided: whether they get an owed-push record and
-  retry, or the loss is accepted.
-- **What makes a Linear relay post name a question.** *The thread is the
-  durable record of an answer* takes a question's state "from the latest relay
-  post naming it in its thread". On GitHub a relay post names its question
-  with its `Re: ` line, and on Discord by replying to it; nothing says how a
-  Linear relay post names one. Undecided: the rule for Linear.
-- **Whether a decline under the second reason resolves a question.** *A
-  question is resolved once answered or declined* counts a question resolved
-  once answered or "declined with nothing to answer", the first reason, yet
-  *Later messages after an answer or a decline are new questions* applies to
-  "a resolved question's thread" and names any decline in its title.
-  Undecided: whether a decline because the inquisitor should have handled it
-  resolves its question, so that later messages in its thread are new
-  questions.
-- **Whether the reader blocks an unquoted body.** The `gh-post` spec's *A gh
-  pr or gh issue body comes from a quoted option or an existing file* reads a
-  `--body` or `-b` only "in single quotes or in double quotes with no `$`", so
-  `gh pr comment 5 --body hi`, `-bhi` and `--body=hi`, each of which prose's
-  reader reads today as the body `hi`, become unreadable and both post hooks
-  block them. No ruling records why. Undecided: whether a one-word unquoted
-  body is blocked, and what that block guards against.
-
-### Where the spec and a decision differ
-
-These are listed for Adam; the spec is not changed here. Each names the
-spec requirement, then the design entry.
-
-- **A deferred question in a new issue that tags someone in another part**
-  (inquisitor spec *Questions in posts pass the same filters*; *A deferred
-  question passes only untagged and listed*). The decision: "a question in a
-  new issue that tags no one". The spec: a question "that tags no one and is
-  an item of an open-questions section or in a post that creates an issue", so
-  it passes in a new issue even when another part of the issue tags someone;
-  read literally, the decision does not let it. *Questions in posts* follows
-  the spec.
-- **A private file in a readable directory** (inquisitor spec *The two calls'
-  files and records stay private*; *Files passed to the two calls stay
-  private*). The decision: the script "refuses a file readable by its group or
-  others". The spec adds "or whose directory they can". An addition, not a
-  contradiction.
-- **Which questions go on standard input** (inquisitor spec *Some questions
-  are recorded by hash only*; same design entry). The decision: "A question
-  with a category reaches the script on standard input". The spec passes "it,
-  its verdict and the rest of its picker call only on standard input". An
-  addition, not a contradiction.
-- **A gh read through an unset `$G`** (gh-post spec *The reader reads posts
-  sent through the github-app skill and gh api*, scenario *A gh read through
-  an unset G is no post*; *Posts sent through the github-app skill's script*).
-  The decision: a command that runs `python3 $G`, "mentions `gh`" and assigns
-  `G` nowhere earlier is unreadable. The spec: one that "mentions a gh post
-  verb", so it lets a read through.
-- **An unparseable GraphQL query** (gh-post spec *The reader reads GraphQL
-  posts and blocks a gh api write it can't read*; *GraphQL mutations that post
-  text*). The decision: "A mutation the reader cannot parse ... is
-  unreadable". The spec: "a query it cannot parse", read or mutation.
-- **`gh` inside an unquoted word** (gh-post spec *A line whose simple commands
-  send no text is no post*; *Which commands the reader judges, and which are
-  unreadable*). The decision: a data command "naming `gh` only inside a quoted
-  argument". The spec: "with `gh` only inside a longer word that is not a path
-  ending in `/gh`", which also covers an unquoted word.
-- **Other git forms that run a command** (gh-post spec *A line whose simple
-  commands send no text is no post*, scenarios *A gh post run as inline code
-  is unreadable* and *A git subcommand that runs a gh post is unreadable*;
-  *Code given on the command line that names gh*). The decision counts any git
-  form that runs a command it is given, such as `git rebase -x`/`--exec`, `git
-  submodule foreach` or `git bisect run`. The spec names those three and `-c`
-  in its scenarios, and calls its set of forms that give code to run "fixed".
-- **How a body is reduced before the reserved-prefix check** (inquisitor spec
-  *The post hook vets what the shared post reader returns*; *The post hook
-  blocks a reserved prefix on GitHub*). The decision and the spec reduce the
-  body differently; that entry says how, and why the decision's rule would
-  defeat the block.
-- **Which `CLAUDE.md` holds a way-of-working answer** (inquisitor spec *A
-  way-of-working answer goes to the person's memory, not a log*, and *An agent
-  records its own choice where the question's answer is recorded*; *A
-  way-of-working question gets no log*). The decision: "the person's memory or
-  `CLAUDE.md`". The spec: "that person's agent memory or user-level
-  `CLAUDE.md`, never a committed one", narrowing the decision.
-- **When #208 has applied no commit** (inquisitor spec *Under igor run, no
-  relayed answer is known*; *An Igor reads relay files as of igor PR #208's
-  applied commit*). The decision covers `igor run` "and ... a lore repository
-  #208 never fetches", and says "An answer in the person's own comment still
-  counts". The spec names only `igor run`, and says nothing of the person's
-  own comment.
-- **Who keeps the handback record** (inquisitor spec *A later Igor run names
-  the answered file only from the Igor's record*; *A later run names the
-  answered file from the Igor's record*). The decision states the end state:
-  "The record holds only the 6-hex-digit suffix and the date". The spec calls
-  it the Igor's record "which igor PR #216 is asked to keep (#216's decision
-  59)". *What igor must provide* holds the request to #216.
-- **What an incomplete configuration is** (answer-session spec *Setup opens on
-  an incomplete configuration and checks questions-branch commits*; *Setup is
-  part of the answer session*). The decision: setup runs "when the
-  `answer_session` section is missing or incomplete". The spec: "while
-  `answer_session` is missing or no surface in it has both a `relay` and a
-  subscription", so one complete surface beside an incomplete one opens no
-  setup.
-- **An answer file copying `asked_from`** (answer-session spec *A
-  questions-branch question is answered by a new log file*; inquisitor spec *A
-  log file and a miss file have one format* and its scenario *A file an Igor
-  pushes names where it was asked from*; *The Igor writes `asked_from` on
-  every file it pushes*). The decision: the script "never writes `asked_from`,
-  apart from the miss an answer session logs". The spec also has an answer
-  file copy it: "copying its `asked_from` as a miss does" (answer-session) and
-  "a miss or answer file an answer session logs" (inquisitor), and the
-  scenario names both.
-- **Where filter 1's recorded place comes from** (answer-session spec *The
-  person's filter 1 reply links the record they chose*; *Two reasons to
-  decline*). The decision: "naming the place the person gave or the model
-  found". The spec: "the place the person gave, or of one filter 1 found that
-  they chose". The "model found" place may be the one Claude's draft fills in.
-- **An Igor log file whose link this machine never reads** (answer-session
-  spec *An Igor's log file follows its own handback comment*, and *A log file
-  with no followed link is judged on its own* with its scenario; *A link this
-  machine never reads is not followed*). The decision has no exception. The
-  spec: an Igor worker's log file "SHALL follow the comment, not be shown on
-  its own, even on a machine that does not read its item", an exemption that
-  fits *Each Igor log file follows its own handback comment*, though no
-  decision states it. The spec also adds a channel "this machine has off".
-- **Which login an unknown post goes out as** (inquisitor spec scenario *An
-  unknown posting login counts as the configured login*, in *A question no
-  candidate can decide turns to the session's login*; the bullet *Can the
-  script learn which login a post goes out as?* above). The bullet: "it treats
-  every post as going out as the person". The spec: "as the configured login".
-  Probably the same login, in different words.
-- **How an Igor's own run hands over its files** (inquisitor spec's Purpose
-  and *The script tells an Igor's run by IGOR_RUN*; the bullet *How an Igor
-  runs the inquisitor skill itself* above, and *The script tells an Igor's run
-  by `IGOR_RUN`*). The bullet calls "how the run hands its files to the Igor"
-  open. The spec: "putting each file it would push in the run's report for the
-  Igor to push". What is open may be only how the report reaches the Igor,
-  which is #216's.
-- **A decision record in the lore repository** (inquisitor spec *Only an
-  answer with authority stops a question* and *Filter 1 searches every place
-  an answer is recorded*; *Filter 1 searches igor's scribe's records where
-  #202 puts them*). The
-  decision: filter 1 searches the scribe's records "in the repository the
-  question concerns and in the lore repository", and an `accepted` record
-  counts "wherever filter 1 reads decision records, the lore repository's
-  included". The spec counts "a decision document on the default branch of the
-  repository the question concerns", and its list of places filter 1 searches
-  holds no decision records of the lore repository.
-- **A lore entry proposed during an Igor's run** (inquisitor spec *An answer
-  that generalizes is proposed as lore* and *A proposed lore entry's path,
-  fields and id follow igor's rules*; *Configuration*). The decision: "The
-  agent proposes no lore entry during a run." The spec has the agent "unasked,
-  open a pull request" with no exception for a run, and says "During an Igor's
-  run it SHALL propose nothing for an id igor reports only as 'id taken'",
-  which assumes a run proposes entries.
-- **A question about no repository** (inquisitor spec scenario *A question
-  outside any repository is answered only from global lore*, in *With no
-  repository, a question concerns none*; *Every asked question is logged with
-  what it concerns*). The decision: a question that concerns no repository,
-  no organization or project, and not one person's way of working "is not
-  asked". The spec: "when such a question is asked
-  instead, it is logged nowhere, and, asked in a post, it tags no one". The
-  scenario *A question about nothing it can be filed with is not asked*
-  follows the decision.
-- **How visible a Linear or Discord thread is** (answer-session spec *A
-  recorded answer is posted by itself only when no more private than its
-  thread* and *The answer session writes no miss it cannot place privately*;
-  *`answer_link` and `asked_in` are withheld where they would leak*). The
-  decision: "A Linear or Discord thread counts as private." The miss rule's
-  scenario *A Linear or Discord question's miss needs a private lore
-  repository* follows it, but the requirement defines a thread's visibility
-  only on GitHub. The posting rule posts on Linear and Discord "only when the
-  record's repository is public", so it treats such a thread as possibly
-  public, unlike the decision.
-
+- **Where a machine keeps when it first fetched a questions-branch commit,**
+  which *The newest proven answer counts* bounds a signature's date by. It
+  holds no question text.
