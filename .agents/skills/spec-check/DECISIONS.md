@@ -7,7 +7,9 @@ approved before any code for it is written, and that review is where a
 reviewer's time goes. It has two parts: a script, `scripts/spec_check.py`,
 and a consistency read done by a fresh subagent. The script's `check`
 subcommand runs the mechanical checks, and `sign` runs them on the staged tree
-and prints the commit trailer.
+and prints the commit trailer. A session hook (`scripts/handback.py`) and a
+GitHub workflow keep a pull request from being handed back for review while
+a change in it was edited after its last consistency read.
 This file is why it works the way it does.
 
 Each entry: the decision, why, and what was rejected.
@@ -496,92 +498,279 @@ them. A reader using them sees the discussion and misses the decision.
 
 **Decision.** The mechanical checks run before every commit. The
 consistency read runs once per review round. A **review round** is the
-agent's work between two hand-overs for review, each a push or a hand-back
-to a person; the read runs before the hand-over that ends the round.
-
-The round's commits carry `read deferred to the round's end`, and its last
-commit carries the read, as `read by a fresh subagent: <change>, ...; N
-amended, M open`. That trailer is the record of the read. A change's
-**last read** is the newest commit, among the branch's last 1,000, whose
-`Spec-check:` value names it and is bound to that commit's own tree.
+agent's work between two hand-backs to a person for review. A push ends
+nothing: commits inside a round, pushed or not, carry `read deferred to the
+round's end`, and pushing them warns about nothing. The read runs before the
+hand-back that ends the round, and the round's last commit carries it, as
+`read by a fresh subagent: <change>, ...; N amended, M open`. That trailer
+is the record of the read. A change's **last read** is the newest commit,
+among the branch's last 1,000, whose `Spec-check:` value names it and is
+bound to that commit's own tree.
 
 A change is **due** when the branch adds or edits it (its files differ from
 the merge base with the base branch) and any of its files differs from its
-last read's tree. On the base branch itself the merge base is HEAD, which
-would leave nothing due, so there every open change counts as the branch's
-own. Each read is of the whole change. A value from before rounds, `read by
-...` with no names, counts as a read of every change its commit touched,
-which is what each commit's read was then.
+last read's tree. Only the branch's own history is searched. On the base
+branch itself the merge base is HEAD, which would leave nothing due, so
+there every open change counts as the branch's own. Each read is of the
+whole change. A `Spec-check:` value written before this rule existed,
+`read by ...` with no names, counts as a read of every change its commit
+touched, which is what each commit's read covered then.
 
 - `sign` computes the names, from what is due, rather than taking them from
-  the agent: the read covers every due change.
+  the agent: the read covers every due change, or the value says `no read
+  due`.
 - A read that led to amendments is recorded on the commit holding them, so
   the amendments count as read. Reading them again would never end.
 - `sign --read subagent` signs a code-only commit while a change is due, so
-  the round's last commit can carry the read whatever it changes. When every
-  edit is already committed, the agent undoes the last unpushed commit with
-  `git reset --soft` and commits it again with the read.
-- `sign --read deferred` warns about a round pushed without its read. It
-  names any due change that is also due at the ref the branch was pushed
-  to (`@{push}`, or `<remote>/<branch>`), by the same due rule applied to
-  that ref in place of HEAD. A read made after the push covers the pushed
-  state, and a change with no files there was never pushed. The ref is not
-  `@{upstream}`: a branch made with `git worktree add -b <name> <path>
-  origin/main` tracks the base branch.
-- A push can land on the base branch itself: from the base branch, or from
-  a branch tracking it under `push.default=upstream`. There, a change
-  counts only when a commit carrying `read deferred` touched it after its
-  last read. A pull request squash-merged into the base lands as one commit
-  whose trailer, if any, is bound to the pull request's tree, not to that
-  commit's. The base then shows the change with no read recorded, though
-  it was read on its branch. Only the deferred commit marks a round that
-  really ended unread.
+  the round's last commit can carry the read whatever it changes.
 - A change on the base branch that this branch does not touch is not due,
   even when it changed after its own last read: its own pull request read
   it.
 
 **Why.** In two long sessions, agents in review rounds re-reading large
 documents were about 69% of spend, and spec-check's consistency reads were
-13% and 19%. A read on every commit read the same change again for each
+13% of one session's spend and 19% of the other's. A read on every commit read the same change again for each
 small fix. The record lives in git, in the trailer that already binds the
 mechanical checks to the tree, so another agent, another worktree or a
 reviewer finds it with no state of its own. A trailer whose tree is not its
 commit's records nothing, so a value copied from another commit cannot
 excuse a read.
 
+**Why a hand-back and not a push.** Agents here push after almost every
+commit, so that work survives a crash. A round ended at each push would
+make each commit a round's last, and every one of them would need a read:
+the per-commit cost this rule exists to cut. A hand-back is when a person
+starts to read, so it is when the read must be done. The first design
+(pull request #51) ended a round at a push too, and detecting a push
+(`@{push}`, `push.default`, a push to the base branch, merges) was where
+most of its bugs were.
+
 The benchmark in the next section supports reading once per round: each
 round-end read caught every problem planted in the round's edits, so
 deferring the read to the round's end missed none of them. The saving
 depends on how many commits a round holds. igor PR #216 had 40 commits with
-a read and about 27 pushes, so one read per push would have made about a
-third fewer reads. shared-skills PR #25 had 54 and about 53 pushes, so
-almost nothing would have been saved.
+a read and about 27 pushes; shared-skills PR #25 had 54 and about 53, so
+rounds ended at pushes would have saved a third of #216's reads and almost
+none of #25's. How many hand-backs either had was not counted.
 
-**Accepted: merging the base branch in mid-round.** spec-check judges a
-commit by what differs from its first parent, so a merge commit counts every
-change it brings in. If a branch merged the base mid-round with a `read
-deferred` commit and was then merged into the base, that commit would count
-the base's unarchived changes as open rounds. `sign --read deferred` on the
-base would then ask for one extra read. The worst case is that duplicate
-read, and handling merges more precisely was the most bug-prone part of
-this rule. Revisit this if it proves frequent.
+**Two checks enforce it, and both judge the pull request, not a
+directory.** Each asks GitHub for the pull request's head and reads the
+`Spec-check:` trailers on its own commits, so the answer is the same for a
+local agent, a person and an Igor (an agent run by igor, see *It fits igor
+best*). A change is unread when it is due at that head. A hand-back is:
+- `gh pr create`, unless `--draft` or `--dry-run`. With `--reviewer` it is
+  a hand-back even as a draft, since it requests a review;
+- `gh pr ready`, unless `--undo`;
+- `gh pr edit --add-reviewer`;
+- the GitHub MCP server's `create_pull_request` without `draft: true`, and
+  its `update_pull_request` with `draft: false` or with `reviewers`.
+
+A draft pull request that requests no review is not a hand-back.
+
+- **The GitHub workflow is the guarantee**, where a repository uses Actions
+  (`ci/spec-check.yml`, written by `spec_check.py setup-ci`). On
+  `opened`, `reopened`, `ready_for_review` and `review_requested`, a pull
+  request with an unread change fails the `spec-check` check, is made a
+  draft again, and loses the review request. On `synchronize` the check
+  only fails, so a round's pushes before its read do not flip the pull
+  request back and forth, and a required check holds the merge until the
+  read lands. It runs `spec_check.py ci` fetched at a pinned commit, as
+  spec-trace's CI step does. The judgement reads only git, so it needs no
+  OpenSpec CLI. It sees every hand-back however it was made: the agent's
+  gh, the web page, another client, and an Igor's own posts. A fork's pull
+  request gets a read-only token, so there the check fails and cannot make
+  it a draft.
+- **The session hook is fast feedback**, and where a repository has no
+  Actions it is the only check, best effort (`scripts/check-handback.sh`,
+  run before and after the tool call):
+  - **Before the call**, a hand-back that names its pull request without
+    needing a directory to find it is judged, and blocked while a change is
+    unread. Named means by URL, by `-R` or `GH_REPO` with a number or
+    branch, or by the MCP's owner, repo and number.
+  - **After the call**, one GitHub MCP call that hands back is judged, and
+    so is a shell command on an allowlist:
+    - the shared command reader parses all of it, refusing no part;
+    - it holds exactly one gh call, and that call is a hand-back;
+    - no word in it expands (`$`, a backtick, a glob, a brace, or a `~` at
+      a word's start, though `~/` passes), and no variable is assigned but
+      `GH_REPO=<plain>` before the gh;
+    - every other command in it starts with `git`, `cd`, `echo`, `printf`,
+      `true` or `sleep`. When the hand-back names no pull request by number
+      or URL (a create, or a ready or edit by branch), the list is
+      narrower: `git push`, `git add` and `git commit` with plain options,
+      `cd`, `true` and `sleep` (see *Why a hand-back that names no pull
+      request gets a narrower list*).
+
+    The one pull request the call printed is then the hand-back's: its URL,
+    gh's `Pull request owner/repo#N is` line, or the MCP result's
+    `html_url`. One handed back with a change unread is made a draft again
+    (`gh pr ready --undo`), the reviewers the call requested are removed,
+    and the agent is told to read, sign, push and hand back again. The hook
+    also runs after a command that fails (Claude Code's
+    `PostToolUseFailure`), since the hand-back may have gone through. The
+    URL gh prints when a pull request already exists for the branch is not
+    one the call handed back, and is never taken back.
+  - **A hand-back off the allowlist gets a note, never a block.** Nothing
+    is undone. The agent is told, as additional context after the call,
+    that the hook did not check this hand-back, and why: the note names the
+    program not on the list (`timeout`, `tee`, `bash`), quotes the word that
+    expands, or names the variable assigned or the second gh call. It gives
+    the allowlist and the plain form (run `gh pr ...` on its own, or with
+    only those programs beside it), and says the GitHub workflow still
+    checks the pull request. The note is given only when the command holds a
+    hand-back. To find one, the hook reads each gh word, also one among
+    another program's words, and the string after a shell's `-c`. An
+    ordinary command gets no note.
+  - **Also not judged**, and left to the workflow where there is one: a
+    hand-back that printed no single pull request, as with output sent to
+    `/dev/null`, or printed one other than the one it named.
+  - **What the output is read as.** A URL alone at the start of a line, or
+    gh's `Pull request owner/repo#N is` line after its symbol, once colour
+    codes are taken out. An indented line, such as a commit body in
+    `git log`, is not gh's. Every pull request printed is looked up on
+    GitHub, and they must all be one; a named hand-back's must be that one,
+    so another repository's pull request with the same number is never
+    taken back. An `echo` or `printf` whose words hold such a URL or line,
+    and `printf -v` (zsh runs commands in its variable name), are off the
+    allowlist.
+  - The pull request's commits are fetched into a cache, one bare partial
+    clone per repository with no file contents
+    (`~/.cache/spec-check/pulls/`), since the judgement reads only trees
+    and trailers. The head commit is fetched by its id, and only then by
+    `refs/pull/<n>/head`, which GitHub makes a moment after the pull
+    request. git fetches with gh's token, so a private repository works as
+    `gh repo clone` does.
+  - The shell is read with the command reader prose's posting hook uses
+    (`.agents/lib/gh-shell/gh_shell.py`), only to tell whether a command
+    hands back and which pull request it names; never to work out the
+    directory gh runs in (see *Why directory placement was abandoned*).
+- **Both checks act after the fact.** A pull request created ready, or a
+  review requested, notifies GitHub's watchers before the post-call hook or
+  the workflow can take it back. A reviewer may get the notification of a
+  hand-back that is a draft again a moment later. Blocking before the call
+  is possible only when the call names its pull request.
+- **What neither catches.** A hand-back made in conversation, with no gh
+  command, such as telling a person the work is ready. Without a workflow,
+  a hand-back through `gh api`, another client or the web page. For these,
+  the reviewer still sees `read deferred to the round's end` on the head
+  commit's trailer.
+
+**Why directory placement was abandoned.** The first version of the hook
+judged the local branch where gh would run, working out that directory from
+the command text: each `cd` and `pushd`, runners such as `bash -c` and
+`env -C`, CDPATH, heredocs. Two bug-hunter runs found 29 bugs in it, and
+every iteration of both found new shell forms that moved gh somewhere the
+hook did not look: `builtin cd`, `\cd`, `cd>/dev/null`, `env -iC`, a
+heredoc fed to bash, `cd -P` through a symlink. The forms have no end. The
+pull request itself is what is handed back, and GitHub names it exactly.
+
+**Why one gh call, and no other.** The rejected alternative judged every
+command that might hand back, and worked out which of the pull requests it
+printed was the hand-back's. A bug-hunter run found 13 bugs in those rules
+over three iterations. One fix, which skipped a pull request another gh
+command named, hid the very pull request handed back in
+`gh pr checks 7 && gh pr ready`. With one gh call, and that call a
+hand-back, whatever pull request the command printed is that call's, and
+no rule is needed to tell them apart. A command the hook does not judge is
+uncommon in an agent's hand-backs, and the workflow judges it whatever the
+command was.
+
+**Why the post-call check is an allowlist.** The hook is fast feedback
+for an honest agent; the workflow is the guarantee. The rejected
+alternative listed what may hide a gh (shells, interpreters, wrappers,
+`env -S` inside a word), and a bug-hunter run found another such program
+in each of its three iterations. Any program can run a gh with no gh in
+its words, so that list never ends, and a form it misses is misread: the
+hook takes back whichever pull request was printed, which may be the wrong
+one. An allowlist fails the other way. A form it does not list is skipped,
+never misread, and the note tells the agent how to make it judged. The
+forms an agent uses to hand back (`git push && gh pr create`,
+`cd repo && gh pr ready 12`) are on it.
+
+**Why a hand-back that names no pull request gets a narrower list.** When
+its own gh prints nothing (a failed `gh pr create`, or a ready by branch),
+a pull request another listed command printed would be the only one in the
+output, and would be taken for the hand-back's: `git show -s --format=%b`,
+a git alias or `rebase -x` that runs gh, `printf '%s/pull/%s\n' ...`. A
+hand-back that names its number or URL is safe, since the pull request
+printed must be the one it named. So beside one that names nothing, only
+commands that never print a pull request may stand: `git push`,
+`git add`, `git commit`, `cd`, `true` and `sleep`. `git -c` and every
+other git subcommand are left out. Those three take only options that
+print no diff and run no command (`commit -m`, `-a`, `--amend`; `push -u`,
+`--force-with-lease`; `add -A`), so `git add -p`, `git commit -v` or
+`--dry-run`, and `git push --exec` are off. When the narrower list is the
+one broken, the note names it. The other option considered was to confirm
+the pull request on GitHub (its author and creation time, or its requested
+reviewers) before taking it back. The narrower list needs no further call
+to GitHub, and a form it leaves out gets the note, never a wrong
+take-back.
+
+**Known gap.** `git commit` and `git push` run the repository's own hooks
+(pre-commit, commit-msg, pre-push), which could call gh or print a pull
+request's URL; the hook would then read that pull request as the listed
+hand-back's. A gh hidden on purpose, by an agent working against the
+check, is out of scope. The workflow covers both.
+
+**It fits igor best.** In igor, a hand-back is an explicit, recorded
+event: an Igor's handback comment, carrying igor's handback marker. An Igor
+posts through its own code, which spec-check's session hook never sees, but
+the workflow does: an Igor's pull request marked ready or sent for review
+is judged like anyone's. This may make igor's own loop-side check (igor
+issue #149) unnecessary. spec-check builds nothing igor-side.
+
+**This settles, for spec-check, the open question in shared-skills issue
+#37 item 5 of how a draft becoming ready is detected:** GitHub's
+`ready_for_review` event, read by the workflow, and the agent's
+`gh pr ready` (or the MCP's update), read by the session hook. Item 5's
+other triggers are not built here.
+
+**A read with nothing to commit lands on an empty commit.** The read has
+to be on a commit, and when every edit of the round is already pushed and
+the read amends nothing, there is nothing to commit. A pushed commit is
+never rewritten, so the read goes on an empty commit, made through the
+shared commit script's `--allow-empty` (the commit-trailer library's
+DECISIONS.md, *An empty commit, only when asked*). Its `Spec-check:` value
+is still bound to the tree, which is the parent's. #51 never needed one: its
+round ended at a push, so the last commit was still unpushed and could be
+committed again with `git reset --soft`.
 
 **Rejected:**
+- **Ending a round at a push** (pull request #51). See *Why a hand-back and
+  not a push*.
 - **A state file under `.git/`.** It is per clone: another machine, or a
   reviewer, would read everything again, and nothing in the history would
   show that a read happened.
-- **An empty commit for a read that amends nothing.** The shared commit
-  script refuses an empty commit; recommitting the round's last commit
-  records the same thing without one.
-- **Warning when the pushed state differs from the newest read at HEAD.**
-  Instead of applying the due rule to the pushed ref, this compared the
-  pushed files with HEAD's newest read. It warned about a pushed state
-  that an earlier, pushed read had covered, and skipped a change no commit
-  had read yet.
 - **Main's spec changes making every open change due.** A spec change on
   main came through its own pull request, whose read held it against the
   open pull requests, this one included. Each read of this change reads
   main's specs whole anyway.
+- **A gh reader of spec-check's own.** prose's already reads every form the
+  agent's shell may take, and two readers would disagree about the same
+  command. So prose's reader moved into `.agents/lib/gh-shell/`, which both
+  hooks import from the clone, as the shell scripts find
+  `.agents/lib/commit-trailer/`.
+- **Loading `prose.py` by path for its reader.** It tied spec-check to
+  private names in another skill's script, and ran all of prose's module
+  code on every hand-back command.
+- **Judging the local branch where gh runs.** See *Why directory placement
+  was abandoned*. Judging every directory a `cd` might reach, and blocking
+  when one could not be followed, still missed forms each iteration.
+- **Judging only before the call.** A `gh pr create` names no pull request
+  before it runs; only its output does.
+- **Telling apart the pull requests a command printed.** See *Why one gh
+  call, and no other*.
+- **Looking up the branch's pull request when nothing was printed**, as
+  after `gh pr create > /dev/null`. It needs the directory gh ran in.
+- **Treating every command that names gh as running it**, as prose's
+  posting hook does. A missed post publishes unchecked text; a missed
+  hand-back leaves `deferred` on the head commit for the reviewer to see,
+  and the workflow catches it where there is one. The false blocks cost
+  more here than the misses.
+- **Making the pull request a draft again on every push with an unread
+  change.** Pushes inside a round are expected before the read; flipping
+  the pull request on each would notify watchers each time. The failed
+  check holds the merge instead.
 
 ---
 
@@ -630,6 +819,48 @@ planted problems, so the figures are a sign, not a measure.
   brief did (3% more over the four rounds) and caught the fewest problems
   already present at the last read: one of four, which its pack happened to
   quote.
+
+---
+
+## The reader reads every file of the change whole
+
+**Decision.** The read is done by a general-purpose subagent, not Explore.
+Its brief lists every file of the change and tells it to read each whole,
+every line, paging long files with the Read tool, never skimming, grepping
+or sampling: a problem may sit anywhere in a long delta spec. The files are
+listed, not pasted into the brief.
+
+**Why.** A second benchmark (2026-11-02) used the same four rounds and
+planted problems as the one above, two runs per round and brief, so eight
+reads per brief:
+
+| Brief | Tokens per read | Problems in the round's edits (of 40) | Already there at the last read (of 8) |
+|---|---|---|---|
+| A: today's brief, general-purpose | 150k | 39, 1 partly | 2 |
+| B: A with the change's files pasted in | 147k | 40 | 3 |
+| C: Explore, told to read each listed file whole | 206k | 38, 2 partly | 6 |
+| D: general-purpose, told to read each listed file whole | 267k | 39, 1 partly | 7 |
+
+The first comparison had a confound: C changed both the agent and the
+wording, so its 6 of 8 could have come from either. D kept A's agent and
+took C's wording, and caught 7 of 8 against A's 2 of 8 (Fisher's exact
+test, one-sided, about 0.02). The wording does it. Problems in the round's
+edits were caught by every brief, so the gain is all in what was already
+there, which a reader of only the familiar parts misses.
+
+The cost is about 78% more tokens per read (267k against 150k). Reading
+once per review round (see *One consistency read per round*) is what pays
+for it.
+
+**Rejected:**
+- **Explore** (C). It cost 37% more than A for one fewer catch than D, and
+  one of its eight reads said it had not read every line: the wording does
+  not hold it.
+- **Pasting the change into the brief** (B). It saved no tokens, and its
+  readers skimmed what they were handed.
+
+Single runs per cell, with planted problems: the figures are a sign, not a
+measure.
 
 ---
 
@@ -965,20 +1196,25 @@ OpenSpec puts it.
 
 ---
 
-## The hook is enabled by default
+## The hooks are enabled by default
 
-**Decision.** `hook.json` says `"default": "enabled"` for the commit hook.
+**Decision.** `hook.json` says `"default": "enabled"`, for the commit hook
+and the hand-back hooks alike: manage-skills switches a skill's hooks
+together.
 
 **Why.** Several organizations install from this repository, each with its
 own repositories, so the default must suit a repository that uses OpenSpec and
 one that does not:
-- Installing spec-check is itself the opt-in. Nobody gets the hook without
+- Installing spec-check is itself the opt-in. Nobody gets the hooks without
   asking for the skill.
-- In a repository without OpenSpec, the hook does not speak: it judges only
-  commits that change `openspec/`.
-- It never blocks.
+- In a repository without OpenSpec, neither hook speaks: the commit hook
+  judges only commits that change `openspec/`, and the hand-back hook only a
+  pull request with an open change.
+- The commit hook never blocks. The hand-back hook acts only on a hand-back
+  that would leave a change unread, and a draft that requests no review is
+  never a hand-back.
 - Off by default, an installed spec-check would leave the spec stage
   unchecked, and nothing would say so.
 
 **Rejected:** off by default. It suits a hook that reports on every commit,
-which this one does not.
+which neither does.

@@ -7,6 +7,8 @@
                        [--base REF] [--no-validate]
     spec_check.py verify-staged "Spec-check: <value>"   (message on stdin)
     spec_check.py verify-commit <sha> <value>
+    spec_check.py ci [--event FILE] [--repo DIR]
+    spec_check.py setup-ci [--repo DIR] [--sha SHA] [--force]
 
 A target is a change name, a change directory (openspec/changes/<name>), or
 `specs` for every spec under openspec/specs. With no target, every open change
@@ -40,6 +42,15 @@ records of the consistency read: `subagent` or `self` for a read done this
 round, `deferred` for a commit before the round's end. sign searches the
 branch's git history for each change's last read to name the changes that
 are due, and ends the value with `no read due` when none is.
+
+ci is the GitHub workflow's check of a pull request event ($GITHUB_EVENT_PATH):
+it fails when a change is unread at the pull request's head and, when the
+event handed the pull request back for review, makes it a draft again and
+withdraws the review request. setup-ci writes that workflow into a
+repository, pinned to a commit of this file. verify-staged and
+verify-commit check a `Spec-check:` value against the staged tree or a
+commit: the commit library calls the first before it commits, and the commit
+hook the second after.
 
 Standard library only. Read DECISIONS.md next to SKILL.md before changing this.
 """
@@ -2439,13 +2450,17 @@ def staged_targets(repo):
 
 # -- rounds: where the last consistency read was ---------------------------
 #
-# A consistency read runs once per review round, at the push or the hand-back
-# to a person that ends it (DECISIONS.md, "One consistency read per round").
-# Its record is the Spec-check: trailer of the commit that ends the round:
+# A consistency read runs once per review round, before the hand-back to a
+# person that ends it (DECISIONS.md, "One consistency read per round"); a push
+# ends nothing. handback.py, the hand-back hook, judges a hand-back with
+# unread_at: it blocks one that names its pull request, and takes back an
+# allowlisted one after the call, while a change is unread. The read's
+# record is the
+# Spec-check: trailer of the round's last commit:
 # `read by a fresh subagent: <change>, <change>; ...` names the changes it
 # read, at that commit's tree. A commit inside a round says `read deferred to
-# the round's end`. A value from before rounds, `read by a fresh subagent;
-# ...` with no names, read every change its commit touched.
+# the round's end`. A value written before this rule existed, `read by a
+# fresh subagent; ...` with no names, read every change its commit touched.
 
 READ_FIELD = re.compile(r"; read by (?:a fresh subagent|its author, no subagent)(?:: ([^;]*))?;")
 DEFERRED = "read deferred to the round's end"
@@ -2525,11 +2540,6 @@ def merge_base_tree(repo, head, base_ref):
     return git(repo, "rev-parse", f"{out.stdout.split()[0]}^{{tree}}").stdout.strip()
 
 
-def is_ancestor(repo, a, b):
-    """Whether commit a is b or an ancestor of it."""
-    return git(repo, "merge-base", "--is-ancestor", a, b, check=False).returncode == 0
-
-
 def due_reads(repo, head, base_ref, names, files_now):
     """[(change, last read or None)] for each change in names that the branch
     adds or edits and that differs from its last read. A change the branch
@@ -2548,6 +2558,22 @@ def due_reads(repo, head, base_ref, names, files_now):
         if since is None or blob_ids(repo, since[1], prefix) != now:
             due.append((c, since))
     return due
+
+
+def open_changes(repo, treeish):
+    """The open changes in a git tree: openspec/changes/<name>/, not archive."""
+    return {p.split("/")[2] for p in blob_ids(repo, treeish, "openspec/changes/")
+            if p.count("/") >= 3 and p.split("/")[2] != "archive"}
+
+
+def unread_at(repo, commit, base_ref):
+    """The due changes at a commit: what handing it back would leave unread.
+    Each is an open change there that the branch adds or edits, against its
+    merge base with base_ref, and that differs from its last read in the
+    commit's own history."""
+    tree = git(repo, "rev-parse", f"{commit}^{{tree}}").stdout.strip()
+    return [c for c, _ in due_reads(repo, commit, base_ref, open_changes(repo, tree),
+                                    lambda prefix: blob_ids(repo, tree, prefix))]
 
 
 def current_branch(repo):
@@ -2577,73 +2603,6 @@ def on_base_branch(repo, base_ref):
     return branch is not None and base_ref != "HEAD" and branch_of(repo, base_ref) == branch
 
 
-def round_left_open(repo, ref, change):
-    """Whether, in ref's history since change's last read there, a commit
-    touching change carries `read deferred to the round's end` bound to its
-    tree: a review round that ended without its read. A squash merge is not
-    one: it carries no deferred value bound to its own tree."""
-    out = git(repo, "log", "--topo-order", f"--max-count={READ_HISTORY}",
-              "--format=%H%x00%T%x00%(trailers:key=Spec-check,valueonly,separator=%x1f)%x1e",
-              ref, "--", check=False)
-    for rec in out.stdout.split("\x1e") if out.returncode == 0 else []:
-        rec = rec.strip("\n")
-        if not rec:
-            continue
-        sha, tree, values = (rec.split("\x00", 2) + ["", ""])[:3]
-        values = [v.strip() for v in values.split("\x1f") if v.strip()]
-        if any(change in (read_record(repo, sha, tree, v) or set()) for v in values):
-            return False
-        bound = [v for v in values if (m := VALUE.match(v)) and tree.startswith(m.group(1))]
-        if any(v.endswith(DEFERRED) for v in bound) and change in touched_changes(repo, sha):
-            return True
-    return False
-
-
-def pushed_ref(repo):
-    """The remote-tracking ref holding what HEAD's branch was pushed as, or
-    None: @{push}, else <remote>/<branch> for the remote it pushes to. Not
-    @{upstream}, which may be the base branch."""
-    push = git(repo, "rev-parse", "--symbolic-full-name", "@{push}", check=False).stdout.strip()
-    if push.startswith("refs/remotes/"):
-        return push
-    branch = current_branch(repo)
-    if branch is None:
-        return None
-    # "." is this repository: a branch tracking a local branch pushes nowhere.
-    remote = next((v for k in (f"branch.{branch}.pushRemote", "remote.pushDefault",
-                               f"branch.{branch}.remote")
-                   if (v := git(repo, "config", k, check=False).stdout.strip()) not in ("", ".")),
-                  "origin")
-    ref = f"refs/remotes/{remote}/{branch}"
-    if git(repo, "rev-parse", "-q", "--verify", ref, check=False).returncode != 0:
-        return None
-    return ref
-
-
-def pushed_unread(repo, base_ref, due):
-    """The due changes that are also due at the ref HEAD's branch was pushed
-    to, by the same due rule applied to that ref in place of HEAD: a round
-    pushed without its read. A change whose
-    last read at HEAD came after the push is not one, since that read covered
-    the pushed state; nor is one with no files there."""
-    ref = pushed_ref(repo)
-    if ref is None:
-        return []
-    tree = git(repo, "rev-parse", f"{ref}^{{tree}}").stdout.strip()
-    after = {c for c, since in due if since and is_ancestor(repo, ref, since[0])}
-    pushed = [c for c, _ in due if c not in after and blob_ids(repo, tree, f"openspec/changes/{c}/")]
-    files = lambda prefix: blob_ids(repo, tree, prefix)  # noqa: E731
-    if base_ref == "HEAD" or branch_of(repo, ref) != branch_of(repo, base_ref):
-        return [c for c, _ in due_reads(repo, ref, base_ref, pushed, files)]
-    # Pushed to the base branch itself (from it, or by push.default=upstream on
-    # a branch tracking it). A pull request squash-merged there shows its
-    # change with no read bound to the base's tree, though it was read on its
-    # branch. So a change the base holds unread counts only when a deferred
-    # commit shows a review round ended without its read.
-    there = due_reads(repo, ref, "HEAD", pushed, files)
-    return [c for c, _ in there if round_left_open(repo, ref, c)]
-
-
 def cmd_sign(args):
     repo = repo_root(args.repo)
     if args.read == "deferred" and (args.amended or args.open):
@@ -2659,8 +2618,7 @@ def cmd_sign(args):
     due_base = "HEAD" if on_base_branch(repo, base_ref) else base_ref
     head = "HEAD" if git(repo, "rev-parse", "-q", "--verify", "HEAD", check=False).returncode == 0 \
         else None
-    open_now = {p.split("/")[2] for p in blob_ids(repo, tree, "openspec/changes/")
-                if p.count("/") >= 3 and p.split("/")[2] != "archive"}
+    open_now = open_changes(repo, tree)
     due = due_reads(repo, head, due_base, open_now, lambda prefix: blob_ids(repo, tree, prefix)) \
         if head else [(c, None) for c in sorted(open_now)]
     reading = args.read in ("subagent", "self")
@@ -2668,10 +2626,6 @@ def cmd_sign(args):
         print("spec-check sign: nothing staged under openspec/, and no change waits for its "
               "consistency read, so this commit needs no Spec-check trailer", file=sys.stderr)
         return 1
-    if args.read == "deferred":
-        for c in pushed_unread(repo, base_ref, due) if head else []:
-            print(f"spec-check sign: {c} is on the pushed branch unread: a round was pushed "
-                  "without its consistency read. Do the read now.", file=sys.stderr)
     with tempfile.TemporaryDirectory(prefix="spec-check-") as tmp:
         materialize(repo, tree, tmp, allow_empty=True)
         staged = Corpus(tmp)
@@ -2761,6 +2715,108 @@ def cmd_verify_commit(args):
     return 0 if ok else 1
 
 
+# -- the GitHub workflow ---------------------------------------------------
+
+# The pull_request actions that hand a pull request back for review. On any
+# other action (a push) the workflow fails the check with a change unread,
+# but leaves the pull request as it is.
+CI_HANDBACKS = ("opened", "reopened", "ready_for_review", "review_requested")
+CI_TEMPLATE = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "ci",
+                           "spec-check.yml")
+CI_PIN = "<SPEC_CHECK_SHA>"
+
+
+def cmd_ci(args):
+    path = args.event or os.environ.get("GITHUB_EVENT_PATH")
+    if not path:
+        raise Fatal("ci reads a pull_request event: pass --event or set GITHUB_EVENT_PATH")
+    try:
+        with open(path, encoding="utf-8") as fh:
+            event = json.load(fh)
+        pr, action = event["pull_request"], event.get("action")
+        head, base, url = pr["head"]["sha"], pr["base"]["ref"], pr["html_url"]
+    except (OSError, ValueError, KeyError, TypeError) as e:
+        raise Fatal(f"{path} is not a pull_request event: {e}") from e
+    repo = repo_root(args.repo)
+    draft = pr.get("draft") is True
+    if draft and action != "review_requested":
+        print("spec-check: a draft pull request is not handed back for review.")
+        return 0
+    if git(repo, "cat-file", "-e", f"{head}^{{commit}}", check=False).returncode != 0:
+        raise Fatal(f"the pull request's head {head} is not in this clone: check it out with "
+                    "fetch-depth: 0")
+    base_ref = next((ref for ref in (f"refs/remotes/origin/{base}", f"refs/heads/{base}")
+                     if git(repo, "rev-parse", "-q", "--verify", ref, check=False).returncode == 0),
+                    None)
+    if base_ref is None:
+        raise Fatal(f"the base branch {base} is not in this clone: check it out with "
+                    "fetch-depth: 0")
+    unread = unread_at(repo, head, base_ref)
+    if not unread:
+        print(f"spec-check: no OpenSpec change is unread at {head[:12]}.")
+        return 0
+    print(f"::error::spec-check: {', '.join(unread)} changed after its last consistency read "
+          f"(head {head[:12]}). Do the read (spec-check's SKILL.md, section 2), commit with "
+          "`spec_check.py sign --read subagent`, push, and hand back again.")
+    if action in CI_HANDBACKS:
+        undo = []
+        if not draft:
+            undo.append(["pr", "ready", url, "--undo"])
+        who = event.get("requested_reviewer") or {}
+        team = event.get("requested_team") or {}
+        owner = (event.get("repository") or {}).get("owner") or {}
+        if action == "review_requested" and isinstance(who.get("login"), str):
+            undo.append(["pr", "edit", url, "--remove-reviewer", who["login"]])
+        elif action == "review_requested" and isinstance(team.get("slug"), str) \
+                and isinstance(owner.get("login"), str):
+            undo.append(["pr", "edit", url, "--remove-reviewer",
+                         f"{owner['login']}/{team['slug']}"])
+        for command in undo:
+            try:
+                gh(repo, *command)
+                print(f"spec-check: ran gh {' '.join(command)}")
+            except StackError as e:
+                print(f"::warning::spec-check: could not take the hand-back back ({e}); the "
+                      "workflow needs pull-requests: write, which a fork's pull request "
+                      "does not get.")
+    return 1
+
+
+def cmd_setup_ci(args):
+    repo = repo_root(args.repo)
+    dest = os.path.join(repo, ".github", "workflows", "spec-check.yml")
+    if os.path.exists(dest) and not args.force:
+        print(f"spec-check setup-ci: {dest} exists; pass --force to replace it",
+              file=sys.stderr)
+        return 1
+    sha = args.sha
+    if sha is None:
+        # The clone holding this file, through any install symlink.
+        clone = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
+            os.path.dirname(os.path.realpath(__file__))))))
+        sha = git(clone, "log", "-1", "--format=%H", "--",
+                  ".agents/skills/spec-check/scripts/spec_check.py",
+                  check=False).stdout.strip()
+        if not sha or not git(clone, "branch", "-r", "--contains", sha,
+                              check=False).stdout.strip():
+            print("spec-check setup-ci: the newest commit of spec_check.py in this clone "
+                  "is not pushed, so GitHub cannot serve it; pass --sha with a pushed "
+                  "commit of adamstallard/shared-skills", file=sys.stderr)
+            return 1
+    if not re.fullmatch(r"[0-9a-f]{40}", sha):
+        print("spec-check setup-ci: --sha takes a full 40-character commit SHA, never a "
+              "branch", file=sys.stderr)
+        return 1
+    with open(CI_TEMPLATE, encoding="utf-8") as fh:
+        text = fh.read().replace(CI_PIN, sha)
+    os.makedirs(os.path.dirname(dest), exist_ok=True)
+    with open(dest, "w", encoding="utf-8") as fh:
+        fh.write(text)
+    print(f"spec-check: wrote {os.path.relpath(dest, repo)}, pinned to {sha}. Commit it, and "
+          "make the `spec-check` check required in the base branch's protection rules.")
+    return 0
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(prog="spec_check.py", description=__doc__.split("\n\n")[0])
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -2792,6 +2848,18 @@ def main(argv=None):
     vc.add_argument("sha")
     vc.add_argument("value")
     vc.set_defaults(fn=cmd_verify_commit)
+
+    ci = sub.add_parser("ci", help="the GitHub workflow's check of a pull request event")
+    ci.add_argument("--event", help="the event JSON (default: $GITHUB_EVENT_PATH)")
+    ci.add_argument("--repo")
+    ci.set_defaults(fn=cmd_ci)
+
+    su = sub.add_parser("setup-ci", help="write the GitHub workflow into a repository")
+    su.add_argument("--repo")
+    su.add_argument("--sha", help="the shared-skills commit to pin (default: this clone's "
+                                   "newest pushed commit of spec_check.py)")
+    su.add_argument("--force", action="store_true")
+    su.set_defaults(fn=cmd_setup_ci)
 
     args = p.parse_args(argv)
     try:

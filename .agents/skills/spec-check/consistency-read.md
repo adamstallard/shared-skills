@@ -8,10 +8,19 @@ Read it from: <"the working tree", or a git ref such as origin/spec/my-change>
 When it is a ref, read each file with `git show <ref>:<path>`.
 Its base branch: <base, e.g. origin/main>
 
+The change's files:
+<one path per line: every file under the change's directory, e.g.
+openspec/changes/keep-action-log/proposal.md>
+
+Read each of these files whole, every line. With the Read tool, page
+through a long file with offset and limit until you reach its end; from a
+ref, read `git show` in pieces with `sed -n` the same way. Do not skim, grep
+or sample them: a problem may sit anywhere in a long delta spec.
+
 Read, in this order:
 
-1. Every file of the change: proposal.md, design.md if present, tasks.md,
-   and each specs/<capability>/spec.md.
+1. Every file of the change, listed above, whole: proposal.md, design.md if
+   present, tasks.md, and each specs/<capability>/spec.md.
 2. Every spec under openspec/specs/ on the base branch:
    `git show <base>:openspec/specs/<capability>/spec.md`. Read all of them,
    not only those the change names.

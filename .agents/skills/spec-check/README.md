@@ -52,9 +52,11 @@ When an agent works on anything under `openspec/`, it:
 2. **Has a fresh subagent read the change** against every spec, every other
    open change, every open pull request touching the same specs, and your
    architecture docs. Findings come with quotes from both sides. The read
-   runs once per review round: the agent's work between two hand-overs for
-   review, each a push or a hand-back to you. It runs before the hand-over
-   that ends the round.
+   runs once per review round: the agent's work between two hand-backs to
+   you for review. A push does not end a round. The read runs before the
+   hand-back that ends it. When a pull request is handed back without
+   the read, a hook, and in a repository with Actions a GitHub workflow,
+   makes it a draft again and withdraws its review requests.
 3. **Fixes the spec itself.** A question only you can answer goes into
    design.md's *Open Questions*, not into a pull request comment.
 
@@ -78,7 +80,7 @@ records who the agent says did.
 ## Setup
 
 Install it by asking your agent: "Install the spec-check skill". Installing
-turns on its hook (see below).
+turns on its hooks (see below).
 
 spec-check needs OpenSpec 1.15.0 or later on `PATH` (`npm install -g
 @fission-ai/openspec`). It reads the requirements of every spec and change
@@ -106,20 +108,66 @@ python3 ~/.agents/skills/spec-check/scripts/spec_check.py check --ref origin/spe
 `--ref` reads a branch without checking it out. Citations are checked
 against `origin/HEAD` (then `origin/main`, then `main`); `--base` changes it.
 
-## The hook
+## The hooks
 
-spec-check has one hook, the commit hook. After each shell command, it looks
-for new commits that change `openspec/` and reports any without a valid
-`Spec-check:` trailer. A commit that changes nothing under `openspec/` is never
-reported. Only `openspec/` at the repository root counts.
+spec-check has two hooks, and a GitHub workflow for repositories that use
+Actions.
 
-It never blocks. If your install still wires a `proposal-hook.sh` from an
-earlier spec-check, the next `install` or `enable-hook` removes it, and until
-then `skills.py doctor` lists it as `STRAY`. To turn the hook off:
+- **The commit hook.** After each shell command, it looks for new commits
+  that change `openspec/` and reports any without a valid `Spec-check:`
+  trailer. A commit that changes nothing under `openspec/` is never
+  reported. Only `openspec/` at the repository root counts. It never
+  blocks.
+- **The hand-back hook.** It judges `gh pr create`, `gh pr ready`,
+  `gh pr edit --add-reviewer`, and the GitHub MCP server's calls that do
+  the same, at the pull request's head on GitHub. A call that names its
+  pull request by URL or with `-R` is blocked while a change there was
+  edited after its last consistency read. After a command that holds just
+  one gh call, a hand-back, with no word that expands, it judges the pull
+  request the command printed. Only `git`, `cd`, `echo`, `printf`, `true`
+  or `sleep` may stand beside it, and only `git push`, `git add`,
+  `git commit`, `cd`, `true` or `sleep` when the hand-back names no pull
+  request by number or URL. If a change is unread, the hook makes the pull
+  request a draft again, withdraws the review requests the call made, and
+  tells the agent to do the read. Any other form is left to the workflow,
+  and the agent gets a note saying why and the plain form to use. A draft
+  passes, unless it requests a review. A hand-back in conversation, with no
+  such call, is not seen; the head commit's trailer then still says
+  `read deferred to the round's end`. The hook keeps fetched commits in `~/.cache/spec-check/pulls/`,
+  without file contents.
+
+If your install still wires a `proposal-hook.sh` from an earlier
+spec-check, the next `install` or `enable-hook` removes it, and until then
+`skills.py doctor` lists it as `STRAY`. To turn both hooks off:
 
 ```bash
 python3 ~/.agents/skills/manage-skills/scripts/skills.py disable-hook spec-check
 ```
+
+### The GitHub workflow
+
+Where a repository uses GitHub Actions, the workflow is the check that
+holds: it sees every hand-back, whoever or whatever made it, including a
+person on the web page or an Igor (an agent run by igor). When a pull
+request is opened ready,
+reopened, marked ready, or sent for review with a change unread at its head,
+the `spec-check` check fails, the pull request becomes a draft again, and
+the review request is withdrawn. A push with a change unread only fails the
+check.
+
+```bash
+python3 ~/.agents/skills/spec-check/scripts/spec_check.py setup-ci
+```
+
+writes `.github/workflows/spec-check.yml`, pinned to the newest pushed
+commit of `spec_check.py` in your clone (`--sha` picks another; `--force`
+replaces an existing workflow). Commit it, then make `spec-check` a
+required check in the base branch's protection rules, so a pull request
+with an unread change cannot merge. The workflow needs `pull-requests:
+write`, which it declares; a fork's pull request gets a read-only token, so
+there it fails the check without making a draft.
+
+**To update the pin**, run `setup-ci --force` from an updated clone.
 
 ## Troubleshooting
 
@@ -143,6 +191,14 @@ python3 ~/.agents/skills/manage-skills/scripts/skills.py disable-hook spec-check
   squash that drops the commit carrying it, a trailer typed by hand whose
   tree is not its commit's, or a read more than 1,000 commits back leaves
   none, and the change is due again.
+- **The hand-back hook blocks, and nothing is left to commit.** The read
+  is recorded on a commit. When the read amended nothing and every edit is
+  already pushed, the agent makes an empty commit carrying the trailer,
+  passing `--allow-empty` first to bug-hunter's commit script (SKILL.md,
+  *Commit*).
+- **The hand-back hook blocks after the read.** It judges the pull
+  request's head on GitHub, not your local branch: push the commit carrying
+  the read, then hand back.
 - **The agent cannot make the trailer.** `spec_check.py sign`, which prints
   the `Spec-check:` line, refuses while errors remain, and prints them. For
   work in progress, the agent commits with `Spec-check: skipped (<reason>)`.

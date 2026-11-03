@@ -413,8 +413,9 @@ compaction repays its 300k to 500k tokens; size does not.
   - by place: every `CLAUDE.md`, `AGENTS.md` and `SKILL.md`; a file a
     `SKILL.md` or `AGENTS.md` links in a paragraph asking to read it first or
     before something; and an open change's `proposal.md`, `design.md` and
-    delta specs, since spec-check's consistency read, run once per review
-    round, opens each of them in every open change. A link asking to read
+    delta specs, since spec-check's consistency read opens each of them
+    in every open change. It runs once per review round: an agent's work
+    between two hand-backs of a pull request to a person. A link asking to read
     its file before changing the skill does not count, and no commit counts a read of that file either, since a commit
     in a skill reads only its `SKILL.md` and read-first files;
   - by `prose-compact` in `.gitattributes`;
@@ -1613,6 +1614,28 @@ comments holding quotes or operators. The rules for each simple command:
 evaluates twice (`(( ))`, `let`, zsh `${(e)…}`, git aliases, `rebase -x`) is a
 disguise, out of scope. Revisit if `gh` gains a way to read a body from stdin
 without `-F -`.
+
+---
+
+## The command reader is shared, in `.agents/lib/gh-shell/`
+
+**Decision.** The code that reads a shell command and gh's flags
+(`_commands`, `_words`, `_gh_args`, `DATA_COMMANDS`, `RESERVED`, `GH_TEXT`,
+`GITHUB_MCP` and the tables of gh's verbs and flags) lives in
+`.agents/lib/gh-shell/gh_shell.py`. prose.py imports it from there,
+finding the directory from prose.py's own real path in the clone, as the
+skills' commit scripts find `.agents/lib/commit-trailer/`. What is a post,
+and which bodies are read, stays in prose.py.
+
+**Why.** spec-check's hand-back hook reads the same commands, and must
+agree with this hook on what a command runs. A copy would drift; loading
+prose.py by path tied spec-check to private names in prose's script.
+
+**Where this stops applying.** prose needs a full clone, as for the
+commit-trailer library. A prose directory copied out alone cannot import
+the reader; its posting hooks then block every command that may run gh,
+with a message saying how to restore the reader, and still check GitHub MCP
+posts.
 
 ---
 

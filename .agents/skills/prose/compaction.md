@@ -17,8 +17,8 @@ and that is due. A doc is read often when it is:
   that file is read only when the skill changes;
 - an open OpenSpec change's `proposal.md`, `design.md` or delta specs
   (`openspec/changes/<change>/specs/<capability>/spec.md`): spec-check's
-  consistency read, run for every commit that changes `openspec/`, opens each of
-  them in every open change;
+  consistency read opens each of them in every open change, once per
+  review round (an agent's work between two hand-backs to a person);
 - declared with `prose-compact` in `.gitattributes`;
 - or a `DECISIONS.md`, `architecture*.md` or OpenSpec `spec.md` that none of
   the above covers, read at least 20 times since its last compaction,
