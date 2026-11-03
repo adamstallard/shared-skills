@@ -137,9 +137,8 @@ changes. They are ignored for a variable that the launch environment of the
 Claude Desktop app or a self-hosted runner already sets. No `GIT_*` variable
 is on the documented list of variables that project settings may not set.
 
-**Rejected: wiring a repository's local git config**, which an earlier
-version did: a helper, `user.name`/`user.email` and signing off in
-`.git/config`, with the repository's own values saved for `unwire`. Every
+**Rejected: wiring a repository's local git config**: a helper,
+`user.name`/`user.email` and signing off in `.git/config`, with the repository's own values saved for `unwire`. Every
 finding above came from it, and saving and restoring config the person also
 edits had no correct form.
 
@@ -197,8 +196,7 @@ because the file carries its own state. Rollback reduces to computing
 everything first and making one atomic write.
 
 **Rejected: a separate record under `$XDG_STATE_HOME/github-app/wired/`,
-keyed by the project's path**, which the version before this one used. Every
-finding above came from it.
+keyed by the project's path**. Every finding above came from it.
 
 **Where it stops applying.**
 - Keys whose marker the person deleted by hand are theirs: `unwire` refuses
@@ -234,15 +232,17 @@ them to another `--identity` would act as the wrong App.
 are in the environment, and `GITHUB_APP_OWNER` and
 `GITHUB_APP_INSTALLATION_ID` count only for that identity too.
 
-**Why.** `GITHUB_APP_IDENTITY` used to do both jobs, and `run`, `wire` and `env`
-set it. A finder observed the result. A shell held `GITHUB_APP_*` for
+**Rejected: `GITHUB_APP_IDENTITY` doing both jobs,** set by `run`, `wire`
+and `env`. A finder observed the result. A shell held `GITHUB_APP_*` for
 `default` (App 999), and `run --identity acme -- git push` set
 `GITHUB_APP_IDENTITY=acme` in the child. The child's credential helper then
 took App 999's credentials as acme's. The commits named acme's bot, but the
 push authenticated as App 999. A wired project did the same to every session
-started from such a shell. A server role's file still works: it sets
-`GITHUB_APP_IDENTITY` and its credentials together, and its `env` lines set
-`GITHUB_APP_ACT_AS` to the same role.
+started from such a shell.
+
+With two variables, a server role's file works: it sets `GITHUB_APP_IDENTITY`
+and its credentials together, and its `env` lines set `GITHUB_APP_ACT_AS` to
+the same role.
 
 **Rejected: stripping `GITHUB_APP_*` from the children of `run`.** Claude
 Code applies the settings `env` that `wire` writes over the person's own
