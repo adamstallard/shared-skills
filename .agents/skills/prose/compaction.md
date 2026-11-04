@@ -88,13 +88,15 @@ the working file.
    read* says.
    The brief is [compact.md](compact.md), then the doc's path, the headings
    other files link to or name, whether to keep "who decided" credits, the
-   answers file, and every flagged passage with its lines, kind and text.
+   answers file, every flagged passage with its lines, kind and text, and
+   the sections to consider moving out (*Moving a section out*).
    The answers file is in a folder of the system's temporary directory that
    only your operating-system account can use, so the subagent never writes
    inside `.git`. The subagent rewrites the file in place, answers each
    passage in the answers file (`removed`, `rewritten`, or `kept: <reason>`),
    and replies `Would drop: none` or one `Would drop:` line per conclusion it
-   left in place but believes is no longer true. If it could not write the
+   left in place but believes is no longer true, then a `Move <n>:` or
+   `Stay <n>:` line for each section listed. If it could not write the
    answers file, it adds `Answers: <file>`, naming where it wrote them.
 3. Stage the file (`git add <file>`) and run
    `python3 $S/prose.py compact <file> --verify [--answers <file>] [--paths-from <file|-> [-0]] [-- <path>...]`,
@@ -186,8 +188,8 @@ the working file.
    dispositions file. It exits 0, recording the review for the commit gate,
    or 2 with what is missing.
 9. Ask the person, through your host's picker, about each reviewer line
-   whose text starts `ask:` and each `Would drop:` line from the compactor,
-   and act on the answer. When you cannot ask, leave the conclusion in and
+   whose text starts `ask:`, each `Would drop:` line from the compactor and
+   each of its `Move` lines, and act on the answer. When you cannot ask, leave the conclusion in and
    put the line in your result for your caller. An answer that changes the
    file means staging it and running step 3 and steps 5 to 8 again, even
    after two reviews, because the commit gate needs a review of the file as
@@ -235,6 +237,35 @@ would inherit it and its gate.
 **Name every compaction** in your report and in the pull request body, with
 the file's size before and after, as `--verify` prints it: for example,
 "Compacted DECISIONS.md: 107,341 -> 61,020 bytes (-43%)".
+
+**Moving a section out.** In a doc agents load whatever their task, read
+often because of its name or path, or declared `prose-compact` (*When it is
+due* lists both), step
+1 lists each section of 1,000 bytes or more that a condition heads or opens:
+a heading such as "When the caller commits" or "If you are a subagent", a
+first paragraph that starts "When", "If", "Unless" or "Without", or a bold
+lead-in such as "**Called by another skill.**". Setup, installation,
+troubleshooting, a caller and another skill being installed count as
+conditions. "Before", "After" and "Once" do not, since they order the steps
+every reader runs. An OpenSpec doc gets no list, since spec-check's
+consistency read needs all of it.
+
+The list is ranked by cost: each section's bytes times the doc's estimated
+reads. The reads are the commits among the last 300 that imply a read of the
+doc, by the rules *When it is due* gives for the reads each commit implies.
+Each commit also counts as a read of every `AGENTS.md` and `CLAUDE.md` above
+the files it changes.
+
+The compactor answers each section with a `Move` line, naming the new file,
+the line that will replace the section and the signal that sends a reader
+there, or a `Stay` line, which needs no action. A person decides each
+`Move` at step 9, since a move changes the doc's structure. Approving one
+does not change the compacted file, so it reruns no step: make each
+approved move after the compaction's commit, in a commit of its own: create the file, replace the
+section with the pointer line, and update every link to a heading that
+moved. When you cannot ask, put each `Move` line in your result.
+`python3 $S/prose.py cost` prints the same ranking for every such doc in
+the repository, after the size of each skill's description.
 
 **A person's request works on any file.** `prose compact <file>` runs on a
 file whether or not it is due, read often or a doc at all. The detectors

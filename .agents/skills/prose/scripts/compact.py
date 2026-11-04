@@ -1,6 +1,6 @@
 """Compaction: rule 8 ("what is, not how it got here") over a whole file.
 
-Three parts, all standard library only:
+Four parts, all standard library only:
 
 - `passages()`: the bloat detectors. They flag passages a compaction should
   answer for: history, repetition, amendment notes, long rejected
@@ -15,8 +15,15 @@ Three parts, all standard library only:
   `--verify` checks the result, including the compactor's answer for each
   passage; and `--review` prints the brief for a reviewer of each removal,
   rewrite and kept passage.
+- `brief_moves()`, `changed_descriptions()` and `cost_report()`: the
+  reading cost. The brief lists the sections reading_cost.py finds that
+  could move to a linked file, ranked by bytes times the doc's estimated
+  reads; `prose check` measures the skill descriptions a change sets; and
+  `prose cost` lists both for a whole repository, the descriptions by size
+  and the sections by cost.
 
-Read ../DECISIONS.md (*Compaction*) before changing a default here.
+Read ../DECISIONS.md (*Compaction keeps docs read before work compact* and
+*Compaction aims at reading cost*) before changing a default here.
 """
 
 import bisect
@@ -35,7 +42,9 @@ import stat
 import subprocess
 import tempfile
 import time
-from typing import NamedTuple, Optional
+from typing import Dict, List, Mapping, NamedTuple, Optional, Sequence, Tuple, cast
+
+import reading_cost
 
 try:
     import fcntl
@@ -1110,12 +1119,24 @@ def _batch_blobs(oids, root):
 def read_first_links(root, index):
     """{tracked path: the SKILL.md or AGENTS.md that links it as read first}
     for every link a tracked SKILL.md or AGENTS.md makes in a paragraph or
-    list item that asks to read it first or before something."""
+    list item that asks to read it first or before something. A path linked
+    by several keeps the first source in path order; read_first_sources has
+    them all."""
+    out = {}
+    for source, targets in sorted(read_first_sources(root, index).items()):
+        for path in targets:
+            out.setdefault(path, source)
+    return out
+
+
+def read_first_sources(root, index):
+    """{SKILL.md or AGENTS.md: [each tracked path it links as read first]},
+    the links read_first_links reads, each source with all of its own."""
     sources = {path: entries[0].oid for path, entries in index.items()
                if pathlib.PurePosixPath(path).name.lower() in ("skill.md", "agents.md")
                and len(entries) == 1 and entries[0].mode in REGULAR}
     texts = _batch_blobs(sorted(set(sources.values())), root)
-    out = {}
+    out = collections.defaultdict(list)
     for source, oid in sorted(sources.items()):
         text = texts.get(oid)
         if text is None:
@@ -1135,9 +1156,9 @@ def read_first_links(root, index):
                 if not target or re.match(r"[a-z][a-z0-9+.-]*:", target, re.I):
                     continue
                 path = os.path.normpath(str(here / target))
-                if path in index:
-                    out.setdefault(path, source)
-    return out
+                if path in index and path not in out[source]:
+                    out[source].append(path)
+    return dict(out)
 
 
 def _skill_of(path, skills):
@@ -1152,15 +1173,37 @@ def _skill_of(path, skills):
         parent = parent.parent
 
 
+# The guides a host loads for any work beneath their directory.
+GUIDES = ("AGENTS.md", "CLAUDE.md")
+
+
+def _guides_of(path: str, guides: "set[str]") -> "set[str]":
+    """The AGENTS.md and CLAUDE.md files in guides that sit in a directory
+    above path, the repository's root included."""
+    out: "set[str]" = set()
+    parent = pathlib.PurePosixPath(path).parent
+    while True:
+        for name in GUIDES:
+            candidate = name if str(parent) == "." else f"{parent}/{name}"
+            if candidate in guides:
+                out.add(candidate)
+        if str(parent) in (".", "/", ""):
+            return out
+        parent = parent.parent
+
+
 def implied_reads(root, index, links, stops):
     """{doc: reads}: how many of the READS_DEPTH commits behind HEAD imply
     a read of each doc. stops gives each doc's last compaction commit, or
-    None; only commits newer than it count. With None, the count runs from
-    the commit that added the doc, which counts, as size_history finds it.
-    A doc HEAD lacks has no reads. These rules map each commit to the reads
+    None; only commits newer than it count. With None, the count starts at
+    the commit that added the doc, found by size_history, and includes that
+    commit. A doc that is not in HEAD has no reads. These rules map each commit to the reads
     it implies; they are declared, not inferred:
     - a commit changing a file in a skill's directory reads that skill's
       SKILL.md and the files it links as read first;
+    - a commit reads every AGENTS.md and CLAUDE.md in the directories above
+      each file it changes, the repository's root among them, and the
+      files an AGENTS.md links as read first;
     - a Bug-hunter:, Prose: or Spec-check: trailer reads that skill's
       SKILL.md;
     - a Spec-check: trailer also reads the main specs and the open changes."""
@@ -1187,9 +1230,12 @@ def implied_reads(root, index, links, stops):
     if not log:
         return out
     skills = {path for path in index if pathlib.PurePosixPath(path).name == "SKILL.md"}
-    first_of = {}
-    for target, source in links.items():
-        first_of.setdefault(source, set()).add(target)
+    guides = {path for path in index if pathlib.PurePosixPath(path).name in GUIDES}
+    # Every source of each read-first link. The links argument keeps one
+    # source per target, so it would credit a file linked from both a skill
+    # and an AGENTS.md to only one of them; with every source, either reads it.
+    first_of = {source: set(targets)
+                for source, targets in read_first_sources(root, index).items()}
     specs = {path for path in index
              if (path.startswith("openspec/specs/") and path.endswith("/spec.md"))
              or (path.startswith("openspec/changes/") and not path.startswith(
@@ -1205,6 +1251,8 @@ def implied_reads(root, index, links, stops):
         reads = set()
         for name in filter(None, files.split("\n")):
             skill = _skill_of(name, skills)
+            for guide in _guides_of(name, guides):
+                reads |= {guide} | first_of.get(guide, set())
             if skill:
                 reads.add(skill)
                 reads |= first_of.get(skill, set())
@@ -1391,6 +1439,270 @@ def print_due(found, command):
     for item in found:
         print(f"  compaction due for {item.path}: {item.why}")
     print(f"\n  Commit this change first, then for each file run: {command} compact <file>")
+
+
+# ---------------------------------------------------------------------------
+# Reading cost: sections that could move out, and skill descriptions
+# ---------------------------------------------------------------------------
+#
+# A section only some readers need costs every reader who loads the doc,
+# so a move is ranked by its bytes times the doc's estimated reads, the
+# count implied_reads gives the trigger. reading_cost.py finds the sections
+# and reads the descriptions; this part feeds it the repository.
+#
+# The older helpers above, such as index_entries and implied_reads, have no
+# type annotations, so this part calls each through a typed adapter that
+# states what it returns.
+
+def _typed_index(root: str) -> Dict[str, List["Entry"]]:
+    return cast(Dict[str, List["Entry"]], index_entries(root))
+
+
+def _typed_tree(root: str, rev: str) -> Dict[str, Tuple[str, str]]:
+    return cast(Dict[str, Tuple[str, str]], tree_entries(root, rev))
+
+
+def _typed_texts(oids: Sequence[str], root: str) -> Dict[str, str]:
+    return cast(Dict[str, str], _batch_blobs(list(oids), root))
+
+
+def _typed_links(root: str, index: Mapping[str, List["Entry"]]) -> Dict[str, str]:
+    return cast(Dict[str, str], read_first_links(root, index))
+
+
+def _typed_reads(root: str, index: Mapping[str, List["Entry"]], links: Mapping[str, str],
+                 docs: Sequence[str]) -> Dict[str, int]:
+    """The estimated reads of each doc since it was added (implied_reads)."""
+    return cast(Dict[str, int], implied_reads(root, index, links, dict.fromkeys(docs)))
+
+
+def _typed_settings(paths: Sequence[str], root: Optional[str]) -> Dict[str, "Settings"]:
+    return cast(Dict[str, "Settings"], settings(list(paths), root))
+
+
+class Move(NamedTuple):
+    """A section of path that could move to a linked file."""
+    path: str
+    section: reading_cost.Candidate
+    reads: Optional[int]  # the doc's estimated reads; None when unknown
+
+    @property
+    def cost(self) -> int:
+        """Bytes times reads: what the section adds to all its reads."""
+        return self.section.size * (self.reads or 0)
+
+
+def code_lines(text: str) -> List[bool]:
+    """For each line of text, True when the shared fence rule (_mask) reads
+    it as fenced code or front matter."""
+    shown = cast(str, _mask(text, inline_code=False, quotes=False)).split("\n")
+    return [bool(line.strip()) and not view.strip()
+            for line, view in zip(text.split("\n"), shown)]
+
+
+def loaded_before_work(path: str, setting: "Settings", links: Mapping[str, str]) -> bool:
+    """True when agents load path whatever their task, so a section only
+    some of them need is paid for by all: read often by its place or a
+    declaration (_often). An OpenSpec doc never is, since spec-check's
+    consistency read needs every requirement in it."""
+    if "openspec" in pathlib.PurePosixPath(path).parts:
+        return False
+    return cast(Optional[str], _often(path, setting, links)) is not None
+
+
+def ranked(found: Sequence[Move]) -> List[Move]:
+    """found, costliest first; by size where reads are equal or unknown."""
+    return sorted(found, key=lambda move: (-move.cost, -move.section.size, move.path,
+                                           move.section.start))
+
+
+def doc_moves(path: str, text: str, reads: Optional[int]) -> List[Move]:
+    """The sections of text, the doc at path, that could move out, ranked."""
+    return ranked([Move(path, section, reads)
+                   for section in reading_cost.conditional_sections(text, code_lines(text))])
+
+
+def describe_section(section: reading_cost.Candidate) -> str:
+    """How a brief or report names a section: a heading's section by its
+    heading, a lead-in's by its bold words, and a section its first sentence
+    opens by its heading and that sentence."""
+    if section.kind == "heading":
+        return f"headed «{section.title}»"
+    if section.kind == "lead-in":
+        return f"opened by «{section.title}»"
+    opening = section.condition if len(section.condition) <= 80 else \
+        section.condition[:77].rstrip() + "..."
+    return f"headed «{section.title}», opened by «{opening}»"
+
+
+def brief_moves(where: "Target", text: str, setting: "Settings") -> List[str]:
+    """The compaction brief's lines for the sections to consider moving
+    out, costliest first. Like the trigger, it never fetches a blob."""
+    with _no_lazy_fetch():
+        return _brief_moves(where, text, setting)
+
+
+def _brief_moves(where: "Target", text: str, setting: "Settings") -> List[str]:
+    links: Dict[str, str] = {}
+    index: Optional[Dict[str, List[Entry]]] = None
+    if where.root is not None:
+        try:
+            index = _typed_index(where.root)
+            links = _typed_links(where.root, index)
+        except ValueError:
+            index = None
+    if not loaded_before_work(where.rel, setting, links):
+        return ["\nSections to consider moving out: none; agents do not load this doc before "
+                "every task."]
+    sections = reading_cost.conditional_sections(text, code_lines(text))
+    if not sections:
+        return ["\nSections to consider moving out: none."]
+    reads: Optional[int] = None
+    if where.root is not None and index is not None:
+        reads = _typed_reads(where.root, index, links, [where.rel]).get(where.rel)
+    found = ranked([Move(where.rel, section, reads) for section in sections])
+    basis = (f"by reading cost: each section's bytes times this doc's {reads:,} estimated "
+             f"reads, the commits among the last {READS_DEPTH} behind HEAD that imply a read "
+             "of it" if reads is not None else
+             "by size: outside a git repository this doc's reads are unknown")
+    lines = [f"\nSections to consider moving out ({len(found)}), {basis}. Propose or decline "
+             "each in your reply, as compact.md says; move none yourself:"]
+    for number, move in enumerate(found, start=1):
+        cost = f", cost {move.cost:,}" if reads is not None else ""
+        lines.append(f"  Section {number}, lines {move.section.start}-{move.section.end}, "
+                     f"{move.section.size:,} bytes{cost}: {describe_section(move.section)}")
+    return lines
+
+
+def skill_descriptions(root: str, index: Mapping[str, Sequence["Entry"]]
+                       ) -> List[reading_cost.Description]:
+    """The description of every SKILL.md staged in root's index that has
+    one, by path."""
+    oids = {path: entries[0].oid for path, entries in index.items()
+            if pathlib.PurePosixPath(path).name == "SKILL.md" and len(entries) == 1
+            and entries[0].stage == "0" and entries[0].mode in REGULAR}
+    texts = _typed_texts(sorted(set(oids.values())), root)
+    out: List[reading_cost.Description] = []
+    for path, oid in sorted(oids.items()):
+        text = texts.get(oid)
+        description = reading_cost.skill_description(text) if text is not None else None
+        if description is not None:
+            out.append(reading_cost.measure(path, description))
+    return out
+
+
+class DescriptionChange(NamedTuple):
+    now: reading_cost.Description
+    before: Optional[reading_cost.Description]  # None for a skill the change adds
+
+
+def changed_descriptions(paths: Sequence[str], root: str, amend: bool
+                         ) -> Tuple[List[DescriptionChange], List[reading_cost.Description]]:
+    """Two lists: each description that paths change, beside the base's
+    (HEAD's, or its parent's with amend), for the per-skill lines; and every
+    staged description, for the total. ([], []) when no path is a SKILL.md.
+    Like the trigger, it never fetches a blob: a SKILL.md whose blob a
+    partial clone lacks is left out."""
+    with _no_lazy_fetch():
+        return _changed_descriptions(paths, root, amend)
+
+
+def _changed_descriptions(paths: Sequence[str], root: str, amend: bool
+                          ) -> Tuple[List[DescriptionChange], List[reading_cost.Description]]:
+    wanted = [path for path in paths if pathlib.PurePosixPath(path).name == "SKILL.md"]
+    if not wanted:
+        return [], []
+    index = _typed_index(root)
+    every = skill_descriptions(root, index)
+    now = {description.path: description for description in every}
+    base = _typed_tree(root, "HEAD^" if amend else "HEAD")
+    before_oids = {path: base[path][1] for path in wanted
+                   if path in now and path in base and base[path][0] in REGULAR}
+    texts = _typed_texts(sorted(set(before_oids.values())), root)
+    changed: List[DescriptionChange] = []
+    for path in wanted:
+        if path not in now:
+            continue
+        old_text = texts.get(before_oids[path]) if path in before_oids else None
+        old = reading_cost.skill_description(old_text) if old_text is not None else None
+        if old is None:
+            changed.append(DescriptionChange(now[path], None))
+            continue
+        if now[path].text != old:
+            changed.append(DescriptionChange(now[path], reading_cost.measure(path, old)))
+    return changed, every
+
+
+def _limit_note(description: reading_cost.Description) -> str:
+    if not reading_cost.over_limit(description):
+        return ""
+    return (f"; over the {reading_cost.DESCRIPTION_LIMIT:,} characters the Agent Skills "
+            "specification allows, so a host may refuse or cut it")
+
+
+def print_descriptions(changed: Sequence[DescriptionChange],
+                       every: Sequence[reading_cost.Description]) -> None:
+    """Print the section of `prose check`'s first-call output that measures
+    the skill descriptions the change sets."""
+    if not changed:
+        return
+    print("\nSkill descriptions (a host loads each one in every session, for every installed "
+          "skill):\n")
+    for change in changed:
+        now = change.now
+        was = (f", was {change.before.size:,} bytes" if change.before is not None
+               else ", a new skill")
+        print(f"  {now.path}: {now.size:,} bytes ({now.characters:,} characters){was}"
+              f"{_limit_note(now)}")
+    total = sum(description.size for description in every)
+    print(f"\n  All {len(every)} descriptions here: {total:,} bytes, about {total // 4:,} tokens "
+          "in each session that installs every skill. Each word should help a host pick the "
+          "skill.")
+
+
+def cost_report(root: str) -> int:
+    """`prose cost`: print what agents load before they work, by reading
+    cost: every skill's description, and the sections of each doc loaded
+    before work that could move to a linked file. Returns 0."""
+    with _no_lazy_fetch():
+        index = _typed_index(root)
+        links = _typed_links(root, index)
+        files = sorted(path for path, entries in index.items()
+                       if len(entries) == 1 and entries[0].stage == "0"
+                       and entries[0].mode in REGULAR)
+        found = _typed_settings(files, root)
+        docs = [path for path in files
+                if not found[path].exempt and not found[path].binary
+                and loaded_before_work(path, found[path], links)]
+        texts = _typed_texts(sorted({index[path][0].oid for path in docs}), root)
+        sections: Dict[str, List[reading_cost.Candidate]] = {}
+        for path in docs:
+            text = texts.get(index[path][0].oid)
+            if text is None or "\0" in text:
+                continue
+            here = reading_cost.conditional_sections(text, code_lines(text))
+            if here:
+                sections[path] = here
+        reads = _typed_reads(root, index, links, list(sections)) if sections else {}
+        every = skill_descriptions(root, index)
+    total = sum(description.size for description in every)
+    print(f"Skill descriptions: {total:,} bytes in {len(every)}, about {total // 4:,} tokens in "
+          "each session that installs every skill. A host loads each one in every session.\n")
+    for description in sorted(every, key=lambda item: (-item.size, item.path)):
+        print(f"  {description.size:>6,} bytes  {description.characters:>6,} characters  "
+              f"{description.path}{_limit_note(description)}")
+    moves = ranked([Move(path, section, reads.get(path, 0))
+                    for path, here in sections.items() for section in here])
+    print(f"\nSections that could move to a linked file, by cost: bytes times the doc's reads, "
+          f"the commits among the last {READS_DEPTH} behind HEAD that imply a read of it. A "
+          "person decides each move; `prose compact <file>` has the compactor propose one.\n")
+    if not moves:
+        print("  none")
+    for move in moves:
+        print(f"  {move.cost:>9,}  {move.section.size:>6,} bytes x {move.reads or 0:>3} reads  "
+              f"{move.path}:{move.section.start}-{move.section.end}  "
+              f"{describe_section(move.section)}")
+    return 0
 
 
 # ---------------------------------------------------------------------------
@@ -2386,6 +2698,7 @@ def brief(name, state_home, command, given=Given(), stdin=None):
             lines += ["    " + line for line in passage.text.split("\n")]
     else:
         lines.append("\nFlagged passages: none. Leave the answers file unwritten.")
+    lines += brief_moves(where, text, setting)
     print_brief("compaction brief", "\n".join(lines), brief_dir(where.root, state_home),
                 "compaction")
     again = given.options()

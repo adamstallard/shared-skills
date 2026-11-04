@@ -104,8 +104,19 @@ back. The agent commits the result in a commit of its own, and asks you first
 only when the rewrite would drop a conclusion.
 [compaction.md](compaction.md) has the steps.
 
+A compaction also looks for text that only some readers need. In a doc agents
+load before every task, it lists each large section a condition opens, such
+as one headed "When the caller commits", ranked by its size times how often
+the doc is read. The rewriting subagent proposes moving each one into a
+linked file, with the line that will point readers to it, and you decide
+each move. When a commit adds a skill or changes its `description:`, which
+a host loads in every session for every installed skill, prose prints the
+description's size and the total for the repository's skills.
+
 You can ask your agent to:
 - compact a specific file now, whether or not it is due;
+- show what agents spend most to read here: each skill's description, and
+  each section that could move to a linked file (`prose.py cost`);
 - mark a file as read often, so it's checked for compaction;
 - exempt a file from compaction;
 - drop "who decided" credits, such as "(Adam, 2026-10-24)", when files are
@@ -194,6 +205,7 @@ Or run one file, such as `python3 .agents/skills/prose/scripts/test_compact.py`:
 | `test_cold_read.py` | the cold read: briefs, reports, findings, saved brief files |
 | `test_compact_triggers.py` | which docs are due for compaction, and the bloat detectors |
 | `test_compact.py` | compaction itself: `prose compact`, `--verify`, the gate on signing |
+| `test_reading_cost.py` | the reading cost: sections to move out, skill descriptions, `prose cost` |
 | `test_comment_scan.py` | `comment_scan.py` |
 
 Their shared helpers are in `prose_test_support.py`.

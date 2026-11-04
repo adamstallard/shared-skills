@@ -3021,6 +3021,10 @@ def main(argv=None):
     p_compact.add_argument("-0", dest="nul", action="store_true",
                            help="with --paths-from: the paths are separated by NUL, as "
                                 "rg -l0 and find -print0 write them")
+    p_cost = sub.add_parser("cost", help="rank what agents load before work: each skill's "
+                                         "description, and each section of a doc loaded before "
+                                         "work that could move to a linked file")
+    p_cost.add_argument("--repo", default=".")
     # Paths after `--` are split off before parsing and are the referrers:
     # argparse before Python 3.12 cannot give a positional list the paths
     # after `--` once an option such as --verify follows the file.
@@ -3175,6 +3179,14 @@ def main(argv=None):
                 print(f"prose: warning: the compaction trigger failed, so no compaction advice "
                       f"is given this time: {type(error).__name__}: {error}", file=sys.stderr)
             compact.print_due(due, _prose_command())
+            # Measuring descriptions only advises, as the trigger does.
+            try:
+                described = compact.changed_descriptions(staged_paths, root, args.amend)
+            except Exception as error:  # noqa: BLE001 - a bug here only advises
+                described = ([], [])
+                print(f"prose: warning: the skill descriptions could not be measured this time: "
+                      f"{type(error).__name__}: {error}", file=sys.stderr)
+            compact.print_descriptions(*described)
 
             if pending:
                 # With nothing in the commit to read cold, as when a compaction
@@ -3222,6 +3234,14 @@ def main(argv=None):
                     return compact.review(args.file, user_state_dir(), _prose_command())
                 return compact.brief(args.file, user_state_dir(), _prose_command(), given, stdin)
             except (ValueError, UnicodeDecodeError) as error:
+                raise Refused(str(error))
+        if args.command == "cost":
+            # Refused, with git's reason, outside a repository: the cost
+            # reads the index and the history.
+            root = git(["rev-parse", "--show-toplevel"], args.repo).rstrip("\n")
+            try:
+                return compactor().cost_report(root)
+            except ValueError as error:
                 raise Refused(str(error))
         if args.command == "verify-staged":
             ok, reason = verify_staged(args.line, _read_stdin(), args.repo)
