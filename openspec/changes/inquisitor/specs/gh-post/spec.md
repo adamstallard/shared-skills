@@ -362,8 +362,8 @@ commands send no text is no post* allows, input from a pipe or an input
 redirection SHALL reach only data commands, or, when it reaches a single
 simple command, a `gh` command that sends no text and uses no gh post
 verb. Otherwise the line SHALL be unreadable. Input reaching `python`,
-`python3` or `node` SHALL make the line unreadable, whatever its other
-words, since finding its script would mean reading its options.
+`python3` or `node` SHALL always make the line unreadable (design.md:
+*Code given on the command line beside a gh post verb*).
 
 #### Scenario: A gh post piped into a shell or an interpreter is unreadable
 

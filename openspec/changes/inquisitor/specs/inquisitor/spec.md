@@ -10,8 +10,9 @@ question it asks and each miss, and proposes lore from answers that
 generalize. It works in any session, and also serves the igor project's AI
 teammates, the Igors, and the workers they start.
 
-These terms hold throughout this spec; terms a requirement defines are
-defined there.
+These terms hold throughout this spec. Any other term is defined in the
+requirement that sets its rule, and requirements before that one may use
+it.
 
 *The current work* is what the agent was asked to do: an OpenSpec change, a
 pull request, or the task in hand. *A question within the current work* is
@@ -33,7 +34,8 @@ or project, to the team's lore repository.
 frontmatter holds `conditions`, searched through a local clone of it that
 the inquisitor's configuration names. A file under its `rejected/` is a
 *rejected candidate*. Its orphan branch named `questions`, its *questions
-branch*, holds its question and miss files. *Lore repository* means the
+branch*, holds its question and miss files. *An answer file* there is one
+that answers a question an earlier file there logged unanswered. *Lore repository* means the
 one holding the entries, with its questions branch and relay files beside
 them (igor PR #216's decision 66). igor's specs name repositories
 differently: they call this one the *destination repository*, which igor
@@ -70,6 +72,9 @@ interactive question tool, `AskUserQuestion` in Claude Code.
 *A post* is a pull request description, review or comment, or an issue or
 issue comment, sent through `gh` or a GitHub MCP tool. *A question tags* a
 person when its list item or sentence mentions their login as `@login`.
+
+*An Igor's handback comment* is the comment in which an Igor hands an item
+back to a person, holding what its worker reported.
 
 An agent is *inside an Igor*, or works *during an Igor's run*, as igor PR
 #216 defines "during a run", when it works for an Igor under that Igor's
@@ -416,7 +421,8 @@ file input, labelled unreadable, as that requirement says.
 
 An Igor posts the comment handing an item back through its own code,
 where no post hook runs. That comment SHALL NOT be a post, and nothing in
-this spec batches or tags it. Any comment the post hook does see SHALL be
+this spec batches it with questions asked elsewhere, or tags anyone in
+it. Any comment the post hook does see SHALL be
 a post, and vetted, even when it carries igor's handback marker, which the
 hook SHALL NOT read (design.md: *No exemption for an Igor's handback*).
 
@@ -424,8 +430,8 @@ hook SHALL NOT read (design.md: *No exemption for an Igor's handback*).
 
 - **WHEN** an Igor posts the comment handing an item back, holding its
   worker's question, and no post hook sees it
-- **THEN** nothing in this spec batches its question with others or tags
-  anyone in it
+- **THEN** nothing in this spec batches its question with questions
+  outside that comment, or tags anyone in it
 - **AND** when an agent's `gh` call posts a comment carrying igor's
   handback marker, in the form task 0.6 records, the post hook vets it as
   a post, blocking it if it asks an unvetted question (design.md: *No
@@ -580,9 +586,9 @@ igor's startup checks.
 
 ### Requirement: Where igor PR #208 has applied no lore commit, no relayed answer is known
 
-Under `igor run`, which never fetches, and for a lore repository igor PR
-#208 never fetches, #208 has applied no lore commit, so no relay file is
-read. There the Igor SHALL push an answer from a `User says: ` comment as
+Where igor PR #208 has applied no lore commit, as under `igor run` or for
+a lore repository #208 never fetches, the Igor SHALL read no relay file. It
+SHALL push an answer from a `User says: ` comment as
 `input`, and an answer in the person's own comment SHALL still count (igor
 PR #216's decision 78; design.md: *An Igor reads relay files as of igor PR
 #208's applied commit*).
@@ -924,10 +930,8 @@ record with a status counts only when `accepted`.
 
 ### Requirement: A lore decision record counts
 
-igor's scribe puts a decision record in the repository the decision
-concerns, or in the team's lore repository when it spans repositories (igor
-PR #202's decision 5). Filter 1 SHALL count an `accepted` decision record
-at the path #202 sets, on the default branch of a lore repository it
+Filter 1 SHALL count an `accepted` decision record
+by igor's scribe, at the path igor PR #202 sets, on the default branch of a lore repository it
 searches, as an answer to a question that lore repository serves (design.md:
 *Filter 1 searches igor's scribe's records where #202 puts them*).
 
@@ -1520,17 +1524,19 @@ string matching the credential patterns.
   string shaped like a GitHub access token
 - **THEN** the hook blocks the call
 
-### Requirement: Related questions are asked together
+### Requirement: A round's questions are asked together at its end
 
-Questions that survive the filters while the agent is stopped at one step
-of the work, unable to go on without them, SHALL be asked in one picker
-call, up to the picker's limit of questions per call, or in one section of
-one post.
+Questions that survive the filters during one review round SHALL be asked
+together at the round's end, in one picker call, up to the picker's limit
+of questions per call, or in one section of one post. Only a question that
+**blocks** the step of the work the agent is on, because it cannot go on
+with that step without the answer, SHALL be asked at once, together with any other
+question blocking that step.
 
 #### Scenario: More questions than the picker's limit take two calls
 
-- **WHEN** at one step of the work, one more question survives the filters
-  than the picker's limit allows in a call
+- **WHEN** at a round's end, one more question survives the filters than
+  the picker's limit allows in a call
 - **THEN** the agent asks as many as the limit allows in one picker call,
   and the last in the next
 
@@ -1538,6 +1544,81 @@ one post.
 
 - **WHEN** a post asks two questions that survived the filters
 - **THEN** both are items of one open-questions section
+
+#### Scenario: A blocking question is asked at once, and the others wait
+
+- **WHEN** early in a round, an agent has one question it can go on
+  without, and then one it cannot, such as which of two databases a
+  migration it is writing targets
+- **THEN** it asks the blocking question at once, alone, and asks the
+  other at the round's end
+
+### Requirement: A question that blocks no step is asked at the round's end, saying what the agent assumed
+
+Until a question that survives the filters but blocks no step is asked,
+the agent SHALL go on with the answer it recommends, and the question
+SHALL say that the agent assumed that answer, so the person's answer
+confirms it or names what to change. Before asking it, the agent SHALL
+run the two calls on it again.
+
+#### Scenario: The agent goes on with its recommended answer
+
+- **WHEN** mid-round, an agent must choose how long retries wait at most,
+  recommends a minute, and can go on without the answer
+- **THEN** it goes on with a one-minute cap, and at the round's end asks
+  whether to keep the cap at a minute, saying that the work assumes it,
+  with that answer as the first option
+
+#### Scenario: A question is vetted again at the round's end
+
+- **WHEN** an agent ran the two calls on a question that blocks no step,
+  and the round ends three hours later
+- **THEN** it runs both calls on the question again before asking it
+- **AND** if filter 1 now finds an answer, the agent follows that answer,
+  changing the work if the answer differs from what it assumed, and does
+  not ask the question
+
+#### Scenario: A deferred question is not asked at the round's end
+
+- **WHEN** at a round's end, an agent holds one question filter 2 deferred
+  and one that survived the filters but blocked no step
+- **THEN** it asks the second, and lists the first as not done, asking
+  nothing about it
+
+### Requirement: A review round ends when the work is handed back to a person
+
+A **review round** SHALL end at a hand-back to a person, as spec-check's
+skill defines one (shared-skills PR #55: `.agents/skills/spec-check/DECISIONS.md`,
+*One consistency read per round*), such as opening a pull request for
+review. It SHALL also end when the agent ends its turn and hands control
+to a person, or, with no person in the session, when its run ends, a
+subagent's run excepted.
+
+#### Scenario: Opening a pull request for review ends the round
+
+- **WHEN** an agent holding two questions that blocked no step opens a
+  pull request that is not a draft
+- **THEN** that ends the round, and it asks both questions then
+
+#### Scenario: A push ends no round
+
+- **WHEN** an agent pushes a commit to a pull request that is still a
+  draft, and requests no review
+- **THEN** the round goes on, and the agent asks none of the questions it
+  holds
+
+#### Scenario: In a terminal with no pull request, the final reply ends the round
+
+- **WHEN** an agent in a terminal session, working on a change with no
+  pull request, finishes and is about to end its turn
+- **THEN** that ends the round, and it asks the questions it holds through
+  the picker before its final reply
+
+#### Scenario: A subagent's result ends no round
+
+- **WHEN** a subagent ends its run and hands its result to the agent that
+  started it
+- **THEN** that ends no round, since no person receives the result
 
 ### Requirement: Where the host has a picker, an agent asks through it, never in its reply
 
@@ -1569,6 +1650,14 @@ SHALL hand back surviving questions, prepared.
 
 - **WHEN** a subagent has a question that survives the filters
 - **THEN** its result holds the prepared question, and it asks no one
+
+#### Scenario: A subagent's question that blocks no step waits for its starter's round
+
+- **WHEN** a subagent's result holds a question that blocked none of its
+  steps, saying what it assumed, and the question blocks no step of the
+  agent that started it either
+- **THEN** that agent asks it at the end of its own round, with its own
+  questions
 
 ### Requirement: A session with no person in it asks in a post, a handback or nowhere
 
@@ -1705,8 +1794,8 @@ only what *Some questions are recorded by hash only* allows.
 
 ### Requirement: The two calls' files and records stay private
 
-The two calls' files SHALL have mode 0600, outside any repository, in a
-directory only the agent's user can read. Either call SHALL refuse a file
+The two calls' files and verdict records SHALL have mode 0600, outside any
+repository, in a directory only the agent's user can read. Either call SHALL refuse a file
 its group or others can read, or whose directory they can, recording
 nothing and keeping any token. A picker `ask`'s record SHALL keep its field
 without any option's label. The next call or hook reading the records
@@ -2380,11 +2469,11 @@ never a committed one.
 
 When filter 1 stops a question with a lore entry, the agent SHALL push a
 citation file to the questions branch of the lore repository holding the
-entry, except in three cases: the question has a category; that lore
-repository is more visible than the repository the question concerns; or
-*No worker or Igor-started run pushes to a lore repository* or *An answer
-session's automatic reply is a verdict, not a person's answer* rules it
-out.
+entry. It SHALL push none when the question has a category or, outside any
+repository, concerns none, when that lore repository is more visible than the repository
+the question concerns, or when *No worker or Igor-started run pushes to a
+lore repository* or *An answer session's automatic reply is a verdict, not
+a person's answer* rules it out.
 
 #### Scenario: Only the citation file names the lore entry
 
@@ -2533,6 +2622,11 @@ questions-branch file*).
   file whose keys include `handled` or `closes`
 - **THEN** it refuses, and writes nothing
 
+#### Scenario: The skill's instructions forbid the handled option
+
+- **WHEN** an agent reads the skill's instructions for the `log` command
+- **THEN** they tell it never to pass the handled option
+
 ### Requirement: The script writes every log and miss file through its log command
 
 The skill's script SHALL write every log and miss file through its `log`
@@ -2650,9 +2744,9 @@ leak*; *A log file without `asked_in` is never merged*).
 
 #### Scenario: A GitHub link into a more private repository is left out
 
-- **WHEN** an agent asks, in a private repository's issue, a question about
-  a public repository, and logs it on the questions branch of a public lore
-  repository serving that public repository
+- **WHEN** an agent working in the public `o/web` asks a question about
+  the organization `o` in an issue of the private `o/api`, and logs it on
+  the questions branch of a public lore repository serving `o`
 - **THEN** the log file holds no `asked_in`
 
 #### Scenario: A Discord link is left out of a lore repository that is not private
@@ -2882,8 +2976,9 @@ answer session logs for a file holding it.
   item's newest handback is open*; *A log file without `asked_in` is never
   merged*)
 - **AND** no other file holds `asked_in`
-- **AND** an answer relayed in a private repository's issue and logged on a
-  public lore repository's questions branch has no `answer_link`, as *The
+- **AND** an answer to an organization's question, relayed in a private
+  repository's issue and logged on a public lore repository's questions
+  branch, has no `answer_link`, as *The
   log command withholds a link where it would leak* rules, so it counts only
   through its signature
 
@@ -3678,3 +3773,10 @@ two go by pull request.
 - **WHEN** a lesson for a team draws on misses logged in a private
   repository, and the team's lore repository is public
 - **THEN** the agent opens no pull request, and tells the person why
+
+#### Scenario: A lesson for one person goes to their memory
+
+- **WHEN** a review of the misses finds that one person keeps being asked
+  whether to run the full test suite, which they always want run
+- **THEN** the agent writes that lesson to the person's agent memory or
+  user-level `CLAUDE.md`, and opens no pull request

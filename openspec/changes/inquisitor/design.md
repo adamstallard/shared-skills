@@ -231,11 +231,8 @@ beside it.
   a `provisional` entry; the question's file stays on its branch. Nothing
   goes to a lore repository more visible than the repository the question
   concerns.
-- **A question about one person's way of working:** no log, because agents
-  already read where its answer goes: that person's agent memory or
-  user-level `CLAUDE.md`. The answer never goes into a committed
-  `CLAUDE.md`. Every agent in that repository reads a committed one, so it
-  would apply one person's way of working to everyone.
+- **A question about one person's way of working:** no log (below, in
+  *Decisions*: *A way-of-working question gets no log*).
 - **A question in one of the three categories** (`vulnerability`, `secret`,
   `personal`): no log. Of this skill's records, only the hooks' verdict
   record holds it, as a hash. In an Igor's run, igor keeps the category
@@ -247,9 +244,8 @@ The spec's *A log file and a miss file have one format* holds the files'
 path, name, keys and encoding.
 
 An answer logged with `input` authority, which can't stop a question, goes
-only into the question's log file, never
-into a decision document: on the current work's branch a decision document
-counts as an answer, so writing input there would turn it into a decision.
+only into the question's log file, never into a decision document (below,
+in *Decisions*: *An answer without authority stays in its log file*).
 
 A lore entry that stops a question gets a citation file, which igor's review
 counts (*Citations go to the lore repository's questions branch*). A
@@ -534,6 +530,49 @@ current work, and also files it as an issue if it outlives the work, and a perso
 who wants the answer now says so.** The `deferred` verdict names where the
 question will be listed, such as "this PR's description", not a link, because
 that post may not exist yet.
+
+#### A question that blocks no step waits for the round's end
+
+**Only a question that blocks the step the agent is on is asked at once.
+Every other question that survives the filters waits for the end of the
+review round, and is asked then with the round's other questions.** In the
+meantime the agent goes on with the answer it recommends, and the question
+says the work assumes that answer. A round ends at a hand-back to a person
+as spec-check defines one, or when the agent ends its turn or its run (spec:
+*A review round ends when the work is handed back to a person*).
+
+**Why:** each question asked mid-round interrupts the person. A hand-back
+is when the person turns to the work anyway, so the round's questions cost
+one read there. Because the question names the assumption, "yes" confirms
+work already done, and any other answer says what to redo. The rework a
+rejected assumption costs is bounded by one round.
+
+**A round ends at the agent's turn too, not only at a pull request.** Ending
+the turn hands the person control, so they read the reply then. Questions
+held past it until a pull request is handed back would sit unseen while the
+person is there. A session with no pull request, such as a person in a
+terminal, has no other end.
+
+**The definition is spec-check's,** so one word means one moment across the
+skills. The spec cites spec-check's PR #55, which defines it, and gives
+one example instead of copying #55's list of what counts as a hand-back,
+so that list is kept in one place.
+PR #51, the alternative to #55, would end a round at a push too; *Open
+Questions* says what happens to this rule if #51 merges instead.
+
+**How this differs from filter 2:** a deferred question is one the current
+work does not need answered, so it is listed as not done and never asked in
+the round. A question waiting for the round's end is one the work does need
+answered: the work goes on, but on an assumption the answer may overturn.
+
+**The agent vets the question again at the round's end.** A verdict record
+lasts 2 hours, and an answer may have been recorded since the question
+arose.
+
+*Rejected:* asking every surviving question as soon as it arises, which
+interrupts the person once per question. Ending a round at each push, which
+spec-check's PR #55 also rejects: agents push after almost every commit, so every
+question would still be asked almost at once.
 
 #### bug-hunter's Step 9 recommendations go through the filters
 
@@ -875,7 +914,10 @@ post-verb line unreadable*, *Only allowlisted git is a data command beside a
 gh post verb* and, for a program read from a pipe or heredoc, *Input to a
 no-post line reaches only data commands*.
 
-**Why:** each of these can run a post the reader never sees. Finding the code
+**Why:** each of these can run a post the reader never sees. A program piped
+into `python`, `python3` or `node` is read from that input, and telling which
+script runs would mean reading the interpreter's options, so any input
+reaching one makes the line unreadable. Finding the code
 flag without reading the interpreter's options means an option that takes a
 value, such as `-W ignore`, cannot hide it. A list of git forms that run code
 is never complete, as prose's `DECISIONS.md` says (`git config alias.p '!…' &&
@@ -1438,10 +1480,6 @@ clone and `inquisitor.json` in reach, on igor's main branch or once igor
 PRs #174 and #175 land as specified.** So gate two builds everything except
 Igor-worker mode. *What task 0.12 measured* gives the evidence.
 
-**Why** it was measured first: it let gate two build everything else at
-once, where igor PR #216's task 4.1 could have measured it only after this
-pull request landed.
-
 #### An Igor worker asks only in its handback comment
 
 The Igor posts the handback comment (igor #211). The worker opens no post and
@@ -1924,10 +1962,6 @@ sample question) and the held-back post's notice, which the build's pre-tag
 notes list as still to try. Tasks G.1 and 6.9, the approvals the tasks ask for, are
 done. The tag `answer-session-ui-approved` (f964903) lacks the declining
 screens and is not a base.
-
-v0.1-33 was approved before the spec, and implementation starts only after
-both approvals. *Rejected:* designing its two screens under rule (c) in case
-the build came late: approving it first made a fallback unnecessary.
 
 #### How the approved prototype meets the spec
 
@@ -2616,7 +2650,8 @@ replaces rather than appending. `AGENTS.md` states this, and
 or two that only make sense together, in under 500 characters; its scenarios
 hold the examples and cases, and this file the reasons.** The inquisitor's
 Purpose defines the terms its spec uses throughout; any other term is
-defined in the requirement that first uses it. A Purpose is not normative,
+defined once, in the requirement that sets its rule, and earlier
+requirements may use it, so no term is defined twice. A Purpose is not normative,
 so a definition that carries a rule, such as a default, a "never", a closed
 list or a condition, also has that rule stated in a requirement.
 
@@ -2750,12 +2785,16 @@ interim rule: see the bullet below.
 - **Which App wrote a comment** is measured by both task 0.21 here and igor PR
   #216's task 4.8. Until a measurement shows GitHub reports it, every `User
   says: ` comment is input.
-- **Can a tool a mod registers tell a subagent's call from the main model's?**
-  (task 0.26) The spec's `propose_reply` refuses subagents (*A subagent cannot
-  call propose_reply*); the prototype showed only that a mod can fill the
-  prompt box and register a tool. The spec states no fallback. Undecided: what
-  the tool does with a call it cannot attribute, for example refusing every
-  such call.
+- **Does every call from outside the main conversation carry an
+  `agentId`?** (task 0.26) The spec's `propose_reply` refuses subagents (*A
+  subagent cannot call propose_reply*). The approved prototype already refuses
+  any call whose `agentId` is set: a subagent's, or one from a side
+  conversation Claude Code forks, such as the one that guesses the next prompt
+  (fc3c35f, `answer-session/hooks/register.tsx`, the `tool.call` handler for
+  `propose_reply`). Task 0.26 checks that no such call arrives without one.
+  The spec states no fallback. Undecided: what the tool does with a call from
+  outside the main conversation that arrives without an `agentId`, for
+  example refusing every call it cannot attribute.
 
 ### What igor must provide
 
@@ -2763,10 +2802,6 @@ The archive and Igor-worker mode wait on igor. What follows was read from
 igor PR #216 at head 59e7561 (2026-10-24), which records #216's decisions up
 to its 149.
 
-- **#216 can drop two of its "Still open" items,** both requests to this
-  change, which this change has met: stating the flag's categories as #216's
-  decision 97 does, in no fixed order, and aligning the flagged run with its
-  decisions 84 and 89.
 - **Igor-worker mode waits for igor to build its search command.** A worker
   can't run this skill (*What task 0.12 measured*), so filter 1 in a worker
   calls igor's read-only `igor lore-search`, which igor PR #216 specifies and
@@ -2960,6 +2995,49 @@ to its 149.
   never sees the question. Until a person decides, the spec does exactly
   that; the choices are that the asker marks such questions, or that the
   answer session only suggests a verdict on every agent's question.
+
+### Rules that depend on spec-check's open pull requests
+
+- **Which of spec-check's PRs #51 and #55 merges.** This spec ends a review
+  round at a hand-back as #55 defines one, never at a push. #51 would end a
+  round at a push too. If #51 merges instead, the two skills' rounds end at
+  different moments, and a person decides whether the inquisitor's round
+  follows spec-check's or keeps ending only at a hand-back. Until a person
+  decides, the spec ends a round where #55 does, whether or not #55 merges.
+- **Where the shared command reader lives.** Task 1.1 moves prose's command
+  reader into `.agents/lib/gh-post/`. PR #55 moves the same reader into
+  `.agents/lib/gh-shell/`, shared by prose's posting hook and spec-check's
+  hand-back hook. If both merge as written, the reader lives in two places.
+  spec-check's hook reads the same command lines to find a hand-back, so the
+  rules this change adds would reach the post hooks but not that hook, and a
+  line the post hooks call unreadable would still read as plain to it. Until
+  a person decides the order: if #55 has merged when task 1.1 is built, the
+  `gh-post` rules extend `gh-shell` instead of making a second copy; if not,
+  task 1.1 builds `gh-post` as specified, and #55 builds on it.
+
+### Other open choices
+
+- **Whose write access counts for a questions-branch file about one
+  repository.** *A logged decision needs write access to what its question
+  concerns* counts a questions-branch file's decision by write access to the
+  lore repository, even when its `repository` key names one repository. A
+  questions-branch file names one repository when an Igor's run logs a
+  question about a repository other than its item's. The Purpose defines write access to a repository's
+  question as write access to that repository. Until a person decides, the
+  spec checks write access to the lore repository; the alternative checks
+  the repository the key names.
+- **The discussion's model on Linear and Discord.** The model reads thread
+  text and has the person's tools, so it could post through discord-bot or
+  linear-app as the relay, starting `User says: `, and no post hook would
+  see it. The context the answer session gives the model tells it to post
+  nothing. Until a person
+  decides, that instruction is the only guard; the alternative is a hook on
+  those skills' post commands while an answer session runs.
+- **Specs for the skills this change edits.** The change edits github-app's
+  and bug-hunter's behaviour (tasks 5.5 and 5.7), but adds no capability for
+  either. *OpenSpec for new work in shared-skills* says an existing skill
+  gets no spec until a change touches it. Until a person decides, those edits are
+  tasks only; the alternative adds a spec for each.
 
 ### The post reader's open costs
 

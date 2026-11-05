@@ -13,8 +13,11 @@ agent asks it again.
 - A new skill, `inquisitor`, runs every question an agent is about to put to
   a person through four filters, and lets through only those a person must
   answer.
-- The questions that survive are prepared for a quick answer, batched, and
-  asked through the picker or in a post. Each one asked is logged with where
+- The questions that survive are prepared for a quick answer. A question
+  that blocks the agent's work is asked at once. Any other waits until the
+  agent hands its work back to a person or ends its turn, and the agent goes
+  on meanwhile with the answer it recommends. The waiting questions are then
+  asked together, through the picker or in a post. Each one asked is logged with where
   its answer is recorded, in the repository or the team's lore repository it
   concerns, so the next agent finds the answer instead of asking.
 - A hook blocks a question in the picker, or in a GitHub post, that has not

@@ -10,8 +10,10 @@ spec.
 
 ## 0. Measure before building
 
-Record each result in design.md, *What the hook relies on, not yet
-measured*, or under *Configuration* for 0.4, including a result that
+Record each result in design.md: *What the hook relies on, not yet
+measured* for 0.1 to 0.3, *Configuration* for 0.4, *Facts measured
+before building* for 0.5 to 0.14, and *Facts the answer session relies on*
+for 0.15 to 0.26, including a result that
 contradicts what design.md assumed.
 
 - [ ] 0.1 A `PreToolUse` hook with matcher `AskUserQuestion` fires before the
@@ -157,9 +159,11 @@ contradicts what design.md assumed.
       for its text, such as its length, against one refused for lack of
       permission. This is the mapping the answer-session spec's *A refusal
       the session cannot place waits for the person* uses
-- [ ] 0.26 Whether a tool a mod registers, such as `propose_reply`, can tell
-      a subagent's call from the main model's (answer-session spec:
-      *Claude's draft goes to the prompt box, never to a post*). What
+- [ ] 0.26 That every call to a tool a mod registers, such as
+      `propose_reply`, from a loop other than the main conversation carries
+      an `agentId`; the approved prototype refuses any call that carries one
+      (answer-session
+      spec: *Claude's draft goes to the prompt box, never to a post*). What
       `propose_reply` does with a call it cannot attribute is undecided;
       design.md's *Open Questions* hold it
 
@@ -417,7 +421,8 @@ contradicts what design.md assumed.
 - [ ] 5.1 `SKILL.md`: the filters, the two calls, writing a question at the
       privacy of what it concerns, posting no more publicly than that, the
       questions other skills require a person to decide, preparing,
-      batching and tagging, the order with prose, logging answers and
+      holding a question that blocks no step until the round's end while
+      going on with its recommended answer, batching and tagging, the order with prose, logging answers and
       misses, the three categories recorded by hash only, what a headless
       session does (no picker, an Igor worker asking only in its handback
       comment, stopping on a categorized question, and an Igor worker

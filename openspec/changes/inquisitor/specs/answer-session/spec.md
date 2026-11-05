@@ -273,13 +273,20 @@ the file's `asked_in` links that thread message.
 ### Requirement: The state folder is under the XDG state home
 
 The answer session's **state folder** SHALL be
-`${XDG_STATE_HOME:-$HOME/.local/state}/inquisitor/answer-session/`.
+`${XDG_STATE_HOME:-$HOME/.local/state}/inquisitor/answer-session/`, with
+mode 0700, and every file the session writes in it SHALL have mode 0600.
 
 #### Scenario: The state folder follows XDG_STATE_HOME
 
 - **WHEN** `XDG_STATE_HOME` is `/x/state`, or is not set
 - **THEN** the state folder is `/x/state/inquisitor/answer-session/`, or
   `$HOME/.local/state/inquisitor/answer-session/`
+
+#### Scenario: Only the person's user can read the state folder
+
+- **WHEN** the answer session saves a discussion record in the state
+  folder
+- **THEN** the folder has mode 0700 and the record mode 0600
 
 ### Requirement: The holder is the session whose answer session holds the lock
 
@@ -380,10 +387,10 @@ them there, its token staying with that skill.
 Setup SHALL check, showing failures and fixes: each relay identity, by its
 skill's check; on Discord, that `messageContent` is `true`; and posting in
 each subscribed channel. A channel is **on** while its identity's and
-posting's last checks passed, else **off**. An unreadable posting check
-(task 0.20) SHALL pass, shown as not checked, until a refused post fails
-it. An off channel SHALL be neither read nor posted in; each opening SHALL
-rerun any check that failed or never ran.
+posting's last checks passed, else **off**. Where posting permission is
+unreadable (task 0.20), a channel SHALL stay on, not checked, until any
+post there is refused. An off channel SHALL be neither read nor posted
+in; each opening SHALL rerun any check that failed or never ran.
 
 #### Scenario: A channel the relay cannot post in is off alone
 
@@ -1633,6 +1640,12 @@ discussion record SHALL keep the person's and the model's messages.
 - **THEN** it asks in its reply, not through the picker, and the question
   goes through the four filters but is not vetted
 
+#### Scenario: The discussion record keeps both sides
+
+- **WHEN** the person and the model have each sent a message in a
+  discussion of a question
+- **THEN** that question's discussion record holds both messages
+
 ### Requirement: Claude's draft goes to the prompt box, never to a post
 
 The answer session SHALL give the model `propose_reply`, a tool putting
@@ -1726,6 +1739,13 @@ With no thread, a fourth-source question SHALL get no ask-back or edit.
 - **THEN** the relay posts the answer in the thread, and the script
   pushes a new log file holding the question and, as its answer, that
   relay post's text word for word, with the post's URL as `answer_link`
+
+#### Scenario: A fourth-source question with no thread gets no ask-back or edit
+
+- **WHEN** the person is shown a fourth-source question whose log file has
+  no `asked_in`
+- **THEN** the session offers neither asking the asker back nor editing its
+  answer
 
 #### Scenario: A late answer on another machine answers a closed file
 
