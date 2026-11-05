@@ -77,7 +77,12 @@ None.
 - prose: its posting hook's body reader moves to `.agents/lib/gh-shell/`,
   beside the command splitter shared-skills PR #55 puts there, so the
   inquisitor's post hook reads posts the same way. The reader also
-  reads posts sent through the github-app skill and `gh api` comments.
+  reads posts sent through the github-app skill, its `gh api` calls
+  included, and `gh api` comments. It counts a `gh api` call as a
+  possible post only when it can write, by its method, fields, input or a
+  GraphQL mutation; prose's hook ignores `gh api` today. A `gh api` read
+  is no mention of a gh post verb, so it passes even piped into a script,
+  which on a line that mentions one would be blocked.
   A `gh api` write that takes a field from a file is readable only when
   it is the whole command line, because an earlier command in the line
   could rewrite the file. It also reads a post's title, and a title it can't

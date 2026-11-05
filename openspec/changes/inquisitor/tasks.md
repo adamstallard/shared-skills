@@ -14,7 +14,7 @@ Record each result in design.md: *What the hook relies on, not yet
 measured* for 0.1 to 0.3, *Configuration* and *Facts measured before
 building* for 0.4, *Facts measured
 before building* for 0.5 to 0.14, and *Facts the answer session relies on*
-for 0.15 to 0.27, including a result that
+for 0.15 to 0.28, including a result that
 contradicts what design.md assumed.
 
 - [ ] 0.1 A `PreToolUse` hook with matcher `AskUserQuestion` fires before the
@@ -184,6 +184,13 @@ contradicts what design.md assumed.
       hook lists the reading tools by name instead (answer-session spec:
       *The Linear and Discord post hooks block each way the two skills
       post*)
+- [ ] 0.28 Post the line `Inquisitor: a person must decide this
+      (required by spec-trace).` in a Linear comment and a Discord message,
+      read each back as the answer session would, and record whether its
+      words come back unchanged once markup is reduced. If not, record the
+      form each surface returns, which the answer session then matches
+      (answer-session spec: *A question with a person-required line gets
+      no filter 2 to 4 reply*)
 
 ## 1. Shared post reader
 
@@ -211,8 +218,22 @@ contradicts what design.md assumed.
         and vetted*). Rewrite the paragraph "Titles are not checked" in
         prose's `DECISIONS.md`, under *The posting hook reads an
         allow-list*, to say a title is read
-      - It reads `python3 <github-app script> gh pr|issue …` posts,
-        including `python3 $G …` only when the same command assigns `G`.
+      - It reads `python3 <github-app script> gh pr|issue|api …` posts,
+        including `python3 $G …` only when the same command assigns `G`,
+        and judges a `gh api` call through the script exactly as the same
+        call made directly.
+      - It counts a `gh api` call as mentioning a gh post verb only when
+        the call can write, as the `gh-post` spec's *A gh api call writes
+        by its method, fields, input or a mutation* says: `-X` or
+        `--method` in each form gh accepts and in any case, fields and
+        `--input` with and without `--method GET`, the
+        `X-HTTP-Method-Override` header, a GraphQL mutation, a query from
+        standard input or a file, and a method or endpoint the shell
+        builds, each with a test, and a read piped into `python3 -c`
+        passing. Check each case against `gh api --help` and gh's
+        behaviour, not only this list (design.md: *A gh api call counts
+        only when it can write*). Say in prose's `DECISIONS.md` that its
+        hook now counts such a call
       - It reads an unquoted `--body` or `-b` of one word holding no `$`,
         backtick, `*`, `?`, `[`, `{`, `~` or `\`, such as `--body hi`,
         `-bhi` or `--body=hi`, as that word, as prose's reader does
@@ -227,9 +248,9 @@ contradicts what design.md assumed.
         is no post, or unreadable when it has a `body` (design.md: *The
         reader reads gh api writes, REST and GraphQL*).
       - It reports whether a post creates an issue.
-      - It blocks as unreadable a `gh api` call that writes (method
-        `POST`, `PATCH` or `PUT`, given or implied by fields, or a GraphQL
-        mutation) whose body it can't read, a GraphQL query it can't parse,
+      - It blocks as unreadable a `gh api` call that writes, as the
+        `gh-post` spec's *A gh api call writes by its method, fields,
+        input or a mutation* says, whose body it can't read, a GraphQL query it can't parse,
         and a review whose comments it can't read.
       - It applies the closed list of gh post verbs, and blocks as
         unreadable, as prose's reader does today, a command that names
@@ -255,6 +276,9 @@ contradicts what design.md assumed.
       prints the filters and filter 1's search results, and issues a token
 - [ ] 2.2 `vet --pass <token> --verdicts <file>` (second call): the four
       verdicts and their fields, an `ask`'s related earlier decision, the
+      person-required line printed for an `ask` naming the skill that
+      requires it (inquisitor spec: *A question another skill requires
+      carries a person-required line*), the
       three categories recorded by hash only, the refusals, and the records
       the hooks read, each deleted once it is more than 2 hours old
 - [ ] 2.3 Filter 1's search. Items marked igor's are applied by
@@ -412,7 +436,9 @@ contradicts what design.md assumed.
       only), checking verdicts, blocking with exit 2, and failing open,
       including when it can't read its records
 - [ ] 3.2 `scripts/check-post.sh`: `PreToolUse` on Bash and the GitHub MCP
-      tools, through `.agents/lib/gh-shell/`. It blocks every post holding
+      tools, through `.agents/lib/gh-shell/`. It blocks a post in which a
+      question whose `ask` names a requiring skill lacks its
+      person-required line, or another question carries one. It blocks every post holding
       a question whose latest verdict record has a category, read from
       that record (inquisitor spec: *A question with a category is asked
       only through the picker or its advisory*); blocks a post with a
@@ -446,7 +472,8 @@ contradicts what design.md assumed.
 
 - [ ] 5.1 `SKILL.md`: the filters, the two calls, writing a question at the
       privacy of what it concerns, posting no more publicly than that, the
-      questions other skills require a person to decide, preparing,
+      questions other skills require a person to decide and the
+      person-required line copied exactly from the second call, preparing,
       holding a question that blocks no step until the round's end while
       going on with its recommended answer, batching and tagging, the order with prose, logging answers and
       misses, the three categories recorded by hash only, what a headless
@@ -634,7 +661,11 @@ contradicts what design.md assumed.
       - Built in this task:
         - filter 1 on every incoming question and the `Recorded answer:
           ` post;
-        - filters 2 to 4 and the three fixed `Inquisitor: ` texts;
+        - filters 2 to 4 and the three fixed `Inquisitor: ` texts, and a
+          question carrying a person-required line always shown to the
+          person unless filter 1 answers it, the line found by its fixed
+          wording after markup is reduced (design.md: *A question another skill
+          requires carries a line the answer session matches*);
         - declining with its two reasons, and reason 2's posts;
         - the misses on the questions branch, none for reason 1
           (design.md: *Messages that are not questions are ignored*;

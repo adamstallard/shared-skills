@@ -127,7 +127,7 @@ the reader, which finds a post's body, into the same library for both post
 hooks; the `gh-post` spec states its rules. prose's tests are
 unchanged except where the reader changes:
 - **It reads two more forms of post.** The github-app skill tells agents to
-  post through its script, `python3 <github-app script> gh pr|issue …`;
+  post through its script, `python3 <github-app script> gh pr|issue|api …`;
   under prose's rules alone that is unreadable, so every post an agent
   sends as a GitHub App would be refused. A `gh api` comment whose body
   comes from a body field or `--input` passes prose's rules unread, so it
@@ -152,6 +152,12 @@ unchanged except where the reader changes:
   checked"); task 1.3 updates that paragraph. A footer can't go on a
   one-line title, so prose's hook checks only that a title is readable, and
   lets a call with a title and no body through.
+- **It counts a `gh api` call that can write as a possible post,** where
+  prose's reader ignores `gh api` today. A line holding such a call then
+  falls under the rules for a line that mentions a gh post verb, such as
+  the interpreter, git and whole-line rules below. A `gh
+  api` read still passes, piped into a script or not (*A gh api call
+  counts only when it can write*).
 - **It blocks a `gh` alias or extension,** such as `gh co` or `gh dash`,
   wherever it appears, since an alias such as `c` for `pr comment` would
   send a post the reader takes for none.
@@ -871,10 +877,10 @@ in a Linear or Discord message is covered by the skill's instructions alone.
 
 **prose's posting hook and the inquisitor's post hook read every post through
 one library, `.agents/lib/gh-shell/`, so every rule the reader gains applies to
-prose's hook too.** spec-check's hand-back hook reads command lines through
-the same library (shared-skills PR #55), so a line the post hooks find
-unreadable is unreadable to it as well, and no second copy of the reader
-drifts from the first. The `gh-post` spec states its rules, taking the finer
+prose's hook too.** With one library, no second copy of the reader can drift
+from the first. spec-check's hand-back hook splits command lines with the same
+library's splitter (shared-skills PR #55), but applies none of the post
+reader's rules. The `gh-post` spec states its rules, taking the finer
 points of reading a line, such as heredocs, comments and line continuations,
 from prose's `DECISIONS.md`. *Questions in posts* gives the reasoning, and
 which prose tests change.
@@ -897,7 +903,8 @@ whose simple commands send no text is no post* and *Any other line that
 mentions a gh post verb is unreadable*.
 
 **Why:** these are prose's reader's rules, apart from the alias rule and
-counting `gh api` as a mention (*The post reader's open costs*). An
+counting a `gh api` call that can write as a mention of a gh post verb (*A gh
+api call counts only when it can write*). An
 allow-list fails closed: a form it cannot read, such as `sh -c '…'` or
 `eval '…'` around a gh post, is blocked, never let through unread. The reader
 cannot read what an alias or extension runs: with `c` aliased to `pr
@@ -952,12 +959,15 @@ states the forms. Task 5.5 makes each example in the github-app skill's
 `SKILL.md` set `G` in the same command or write the script's path.
 
 **Why:** otherwise every `gh pr` or `gh issue` post an agent sends as a GitHub
-App would be blocked. A `gh api` call through the script, a read included, is
-unreadable and so blocked (*The post reader's open costs*).
-The reader cannot know what any other script posts. An unset `$G` posts
-nothing in Claude Code, where each command starts a fresh shell, but could in
-a host whose shell keeps variables, such as Cursor; blocking it costs only a
-rewrite.
+App would be blocked. A `gh api` call through the script is judged exactly as
+the same call made directly, so an agent acting as a GitHub App can read the
+API as any agent can. The reader cannot know what any other script posts. An
+unset `$G` posts nothing in Claude Code, where each command starts a fresh
+shell, but could in a host whose shell keeps variables, such as Cursor;
+blocking it costs only a rewrite.
+
+*Rejected:* blocking every `gh api` call through the script: an agent acting
+as a GitHub App could then not even read the API.
 
 #### The reader reads gh api writes, REST and GraphQL
 
@@ -982,6 +992,40 @@ line.
 
 *Rejected:* reporting every GraphQL mutation as unreadable: it would block
 writes that send no text, which the REST rule lets through.
+
+#### A gh api call counts only when it can write
+
+**A `gh api` call is a possible post unless it is a simple command whose
+command is `gh`, or the github-app skill's form of one, with every word
+literal, that cannot write. It writes when it is a REST call whose last
+method is not `GET`, or that gives no method and has a field or `--input`, or
+that sets `X-HTTP-Method-Override`; or a GraphQL call whose query holds a
+mutation or cannot be read.** The `gh-post` spec's *A gh api call is a read
+only as a plain gh command* and *A gh api call writes by its method, fields,
+input or a mutation* state the rules.
+
+**Why:** a read posts nothing, so counting it would block, for every prose
+user, lines such as `gh api … | python3 -c …` that only read. The test
+follows gh's own rule: `gh api --help` says the method is `GET` unless a
+parameter is added, which makes it `POST`, and `--method` overrides
+either. `--input` counts as a parameter here whatever gh does with it, which
+fails closed; task 1.3 checks gh's behaviour. A call is judged a read only
+when every word is literal and it is gh's own simple command, because a word
+the shell builds, `xargs` or `sh -c` could add a field the reader never
+sees. gh sends a GraphQL query's fields with `POST`, as it does a
+mutation's, so the method tells nothing there, and only the operation does; a query the reader cannot see might be
+a mutation. A method or endpoint the shell builds might be anything.
+
+**Accepted:** a GraphQL query read from standard input, or from a file in a
+longer line, counts as a write the reader cannot read, so it is blocked. A
+read whose words the shell builds, such as `-f q="$Q"`, counts as a possible
+post, so the line mentions a gh post verb, and an interpreter with a code flag
+on that line makes it unreadable.
+
+*Rejected:* counting every `gh api` call as a possible post: it blocks reads
+piped into a script, which post nothing.
+*Rejected:* judging a GraphQL call by its method: a query and a mutation are
+both sent with `POST`.
 
 #### A post's title is read and vetted
 
@@ -2428,6 +2472,44 @@ is clear, and replies by itself only with that filter's fixed text, and only
 on an agent's question.** The person thus sees only what needs them, and a
 crafted thread can at worst pick which fixed reply goes out.
 
+#### A question another skill requires carries a line the answer session matches
+
+**A posted question that another skill requires a person to decide carries
+the person-required line, `Inquisitor: a person must decide this (required
+by <skill>).`, which the second call prints and the agent copies exactly; the
+answer session finds it by its fixed wording and always shows such a question
+to the person, never replying with filters 2 to 4.** The inquisitor spec's *A
+question another skill requires carries a person-required line* and the
+`answer-session` spec's *A question with a person-required line always
+reaches the person* state the rules. On GitHub the post hook checks that the
+line is there on each such question, names the right skill, and is on no other
+question; elsewhere nothing checks it.
+
+**Why:** the asking agent skips filters 2 to 4 for such a question, but the
+answer session would otherwise apply them, and could close by itself a
+question only a person may decide. The line is visible text, since Linear and
+Discord have no hidden comments, and it starts `Inquisitor: ` like the
+session's own fixed texts, but sits after the question, so the post never
+starts with it: a post starting `Inquisitor: ` would be blocked on GitHub as a
+reserved prefix. The script prints it, so its wording never varies, and the
+answer session needs no judgement to find it.
+
+The answer session matches the line's fixed wording after reducing it as a
+question's text is, and ignores the skill it names, so markup a surface adds
+does not stop a match; task 0.28 checks that Linear and Discord return the
+line's words unchanged. A question carrying the line gets no filter 2 to 4
+reply even when the person declines it, since the requiring skill wants the
+person's own answer; filter 1 still applies, as it does for the asking agent.
+
+**Accepted:** anyone can type the line. A forged one only sends a question to
+the person instead of answering it, the safe direction.
+
+*Rejected:* the answer session only suggesting a verdict on every agent's
+question: the person would have to handle every deferrable or cheap
+question by hand.
+*Rejected:* keeping the automatic reply on such questions: a question only a
+person may decide would be closed without them.
+
 #### A reply to an automatic post is a new question
 
 **A reply to an automatic post is judged by the filters again, like a reply
@@ -2925,6 +3007,10 @@ nothing: it records whether a forked conversation's `propose_reply` call
 can arrive without an `agentId` (*Claude drafts a reply only into the
 prompt box*).
 
+- **Do Linear and Discord return a posted line's words unchanged?** (task
+  0.28) The answer session finds a person-required line by its fixed wording
+  after reducing markup. If a surface changes the words, such as by escaping
+  the parentheses, the session matches the form task 0.28 records instead.
 - **Do only reading Linear MCP tools have names starting `get_`, `list_` or
   `search_`?** (task 0.27) linear-app's post hook lets those tools through in
   the holder and blocks the rest, so a tool of another name fails closed. If
@@ -3139,33 +3225,6 @@ to its 149.
   surface counts only through a decision document, such as the scribe's
   record; one typed in the answer session and relayed there counts through its
   log file's signature.
-
-### The answer session's open choices
-
-- **Should the answer session close an agent's question that another skill
-  requires a person to decide?** The inquisitor's *A question another skill
-  requires skips filters 2 to 4* exempts such a question, but the answer
-  session cannot tell one apart. So *Filters 2 to 4 judge every incoming
-  question* posts a filter's fixed text on it, logs a miss and lists it as
-  handled, while the asking agent treats the reply as input and the person
-  never sees the question. Until a person decides, the spec does exactly
-  that; the choices are that the asker marks such questions, or that the
-  answer session only suggests a verdict on every agent's question.
-
-### The post reader's open costs
-
-- **Whether `gh api` calls made as a GitHub App must work.** The `gh-post`
-  spec reads the github-app script's `gh pr` and `gh issue` forms only, so
-  `python3 $G gh api …`, a read included, mentions a gh post verb and is
-  unreadable. Until a person decides, the spec blocks every such call; the
-  choice is whether to read the script's `gh api` form too.
-- **Whether `gh api` counts as a mention for every prose user.** prose's
-  reader matches only `gh pr` and `gh issue`; the `gh-post` spec also counts
-  `gh api`, so a line such as `gh api … | python3 -c …`, which prose passes
-  today, becomes unreadable, a cost *Which commands the reader judges, and
-  which are unreadable* does not list. Until a person decides, the spec counts `gh api` as a mention;
-  the alternative applies the interpreter and input rules only to `gh pr`
-  and `gh issue` post verbs and to `gh api` calls that write.
 
 ### Left to implementation
 

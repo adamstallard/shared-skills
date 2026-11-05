@@ -2529,7 +2529,8 @@ answer: such a repeat goes to the person, as an ordinary question.
 The session's model SHALL judge each question filter 1 did not stop
 against filters 2 to 4, as the inquisitor's spec states them, sending an
 unclear case to the person as an ordinary question. When an agent's
-question with no category clearly fails one in a thread the relay can
+question with no category and no person-required line clearly fails one
+of those filters in a thread the relay can
 reply in, the answer session SHALL itself post the filter's fixed text,
 as this requirement's scenarios give it, through the relay, log its
 miss, and list it as handled.
@@ -2566,6 +2567,47 @@ miss, and list it as handled.
 - **THEN** whatever the model judges, the answer session posts by itself
   only one of the three fixed `Inquisitor: ` texts, or the fixed
   recorded-answer text whose URL is filter 1's hit
+
+### Requirement: A question with a person-required line gets no filter 2 to 4 reply
+
+An agent's question with a line among those directly after it that,
+reduced as a question's text is, starts with the inquisitor's
+person-required line up to `(required by `, SHALL get no filter 2, 3 or
+4 reply, by itself or by the person's decline, and no miss for those
+filters. Unless filter 1 answers it, it SHALL be shown to the person.
+The answer session SHALL trust any such line.
+
+#### Scenario: A question spec-trace requires reaches the person
+
+- **WHEN** an agent's question whether to adopt spec-trace, which clearly
+  fails filter 4 and has no recorded answer, is followed by the line
+  `Inquisitor: a person must decide this (required by spec-trace).`
+- **THEN** nothing is posted by itself, no miss is logged, and the
+  question is shown to the person as an ordinary unanswered question
+- **AND** if the person declines it for the inquisitor, the only filter
+  offered is filter 1
+
+#### Scenario: Filter 1 still answers a marked question
+
+- **WHEN** such a question has an answer with authority recorded
+- **THEN** the answer session posts the recorded answer by itself, as on
+  any agent's question
+
+#### Scenario: A forged person-required line only reaches the person
+
+- **WHEN** an agent's question no skill requires carries a
+  person-required line naming `prose`
+- **THEN** the question is shown to the person, as any question carrying
+  the line is
+
+#### Scenario: A line is matched on its fixed wording, markup aside
+
+- **WHEN** an agent's question is followed by `**Inquisitor: a person
+  must decide this (required by spec-trace).**`, and another by
+  `Inquisitor: a person should decide this.`
+- **THEN** the first counts as a person-required line, its markup
+  reduced away, and the second does not, so filters 2 to 4 judge that
+  question as usual
 
 ### Requirement: Filters 2 to 4 only suggest a verdict on other questions
 

@@ -51,10 +51,11 @@ unreadable call.
 
 A **gh post verb** is one of the closed list that *The gh post verbs are
 a closed list* gives. A command
-**mentions** one when its text, quoted or not, holds either of these:
-the word `gh` followed later by `pr` or `issue` and later by one of
-their verbs; or the word `gh` followed by `api`. A command that mentions no gh post verb SHALL
-send no post.
+**mentions** one when its text, quoted or not, holds `gh` followed
+later by `pr` or `issue` and later by one of their verbs, or `gh`
+followed by `api`, unless that `gh api` is a call *A gh api call is a
+read only as a plain gh command* counts as a read. A command that mentions no gh
+post verb SHALL send no post.
 
 #### Scenario: The gh post verbs are a closed list
 
@@ -62,7 +63,7 @@ send no post.
 - **THEN** its gh post verbs are `gh pr` with `create`, `new`, `edit`,
   `comment`, `review`, `revert`, `close` or `reopen`; `gh issue` with
   `create`, `new`, `edit`, `comment`, `review`, `close` or `reopen`; and
-  `gh api`
+  a `gh api` call that can write
 - **AND** of these, the verbs that post text are `create`, `new`, `edit`,
   `comment` and `review`; `revert`, for a pull request only; and `close`
   or `reopen` with a comment
@@ -71,6 +72,16 @@ send no post.
 
 - **WHEN** a hook asks about `gh pr view 5`, or about `git log`
 - **THEN** the reader reports that each command sends no post
+
+#### Scenario: A gh api read piped into a script is no post
+
+- **WHEN** a hook asks about `gh api repos/o/r/pulls/5 | python3 -c
+  'import json, sys; print(json.load(sys.stdin)["title"])'`, or the same
+  with `python3 /abs/github_app.py gh api repos/o/r/pulls/5`
+- **THEN** the reader reports that each line sends no post, since a read
+  is no gh post verb and the line mentions none
+- **AND** `python3 -c 'import os; os.system("gh api -X POST x")'` still
+  mentions one, in the code's text, and is unreadable
 
 ### Requirement: The reader reads only gh's own top-level commands
 
@@ -451,9 +462,11 @@ message saying how to fix it.
 - **WHEN** a hook asks about `G=/abs/github_app.py && python3 "$G"
   --identity bot gh pr comment 5 --body-file c.md`
 - **THEN** the reader returns the file's text as the body
-- **AND** the script runs `gh pr` or `gh issue`, directly or after
-  `run --`, `--identity <name>` may come before `gh` or `run`, `$G` may be
-  unquoted, and `G=<path>;` assigns `G` as `G=<path> &&` does
+- **AND** the script runs `gh pr`, `gh issue` or `gh api`, either
+  directly or after `run --`
+- **AND** `--identity <name>` may come before `gh` or `run`
+- **AND** `$G` may be unquoted, and `G=<path>;` assigns `G` as
+  `G=<path> &&` does
 
 #### Scenario: A quoted assignment to G sets it
 
@@ -476,11 +489,90 @@ message saying how to fix it.
 - **WHEN** a hook asks about `python3 "$G" gh pr view 12 --comments`, and
   the command assigns `G` nowhere
 - **THEN** the reader reports that the command sends no post
+- **AND** so it does for `python3 "$G" gh api repos/o/r/pulls/5`, a read
+
+#### Scenario: A gh api call through the github-app script is judged as a direct one
+
+- **WHEN** a hook asks about `python3 /abs/github_app.py gh api
+  repos/o/r/issues/5/comments -f body=hi`, and about `python3
+  /abs/github_app.py --identity bot gh api -X DELETE
+  repos/o/r/issues/comments/9`
+- **THEN** the reader returns `hi` as the first's body, and reports that
+  the second sends no post, as it would for the same `gh api` calls made
+  directly
+
+### Requirement: A gh api call is a read only as a plain gh command
+
+A `gh api` call SHALL count as a **read** only when it is a simple
+command whose command is `gh`, or the github-app skill's form of one,
+whose every word is a literal word, except that its endpoint may hold `?`
+and gh's `{owner}`, `{repo}` and `{branch}` placeholders, and that does
+not write as *A gh api call writes by its method, fields, input or a
+mutation* says. Any other `gh` followed by `api` SHALL mention a gh post
+verb.
+
+#### Scenario: A read with placeholders or a query string is a read
+
+- **WHEN** a hook asks about `gh api repos/{owner}/{repo}/pulls/5 |
+  python3 -c 'print(1)'`, and about `gh api search/issues?q=x`
+- **THEN** the reader reports that each line sends no post
+
+#### Scenario: A gh api call the reader cannot see whole mentions a post verb
+
+- **WHEN** a hook asks about `gh api repos/o/r/issues/5/comments $F`,
+  `gh api -X "$M" repos/o/r/issues/5`, `cat a | xargs gh api
+  repos/o/r/issues/5/comments`, or `sh -c 'gh api
+  repos/o/r/issues/5/comments "$@"' _ -f body=x`
+- **THEN** none is a read, and each line mentions a gh post verb
+
+### Requirement: A gh api call writes by its method, fields, input or a mutation
+
+A `gh api` call to a REST endpoint SHALL **write** when its method, the
+last given by `-X` or `--method` in any form gh accepts, compared
+without case, is not `GET`; when it gives no method and has a field
+(`-f`, `--raw-field`, `-F` or `--field`, in any form) or `--input`; or
+when a header sets `X-HTTP-Method-Override`. A call to `graphql` SHALL
+write when its query holds a mutation or the reader cannot read its
+query.
+
+#### Scenario: A method other than GET writes
+
+- **WHEN** a hook asks about `gh api -X DELETE repos/o/r/issues/comments/9`,
+  `gh api --method=patch repos/o/r/issues/5 -f state=closed` and
+  `gh api -XPOST repos/o/r/issues/5/labels -f 'labels[]=x'`
+- **THEN** each call writes
+- **AND** `gh api -X get search/issues -f q=x` does not, while
+  `gh api -X GET -X POST repos/o/r/labels -f name=x` does, gh taking the
+  last method
+
+#### Scenario: Fields or input with no method write
+
+- **WHEN** a hook asks about `gh api repos/o/r/labels -f name=x`,
+  `gh api repos/o/r/labels -fname=x`, `gh api repos/o/r/labels
+  --raw-field=name=x`, and `gh api repos/o/r/labels --input l.json`
+- **THEN** each call writes, as gh sends it with `POST`
+- **AND** `gh api -X GET search/issues -f q=x` does not write, nor does
+  `gh api repos/o/r/pulls/5` with no field
+
+#### Scenario: A method override header writes
+
+- **WHEN** a hook asks about `gh api -H 'X-HTTP-Method-Override: DELETE'
+  repos/o/r/issues/comments/9`
+- **THEN** the call writes
+
+#### Scenario: A GraphQL call writes only as a mutation or an unread query
+
+- **WHEN** a hook asks about `gh api graphql -f query='{ viewer { login }
+  }'`, about `gh api graphql -f query='mutation { addStar(input:
+  {starrableId: "R_1"}) { clientMutationId } }'`, and about `cat
+  q.graphql | gh api graphql -F query=@-`
+- **THEN** the first does not write, and the second and third do: the
+  third's query comes from standard input, which the reader never reads
 
 ### Requirement: The reader reads a gh api write to an issue or pull request
 
-A `gh api` call **writes** when `-X` or `--method` gives `POST`, `PATCH`
-or `PUT`, or it has fields or `--input` and no `-X GET`. For a write under
+A `gh api` call writes as *A gh api call writes by its method, fields,
+input or a mutation* says. For a write under
 `repos/<owner>/<repo>/issues` or `.../pulls`, the reader SHALL read each
 `body` field or `--input` key as a body, a `title` one as the title, and,
 for a review, each comment's `body`. Each field SHALL be a literal word;
@@ -552,7 +644,7 @@ all given in the command SHALL be read in a longer line too.
 
 ### Requirement: The reader reads GraphQL posts and blocks a gh api write it can't read
 
-A GraphQL call writes when it holds a mutation. In the thirteen mutations
+In the thirteen mutations
 its scenarios list, which post text, the reader SHALL read every `body`
 argument, at any depth, as a body and a `title` argument as the title;
 `createIssue` creates an issue. It SHALL report as unreadable a query it

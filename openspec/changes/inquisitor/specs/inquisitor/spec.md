@@ -1575,6 +1575,55 @@ string matching the credential patterns.
   string shaped like a GitHub access token
 - **THEN** the hook blocks the call
 
+### Requirement: A question another skill requires carries a person-required line
+
+A posted question exempt from filters 2 to 4 under *A question another
+skill requires skips filters 2 to 4* SHALL carry its **person-required line**, `Inquisitor: a
+person must decide this (required by <skill>).`, exactly as the second
+call prints it, with `<skill>` the requiring skill's name. The line goes
+where a related-decision line would, after any such line.
+
+#### Scenario: A question spec-trace requires is posted with its line
+
+- **WHEN** an agent asks in a pull request comment whether to adopt
+  spec-trace, which spec-trace requires a person to decide
+- **THEN** the second call prints `Inquisitor: a person must decide this
+  (required by spec-trace).` with the `ask`, the agent puts that line
+  directly after the question, and the post hook lets the post through
+- **AND** the question's text and hash are as they would be without the
+  line, and the post hook's reserved-prefix block, which applies only to a
+  body starting with `Inquisitor: `, does not apply, since the post starts
+  with the question
+
+#### Scenario: Both lines follow a sentence question in order
+
+- **WHEN** a sentence question has a related earlier decision and a skill
+  that requires it
+- **THEN** its related-decision line is the line directly after the one
+  it ends on, and its person-required line the line after that
+
+### Requirement: The second call checks a requiring skill, and the post hook its line
+
+The second call SHALL refuse an `ask` naming a requiring skill unless
+the name is lowercase letters, digits and `-`, and SHALL record the name
+with the verdict. The post hook SHALL block a GitHub post in which a
+question whose record names a requiring skill lacks that skill's
+person-required line, or any other question carries one.
+
+#### Scenario: A skill name off the syntax is refused
+
+- **WHEN** the second call is given an `ask` naming `Spec Trace` as the
+  skill that requires it
+- **THEN** it refuses, records nothing, and keeps the token
+
+#### Scenario: A missing or misplaced person-required line is blocked
+
+- **WHEN** an agent posts the question whether to adopt spec-trace, whose
+  `ask` names spec-trace, without its line or with the line naming another
+  skill, or posts a person-required line on a question whose `ask` names
+  no skill
+- **THEN** the post hook blocks each post, naming the question
+
 ### Requirement: A round's questions are asked together at its end
 
 Questions that survive the filters during one question round SHALL be asked
@@ -1891,12 +1940,11 @@ SHALL delete each over 2 hours old, whatever its verdict or category.
 ### Requirement: A question's text and hash are built one way
 
 A question's **text** SHALL be built in four steps: leave out
-related-decision lines, matched after trimming; take its parts, inline
+related-decision and person-required lines, matched after trimming; take its parts, inline
 markup reduced to text (a picker question's `question` field then its
 options' labels; a post question's list item without its marker, or its
 sentence; any other text whole); make each whitespace run one space,
-trimming each part; join the parts with one LF. Its **hash**, used by
-records and both hooks, SHALL be the SHA-256 of that text as UTF-8, in
+trimming each part; join the parts with one LF. Its **hash** SHALL be the SHA-256 of that text as UTF-8, in
 lowercase hex.
 
 #### Scenario: A picker question's text joins its parts with line feeds
