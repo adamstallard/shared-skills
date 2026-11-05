@@ -2034,6 +2034,29 @@ and posts nothing.** Since the person confirms whatever Claude drafts, when
 they decline under filter 1 the draft may fill in the URL of the record that
 answers the question.
 
+**`propose_reply` refuses any call carrying an `agentId`, and takes a call
+without one as the main conversation's.** Claude Code sets `agentId` on a
+tool call made outside the main conversation, by a subagent or a side
+conversation it forks, and a mod's `tool.call` handler receives it with the
+call. Nothing else tells the main conversation's calls from the others'.
+The approved prototype does this (fc3c35f,
+`answer-session/hooks/register.tsx`, the `tool.call` handler for
+`propose_reply`).
+
+**Why:** only the conversation the person is in may fill their prompt box. A
+side conversation Claude Code forks, such as the one that guesses the next
+prompt, could otherwise drop a draft nobody asked for there, possibly over
+what the person is typing. A subagent that read an untrusted Linear or
+Discord message could plant text the person then sends without seeing where
+it came from.
+
+**Accepted:** the rule stops a forked conversation only if Claude Code
+marks its calls with an `agentId`. One that arrived without one would be
+taken as the main conversation's. The cost is bounded: the draft lands in
+the prompt box, where the person sees it, and nothing is sent until they
+confirm it. Task 0.26 records whether any such call arrives; the rule
+stands either way.
+
 #### The UI is built from prototype build v0.1-33
 
 **The mod is built from prototype build v0.1-33 alone, approved by use,**
@@ -2203,6 +2226,19 @@ let anyone with push access re-push a copy of an older proven file and revert
 a newer answer. If a file that would not count could supersede, a person
 without write access, whose answer to a handback an Igor logs as `input`,
 would undo a maintainer's answer.
+
+**Why** a comment is dated by GitHub's GraphQL `lastEditedAt`, or
+`createdAt` if it was never edited: GitHub's GraphQL reference documents
+`lastEditedAt` as "the moment the editor made the last edit", so a reaction,
+a hide or other metadata cannot make an older answer the newest. REST's
+`updated_at` is never read, so whether it moves on a reaction does not
+matter. GitHub documents both fields on issue comments, reviews and review
+comments, through GraphQL's `Comment` interface; task 0.11 queried an issue
+comment. An edit, by the author or anyone else, does re-date the comment,
+but it also changes the comment's text, and a link proves a writer only
+while the comment holds the answer the file records (spec: *A
+questions-branch file's writer is proven by its comment or its
+signature*).
 
 **Why** a signature's date is the earlier of the signed commit's committer
 date and the time this machine first fetched that commit: the signer sets the
@@ -2810,7 +2846,15 @@ open change.
 Tasks 0.4 to 0.14 measure these facts before anything is built; *What the
 hook relies on, not yet measured* holds tasks 0.1 to 0.3. Each bullet says
 what the spec does if the fact is false. Task 0.12 is measured; *What task
-0.12 measured* gives its result.
+0.12 measured* gives its result. Task 0.11 is measured too, so a
+questions-branch file's writer can be proven as the spec says: GitHub's
+GraphQL API gives an `IssueComment`'s `author { login }`, `createdAt` and
+`lastEditedAt`, and a commit's `signature { isValid state signer { login }
+wasSignedByGitHub }`. For a merge commit on shared-skills' main the
+signature read `VALID`, signed by `web-flow` with `wasSignedByGitHub` set
+(2026-11-04). That is a signature GitHub made, which *A signature GitHub
+may have made counts for no one* sets aside; a person's own signature was
+not queried, and task 0.22 checks how one reads.
 
 - **Can an agent without push access read another person's permission on a
   repository?** (task 0.4) If not, wherever the agent lacks push access, every
@@ -2852,15 +2896,6 @@ what the spec does if the fact is false. Task 0.12 is measured; *What task
   message describes the weakness, and a regression test goes in the fork, only
   on the word of the person publishing the advisory; without it, the
   advisory's text holds the full description.
-- **Does GitHub's API give a comment's author and a commit's verified signer,
-  as the proof of a questions-branch writer needs?** (task 0.11) If not, every
-  questions-branch `decision` or `agent` file counts as input.
-- **Does a comment's `updated_at` change only when its text is edited?** (task
-  0.11) *The newest proven answer counts* dates a comment link's proof from
-  the comment's last edit, so it relies on `updated_at` not moving on a
-  reaction, a hide or minimize, or other metadata. If it does move, a reaction
-  could make an older answer the newest. The spec states no fallback; which
-  ordering then applies is undecided.
 - **Can an Igor worker post?** (task 0.14) igor's task-execution requirement
   keeps every credential but its seat's out of the worker's environment, but a
   `gh` login in the worker's home directory is in neither its environment nor
@@ -2883,9 +2918,12 @@ tell that a questions-branch commit will be verified for the person. Task
 0.25 records how each surface reports two kinds of refusal of a relay post:
 one for its text, such as its length, and one for lack of permission. A
 refusal the session
-cannot place waits for the person, as the answer-session spec's *A pending
-answer no check returns waits for the person* says. Task 0.26 states no
-interim rule: see the bullet below.
+cannot place waits for the person, as the answer-session spec's *A refusal
+the session cannot place waits for the person* says: one it cannot sort
+into either kind. Task 0.26 decides
+nothing: it records whether a forked conversation's `propose_reply` call
+can arrive without an `agentId` (*Claude drafts a reply only into the
+prompt box*).
 
 - **Do only reading Linear MCP tools have names starting `get_`, `list_` or
   `search_`?** (task 0.27) linear-app's post hook lets those tools through in
@@ -2895,16 +2933,6 @@ interim rule: see the bullet below.
 - **Which App wrote a comment** is measured by both task 0.21 here and igor PR
   #216's task 4.8. Until a measurement shows GitHub reports it, every `User
   says: ` comment is input.
-- **Does every call from outside the main conversation carry an
-  `agentId`?** (task 0.26) The spec's `propose_reply` refuses subagents (*A
-  subagent cannot call propose_reply*). The approved prototype already refuses
-  any call whose `agentId` is set: a subagent's, or one from a side
-  conversation Claude Code forks, such as the one that guesses the next prompt
-  (fc3c35f, `answer-session/hooks/register.tsx`, the `tool.call` handler for
-  `propose_reply`). Task 0.26 checks that no such call arrives without one.
-  The spec states no fallback. Undecided: what the tool does with a call from
-  outside the main conversation that arrives without an `agentId`, for
-  example refusing every call it cannot attribute.
 
 ### What igor must provide
 

@@ -1214,7 +1214,7 @@ each other SHALL be shown as input, labelled as superseded.
 ### Requirement: A file is as new as its proof, and supersedes only if it would count
 
 A file's newness SHALL be its proof's date: for a comment link, GitHub's
-time of the comment's last edit, or its creation; for a signature, the
+`lastEditedAt`, or `createdAt` if never edited; for a signature, the
 earlier of the signed commit's committer date and the time this machine
 first fetched the commit that added the file. A file that would not count,
 such as an `input`, unanswered or unproven one, SHALL supersede nothing.
@@ -1228,6 +1228,17 @@ same log file in `answers` SHALL still supersede older files.
   comment
 - **THEN** filter 1 treats the newer answer as the answer, since its
   comment is newer, and shows the copy labelled as superseded
+
+#### Scenario: A reaction does not make an older answer newer
+
+- **WHEN** two proven `decision` files with the same question link
+  comments created on 1 and 2 March, neither edited, and someone reacts to
+  the 1 March comment on 3 March
+- **THEN** the 1 March file's newness is still 1 March, its `createdAt`,
+  and filter 1 treats the 2 March file as the answer
+- **AND** if the 1 March comment's text were edited on 3 March, its
+  newness would become 3 March, but it would prove its file's writer only
+  if it still held the answer that file records
 
 #### Scenario: A later input file supersedes no answer
 

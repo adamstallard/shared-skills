@@ -1655,8 +1655,9 @@ discussion record SHALL keep the person's and the model's messages.
 
 The answer session SHALL give the model `propose_reply`, a tool putting
 a reply draft in the prompt box, for the question under discussion or
-as an edited relay post's text; it SHALL post nothing and refuse
-subagents. The context SHALL tell the model to call it when asked to
+as an edited relay post's text; the tool SHALL post nothing, refuse any
+call carrying an `agentId`, and take a call without one as the main
+conversation's. The context SHALL tell the model to call it when asked to
 draft, at the question's privacy. For a filter 1 decline, the draft MAY
 fill in only the record's URL, on the fixed post's `Recorded in: ` line.
 
@@ -1677,7 +1678,21 @@ fill in only the record's URL, on the fixed post's `Recorded in: ` line.
 #### Scenario: A subagent cannot call propose_reply
 
 - **WHEN** a subagent of the session's model calls `propose_reply`
+- **THEN** the tool refuses the call, since Claude Code sets an `agentId`
+  on a call made outside the main conversation, and the prompt box is
+  unchanged
+
+#### Scenario: A forked conversation's call carrying an agentId is refused
+
+- **WHEN** a side conversation Claude Code forks, such as the one that
+  guesses the next prompt, calls `propose_reply` with an `agentId`
 - **THEN** the tool refuses the call, and the prompt box is unchanged
+
+#### Scenario: A call with no agentId is the main conversation's
+
+- **WHEN** `propose_reply` is called with no `agentId`
+- **THEN** the tool takes the call as the main conversation's, and puts
+  its draft in the prompt box
 
 #### Scenario: A draft fills the record's URL for a filter 1 decline
 

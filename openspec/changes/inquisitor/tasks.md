@@ -48,12 +48,20 @@ contradicts what design.md assumed.
       script tells an Igor's run by `IGOR_RUN`*)
 - [ ] 0.10 Whether the agent can open, and write in, a repository's private
       security advisory, and what access that needs
-- [ ] 0.11 GitHub's API gives a comment's or review's author, and whether a
+- [x] 0.11 GitHub's API gives a comment's or review's author, and whether a
       commit's signature is verified and for which account (design.md: *A
-      questions-branch decision needs a proven writer*); and whether a
-      comment's `updated_at` changes only when its text is edited, not on
-      a reaction, a hide or minimize, or other metadata (design.md: *The
-      newest proven answer counts*)
+      questions-branch decision needs a proven writer*). It does: GraphQL's
+      `IssueComment` has `author { login }`, `createdAt` and
+      `lastEditedAt`, and a commit's `signature { isValid state signer {
+      login } wasSignedByGitHub }`, which for a merge commit on
+      shared-skills' main read `VALID`, signed by GitHub's `web-flow`
+      (2026-11-04). A person's own signature was not queried (task 0.22
+      covers it). Reviews and review comments were not queried; GitHub
+      documents the same `author`, `createdAt` and `lastEditedAt` on them
+      through GraphQL's `Comment` interface. A comment is dated by
+      `lastEditedAt`, or `createdAt` if never edited, and REST's
+      `updated_at` is never read (design.md: *The newest proven answer
+      counts*)
 - [x] 0.12 Whether an Igor's worker can run this skill, with a lore clone
       and `inquisitor.json` in reach. It can't, nor once igor PRs #174 and
       #175 land, by their specs, unchecked since neither is built
@@ -161,13 +169,15 @@ contradicts what design.md assumed.
       for its text, such as its length, against one refused for lack of
       permission. This is the mapping the answer-session spec's *A refusal
       the session cannot place waits for the person* uses
-- [ ] 0.26 That every call to a tool a mod registers, such as
-      `propose_reply`, from a loop other than the main conversation carries
-      an `agentId`; the approved prototype refuses any call that carries one
-      (answer-session
-      spec: *Claude's draft goes to the prompt box, never to a post*). What
-      `propose_reply` does with a call it cannot attribute is undecided;
-      design.md's *Open Questions* hold it
+- [ ] 0.26 With a mod logging the `agentId` of every call to a tool it
+      registers, such as `propose_reply`, let Claude Code's forked side
+      conversations, such as the one that guesses the next prompt, run,
+      and record whether any of their calls arrives without an `agentId`.
+      This decides nothing: `propose_reply` refuses a call carrying one and
+      takes a call without one as the main conversation's (answer-session
+      spec: *Claude's draft goes to the prompt box, never to a post*). If
+      any arrives without one, record it in design.md's *Claude drafts a
+      reply only into the prompt box*; the rule stands
 - [ ] 0.27 List the tools of the Linear MCP servers an agent may have
       wired, such as Linear's own, and check that every tool named `get_…`,
       `list_…` or `search_…` only reads. If one writes, linear-app's post
@@ -597,8 +607,8 @@ contradicts what design.md assumed.
       thread, closed questions, discussion records deleted once their
       question is answered or closed, the question on screen, and the lock,
       which a second session reports and offers to take over
-- [ ] 6.6 The discussion's context, `propose_reply` (refusing a
-      subagent's call, and filling the record's URL for a filter 1
+- [ ] 6.6 The discussion's context, `propose_reply` (refusing a call as
+      *Claude's draft goes to the prompt box, never to a post* says, and filling the record's URL for a filter 1
       decline), and the rephrased answer's post. SKILL.md tells an agent
       that records an answer from a relay post to log its rephrasing and
       summary
