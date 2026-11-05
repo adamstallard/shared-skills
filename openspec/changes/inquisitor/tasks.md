@@ -13,7 +13,7 @@ spec.
 Record each result in design.md: *What the hook relies on, not yet
 measured* for 0.1 to 0.3, *Configuration* for 0.4, *Facts measured
 before building* for 0.5 to 0.14, and *Facts the answer session relies on*
-for 0.15 to 0.26, including a result that
+for 0.15 to 0.27, including a result that
 contradicts what design.md assumed.
 
 - [ ] 0.1 A `PreToolUse` hook with matcher `AskUserQuestion` fires before the
@@ -91,7 +91,8 @@ contradicts what design.md assumed.
       (design.md: *The Discord relay needs the Message Content intent*).
       If it can't, Discord stays off and the README says so
 - [ ] 0.18 That a command the mod runs with `$.process.run` reaches no
-      `PreToolUse` hook, so neither post hook sees a relay post (design.md:
+      `PreToolUse` hook, so no post hook, on GitHub, Linear or Discord,
+      sees a relay post (design.md:
       *A relay post gets no prose pass and no vetting*). If a hook does
       see it, record it and stop for Adam
 - [ ] 0.19 That a mod's timers keep polling every 60 seconds and
@@ -166,12 +167,21 @@ contradicts what design.md assumed.
       spec: *Claude's draft goes to the prompt box, never to a post*). What
       `propose_reply` does with a call it cannot attribute is undecided;
       design.md's *Open Questions* hold it
+- [ ] 0.27 List the tools of the Linear MCP servers an agent may have
+      wired, such as Linear's own, and check that every tool named `get_…`,
+      `list_…` or `search_…` only reads. If one writes, linear-app's post
+      hook lists the reading tools by name instead (answer-session spec:
+      *The Linear and Discord post hooks block each way the two skills
+      post*)
 
 ## 1. Shared post reader
 
-- [ ] 1.1 Move prose's `gh` and GitHub MCP body reader into
-      `.agents/lib/gh-post/`, called from a thin script in each skill,
-      changing behaviour only as tasks 1.3 and 2.9 list
+- [ ] 1.1 Once shared-skills PR #55 has merged, move prose's body
+      reader, which finds a `gh` or GitHub MCP post's body, into
+      `.agents/lib/gh-shell/`, beside the command splitter and gh flag
+      tables #55 put there, and build the `gh-post` rules on it. Each
+      skill calls it from a thin script, and its behaviour changes only
+      as tasks 1.3 and 2.9 list
 - [ ] 1.2 prose's tests pass unchanged, except as task 1.3 allows; add the
       library's own tests beside it,
       each tagged `@scenario gh-post: <Scenario name>` for the `gh-post`
@@ -223,9 +233,9 @@ contradicts what design.md assumed.
         allow-list points at the library's list instead of restating it.
         Its section *A command that runs no gh post is not a post* keeps
         its reasons, points at the `gh-post` spec for the rules of reading
-        a line, and drops the claims that `python3 - <<'EOF'`,
-        `node -e` and `git -c` are outside the hook's reach and that
-        `rebase -x` is out of scope
+        a line, and drops the claims that a script handed to another
+        interpreter (`python3 - <<'EOF'`, `node -e`) and git aliases are
+        outside the hook's reach and that `rebase -x` is out of scope
 
 ## 2. The script
 
@@ -386,7 +396,7 @@ contradicts what design.md assumed.
       only), checking verdicts, blocking with exit 2, and failing open,
       including when it can't read its records
 - [ ] 3.2 `scripts/check-post.sh`: `PreToolUse` on Bash and the GitHub MCP
-      tools, through `.agents/lib/gh-post/`. It blocks every post holding
+      tools, through `.agents/lib/gh-shell/`. It blocks every post holding
       a question whose latest verdict record has a category, read from
       that record (inquisitor spec: *A question with a category is asked
       only through the picker or its advisory*); blocks a post with a
@@ -742,6 +752,21 @@ contradicts what design.md assumed.
       suggested verdict and citing a lore entry (answer-session spec:
       *Filters 2 to 4 only suggest a verdict on other questions*; *A
       person cites a lore entry by naming it as an answer or a record*)
+- [ ] 6.12 discord-bot's post hook: `PreToolUse` on Bash, which, in the
+      holder, blocks `post`, `edit`, `delete` and `thread`, and any line
+      naming `discord_bot.py` that `.agents/lib/gh-shell/` cannot read,
+      telling the model to draft with `propose_reply`. Registered in
+      discord-bot's `hook.json`, with tests (answer-session spec: *In the
+      holder, Linear and Discord posts go only through the answer
+      session*)
+- [ ] 6.13 linear-app's post hook: `PreToolUse` on Bash and Linear MCP
+      tools, which, in the holder, blocks `token`, `headers`, any line
+      naming `linear_app.py` that `.agents/lib/gh-shell/` cannot read,
+      and every Linear MCP tool not named `get_…`, `list_…` or
+      `search_…`, telling the model to draft with `propose_reply`.
+      Registered in linear-app's `hook.json`, with tests (answer-session
+      spec: *In the holder, Linear and Discord posts go only through the
+      answer session*)
 
 ## 7. Archive
 

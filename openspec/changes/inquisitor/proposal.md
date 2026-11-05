@@ -49,7 +49,7 @@ role.
 - `inquisitor`: filtering, preparing, asking and logging the questions an
   agent puts to a person, and learning from the questions that should not
   have been asked.
-- `gh-post`: the shared post reader, `.agents/lib/gh-post/`, which tells
+- `gh-post`: the shared post reader, `.agents/lib/gh-shell/`, which tells
   prose's posting hook and the inquisitor's post hook a post's body, that a
   call sends no post, or that it is unreadable.
 - `answer-session`: where a person answers the questions asked of them in
@@ -69,10 +69,14 @@ None.
   the answer session's mod, built from the prototype tagged
   `answer-session-ui-approved-v0.1-33`.
 - The answer session posts through the github-app, linear-app and
-  discord-bot skills, discord-bot as merged in shared-skills PR #1. The
+  discord-bot skills, discord-bot as merged in shared-skills PR #1.
+  linear-app and discord-bot each gain a post hook that, in the session
+  running the answer session, blocks the model's own posts there, so only
+  posts the person confirmed go out. The
   answer session's setup writes `~/.local/bin/answer`.
-- prose: its posting hook's command reader moves to `.agents/lib/gh-post/`,
-  so the inquisitor's post hook reads posts the same way. The reader also
+- prose: its posting hook's body reader moves to `.agents/lib/gh-shell/`,
+  beside the command splitter shared-skills PR #55 puts there, so the
+  inquisitor's post hook reads posts the same way. The reader also
   reads posts sent through the github-app skill and `gh api` comments.
   A `gh api` write that takes a field from a file is readable only when
   it is the whole command line, because an earlier command in the line

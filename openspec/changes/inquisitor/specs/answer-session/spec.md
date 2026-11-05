@@ -206,9 +206,10 @@ file counting as the person's answer names in `answers`.
 An answer file SHALL count as **the person's answer** only when it is the
 answer of the log file it names in `answers`. The inquisitor's *A named
 file's answer is the newest proven answer file naming it* sets that answer:
-the newest answer file naming it whose proof is the asked person's (for a
-file that tags no one, an account's with write access to the lore
-repository) and whose commit adds it alone.
+the newest answer file naming it that is proven to come from the asked
+person, or, for a file that tags no one, from an account with write access
+to what the named file's question concerns, and whose commit adds it
+alone.
 
 #### Scenario: An answer file proven to be the asked person's counts
 
@@ -225,9 +226,9 @@ repository) and whose commit adds it alone.
 
 #### Scenario: A file that tags no one is answered by an account with write access
 
-- **WHEN** a log file tags no one, and an answer file naming it, added
-  alone, is proven to be an account's with write access to the lore
-  repository
+- **WHEN** a log file about the organization tags no one, and an answer
+  file naming it, added alone, is proven to be an account's with write
+  access to the lore repository
 - **THEN** it counts as the person's answer, though the file tags no
   person
 
@@ -1149,8 +1150,9 @@ An answer kept because its channel was off, or because a post refused
 for permission turned its channel off, SHALL return to the queue, kept,
 once setup's check of posting there passes, and SHALL be posted only once
 the person confirms it again. Where no check can read posting rights
-(task 0.20), that check passes once setup, at the next opening, reruns
-the relay identity's own check and it passes.
+(task 0.20), the answer SHALL return once setup, at the next opening,
+reruns the relay identity's own check and it passes, and the posting
+check SHALL still show as not checked.
 
 #### Scenario: A pending answer returns to the queue once its channel passes its check
 
@@ -1683,6 +1685,77 @@ fill in only the record's URL, on the fixed post's `Recorded in: ` line.
   recorded-answer post in its fixed form, with that URL on its
   `Recorded in: ` line, for the person to confirm
 
+### Requirement: In the holder, Linear and Discord posts go only through the answer session
+
+In the holder (*The holder is the session whose answer session holds the
+lock*), linear-app's and discord-bot's post hooks SHALL block every tool
+call that would post, edit or delete on Linear or Discord, telling
+the model to draft the reply with `propose_reply` for the person to
+confirm. A post the person confirmed SHALL pass with no further prompt,
+because the answer session runs it as a host command, which reaches no
+hook.
+
+#### Scenario: The model's own Discord post is blocked
+
+- **WHEN** in the holder, the model runs discord-bot's `post` command to
+  answer a question with `User says: yes`
+- **THEN** discord-bot's post hook blocks the call, tells the model to
+  draft the reply with `propose_reply`, and nothing is posted
+
+#### Scenario: A post the person confirmed goes out with no prompt
+
+- **WHEN** the person confirms an answer to a Discord question in the
+  answer session
+- **THEN** the relay posts it through discord-bot, no hook sees the post,
+  and the person is asked for nothing more
+
+#### Scenario: The model's Linear comment through an MCP tool is blocked
+
+- **WHEN** in the holder, the model calls a Linear MCP server's tool that
+  creates a comment
+- **THEN** linear-app's post hook blocks the call, and nothing is posted
+
+#### Scenario: Another session posts on Discord as before
+
+- **WHEN** an agent in a session that is not the holder runs discord-bot's
+  `post` command, while an answer session runs in another session
+- **THEN** discord-bot's post hook lets the call through
+
+### Requirement: The Linear and Discord post hooks block each way the two skills post
+
+The hooks SHALL count as posting discord-bot's `post`, `edit`, `delete`
+and `thread` commands; linear-app's `token` and `headers`, whose output
+can post as an identity; a Linear MCP tool not named `get_…`, `list_…`
+or `search_…`; and a line `.agents/lib/gh-shell/` cannot read that names
+either script or runs one whose path it cannot tell. A session SHALL be
+the holder while a lock that is not stale names its id, and a lock that
+cannot be read SHALL count as naming every session.
+
+#### Scenario: A token printed for a Linear post is blocked
+
+- **WHEN** in the holder, the model runs linear-app's `token` command
+- **THEN** linear-app's post hook blocks the call
+
+#### Scenario: Reading Discord is not blocked
+
+- **WHEN** in the holder, the model runs discord-bot's `read` or `check`
+  command
+- **THEN** discord-bot's post hook lets the call through
+
+#### Scenario: A line naming discord-bot that cannot be read is blocked
+
+- **WHEN** in the holder, the model runs `python3 "$D" post` with `D`
+  set in an earlier command, so `.agents/lib/gh-shell/` cannot tell which
+  script runs, or a line naming `discord_bot.py` that it cannot read
+- **THEN** discord-bot's post hook blocks the call
+
+#### Scenario: A lock that cannot be read blocks the post
+
+- **WHEN** the lock file exists but cannot be parsed, and any session's
+  model runs discord-bot's `post` command
+- **THEN** discord-bot's post hook blocks the call and says the lock
+  cannot be read
+
 ### Requirement: A rephrased question is answered with its rephrasing
 
 When the person answers a question rephrased after a discussion, the
@@ -1932,7 +2005,7 @@ never shown as the person's words.
   reserved prefix
 - **THEN** on GitHub the inquisitor's post hook blocks it, as the
   inquisitor's *The post hook vets what the shared post reader returns*
-  says, and on Linear or Discord nothing checks it
+  says, and on Linear or Discord, outside the holder, nothing checks it
 
 #### Scenario: An automatic post is never shown as the person's words
 

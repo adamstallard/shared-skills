@@ -1037,12 +1037,12 @@ pushed*).
 ### Requirement: A logged decision needs write access to what its question concerns
 
 A `decision` log entry SHALL count only when its `answered_by` has write
-access to what the logged question concerns when the search reads it. A
-logged question concerns what its log file names, whatever the agent's
-current question concerns: for a file in a repository, the repository its
-`repository` key names; for a file on a lore repository's questions branch,
-the organization or project that lore repository serves, so write access to
-it is write access to that lore repository.
+access, when the search reads it, to what the logged question concerns,
+whatever the agent's own question concerns: for a file in a repository,
+or a questions-branch file whose `asked_from` differs from its
+`repository`, the repository its `repository` key names; for any other
+questions-branch file, the lore repository (design.md: *A questions-branch decision counts
+by write access to what it names*).
 
 #### Scenario: A decision whose author lost write access is input
 
@@ -1050,14 +1050,35 @@ it is write access to that lore repository.
   its `answered_by` has no write access when the search reads it
 - **THEN** the search shows it labelled as unconfirmed
 
-#### Scenario: A linked answer is checked against the logged question's repository
+#### Scenario: A questions-branch file about a repository other than its item's needs write access to it
 
-- **WHEN** an agent working in `o/web` reads a `decision` file on a lore
-  questions branch whose `repository` key is `o/api`, and whose
-  `answer_link` is a comment by its `answered_by` on a pull request of
-  `o/api`
+- **WHEN** an agent reads a `decision` file on a lore questions branch
+  whose `repository` key is `o/api`, whose `asked_from` is `o/web`, and
+  whose `answer_link` is a comment by its `answered_by` on a pull request
+  of `o/api`
 - **THEN** the link can prove the writer, and the write access checked is
-  `answered_by`'s write access to the lore repository
+  `answered_by`'s write access to `o/api`, not to the lore repository
+- **AND** if `answered_by` can write to the lore repository but not to
+  `o/api`, the search shows the file labelled as unconfirmed
+
+#### Scenario: A questions-branch file about an organization needs write access to the lore repository
+
+- **WHEN** a `decision` file on a lore questions branch logs a question
+  about the organization `o`, and has no `asked_from`, or one equal to
+  its `repository`
+- **THEN** the write access checked is `answered_by`'s write access to the
+  lore repository
+
+### Requirement: A permission that cannot be read is no write access
+
+Wherever the inquisitor checks write access, a permission it cannot read
+SHALL count as no write access.
+
+#### Scenario: A permission that cannot be read is no write access
+
+- **WHEN** a `decision` file's `repository` key names `o/api`, and
+  `answered_by`'s permission on `o/api` cannot be read
+- **THEN** the search shows the file labelled as unconfirmed
 
 ### Requirement: A questions-branch file's writer is proven by its comment or its signature
 
@@ -1217,20 +1238,22 @@ same log file in `answers` SHALL still supersede older files.
 ### Requirement: A named file's answer is the newest proven answer file naming it
 
 A named file's answer SHALL be the newest answer file naming it in
-`answers` that would count, whose proof is that of the person the named
-file asks, or, for a file that tags no one, of an account with write access
-to the lore repository, and whose commit adds that answer file alone
-(design.md: *A named file's answer must be the person's own, added alone*).
-Only
-these files decide whether a named file is answered: one that hash grouping
-supersedes still answers the file it names.
+`answers` that would count, proven the asked person's or, if the named
+file tags no one, an account's with write access to what its question
+concerns, and added alone in its commit (design.md: *A named file's
+answer must be the person's own, added alone*). Only these files decide
+whether a named file is answered: one that hash grouping supersedes still
+answers the file it names.
 
 #### Scenario: An untagged file's answer from an account with write access counts
 
 - **WHEN** a questions-branch file that tags no one is named in `answers`
   by an answer file whose commit carries a signature GitHub verifies for
-  `alice`, who has write access to the lore repository
+  `alice`, and the named file logs a question about the organization, and
+  `alice` has write access to the lore repository
 - **THEN** that answer file is the named file's answer
+- **AND** for a named file whose `repository` key is `o/api`, the answer
+  file counts only when `alice` has write access to `o/api`
 
 ### Requirement: A replaced answer file stops counting even in its own hash group
 
@@ -1419,6 +1442,12 @@ their own pull request, or a title or body edit keeping the base.
   `relays/alice.yaml` is edited, and its base branch is unchanged
 - **THEN** the workflow mentions no one
 
+#### Scenario: Reopening, marking ready or a base change mentions the person again
+
+- **WHEN** `bob`'s pull request changing `relays/alice.yaml` is reopened,
+  marked ready for review, or has its base branch changed
+- **THEN** the workflow comments again, mentioning `@alice`
+
 #### Scenario: Renaming or deleting a relay file mentions its person
 
 - **WHEN** `bob` opens a pull request that renames `relays/alice.yaml`,
@@ -1526,7 +1555,7 @@ string matching the credential patterns.
 
 ### Requirement: A round's questions are asked together at its end
 
-Questions that survive the filters during one review round SHALL be asked
+Questions that survive the filters during one question round SHALL be asked
 together at the round's end, in one picker call, up to the picker's limit
 of questions per call, or in one section of one post. Only a question that
 **blocks** the step of the work the agent is on, because it cannot go on
@@ -1585,14 +1614,15 @@ run the two calls on it again.
 - **THEN** it asks the second, and lists the first as not done, asking
   nothing about it
 
-### Requirement: A review round ends when the work is handed back to a person
+### Requirement: A question round ends at a hand-back or at the end of the agent's turn
 
-A **review round** SHALL end at a hand-back to a person, as spec-check's
+A **question round** SHALL end at a hand-back to a person, as spec-check's
 skill defines one (shared-skills PR #55: `.agents/skills/spec-check/DECISIONS.md`,
 *One consistency read per round*), such as opening a pull request for
-review. It SHALL also end when the agent ends its turn and hands control
-to a person, or, with no person in the session, when its run ends, a
-subagent's run excepted.
+review. With a person in the session, it SHALL also end at every end of
+the agent's turn, on work with a pull request too; with no person in the
+session, it SHALL end when the agent's run ends, a subagent's run
+excepted.
 
 #### Scenario: Opening a pull request for review ends the round
 
@@ -1613,6 +1643,14 @@ subagent's run excepted.
   pull request, finishes and is about to end its turn
 - **THEN** that ends the round, and it asks the questions it holds through
   the picker before its final reply
+
+#### Scenario: Ending its turn ends the round on work with a pull request
+
+- **WHEN** an agent working on a draft pull request, with a person in the
+  session, holds a question that blocked no step and is about to end its
+  turn
+- **THEN** that ends the round, and it asks the question through the
+  picker before its final reply, though it handed nothing back
 
 #### Scenario: A subagent's result ends no round
 
@@ -1806,6 +1844,12 @@ SHALL delete each over 2 hours old, whatever its verdict or category.
 - **WHEN** the first call is given a questions file with mode 0644
 - **THEN** it refuses, issues no token, and says to write the file with
   mode 0600 in a private directory, such as one `mktemp -d` makes
+
+#### Scenario: The records have mode 0600
+
+- **WHEN** the second call records a verdict
+- **THEN** the record file has mode 0600, in a directory only the agent's
+  user can read
 
 #### Scenario: A record holds no option's label
 

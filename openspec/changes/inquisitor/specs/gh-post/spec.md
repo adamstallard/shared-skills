@@ -8,7 +8,7 @@ hook judge the same text, and each blocks a post it cannot read.
 
 ### Requirement: The shared post reader reads a post's body from an allow-list
 
-The shared post reader, `.agents/lib/gh-post/`, SHALL tell a hook, for a
+The shared post reader, `.agents/lib/gh-shell/`, SHALL tell a hook, for a
 tool call, its post, that it sends no post, or that it is unreadable. A
 post is a body; a title, when the call sets an issue's or a pull request's
 title; and whether it creates an issue. prose's posting hook and the
@@ -74,13 +74,13 @@ send no post.
 
 ### Requirement: The reader reads only gh's own top-level commands
 
-A `gh` command whose first word after `gh` is not on gh's own list of
-top-level commands, fixed in the reader, such as an alias or an
-extension, SHALL be unreadable wherever it appears, even in a command
-another requirement says sends no post. A `gh` command is a simple
-command (*The reader splits a command line into simple commands*) whose
-command is `gh`, or each place `gh` appears, quoted or not, in another
-simple command's text, unless that is one of prose's data commands.
+A `gh` command whose first word after `gh` is not on gh's own top-level
+commands, fixed in the reader, such as an alias or an extension, SHALL be
+unreadable wherever it appears, even where another requirement says no
+post, bar a line that only runs prose's script. Both a simple command
+whose command is `gh` and the word `gh`, quoted or not, in another's text
+count as `gh` commands, unless that other is a data command (*A line
+whose simple commands send no text is no post*) given no code.
 
 #### Scenario: A gh alias or extension is unreadable
 
@@ -93,6 +93,17 @@ simple command's text, unless that is one of prose's data commands.
 - **WHEN** a hook asks about `env gh c 5 -b x`, `xargs gh c 5 -b x`, or
   `sh -c 'gh c 5 -b x'`
 - **THEN** the reader reports each command as unreadable
+
+#### Scenario: A gh alias inside code given to a data command is unreadable
+
+- **WHEN** a hook asks about `python3 -c 'import os; os.system("gh c 5
+  -b x")'`, or `git -c 'alias.x=!gh c 5 -b x' x`
+- **THEN** the reader reports each command as unreadable
+
+#### Scenario: A gh extension's name in prose's arguments is no post
+
+- **WHEN** a hook asks about `/abs/prose.py sign --goals 'try gh dash'`
+- **THEN** the reader reports that the command sends no post
 
 #### Scenario: A gh alias's name inside a data command's text is data
 

@@ -120,8 +120,11 @@ by `IGOR_RUN` (*The script tells an Igor's run by `IGOR_RUN`*).
 prose's posting hook reads the body of a `gh` post from a short allow-list
 of command forms, and the body fields of GitHub MCP tools
 (`.agents/skills/prose/DECISIONS.md`, *The posting hook reads an
-allow-list*). This change moves that reader to `.agents/lib/gh-post/` for
-both hooks to call; the `gh-post` spec states its rules. prose's tests are
+allow-list*). shared-skills PR #55 moves the part that splits a command
+line into commands, and gh's flag tables, to `.agents/lib/gh-shell/`, where
+spec-check's hand-back hook reads them too. This change moves the rest of
+the reader, which finds a post's body, into the same library for both post
+hooks; the `gh-post` spec states its rules. prose's tests are
 unchanged except where the reader changes:
 - **It reads two more forms of post.** The github-app skill tells agents to
   post through its script, `python3 <github-app script> gh pr|issue …`;
@@ -362,8 +365,10 @@ could post `User says: `, which marks a question answered on every machine
 and, on GitHub, counts as the person's own answer to filter 1. So the
 skill's instructions reserve the prefixes, and on GitHub the post hook
 blocks a tool-call post starting with one, which never blocks the answer
-session, whose posts reach no tool hook. Nothing enforces them on Linear or
-Discord.
+session, whose posts reach no tool hook. On Linear and Discord, tool calls
+in the holder, the session whose answer session holds the lock, cannot post
+at all (*The model's own Linear and Discord posts are blocked*); in any
+other session, nothing enforces the prefixes there.
 
 ### Local state, one writer per machine
 
@@ -438,8 +443,9 @@ risks, and the spec answers each:
 
 The model may ask the person in its reply in a discussion (*A discussion runs
 in the session's own conversation*). The model posts nothing; its draft goes into the
-prompt box. No hook enforces that the model posts and changes nothing; the
-context tells it, and the post hooks still vet any post it tries. The
+prompt box. On GitHub the post hooks vet any post it tries; on Linear and
+Discord, linear-app's and discord-bot's post hooks block it (*The model's
+own Linear and Discord posts are blocked*). The
 model's tools reach what the person's own commands can, the keychain holding
 the Linear key included, as in any session. The answer session adds no guard
 against that: it is the same exposure as the person's `gh` login. The
@@ -535,11 +541,12 @@ that post may not exist yet.
 
 **Only a question that blocks the step the agent is on is asked at once.
 Every other question that survives the filters waits for the end of the
-review round, and is asked then with the round's other questions.** In the
+question round, and is asked then with the round's other questions.** In the
 meantime the agent goes on with the answer it recommends, and the question
 says the work assumes that answer. A round ends at a hand-back to a person
 as spec-check defines one, or when the agent ends its turn or its run (spec:
-*A review round ends when the work is handed back to a person*).
+*A question round ends at a hand-back or at the end of the agent's
+turn*).
 
 **Why:** each question asked mid-round interrupts the person. A hand-back
 is when the person turns to the work anyway, so the round's questions cost
@@ -547,18 +554,19 @@ one read there. Because the question names the assumption, "yes" confirms
 work already done, and any other answer says what to redo. The rework a
 rejected assumption costs is bounded by one round.
 
-**A round ends at the agent's turn too, not only at a pull request.** Ending
-the turn hands the person control, so they read the reply then. Questions
-held past it until a pull request is handed back would sit unseen while the
-person is there. A session with no pull request, such as a person in a
-terminal, has no other end.
+**A pull request does not postpone a round to its hand-back: with a person
+in the session, every end of the agent's turn ends a round too.** Ending the
+turn hands the person control, so they read the reply then; questions held
+until the pull request is handed back would sit unseen while the person is
+there. Without a pull request there is no hand-back, so the end of a turn is
+the only place a round can end.
 
-**The definition is spec-check's,** so one word means one moment across the
-skills. The spec cites spec-check's PR #55, which defines it, and gives
-one example instead of copying #55's list of what counts as a hand-back,
-so that list is kept in one place.
-PR #51, the alternative to #55, would end a round at a push too; *Open
-Questions* says what happens to this rule if #51 merges instead.
+**The hand-back is spec-check's,** so one word means one moment across the
+skills. shared-skills PR #55 defines it in spec-check, and the spec cites #55's rule and
+gives one example instead of copying #55's list of what counts as a
+hand-back, so that list is kept in one place. The inquisitor's round also
+ends at each end of the agent's turn, which spec-check's review round does
+not, so it has a name of its own: a question round.
 
 **How this differs from filter 2:** a deferred question is one the current
 work does not need answered, so it is listed as not done and never asked in
@@ -571,7 +579,7 @@ arose.
 
 *Rejected:* asking every surviving question as soon as it arises, which
 interrupts the person once per question. Ending a round at each push, which
-spec-check's PR #55 also rejects: agents push after almost every commit, so every
+shared-skills PR #55 rejects too: agents push after almost every commit, so every
 question would still be asked almost at once.
 
 #### bug-hunter's Step 9 recommendations go through the filters
@@ -862,8 +870,11 @@ in a Linear or Discord message is covered by the skill's instructions alone.
 #### One post reader, shared by both hooks
 
 **prose's posting hook and the inquisitor's post hook read every post through
-one library, `.agents/lib/gh-post/`, so every rule the reader gains applies to
-prose's hook too.** The `gh-post` spec states its rules, taking the finer
+one library, `.agents/lib/gh-shell/`, so every rule the reader gains applies to
+prose's hook too.** spec-check's hand-back hook reads command lines through
+the same library (shared-skills PR #55), so a line the post hooks find
+unreadable is unreadable to it as well, and no second copy of the reader
+drifts from the first. The `gh-post` spec states its rules, taking the finer
 points of reading a line, such as heredocs, comments and line continuations,
 from prose's `DECISIONS.md`. *Questions in posts* gives the reasoning, and
 which prose tests change.
@@ -923,9 +934,9 @@ value, such as `-W ignore`, cannot hide it. A list of git forms that run code
 is never complete, as prose's `DECISIONS.md` says (`git config alias.p '!…' &&
 git p`, `git difftool -x`, `git filter-branch --tree-filter`); a list of
 subcommands that never take code is. prose's hook calls the same reader, so it
-blocks these forms too. prose's `DECISIONS.md` today calls `python3 - <<'EOF'`,
-`node -e` and `git -c` outside its hook's reach, so task 1.3 removes that
-claim.
+blocks these forms too. prose's `DECISIONS.md` today calls a script handed
+to another interpreter (`python3 - <<'EOF'`, `node -e`) and git aliases
+outside its hook's reach, so task 1.3 removes that claim.
 
 **Accepted:** `git commit` and `git push` run the repository's git hooks,
 which can run anything; that is outside this reader.
@@ -997,8 +1008,11 @@ session's. A `User says: ` comment from the person's relay App proves their
 answer, and that App may do other work, so the block stops an agent holding
 the App from forging an answer through `gh`.
 
-**Accepted:** nothing checks Linear or Discord, where a relayed answer proves
-nothing.
+**Accepted:** outside the holder, nothing checks a reserved prefix on Linear
+or Discord. A forged `User says: ` there would mark its question answered in
+every answer session, but filter 1 would never count it as the person's
+answer, since a relayed answer on those surfaces proves nothing; the skill's
+instructions are the only guard.
 
 *Rejected:* reducing the body as a comment is reduced for comparison with a
 recorded answer (*A linked comment holds the answer only when the texts are
@@ -1238,6 +1252,29 @@ commit's author login from the author email, which the committer sets.
 push access can forge it.
 *Rejected:* treating every `questions`-branch file as input: the branch could
 then never settle a question.
+
+#### A questions-branch decision counts by write access to what it names
+
+**A questions-branch file about one repository, named by its `repository`
+key, counts as a decision only from a writer of that repository; a file
+about an organization or project counts from a writer of the lore
+repository.** A questions-branch file is about one repository when an Igor's
+run logs a question about a repository other than its item's: its
+`repository` then names that repository, and its `asked_from` the item's.
+A reader tells the cases apart by comparing the two keys. In any other
+questions-branch file, `repository` names only the repository holding the
+work the question was asked in, not what it is about, so the file is read
+as being about an organization or project.
+Authority to instruct never exceeds authority over the artifact the
+instruction is about, as igor states it (igor PR #202's decision 11, and
+igor's rule for directed interaction). A writer of the lore repository may
+have no say over `o/api`, so their answer about `o/api` is input, wherever
+the file holding it sits. A permission that cannot be read counts as no
+authority, as every write-access check here fails closed.
+
+*Rejected:* checking the lore repository's writers for every
+questions-branch file, which would let a lore writer decide for a
+repository they cannot change.
 
 #### A signature GitHub may have made counts for no one
 
@@ -1685,8 +1722,7 @@ departs from #216. Among them, #216 writes the answer only into a worker file
 that already holds `authority` and an answer line, and this change asks it to
 write it into the file this change's worker reports. #216's decision 59's
 hashed record of handback questions is the record *A later run names the
-answered file from the Igor's record* describes. #216's decision 58, on
-fetching under `igor run`, contradicts nothing here.
+answered file from the Igor's record* describes.
 
 ### Answer-session configuration, setup and relay identities
 
@@ -1932,6 +1968,51 @@ the rule that an agent asks only through the picker.
 keychain entry holding their Linear key; *The session's model* says why no
 guard is added.
 
+#### The model's own Linear and Discord posts are blocked
+
+**In the holder, linear-app's and discord-bot's post hooks block every tool
+call that would post, edit or delete on Linear or Discord, and tell the
+model to draft its reply with `propose_reply`.** The model reads thread text
+and has the person's tools, so without the hooks a crafted thread could
+have it post `User says: ` as the relay, which marks a question answered on
+every machine. On GitHub the inquisitor's post hook already sees such a
+post; these hooks give Linear and Discord the same mechanical guard.
+
+**A post the person confirmed passes because no hook sees it, as on
+GitHub.** The answer session runs every relay post as a host command, never
+as a tool call of the model (*A relay post gets no prose pass and no
+vetting*; task 0.18), and a `PreToolUse` hook sees only tool calls. So the
+hooks need no record of what the person confirmed: any posting tool call
+in the holder is, by where it comes from, one the person did not confirm.
+The person is asked for nothing more.
+
+**What counts as posting** is every way the two skills let a tool call
+reach the surfaces as an identity: discord-bot's writing commands;
+linear-app's `token` and `headers`, since linear-app has no post command and
+the token they print can post; and a Linear MCP server's writing tools. A
+command line that `.agents/lib/gh-shell/`'s command splitter cannot split
+exactly is blocked when it names either script, or runs a script whose
+path it cannot tell, such as `python3 "$D"`, as the post hooks block an
+unreadable `gh` line.
+
+**Only the holder is guarded.** The holder's session does nothing but
+answer questions, so blocking its own Linear and Discord posts costs no
+other work, and every other session posts through the two skills as
+before. A lock that cannot be read counts as naming whichever session the
+hook runs in, so it blocks those posts in every session: the hook fails
+closed like the other post hooks.
+
+**Accepted:** a model set on it could still read a relay's credentials from
+the keychain with a plain command and post with `curl`, naming neither
+script. That is the exposure *The session's model* already accepts for the
+person's own credentials. The hooks stop a model that uses the skills, as
+the instructions it has read tell it to, not one that works around them.
+
+*Rejected:* only telling the model, in its context, to post nothing: a
+crafted thread can override an instruction, not a hook.
+*Rejected:* asking the person to confirm each such post: the answer
+session's own confirmation already covers every post the person means.
+
 #### Claude drafts a reply only into the prompt box
 
 **Claude's draft lands in the prompt box for the person to edit and confirm,
@@ -2143,7 +2224,7 @@ question carries their proof too, so a copy pushed in one commit with other
 files could otherwise become a named file's answer. The test guards against
 such bundled copies only. A file that tags no one, such as an Igor's handback
 routed by assignment, names no person whose proof could be asked for, so
-write access to the lore repository, the test of `decision` authority for a
+write access to what its question concerns, the test of `decision` authority for a
 questions-branch file, stands in for that proof.
 
 *Rejected:* accepting the risk that such a copy becomes a named file's
@@ -2636,7 +2717,10 @@ own: the file follows the handback, so the answer is relayed there.
 prototyped and then built directly; this change adopts OpenSpec, spec-check
 and spec-trace for the repository.** A skill's spec holds what must be true
 of it, and its `DECISIONS.md` holds why, as current reasoning in one place,
-not a log. An existing skill gets no spec until a change touches it. While a
+not a log. An existing skill gets its spec in a change of its own, skill
+by skill, as shared-skills issue #57 plans; a change that edits a skill with
+no spec, as this one edits github-app and bug-hunter (tasks 5.5 and 5.7),
+lists the edit as a task. While a
 change is open, its decisions are each stated once, in design.md's
 *Decisions*, and each undecided item in *Open Questions*, as spec-check's
 convention has it. When it is archived, its lasting reasoning is folded into
@@ -2782,6 +2866,11 @@ cannot place waits for the person, as the answer-session spec's *A pending
 answer no check returns waits for the person* says. Task 0.26 states no
 interim rule: see the bullet below.
 
+- **Do only reading Linear MCP tools have names starting `get_`, `list_` or
+  `search_`?** (task 0.27) linear-app's post hook lets those tools through in
+  the holder and blocks the rest, so a tool of another name fails closed. If
+  a writing tool has such a name, the hook lists the reading tools by name
+  instead.
 - **Which App wrote a comment** is measured by both task 0.21 here and igor PR
   #216's task 4.8. Until a measurement shows GitHub reports it, every `User
   says: ` comment is input.
@@ -2996,48 +3085,29 @@ to its 149.
   that; the choices are that the asker marks such questions, or that the
   answer session only suggests a verdict on every agent's question.
 
-### Rules that depend on spec-check's open pull requests
+### Whose write access counts
 
-- **Which of spec-check's PRs #51 and #55 merges.** This spec ends a review
-  round at a hand-back as #55 defines one, never at a push. #51 would end a
-  round at a push too. If #51 merges instead, the two skills' rounds end at
-  different moments, and a person decides whether the inquisitor's round
-  follows spec-check's or keeps ending only at a hand-back. Until a person
-  decides, the spec ends a round where #55 does, whether or not #55 merges.
-- **Where the shared command reader lives.** Task 1.1 moves prose's command
-  reader into `.agents/lib/gh-post/`. PR #55 moves the same reader into
-  `.agents/lib/gh-shell/`, shared by prose's posting hook and spec-check's
-  hand-back hook. If both merge as written, the reader lives in two places.
-  spec-check's hook reads the same command lines to find a hand-back, so the
-  rules this change adds would reach the post hooks but not that hook, and a
-  line the post hooks call unreadable would still read as plain to it. Until
-  a person decides the order: if #55 has merged when task 1.1 is built, the
-  `gh-post` rules extend `gh-shell` instead of making a second copy; if not,
-  task 1.1 builds `gh-post` as specified, and #55 builds on it.
+- **Whether a questions-branch file about the Igor's item's own repository
+  needs a key of its own.** *A logged decision needs write access to what
+  its question concerns* reads a questions-branch file as being about one
+  repository only when its `asked_from` differs from its `repository`. An
+  Igor pushes every file with `asked_from` set to its item's repository, so
+  a file about that same repository has the two keys equal, and its
+  decision counts by write access to the lore repository, as an
+  organization's would. Until a person decides, the spec reads it so; the
+  alternative adds a key, which igor PR #216 would also write, saying
+  whether a file is about one repository.
 
-### Other open choices
+### Where a skill's reasoning goes once it has a spec
 
-- **Whose write access counts for a questions-branch file about one
-  repository.** *A logged decision needs write access to what its question
-  concerns* counts a questions-branch file's decision by write access to the
-  lore repository, even when its `repository` key names one repository. A
-  questions-branch file names one repository when an Igor's run logs a
-  question about a repository other than its item's. The Purpose defines write access to a repository's
-  question as write access to that repository. Until a person decides, the
-  spec checks write access to the lore repository; the alternative checks
-  the repository the key names.
-- **The discussion's model on Linear and Discord.** The model reads thread
-  text and has the person's tools, so it could post through discord-bot or
-  linear-app as the relay, starting `User says: `, and no post hook would
-  see it. The context the answer session gives the model tells it to post
-  nothing. Until a person
-  decides, that instruction is the only guard; the alternative is a hook on
-  those skills' post commands while an answer session runs.
-- **Specs for the skills this change edits.** The change edits github-app's
-  and bug-hunter's behaviour (tasks 5.5 and 5.7), but adds no capability for
-  either. *OpenSpec for new work in shared-skills* says an existing skill
-  gets no spec until a change touches it. Until a person decides, those edits are
-  tasks only; the alternative adds a spec for each.
+- **Whether this change's archive writes a `DECISIONS.md` for the
+  inquisitor.** *OpenSpec for new work in shared-skills* and task 7's
+  archive steps fold the change's lasting reasoning into a new
+  `.agents/skills/inquisitor/DECISIONS.md`. shared-skills issue #57, which
+  is open, would retire `DECISIONS.md` once a skill has a spec, and keep
+  its reasoning in a decision record, `openspec/specs/<skill>/decisions.md`.
+  Until a person decides, the archive writes `DECISIONS.md` as specified,
+  and #57, if adopted, moves it like any other skill's.
 
 ### The post reader's open costs
 
