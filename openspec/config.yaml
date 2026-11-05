@@ -21,4 +21,4 @@ schema: spec-driven
 
 rules:
   tasks:
-    - "End with a task to fold the change's lasting reasoning into the DECISIONS.md of each skill it affects, when the change is archived, as AGENTS.md says."
+    - "End with a task to fold the change's lasting reasoning, when the change is archived, into the decision record of each capability it specifies and the DECISIONS.md of each skill without a spec that it affects, as AGENTS.md says."

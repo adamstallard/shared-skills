@@ -152,7 +152,8 @@ as a whole command line* reads SHALL come from `--body` or `-b`, or for
 `close` and `reopen` `--comment` or `-c`, in single quotes, in double
 quotes with no `$`, backtick or backslash, or as one unquoted word
 holding none of `$`, backtick, `*`, `?`, `[`, `{`, `~` or `\`; or from
-`--body-file` or `-F` naming a file that exists.
+`--body-file` or `-F` naming a file that exists. Any other body source,
+such as `--template`, SHALL make the command unreadable.
 
 #### Scenario: A whole-command post with a body file is read
 
@@ -174,6 +175,9 @@ holding none of `$`, backtick, `*`, `?`, `[`, `{`, `~` or `\`; or from
   `cat c.md | gh pr comment 5 -F -`, or `gh pr comment 5 --body-file
   missing.md`, where `missing.md` does not exist
 - **THEN** the reader reports each command as unreadable
+- **AND** it reports as unreadable `gh pr create -t x -T tmpl.md`, where
+  `-T` is `--template`'s short form, and any command with `--recover`,
+  `--editor` or `--web`
 
 #### Scenario: A close with a comment is read
 

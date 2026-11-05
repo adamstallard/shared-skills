@@ -25,8 +25,9 @@ inquisitor's, or that spec's, *Title*:
 - An **Igor** is one of the igor project's AI teammates, and an **Igor
   worker** the agent an Igor starts to do an item (the inquisitor's *An
   Igor is an igor teammate, and its worker does an item*). **An Igor's log
-  file** is an unanswered questions-branch log file holding `asked_from`,
-  a key only an Igor writes on such a file.
+  file** is an unanswered questions-branch log file whose `asked_in`
+  links a handback, as *A handback is an igor- App's comment holding
+  igor's marker* defines one.
 - A person's **relay file** is `relays/<login>.yaml` in a lore repository,
   listing their relay identities (the inquisitor's *A relay file names the
   bots that post for its person*).
@@ -1101,8 +1102,8 @@ says.
 
 #### Scenario: A post the surface refuses keeps the answer pending
 
-- **WHEN** the person relays a Discord answer of 2,500 characters, and
-  Discord refuses it
+- **WHEN** the person relays a Discord answer, and Discord refuses it
+  because the relay may not post in that channel
 - **THEN** the person is told nothing was posted, with Discord's reason,
   and the answer is kept as answered, not relayed
 
@@ -1268,8 +1269,8 @@ telling the person the answer was relayed but not logged, and why.
 #### Scenario: A push the log command refuses for good is not retried
 
 - **WHEN** the `log` command refuses an owed push for lack of access, for
-  a relay post it cannot read, or for an answer whose words the lore
-  repository is too visible to hold
+  a relay post it cannot read, or for a credential its scan finds in the
+  answer
 - **THEN** it is not retried, and the person is told so and why
 
 #### Scenario: Only an answer file first seen after the record drops the retry
@@ -1601,6 +1602,8 @@ each poll and post, the holder SHALL close if the lock names another.
   unrefreshed
 - **THEN** the next session to open the answer session takes the lock
   without asking
+- **AND** a live holder's lock, refreshed at least every 30 seconds, never
+  goes 2 minutes unrefreshed
 
 #### Scenario: A crash while writing the lock leaves a whole lock
 
@@ -1691,9 +1694,9 @@ In the holder (*The holder is the session whose answer session holds the
 lock*), linear-app's and discord-bot's post hooks SHALL block every tool
 call that would post, edit or delete on Linear or Discord, telling
 the model to draft the reply with `propose_reply` for the person to
-confirm. A post the person confirmed SHALL pass with no further prompt,
-because the answer session runs it as a host command, which reaches no
-hook.
+confirm. A post the person confirmed SHALL pass with no further prompt:
+the answer session runs it as a host command, which task 0.18 checks
+reaches no hook.
 
 #### Scenario: The model's own Discord post is blocked
 
@@ -1786,13 +1789,14 @@ answer SHALL record both in its log file.
 
 ### Requirement: A questions-branch question is answered by a new log file
 
-Besides handled files, the answer session SHALL write a log file only to
+Handled files aside, the answer session SHALL write a log file only to
 answer an unanswered questions-branch question or log an edited answer
-to one, shown from the branch (fourth source) or from its `asked_in`
-thread, where the answer is also relayed. The `log` command SHALL push
-it, naming the answered file in `answers`, copying its `asked_from` as a
-miss does, with any relay post's URL as `answer_link` unless withheld.
-With no thread, a fourth-source question SHALL get no ask-back or edit.
+to one, shown from its branch or from its `asked_in` thread, where the
+answer is also relayed. The `log` command SHALL push it, naming the
+answered file in `answers`, copying `asked_from` and any `repository`,
+with any relay post's URL as `answer_link` unless the command withholds
+it. Shown from its branch with no thread, it SHALL get no ask-back or
+edit.
 
 #### Scenario: A questions-branch question is answered by a new file
 
@@ -1802,7 +1806,8 @@ With no thread, a fourth-source question SHALL get no ask-back or edit.
   answer, under the inquisitor's *A file on a questions branch never
   changes once pushed* and *An organization's question is pushed to its
   lore repository's questions branch*, naming the earlier file in
-  `answers` and copying any `asked_from` it has; it posts nothing, and
+  `answers` and copying its `asked_from` and any `repository`; it posts
+  nothing, and
   leaves the earlier file unchanged
 
 #### Scenario: A questions-branch question asked in a post is answered in both places
@@ -2582,7 +2587,7 @@ message that is not a question SHALL get no automatic post.
 The answer session SHALL log each miss, whether or not the asker logged
 the question, as a miss file, which the inquisitor script SHALL push,
 duplicates included, to the questions branch of the team's lore
-repository serving the repository the question concerns, as the
+repository, as the
 inquisitor's *An organization's question is pushed to its lore
 repository's questions branch* says.
 
@@ -2599,14 +2604,16 @@ repository's questions branch* says.
   question and filter match a miss file already on the branch
 - **THEN** it pushes its miss file too
 
-### Requirement: A miss records who judged it and copies its file's asked_from
+### Requirement: A miss records who judged it and where it was asked from
 
 A miss the answer session logs by itself SHALL say
-`answer session: clearly filter <n>` in `said`. A miss on questions-branch files SHALL copy their most private
-`asked_from`, by the inquisitor's *Nothing about a repository goes
-somewhere more visible*, through the `log` command with its other keys;
-a file with no `asked_from` adds none (design.md: *Misses the answer
-session logs*).
+`answer session: clearly filter <n>` in `said`. A miss on questions-branch
+files SHALL copy their most private `asked_from` and the `repository`
+they hold, if any; files naming different repositories get no miss. Any
+other miss's `asked_from` SHALL name its GitHub thread's repository, or,
+on Linear or Discord, the repository the question concerns; an
+organization's question there gets no miss (design.md: *Misses the
+answer session logs*).
 
 #### Scenario: An automatic miss is marked as the answer session's
 
@@ -2616,13 +2623,23 @@ session logs*).
 
 #### Scenario: A miss copies the most private asked_from
 
-- **WHEN** three questions-branch files hold a question, with
-  `asked_from: "o/public-item"`, a public repository,
-  `asked_from: "o/private-item"`, a private one, and none, and the
-  person declines it for the inquisitor
+- **WHEN** two questions-branch files about the organization hold a
+  question, with `asked_from: "o/public-item"`, a public repository, and
+  `asked_from: "o/private-item"`, a private one, and the person declines
+  it for the inquisitor
 - **THEN** the answer session passes `asked_from: "o/private-item"` to
   the `log` command with the miss's other keys, and the miss file holds
+  it and no `repository`
+
+#### Scenario: A miss on a thread question names the thread's repository
+
+- **WHEN** the person declines for the inquisitor a question about the
+  organization in an issue of `o/web`, and no questions-branch file holds
   it
+- **THEN** the miss file holds `asked_from: "o/web"` and no `repository`
+- **AND** an organization's question on Linear or Discord that no
+  questions-branch file holds gets no miss file, having no repository to
+  name in `asked_from`
 
 ### Requirement: The answer session writes no miss it cannot place privately
 
@@ -2630,8 +2647,8 @@ The answer session SHALL write no miss file, telling the person why,
 when any of these holds:
 
 - the question has a category;
-- it concerns no repository;
-- no configured lore repository serves its repository;
+- it concerns no repository and was asked from none;
+- it has no team's lore repository;
 - that lore repository is more visible than the question's repository
   or thread (a GitHub thread is exactly as visible as its repository,
   and a Linear or Discord thread counts as private);

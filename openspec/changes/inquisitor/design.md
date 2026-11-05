@@ -1255,16 +1255,16 @@ then never settle a question.
 
 #### A questions-branch decision counts by write access to what it names
 
-**A questions-branch file about one repository, named by its `repository`
-key, counts as a decision only from a writer of that repository; a file
-about an organization or project counts from a writer of the lore
-repository.** A questions-branch file is about one repository when an Igor's
-run logs a question about a repository other than its item's: its
-`repository` then names that repository, and its `asked_from` the item's.
-A reader tells the cases apart by comparing the two keys. In any other
-questions-branch file, `repository` names only the repository holding the
-work the question was asked in, not what it is about, so the file is read
-as being about an organization or project.
+**A questions-branch file holding `repository` is about that one
+repository, and counts as a decision only from a writer of it; a file
+holding no `repository` is about an organization or project, and counts
+from a writer of the lore repository.** `repository` always names the
+repository the question is about, and only a file about one repository
+holds it; `asked_from` names where the question was asked (*Every
+questions-branch file names where it was asked from*). A reader never
+compares the two keys, so a file whose keys are equal, such as an Igor's
+question about its own item's repository, counts by write access to that
+repository.
 Authority to instruct never exceeds authority over the artifact the
 instruction is about, as igor states it (igor PR #202's decision 11, and
 igor's rule for directed interaction). A writer of the lore repository may
@@ -1275,6 +1275,10 @@ authority, as every write-access check here fails closed.
 *Rejected:* checking the lore repository's writers for every
 questions-branch file, which would let a lore writer decide for a
 repository they cannot change.
+*Rejected:* `repository` naming where an organization's question was
+asked, with readers comparing it to `asked_from` to tell the cases apart.
+A file about the Igor's own item's repository would then have equal keys
+and count by the lore repository's writers, as an organization's does.
 
 #### A signature GitHub may have made counts for no one
 
@@ -1568,16 +1572,26 @@ what it read about a private repository into a more public item.
 **Why** a file about another repository is input in a run: proofs show who
 answered, not that the answer belongs to the item's repository.
 
-#### The Igor writes `asked_from` on every file it pushes
+#### Every questions-branch file names where it was asked from
 
-The Igor sets the key after its format check and refuses a worker's file
-that already has one (#216's decision 42). This change owns the file format,
-so the key is in its closed list and its readers judge visibility as #216
-does.
+**Every questions-branch log and miss file but a handled one holds
+`asked_from`, the repository the question was asked from. Outside an Igor's
+run the script writes it. During a run the script writes none: the Igor
+sets it after its format check, and refuses a worker's file that already
+has one (#216's decision 42).** This change owns the file format, so
+`asked_from` is among the keys that format allows, and its readers judge visibility as #216 does, from
+the more private of the keys a file holds.
 
-**Why:** a worker steered by its item could write a public `repository` on a
-file about a private repository; `asked_from` still names the private one,
-so the question cannot be laundered.
+**Why** no worker writes it: a worker steered by its item could write a
+public `repository` on a file about a private repository; `asked_from`
+still names the private one, so the question cannot be laundered. The
+script or the answer session writing `asked_from` outside a run opens no
+new way to mislead a reader, since that writer sets `repository` too.
+
+**Why** an organization's question names where it was asked rather than a
+repository it concerns: it concerns none, but its visibility and its team's
+lore repository still come from the work that raised it (spec: *An
+organization's question is bounded by the repository it was asked from*).
 
 **Why** a run's file can name another repository: the item's repository is
 only the default for a question the agent cannot place, and a question
@@ -2059,8 +2073,8 @@ the two differ, because the spec governs what the UI does and posts.** Task
   implementation from the prototype's existing patterns, in no new visual
   style; task 6.1 lists these screens, which ship with no prototype approved
   by use.
-- (d) A screen approved separately is taken from its own approved tag:
-  v0.1-33, for the thread's replies and the recorded answer.
+- (d) The screens v0.1-33 added to v0.1-30, which *The UI is built from
+  prototype build v0.1-33* lists, are taken as that build has them.
 
 #### Some answer-session details are decided at implementation
 
@@ -2577,11 +2591,15 @@ team's lore repository, because it cannot see where the asker logged the
 question, often an unmerged branch, and the questions branch takes direct
 pushes with no pull request.** The fixed `said` of an automatic miss lets a
 review of misses tell the session's judgement from a person's word. A miss or
-answer file copying the `asked_from` of the questions-branch file it closes or
-answers is the only case where the script writes that key; igor PR #216 says
-only an Igor writes `asked_from`, and allowing this second writer is open on
-#216's side (*What igor must provide*). The inquisitor's rule that a question
-with no log file gets no miss does not apply to the answer session's misses.
+answer file for a question that questions-branch files hold copies the most
+private `asked_from` among them, and their `repository` if they hold one, so
+it is as private as they are and about the same thing; files naming
+different repositories get no miss. A miss with no such file names its GitHub thread's
+repository in `asked_from`. A Linear or Discord thread has no repository, so
+there the repository the question concerns stands in, and an organization's
+question gets no miss. The inquisitor's rule that a question with no log
+file gets no miss does not apply to the answer session's misses, since the
+session cannot see whether the asker logged the question.
 
 A miss's push, like a handled file's, is recorded as owed before the post
 that leads to it and retried at each poll and opening. Once the post is
@@ -2594,8 +2612,6 @@ session cannot know where, and each miss would take a pull request.
 question log, which this change rules out.
 *Rejected:* pushing a miss only when no matching one is on the branch: that
 is matching on words, so a question judged on two machines gives two misses.
-*Rejected:* no miss for a question whose file holds `asked_from`: copying it
-keeps the miss as private as the file.
 
 ### Linking log files to threads, and handbacks
 
@@ -2716,17 +2732,24 @@ own: the file follows the handback, so the answer is relayed there.
 **New work in shared-skills goes through OpenSpec, except UI, which is
 prototyped and then built directly; this change adopts OpenSpec, spec-check
 and spec-trace for the repository.** A skill's spec holds what must be true
-of it, and its `DECISIONS.md` holds why, as current reasoning in one place,
-not a log. An existing skill gets its spec in a change of its own, skill
+of it. Its constraints and rejected alternatives go in a decision record
+beside the spec, `openspec/specs/<capability>/decisions.md`, one per
+capability, in the form shared-skills issue #56 sets; a skill with no spec
+keeps its reasoning in its `DECISIONS.md`. Each holds current reasoning in
+one place, not a log. An existing skill gets its spec in a change of its own, skill
 by skill, as shared-skills issue #57 plans; a change that edits a skill with
 no spec, as this one edits github-app and bug-hunter (tasks 5.5 and 5.7),
 lists the edit as a task. While a
 change is open, its decisions are each stated once, in design.md's
 *Decisions*, and each undecided item in *Open Questions*, as spec-check's
 convention has it. When it is archived, its lasting reasoning is folded into
-the `DECISIONS.md` of each skill it affects, rewriting the reasoning it
-replaces rather than appending. `AGENTS.md` states this, and
-`openspec/config.yaml` makes it the last task of every change.
+the decision record of each capability it specifies, and into the
+`DECISIONS.md` of each skill without a spec that it affects, rewriting the
+reasoning it replaces rather than appending. So this change writes
+`openspec/specs/inquisitor/decisions.md`, `answer-session`'s and
+`gh-post`'s, and no `.agents/skills/inquisitor/DECISIONS.md`. `AGENTS.md`
+states this, and `openspec/config.yaml` makes it the last task of every
+change.
 
 #### How the three specs are laid out
 
@@ -2784,13 +2807,11 @@ open change.
 
 ### Facts measured before building
 
-Tasks 0.1 to 0.14 measure these facts before anything is built. Each bullet
-says what the spec does if the fact is false. Task 0.12 is measured; *What
-task 0.12 measured* gives its result.
+Tasks 0.4 to 0.14 measure these facts before anything is built; *What the
+hook relies on, not yet measured* holds tasks 0.1 to 0.3. Each bullet says
+what the spec does if the fact is false. Task 0.12 is measured; *What task
+0.12 measured* gives its result.
 
-- **Can a `PreToolUse` hook block `AskUserQuestion`?** (tasks 0.1 to 0.3) If
-  not, the skill's instructions alone cover the picker, and the README says
-  so.
 - **Can an agent without push access read another person's permission on a
   repository?** (task 0.4) If not, wherever the agent lacks push access, every
   answer in a post and every issue's decision block (the start of its body
@@ -2945,15 +2966,33 @@ to its 149.
     relay App's handback answer.
   - A questions-branch file's scope: every role whose Igor uses that lore
     repository, and only a run whose item's repository is no more visible than
-    the more private of its `repository` and `asked_from` (its decisions 25,
-    27 and 42).
+    the more private of whichever of `repository` and `asked_from` it holds
+    (its decisions 25, 27 and 42).
   - Its `graceful-handoff` and `work-triage` deltas: igor's side of a flagged
     run, its handoff, its host file and the release of a held item.
-- **#216 must allow a second writer of `asked_from`.** #216 says only an Igor
-  writes `asked_from` (its decision 42), but an answer session's miss and its
-  answer file each copy the `asked_from` of the questions-branch file they
-  close or answer. #216's push conditions and its decision 42 should let the
-  answer session write `asked_from` into both.
+- **#216's lore-firing spec should judge a file by whichever of
+  `repository` and `asked_from` it holds.** Its *An Igor runs its worker's
+  lore searches* makes a file "as visible as the more private of the
+  repositories its `repository` and `asked_from` keys name, and as its
+  `repository` alone when it holds no `asked_from`". That covers a file
+  with no `asked_from` but not one with no `repository`, so it should read:
+  as the more private of the repositories named by whichever of the two
+  keys the file holds. Its push condition that the destination is no more visible
+  "than the repository its `repository` key names" applies only to a file
+  holding one. Its *Lore reaches the worker unbidden, beside a search it may
+  run* cites this change's rule (#216 calls this change #25, its pull
+  request in shared-skills) that a file whose `repository` names a repository
+  other than the item's is input; that still reads right, since a file
+  about an organization holds no `repository` and so names no other
+  repository, and needs no rewording.
+- **#216 should say that no worker writes `asked_from`, not that only an
+  Igor does.** Its decision 42's sentence "Under #25 only an Igor writes the
+  key", and its lore-firing spec's "which only the Igor writes", should read:
+  a worker never writes the key; in a run the Igor sets it. Outside a run the
+  script writes it on every questions-branch file, and the answer session
+  copies it into its misses and answer files (*Every questions-branch file
+  names where it was asked from*). #216's protection is unchanged: no worker
+  writes the key, and the Igor refuses a worker's file holding one.
 - **#216's Igor must write the answer into the file a worker reports for a
   handback answer.** #216's lore-firing spec (lines 484-489 at 59e7561) has
   the Igor write the comment's text "in place of the answer line the worker
@@ -3084,30 +3123,6 @@ to its 149.
   never sees the question. Until a person decides, the spec does exactly
   that; the choices are that the asker marks such questions, or that the
   answer session only suggests a verdict on every agent's question.
-
-### Whose write access counts
-
-- **Whether a questions-branch file about the Igor's item's own repository
-  needs a key of its own.** *A logged decision needs write access to what
-  its question concerns* reads a questions-branch file as being about one
-  repository only when its `asked_from` differs from its `repository`. An
-  Igor pushes every file with `asked_from` set to its item's repository, so
-  a file about that same repository has the two keys equal, and its
-  decision counts by write access to the lore repository, as an
-  organization's would. Until a person decides, the spec reads it so; the
-  alternative adds a key, which igor PR #216 would also write, saying
-  whether a file is about one repository.
-
-### Where a skill's reasoning goes once it has a spec
-
-- **Whether this change's archive writes a `DECISIONS.md` for the
-  inquisitor.** *OpenSpec for new work in shared-skills* and task 7's
-  archive steps fold the change's lasting reasoning into a new
-  `.agents/skills/inquisitor/DECISIONS.md`. shared-skills issue #57, which
-  is open, would retire `DECISIONS.md` once a skill has a spec, and keep
-  its reasoning in a decision record, `openspec/specs/<skill>/decisions.md`.
-  Until a person decides, the archive writes `DECISIONS.md` as specified,
-  and #57, if adopted, moves it like any other skill's.
 
 ### The post reader's open costs
 

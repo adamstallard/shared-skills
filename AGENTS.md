@@ -13,11 +13,19 @@
   The spec still does not describe the screen; its task only names it. The rest of the same feature (data flow, integrations,
   setup, rules) still goes through its own specification pull request
   first.
-- **A skill's `DECISIONS.md` is its current reasoning in one place, not a
-  log.** While a change is open, its reasoning lives in its proposal and
-  `design.md`. When the change is archived, fold its lasting reasoning into
-  the `DECISIONS.md` of each skill it affects. Where that reasoning replaces
-  older reasoning in the file, rewrite the older reasoning rather than
-  appending.
+- **A capability's decision record, or a skill's `DECISIONS.md`, is its
+  current reasoning in one place, not a log.** A capability is what one
+  spec, `openspec/specs/<capability>/spec.md`, specifies, such as a skill
+  or part of one. It keeps its constraints and rejected alternatives in
+  `openspec/specs/<capability>/decisions.md`, one entry each, with its
+  reason, evidence and the paths it governs, in the form shared-skills
+  issue #56 sets. A skill with no spec keeps its reasoning in its
+  `DECISIONS.md`. While a
+  change is open, its reasoning lives in its proposal and `design.md`.
+  When the change is archived, fold its lasting reasoning into the
+  decision record of each capability it specifies, and the `DECISIONS.md`
+  of each skill without a spec that it affects. Where that reasoning
+  replaces older reasoning in the file, rewrite the older reasoning rather
+  than appending.
 - **Tests tag the OpenSpec scenario they check** with
   `@scenario <capability>: <Scenario name>`; see the spec-trace skill.

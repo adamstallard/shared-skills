@@ -52,7 +52,9 @@ and its key `answer_session` holds what the `answer-session` spec defines. A
 lore repository serves a *project*, known by its repositories, when it
 serves one of them. *The team's lore repository* is the configured lore
 repository that serves the repository the question concerns, or, for a
-question about an organization or project, the project it concerns.
+question about an organization or project, the one that serves the
+repository the question was asked from (*An organization's question is
+bounded by the repository it was asked from* defines that repository).
 
 *A session with a person in it* is one a person started and is reading,
 such as an interactive Claude Code session. Any other, such as a headless
@@ -60,6 +62,8 @@ run like an Igor worker or a `claude -p` job, is *a session with no person
 in it*. *The agent's report*, meant wherever this spec says the agent tells
 or reports to the person, is its reply to the person in the session, or, in
 a session with no person in it, its run's output.
+
+*Task 0.N* is that task in this change's tasks.md.
 
 *The first call* and *the second call* are the two runs of the skill's
 script that *Two calls prove the filters ran* defines. *A verdict* is what
@@ -275,10 +279,12 @@ heading, or the first of its sections whose heading starts with "Decision".
 - **WHEN** a repository's `NOTES.md` states a choice that answers a
   question, and no file of the list does
 - **THEN** filter 1 does not search it as a decision document, and the agent
-  records no choice in it (design.md: *igor-dependent rules state the end
-  state*)
-- **AND** an issue whose body opens with "Decided: use Go." before any
-  heading has that sentence as its decision block
+  records no choice in it
+
+#### Scenario: An issue's opening text is its decision block
+
+- **WHEN** an issue's body opens with "Decided: use Go." before any heading
+- **THEN** that sentence is its decision block
 
 #### Scenario: An issue's Decision section is its decision block
 
@@ -382,11 +388,12 @@ more visible than its source*).
   visibility of `o/api` cannot be read
 - **THEN** the file counts as private
 
-### Requirement: A question beyond one repository is bounded by the current work's
+### Requirement: An organization's question is bounded by the repository it was asked from
 
 A question about an organization or project SHALL be bounded by the
-visibility of the repository the question concerns, which, for such a
-question, SHALL be the repository holding the current work (design.md: *A
+visibility of **the repository it was asked from**: the one holding the
+current work, or, for a logged question, the one its file's `asked_from`
+names. Such a question concerns no one repository (design.md: *A
 question's audience is no wider than its subject*). A question
 about one person's way of working SHALL never be posted.
 
@@ -401,8 +408,8 @@ about one person's way of working SHALL never be posted.
 
 Wherever this spec or the `answer-session` spec compares a log file's or
 miss file's visibility, it SHALL be that of the more private of the
-repositories its `repository` and `asked_from` keys name, or of its
-`repository` alone when it holds no `asked_from`. A value that fails the
+repositories named by whichever of its `repository` and `asked_from` keys
+it holds. A value that fails the
 syntax check *A log file's repository keys and answer_link are checked
 before use* sets SHALL count as a private repository, and also makes the
 file input, labelled unreadable, as that requirement says.
@@ -416,6 +423,8 @@ file input, labelled unreadable, as that requirement says.
   private repository
 - **AND** a file whose `asked_from` fails the syntax check counts as
   private, and is input labelled unreadable
+- **AND** a questions-branch file about the organization, holding no
+  `repository` and `asked_from` the private `o/api`, is private
 
 ### Requirement: An Igor's handback comment is no post, but the post hook vets what it sees
 
@@ -1038,11 +1047,10 @@ pushed*).
 
 A `decision` log entry SHALL count only when its `answered_by` has write
 access, when the search reads it, to what the logged question concerns,
-whatever the agent's own question concerns: for a file in a repository,
-or a questions-branch file whose `asked_from` differs from its
-`repository`, the repository its `repository` key names; for any other
-questions-branch file, the lore repository (design.md: *A questions-branch decision counts
-by write access to what it names*).
+whatever the agent's own question concerns: for a file holding
+`repository`, the repository that key names; for a questions-branch file
+holding none, the lore repository (design.md: *A questions-branch decision
+counts by write access to what it names*).
 
 #### Scenario: A decision whose author lost write access is input
 
@@ -1060,12 +1068,13 @@ by write access to what it names*).
   `answered_by`'s write access to `o/api`, not to the lore repository
 - **AND** if `answered_by` can write to the lore repository but not to
   `o/api`, the search shows the file labelled as unconfirmed
+- **AND** a file whose `repository` and `asked_from` are both `o/api` is
+  judged by write access to `o/api` too
 
 #### Scenario: A questions-branch file about an organization needs write access to the lore repository
 
 - **WHEN** a `decision` file on a lore questions branch logs a question
-  about the organization `o`, and has no `asked_from`, or one equal to
-  its `repository`
+  about the organization `o`, so it holds `asked_from` and no `repository`
 - **THEN** the write access checked is `answered_by`'s write access to the
   lore repository
 
@@ -1293,6 +1302,8 @@ search*).
   the lore questions branch whose `repository` key names `o/api` matches
   the question, and every proof of its writer holds
 - **THEN** the search shows the file as input, labelled unconfirmed
+- **AND** a file about the organization, holding no `repository`, is not
+  about another repository, so this rule leaves it to the other checks
 
 #### Scenario: Inside an Igor, a question file about a more private repository is hidden
 
@@ -1844,6 +1855,8 @@ SHALL delete each over 2 hours old, whatever its verdict or category.
 - **WHEN** the first call is given a questions file with mode 0644
 - **THEN** it refuses, issues no token, and says to write the file with
   mode 0600 in a private directory, such as one `mktemp -d` makes
+- **AND** it refuses a 0600 file in a directory its group can read the
+  same way
 
 #### Scenario: The records have mode 0600
 
@@ -2268,9 +2281,18 @@ A question SHALL go only where its audience is no wider than what it
 concerns, by *Nothing about a repository goes somewhere more visible* for a
 post or issue. Where it is wider or unknown, the agent SHALL ask through the
 picker. With no person in the session: if wider, it SHALL post in the
-repository the question concerns, when it can; if unknown, it SHALL post
-nothing and report it. An Igor worker asks as *A session with no person in
-it asks in a post, a handback or nowhere* says.
+repository the question concerns, or, for an organization's, the one it
+was asked from, when it can; if unknown, it SHALL post
+nothing and report it.
+
+#### Scenario: A headless organization's question is posted where it was asked from
+
+- **WHEN** a session with no person in it, working in `o/web`, has a
+  question about the organization `o` whose only place to ask is wider
+  than `o/web`
+- **THEN** it posts the question in `o/web`, when it can
+- **AND** an Igor worker asks as *A session with no person in it asks in a
+  post, a handback or nowhere* says
 
 #### Scenario: A message to an audience of unknown width is not sent headless
 
@@ -2436,20 +2458,21 @@ the agent SHALL log nothing and tell the person why.
 ### Requirement: No question is pushed to a more visible lore repository
 
 When the lore repository is more visible than the repository the question
-concerns, the script SHALL refuse to push the question to it, and the agent
+concerns, or, for a question about an organization or project, the
+repository it was asked from, the script SHALL refuse to push the question to it, and the agent
 SHALL log nothing and tell the person why.
 
 #### Scenario: An unreadable lore visibility keeps the question off its branch
 
 - **WHEN** a question about an organization is raised by work in a private
-  repository the question concerns, and the script cannot read the lore
+  repository, and the script cannot read the lore
   repository's visibility
 - **THEN** the script refuses to push the question
 
 #### Scenario: A private repository's question stays out of an internal lore repository
 
 - **WHEN** a question about an organization is raised by work in a private
-  repository the question concerns, and the team's lore repository is
+  repository, and the team's lore repository is
   internal or public
 - **THEN** the script refuses to push it, and the agent tells the person
   why
@@ -2463,8 +2486,8 @@ SHALL log nothing and tell the person why.
 ### Requirement: A question with no team's lore repository is not logged
 
 When the agent finds no team's lore repository for a question about an
-organization or project, because none configured serves the repository the
-question concerns or it works in no git repository, it SHALL log nothing
+organization or project, because none configured serves the repository it
+was asked from or it works in no git repository, it SHALL log nothing
 and tell the person the question was not logged.
 
 #### Scenario: Working in no git repository logs nothing
@@ -2952,9 +2975,9 @@ Every log and miss file SHALL take one format wherever it is written, as the
 scenarios below give: its path, name and slug; UTF-8 with LF line ends; YAML
 frontmatter between two `---` lines, each value a double-quoted string,
 holding only the keys the scenarios list for its kind of file, each only
-where they allow it, never `conditions`; then a markdown body. The script
-SHALL write `asked_from` only by copying it into a miss or answer file an
-answer session logs for a file holding it.
+where they allow it, never `conditions`; then a markdown body. Every
+questions-branch log and miss file but a handled one SHALL hold
+`asked_from`, which the script writes only outside an Igor's run.
 
 #### Scenario: Where a file goes and how its slug is made
 
@@ -2980,6 +3003,16 @@ answer session logs for a file holding it.
   where `<hex>` is 6 lowercase hex digits, and its frontmatter holds only
   `repository: "o/api"`, the repository the question concerns, as
   `owner/repo`, and `asked: "2026-10-20"`, the day asked, in UTC
+
+#### Scenario: An organization's questions-branch file names where it was asked from
+
+- **WHEN**, outside an Igor's run, an agent working in `o/web` logs a
+  question about the organization `o` on the lore questions branch
+- **THEN** the script writes `asked_from: "o/web"`, the repository the
+  question was asked from, as `owner/repo`, and no `repository`, since the
+  question concerns no one repository
+- **AND** a file in a repository's `.inquisitor/` always holds
+  `repository` and never `asked_from`
 
 #### Scenario: An answered log file's keys
 
@@ -3052,8 +3085,8 @@ answer session logs for a file holding it.
 - **WHEN** an Igor pushes, for its worker on an item in `o/web`, a log file
   whose `repository` key is `o/api`
 - **THEN** its frontmatter also holds `asked_from: "o/web"`, though the
-  script wrote none, an Igor worker's run included (design.md: *Misses the
-  answer session logs*)
+  script, run in the worker, wrote none (design.md: *Every
+  questions-branch file names where it was asked from*)
 - **AND** `asked_from` is the repository of the item the run works, as
   `owner/repo`, which the Igor sets on every log and miss file it pushes,
   after refusing any that already holds one, as igor PR #216's *An Igor
@@ -3075,8 +3108,9 @@ answer session logs for a file holding it.
 - **THEN** the miss file is under `.inquisitor/misses/`, and its
   frontmatter holds only `repository`, `asked`, `filter: "1"` and `said`
 - **AND** `repository` and `asked` are as in the question's log file, or,
-  for a miss an answer session logs, the repository the question concerns
-  and the day it was asked; `filter`, `"1"` to `"4"`, is the filter that
+  for a miss an answer session logs, the repository the question concerns,
+  absent for an organization's or project's question, and the day it was
+  asked; `filter`, `"1"` to `"4"`, is the filter that
   should have stopped the question; `said` is what the person said, in
   their words or in one sentence, with any place they named, such as a
   spec's path, or, for a miss an answer session logs by itself or with no
@@ -3170,13 +3204,13 @@ way as input, labelled as unreadable.
 
 ### Requirement: A log file's repository keys and answer_link are checked before use
 
-Filter 1 SHALL pass to no GitHub API call a `repository` or `asked_from`
-that is not `<owner>/<repo>` as its scenarios give, showing its file as
-input labelled unreadable, nor an `answer_link` not in a form they give,
-which SHALL prove no writer. Neither a reader of a log file nor the `log`
-command SHALL fetch an `answer_link` outside those forms, a Linear or
-Discord link included. A file's visibility is as *A log or miss file is as
-private as its more private repository* says.
+Filter 1 SHALL show as input labelled unreadable, passing neither key to
+any GitHub API call, a file whose `repository` or `asked_from` is not
+`<owner>/<repo>` as the scenarios give, and SHALL show so a
+questions-branch file lacking an `asked_from` it should hold. An
+`answer_link` not in a github.com form the scenarios give SHALL prove no
+writer, and no reader or `log` command SHALL fetch it or pass it to
+GitHub, a Linear or Discord link included.
 
 #### Scenario: The forms a repository key and an answer_link must take
 
@@ -3199,6 +3233,15 @@ private as its more private repository* says.
   its `answer_link` is `https://github.com/o/r/pull/3?x=../`
 - **THEN** filter 1 makes no GitHub API call with that value, and shows the
   file as input
+
+#### Scenario: A questions-branch file needs asked_from but not repository
+
+- **WHEN** a questions-branch log file that is not handled holds
+  `repository: "o/api"` and no `asked_from`
+- **THEN** filter 1 shows it as input, labelled unreadable
+- **AND** a questions-branch log file holding `asked_from` and no
+  `repository` passes the check, as a file about an organization or
+  project
 
 ### Requirement: A citation file has one format
 

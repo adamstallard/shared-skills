@@ -11,7 +11,8 @@ spec.
 ## 0. Measure before building
 
 Record each result in design.md: *What the hook relies on, not yet
-measured* for 0.1 to 0.3, *Configuration* for 0.4, *Facts measured
+measured* for 0.1 to 0.3, *Configuration* and *Facts measured before
+building* for 0.4, *Facts measured
 before building* for 0.5 to 0.14, and *Facts the answer session relies on*
 for 0.15 to 0.27, including a result that
 contradicts what design.md assumed.
@@ -277,9 +278,9 @@ contradicts what design.md assumed.
           questions branch, a signature dated no later than when this
           machine first fetched its commit (design.md: *The newest proven
           answer counts*);
-        - a file's visibility taken from the more private of its
-          `repository` and `asked_from` (design.md: *The Igor writes
-          `asked_from` on every file it pushes*);
+        - a file's visibility taken from the more private of whichever
+          of `repository` and `asked_from` it holds (design.md: *Every
+          questions-branch file names where it was asked from*);
         - during an Igor's run, a file about a repository other than the
           item's shown as input (igor's; design.md: *Questions-branch
           files and `project:` entries in a run's search*);
@@ -305,6 +306,11 @@ contradicts what design.md assumed.
         later run only for a file it finds by its own record's suffix
         and date (design.md: *A later run names the answered file from
         the Igor's record*).
+      - On a questions branch, `repository` only on a file about one
+        repository, and `asked_from` on every log and miss file but a
+        handled one: the repository holding the current work outside an
+        Igor's run, and no `asked_from` during one (design.md: *Every
+        questions-branch file names where it was asked from*).
       - A handled file holds only `handled` and `closes`, the closed
         file's name, with no body (design.md: *The answer session writes
         a handled file on every close of a questions-branch file*). It is
@@ -715,7 +721,7 @@ contradicts what design.md assumed.
         - a second machine's miss pushed even when a matching one is on
           the branch;
         - a miss for a question a questions-branch file holds copying
-          that file's `asked_from`;
+          that file's `asked_from`, and its `repository` if it has one;
         - a later run naming a file only from the Igor's own record, by
           its file-name suffix and date, more than one match naming none
           (igor's; design.md: *A later run names the answered file from
@@ -791,8 +797,15 @@ contradicts what design.md assumed.
       exempt from their trailers, and say in prose's `DECISIONS.md` that
       its file filter skips files under `.inquisitor/` (task 5.6) because
       they are records quoted word for word
-- [ ] 7.2 Fold this change's lasting reasoning from design.md, the answer
-      session's included, into a new
-      `.agents/skills/inquisitor/DECISIONS.md`, and the reasoning for
-      moving the post reader into prose's `DECISIONS.md`, as `AGENTS.md`
-      says
+- [ ] 7.2 Write this change's constraints and rejected alternatives from
+      design.md, and any reason longer than a requirement's one sentence,
+      as the decision records `openspec/specs/inquisitor/decisions.md`,
+      `openspec/specs/answer-session/decisions.md` and
+      `openspec/specs/gh-post/decisions.md`, one per capability, in the
+      form shared-skills issue #56 sets; write no
+      `.agents/skills/inquisitor/DECISIONS.md`. Point each requirement's
+      citation of a task 0.N or of design.md at its measured result or its
+      decision record entry. Fold the reasoning for moving prose's post
+      reader into `.agents/lib/gh-shell/` (task 1.1) into prose's
+      `DECISIONS.md`, as `AGENTS.md` says (design.md: *OpenSpec for new
+      work in shared-skills*)
