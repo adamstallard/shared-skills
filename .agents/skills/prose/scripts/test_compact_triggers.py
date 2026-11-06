@@ -457,6 +457,17 @@ class ImpliedReads(unittest.TestCase):
                           "skills/a/DECISIONS.md": 0, "skills/bug-hunter/SKILL.md": 1,
                           "openspec/specs/x/spec.md": 1, "openspec/changes/y/proposal.md": 1})
 
+    def test_a_spec_check_value_recording_no_read_implies_no_read_of_the_specs(self):
+        docs = ["openspec/specs/x/spec.md", "openspec/changes/y/proposal.md"]
+        before = self.reads(dict.fromkeys(docs))
+        self.change("README.md", "readme\n\nSpec-check: \u2713 abc 0 errors, 0 checks; "
+                    "validate passed; read deferred to the round's end\n")
+        self.change("README.md", "readme\n\nSpec-check: \u2713 abd 0 errors, 0 checks; "
+                    "validate passed; no read due\n")
+        after = self.reads(dict.fromkeys(docs))
+        self.assertEqual({doc: after[doc] - before[doc] for doc in docs},
+                         {"openspec/specs/x/spec.md": 0, "openspec/changes/y/proposal.md": 0})
+
     def test_reads_are_counted_only_since_the_last_compaction(self):
         self.change("skills/a/ref.md", "one\n")
         stop = self.change("skills/a/ref.md", "the compaction\n")

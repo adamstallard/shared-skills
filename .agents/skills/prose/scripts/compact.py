@@ -1081,7 +1081,12 @@ READ_FIRST = re.compile(r"\bread\b(?:\[[^\]\n]*\]\([^)\n]*\)|[^.]){0,40}?\b(?:fi
                         r"(?![ \t\n]+(?:chang|edit|modif|updat|touch)))", re.I)
 LINK = re.compile(r"\[[^\]\n]*\]\(<?([^)\s>]+)>?(?:[ \t]+\"[^\"]*\")?\)")
 # Trailers that imply a read of the skill they name.
-READ_TRAILERS = re.compile(r"^(bug-hunter|prose|spec-check)[ \t]*:", re.I | re.M)
+READ_TRAILERS = re.compile(r"^(bug-hunter|prose|spec-check)[ \t]*:(.*)$", re.I | re.M)
+# The ends of a Spec-check: value that say no consistency read ran: on a
+# commit before the end of a review round, and on one with no change due.
+# They must match spec_check.py's DEFERRED and NO_READ_DUE. A `skipped
+# (<reason>)` value is not among them, so it still counts as a read.
+SPEC_CHECK_NO_READ = ("read deferred to the round's end", "no read due")
 
 
 def _batch_blobs(oids, root):
@@ -1155,15 +1160,16 @@ def _skill_of(path, skills):
 def implied_reads(root, index, links, stops):
     """{doc: reads}: how many of the READS_DEPTH commits behind HEAD imply
     a read of each doc. stops gives each doc's last compaction commit, or
-    None; only commits newer than it count. With None, the count runs from
-    the commit that added the doc, which counts, as size_history finds it.
-    A doc HEAD lacks has no reads. These rules map each commit to the reads
+    None; only commits newer than it count. With None, the count starts at
+    the commit that added the doc, found by size_history, and includes that
+    commit. A doc that is not in HEAD has no reads. These rules map each commit to the reads
     it implies; they are declared, not inferred:
     - a commit changing a file in a skill's directory reads that skill's
       SKILL.md and the files it links as read first;
     - a Bug-hunter:, Prose: or Spec-check: trailer reads that skill's
       SKILL.md;
-    - a Spec-check: trailer also reads the main specs and the open changes."""
+    - a Spec-check: trailer also reads the main specs and the open changes,
+      unless its value records no read."""
     out = {doc: 0 for doc in stops}
     if not stops:
         return out
@@ -1208,11 +1214,11 @@ def implied_reads(root, index, links, stops):
             if skill:
                 reads.add(skill)
                 reads |= first_of.get(skill, set())
-        for trailer in READ_TRAILERS.findall(body):
+        for trailer, value in READ_TRAILERS.findall(body):
             name = trailer.lower()
             reads |= {path for path in skills
                       if path == f"{name}/SKILL.md" or path.endswith(f"/{name}/SKILL.md")}
-            if name == "spec-check":
+            if name == "spec-check" and not value.strip().endswith(SPEC_CHECK_NO_READ):
                 reads |= specs
         for doc in stops:
             if doc not in done and doc in reads:

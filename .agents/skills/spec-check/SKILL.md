@@ -7,18 +7,19 @@ description: >-
   or opening a pull request that adds or changes anything under
   openspec/changes/ or openspec/specs/, when reviewing a spec pull request,
   or when asked to "check this spec", "cross-check the change" or "is this
-  spec consistent". Runs mechanical checks with a script, has a
-  fresh subagent read the change against every other spec, change and open
-  pull request, and fixes findings in the spec itself. Commits that change
-  openspec/ carry a Spec-check: trailer.
+  spec consistent". Runs mechanical checks with a script on every commit,
+  has a fresh subagent read the change against every other spec, change and
+  open pull request once per review round, and fixes findings in the spec
+  itself. Commits that change openspec/ carry a Spec-check: trailer.
 ---
 
 # spec-check
 
 **A spec reviewer should spend their time on whether the rules are right, not
 on holding every other spec in mind.** This skill does the holding: a script
-checks what is mechanical, and a fresh subagent reads the change against
-everything it must agree with. Readability is the `prose` skill's job; linking
+checks what is mechanical on every commit, and once per review round a fresh
+subagent reads the change against everything it must agree with.
+Readability is the `prose` skill's job; linking
 tests to scenarios after implementation is a separate step.
 
 - **Why it works this way:** [DECISIONS.md](DECISIONS.md). Read it before
@@ -27,10 +28,17 @@ tests to scenarios after implementation is a separate step.
 
 ## When
 
-- Before any commit, and before opening a pull request, that changes a path
-  under `openspec/changes/` or `openspec/specs/`.
-- When reviewing a spec pull request, yours or someone else's.
-- When asked to check a spec.
+- **The mechanical checks:** before any commit that changes a path under
+  `openspec/changes/` or `openspec/specs/`.
+- **The consistency read:** once per review round, at its end. A review
+  round is your work between two hand-backs to a person for review: a pull
+  request opened or marked ready, a review requested, or telling a person
+  the work is ready. A push does not end a round. Do the read before the
+  round's last commit, the one you will hand back. Commits before it record
+  the read as deferred, and may be pushed (see [Commit](#commit)). A draft
+  pull request that requests no review is not a hand-back.
+- When reviewing a spec pull request, yours or someone else's: both.
+- When asked to check a spec: both.
 
 ## 1. Mechanical checks
 
@@ -200,11 +208,26 @@ network and the OpenSpec CLI too.
 
 ## 2. The consistency read, by a fresh subagent
 
-Start a subagent that did not write the change and give it
-[consistency-read.md](consistency-read.md) as its brief, with its three
-placeholders filled in: the change's directory, where to read it from (the
-working tree, or the pull request's branch), and its base branch. Do not add your own summary of the
-change: what you would say is what the read is checking.
+Once per round, at its end, each **due** change gets a read of the whole
+change. A change is due when the branch adds or edits it and it differs
+from its **last read**: the newest commit in the branch's history whose
+`Spec-check:` trailer records a read that names it (see [Commit](#commit)).
+To see which changes are due before you read them, run `sign --read
+subagent` on the staged tree: the value it prints names them, or says `no
+read due`. Run it again after the read, with the read's counts, to sign the
+commit.
+
+For each due change, start a general-purpose subagent (not Explore) that
+did not write the change and give it [consistency-read.md](consistency-read.md)
+as its brief, with its four placeholders filled in: the change's directory,
+where to read it from (the working tree, or the pull request's branch), its
+base branch, and the list of every file under the change's directory
+(`git ls-files openspec/changes/<change>`, or `git ls-tree -r --name-only
+<ref> openspec/changes/<change>`). Keep the brief's instruction to read
+each listed file whole, every line, paging long files with the Read tool,
+never skimming, grepping or sampling: a problem may sit anywhere in a long
+delta spec. Do not paste the files into the brief, and do not add your own
+summary of the change: what you would say is what the read is checking.
 
 The subagent reads the change against every spec on the base branch, every
 open change, every open pull request touching the same specs, and the
@@ -263,19 +286,81 @@ one. This skill does not write models for you.
 
 ## Commit
 
-After the last fix and the final `git add`, and after the consistency read:
+After the last fix and the final `git add`:
 
 ```sh
-python3 "$SC/spec_check.py" sign --read subagent --amended <n> --open <n>
+python3 "$SC/spec_check.py" sign --read deferred                            # inside a round
+python3 "$SC/spec_check.py" sign --read subagent --amended <n> --open <n>   # the round's last commit
 ```
 
 It runs the mechanical checks on the staged tree and refuses when any error
 remains. Otherwise it prints `Spec-check: ✓ <tree> ...`, a value bound to the
-staged tree. Without OpenSpec 1.15.0 or later it still signs, and the value
-says `show, validate and archive not run (install OpenSpec 1.15.0 or
-later)`. `--amended` is how many amendments the read led to; `--open` is
-how many open questions design.md now lists. For work in progress, skip
-`sign` and write the value yourself: `skipped (<reason>)`.
+staged tree, ending with what it records of the consistency read:
+
+- `read deferred to the round's end`, from `--read deferred`, on a commit
+  inside a round;
+- `read by a fresh subagent: <change>, <change>; 3 amended, 1 open`, from
+  `--read subagent`, on the commit that ends the round. It names every
+  change that is due, and records that the read covered each one at this
+  tree. `--amended` is how many amendments the
+  read led to; `--open` is how many open questions the due changes'
+  design.md files now list, added together.
+  `--read self` writes `read by its author, no subagent: ...`;
+- `no read due`, whichever `--read` is given, when no change is due.
+
+A value from before rounds, `read by a fresh subagent; ...` with no names,
+records a read of every change its commit touched.
+
+The round's last commit carries the read, so do the read before that
+commit, and stage its amendments with the rest. `sign --read subagent`
+also signs a commit that changes nothing under `openspec/`, such as a code
+commit, while a change is due: its read is recorded there. When every edit of
+the round is already committed and the last commit is not pushed, undo it
+with `git reset --soft HEAD~1`, do the read, and commit again with
+`--read subagent`. Never rewrite a pushed commit. If the last commit is
+pushed and the read amends nothing, record the read on an empty commit: sign
+with nothing staged, and pass `--allow-empty` as the first argument to
+bug-hunter's commit script, or among the library's options, as in the
+example below.
+
+**The hand-back checks.** A hand-back is `gh pr create` (not a draft, unless
+it requests a review),
+`gh pr ready`, `gh pr edit --add-reviewer`, or the GitHub MCP's equivalents.
+Each is judged at the pull request's head on GitHub, so push the read before
+you hand back:
+- A hook blocks one that names its pull request (`gh pr ready 7 -R o/r`,
+  or its URL) while a change there was edited after its last read.
+- After the call, the hook judges a command that holds just that one gh
+  call and no `$`, backtick, glob, brace or leading `~` in any word, with
+  no variable assigned but `GH_REPO`. Beside a hand-back that names its pull
+  request by number or URL (`gh pr ready 12`), only `git`, `cd`, `echo`,
+  `printf`, `true` or `sleep` may stand. Beside one that names none
+  (`gh pr create`, or `gh pr ready` by branch), only `git push`, `git add`
+  and `git commit` with plain options, `cd`, `true` or `sleep`. If a change
+  is unread, the hook makes the pull request a draft again, withdraws the
+  review requests the call made, and tells you. A hand-back in any other
+  form is not checked: the hook adds a note saying why, without blocking.
+  To have it checked, run `gh pr ...` on its own, or with only those
+  programs beside it.
+- Where the repository has spec-check's GitHub workflow, it does the same
+  for every hand-back, however it was made.
+
+Either way: do the read, commit with `--read subagent`, push, and hand back
+again. Neither sees a hand-back made in conversation: before telling a person
+the work is ready, run `sign --read subagent` with nothing staged, and check
+that it exits 1 saying `no change waits for its consistency read` on
+stderr.
+
+**Setting up a repository.** When it has `.github/workflows/`, offer to add
+spec-check's workflow: `python3 $SC/spec_check.py setup-ci` writes
+`.github/workflows/spec-check.yml`, pinned to a pushed commit of this
+script. Commit it, and suggest making the `spec-check` check required in the
+base branch's protection rules.
+
+Without OpenSpec 1.15.0 or later, `sign` still signs, and the value says
+`show, validate and archive not run (install OpenSpec 1.15.0 or later)`.
+For work in progress, skip `sign` and write the value yourself: `skipped
+(<reason>)`. A skip note records no read.
 
 Commit once, carrying every installed skill's trailer
 ([the rule](../../lib/commit-trailer/DECISIONS.md#every-installed-skills-trailer-on-one-commit)).
@@ -287,9 +372,14 @@ value, and the co-author.
 
 ```sh
 "$BH" --verified-value "$S/verify-staged.sh" Prose "✓ 4d593e935186:9138830a72a2" \
-      --verified-value "$SC/verify-staged.sh" Spec-check "✓ 4d593e935186 0 errors, 1 checks; validate passed; read by a fresh subagent; 3 amended, 1 open" -- \
+      --verified-value "$SC/verify-staged.sh" Spec-check "✓ 4d593e935186 0 errors, 1 checks; validate passed; read by a fresh subagent: keep-action-log; 3 amended, 1 open" -- \
   -F msg.txt "skipped at triage (spec only, no code)" "<co-author>"
 ```
+
+For a read that amends nothing, with every edit already committed, the
+same call with `--allow-empty` first makes an empty commit carrying the
+trailers: `"$BH" --allow-empty --verified-value ... -- -F msg.txt
+"skipped at triage (no change)" "<co-author>"`.
 
 Without bug-hunter, call the library directly with the same families:
 `$SC/../../../lib/commit-trailer/commit-with-trailers.sh <families>
@@ -305,6 +395,8 @@ The commit hook reports a commit that changes `openspec/` without a valid
 ## Report
 
 Say, in this order: the mechanical result (errors fixed, checks judged, the
-`openspec archive` and `openspec validate` results), who did the consistency read, the findings and
-what each became (amended, open question, reported to another change), and
+`openspec archive` and `openspec validate` results), who did the consistency
+read and which changes it covered, or that it is deferred to the round's
+end, the findings and what
+each became (amended, open question, reported to another change), and
 anything not checked.

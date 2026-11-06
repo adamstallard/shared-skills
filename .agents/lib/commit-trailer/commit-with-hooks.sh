@@ -103,7 +103,7 @@ hooks_commit() {
   # --no-verify skips only pre-commit and commit-msg, and both have just run,
   # so git commit would only run them a second time. prepare-commit-msg and
   # post-commit still run (git 2.54, tested in CommitFamiliesTests).
-  exec git commit --no-verify -F "$msg_file"
+  exec git commit --no-verify $allow_empty -F "$msg_file"
 }
 
 # Cleans a message as `git commit -m` does: whitespace, unless commit.cleanup
