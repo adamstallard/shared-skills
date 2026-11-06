@@ -923,6 +923,167 @@ file before or after #31; the other three docs lost no referenced heading.
 
 ---
 
+## Compaction aims at reading cost
+
+Compaction weighs text by what agents pay to read it, not by its size
+(#36). Three parts serve that:
+- `prose compact`'s brief lists the sections of a doc that a condition heads
+  or opens, as candidates to move into a linked file, and the compactor
+  proposes or declines each move. A person decides every move.
+- Each candidate is ranked by its bytes times the doc's estimated reads.
+- `prose check`'s first call measures each skill description the change
+  sets, since a host loads every installed skill's description in every
+  session.
+
+`prose cost` prints the ranking and the descriptions for a whole
+repository. The detector and the measures live in `scripts/reading_cost.py`,
+which reads no git; `compact.py` feeds it the index and the history.
+
+**Moving text out helps only under four conditions.** The doc is loaded
+whatever the task; part of it is needed only in situations that can be
+identified; in each of them a reliable signal reaches the reader and names
+the file the part moved to; and the part is large next to the pointer that
+replaces it. A section needed on every pass costs more behind a pointer,
+since the reader reads the pointer and then the file. For that reason the
+writing rules stay in what `prose check` prints (*Rejected: rules behind a
+pointer*). The script checks two conditions: that the doc is loaded before
+work, and that the section is large. It sees a condition's words, but not
+whether the condition really splits readers, nor whether a signal sends
+them to the file; the compactor judges both and names the signal in the
+pointer line.
+- **Only docs loaded before work get candidates:** those read often by
+  their name or path (a `SKILL.md`, `AGENTS.md` or `CLAUDE.md`, or a file
+  one of them links to be read first) or by a `prose-compact` declaration.
+  A `DECISIONS.md` gets none unless declared, since it is read only before
+  changing its skill. An OpenSpec doc never gets candidates, since
+  spec-check's consistency read needs every requirement in it.
+- **A condition opens the section:** its heading, the first sentence of its
+  first paragraph, or the bold words leading a paragraph or list item.
+  The words are "When", "Whenever", "If", "Unless", "Only when", "Without"
+  or "In case", another skill installed ("With bug-hunter installed"), a
+  caller ("Called by"), setup, installation, troubleshooting, an upgrade, a
+  migration, or an operating system.
+- **At least 1,000 bytes.** A pointer line costs about 200 bytes, so a
+  smaller move saves under 800 bytes a read, about 200 tokens.
+- **A candidate that shares a line with an earlier, wider one is
+  dropped,** so each line is proposed once.
+- **The compactor answers every candidate** with a `Move` line, naming the
+  new file, the pointer line and the signal, or a `Stay` line naming the
+  condition that fails. The pointer names the signal, so a reader who meets
+  it knows to open the file. The detector cannot tell "When the pass runs",
+  which every reader needs, from "When the caller commits", which only some
+  do: the words have the same shape.
+- **A move is made after the compaction's commit, in a commit of its own.**
+  The compaction's diff stays a rewrite a reviewer reads alone, and the
+  gate's `--verify` and review records cover only the compaction. The
+  person decides at compaction.md's step 9, beside the `Would drop:` lines.
+- **Candidates never make a doc due.** A declined move leaves no record, so
+  a trigger counting candidates would bring the same doc due on every edit
+  and spend a compaction, 300k to 500k tokens, re-proposing moves a person
+  turned down.
+- **False hits removed from the detector,** found by running it on this
+  repository's ten `SKILL.md` files, their read-first files and
+  `compaction.md`:
+  - "Before", "After", "Once" and "While": they order the steps every
+    reader runs. With them, spec-check's *Commit* ("After the last fix
+    ...", 1,985 bytes) and prose's "Before a commit" were flagged.
+  - "When" alone and "When to ...": a section saying when a skill applies
+    is read to decide whether it does, such as spec-check's *When* and
+    *When to write a TLA+ model*.
+  - A condition every reader meets, "If you are an agent": bug-hunter's
+    *If you are an agent about to commit*, 8,947 bytes, was flagged by
+    its heading, then by its first sentence. Such a heading rules out the
+    whole section.
+  - A section opening on a code span, such as manage-skills'
+    "`uninstall` removes the skill's hook too".
+  - A first paragraph that is a bold lead-in counts as a lead-in, with
+    its own extent. Read as a first sentence, it flagged all of
+    manage-skills' *Workflows*, a 3,278-byte menu of requests opened by
+    "**"Install the X skill"**".
+- **The hits, by cost,** in this repository on 2026-11-04 (`prose cost`):
+
+  | Section | Bytes | Reads | Cost |
+  |---|---|---|---|
+  | bug-hunter `SKILL.md`, *Then ask, one recommendation at a time* | 3,965 | 129 | 511,485 |
+  | bug-hunter `SKILL.md`, *When the caller commits* | 3,138 | 129 | 404,802 |
+  | bug-hunter `SKILL.md`, *The abort is an ending, ...* | 2,026 | 129 | 261,354 |
+  | bug-hunter `SKILL.md`, "If prose asks for a cold read" | 1,166 | 129 | 150,414 |
+  | bug-hunter `reference.md`, *When the run aborts* | 4,034 | 25 | 100,850 |
+  | bug-hunter `reference.md`, "When mutants ran" | 2,365 | 25 | 59,125 |
+  | github-app `SKILL.md`, *When something fails* | 1,053 | 17 | 17,901 |
+  | prose `compaction.md`, "When it is due." | 1,497 | 8 | 11,976 |
+  | linear-app `SKILL.md`, *When Linear tools fail* | 1,166 | 10 | 11,660 |
+
+  Six more, in prose's `reference.md`, bug-hunter's `mutation.md` and
+  worktrees' `SKILL.md`, cost under 7,000 each. "When it is due." is the
+  kind the compactor declines: its words name a condition, but it is the
+  reference a reader opens compaction.md for.
+- **Known gaps, recorded rather than fixed.** A wrong candidate costs one
+  `Stay` line, a missed one a move nobody proposes:
+  - setext headings (text underlined with `===` or `---`) are not seen,
+    a gap `--verify` has too;
+  - a lead-in's extent is guessed: a paragraph's takes the lists, tables
+    and code after it, up to the next plain paragraph at its indent or a
+    line that leaves its list item; a list item's, its own continuation
+    lines. A candidate that shares a line with an earlier, wider one is
+    dropped, so a misjudged extent never proposes a line twice;
+  - a condition stated later in a section's first paragraph, not at its
+    start, is missed;
+  - a lead-in on the line straight after a `---` rule or an HTML comment is
+    missed: only a blank line, a heading or code ends the block before it.
+
+**Cost is bytes times reads.** A section only some readers need is paid for
+by every reader of the doc, so a 1,000-byte section of a doc read 129 times
+outranks a 4,000-byte one read 25 times. The reads are the trigger's
+estimate (*Compaction keeps docs read before work compact*): the commits
+among the last 300 behind HEAD that imply a read of the doc. The trigger
+counts from the doc's last compaction, since it asks how much was read
+since. The cost counts from the commit that added the doc, since a move
+saves bytes on every read, before a compaction and after it.
+- **The map also counts each commit as a read of every `AGENTS.md` and
+  `CLAUDE.md` above the files it changes,** the root's for every commit, and
+  of the files an `AGENTS.md` links as read first. Without that, those
+  files, the docs loaded most, ranked last with no reads. It changes no
+  trigger: they are read often by place, so their reads were never counted.
+- **Known gaps:** a file read first before some task counts a read for every
+  commit in its skill, so `compaction.md` gets one for each commit changing
+  prose, compacting or not. A doc added recently has had fewer commits to
+  count. Both only reorder the ranking a person reads.
+
+**Skill descriptions are measured when a change sets one.** `prose check`'s
+first call prints, for each `SKILL.md` the change adds or whose
+`description:` it changes, the description's bytes and characters as a YAML
+reader loads them, what it was, and the total over every staged `SKILL.md`.
+A commit that leaves descriptions alone prints nothing, so the line appears
+only where the author can act on it.
+- **Flagged above 1,024 characters,** the most the Agent Skills
+  specification allows, which Anthropic's API enforces for uploaded skills;
+  a host may refuse or cut a longer one. On 2026-11-04 the ten descriptions
+  here took 5,535 bytes, from 310 (manage-skills) to 1,027 (bug-hunter,
+  1,021 characters).
+- **Rejected: a lower limit.** A description's words decide when a host
+  loads the skill, so cutting one trades triggering for bytes, and only
+  reading it can judge that trade. The size and the total, printed on every
+  change, show the author the cost.
+- **Bytes are the cost and characters the limit:** context holds bytes, at
+  about 4 a token, and the specification counts characters.
+- **The value is read without a YAML library,** since prose uses the
+  standard library only. It matched PyYAML on all 268 `SKILL.md` files
+  installed on the machine it was built on. **Known gaps, recorded rather
+  than fixed,** since a wrong reading misstates one advisory size:
+  - a folded (`>`) block's more-indented lines are folded like the rest,
+    where YAML keeps their line breaks;
+  - a block indicator (`>` or `|`) on the line after the key is read as
+    plain text;
+  - a skill whose directory the change renames is reported as a new skill.
+- **Neither the brief's reads nor the description measure download a
+  missing blob,** as the trigger never does: in a partial clone, git would
+  otherwise fetch each one from the remote. Both run with
+  `GIT_NO_LAZY_FETCH=1`, and a SKILL.md whose blob the clone lacks is left
+  out of the total.
+
+---
+
 ## The rules are on screen before a signature
 
 A trailer or footer takes two calls. The first, `check` or `sign` without

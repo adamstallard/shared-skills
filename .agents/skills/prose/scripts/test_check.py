@@ -1906,7 +1906,7 @@ class ResultBlock(unittest.TestCase):
         self.addCleanup(shutil.rmtree, root, True)
         scripts = root / "skills" / "prose" / "scripts"
         scripts.mkdir(parents=True)
-        for name in ("prose.py", "comment_scan.py", "compact.py"):
+        for name in ("prose.py", "comment_scan.py", "compact.py", "reading_cost.py"):
             shutil.copy(HERE / name, scripts / name)
         shutil.copy(HERE.parent / "rules.md", scripts.parent / "rules.md")
         lib = root / "lib" / "commit-trailer"
