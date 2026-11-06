@@ -9,6 +9,7 @@ below comes from a real miss, and a test pins it. Standard library only.
 
 import io
 import json
+import os
 import pathlib
 import re
 import subprocess
@@ -905,7 +906,7 @@ def git(args, cwd=None):
     # scans fine.
     result = subprocess.run(
         ["git", "-c", "core.quotePath=false"] + args,
-        cwd=cwd, capture_output=True, check=False,
+        cwd=cwd, capture_output=True, check=False, env=git_env(),
     )
     if result.returncode != 0:
         sys.stderr.write(result.stderr.decode("utf-8", errors="replace"))
@@ -915,17 +916,52 @@ def git(args, cwd=None):
     return result.stdout.decode("utf-8", errors="replace")
 
 
-# `added_lines` reads the default shape of a unified diff, and every one of
-# these flags pins one thing a user's config can reshape: `diff.external`
-# (difftastic and friends) replaces the text wholesale, `color.ui=always`
-# threads escape codes through it, `diff.relative` names paths from the
-# caller's directory when every reader here wants the tree top, and
-# `diff.mnemonicPrefix` / `diff.noprefix` / `diff.srcPrefix` move the `b/`
-# that the header parse strips. Each one, unpinned, empties the run or drops
-# files from it with at most a stderr line to say so.
-DIFF = [
-    "diff", "--no-ext-diff", "--no-color", "--no-relative",
-    "--src-prefix=a/", "--dst-prefix=b/", "--unified=0",
+# Every diff prose reads starts from DIFF_CONFIG and the DIFF flags
+# below, so no setting outside the
+# repository's tracked files changes what a diff says: each one a user's
+# config or environment can reshape is pinned to git's default here
+# (prose's DECISIONS.md, *Diffs are read with git's defaults*, has the full
+# list).
+# - `added_lines` reads the default shape of a unified diff. Unpinned,
+#   `diff.external` replaces the text, `color.ui=always` threads escape
+#   codes through it, `diff.relative` names paths from the caller's
+#   directory, and `diff.mnemonicPrefix`, `diff.noprefix` and
+#   `diff.srcPrefix` move the `b/` the header parse strips: each empties
+#   the listing or drops files from it.
+# - The algorithm, the indent heuristic, the inter-hunk context and the
+#   rename limit decide which lines count as added; a textconv driver
+#   numbers lines of its output rather than of the file read afterwards.
+# - A personal attributes file can mark a doc `-diff` or bind it to a
+#   driver, and `core.bigFileThreshold` makes a large file binary. The
+#   repository's own `.gitattributes` still applies, as it does for anyone.
+#   An empty `attr.tree` reads them from the work tree and index, as
+#   by default; git_env below removes `GIT_ATTR_SOURCE` and turns system
+#   attributes off.
+# - Replace refs (`refs/replace/`) swap one object for another, and git
+#   follows them by default; `core.useReplaceRefs` and two environment
+#   variables, which git_env removes, would turn them off or move them.
+#   `core.precomposeUnicode` rewrites a path given to git, so it stays off,
+#   its default, and a path matches the index as the index spells it.
+DIFF_CONFIG = ["-c", "core.attributesFile=/dev/null", "-c", "attr.tree=",
+               "-c", "core.bigFileThreshold=512m", "-c", "core.useReplaceRefs=true",
+               "-c", "core.precomposeUnicode=false"]
+
+# Environment variables that change what a diff reads, which git_env drops.
+UNSET_ENV = ("GIT_ATTR_SOURCE", "GIT_NO_REPLACE_OBJECTS", "GIT_REPLACE_REF_BASE")
+
+
+def git_env():
+    """The environment for git: this process's, without UNSET_ENV, and with
+    system-wide attributes off (GIT_ATTR_NOSYSTEM), as DIFF_CONFIG says."""
+    env = {key: value for key, value in os.environ.items() if key not in UNSET_ENV}
+    env["GIT_ATTR_NOSYSTEM"] = "1"
+    return env
+
+
+DIFF = DIFF_CONFIG + [
+    "diff", "--no-ext-diff", "--no-textconv", "--no-color", "--no-relative",
+    "--src-prefix=a/", "--dst-prefix=b/", "--unified=0", "--inter-hunk-context=0",
+    "--diff-algorithm=myers", "--indent-heuristic", "-l1000", "--ignore-submodules=none",
 ]
 
 

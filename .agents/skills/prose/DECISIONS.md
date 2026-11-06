@@ -1086,6 +1086,153 @@ report, the next step is a second cold read of the fixed text.
 
 ---
 
+## A merge commit is judged by what the merge changed
+
+For a merge, `prose check` lists only the passages where the staged result
+differs from every parent, by git's combined diff (`git diff --cc`): the text
+the merge resolved or wrote, such as a conflict resolution or an edit neither
+branch made (an evil merge). Text the result takes unchanged from a parent is
+not listed. So it gets no cold read, needs no goals, raises no
+history-language flag and draws no compaction advice. A commit with one
+parent, or none, lists as it always has.
+
+The parents are HEAD and each commit in `MERGE_HEAD` (several for an octopus)
+while a merge is in progress, and with `--amend` the amended commit's own
+parents. `--amend` refuses during a merge, as `git commit --amend` does.
+
+**Why.** Merging main into a pull request is the usual way to make it
+mergeable again, and the listing used to diff against the first parent alone.
+On 2026-11-06 one such merge listed 160 passages that main had gained, 4 of
+them the merge's own. The other 156 had passed their own cold reads when they
+merged, and keeping them unchanged meant a person answering 205
+cold-read findings and understood lines one at a time (issue #59).
+
+**Why git's rule.** `--cc` also drops each hunk where the result takes one
+parent's version unchanged, though it differs from the others. So a conflict
+resolved by taking one side lists nothing, and a resolution mixing lines from
+both sides is listed, though each line is some parent's. The listing is
+exactly what `git show` prints for the merge commit, so a reviewer can check
+it there.
+
+**With git's default context, 3 lines.** Context joins changes up to a few
+lines apart into one hunk, as `git show` prints them. Without it, a
+resolution taking one side's line 2 and the other side's line 4 splits into
+two hunks, each matching one parent, and lists nothing.
+- **The cost:** a line the merged-in branch changed cleanly, within the
+  context of the merge's own edit, falls in the same hunk and is listed and
+  read cold again.
+- **Rejected: no context.** It lists less, but it misses such resolutions,
+  and the listing no longer matches `git show`.
+
+**Rejected: diffing against the first parent and skipping what matches the
+merged-in branch.** In a passage both branches edited, the first-parent diff
+gives one hunk that matches neither branch, so all of it is listed, including
+the lines the merge took unchanged from the merged-in branch. `--cc` compares
+with every parent at once and keeps only the hunks the merge resolved.
+
+**How the lines are found.** With context, `--cc` prints every line of a
+kept hunk, so prose counts the staged lines from the hunk's start and lists
+those whose prefix has a `+`, which marks a line some parent lacks. The
+diff finds renames (`-M`) and reads with git's defaults (*Diffs are read
+with git's defaults*, below). A doc one branch renamed and the other edited is
+then paired with the old path and lists nothing, unless it differs so much
+from HEAD's copy that git no longer counts it a rename; then it lists whole,
+as `git show` prints it. The compaction trigger takes a merge's paths from
+the same diffs, so it advises only on what the listing reads.
+
+**A doc git diffs as binary is listed whenever `--cc` names it,** which
+includes a doc marked `-diff` that git merged cleanly: `--cc` prints "Binary
+files differ" for it, as `git show` does, and the merge then needs reader
+goals for it, with nothing to read cold. That cost is accepted: prose
+lists the doc as `git show` names it, with no case of its own.
+
+**What merges leave unchanged.**
+- The trailer, `verify-staged` and the reuse of a cold read on a re-sign are
+  keyed on the staged tree, not on a diff. When a re-sign reuses a cold read,
+  the items it compares with the earlier read's come from the merge's listing.
+- The compaction gate and the `compacted:` list still compare with the first
+  parent. They cover only docs a compaction was started on in this work tree,
+  and a compaction starts from HEAD's copy, so HEAD is the copy to compare
+  with. Neither reads the merge's diff.
+- `verify-commit` still answers `merge commit, not checked`, so the commit
+  hook does not verify a signed merge: the shared library never reports a
+  merge ([its reason](../../lib/commit-trailer/DECISIONS.md#commit-merge-is-excluded-rebase-continue-is-not)).
+
+---
+
+## Diffs are read with git's defaults
+
+Every diff `prose check` lists from, for a plain commit or a merge, starts
+from `comment_scan.DIFF`, which pins each setting a user's config or
+environment can use to change what the diff says. So the listing is the
+one git gives with no config, and for a merge it is what `git show` prints.
+The repository's own `.gitattributes` still applies, as it does for anyone.
+
+**Why.** Each unpinned setting was a way for the listing to differ between
+machines, or from what was staged. Three were found one at a time in
+review: the indent heuristic, a textconv driver and the rename limit. So
+every setting that can change a diff was swept at once, and a table-driven
+test (`test_diff_config.py`) sets each one away from its default and checks
+that neither listing changes.
+
+**Plain commits change only where they were wrong.** Before this, a plain
+commit's listing followed the user's diff algorithm, rename limit, textconv
+drivers, personal attributes and large-file threshold. Under any of them it
+could name other lines, the wrong lines (textconv numbers the lines of its
+output, not of the file), or call a doc binary. With no such setting, the
+listing is what it was.
+
+**Pinned, on every diff:**
+- `--no-ext-diff` (`diff.external`, `diff.<driver>.command`,
+  `GIT_EXTERNAL_DIFF`), `--no-textconv` (`diff.<driver>.textconv`),
+  `--no-color` (`color.diff`, `color.ui`, `diff.colorMoved`,
+  `diff.wsErrorHighlight`, `core.whitespace`), `--no-relative`
+  (`diff.relative`).
+- `--diff-algorithm=myers` (`diff.algorithm`, `diff.<driver>.algorithm`),
+  `--indent-heuristic` (`diff.indentHeuristic`), `--inter-hunk-context=0`
+  (`diff.interHunkContext`), `-l1000` (`diff.renameLimit`), `-M`
+  (`diff.renames`), `--unified=0`, or 3 for a merge (`diff.context`,
+  `GIT_DIFF_OPTS`), `--src-prefix=a/ --dst-prefix=b/` (`diff.noprefix`,
+  `diff.mnemonicPrefix`, `diff.srcPrefix`, `diff.dstPrefix`),
+  `--ignore-submodules=none` (`diff.ignoreSubmodules`).
+- Config given with `-c`: `core.attributesFile=/dev/null`, so a personal
+  attributes file cannot mark a doc `-diff` or bind it to a driver;
+  `attr.tree=` empty, so attributes come from the work tree and index;
+  `core.bigFileThreshold=512m`, git's default, below which a file is not
+  treated as binary for its size; `core.useReplaceRefs=true`, git's
+  default, so a replace ref swaps an object as it does by default;
+  `core.precomposeUnicode=false`, its default, on the diffs and on the read
+  of each staged file, so a path given to git matches the index as the
+  index spells it. On, which is `git init`'s value on macOS, git cannot
+  read a staged file whose accented name is decomposed. Every git call
+  also sets `core.quotePath=false`, so paths print unquoted.
+- Environment: `GIT_ATTR_SOURCE`, `GIT_NO_REPLACE_OBJECTS` and
+  `GIT_REPLACE_REF_BASE` removed, and `GIT_ATTR_NOSYSTEM=1`, so system-wide
+  attributes do not apply. That last is the only pin not tested, since a
+  test cannot write the system attributes file.
+
+**Shown by the test not to matter:** `diff.orderFile` and
+`diff.suppressBlankEmpty` (order and context lines only),
+`diff.dirstat` and `diff.statNameWidth` (stat output only),
+`diff.<driver>.xfuncname` (text after a hunk header), `core.autocrlf`,
+`core.eol`, `core.safecrlf` and an `eol` attribute (the diffs compare blobs
+already in the index and commits, converted when staged),
+`GIT_CONFIG_PARAMETERS` and `GIT_CONFIG_COUNT` (config, which the flags
+override).
+
+**Rejected: running git with `GIT_CONFIG_GLOBAL=/dev/null` and
+`GIT_CONFIG_NOSYSTEM=1`.** The repository's own config can set every one of
+these too, so the flags are needed anyway. And global and system config
+hold `safe.directory`, without which git refuses a repository another user
+owns.
+
+**Known gaps.** Two repository-local settings are not pinned:
+`.git/info/attributes`, which no flag turns off; and `diff.<driver>.binary`
+for a driver the tracked `.gitattributes` names, which only `--text` would
+override, and `--text` would read real binary files as text.
+
+---
+
 ## Every cold-read finding is answered before signing
 
 The signing call takes `--dispositions <file>` beside the report. Its first
