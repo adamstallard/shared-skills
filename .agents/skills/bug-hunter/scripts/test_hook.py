@@ -3623,6 +3623,38 @@ class CommitFamiliesTests(unittest.TestCase):
         self.assertEqual(self.trailer("Bug-hunter"), "0 bugs found")
         self.assertEqual(self.git("log", "-1", "--format=%s"), "FEAT: x")
 
+    def test_an_empty_commit_lands_only_when_asked(self):
+        before = self.git("rev-parse", "HEAD")
+        value = self.demo_value("FEAT: x", "body")
+        refused = self.commit(*self.two_families(value))
+        self.assertNotEqual(refused.returncode, 0)
+        self.assertEqual(self.git("rev-parse", "HEAD"), before)
+        result = self.commit("--allow-empty", *self.two_families(value))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.git("rev-parse", "HEAD^{tree}"), self.git("rev-parse", "HEAD~^{tree}"))
+        self.assert_both_families_landed(value)
+
+    def test_an_empty_commit_takes_the_hook_path_too(self):
+        self.install_hook("#!/bin/sh\nexit 0\n")
+        value = self.demo_value("FEAT: x", "body")
+        result = self.commit("--allow-empty", *self.two_families(value))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assert_both_families_landed(value)
+
+    def test_the_wrapper_makes_an_empty_commit_only_when_asked(self):
+        self.assertNotEqual(self.wrap("--", "FEAT: x", "", "0 bugs found").returncode, 0)
+        result = self.wrap("--allow-empty", "--", "FEAT: x", "", "0 bugs found")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.trailer("Bug-hunter-Tree"), self.git("rev-parse", "HEAD^{tree}"))
+        self.assertEqual(self.run_hook().returncode, QUIET)
+
+    def test_the_wrapper_refuses_allow_empty_after_a_family(self):
+        prose = self.prose_value(self.demo, "FEAT: x", "")
+        result = self.wrap("--verified-value", str(self.demo), "Prose", prose, "--",
+                           "--allow-empty", "FEAT: x", "", "0 bugs found")
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("goes first", result.stderr)
+
     def test_the_wrapper_refuses_a_malformed_family_before_anything_runs(self):
         self.stage()
         good = self.prose_value(self.demo, "FEAT: x", "body")

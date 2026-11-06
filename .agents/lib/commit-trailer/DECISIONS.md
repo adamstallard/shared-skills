@@ -1408,3 +1408,30 @@ report that is usually noise gets ignored.
   verify its own trailer* describes. A pathspec is data and needs none.
 - **Filtering in the skill's report.** By then the library has decided to
   report, and an empty report falls back to the generic one.
+
+---
+
+## An empty commit, only when asked
+
+**Decision.** The caller may pass `--allow-empty`: to the library, among its
+options, or to bug-hunter's wrapper, as its very first argument. The library
+then passes `--allow-empty` to `git commit`, whether git runs the commit
+hooks or the library runs them itself (see *The pre-commit hook runs before anything is bound*).
+Without it, git refuses a commit whose staged tree is its parent's. An
+empty commit's families are bound like any other's: its tree is its
+parent's tree, a minted `<Key>-Tree` line names that tree, and each verifier
+checks its value against it.
+
+**Why.** Some trailers record work that changes no file. spec-check's
+consistency read is one. It runs once per review round, the agent's work
+between two hand-backs to a person. When the read amends nothing and every
+edit of the round is already pushed, its record has no commit to go on, and
+a pushed commit is never rewritten (spec-check's DECISIONS.md, *One
+consistency read per round*).
+
+**Rejected.** Allowing empty commits always. An empty commit is almost
+always a mistake, such as staging nothing by accident; git's refusal catches
+it, so it is given up only when the caller says so.
+
+**Where this stops applying.** It permits an empty commit; it does not
+check that the trailers are worth one. That is the caller's judgement.

@@ -1,0 +1,32 @@
+# spec-check's workflow checks that a pull request handed back for review
+# has had its consistency read. Written by `spec_check.py setup-ci`; see
+# spec-check's README.
+#
+# When a change under openspec/changes is unread at the pull request's head
+# (edited after its last consistency read), the check fails. If the event handed the pull request back (opened ready,
+# reopened, marked ready, or a review requested), it is made a draft again
+# and the review request is withdrawn. A push only fails the check.
+name: spec-check
+on:
+  pull_request:
+    types: [opened, reopened, ready_for_review, review_requested, synchronize]
+permissions:
+  contents: read
+  pull-requests: write
+jobs:
+  spec-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - name: Every OpenSpec change was read since it last changed
+        env:
+          # A full commit SHA of adamstallard/shared-skills, never a branch,
+          # so the script the workflow runs cannot change under it.
+          SPEC_CHECK_SHA: <SPEC_CHECK_SHA>
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          curl -fsSL "https://raw.githubusercontent.com/adamstallard/shared-skills/$SPEC_CHECK_SHA/.agents/skills/spec-check/scripts/spec_check.py" -o "$RUNNER_TEMP/spec_check.py"
+          python3 "$RUNNER_TEMP/spec_check.py" ci

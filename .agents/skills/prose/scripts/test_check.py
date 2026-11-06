@@ -1881,6 +1881,24 @@ class ResultBlock(unittest.TestCase):
                               *extra], cwd=repo.path, stdin="Title\n")
                 self.assertEqual((result.returncode, result.stdout), (2, ""))
                 self.assertIn("commit-trailer library is missing", result.stderr)
+    def test_without_the_shared_reader_a_gh_post_is_blocked_with_the_fix(self):
+        root = pathlib.Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, root, True)
+        scripts = root / "skills" / "prose" / "scripts"
+        scripts.mkdir(parents=True)
+        for name in ("prose.py", "comment_scan.py"):
+            shutil.copy(HERE / name, scripts / name)
+        payload = json.dumps({"tool_name": "Bash", "cwd": str(root),
+                              "tool_input": {"command": "gh pr comment 5 --body 'hi'"}})
+        result = run([sys.executable, str(scripts / "prose.py"), "hook-post", "--host", "claude"],
+                     cwd=root, stdin=payload)
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn("shared command reader is missing", result.stderr)
+        quiet = json.dumps({"tool_name": "Bash", "cwd": str(root),
+                            "tool_input": {"command": "ls"}})
+        self.assertEqual(run([sys.executable, str(scripts / "prose.py"), "hook-post", "--host",
+                              "claude"], cwd=root, stdin=quiet).returncode, 0)
+
     def test_a_failing_result_block_leaves_the_token_unspent(self):
         # Only a printed trailer spends the token: if the result block cannot
         # be printed, the same signing call can run again.

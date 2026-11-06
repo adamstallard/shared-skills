@@ -9,8 +9,13 @@
 # tree, not recalled by the agent".
 #
 # Usage:
-#   commit-with-trailers.sh <family>... [--co-authored-by <value>]... --message-file <path> --
-#   commit-with-trailers.sh <family>... [--co-authored-by <value>]... -- <subject> <body>
+#   commit-with-trailers.sh <family>... [--co-authored-by <value>]... [--allow-empty] --message-file <path> --
+#   commit-with-trailers.sh <family>... [--co-authored-by <value>]... [--allow-empty] -- <subject> <body>
+#
+# --allow-empty commits even when the staged tree is the parent's, so a
+# commit can carry trailers that record work which changed no file, such as
+# a spec-check consistency read that amended nothing (DECISIONS.md, "An
+# empty commit, only when asked"). Without it, git refuses such a commit.
 #
 # --message-file <path> reads the message from a file instead of from
 # <subject> <body>: the first line is the subject, the line after it must be
@@ -35,10 +40,12 @@
 #       message: the subject, then, if the body is not empty, a blank line and
 #       the body. The message is exactly as passed here, with no trailers and
 #       no trailing newline. Exit 0 means it still matches; anything else
-#       refuses the whole commit. When the repository has a pre-commit hook,
-#       this script runs it before the verifiers, so a hook that changes the
-#       staged files makes the value stale: sign after running
-#       run-pre-commit.sh (next to this file). If the commit-msg hook changes
+#       refuses the whole commit. When a value is bound and the repository
+#       has a pre-commit or commit-msg hook, this script runs pre-commit
+#       before the verifiers (step 3 below), so a hook that changes the
+#       staged files makes the value stale. The skill that makes the value
+#       should therefore run run-pre-commit.sh (next to this file) before it
+#       signs. If the commit-msg hook changes
 #       the message, the verifier runs again on the changed message, minus
 #       the trailer lines this script added.
 #
@@ -52,13 +59,15 @@
 #   given.
 # - Keys hold letters, digits and dashes, and start with a letter.
 # - No key may be a prefix of another, ignoring case: git treats such keys as
-#   one (`Pro` and `Prose`). So `<Key>-Tree` belongs to <Key>.
+#   one (`Pro` and `Prose`). The one exception is `<Key>-Tree`, a family's
+#   own binding line, which is never passed as a key.
 # - A <minter> or <verifier> is a path containing a slash (`./verify`, not
 #   `verify`).
 # - --co-authored-by adds `Co-Authored-By: <value>` after the families; an
 #   empty value is left out.
 # - No word an option takes may be `--` or an option name (--minted,
-#   --minted-by, --verified-value, --co-authored-by, --message-file). That is
+#   --minted-by, --verified-value, --co-authored-by, --message-file,
+#   --allow-empty). That is
 #   refused as a missing argument, not accepted as a value.
 # - The `--` before <subject> is required, and so is the `--` after
 #   --message-file's options, with no words after it.
@@ -67,8 +76,11 @@
 # 1. validate every argument (exit 2)
 # 2. check that every minter and verifier exists (exit 1)
 # 3. only if a value is bound and the repository has a pre-commit or
-#    commit-msg hook: run pre-commit now, through commit-with-hooks.sh (exit 1
-#    if it fails, or cannot be run first: an unmerged index, git < 2.36)
+#    commit-msg hook: take the hook path, through commit-with-hooks.sh, which
+#    runs pre-commit now if there is one. Exit 1 if pre-commit fails or
+#    cannot be run first (an unmerged index, or git older than 2.36). With
+#    only a commit-msg hook on git older than 2.36, the plain path commits
+#    instead, and git runs commit-msg.
 # 4. run every verifier (exit 1 on a refusal)
 # 5. run every mint (exit 1 on failure, or on output other than a one-line
 #    binding)
@@ -81,8 +93,8 @@ me=commit-with-trailers
 lib_dir=$(CDPATH= cd -P -- "$(dirname -- "$0")" && pwd -P)
 
 usage() {
-  echo "usage: commit-with-trailers.sh <family>... [--co-authored-by <value>]... --message-file <path> --" >&2
-  echo "       commit-with-trailers.sh <family>... [--co-authored-by <value>]... -- <subject> <body>" >&2
+  echo "usage: commit-with-trailers.sh <family>... [--co-authored-by <value>]... [--allow-empty] --message-file <path> --" >&2
+  echo "       commit-with-trailers.sh <family>... [--co-authored-by <value>]... [--allow-empty] -- <subject> <body>" >&2
   echo "  family: --minted <Key> <value> | --minted-by <minter> <Key> <value> | --verified-value <verifier> <Key> <value>" >&2
   exit 2
 }
@@ -132,6 +144,7 @@ nfam=0
 message_file=''
 has_message_file=n
 saw_end=n     # y once the `--` that ends the options is seen
+allow_empty='' # --allow-empty, passed to git commit, when asked for
 
 add_key() {
   k=$1
@@ -163,7 +176,7 @@ takes() {
   n=$1 opt=$2; shift 2
   [ "$#" -ge "$n" ] || usage
   while [ "$n" -gt 0 ]; do
-    case $1 in --|--minted|--minted-by|--verified-value|--co-authored-by|--message-file)
+    case $1 in --|--minted|--minted-by|--verified-value|--co-authored-by|--message-file|--allow-empty)
       refuse "$opt is missing an argument: '$1' was taken as one of them" ;;
     esac
     shift; n=$((n - 1))
@@ -189,6 +202,9 @@ while [ "$#" -gt 0 ]; do
       co=$(trim "$2"); shift 2
       one_line "the Co-Authored-By value" "$co"
       [ -n "$co" ] && co_authors="$co_authors --trailer $(q "Co-Authored-By: $co")"
+      continue ;;
+    --allow-empty)
+      allow_empty=--allow-empty; shift
       continue ;;
     --message-file)
       takes 1 "$@"
@@ -363,4 +379,4 @@ args="$args$co_authors"
 if [ "$with_hooks" = y ]; then hooks_commit; fi # same pins; never returns
 eval "set -- $args"
 exec git -c trailer.ifexists=add -c trailer.ifmissing=add \
-    -c trailer.separators=: -c trailer.where=end commit "$@"
+    -c trailer.separators=: -c trailer.where=end commit $allow_empty "$@"

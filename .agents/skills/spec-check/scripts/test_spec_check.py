@@ -2126,7 +2126,7 @@ class TrailerTests(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(self.hook().returncode, 0)
         body = self.repo.git("log", "-1", "--format=%B")
-        self.assertIn("read by a fresh subagent; 2 amended, 0 open", body)
+        self.assertIn("read by a fresh subagent: good; 2 amended, 0 open", body)
 
     def test_a_skip_note_is_quiet(self):
         self.stage_change()
@@ -2188,6 +2188,31 @@ class TrailerTests(unittest.TestCase):
                               "later); read by", line)
                 self.assertNotIn("; validate not run;", line)
 
+    def test_a_read_that_amends_nothing_lands_on_an_empty_commit(self):
+        """With every edit committed, the read is recorded on an empty commit,
+        its trailer still bound to the tree."""
+        self.hook(BUG_HUNTER_HOOK)
+        self.repo.git("checkout", "-q", "-b", "spec")
+        self.stage_change()
+        signed_commit(self, self.repo, read="deferred")
+        r = self.repo.run("sign", "--read", "subagent", "--base", "main", "--no-validate")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        value = r.stdout.strip().splitlines()[-1][len("Spec-check: "):]
+        self.assertIn("read by a fresh subagent: good;", value)
+        (self.repo.path / "msg.txt").write_text("Record the consistency read\n")
+        before = self.repo.git("rev-parse", "HEAD^{tree}")
+        r = subprocess.run(
+            ["sh", str(BUG_HUNTER), "--allow-empty",
+             "--verified-value", str(VERIFY), "Spec-check", value, "--",
+             "-F", "msg.txt", "skipped at triage (no change)"],
+            cwd=self.repo.path, capture_output=True, text=True, env=ENV)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(self.repo.git("rev-parse", "HEAD^{tree}"), before)
+        self.assertEqual(self.hook().returncode, 0)
+        self.assertIn("no change waits for its consistency read",
+                      self.repo.run("sign", "--read", "subagent", "--base", "main",
+                                    "--no-validate").stderr)
+
     def test_bug_hunter_prose_and_spec_check_land_on_one_commit(self):
         """bug-hunter's commit script carries the other two as families."""
         self.hook(BUG_HUNTER_HOOK)  # settle bug-hunter's cursor past the base commit
@@ -2216,7 +2241,8 @@ class ManifestTests(unittest.TestCase):
         manifest = json.loads((HERE.parent / "hook.json").read_text())
         self.assertEqual(manifest["default"], "enabled")
         commands = [h["command"] for h in manifest["hooks"]]
-        self.assertEqual(commands, ["scripts/check-commit-trailer.sh"])
+        self.assertEqual(commands, ["scripts/check-commit-trailer.sh"]
+                         + ["scripts/check-handback.sh"] * 5)
         for command in commands:
             self.assertTrue(os.access(HERE.parent / command, os.X_OK), command)
 
@@ -2238,6 +2264,16 @@ class ManifestTests(unittest.TestCase):
         cursor = json.loads((tmp / "home/.cursor/hooks.json").read_text())["hooks"]
         self.assertTrue(any("check-commit-trailer.sh --host cursor" in h["command"]
                             for h in cursor["postToolUse"]))
+        before = {(g["matcher"], h["command"].split("/")[-1].split(" ")[0])
+                  for g in claude["PreToolUse"] for h in g["hooks"]}
+        self.assertIn(("^(Bash|mcp__github__.*|mcp__plugin_.*_github__.*)$", "check-handback.sh"),
+                      before)
+        self.assertIn(("^(Bash|mcp__github__.*|mcp__plugin_.*_github__.*)$", "check-handback.sh"),
+                      wired)
+        for event in ("beforeShellExecution", "beforeMCPExecution", "postToolUse",
+                      "afterMCPExecution"):
+            self.assertTrue(any("check-handback.sh --host cursor" in h["command"]
+                                for h in cursor[event]), event)
         r = subprocess.run([sys.executable, str(SKILLS_PY), "doctor"],
                            capture_output=True, text=True, env=env, cwd=tmp)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
@@ -4676,6 +4712,1468 @@ class StackedChangeArchiveTests(unittest.TestCase):
         self.s.repo.write("openspec/changes/lore-search/specs/cap/v2-spec.md", self.added("Search", SEARCH))
         line = self.refused(self.s.check("lore-search"), "Audit trail", "already exists")
         self.assertIn(f"{self.DELTA}:3:", line)
+
+
+def signed_commit(test, repo, read="subagent", message="Change the spec", extra=()):
+    """Signs the staged tree with sign --read <read> and commits it with that
+    trailer; returns the trailer's value."""
+    r = repo.run("sign", "--read", read, "--base", "main", "--no-validate", *extra)
+    test.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+    value = r.stdout.strip().splitlines()[-1][len("Spec-check: "):]
+    repo.git("commit", "-q", "-m", message, "--trailer", f"Spec-check: {value}")
+    return value
+
+
+class RoundTests(unittest.TestCase):
+    """One consistency read per round: the trailer records where it ran
+    (DECISIONS.md, "One consistency read per round")."""
+
+    def setUp(self):
+        self.repo = Repo(self)
+        self.repo.git("checkout", "-q", "-b", "spec")
+
+    def sign(self, read, *extra):
+        return self.repo.run("sign", "--read", read, "--base", "main", "--no-validate", *extra)
+
+    def value(self, r):
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        return r.stdout.strip().splitlines()[-1]
+
+    def test_a_deferred_read_says_so(self):
+        self.repo.change("good")
+        self.repo.git("add", "-A")
+        r = self.sign("deferred")
+        line = self.value(r)
+        self.assertTrue(line.endswith("; read deferred to the round's end"), line)
+
+    def test_a_deferred_read_takes_no_counts(self):
+        self.repo.change("good")
+        self.repo.git("add", "-A")
+        r = self.sign("deferred", "--amended", "1")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("a deferred read has none", r.stderr)
+
+    def test_a_read_names_the_changes_it_read(self):
+        self.repo.change("good")
+        self.repo.change("other", delta=GOOD_DELTA.replace("Records expire", "Records are counted")
+                         .replace("delete a record ninety", "count a record each"))
+        self.repo.git("add", "-A")
+        line = self.value(self.sign("subagent", "--amended", "2", "--open", "1"))
+        self.assertTrue(line.endswith("; read by a fresh subagent: good, other; 2 amended, 1 open"), line)
+
+    def test_after_a_read_an_unchanged_change_is_not_due(self):
+        self.repo.change("good")
+        self.repo.git("add", "-A")
+        signed_commit(self, self.repo)
+        self.repo.write("openspec/specs/cap/spec.md", MAIN_SPEC + "\n")
+        self.repo.git("add", "-A")
+        line = self.value(self.sign("subagent"))
+        self.assertTrue(line.endswith("; no read due"), line)
+
+    def test_a_change_edited_after_its_read_is_due_again(self):
+        self.repo.change("good")
+        self.repo.git("add", "-A")
+        signed_commit(self, self.repo)
+        self.repo.write("openspec/changes/good/design.md", "## Context\n\nMore.\n")
+        self.repo.git("add", "-A")
+        line = self.value(self.sign("subagent"))
+        self.assertIn("read by a fresh subagent: good;", line)
+
+    def test_a_deferred_commit_does_not_count_as_a_read(self):
+        self.repo.change("good")
+        self.repo.git("add", "-A")
+        signed_commit(self, self.repo, read="deferred")
+        self.repo.write("src/app.py", "changed\n")
+        self.repo.git("add", "-A")
+        # Nothing under openspec/ is staged, but the change still waits for
+        # its read, so a code commit can carry it.
+        line = self.value(self.sign("subagent"))
+        self.assertIn("read by a fresh subagent: good;", line)
+
+    def test_a_code_commit_needs_no_trailer_when_no_read_waits(self):
+        self.repo.change("good")
+        self.repo.git("add", "-A")
+        signed_commit(self, self.repo)
+        self.repo.write("src/app.py", "changed\n")
+        self.repo.git("add", "-A")
+        r = self.sign("subagent")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("no change waits for its consistency read", r.stderr)
+
+    def test_a_value_from_before_rounds_read_the_changes_its_commit_touched(self):
+        self.repo.change("good")
+        self.repo.git("add", "-A")
+        tree = self.repo.git("write-tree")
+        self.repo.git("commit", "-q", "-m", "Old style", "--trailer",
+                      f"Spec-check: ✓ {tree[:12]} 0 errors, 0 checks; validate passed; "
+                      "read by a fresh subagent; 3 amended, 0 open")
+        self.repo.write("openspec/specs/cap/spec.md", MAIN_SPEC + "\n")
+        self.repo.git("add", "-A")
+        self.assertTrue(self.value(self.sign("subagent")).endswith("; no read due"))
+
+    def test_a_read_whose_tree_is_not_its_commits_records_nothing(self):
+        self.repo.change("good")
+        self.repo.git("add", "-A")
+        self.repo.git("commit", "-q", "-m", "Copied trailer", "--trailer",
+                      "Spec-check: ✓ 0123456789ab 0 errors, 0 checks; validate passed; "
+                      "read by a fresh subagent: good; 0 amended, 0 open")
+        self.repo.write("openspec/specs/cap/spec.md", MAIN_SPEC + "\n")
+        self.repo.git("add", "-A")
+        self.assertIn("read by a fresh subagent: good;", self.value(self.sign("subagent")))
+
+class KeptInRoundsTests(unittest.TestCase):
+    """Kept lines inside a review round: evolution errors fail every commit,
+    deferred or not; the kept count sits beside the checks on each kind of
+    value; and a value carrying it still records the round's read for sign,
+    unread_at and ci."""
+
+    DESIGN = "openspec/changes/x/design.md"
+    KEPT = "openspec/changes/x/.spec-check-kept"
+    ENTRY = "design.md: «The spec narrows the decision.» kept (asked): compares a spec with a decision\n"
+
+    def setUp(self):
+        self.repo = Repo(self)
+        self.repo.git("checkout", "-q", "-b", "spec")
+        self.repo.change("x")
+        self.repo.write(self.DESIGN, "## Decisions\n\nThe spec narrows the decision.\n")
+
+    def keep(self, text=ENTRY):
+        self.repo.write(self.KEPT, text)
+        self.repo.git("add", "-A")
+
+    def sign(self, read):
+        return self.repo.run("sign", "--read", read, "--base", "main", "--no-validate")
+
+    def test_a_deferred_commit_refuses_an_evolution_error_nobody_kept(self):
+        self.repo.git("add", "-A")
+        r = self.sign("deferred")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("error [evolution]", r.stdout)
+
+    def test_a_deferred_commit_counts_kept_lines_and_records_no_read(self):
+        self.keep()
+        value = signed_commit(self, self.repo, read="deferred")
+        self.assertRegex(value, r"^✓ [0-9a-f]{12} 0 errors, 0 checks, 1 evolution kept; "
+                                r"validate not run; read deferred to the round's end$")
+        self.assertEqual(spec_check.unread_at(str(self.repo.path), "HEAD", "main"), ["x"])
+
+    def test_a_read_carrying_kept_counts_is_the_changes_last_read(self):
+        self.keep()
+        value = signed_commit(self, self.repo)
+        self.assertRegex(value, r"^✓ [0-9a-f]{12} 0 errors, 0 checks, 1 evolution kept; "
+                                r"validate not run; read by a fresh subagent: x; 0 amended, 0 open$")
+        self.assertEqual(spec_check.unread_at(str(self.repo.path), "HEAD", "main"), [])
+        self.repo.write("openspec/specs/cap/spec.md", MAIN_SPEC + "\n")
+        self.repo.git("add", "-A")
+        r = self.sign("subagent")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertTrue(r.stdout.strip().endswith("; no read due"), r.stdout)
+
+    def test_editing_only_the_kept_file_makes_the_change_due(self):
+        self.keep()
+        signed_commit(self, self.repo)
+        self.keep(self.ENTRY + "\n")
+        signed_commit(self, self.repo, read="deferred")
+        self.assertEqual(spec_check.unread_at(str(self.repo.path), "HEAD", "main"), ["x"])
+
+    def test_ci_passes_a_head_whose_read_carries_kept_counts(self):
+        self.keep()
+        signed_commit(self, self.repo)
+        tmp = pathlib.Path(tempfile.mkdtemp(prefix="spec-check-ci-")).resolve()
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        event = tmp / "event.json"
+        event.write_text(json.dumps({"action": "ready_for_review", "pull_request": {
+            "html_url": "https://github.com/o/r/pull/7", "draft": False,
+            "head": {"sha": self.repo.git("rev-parse", "HEAD")}, "base": {"ref": "main"}}}))
+        r = self.repo.run("ci", "--event", str(event))
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("no OpenSpec change is unread", r.stdout)
+
+
+class RoundStartTests(unittest.TestCase):
+    """Which commit a never-read change's edits are counted from (the merge
+    base, or HEAD on the base branch), and which changes count as open (DECISIONS.md, "One consistency read per round")."""
+
+    def setUp(self):
+        self.repo = Repo(self)
+
+    def value(self, *args):
+        r = self.repo.run("sign", *args)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        return r.stdout.strip().splitlines()[-1]
+
+    def test_a_change_on_the_base_that_the_branch_leaves_alone_is_not_due(self):
+        self.repo.change("onmain")
+        self.repo.git("add", "-A")
+        self.repo.git("commit", "-q", "-m", "A change on main")
+        self.repo.git("checkout", "-q", "-b", "spec")
+        self.repo.write("openspec/specs/cap/spec.md", MAIN_SPEC + "\n")
+        self.repo.git("add", "-A")
+        self.assertTrue(self.value("--read", "subagent", "--base", "main", "--no-validate")
+                        .endswith("; no read due"))
+
+    def test_with_the_base_at_head_an_unread_change_is_due(self):
+        self.repo.git("checkout", "-q", "-b", "spec")
+        self.repo.change("good")
+        self.repo.git("add", "-A")
+        self.repo.git("commit", "-q", "-m", "Unread")
+        self.repo.write("openspec/specs/cap/spec.md", MAIN_SPEC + "\n")
+        self.repo.git("add", "-A")
+        self.assertIn("read by a fresh subagent: good;",
+                      self.value("--read", "subagent", "--base", "HEAD", "--no-validate"))
+
+    def test_a_change_with_no_deltas_is_open_and_its_read_is_recorded(self):
+        self.repo.git("checkout", "-q", "-b", "spec")
+        self.repo.write("openspec/changes/bare/proposal.md", GOOD_PROPOSAL)
+        self.repo.git("add", "-A")
+        self.assertIn("read by a fresh subagent: bare;",
+                      self.value("--read", "subagent", "--base", "main", "--no-validate"))
+
+    def test_a_value_from_before_rounds_covers_a_commit_of_top_level_files(self):
+        self.repo.git("checkout", "-q", "-b", "spec")
+        self.repo.change("good")
+        self.repo.git("add", "-A")
+        self.repo.git("commit", "-q", "-m", "Unread")
+        self.repo.write("openspec/changes/good/tasks.md", TASKS + "- [ ] 1.2 More\n")
+        self.repo.git("add", "-A")
+        tree = self.repo.git("write-tree")
+        self.repo.git("commit", "-q", "-m", "Old style", "--trailer",
+                      f"Spec-check: ✓ {tree[:12]} 0 errors, 0 checks; validate passed; "
+                      "read by a fresh subagent; 0 amended, 0 open")
+        self.repo.write("openspec/specs/cap/spec.md", MAIN_SPEC + "\n")
+        self.repo.git("add", "-A")
+        self.assertTrue(self.value("--read", "subagent", "--base", "main", "--no-validate")
+                        .endswith("; no read due"))
+
+    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.15.0 or later")
+    def test_a_change_that_validates_says_validate_passed(self):
+        self.repo.git("checkout", "-q", "-b", "spec")
+        self.repo.change("good")
+        self.repo.git("add", "-A")
+        self.assertIn("; validate passed;", self.value("--read", "subagent", "--base", "main"))
+
+
+class FoundByBugHunterRoundsIteration2Tests(unittest.TestCase):
+    """Bug-hunter's second iteration over rounds."""
+
+    def setUp(self):
+        self.repo = Repo(self)
+        up = pathlib.Path(tempfile.mkdtemp(prefix="spec-check-up-")).resolve()
+        self.addCleanup(shutil.rmtree, up, ignore_errors=True)
+        subprocess.run(["git", "init", "-q", "--bare", str(up)], check=True, env=ENV)
+        self.repo.git("remote", "add", "origin", str(up))
+        self.repo.git("push", "-q", "origin", "main")
+
+    def test_a_merged_change_with_an_edit_after_its_read_is_not_due_on_another_branch(self):
+        r = self.repo
+        r.git("checkout", "-q", "-b", "pr1")
+        r.change("x")
+        r.git("add", "-A")
+        signed_commit(self, r)
+        r.write("openspec/changes/x/tasks.md", TASKS + "- [ ] 1.2 Suggested\n")
+        r.git("add", "-A")
+        r.git("commit", "-q", "-m", "Apply suggestion from code review")
+        r.git("checkout", "-q", "main")
+        r.git("merge", "-q", "--no-ff", "pr1", "-m", "Merge PR 1")
+        r.git("push", "-q", "origin", "main")
+        r.git("checkout", "-q", "-b", "pr2", "origin/main")
+        r.change("y", delta=GOOD_DELTA.replace("Records expire", "Logs rotate").replace(
+            "delete a record ninety days after its last read", "rotate a log file weekly"))
+        r.git("add", "-A")
+        out = r.run("sign", "--read", "subagent", "--base", "origin/main", "--no-validate")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertIn("read by a fresh subagent: y;", out.stdout)
+
+class FoundByBugHunterWholeReadTests(unittest.TestCase):
+    """Bug-hunter's run over whole-change rounds."""
+
+    def setUp(self):
+        self.repo = Repo(self)
+
+    def origin(self):
+        up = pathlib.Path(tempfile.mkdtemp(prefix="spec-check-up-")).resolve()
+        self.addCleanup(shutil.rmtree, up, ignore_errors=True)
+        subprocess.run(["git", "init", "-q", "--bare", str(up)], check=True, env=ENV)
+        self.repo.git("remote", "add", "origin", str(up))
+        self.repo.git("push", "-q", "origin", "main")
+
+    def test_a_round_committed_on_the_base_branch_keeps_its_read_due(self):
+        r = self.repo
+        r.change("good")
+        r.git("add", "-A")
+        signed_commit(self, r, read="deferred")
+        r.write("src/app.py", "x = 1\n")
+        r.git("add", "-A")
+        out = r.run("sign", "--read", "subagent", "--no-validate")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertIn("read by a fresh subagent: good;", out.stdout)
+
+    def test_a_tag_named_like_the_branch_does_not_hide_the_base_branch(self):
+        r = self.repo
+        self.origin()
+        r.git("tag", "main")
+        r.change("good")
+        r.git("add", "-A")
+        signed_commit(self, r, read="deferred")
+        r.git("push", "-q", "origin", "refs/heads/main:refs/heads/main")
+        r.write("src/app.py", "x = 1\n")
+        r.git("add", "-A")
+        out = r.run("sign", "--read", "subagent", "--base", "origin/main", "--no-validate")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertIn("read by a fresh subagent: good;", out.stdout)
+
+
+
+class TouchedChangesTests(unittest.TestCase):
+    """Which open changes a commit touches, for a read recorded before
+    reads named their changes (tests from bug-hunter's mutation pass)."""
+
+    def setUp(self):
+        self.repo = Repo(self)
+
+    def test_a_commit_adding_only_under_archive_touches_no_open_change(self):
+        r = self.repo
+        r.write("openspec/changes/archive/2026-01-01-y/tasks.md", TASKS)
+        r.git("add", "-A")
+        r.git("commit", "-q", "-m", "Archive y")
+        self.assertEqual(spec_check.touched_changes(str(r.path), r.git("rev-parse", "HEAD")), set())
+
+    def test_a_root_commit_touches_the_changes_it_adds(self):
+        r = self.repo
+        r.git("checkout", "-q", "--orphan", "fresh")
+        r.change("x")
+        r.git("add", "-A")
+        r.git("commit", "-q", "-m", "A history that starts with a change")
+        self.assertEqual(spec_check.touched_changes(str(r.path), r.git("rev-parse", "HEAD")), {"x"})
+
+HANDBACK = HERE / "check-handback.sh"
+# A gh that answers `gh pr view <selector>` from $FAKE_PRS, a JSON object
+# keyed by selector or URL, or else with the JSON in $FAKE_PR (failing when
+# neither is set or the selector is not a key), succeeds at `gh pr ready --undo` and `gh pr edit` unless
+# $FAKE_UNDO_FAIL is set, and logs every call to $FAKE_PR_LOG.
+FAKE_PR_GH = """\
+import json, os, sys
+a = sys.argv[1:]
+if os.environ.get("FAKE_PR_LOG"):
+    with open(os.environ["FAKE_PR_LOG"], "a") as fh:
+        fh.write(json.dumps(a) + "\\n")
+if a[:2] == ["pr", "view"] and os.environ.get("FAKE_PRS") is not None:
+    prs = json.loads(os.environ["FAKE_PRS"])
+    key = a[2] if len(a) > 2 and not a[2].startswith("-") else ""
+    if key not in prs:
+        sys.exit("gh: no pull request " + key)
+    print(json.dumps(prs[key]))
+elif a[:2] == ["pr", "view"] and os.environ.get("FAKE_PR") is not None:
+    print(os.environ["FAKE_PR"])
+elif a[:2] in (["pr", "ready"], ["pr", "edit"]) and not os.environ.get("FAKE_UNDO_FAIL"):
+    pass
+else:
+    sys.exit("gh: not this time")
+"""
+
+
+class HandbackBase(unittest.TestCase):
+    """A repository on branch spec, pushed to an origin that stands in for
+    GitHub, and the hand-back hook run against it."""
+
+    def setUp(self):
+        self.repo = Repo(self)
+        self.repo.git("checkout", "-q", "-b", "spec")
+        tmp = pathlib.Path(tempfile.mkdtemp(prefix="spec-check-hb-")).resolve()
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        self.tmp, self.up, self.cache = tmp, tmp / "origin", tmp / "cache"
+        subprocess.run(["git", "init", "-q", "--bare", str(self.up)], check=True, env=ENV)
+        self.repo.git("remote", "add", "origin", str(self.up))
+        self.repo.git("push", "-q", "origin", "main")
+        self.gh = tmp / "gh"
+        self.gh.write_text(f"#!{sys.executable}\n" + FAKE_PR_GH)
+        self.gh.chmod(0o755)
+        self.log = tmp / "gh.log"
+
+    def pr(self, number=7, draft=False):
+        """Pushes branch spec as pull request <number> and returns gh's view."""
+        self.repo.git("push", "-q", "-f", "origin", f"spec:spec",
+                      f"spec:refs/pull/{number}/head")
+        return {"number": number, "url": f"{self.up}/pull/{number}",
+                "headRefOid": self.repo.git("rev-parse", "spec"), "baseRefName": "main",
+                "isDraft": draft}
+
+    def run_hook(self, payload, host="claude", pr=None, extra_env=None):
+        env = dict(ENV, SPEC_CHECK_GH=str(self.gh), SPEC_CHECK_CACHE=str(self.cache),
+                   FAKE_PR_LOG=str(self.log))
+        if pr is not None:
+            env["FAKE_PR"] = json.dumps(pr)
+        env.update(extra_env or {})
+        return subprocess.run([str(HANDBACK), "--host", host], input=json.dumps(payload),
+                              capture_output=True, text=True, env=env, cwd=self.repo.path)
+
+    def hook(self, command, pr=None, output=None, host="claude", cwd=None, extra_env=None):
+        """The hook before a Bash call, or after it when output is given."""
+        payload = {"tool_name": "Bash", "tool_input": {"command": command},
+                   "cwd": str(cwd or self.repo.path), "hook_event_name": "PreToolUse"}
+        if output is not None:
+            payload.update(hook_event_name="PostToolUse",
+                           tool_response={"stdout": output, "stderr": ""})
+        if host == "cursor":
+            payload = {"command": command, "cwd": str(cwd or self.repo.path),
+                       "hook_event_name": "beforeShellExecution"}
+            if output is not None:
+                payload = {"tool_name": "Shell", "tool_input": {"command": command},
+                           "tool_output": output, "cwd": str(cwd or self.repo.path),
+                           "hook_event_name": "postToolUse"}
+        return self.run_hook(payload, host, pr, extra_env)
+
+    def calls(self):
+        """Every gh call the hook made, as argument lists."""
+        if not self.log.exists():
+            return []
+        return [json.loads(line) for line in self.log.read_text().splitlines()]
+
+    def undos(self):
+        return [c for c in self.calls() if c[:2] in (["pr", "ready"], ["pr", "edit"])]
+
+    def blocked(self, r, *names):
+        self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+        self.assertIn("spec-check: blocked this hand-back", r.stderr)
+        for name in names:
+            self.assertIn(name, r.stderr)
+
+    def taken_back(self, r, *names):
+        self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+        self.assertIn("spec-check: took back a hand-back", r.stderr)
+        for name in names:
+            self.assertIn(name, r.stderr)
+
+    def allowed(self, r):
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(r.stderr, "")
+
+    def noted(self, r, reason, host="claude"):
+        """Not judged: nothing blocked or undone, and the agent told why."""
+        self.allowed(r)
+        out = json.loads(r.stdout)
+        note = out["additional_context"] if host == "cursor" else \
+            out["hookSpecificOutput"]["additionalContext"]
+        for part in ("did not check this hand-back", reason,
+                     "git, cd, echo, printf, true or sleep",
+                     "no $, backticks, globs, braces or leading ~",
+                     "run `gh pr ...` on its own", "GitHub workflow, it still checks"):
+            self.assertIn(part, note)
+        self.assertEqual(self.undos(), [])
+        return out
+
+    def deferred(self):
+        self.repo.change("good")
+        self.repo.git("add", "-A")
+        signed_commit(self, self.repo, read="deferred")
+
+    def read(self):
+        self.repo.write("openspec/changes/good/tasks.md", TASKS + "- [ ] 1.2 More\n")
+        self.repo.git("add", "-A")
+        signed_commit(self, self.repo)
+
+
+class HandbackBeforeTests(HandbackBase):
+    """Before the call: a hand-back whose pull request can be found without
+    knowing the directory gh runs in (DECISIONS.md, "One consistency read per
+    round")."""
+
+    def test_a_named_hand_back_with_an_unread_change_is_blocked(self):
+        self.deferred()
+        pr = self.pr()
+        for command in ("gh pr ready 7 -R o/r", "gh -R o/r pr ready 7",
+                        "gh pr --repo=o/r ready 7", "GH_REPO=o/r gh pr ready 7",
+                        f"gh pr ready {pr['url']}", "gh pr edit 7 -R o/r --add-reviewer=adam",
+                        "git push && gh pr ready 7 -R o/r"):
+            with self.subTest(command=command):
+                self.blocked(self.hook(command, pr=pr), "good", pr["url"])
+
+    def test_after_the_read_the_hand_back_goes_ahead(self):
+        self.deferred()
+        self.read()
+        self.repo.write("src/app.py", "code after the read\n")
+        self.repo.git("add", "-A")
+        self.repo.git("commit", "-q", "-m", "Code")
+        self.allowed(self.hook("gh pr ready 7 -R o/r", pr=self.pr()))
+
+    def test_the_pull_request_s_head_is_judged_not_the_local_branch(self):
+        self.deferred()
+        pr = self.pr()
+        self.read()  # read locally, not pushed
+        self.blocked(self.hook("gh pr ready 7 -R o/r", pr=pr), "good")
+
+    def test_an_edit_after_the_read_is_unread_again(self):
+        self.repo.change("good")
+        self.repo.git("add", "-A")
+        signed_commit(self, self.repo)
+        self.repo.write("openspec/changes/good/tasks.md", TASKS + "- [ ] 1.2 More\n")
+        self.repo.git("add", "-A")
+        signed_commit(self, self.repo, read="deferred")
+        self.blocked(self.hook("gh pr ready 7 -R o/r", pr=self.pr()), "good")
+
+    def test_a_change_the_branch_leaves_alone_is_not_unread(self):
+        self.repo.git("checkout", "-q", "main")
+        self.repo.change("onmain")
+        self.repo.git("add", "-A")
+        self.repo.git("commit", "-q", "-m", "A change on main, read in its own pull request")
+        self.repo.git("push", "-q", "origin", "main")
+        self.repo.git("checkout", "-q", "-B", "spec")
+        self.repo.write("src/app.py", "x\n")
+        self.repo.git("add", "-A")
+        self.repo.git("commit", "-q", "-m", "Code only")
+        self.allowed(self.hook("gh pr ready 7 -R o/r", pr=self.pr()))
+
+    def test_a_hand_back_found_only_through_a_directory_is_not_judged_before(self):
+        self.deferred()
+        pr = self.pr()
+        for command in ("gh pr ready 7", "gh pr ready spec", "gh pr ready",
+                        "gh pr create --title x", "gh pr edit --add-reviewer adam"):
+            self.allowed(self.hook(command, pr=pr))
+        self.assertEqual(self.calls(), [])
+
+    def test_what_is_not_a_hand_back_is_not_judged(self):
+        self.deferred()
+        pr = self.pr()
+        for command in ("gh pr create --draft --title x -R o/r", "gh pr create -dt x",
+                        "gh pr create --dry-run", "gh pr ready 7 -R o/r --undo",
+                        "gh pr edit 7 -R o/r --title 'New title'",
+                        "sed -i '' 's/gh pr create/gh pr create --draft/' notes.md",
+                        "printf '%s\\n' 'then run gh pr ready 7 -R o/r'"):
+            self.allowed(self.hook(command, pr=pr))
+        self.assertEqual(self.calls(), [])
+
+    def test_a_pull_request_gh_cannot_show_or_fetch_is_let_through(self):
+        self.deferred()
+        self.allowed(self.hook("gh pr ready 7 -R o/r"))
+        pr = self.pr()
+        pr["url"] = f"{self.tmp}/nowhere/pull/7"
+        self.allowed(self.hook("gh pr ready 7 -R o/r", pr=pr))
+        pr["url"] = str(self.up)
+        self.allowed(self.hook("gh pr ready 7 -R o/r", pr=pr))
+
+    def test_a_head_github_has_no_pull_ref_for_yet_is_still_judged(self):
+        self.deferred()
+        pr = self.pr()
+        subprocess.run(["git", "-C", str(self.up), "update-ref", "-d", "refs/pull/7/head"],
+                       check=True, env=ENV)
+        self.blocked(self.hook("gh pr ready 7 -R o/r", pr=pr), "good")
+
+    def test_a_pull_request_without_openspec_is_never_blocked(self):
+        self.repo.write("src/app.py", "x\n")
+        self.repo.git("add", "-A")
+        self.repo.git("commit", "-q", "-m", "Code")
+        self.allowed(self.hook("gh pr ready 7 -R o/r", pr=self.pr()))
+
+    def test_a_github_mcp_update_is_judged(self):
+        self.deferred()
+        pr = self.pr()
+        for tool in ("mcp__github__update_pull_request",
+                     "mcp__plugin_gh_github__update_pull_request"):
+            update = {"tool_name": tool, "cwd": str(self.repo.path),
+                      "hook_event_name": "PreToolUse",
+                      "tool_input": {"owner": "o", "repo": "r", "pullNumber": 7, "draft": False}}
+            self.blocked(self.run_hook(update, pr=pr), "MCP update_pull_request")
+        update["tool_input"] = {"owner": "o", "repo": "r", "pullNumber": 7, "title": "y"}
+        self.allowed(self.run_hook(update, pr=pr))
+
+    def test_cursor_gets_a_permission(self):
+        self.deferred()
+        pr = self.pr()
+        r = self.hook("gh pr ready 7 -R o/r", pr=pr, host="cursor")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(json.loads(r.stdout)["permission"], "deny")
+        r = self.hook("gh pr ready 7 -R o/r --undo", pr=pr, host="cursor")
+        self.assertEqual(json.loads(r.stdout), {"permission": "allow"})
+
+    def test_the_fetched_pull_requests_are_kept_in_one_cache_per_repository(self):
+        self.deferred()
+        pr = self.pr()
+        self.hook("gh pr ready 7 -R o/r", pr=pr)
+        self.hook("gh pr ready 7 -R o/r", pr=pr)
+        self.assertEqual(len(list((self.cache / "pulls").iterdir())), 1)
+
+
+class HandbackAfterTests(HandbackBase):
+    """After the call: a command holding exactly one gh call, a hand-back,
+    judged at the pull request it printed, and taken back."""
+
+    READY_7 = '✓ Pull request o/r#7 is marked as "ready for review"\n'
+
+    def prs(self, *prs):
+        found = {}
+        for pr in prs:
+            found.update({str(pr["number"]): pr, pr["url"]: pr})
+        return {"FAKE_PRS": json.dumps(found)}
+
+    def test_a_pull_request_created_ready_with_an_unread_change_is_made_a_draft(self):
+        self.deferred()
+        pr = self.pr()
+        r = self.hook("gh pr create --title x", pr=pr, output=pr["url"] + "\n")
+        self.taken_back(r, pr["url"], "good", "it is a draft again")
+        self.assertEqual(self.undos(), [["pr", "ready", pr["url"], "--undo"]])
+
+    def test_the_reviewers_the_call_requested_are_removed(self):
+        self.deferred()
+        pr = self.pr()
+        self.hook("gh pr create -t x -r adam,bo --reviewer cy", pr=pr, output=pr["url"])
+        ready, edit = self.undos()
+        self.assertEqual(ready, ["pr", "ready", pr["url"], "--undo"])
+        self.assertEqual(edit[:4], ["pr", "edit", pr["url"], "--remove-reviewer"])
+        self.assertEqual(sorted(edit[4].split(",")), ["adam", "bo", "cy"])
+
+    def test_a_review_request_is_withdrawn_without_making_a_draft(self):
+        self.deferred()
+        pr = self.pr()
+        r = self.hook("gh pr edit --add-reviewer adam", pr=pr, output=pr["url"] + "\n")
+        self.taken_back(r, "the review request to adam is withdrawn")
+        self.assertEqual(self.undos(), [["pr", "edit", pr["url"], "--remove-reviewer", "adam"]])
+
+    def test_a_draft_that_requested_a_reviewer_loses_only_the_request(self):
+        self.deferred()
+        pr = self.pr(draft=True)
+        self.hook("gh pr create -d -r adam -t x", pr=pr, output=pr["url"])
+        self.assertEqual(self.undos(), [["pr", "edit", pr["url"], "--remove-reviewer", "adam"]])
+
+    def test_gh_s_ready_line_names_the_pull_request(self):
+        self.deferred()
+        pr = self.pr()
+        for command in ("gh pr ready", "gh pr ready 7", f"git push && gh pr ready {pr['url']}"):
+            with self.subTest(command=command):
+                self.taken_back(self.hook(command, output=self.READY_7, extra_env=self.prs(pr)),
+                                "good")
+        self.assertIn(["pr", "view", "7", "--json", "number,url,headRefOid,baseRefName,isDraft",
+                       "-R", "o/r"], self.calls())
+
+    def test_gh_s_lines_are_found_on_stderr_and_after_other_lines(self):
+        self.deferred()
+        pr = self.pr()
+        payload = {"tool_name": "Bash", "tool_input": {"command": "git push && gh pr ready"},
+                   "cwd": str(self.repo.path), "hook_event_name": "PostToolUse",
+                   "tool_response": {"stdout": "", "stderr": self.READY_7}}
+        self.taken_back(self.run_hook(payload, pr=pr), "good")
+        self.taken_back(self.hook("git push && gh pr create -t x", pr=pr,
+                                  output=f"\nCreating pull request for spec into main\n\n"
+                                         f"{pr['url']}\n"), "good")
+
+    def test_after_the_read_nothing_is_taken_back(self):
+        self.deferred()
+        self.read()
+        pr = self.pr()
+        self.allowed(self.hook("gh pr create --title x", pr=pr, output=pr["url"]))
+        self.assertEqual(self.undos(), [])
+
+    def test_a_command_with_any_gh_the_reader_cannot_see_is_not_judged(self):
+        self.deferred()
+        pr = self.pr()
+        for command in ("gh pr checks 7 && gh pr ready",
+                        "gh pr view 8 --json url -q .url; gh pr ready 7",
+                        "timeout 60 gh pr ready 7", "stdbuf -oL gh pr create -t x",
+                        "op run -- gh pr create -t x", "bash -c 'gh pr create -t x'",
+                        "xargs gh pr ready < prs.txt", "awk 'BEGIN{system(\"gh pr ready 7\")}'",
+                        "git -c alias.r='!gh pr ready 7' r",
+                        'gh pr ready "$(git branch --show-current)"',
+                        "bash <<EOF\ngh pr create --title x\nEOF",
+                        "gh pr create -t x; bash <<EOF\ngh pr ready 8\nEOF",
+                        "echo 'gh pr ready 8' | bash; gh pr create -t x"):
+            with self.subTest(command=command):
+                self.allowed(self.hook(command, output=self.READY_7 + pr["url"] + "\n",
+                                       extra_env=self.prs(pr)))
+        self.assertEqual(self.calls(), [])
+
+    def test_a_hand_back_that_printed_no_one_pull_request_is_not_judged(self):
+        self.deferred()
+        seven, eight = self.pr(7), self.pr(8)
+        env = self.prs(seven, eight)
+        self.allowed(self.hook("gh pr create -t x > /dev/null", output="", extra_env=env))
+        self.allowed(self.hook("gh pr create -t x", output=f"{seven['url']}\n{eight['url']}\n",
+                               extra_env=env))
+        self.assertEqual(self.calls(), [])
+
+    def test_without_the_shared_reader_nothing_is_judged(self):
+        self.deferred()
+        pr = self.pr()
+        sys.path.insert(0, str(HERE))
+        import handback
+        payload = {"tool_name": "Bash", "tool_input": {"command": "gh pr create -t x"},
+                   "cwd": str(self.repo.path), "hook_event_name": "PostToolUse",
+                   "tool_response": {"stdout": pr["url"], "stderr": ""}}
+        with mock.patch.object(handback, "load_reader", return_value=None), \
+                mock.patch.object(handback.sc, "GH", str(self.gh)), \
+                mock.patch.dict(os.environ, {"SPEC_CHECK_CACHE": str(self.cache),
+                                             "FAKE_PR": json.dumps(pr),
+                                             "FAKE_PR_LOG": str(self.log)}):
+            self.assertEqual(handback.hook(json.dumps(payload), "claude"), (0, "", ""))
+
+    def test_a_draft_made_with_nobody_requested_is_left_alone(self):
+        self.deferred()
+        pr = self.pr(draft=True)
+        self.allowed(self.hook("gh pr create --title x", pr=pr, output=pr["url"]))
+        self.assertEqual(self.undos(), [])
+
+    def test_a_hand_back_in_a_command_that_fails_is_still_taken_back(self):
+        self.deferred()
+        pr = self.pr()
+        payload = {"tool_name": "Bash", "tool_input": {"command": "git push && gh pr create -t x"},
+                   "cwd": str(self.repo.path), "hook_event_name": "PostToolUseFailure",
+                   "error": f"{pr['url']}\nExit code 1"}
+        self.taken_back(self.run_hook(payload, pr=pr), "good")
+
+    def test_a_create_that_fails_because_the_pull_request_exists_takes_nothing_back(self):
+        self.deferred()
+        pr = self.pr()
+        payload = {"tool_name": "Bash",
+                   "tool_input": {"command": "gh pr create -t x -r adam --draft"},
+                   "cwd": str(self.repo.path), "hook_event_name": "PostToolUseFailure",
+                   "error": 'a pull request for branch "spec" into branch "main" already '
+                            f'exists:\n{pr["url"]}\n'}
+        self.allowed(self.run_hook(payload, pr=pr))
+        self.assertEqual(self.undos(), [])
+
+    def test_a_failed_undo_says_what_to_run(self):
+        self.deferred()
+        pr = self.pr()
+        r = self.hook("gh pr create --title x", pr=pr, output=pr["url"],
+                      extra_env={"FAKE_UNDO_FAIL": "1"})
+        self.taken_back(r, f"gh pr ready {pr['url']} --undo")
+
+    def test_a_payload_with_output_and_no_event_name_is_after_the_call(self):
+        self.deferred()
+        pr = self.pr()
+        payload = {"tool_name": "Bash", "tool_input": {"command": "gh pr create -t x"},
+                   "cwd": str(self.repo.path), "tool_response": {"stdout": pr["url"]}}
+        self.taken_back(self.run_hook(payload, pr=pr), "good")
+
+    def test_a_github_mcp_call_is_judged_from_its_result(self):
+        self.deferred()
+        pr = self.pr()
+        payload = {"tool_name": "mcp__github__create_pull_request", "cwd": str(self.repo.path),
+                   "hook_event_name": "PostToolUse",
+                   "tool_input": {"owner": "o", "repo": "r", "head": "spec", "base": "main",
+                                  "title": "x", "body": "Alternative to o/r/pull/51"},
+                   "tool_response": [{"type": "text", "text": json.dumps(
+                       {"number": 7, "html_url": pr["url"],
+                        "body": "Alternative to https://github.com/o/r/pull/51"})}]}
+        self.taken_back(self.run_hook(payload, pr=pr), pr["url"])
+        self.assertEqual(self.undos(), [["pr", "ready", pr["url"], "--undo"]])
+        payload["tool_input"]["draft"] = True
+        self.log.unlink()
+        self.allowed(self.run_hook(payload, pr=pr))
+        update = {"tool_name": "mcp__github__update_pull_request", "cwd": str(self.repo.path),
+                  "hook_event_name": "PostToolUse", "tool_response": "ok",
+                  "tool_input": {"owner": "o", "repo": "r", "pullNumber": 7,
+                                 "reviewers": ["adam"]}}
+        self.taken_back(self.run_hook(update, pr=pr), "adam")
+
+    def test_cursor_is_told_through_additional_context(self):
+        self.deferred()
+        pr = self.pr()
+        r = self.hook("gh pr create --title x", pr=pr, output=pr["url"], host="cursor")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("took back", json.loads(r.stdout)["additional_context"])
+        payload = {"tool_name": "Shell", "tool_input": {"command": "git push && gh pr create"},
+                   "tool_output": json.dumps({"exitCode": 0, "stdout": pr["url"] + "\n"}),
+                   "cwd": str(self.repo.path), "hook_event_name": "postToolUse"}
+        r = self.run_hook(payload, host="cursor", pr=pr)
+        self.assertIn("took back", json.loads(r.stdout)["additional_context"])
+        self.read()
+        pr = self.pr()
+        r = self.hook("gh pr create -t x", pr=pr, output=pr["url"], host="cursor")
+        self.assertEqual((r.returncode, r.stdout), (0, ""), r.stderr)
+
+
+class CiTests(unittest.TestCase):
+    """The GitHub workflow's check (spec_check.py ci) and setup-ci."""
+
+    def setUp(self):
+        self.repo = Repo(self)
+        self.repo.git("checkout", "-q", "-b", "spec")
+        tmp = pathlib.Path(tempfile.mkdtemp(prefix="spec-check-ci-")).resolve()
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        self.tmp = tmp
+        self.gh = tmp / "gh"
+        self.gh.write_text(f"#!{sys.executable}\n" + FAKE_PR_GH)
+        self.gh.chmod(0o755)
+        self.log = tmp / "gh.log"
+
+    def deferred(self):
+        self.repo.change("good")
+        self.repo.git("add", "-A")
+        signed_commit(self, self.repo, read="deferred")
+
+    def ci(self, action, draft=False, **extra):
+        event = {"action": action, "pull_request": {
+            "html_url": "https://github.com/o/r/pull/7", "draft": draft,
+            "head": {"sha": self.repo.git("rev-parse", "HEAD")}, "base": {"ref": "main"}}}
+        event.update(extra)
+        path = self.tmp / "event.json"
+        path.write_text(json.dumps(event))
+        return self.repo.run("ci", "--event", str(path),
+                             env=dict(ENV, SPEC_CHECK_GH=str(self.gh), FAKE_PR_LOG=str(self.log)))
+
+    def calls(self):
+        return [json.loads(l) for l in self.log.read_text().splitlines()] \
+            if self.log.exists() else []
+
+    def test_a_hand_back_with_an_unread_change_fails_and_is_made_a_draft(self):
+        self.deferred()
+        for action in ("opened", "ready_for_review"):
+            r = self.ci(action)
+            self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+            self.assertIn("::error::spec-check: good", r.stdout)
+        self.assertEqual(self.calls(), [["pr", "ready", "https://github.com/o/r/pull/7",
+                                         "--undo"]] * 2)
+
+    def test_a_review_request_is_withdrawn(self):
+        self.deferred()
+        self.assertEqual(self.ci("review_requested", draft=True,
+                                 requested_reviewer={"login": "adam"}).returncode, 1)
+        self.assertEqual(self.ci("review_requested", requested_team={"slug": "core"},
+                                 repository={"owner": {"login": "o"}}).returncode, 1)
+        self.assertEqual(self.calls(), [
+            ["pr", "edit", "https://github.com/o/r/pull/7", "--remove-reviewer", "adam"],
+            ["pr", "ready", "https://github.com/o/r/pull/7", "--undo"],
+            ["pr", "edit", "https://github.com/o/r/pull/7", "--remove-reviewer", "o/core"]])
+
+    def test_a_push_only_fails_the_check(self):
+        self.deferred()
+        r = self.ci("synchronize")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertEqual(self.calls(), [])
+
+    def test_a_draft_or_a_read_change_passes(self):
+        self.deferred()
+        self.assertEqual(self.ci("opened", draft=True).returncode, 0)
+        self.assertEqual(self.ci("synchronize", draft=True).returncode, 0)
+        self.repo.write("openspec/changes/good/tasks.md", TASKS + "- [ ] 1.2 More\n")
+        self.repo.git("add", "-A")
+        signed_commit(self, self.repo)
+        r = self.ci("ready_for_review")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(self.calls(), [])
+
+    def test_a_failed_undo_still_fails_the_check(self):
+        self.deferred()
+        event = self.tmp / "event.json"
+        r = self.ci("ready_for_review")
+        self.assertEqual(r.returncode, 1)
+        env = dict(ENV, SPEC_CHECK_GH=str(self.gh), FAKE_UNDO_FAIL="1")
+        r = self.repo.run("ci", "--event", str(event), env=env)
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("::warning::", r.stdout)
+
+    def test_a_clone_without_the_base_cannot_run(self):
+        self.deferred()
+        self.repo.git("branch", "-m", "main", "trunk")
+        r = self.ci("opened")
+        self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+        self.assertIn("fetch-depth: 0", r.stderr)
+
+    def test_setup_ci_pins_a_commit_and_keeps_an_existing_workflow(self):
+        sha = "a" * 40
+        r = self.repo.run("setup-ci", "--sha", sha)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        text = (self.repo.path / ".github/workflows/spec-check.yml").read_text()
+        self.assertIn(f"SPEC_CHECK_SHA: {sha}", text)
+        self.assertNotIn("<SPEC_CHECK_SHA>", text)
+        self.assertIn("spec_check.py\" ci", text)
+        self.assertEqual(self.repo.run("setup-ci", "--sha", "b" * 40).returncode, 1)
+        self.assertEqual(self.repo.run("setup-ci", "--sha", "main", "--force").returncode, 1)
+        self.assertEqual(self.repo.run("setup-ci", "--sha", "b" * 40, "--force").returncode, 0)
+
+    def test_setup_ci_refuses_a_short_sha(self):
+        r = self.repo.run("setup-ci", "--sha", "abc1234")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertFalse((self.repo.path / ".github").exists())
+
+
+class FoundByBugHunterHandbackRun4Tests(HandbackAfterTests):
+    """Bug-hunter's first iteration over the one-gh-call hand-back hook."""
+
+    READY_8 = '✓ Pull request o/r#8 is marked as "ready for review"\n'
+
+    def test_gh_hidden_from_the_reader_is_not_taken_for_the_one_it_sees(self):
+        self.deferred()
+        seven, eight = self.pr(7), self.pr(8)
+        env = self.prs(seven, eight)
+        edit = "gh pr edit 7 --add-reviewer adam >/dev/null; "
+        for hidden in ("bash -o pipefail <<'EOF'\ngh pr ready 8\nEOF",
+                       "bash -s x <<'EOF'\ngh pr ready 8\nEOF",
+                       "env bash <<'EOF'\ngh pr ready 8\nEOF",
+                       "bash /dev/stdin <<'EOF'\ngh pr ready 8\nEOF",
+                       "bash -o pipefail <<< 'gh pr ready 8'",
+                       "c='gh pr ready 8'; eval \"$c\"",
+                       "G=gh; $G pr ready 8",
+                       "python3 - <<'EOF'\nimport subprocess\nEOF",
+                       "./make-pr.sh"):
+            with self.subTest(hidden=hidden):
+                self.allowed(self.hook(edit + hidden, output=self.READY_8, extra_env=env))
+        self.assertEqual(self.calls(), [])
+
+    def test_a_printed_pull_request_other_than_the_one_named_is_not_judged(self):
+        self.deferred()
+        seven, eight = self.pr(7), self.pr(8)
+        self.allowed(self.hook("gh pr edit 7 --add-reviewer adam", output=eight["url"],
+                               extra_env=self.prs(seven, eight)))
+        self.assertEqual(self.calls(), [])
+
+    def test_a_hand_back_with_words_only_the_shell_reads_is_judged(self):
+        self.deferred()
+        pr = self.pr()
+        for command in ("gh pr create --title x --body-file ~/pr.md",
+                        'gh pr create --title x --body "line one\\nline two"',
+                        "gh pr create --title café"):
+            with self.subTest(command=command):
+                self.taken_back(self.hook(command, pr=pr, output=pr["url"]), "good")
+
+
+class HandbackRun4MutationTests(HandbackAfterTests):
+    """What the one-gh-call hook's mutants showed no test checked."""
+
+    def mcp(self, tool, tool_input, response):
+        return {"tool_name": f"mcp__github__{tool}", "cwd": str(self.repo.path),
+                "hook_event_name": "PostToolUse", "tool_input": tool_input,
+                "tool_response": response}
+
+    def test_an_mcp_draft_that_requests_a_review_loses_the_request(self):
+        self.deferred()
+        pr = self.pr(draft=True)
+        self.taken_back(self.run_hook(self.mcp(
+            "create_pull_request", {"owner": "o", "repo": "r", "head": "spec", "base": "main",
+                                    "title": "x", "draft": True, "reviewers": ["adam"]},
+            json.dumps({"html_url": pr["url"]})), pr=pr), "adam")
+
+    def test_an_mcp_update_marking_ready_makes_a_draft_again(self):
+        self.deferred()
+        pr = self.pr()
+        self.taken_back(self.run_hook(self.mcp(
+            "update_pull_request", {"owner": "o", "repo": "r", "pullNumber": 7, "draft": False},
+            json.dumps({"html_url": pr["url"]})), pr=pr), "it is a draft again")
+
+    def test_a_result_with_an_html_url_and_an_api_url_is_one_pull_request(self):
+        self.deferred()
+        pr = self.pr()
+        self.taken_back(self.run_hook(self.mcp(
+            "create_pull_request", {"owner": "o", "repo": "r", "head": "spec", "base": "main",
+                                    "title": "x"},
+            json.dumps({"html_url": pr["url"],
+                        "url": "https://api.github.com/repos/o/r/pull/77"})), pr=pr), "good")
+
+    def test_gh_s_already_exists_message_without_a_colon_names_no_hand_back(self):
+        self.deferred()
+        pr = self.pr()
+        payload = {"tool_name": "Bash", "tool_input": {"command": "gh pr create -t x"},
+                   "cwd": str(self.repo.path), "hook_event_name": "PostToolUseFailure",
+                   "error": f'a pull request for branch "spec" already exists\n{pr["url"]}\n'}
+        self.allowed(self.run_hook(payload, pr=pr))
+
+
+class FoundByBugHunterHandbackRun4Iteration2Tests(FoundByBugHunterHandbackRun4Tests):
+    """Bug-hunter's second iteration over the one-gh-call hand-back hook."""
+
+    def test_a_hand_back_after_an_assignment_or_reserved_word_is_judged(self):
+        self.deferred()
+        pr = self.pr()
+        for command in ("GH_REPO=o/r gh pr create -t x", "time gh pr create -t x",
+                        "! gh pr create -t x"):
+            with self.subTest(command=command):
+                self.taken_back(self.hook(command, pr=pr, output=pr["url"]), "good")
+
+    def test_a_shell_s_name_as_an_ordinary_argument_hides_nothing(self):
+        self.deferred()
+        pr = self.pr()
+        for command in ("git add . && git commit -qm x && git push && gh pr create -t x",
+                        "gh pr create -t x -r node", "gh pr create -t x -H source"):
+            with self.subTest(command=command):
+                self.taken_back(self.hook(command, pr=pr, output=pr["url"]), "good")
+
+    def test_words_the_shell_expands_are_not_read_as_written(self):
+        self.deferred()
+        pr = self.pr()
+        for command in ("gh pr edit 7 --add-reviewer={adam,bob}",
+                        "gh pr edit 7 --add-reviewer adam,bo?"):
+            with self.subTest(command=command):
+                self.allowed(self.hook(command, pr=pr, output=pr["url"]))
+        self.assertEqual(self.undos(), [])
+
+    def test_gh_spelled_with_quotes_inside_another_program_is_hidden(self):
+        self.deferred()
+        seven, eight = self.pr(7), self.pr(8)
+        env = self.prs(seven, eight)
+        for hidden in ("timeout 60 g\\h pr ready 8", "timeout 60 g''h pr ready 8",
+                       "echo 'pr ready 8' | xargs g\\h", "=bash <<'EOF'\ngh pr ready 8\nEOF",
+                       "python3.12 - <<'EOF'\nimport os\nEOF"):
+            with self.subTest(hidden=hidden):
+                self.allowed(self.hook("gh pr create -t x >/dev/null; " + hidden,
+                                       output=self.READY_8, extra_env=env))
+        self.assertEqual(self.calls(), [])
+
+    def test_a_number_or_url_gh_reads_as_the_same_pull_request_matches(self):
+        self.deferred()
+        pr = self.pr()
+        self.taken_back(self.hook("gh pr ready 007", output=self.READY_7,
+                                  extra_env=self.prs(pr)), "good")
+        self.blocked(self.hook(f"gh pr ready {pr['url']}/files",
+                               extra_env={"FAKE_PRS": json.dumps({pr["url"] + "/files": pr})}),
+                     "good")
+
+
+class FoundByBugHunterHandbackRun4Iteration3Tests(FoundByBugHunterHandbackRun4Tests):
+    """Bug-hunter's third iteration over the one-gh-call hand-back hook."""
+
+    def test_quoted_text_that_looks_like_a_glob_does_not_stop_the_judgement(self):
+        self.deferred()
+        pr = self.pr()
+        for command in ('gh pr create -t x --body "## Summary\\n- a\\n\\n## Test plan\\n- [ ] run"',
+                        'gh pr create -t "x [WIP]" -b y -F ~/b.md',
+                        'gh pr create -t "retries = 3?" --body "a\\nb"'):
+            with self.subTest(command=command):
+                self.taken_back(self.hook(command, pr=pr, output=pr["url"]), "good")
+
+    def test_a_file_sourced_through_builtin_or_command_is_hidden(self):
+        self.deferred()
+        seven, eight = self.pr(7), self.pr(8)
+        for hidden in ("builtin source ./x.sh", "command . ./x.sh", "exec . ./x.sh",
+                       ". x.sh", "source x.sh", "my-gh foo"):
+            with self.subTest(hidden=hidden):
+                self.allowed(self.hook("gh pr create -t x >/dev/null; " + hidden,
+                                       output=self.READY_8, extra_env=self.prs(seven, eight)))
+        self.assertEqual(self.calls(), [])
+
+    def test_a_selector_of_digits_outside_ascii_does_not_crash(self):
+        self.deferred()
+        pr = self.pr()
+        r = self.hook("gh pr ready ²", output=self.READY_7, extra_env=self.prs(pr))
+        self.assertIn(r.returncode, (0, 2), r.stderr)
+        self.assertNotIn("Traceback", r.stderr)
+
+
+class FoundByBugHunterHandbackRun5Tests(FoundByBugHunterHandbackRun4Tests):
+    """Bug-hunter's fifth run, over plain_words' shlex fallback and the check
+    for a command that sources a file."""
+
+    def test_a_file_sourced_after_a_prefix_s_option_or_by_trap_is_not_judged(self):
+        self.deferred()
+        seven, eight = self.pr(7), self.pr(8)
+        for hidden in ("command -p . ./x.sh", "builtin -- . ./x.sh", "time -p . ./x.sh",
+                       "command -- . ./x.sh", "- . ./x.sh", "exec -a x . ./x.sh",
+                       "trap '. ./x.sh' EXIT"):
+            with self.subTest(hidden=hidden):
+                self.noted(self.hook("gh pr edit --add-reviewer adam >/dev/null; " + hidden,
+                                       output=self.READY_8, extra_env=self.prs(seven, eight)), "because")
+        self.assertEqual(self.calls(), [])
+
+    def test_a_carriage_return_is_part_of_a_word(self):
+        self.deferred()
+        pr = self.pr()
+        self.allowed(self.hook("gh pr edit 7 --title x\r--add-reviewer\radam", pr=pr,
+                               output=pr["url"]))
+        self.assertEqual(self.undos(), [])
+
+    def test_the_fallback_refuses_what_the_shell_reads_otherwise(self):
+        sys.path.insert(0, str(HERE))
+        import handback
+        for source in ('gh pr ready "fix\\$x"', 'gh pr ready "fix\\`x"',
+                       'gh pr ready 7 -R "o/r\\$"', "gh pr edit 7 --add-reviewer ~adam",
+                       "gh pr ready ~+", "gh pr ready ~", "gh pr create -t x -b y\r--draft"):
+            with self.subTest(source=source):
+                self.assertIsNone(handback.plain_words(source))
+        self.assertEqual(handback.plain_words("gh pr create -F ~/b.md")[-1][0], "~/b.md")
+
+
+class FoundByBugHunterHandbackRun5Iteration2Tests(FoundByBugHunterHandbackRun4Tests):
+    """Bug-hunter's fifth run, second iteration."""
+
+    def test_space_shlex_keeps_in_a_word_does_not_stop_the_fallback(self):
+        sys.path.insert(0, str(HERE))
+        import handback
+        for space in (" ", "\f", "\v", " ", " "):
+            with self.subTest(space=repr(space)):
+                words = handback.plain_words(f'gh pr edit 5 --body "say \\"hi\\"{space}there"')
+                self.assertEqual(words[-1][0], f'say "hi"{space}there')
+        self.assertEqual(handback.plain_words('gh pr edit 5 --body "a\rb\\"c"')[-1][0], 'a\rb"c')
+
+    def test_a_prefix_spelled_with_zsh_s_equals_is_not_judged(self):
+        self.deferred()
+        seven, eight = self.pr(7), self.pr(8)
+        for hidden in ("=command . ./x.sh", "=builtin source ./x.sh"):
+            with self.subTest(hidden=hidden):
+                self.noted(self.hook("gh pr edit --add-reviewer adam >/dev/null; " + hidden,
+                                       output=self.READY_8, extra_env=self.prs(seven, eight)), "because")
+        self.assertEqual(self.calls(), [])
+
+    def test_a_shell_named_inside_a_word_env_splits_is_not_judged(self):
+        self.deferred()
+        seven, eight = self.pr(7), self.pr(8)
+        self.noted(self.hook('gh pr edit --add-reviewer adam >/dev/null; env -S "bash ./x.sh"',
+                               output=self.READY_8, extra_env=self.prs(seven, eight)), "because")
+        self.assertEqual(self.calls(), [])
+
+    def test_a_tilde_after_an_equals_sign_is_refused(self):
+        sys.path.insert(0, str(HERE))
+        import handback
+        self.assertIsNone(handback.plain_words('gh pr edit 5 x=~root --body "a\\"b"'))
+
+
+class FoundByBugHunterHandbackRun5Iteration3Tests(FoundByBugHunterHandbackRun4Tests):
+    """Bug-hunter's fifth run, third iteration."""
+
+    def test_env_splitting_a_string_or_running_a_variable_is_not_judged(self):
+        self.deferred()
+        seven, eight = self.pr(7), self.pr(8)
+        for hidden in ("env -S'bash ./x.sh'", 'env -S"bash ./x.sh"', "env -iS'bash ./x.sh'",
+                       "env -S'bash\\_./x.sh'", "env --split-string='bash ./x.sh'",
+                       'env "$X"', 'env -S"$X"'):
+            with self.subTest(hidden=hidden):
+                self.noted(self.hook("gh pr edit --add-reviewer adam >/dev/null; " + hidden,
+                                       output=self.READY_8, extra_env=self.prs(seven, eight)), "because")
+        self.assertEqual(self.calls(), [])
+
+    def test_a_tilde_after_a_colon_is_refused(self):
+        sys.path.insert(0, str(HERE))
+        import handback
+        self.assertIsNone(handback.plain_words('gh pr edit 5 --title "é" --add-reviewer x=a:~root'))
+
+
+
+
+class HandbackAllowlistTests(HandbackBase):
+    """After the call, only the forms on the allowlist are judged; a hand-back
+    in any other form is given a note and left to the workflow."""
+
+    def test_a_hand_back_beside_only_listed_programs_is_judged(self):
+        self.deferred()
+        pr = self.pr()
+        for command in ("git push && gh pr create -t x", "cd repo && gh pr ready {n}",
+                        "git push; sleep 1; gh pr ready {n} && echo done",
+                        "printf x; true && gh pr ready {n}",
+                        "cd ~/repo && gh pr ready {n}"):
+            command = command.format(n=pr["number"])
+            with self.subTest(command=command):
+                self.taken_back(self.hook(command, pr=pr, output=pr["url"]), "good")
+
+    def test_a_program_not_listed_is_named_in_the_note(self):
+        self.deferred()
+        pr = self.pr()
+        for command, program in (("timeout 60 gh pr ready 7", "timeout"),
+                                 ("gh pr create -t x | tee log", "tee"),
+                                 ("gh pr create -t x; false", "false"),
+                                 ("if gh pr create -t x; then echo ok; fi", "fi"),
+                                                                  ("bash -c 'gh pr create -t x'", "bash"),
+                                 ("npm test && gh pr create -t x", "npm")):
+            with self.subTest(command=command):
+                self.noted(self.hook(command, pr=pr, output=pr["url"]),
+                           f"`{program}` is not one of the programs listed")
+
+    def test_an_expanding_word_is_quoted_in_the_note(self):
+        self.deferred()
+        pr = self.pr()
+        for command, word in (("gh pr create -t \"$TITLE\"", '"$TITLE"'),
+                              ("gh pr edit 7 --add-reviewer={adam,bob}",
+                               "--add-reviewer={adam,bob}"),
+                              ("gh pr create -t *.md", "*.md")):
+            with self.subTest(command=command):
+                self.noted(self.hook(command, pr=pr, output=pr["url"]),
+                           f"the word `{word}` expands")
+
+    def test_a_brace_group_is_not_judged(self):
+        self.deferred()
+        pr = self.pr()
+        self.noted(self.hook("{ gh pr create -t x; }", pr=pr, output=pr["url"]),
+                   "the word `}` expands")
+
+    def test_an_assignment_or_a_second_gh_call_is_named_in_the_note(self):
+        self.deferred()
+        pr = self.pr()
+        for command, reason in (("FOO=1 git push && gh pr create -t x",
+                                 "`FOO=1` assigns a variable"),
+                                ("gh pr checks 7 && gh pr ready 7",
+                                 "the command runs 2 gh calls")):
+            with self.subTest(command=command):
+                self.noted(self.hook(command, pr=pr, output=pr["url"]), reason)
+
+    def test_a_command_the_reader_cannot_read_still_gets_the_note(self):
+        self.deferred()
+        pr = self.pr()
+        self.noted(self.hook("echo $(gh pr create -t x)", pr=pr, output=pr["url"]),
+                   "expands")
+
+    def test_cursor_gets_the_note_as_additional_context(self):
+        self.deferred()
+        pr = self.pr()
+        self.noted(self.hook("timeout 60 gh pr ready 7", pr=pr, output=pr["url"],
+                             host="cursor"), "`timeout`", host="cursor")
+
+    def test_the_note_names_the_event_it_answers(self):
+        self.deferred()
+        pr = self.pr()
+        payload = {"tool_name": "Bash", "tool_input": {"command": "timeout 9 gh pr ready 7"},
+                   "cwd": str(self.repo.path), "hook_event_name": "PostToolUseFailure",
+                   "error": "Exit code 1"}
+        out = self.noted(self.run_hook(payload, pr=pr), "`timeout`")
+        self.assertEqual(out["hookSpecificOutput"]["hookEventName"], "PostToolUseFailure")
+
+    def test_no_note_without_a_hand_back(self):
+        self.deferred()
+        pr = self.pr()
+        for command in ("timeout 60 gh pr view 7", "npm test | tee log",
+                        "FOO=1 make $TARGET", "gh pr checks 7 && gh pr view 7",
+                        "gh pr create -t x --draft | tee log",
+                        "git commit -m 'gh pr create later' && npm test",
+                        "echo $(gh pr view 7)"):
+            with self.subTest(command=command):
+                r = self.hook(command, pr=pr, output=pr["url"])
+                self.allowed(r)
+                self.assertEqual(r.stdout, "")
+
+    def test_no_note_before_the_call(self):
+        self.deferred()
+        pr = self.pr()
+        r = self.hook("timeout 60 gh pr ready 7", pr=pr)
+        self.allowed(r)
+        self.assertEqual(r.stdout, "")
+
+
+
+class FoundByBugHunterHandbackRun6Tests(HandbackBase):
+    """Bug-hunter's sixth run, over the post-call allowlist and its note."""
+
+    READY = '\u2713 Pull request o/r#{n} is marked as "ready for review"\n'
+
+    def other(self, pr):
+        """The same pull request number in a second repository."""
+        other = self.tmp / "other"
+        subprocess.run(["git", "init", "-q", "--bare", str(other)], check=True, env=ENV)
+        self.repo.git("push", "-q", str(other), "main", "spec:spec",
+                      f"spec:refs/pull/{pr['number']}/head")
+        return dict(pr, url=f"{other}/pull/{pr['number']}")
+
+    def env(self, *prs):
+        found = {}
+        for pr in prs:
+            found.setdefault(str(pr["number"]), pr)
+            found[pr["url"]] = pr
+        return {"FAKE_PRS": json.dumps(found)}
+
+    def test_another_repository_s_pull_request_with_the_same_number_is_not_taken_back(self):
+        self.deferred()
+        seven = self.pr(7)
+        other = self.other(seven)
+        r = self.hook(f"echo {other['url']}; gh pr ready 7 -R o/r",
+                      output=other["url"] + "\n" + self.READY.format(n=7),
+                      extra_env=self.env(seven, other))
+        self.assertNotIn(other["url"], json.dumps(self.undos()))
+        self.assertNotEqual(r.returncode, 2, r.stderr)
+
+    def test_a_url_echo_prints_is_not_taken_for_the_hand_back_s(self):
+        self.deferred()
+        seven = self.pr(7)
+        other = self.other(seven)
+        payload = {"tool_name": "Bash",
+                   "tool_input": {"command": f"echo {other['url']} && git push; gh pr create -t x"},
+                   "cwd": str(self.repo.path), "hook_event_name": "PostToolUseFailure",
+                   "error": other["url"] + "\nmust first push the current branch\n"}
+        r = self.run_hook(payload, extra_env=self.env(seven, other))
+        self.assertEqual(self.undos(), [])
+        self.assertNotEqual(r.returncode, 2, r.stderr)
+
+    def test_an_indented_url_or_state_line_is_not_gh_s(self):
+        self.deferred()
+        seven = self.pr(7)
+        other = self.other(seven)
+        for printed in ("    " + other["url"] + "\n",
+                        "    fix: " + self.READY.format(n=7)):
+            with self.subTest(printed=printed):
+                r = self.hook("git log -1 && gh pr create -t x", output=printed,
+                              extra_env=self.env(seven, other))
+                self.assertEqual(self.undos(), [])
+                self.assertNotEqual(r.returncode, 2, r.stderr)
+
+    def test_printf_assigning_a_variable_is_not_judged(self):
+        self.deferred()
+        seven = self.pr(7)
+        r = self.hook("printf -v 'a[$(gh pr ready 9 >&2)]' x; gh pr create -t x",
+                      output=seven["url"] + "\n", extra_env=self.env(seven))
+        self.assertEqual(self.undos(), [])
+        self.assertIn("printf -v", r.stdout)
+
+    def test_gh_run_by_its_path_gets_the_note(self):
+        self.deferred()
+        seven = self.pr(7)
+        r = self.hook("/opt/homebrew/bin/gh pr ready 7", output=self.READY.format(n=7),
+                      extra_env=self.env(seven))
+        self.assertEqual(self.undos(), [])
+        self.assertIn("did not check this hand-back", r.stdout)
+        self.assertIn("/opt/homebrew/bin/gh", r.stdout)
+
+    def test_a_count_flag_is_not_a_shell_command(self):
+        self.deferred()
+        seven = self.pr(7)
+        for command in ("grep -c 'gh pr ready 7' notes.txt", "rg -c 'gh pr create' ."):
+            with self.subTest(command=command):
+                r = self.hook(command, output="3\n", extra_env=self.env(seven))
+                self.assertEqual(r.stdout, "")
+        r = self.hook("bash -c 'gh pr create -t x'", output=seven["url"] + "\n",
+                      extra_env=self.env(seven))
+        self.assertIn("did not check this hand-back", r.stdout)
+
+    def test_a_single_quoted_dollar_is_not_named_as_expanding(self):
+        self.deferred()
+        seven = self.pr(7)
+        r = self.hook("echo 'a $b' <(true); gh pr create -t x", output=seven["url"] + "\n",
+                      extra_env=self.env(seven))
+        self.assertNotIn("`a $b` expands", r.stdout)
+
+
+
+class FoundByBugHunterHandbackRun6Iteration2Tests(FoundByBugHunterHandbackRun6Tests):
+    """Bug-hunter's sixth run, second iteration."""
+
+    def test_an_echo_naming_no_pull_request_beside_the_hand_back_is_judged(self):
+        self.deferred()
+        seven = self.pr(7)
+        for command, printed in (
+                ("gh pr edit 7 --add-reviewer adam && echo 'Pull request created'",
+                 seven["url"] + "\nPull request created\n"),
+                ("gh pr ready 7 && echo 'Pull request is ready for review'",
+                 self.READY.format(n=7) + "Pull request is ready for review\n")):
+            with self.subTest(command=command):
+                self.taken_back(self.hook(command, output=printed, extra_env=self.env(seven)),
+                                "good")
+
+    def test_an_unquoted_state_line_echo_prints_is_not_judged(self):
+        self.deferred()
+        seven = self.pr(7)
+        r = self.hook("echo Pull request o/r#7 is ready; gh pr create -t x",
+                      output="Pull request o/r#7 is ready\n", extra_env=self.env(seven))
+        self.assertEqual(self.undos(), [])
+        self.assertIn("did not check this hand-back", r.stdout)
+
+    def test_a_command_shlex_cannot_split_still_gets_the_note(self):
+        self.deferred()
+        seven = self.pr(7)
+        r = self.hook("gh pr ready 7 && echo 'oops", output=self.READY.format(n=7),
+                      extra_env=self.env(seven))
+        self.assertEqual(self.undos(), [])
+        self.assertIn("did not check this hand-back", r.stdout)
+
+    def test_gh_s_coloured_ready_line_is_read(self):
+        self.deferred()
+        seven = self.pr(7)
+        for line in ('\x1b[0;32m\u2713\x1b[0m Pull request o/r#7 is marked as "ready for review"\n',
+                     '\x1b[0;33m!\x1b[0m Pull request o/r#7 is already "ready for review"\n'):
+            with self.subTest(line=line):
+                self.taken_back(self.hook("gh pr ready 7", output=line,
+                                          extra_env=self.env(seven)), "good")
+
+    def test_the_existing_pull_request_in_crlf_output_is_not_taken_back(self):
+        self.deferred()
+        seven = self.pr(7)
+        payload = {"tool_name": "Bash", "tool_input": {"command": "gh pr create -t x"},
+                   "cwd": str(self.repo.path), "hook_event_name": "PostToolUseFailure",
+                   "error": 'a pull request for branch "spec" into branch "main" already '
+                            f'exists:\r\n{seven["url"]}\r\n'}
+        self.allowed(self.run_hook(payload, extra_env=self.env(seven)))
+        self.assertEqual(self.undos(), [])
+
+
+
+class HandbackUnnamedTests(FoundByBugHunterHandbackRun6Tests):
+    """Beside a hand-back that names no pull request, only git push, git add,
+    git commit, cd, true and sleep may stand."""
+
+    def test_an_unnamed_hand_back_beside_the_narrow_list_is_judged(self):
+        self.deferred()
+        seven = self.pr(7)
+        for command in ("git push && gh pr create -t x",
+                        "git add -A && git commit -qm x && git push -u origin spec && "
+                        "gh pr create -t x",
+                        "cd repo && sleep 1 && true && gh pr create -t x",
+                        "git push && gh pr ready",
+                        "git push && gh pr edit --add-reviewer adam"):
+            with self.subTest(command=command):
+                self.taken_back(self.hook(command, output=seven["url"] + "\n",
+                                          extra_env=self.env(seven)), "good")
+
+    def test_an_unnamed_hand_back_beside_anything_else_gets_the_narrow_note(self):
+        self.deferred()
+        seven = self.pr(7)
+        for command, beside in (("echo 'Opening' && gh pr create -t x", "echo 'Opening'"),
+                                ("printf x && gh pr create -t x", "printf x"),
+                                ("git show -s --format=%b && gh pr create -t x",
+                                 "git show -s --format=%b"),
+                                ("git -c alias.x=y x && gh pr create -t x",
+                                 "git -c alias.x=y x"),
+                                ("git rebase -x true HEAD~1; gh pr ready spec",
+                                 "git rebase -x true HEAD~1"),
+                                ("git && gh pr create -t x", "git")):
+            with self.subTest(command=command):
+                r = self.hook(command, output=seven["url"] + "\n", extra_env=self.env(seven))
+                self.noted(r, f"`{beside}` stands beside a hand-back that names no pull request")
+                self.assertIn("only git push, git add, git commit, cd, true or sleep", r.stdout)
+
+    def test_a_hand_back_naming_its_number_or_url_keeps_the_wide_list(self):
+        self.deferred()
+        seven = self.pr(7)
+        for command in ("echo 'Opening' && gh pr ready 7",
+                        "git log -1 && gh pr edit 7 --add-reviewer adam",
+                        f"printf x && gh pr ready {seven['url']}"):
+            with self.subTest(command=command):
+                self.taken_back(self.hook(command, output=self.READY.format(n=7),
+                                          extra_env=self.env(seven)), "good")
+
+    def test_a_wide_list_break_gets_the_wide_note(self):
+        self.deferred()
+        seven = self.pr(7)
+        r = self.hook("npm test && gh pr create -t x", output=seven["url"] + "\n",
+                      extra_env=self.env(seven))
+        self.noted(r, "`npm` is not one of the programs listed")
+        self.assertNotIn("only git push, git add", r.stdout)
+
+
+
+class FoundByBugHunterHandbackRun7Tests(FoundByBugHunterHandbackRun6Tests):
+    """Bug-hunter's seventh run, over the narrower list beside an unnamed
+    hand-back."""
+
+    def test_a_git_option_that_prints_a_diff_or_runs_a_command_is_off_the_narrow_list(self):
+        self.deferred()
+        seven = self.pr(7)
+        for command in ("git add -p; gh pr edit feature --add-reviewer bob",
+                        "git commit --dry-run -v; gh pr ready feature",
+                        "git commit -v -m x && gh pr create -t x -r bob",
+                        "git push --receive-pack=x ../b.git HEAD:x; gh pr ready",
+                        "git push --exec=x origin; gh pr ready"):
+            with self.subTest(command=command):
+                r = self.hook(command, output="+Pull request o/r#7 is ready\n",
+                              extra_env=self.env(seven))
+                self.assertEqual(self.undos(), [])
+                self.assertIn("names no pull request", r.stdout)
+
+    def test_a_value_in_a_short_cluster_is_read_as_git_reads_it(self):
+        sys.path.insert(0, str(HERE))
+        import handback
+        self.assertTrue(handback.on_unnamed_list(["git", "commit", "-am", "--bogus"]))
+        self.assertFalse(handback.on_unnamed_list(["git", "commit", "-mx", "--bogus"]))
+
+    def test_commit_takes_no_bare_double_dash_beside_an_unnamed_hand_back(self):
+        sys.path.insert(0, str(HERE))
+        import handback
+        self.assertFalse(handback.on_unnamed_list(["git", "commit", "--", "path"]))
+        self.assertTrue(handback.on_unnamed_list(["git", "add", "--", "path"]))
+
+    def test_plain_git_options_beside_an_unnamed_hand_back_are_judged(self):
+        self.deferred()
+        seven = self.pr(7)
+        for command in ("git add -A && git commit -qm 'fix: x' && git push -u origin spec && "
+                        "gh pr create -t x",
+                        "git add . && git commit -am x -s && git push --force-with-lease && "
+                        "gh pr ready",
+                        "git commit --amend --no-edit && git push -f origin spec && "
+                        "gh pr create -t x",
+                        "git commit -m '-x' -F msg.txt && git push && gh pr create -t x"):
+            with self.subTest(command=command):
+                self.taken_back(self.hook(command, output=seven["url"] + "\n",
+                                          extra_env=self.env(seven)), "good")
 
 
 if __name__ == "__main__":

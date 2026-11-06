@@ -111,6 +111,27 @@ passage that labelled its past ("the argument once made … does not apply")
 passed the pass, because rule 5 only asks that the past be labelled. Rule 8
 says whether the past belongs in the text at all.
 
+**Rule 8 splits the past into why a decision holds and how the text
+evolved,** and says where each goes. The reasons, measurements and rejected
+alternatives stay true while the decision stands, so a decision record keeps
+them, stated as the decision stands now. Amendments, reversals, credits and
+review rounds help only someone following the change as it happens, so they
+go in commit messages and pull requests. The test, whether a piece would
+still help someone changing the decision a year from now, follows from
+that: a reason does, an amendment doesn't.
+
+This matches spec-check's *Decisions and open questions*: an OpenSpec change
+states each decision once, in its design.md, and keeps no record of how the
+decision was amended. An implementer, and the subagent spec-check starts to
+read a change against every other spec, take design.md as the current
+design; an amendment chain there would make them replay it.
+
+Rule 8 covers what an author writes, not text a file already holds.
+Compaction, which rewrites a whole doc (*Compaction keeps docs read before
+work compact*, below), keeps existing "who decided" credits unless the file
+sets `prose-compact-attribution=drop`, because removing credits from a
+team's docs is the team's choice.
+
 **Rule 9, spend words where they save reading time,** has *one claim per
 sentence* as its point. Its sentence "a longer sentence that reads once beats a
 shorter one read twice" allows words that serve the sentence's one claim, not
@@ -128,6 +149,10 @@ headings without their reasons or examples.
   different questions: whether the past belongs in the text, and how to mark
   it when it does. Kept apart, rule 5 can say outright that labelling the past
   does not justify keeping it.
+- **A decision record that logs how each decision changed.** It is read to
+  learn which decision is in force and why; a log makes every reader find
+  the last entry and check whether each earlier reason still applies. `git
+  log` and the pull requests already keep that log, in order.
 - **Merging rule 6 into rule 11 (*One topic per block*).** Rule 11 is about
   how text is divided; rule 6 is about whether one sentence leads to the next.
 - **A mechanical lint for passives** such as "is searched" with no "by". It
@@ -413,20 +438,25 @@ compaction repays its 300k to 500k tokens; size does not.
   - by place: every `CLAUDE.md`, `AGENTS.md` and `SKILL.md`; a file a
     `SKILL.md` or `AGENTS.md` links in a paragraph asking to read it first or
     before something; and an open change's `proposal.md`, `design.md` and
-    delta specs, since spec-check's consistency read, run for every commit
-    that changes `openspec/`, opens each of them in every open change. A link asking to read its file before changing the skill does not
-    count, and no commit counts a read of that file either, since a commit
+    delta specs, since spec-check's consistency read opens each of them
+    in every open change. It runs once per review round: an agent's work
+    between two hand-backs of a pull request to a person. A link asking to read
+    its file before changing the skill does not count, and no commit counts a read of that file either, since a commit
     in a skill reads only its `SKILL.md` and read-first files;
   - by `prose-compact` in `.gitattributes`;
   - or by the commits since the doc's last compaction, each counting as one
     read of the docs a fixed map gives it. A commit changing a file in a
     skill's directory counts as a read of its `SKILL.md` and read-first
     files. A `Bug-hunter:`, `Prose:` or `Spec-check:` trailer counts as a
-    read of that skill's `SKILL.md`, and `Spec-check:` also of the main
-    specs and open changes. The log is capped at 300 commits. So in practice
-    this path makes a main spec read often; a `DECISIONS.md` or
-    architecture doc not linked to be read first gains no reads, and is read
-    often only when declared.
+    read of that skill's `SKILL.md`, whatever its value. A `Spec-check:`
+    trailer also counts as a read of the main specs and open changes,
+    unless its value says no consistency read ran: `read deferred to the
+    round's end`, on a commit before the end of a spec-check review round,
+    or `no read due`. Each round's last commit still carries a read, so
+    in a repository with regular spec work this path makes a main spec
+    read often. The log is capped at 300 commits. A
+    `DECISIONS.md` or architecture doc not linked to be read first gains no
+    reads, and is read often only when declared.
 - **The last compaction** is the newest commit behind HEAD, merged
   branches included, whose `Prose:` trailer lists the file after
   `compacted:`, or that shrank it by 10% or more, or that committed a copy
@@ -1609,6 +1639,28 @@ comments holding quotes or operators. The rules for each simple command:
 evaluates twice (`(( ))`, `let`, zsh `${(e)…}`, git aliases, `rebase -x`) is a
 disguise, out of scope. Revisit if `gh` gains a way to read a body from stdin
 without `-F -`.
+
+---
+
+## The command reader is shared, in `.agents/lib/gh-shell/`
+
+**Decision.** The code that reads a shell command and gh's flags
+(`_commands`, `_words`, `_gh_args`, `DATA_COMMANDS`, `RESERVED`, `GH_TEXT`,
+`GITHUB_MCP` and the tables of gh's verbs and flags) lives in
+`.agents/lib/gh-shell/gh_shell.py`. prose.py imports it from there,
+finding the directory from prose.py's own real path in the clone, as the
+skills' commit scripts find `.agents/lib/commit-trailer/`. What is a post,
+and which bodies are read, stays in prose.py.
+
+**Why.** spec-check's hand-back hook reads the same commands, and must
+agree with this hook on what a command runs. A copy would drift; loading
+prose.py by path tied spec-check to private names in prose's script.
+
+**Where this stops applying.** prose needs a full clone, as for the
+commit-trailer library. A prose directory copied out alone cannot import
+the reader; its posting hooks then block every command that may run gh,
+with a message saying how to restore the reader, and still check GitHub MCP
+posts.
 
 ---
 
