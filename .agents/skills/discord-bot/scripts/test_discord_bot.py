@@ -12,6 +12,7 @@ import tempfile
 import types
 import unittest
 import urllib.error
+import urllib.parse
 from contextlib import redirect_stdout
 from unittest import mock
 
@@ -1115,6 +1116,155 @@ class MessageContent(unittest.TestCase):
         self.assertNotIn("warnings", result)
         self.assertEqual([c[:2] for c in api.calls][-1], ("GET", "/channels/2/messages"))
         self.assertNotIn(("GET", "/users/@me"), [c[:2] for c in api.calls])
+
+
+class InviteUrl(unittest.TestCase):
+    APP = "1568714835783585902"
+
+    def run_with(self, application):
+        api = FakeApi({("GET", "/applications/@me"): application})
+        return d.cmd_invite_url(api, {}, args()), api
+
+    def query(self, url):
+        parts = urllib.parse.urlsplit(url)
+        self.assertEqual(f"{parts.scheme}://{parts.netloc}{parts.path}", d.AUTHORIZE)
+        return dict(urllib.parse.parse_qsl(parts.query))
+
+    def test_the_link_is_a_server_install_with_exactly_the_skills_permissions(self):
+        result, _ = self.run_with({"id": self.APP, "bot_public": True, "bot": {"username": "cp-agent"}})
+        self.assertEqual(self.query(result["inviteUrl"]),
+                         {"client_id": self.APP, "scope": "bot", "permissions": "309237713920"})
+        self.assertEqual(result["permissions"], list(d.PERMISSIONS))
+        self.assertEqual(result["bot"], "cp-agent")
+        self.assertIs(result["publicBot"], True)
+        self.assertNotIn("warnings", result)
+
+    def test_it_needs_no_server_so_works_before_the_bot_joins_one(self):
+        _, api = self.run_with({"id": self.APP, "bot_public": True})
+        self.assertEqual([c[:2] for c in api.calls], [("GET", "/applications/@me")])
+
+    def test_public_bot_off_warns_that_an_admin_cannot_use_the_link(self):
+        result, _ = self.run_with({"id": self.APP, "bot_public": False})
+        self.assertIs(result["publicBot"], False)
+        self.assertIn("Public Bot is off", result["warnings"][0])
+
+    def test_unknown_public_bot_is_null_with_a_warning_not_a_guess(self):
+        for value in (None, "yes", 1):
+            result, _ = self.run_with({"id": self.APP, "bot_public": value})
+            self.assertIsNone(result["publicBot"])
+            self.assertIn("could not tell", result["warnings"][0])
+
+    def test_requiring_the_oauth2_code_grant_warns_that_the_link_will_fail(self):
+        result, _ = self.run_with({"id": self.APP, "bot_public": True, "bot_require_code_grant": True})
+        self.assertTrue(any("Code Grant" in w for w in result.get("warnings", [])))
+
+    def test_guild_install_turned_off_warns_that_the_link_will_fail(self):
+        result, _ = self.run_with({"id": self.APP, "bot_public": True, "integration_types_config": {"1": {}}})
+        self.assertTrue(any("Guild Install" in w for w in result.get("warnings", [])))
+
+    def test_unknown_install_contexts_never_claim_guild_install_is_off(self):
+        for value in (None, "x", {}, {"0": {}}, {"0": {}, "1": {}}):
+            result, _ = self.run_with({"id": self.APP, "bot_public": True, "integration_types_config": value})
+            self.assertNotIn("warnings", result, value)
+        result, _ = self.run_with({"id": self.APP, "bot_public": True})
+        self.assertNotIn("warnings", result)
+
+    def test_every_setting_that_breaks_the_link_is_warned_about_at_once(self):
+        result, _ = self.run_with({"id": self.APP, "bot_public": False, "bot_require_code_grant": True,
+                                   "integration_types_config": {"1": {}}})
+        self.assertEqual(len(result["warnings"]), 3)
+
+    def test_a_missing_or_malformed_application_id_fails(self):
+        for value in (None, "", "abc", 12):
+            with self.assertRaises(d.Failure):
+                self.run_with({"id": value, "bot_public": True})
+
+    def test_the_command_line_takes_invite_url(self):
+        self.assertEqual(d.parser().parse_args(["invite-url"]).command, "invite-url")
+        self.assertIs(d.COMMANDS["invite-url"], d.cmd_invite_url)
+
+    def test_the_hint_for_a_bot_in_no_server_names_its_identity(self):
+        api = FakeApi({("GET", "/users/@me"): {"id": BOT, "username": "acme-bot"},
+                       ("GET", "/users/@me/guilds"): [],
+                       ("GET", "/applications/@me"): {"id": self.APP, "flags": 0}})
+        result = d.cmd_check(api, {}, args(identity="acme"))
+        self.assertIn("--identity=acme invite-url", result["servers"]["error"])
+        with self.assertRaises(d.Failure) as e:
+            d.target(api, {"defaultChannel": "agents"}, args(identity="acme"))
+        self.assertIn("--identity=acme invite-url", str(e.exception))
+
+    def test_the_fallback_bot_name_is_the_applications_name(self):
+        result, _ = self.run_with({"id": self.APP, "bot_public": True, "name": "cp-app"})
+        self.assertEqual(result["bot"], "cp-app")
+
+    def test_the_hint_runs_as_written_for_any_valid_identity(self):
+        for identity in ("acme", "-staging"):
+            with self.assertRaises(d.Failure) as e:
+                d.servers(FakeApi({("GET", "/users/@me/guilds"): []}), {}, identity)
+            command = str(e.exception).split("'")[1].split()[1:]
+            parsed = d.parser().parse_args(command)
+            self.assertEqual((parsed.identity, parsed.command), (identity, "invite-url"))
+
+    def test_a_bot_in_no_server_gets_the_hint_even_with_a_server_configured(self):
+        with self.assertRaises(d.Failure) as e:
+            d.servers(FakeApi({("GET", "/users/@me/guilds"): []}), {"server": "Acme"}, "acme")
+        self.assertIn("invite-url", str(e.exception))
+
+    def test_spaces_around_the_configured_server_are_ignored(self):
+        api = FakeApi({("GET", "/users/@me/guilds"): [{"id": GUILD, "name": "Acme"}, {"id": "200", "name": "B"}]})
+        self.assertEqual([g["name"] for g in d.servers(api, {"server": " B "})], ["B"])
+        self.assertEqual([g["name"] for g in d.servers(api, {"server": "   "})], ["Acme", "B"])
+
+    def test_a_bot_missing_from_the_configured_server_is_pointed_at_invite_url(self):
+        api = FakeApi({("GET", "/users/@me/guilds"): [{"id": "200", "name": "B"}]})
+        with self.assertRaises(d.Failure) as e:
+            d.servers(api, {"server": "Acme"}, "acme")
+        self.assertIn('"Acme"', str(e.exception))
+        self.assertIn("--identity=acme invite-url", str(e.exception))
+
+    def test_check_on_a_bot_in_no_server_keeps_the_rest_of_its_report(self):
+        api = FakeApi({("GET", "/users/@me"): {"id": BOT, "username": "acme-bot"},
+                       ("GET", "/users/@me/guilds"): [],
+                       ("GET", "/applications/@me"): {"id": self.APP, "flags": 1 << 19}})
+        result = d.cmd_check(api, {"defaultChannel": "agents"}, args(identity="acme"))
+        self.assertEqual((result["identity"], result["bot"], result["messageContent"]), ("acme", "acme-bot", True))
+        self.assertFalse(result["servers"]["ok"])
+        self.assertIn("--identity=acme invite-url", result["servers"]["error"])
+
+    def test_a_server_value_that_matches_nothing_names_the_bots_servers(self):
+        api = FakeApi({("GET", "/users/@me/guilds"): [{"id": GUILD, "name": "Aura"}]})
+        with self.assertRaises(d.Failure) as e:
+            d.servers(api, {"server": "aura"}, "default")
+        self.assertIn("Aura", str(e.exception).replace("'aura'", ""))
+
+    def test_check_lists_the_bots_servers_and_echoes_channels_and_people(self):
+        def run(config):
+            api = FakeApi({("GET", "/users/@me"): {"id": BOT, "username": "acme-bot"},
+                           ("GET", "/users/@me/guilds"): [{"id": GUILD, "name": "Team"}],
+                           ("GET", f"/guilds/{GUILD}/channels"): [],
+                           ("GET", "/applications/@me"): {"id": self.APP, "flags": 0}})
+            return d.cmd_check(api, config, args())
+        config = {"defaultChannel": "agents", "channels": {"agents": "ours"}, "people": {"@adam": "Adam"}}
+        result = run(config)
+        self.assertEqual(result["servers"], ["Team"])
+        self.assertEqual((result["channels"], result["people"]), (config["channels"], config["people"]))
+        result = run({"defaultChannel": "agents", "channels": {}})
+        self.assertNotIn("channels", result)
+        self.assertNotIn("people", result)
+
+    def test_listed_server_names_can_be_copied_into_the_config(self):
+        names = ['Adam\'s "Lab"', "back\\slash"]
+        api = FakeApi({("GET", "/users/@me/guilds"): [{"id": str(i), "name": n} for i, n in enumerate(names, 1)]})
+        with self.assertRaises(d.Failure) as e:
+            d.servers(api, {"server": "x"}, "default")
+        for name in names:
+            self.assertIn(json.dumps(name), str(e.exception))
+
+    def test_a_bot_in_no_server_is_pointed_at_invite_url(self):
+        api = FakeApi({("GET", "/users/@me/guilds"): []})
+        with self.assertRaises(d.Failure) as e:
+            d.servers(api, {})
+        self.assertIn("invite-url", str(e.exception))
 
 
 if __name__ == "__main__":

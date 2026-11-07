@@ -309,6 +309,49 @@ bot's id, to tell which messages mention the bot. The guess gives `null` in
 a quiet channel, and each review of it found another kind of message that is
 empty with the intent on.
 
+## `invite-url` builds the link from the application
+
+**Decision.** `invite-url` calls `GET /applications/@me` and builds
+`https://discord.com/oauth2/authorize?client_id=<id>&scope=bot&permissions=<n>`,
+where `n` is the sum of `PERMISSIONS`, the same bits `check` reports. It
+reports `bot_public`, and warns about each application setting that stops the
+link working: Public Bot off, Requires OAuth2 Code Grant on, or Guild Install
+left out of the installation contexts.
+
+**Why.** People often send the link to a server admin, who can't tell a wrong
+link from a right one. A hand-built link can carry the wrong permission number
+or scope. The developer portal's Installation tab offers a link that carries
+only `client_id`. Discord then uses
+the app's default install settings, which may hold only
+`applications.commands`: the admin authorizes, and the bot never joins.
+`scope=bot` asks for a server install whatever those defaults say.
+
+Three settings still stop the link working, and the warnings catch each before
+the link is sent:
+
+- With Public Bot off, only the app's owner can add the bot.
+- With Requires OAuth2 Code Grant on, the bot joins only through the full code
+  grant, which needs a `redirect_uri` this link doesn't carry.
+- With Guild Install left out of the installation contexts,
+  `integration_types_config` has no `"0"` key and Discord refuses a server
+  install.
+
+A missing or non-boolean `bot_public` gives `null` and a warning, never a
+guess. A missing, null or empty `integration_types_config` gives no warning: it
+doesn't show that Guild Install is off, and a wrong warning would send the user
+to change a setting that is already right. The call needs no server, so it
+works before the bot is in one.
+
+**Rejected: reading the Application ID from the token.** A token's first part
+is the bot's user id in base64. It usually equals the Application ID, but
+Discord doesn't document the two as equal, and `bot_public` needs the API call
+anyway.
+
+**Rejected: the portal's Installation tab as the setup path.** It takes a
+scope and five permissions ticked out of about 40. Those settings also decide
+what anyone pressing the app's public "Add App" button gets, so changing them
+to fix the link changes that too.
+
 ## Permissions are computed in `check`, not before every post
 
 **Decision.** `check` works out the bot's permissions in the default channel
@@ -377,3 +420,14 @@ below the two-character minimum, so the regex never matches. Nobody is pinged
 wrongly, but the rule of one warning per unresolved name is broken. Python's
 `re` has no `\p{M}`. Fixing this means listing the mark ranges in the
 pattern, or checking `unicodedata.category` after a match. Undecided.
+
+### A channel given by id gets no invite hint (2026-11-07)
+
+A command given a channel id, by `--channel` or `defaultChannel`, fetches the
+channel directly and never lists the bot's servers. So a bot in no server gets
+Discord's raw `Missing Access` (403, code 50001) instead of the `invite-url`
+hint that a channel given by name gets. The README's 403 entry then points at
+role permissions, which can't help a bot that isn't in the server. Mapping
+50001 to the hint is not enough on its own: 50001 also means the bot can't see
+a private channel in a server it is in. A fix would list the servers after a
+50001 and give the hint only when that list is empty. Undecided.
