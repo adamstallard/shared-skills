@@ -949,36 +949,17 @@ the moment it is due.
   unsure makes the amend print more: a pass the replaced commit may not
   have printed is printed now rather than lost. With no reflog entry for it, the
   branch rule is used.
-- **A symlinked `openspec` gets one line in place of a pass.** These
-  notices read open changes from a commit's git tree under
-  `openspec/changes/`, and a symlink holds no tree there. The link is never
-  followed, since its target may lie outside the repository or name a path
-  in one checkout only, and then what it holds is not part of the commit.
-  When `openspec` at the root of the commit's tree is a symlink, the hook
-  prints `no current-state notice for this commit: openspec is a symlink,
-  ...`, telling the agent to replace it with a real folder. Saying so
-  matters: a hook that printed nothing would read as "no pass due". The
-  line is printed for each commit that changes the symlink or adds a `src/`
-  file, and not again for an amend of such a commit. Other commits, such as
-  one adding files under the link's target, print nothing.
-- **A branch off a symlinked merge base gets no gate-two pass, and no
-  line.** Which open changes are the branch's is read by comparing them
-  with the merge base, and a merge base holding `openspec` as a symlink has
-  none to compare. Such a branch is the one that replaced the symlink with
-  the folder; its commits on the old layout already got the line, and the
-  silence ends when it merges. This rule covers the current-state notices
-  only: `sign` and the workflow still compare a symlinked merge base's
-  missing `openspec/changes/` as empty, so they count every open change as
-  the branch's.
 - **An archive is the pair `openspec archive` makes.** The archive pass is
   asked for only when one commit deletes `openspec/changes/<name>/` and adds
-  `openspec/changes/archive/<date>-<name>/`. A commit that only brings
-  archive folders in archives nothing and asks for nothing. Replacing a
-  symlinked `openspec` with the folder is such a commit, whether done at
-  once or spread over several commits, so it starts no pass; any pass missed
-  while `openspec` was a symlink is not asked for later. Neither does archiving a change that was never committed as
-  open, which the two-gate workflow never does, since its spec is committed
-  first.
+  `openspec/changes/archive/<date>-<name>/`, or `archive/<name>/` with the
+  name kept as is, as `openspec archive` does for a name that already starts
+  with a date. Moving folders that are already archived changes, kept
+  elsewhere in the repository or already under `openspec/changes/archive/`,
+  deletes no open change folder (one directly under `openspec/changes/`
+  other than `archive/`), so it is not archiving and asks for nothing.
+  Archiving a change that was never committed as open asks for nothing
+  either, since no commit deletes its folder; the two-gate workflow never
+  does this, as its spec is committed first.
 - Whether a commit is on the base branch is read from the commit, not from
   HEAD: it is when the local base branch, or the base ref (such as
   `origin/main`), holds it. The hook

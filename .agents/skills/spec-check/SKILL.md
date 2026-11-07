@@ -461,11 +461,6 @@ conclusion, as `prose compact` does.
   reasoning into the DECISIONS.md of each skill it affects, rewriting older
   reasoning rather than appending to it; then run `prose check` on each, and
   compact any it reports as due.
-- **`openspec` is a symlink.** For a commit that changes the symlink or
-  adds a `src/` file, the commit hook prints `no current-state notice for
-  this commit: ...` in place of the implementation and archive notices
-  above. Replace the symlink with a real `openspec` folder. Replacing it
-  starts no pass for what was missed while it was a symlink.
 - **A pull request is handed back for review.** prose's hook prints it
   after the agent's hand-back, and the GitHub workflow as a notice when a
   hand-back leaves no change unread. Do the final pass over each doc the
