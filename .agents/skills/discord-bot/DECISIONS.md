@@ -420,6 +420,26 @@ Running `store-token` again once online costs one paste.
 **Rejected: checking only the token's format.** Discord doesn't document the
 format, and a Client Secret is printable ASCII too.
 
+## `store-token` refuses to run without a terminal
+
+**Decision.** `store-token` checks that standard input is a terminal before
+it prompts. If it isn't, the command stores nothing and says to run it in a
+terminal window, not through a tool or Claude Code's `!` prefix. On a
+terminal where `getpass` can't turn echo off, the script stops before
+`getpass` reads anything. End of input at the prompt reports "no token
+entered". None of these three cases prints a traceback.
+
+**Why.** When `getpass` can't turn echo off, which is always the case without
+a terminal, it warns that the input may be echoed and falls back to reading
+standard input with echo on. That read would show the token. Claude Code's
+`!` prefix runs the command with no terminal. In a run through `!` before
+this check existed, `getpass` printed its warning, then hit end of input, and
+the script printed a traceback and `unexpected error: EOFError()`. So the
+skill tells the user to run `store-token` in a separate terminal window.
+
+**Rejected: letting `getpass` fall back to its echoing read.** The token would
+appear on screen as the user typed it.
+
 ## `forget-token` deletes the identity's entry
 
 **Decision.** `forget-token` deletes the entry `keychain_entry()` names, with

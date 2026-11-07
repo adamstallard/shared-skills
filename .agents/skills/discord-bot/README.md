@@ -61,8 +61,10 @@ On your own machine, keep it in the keychain:
 python3 ~/.agents/skills/discord-bot/scripts/discord_bot.py --identity acme store-token
 ```
 
-It asks for the token without echoing it and checks it with Discord before
-storing it under service `discord-bot`, account `acme`. The output's `bot`
+Run it in a terminal window. It asks for the token without echoing it and
+checks it with Discord before storing it under service `discord-bot`, account
+`acme`. When it has no terminal, as when Claude Code's `!` prefix or an agent's
+shell runs it, it refuses and stores nothing. The output's `bot`
 field names the bot the token belongs to. If that is a different bot, you
 copied another bot's token: run `store-token` again with the right one.
 

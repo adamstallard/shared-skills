@@ -591,7 +591,74 @@ class EnvironmentToken(unittest.TestCase):
         with self.assertRaisesRegex(d.Failure, "DISCORD_BOT_IDENTITY=reviewer"):
             d.resolve_token("reviewer", {}, {}, lambda s, a: None)
 
+TERMINAL = types.SimpleNamespace(isatty=lambda: True)
+NO_TERMINAL = types.SimpleNamespace(isatty=lambda: False)
+
+
 class StoreToken(unittest.TestCase):
+    def setUp(self):
+        # The tests run with or without a terminal; store-token needs one.
+        patcher = mock.patch.object(d.sys, "stdin", TERMINAL)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def prompt(self, getpass_effect, stdin=TERMINAL):
+        """Run store-token with a fake getpass; returns the Failure, the getpass mock and the keychain calls."""
+        run = mock.Mock(return_value=types.SimpleNamespace(returncode=0, stdout="", stderr=""))
+        args = types.SimpleNamespace(identity="acme")
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(d.sys, "stdin", stdin), \
+                mock.patch.object(d.getpass, "getpass", side_effect=getpass_effect) as fake, \
+                self.assertRaises(d.Failure) as e:
+            d.cmd_store_token(args, {"XDG_CONFIG_HOME": tmp}, run=run,
+                              which=lambda t: t == "secret-tool", make_api=accepting_api)
+        return e.exception, fake, run.call_args_list
+
+    def test_without_a_terminal_it_refuses_before_prompting(self):
+        failure, fake, calls = self.prompt(lambda prompt: "tok", stdin=NO_TERMINAL)
+        self.assertIn("terminal window", str(failure))
+        self.assertIn("'!' prefix", str(failure))
+        fake.assert_not_called()
+        self.assertEqual(calls, [])
+
+    def test_without_a_terminal_main_prints_a_clean_error(self):
+        out, err = io.StringIO(), io.StringIO()
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(d.sys, "stdin", NO_TERMINAL), \
+                mock.patch.dict(os.environ, {"XDG_CONFIG_HOME": tmp}), \
+                mock.patch.object(d.getpass, "getpass") as fake, \
+                redirect_stdout(out), mock.patch.object(sys, "stderr", err):
+            code = d.main(["--identity", "acme", "store-token"])
+        self.assertEqual(code, 1)
+        self.assertIn("terminal window", json.loads(out.getvalue())["error"])
+        self.assertEqual(err.getvalue(), "")
+        fake.assert_not_called()
+
+    def test_no_stdin_at_all_refuses(self):
+        failure, fake, _ = self.prompt(lambda prompt: "tok", stdin=None)
+        self.assertIn("terminal window", str(failure))
+        fake.assert_not_called()
+
+    def test_end_of_input_at_the_prompt_is_no_token_entered(self):
+        failure, _, calls = self.prompt(EOFError())
+        self.assertEqual(str(failure), "no token entered")
+        self.assertEqual(calls, [])
+
+    def test_the_prompt_names_the_identity(self):
+        _, fake, _ = self.prompt(EOFError())
+        self.assertIn("'acme'", fake.call_args.args[0])
+
+    def test_getpass_falling_back_to_an_echoing_read_is_refused(self):
+        read = mock.Mock(return_value="s3cret")
+
+        def getpass_that_falls_back(prompt):
+            # What getpass does when it can't turn echo off: issue a GetPassWarning
+            # (a warning, not an exception), then read with echo on.
+            d.warnings.warn("Can not control echo on the terminal.", d.getpass.GetPassWarning, stacklevel=2)
+            return read()
+        failure, _, calls = self.prompt(getpass_that_falls_back)
+        self.assertIn("could not hide the input", str(failure))
+        read.assert_not_called()
+        self.assertEqual(calls, [])
+
     def store(self, identity, env):
         run = mock.Mock(return_value=types.SimpleNamespace(returncode=0, stderr=""))
         args = types.SimpleNamespace(identity=identity)

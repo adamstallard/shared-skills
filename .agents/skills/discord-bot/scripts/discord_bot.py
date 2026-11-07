@@ -22,6 +22,7 @@ import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
+import warnings
 
 API = "https://discord.com/api/v10"
 AUTHORIZE = "https://discord.com/oauth2/authorize"
@@ -875,13 +876,35 @@ def bot_for_token(token, make_api=Api):
     return name
 
 
+def read_hidden_token(identity):
+    """Prompt on the terminal for a token without echoing it.
+
+    Without a terminal, getpass warns and falls back to reading standard input
+    with echo on, which would show the token, so refuse instead.
+    """
+    if sys.stdin is None or not sys.stdin.isatty():
+        raise Failure("store-token needs a terminal to read the token without showing it: run it in a "
+                      "terminal window, not through a tool or Claude Code's '!' prefix")
+    try:
+        with warnings.catch_warnings():
+            # Turn getpass's echoing fallback into an error before it reads anything.
+            warnings.simplefilter("error", getpass.GetPassWarning)
+            token = getpass.getpass(f"Bot token for {identity!r} (input hidden): ").strip()
+    except getpass.GetPassWarning:
+        raise Failure("store-token could not hide the input on this terminal, so it read nothing: "
+                      "run it in a terminal window") from None
+    except EOFError:
+        raise Failure("no token entered") from None
+    if not token:
+        raise Failure("no token entered")
+    return token
+
+
 def cmd_store_token(args, env=None, run=subprocess.run, which=shutil.which, make_api=Api):
     env = os.environ if env is None else env
     config, _ = load_config(args.identity, env)
     service, account = keychain_entry(args.identity, config)
-    token = getpass.getpass(f"Bot token for {args.identity!r} (input hidden): ").strip()
-    if not token:
-        raise Failure("no token entered")
+    token = read_hidden_token(args.identity)
     bot = bot_for_token(token, make_api)
     if which("security"):
         store_in_macos_keychain(service, account, token, run)
