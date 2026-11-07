@@ -1047,6 +1047,37 @@ reflog, other commits — needs a different hook, not a longer callback.
 
 ---
 
+## A skill may print notices about a commit
+
+**Decision.** A skill's report file may define `commit_trailer_notice <sha>`.
+The hook calls it for every new commit except a merge, whatever the
+commit's trailer, including commits `COMMIT_TRAILER_PATHSPEC` leaves out. The
+hook prints what it returns once every new commit is checked, before any
+report, and exits 2 as it does for a report. A line printed for two commits,
+such as a commit and its amend, is printed once. spec-check uses it to print `current-state pass due
+for: ...` when a commit starts a current-state pass (spec-check's
+DECISIONS.md, *Events start a current-state pass*).
+
+**Why.** The events that start such a pass, such as the first source files
+on a spec branch, are found in commits the trailer check never reads: a
+commit that changes nothing under `openspec/` is skipped before anything
+else. The reflog walk already finds each new commit exactly once, and a
+second walk in the skill is the drift *One library, a thin wrapper per
+skill* exists to prevent.
+
+**How it differs from `commit_trailer_verify`.** Like that callback, it runs
+in a subshell with stderr closed and `set -u` off, so the report file cannot
+break the hook. Unlike it, it needs no marker to tell a returned status from
+an aborted one, since a notice only advises: a file or callback that fails,
+exits or prints nothing prints no notice, and the trailer check runs as it
+would without the callback.
+
+**Rejected: a separate hook for the notices.** It would need its own cursor,
+lock and submodule walk, and could disagree with this one about which
+commits are new.
+
+---
+
 ## A family whose value is its own binding
 
 **Decision.** `commit-with-trailers.sh` takes `--verified-value <verifier>

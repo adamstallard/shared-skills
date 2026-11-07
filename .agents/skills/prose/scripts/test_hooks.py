@@ -12,6 +12,7 @@ Standard library only:
 import json
 import os
 import pathlib
+import re
 import shlex
 import shutil
 import subprocess
@@ -1138,6 +1139,148 @@ class Gate(unittest.TestCase):
         env = dict(self.env, XDG_STATE_HOME=str(self.state / "home"))
         self.assertAllowed(self.gate("Edit", {"file_path": "/w/README.md", "old_string": "a",
                                               "new_string": "b"}, env=env))
+
+
+HANDBACK_NOTICE = HERE / "handback-notice.sh"
+
+
+class DeferredColdRead(unittest.TestCase):
+    """A pull request body is cold-read at a hand-back: inside a round it may
+    be signed with `--defer-cold-read`, and the posting hook lets that footer
+    through only on a body that is not a hand-back (DECISIONS: A pull request
+    body is cold-read at a hand-back)."""
+
+    def setUp(self):
+        self.dir = pathlib.Path(tempfile.mkdtemp()).resolve()
+        self.addCleanup(shutil.rmtree, self.dir, True)
+        self.deferred = prose.sign("A round's body.\n", deferred=True)
+        self.full = prose.sign("A handed-back body.\n")
+        self.body = self.dir / "body.md"
+        self.body.write_text(self.deferred)
+        # A fake gh that logs its arguments and prints $FAKE_BODY's file.
+        bin_dir = self.dir / "bin"
+        bin_dir.mkdir()
+        gh = bin_dir / "gh"
+        gh.write_text('#!/bin/sh\nprintf "%s\\n" "$*" >> "$FAKE_LOG"\ncat "$FAKE_BODY"\n')
+        gh.chmod(0o755)
+        self.pr_body = self.dir / "pr-body.md"
+        self.log = self.dir / "gh.log"
+        self.env = dict(os.environ, PATH=f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
+                        FAKE_BODY=str(self.pr_body), FAKE_LOG=str(self.log))
+
+    def hook(self, payload, host="claude", script=POST_HOOK):
+        return run(["sh", str(script), "--host", host], stdin=json.dumps(payload), env=self.env)
+
+    def bash(self, command, event="PreToolUse"):
+        return {"hook_event_name": event, "cwd": str(self.dir), "tool_name": "Bash",
+                "tool_input": {"command": command}}
+
+    def test_the_footer_says_so_and_cannot_be_cut_down_by_hand(self):
+        last = self.deferred.rstrip("\n").split("\n")[-1]
+        self.assertRegex(last, r"^prose ✓ [0-9a-f]{6} \(cold read deferred to the hand-back\)$")
+        self.assertEqual(prose.verify_post(self.deferred),
+                         (True, "signed, cold read deferred to the hand-back"))
+        cut = self.deferred.replace(" " + prose.DEFERRED_NOTE, "")
+        self.assertFalse(prose.verify_post(cut)[0])
+        self.assertFalse(prose.deferred_footer(self.full))
+
+    def test_sign_defers_only_on_the_signing_call(self):
+        first = run([sys.executable, str(SCRIPT), "sign", "--goals", "approve it",
+                     "--defer-cold-read"], cwd=self.dir)
+        self.assertEqual(first.returncode, 2)
+        self.assertIn("--defer-cold-read goes with --pass", first.stderr)
+        first = run([sys.executable, str(SCRIPT), "sign", "--goals", "approve it"], cwd=self.dir)
+        self.assertEqual(first.returncode, 4, first.stderr)
+        token = re.search(r"Pass token: ([0-9a-f]{16})", first.stderr).group(1)
+        signed = run([sys.executable, str(SCRIPT), "sign", "--pass", token,
+                      "--defer-cold-read"], cwd=self.dir, stdin="Round body.\n")
+        self.assertEqual(signed.returncode, 0, signed.stderr)
+        self.assertTrue(prose.deferred_footer(signed.stdout))
+        self.assertTrue(prose.verify_post(signed.stdout)[0])
+
+    def test_a_body_edit_inside_a_round_may_defer(self):
+        for command in (f"gh pr edit 7 --body-file {self.body}",
+                        f"gh pr create --draft -t x --body-file {self.body}"):
+            with self.subTest(command=command):
+                r = self.hook(self.bash(command))
+                self.assertEqual(r.returncode, 0, r.stderr)
+        r = self.hook({"hook_event_name": "PreToolUse", "cwd": str(self.dir),
+                       "tool_name": "mcp__github__update_pull_request",
+                       "tool_input": {"owner": "o", "repo": "r", "pullNumber": 7,
+                                      "body": self.deferred}})
+        self.assertEqual(r.returncode, 0, r.stderr)
+
+    def test_a_hand_back_or_another_post_needs_its_cold_read(self):
+        for command, why in (
+                (f"gh pr create -t x --body-file {self.body}", "hands the pull request back"),
+                (f"gh pr edit 7 --add-reviewer adam --body-file {self.body}",
+                 "hands the pull request back"),
+                (f"gh pr comment 7 --body-file {self.body}", "is not a pull request body"),
+                (f"gh issue create -t x --body-file {self.body}", "is not a pull request body")):
+            with self.subTest(command=command):
+                r = self.hook(self.bash(command))
+                self.assertEqual(r.returncode, 2, r.stderr)
+                self.assertIn(why, r.stderr)
+                self.assertIn("sign it without --defer-cold-read", r.stderr)
+        r = self.hook({"hook_event_name": "PreToolUse", "cwd": str(self.dir),
+                       "tool_name": "mcp__github__update_pull_request",
+                       "tool_input": {"owner": "o", "repo": "r", "pullNumber": 7,
+                                      "draft": False, "body": self.deferred}})
+        self.assertEqual(r.returncode, 2, r.stderr)
+
+    def test_a_hand_back_of_a_body_still_deferred_is_blocked(self):
+        self.pr_body.write_text(self.deferred)
+        for command in ("gh pr ready 7", "gh pr ready", "gh pr ready 7 -R o/r && true",
+                        "gh pr edit 7 -R o/r --add-reviewer adam"):
+            with self.subTest(command=command):
+                r = self.hook(self.bash(command))
+                self.assertEqual(r.returncode, 2, r.stderr)
+                self.assertIn("prose: blocked this hand-back for review", r.stderr)
+                self.assertIn("deferred to the hand-back", r.stderr)
+        self.assertIn("pr view 7 --json body --jq .body -R o/r", self.log.read_text())
+
+    def test_a_hand_back_of_a_cold_read_body_goes_through(self):
+        self.pr_body.write_text(self.full)
+        self.assertEqual(self.hook(self.bash("gh pr ready 7")).returncode, 0)
+        # Not findable without guessing gh's directory: not looked up.
+        self.pr_body.write_text(self.deferred)
+        self.log.unlink()
+        self.assertEqual(self.hook(self.bash("cd sub && gh pr ready")).returncode, 0)
+        self.assertFalse(self.log.exists())
+        r = self.hook(self.bash("gh pr ready 7"), host="cursor")
+        self.assertEqual(json.loads(r.stdout)["permission"], "deny")
+
+    def test_a_hand_back_that_posts_a_cold_read_body_replaces_the_deferred_one(self):
+        self.pr_body.write_text(self.deferred)
+        self.body.write_text(self.full)
+        r = self.hook(self.bash(f"gh pr edit 7 --add-reviewer adam --body-file {self.body}"))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertFalse(self.log.exists())
+
+    def test_a_failed_lookup_lets_the_hand_back_through(self):
+        self.pr_body.write_text(self.deferred)
+        gh = self.dir / "bin" / "gh"
+        gh.write_text(gh.read_text() + "exit 1\n")
+        r = self.hook(self.bash("gh pr ready 7"))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("pr view 7", self.log.read_text())
+
+    def test_a_hand_back_tells_the_agent_the_pass_due(self):
+        r = self.hook(self.bash("gh pr ready 7", "PostToolUse"), script=HANDBACK_NOTICE)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        note = json.loads(r.stdout)["hookSpecificOutput"]["additionalContext"]
+        self.assertTrue(note.startswith("prose: current-state pass due for: each doc the pull "
+                                        "request changes, and its body and title."), note)
+        self.assertIn("(gh pr ready)", note)
+        r = self.hook(self.bash("gh pr ready 7", "postToolUse"), host="cursor",
+                      script=HANDBACK_NOTICE)
+        self.assertIn("current-state pass due for:", json.loads(r.stdout)["additional_context"])
+        for payload in (self.bash("gh pr ready 7", "PostToolUseFailure"),
+                        self.bash("gh pr create --draft -t x -b y", "PostToolUse"),
+                        self.bash("gh pr view 7", "PostToolUse")):
+            with self.subTest(payload=payload):
+                r = self.hook(payload, script=HANDBACK_NOTICE)
+                self.assertEqual((r.returncode, r.stdout), (0, ""), r.stderr)
 
 
 if __name__ == "__main__":

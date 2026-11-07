@@ -150,8 +150,10 @@ because a reader who misreads with confidence never stops. The line says:
 
 **What gets one:** every comment block the change adds to or edits, read
 whole even when one line changed; every doc or spec passage it adds to; and
-every post, whatever its length. The commit message gets none, so a commit
-that changes no comment or doc signs without one. A doc that git diffs as
+every post, whatever its length, except a pull request body posted inside a
+review round, whose cold read comes at the hand-back (see
+[Posting](#posting)). The commit message gets none, so a commit that
+changes no comment or doc signs without one. A doc that git diffs as
 binary is skipped, since prose cannot read it.
 
 **A merge's change is only what the merge itself changed:** the passages where
@@ -299,6 +301,25 @@ gh pr create --title "..." --body-file signed.md
 
 The second call, with `--pass`, may pass the same goals or none, and refuses
 other goals.
+
+**A pull request body is cold-read at a hand-back,** not at each edit. A
+hand-back is `gh pr create` (not a draft, unless it requests a review),
+`gh pr ready`, `gh pr edit --add-reviewer`, or the GitHub MCP's equivalents;
+a review round is your work between two of them. A body posted inside a
+round, by `gh pr create --draft` or `gh pr edit`, still gets the pass: sign
+it with `--defer-cold-read` on the signing call, and its footer ends `(cold
+read deferred to the hand-back)`. The hook refuses that footer on any other
+post. Before `gh pr ready` or `--add-reviewer`, it reads the pull request's
+body from GitHub, when the call names its pull request (by URL, `-R` or
+`GH_REPO`) or gh is the whole command, and blocks the hand-back while that body
+still defers its cold read: sign the body without `--defer-cold-read`, post
+it with `gh pr edit`, and hand back again.
+
+**After a hand-back,** a hook prints `current-state pass due for: ...`. Do
+that final pass at once, without asking first: fix any doc the pull request
+changes, and its body and title, that still describes work as unfinished or
+to come. Ask a person only before dropping a conclusion. A person now reads
+the body, so sign a body you change then with its cold read.
 
 Run `gh` as the whole command with `--body-file <file>` or `--body '<text>'`;
 other shapes are blocked

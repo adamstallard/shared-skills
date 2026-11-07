@@ -136,7 +136,8 @@ it proposes the line, and once you confirm, the agent makes the edit.
 | GitHub posts, through MCP | A hook blocks the post unless its body ends with a valid footer |
 | GitHub posts, through `gh` | The same hook, for a few exact command forms (see [Posting through `gh`](#posting-through-gh)) |
 | A Claude Code session's first file write or GitHub post | A hook blocks it until prose's first call has printed the rules in that session |
-| A changed comment or doc passage, or a post | The signing call signs it only with a cold reader's report for that pass, and an answer to each finding and understood line |
+| A changed comment or doc passage, or a post | The signing call signs it only with a cold reader's report for that pass, and an answer to each finding and to each line saying what the reader understood. A pull request body posted between two hand-backs for review (`gh pr create`, `gh pr ready`, `gh pr edit --add-reviewer`) may defer its cold read to the next one |
+| A pull request handed back for review | Before the call, the posting hook blocks it while the body still defers its cold read; after it, a hook prints the current-state pass that is due |
 
 To turn the hooks off, run
 `python3 ~/.agents/skills/manage-skills/scripts/skills.py disable-hook prose`;

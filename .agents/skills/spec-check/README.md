@@ -127,8 +127,10 @@ Actions.
 - **The commit hook.** After each shell command, it looks for new commits
   that change `openspec/` and reports any without a valid `Spec-check:`
   trailer. A commit that changes nothing under `openspec/` is never
-  reported. Only `openspec/` at the repository root counts. It never
-  blocks.
+  reported. Only `openspec/` at the repository root counts. It also prints
+  `current-state pass due for: ...` for a commit that adds a file under
+  `src/` on a branch with an open change, or that archives a change (see
+  SKILL.md, *Current-state passes*). It never blocks.
 - **The hand-back hook.** It judges `gh pr create`, `gh pr ready`,
   `gh pr edit --add-reviewer`, and the GitHub MCP server's calls that do
   the same, at the pull request's head on GitHub. A call that names its

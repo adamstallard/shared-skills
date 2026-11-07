@@ -3291,6 +3291,143 @@ def cmd_verify_commit(args):
     return 0 if ok else 1
 
 
+# -- current-state passes ------------------------------------------------
+
+# How every line starts that a hook prints when an event may leave docs
+# describing an earlier state. The agent does the pass without asking (SKILL.md, *Current-state
+# passes*); DECISIONS.md, "Events start a current-state pass".
+PASS_DUE = "current-state pass due for:"
+# A path under a src/ directory, at the top or deeper, as in packages/x/src/.
+SRC_PATH = re.compile(r"(?:^|/)src/")
+# The date `openspec archive` puts before a change's name.
+ARCHIVE_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}-")
+SHOWN_SRC = 3
+# The pass a hand-back starts: the final pass of prose's single-pass rule.
+# The workflow prints this; prose's hook prints its own wording of the same
+# pass after an agent's hand-back.
+HANDBACK_PASS = (f"{PASS_DUE} each doc the pull request changes, and its body and title. "
+                 "It was handed back for review: flag and fix any that still describes "
+                 "work as unfinished or to come.")
+
+
+def added_paths(repo, sha):
+    """The paths a commit adds, against its first parent, renames read as an
+    addition and a deletion."""
+    out = git(repo, "diff-tree", "--no-commit-id", "--name-only", "--no-renames",
+              "--diff-filter=A", "-r", "-z", "--root", sha, check=False)
+    return [p for p in out.stdout.split("\0") if p] if out.returncode == 0 else []
+
+
+def amended_from(repo, sha):
+    """The commit an amend replaced, from HEAD's reflog: the entry before the
+    `commit (amend):` entry that made sha; None for any other commit."""
+    out = git(repo, "reflog", "show", "--format=%H%x09%gs", "HEAD", check=False)
+    entries = [line.split("\t", 1) for line in out.stdout.splitlines()] \
+        if out.returncode == 0 else []
+    for i, entry in enumerate(entries):
+        if len(entry) == 2 and entry[0] == sha and entry[1].startswith("commit (amend):") \
+                and i + 1 < len(entries):
+            return entries[i + 1][0]
+    return None
+
+
+def made_on(repo, sha, branch):
+    """Whether branch's reflog records sha as committed on it."""
+    out = git(repo, "reflog", "show", "--format=%H%x09%gs", f"refs/heads/{branch}",
+              check=False)
+    return out.returncode == 0 and any(
+        line.split("\t", 1)[0] == sha and line.split("\t", 1)[-1].startswith("commit")
+        for line in out.stdout.splitlines())
+
+
+def passes_due(repo, sha, base_ref, branch_ref=None, branch=None):
+    """The `current-state pass due for:` lines a commit starts: one for each
+    change it archives, and one for each open change of the branch when it
+    adds a file under a src/ directory. base_ref is "HEAD" for a commit on
+    the base branch. branch_ref is the base ref as given, before cmd_pass_due
+    replaced it with "HEAD", and branch is the base branch's name; both are
+    used only to judge an amend's replaced commit."""
+    passes = commit_passes(repo, sha, base_ref)
+    amended = amended_from(repo, sha) if passes else None
+    if amended:
+        # An amend asks only for passes the commit it replaced did not ask
+        # for: the same pass, with no src/ file it lacked, is not asked for
+        # again. The replaced commit is judged as its own hook judged it: by
+        # the base-branch rule when that branch's reflog records it committed
+        # there, else by the narrower branch rule, so that when unsure, a
+        # pass it may not have printed is printed now rather than lost.
+        on_base = branch_ref is None or branch_ref == "HEAD" or (
+            branch is not None and made_on(repo, amended, branch))
+        earlier = {key: srcs for key, srcs, _ in
+                   commit_passes(repo, amended, "HEAD" if on_base else branch_ref)}
+        passes = [(key, srcs, line) for key, srcs, line in passes
+                  if key not in earlier or not srcs <= earlier[key]]
+    return [line for _, _, line in passes]
+
+
+def commit_passes(repo, sha, base_ref):
+    """[(key, set of added src/ paths, line)] for one commit, judged alone:
+    the key names the pass, ("archive", folder) or ("change", name)."""
+    added = added_paths(repo, sha)
+    passes = []
+    archived = sorted({p.split("/")[3] for p in added
+                       if p.startswith("openspec/changes/archive/") and p.count("/") >= 4})
+    for folder in archived:
+        name = ARCHIVE_DATE.sub("", folder)
+        passes.append((("archive", folder), set(), (
+            f"{PASS_DUE} the DECISIONS.md of each skill the change {name} affects. "
+            f"It is archived as openspec/changes/archive/{folder}: fold its reasoning "
+            "into those files, rewriting older reasoning rather than appending to it, "
+            "then run prose check on each and compact any it reports as due.")))
+    src = [p for p in added if SRC_PATH.search(p)]
+    if not src:
+        return passes
+    tree = git(repo, "rev-parse", f"{sha}^{{tree}}").stdout.strip()
+    start = None if base_ref == "HEAD" else merge_base_tree(repo, sha, base_ref)
+    shown = ", ".join(src[:SHOWN_SRC]) + (f" and {len(src) - SHOWN_SRC} more"
+                                          if len(src) > SHOWN_SRC else "")
+    for c in sorted(open_changes(repo, tree)):
+        prefix = f"openspec/changes/{c}/"
+        now = blob_ids(repo, tree, prefix)
+        if start is not None and blob_ids(repo, start, prefix) == now:
+            continue  # not this branch's change
+        docs = [f"{prefix}{f}" for f in ("proposal.md", "design.md") if f"{prefix}{f}" in now]
+        targets = docs + ["the pull request's body and title"]
+        listed = targets[0] if len(targets) == 1 else \
+            ", ".join(targets[:-1]) + ", and " + targets[-1]
+        passes.append((("change", c), set(src), f"{PASS_DUE} {listed}. The implementation is on the branch of the open change {c} "
+                     f"({shown} added): rewrite wording such as \"specification only\", or "
+                     "\"will\" for what is now built."))
+    return passes
+
+
+def cmd_pass_due(args):
+    repo = repo_root(args.repo)
+    # The full id: HEAD's reflog, read for an amend, names commits in full.
+    out = git(repo, "rev-parse", "-q", "--verify", f"{args.sha}^{{commit}}", check=False)
+    if out.returncode != 0:
+        raise Fatal(f"no commit {args.sha}")
+    sha = out.stdout.strip()
+    base_ref = args.base or default_base(repo)
+    # On the base branch every open change counts as the branch's, as
+    # spec_check.py's sign command counts them.
+    # Judged by the commit, not HEAD: the hook runs after the whole command,
+    # and `git commit && git checkout main` leaves HEAD on another branch.
+    # The commit is on the base branch when the local base branch or base_ref
+    # holds it: after
+    # `git push origin HEAD:main`, only the remote's copy does.
+    branch_ref = base_ref
+    branch = branch_of(repo, base_ref) if base_ref != "HEAD" else None
+    holders = [base_ref] + ([f"refs/heads/{branch}"] if branch else []) \
+        if base_ref != "HEAD" else []
+    if any(git(repo, "merge-base", "--is-ancestor", sha, ref, check=False).returncode == 0
+           for ref in holders):
+        base_ref = "HEAD"
+    for line in passes_due(repo, sha, base_ref, branch_ref, branch):
+        print(line)
+    return 0
+
+
 # -- the GitHub workflow ---------------------------------------------------
 
 # The pull_request actions that hand a pull request back for review. On any
@@ -3330,6 +3467,8 @@ def cmd_ci(args):
     unread = unread_at(repo, head, base_ref)
     if not unread:
         print(f"spec-check: no OpenSpec change is unread at {head[:12]}.")
+        if action in CI_HANDBACKS:
+            print(f"::notice::{HANDBACK_PASS}")
         return 0
     print(f"::error::spec-check: {', '.join(unread)} changed after its last consistency read "
           f"(head {head[:12]}). Do the read (spec-check's SKILL.md, section 2), commit with "
@@ -3424,6 +3563,13 @@ def main(argv=None):
     vc.add_argument("sha")
     vc.add_argument("value")
     vc.set_defaults(fn=cmd_verify_commit)
+
+    pd = sub.add_parser("pass-due", help="the current-state passes a commit starts (the "
+                                          "commit hook)")
+    pd.add_argument("sha")
+    pd.add_argument("--repo")
+    pd.add_argument("--base")
+    pd.set_defaults(fn=cmd_pass_due)
 
     ci = sub.add_parser("ci", help="the GitHub workflow's check of a pull request event")
     ci.add_argument("--event", help="the event JSON (default: $GITHUB_EVENT_PATH)")

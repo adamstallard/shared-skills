@@ -776,6 +776,9 @@ A draft pull request that requests no review is not a hand-back.
     (`.agents/lib/gh-shell/gh_shell.py`), only to tell whether a command
     hands back and which pull request it names; never to work out the
     directory gh runs in (see *Why directory placement was abandoned*).
+    What a hand-back is, and which pull request it names, is read by
+    `.agents/lib/gh-shell/handbacks.py`, which prose's hooks share, so the
+    two skills agree on what a hand-back is.
 - **Both checks act after the fact.** A pull request created ready, or a
   review requested, notifies GitHub's watchers before the post-call hook or
   the workflow can take it back. A reviewer may get the notification of a
@@ -851,11 +854,10 @@ the workflow does: an Igor's pull request marked ready or sent for review
 is judged like anyone's. This may make igor's own loop-side check (igor
 issue #149) unnecessary. spec-check builds nothing igor-side.
 
-**This settles, for spec-check, the open question in shared-skills issue
-#37 item 5 of how a draft becoming ready is detected:** GitHub's
-`ready_for_review` event, read by the workflow, and the agent's
-`gh pr ready` (or the MCP's update), read by the session hook. Item 5's
-other triggers are not built here.
+**Every hand-back this detection finds also starts a current-state
+pass:** prose's hook reads the agent's call after it runs, and the workflow
+reads GitHub's `opened`, `reopened`, `ready_for_review` and
+`review_requested` events (see *Events start a current-state pass*).
 
 **A read with nothing to commit lands on an empty commit.** The read has
 to be on a commit, and when every edit of the round is already pushed and
@@ -903,6 +905,84 @@ committed again with `git reset --soft`.
   change.** Pushes inside a round are expected before the read; flipping
   the pull request on each would notify watchers each time. The failed
   check holds the merge instead.
+
+---
+
+## Events start a current-state pass
+
+**Decision.** On each event below, a hook prints `current-state pass due
+for: ...`, naming the texts to rewrite, and the agent rewrites them to
+describe the state as it now is, without asking first. It asks a person
+only before dropping a conclusion, the rule `prose compact` follows ("just
+do it; ask on loss").
+
+| Event | Detected as | The pass |
+|---|---|---|
+| The implementation is pushed onto a spec branch (gate two of the two-gate workflow, where a specification is approved first and its implementation is then pushed onto the same branch) | the commit hook sees a commit add a file under a `src/` directory while the branch adds or edits an open change, compared with the point where it left the base branch (its merge base). On the base branch itself, every open change counts | the change's proposal.md and design.md, and the pull request's body and title, for wording such as "specification only", or "will" for what is now built |
+| A change is archived | the commit hook sees a commit add a folder under `openspec/changes/archive/` | the change's reasoning folded into the affected skills' DECISIONS.md, rewriting older reasoning rather than appending to it; then `prose check` on each, compacting any it reports as due |
+| A pull request is handed back for review | a hand-back, as *One consistency read per round* detects it: prose's hook after the agent's call, or the workflow, which prints a `::notice::` when the hand-back leaves no change unread | the final pass of prose's single-pass rule, done once before a person reads the docs: any doc the pull request changes, or its body, that still describes work as unfinished or to come |
+
+**Why.** These rules had slipped: the bodies of igor pull request #216 sat
+stale for six rounds. An agent does a pass when something tells it to at
+the moment it is due.
+
+- The commit hook finds the first two events through the commit-trailer
+  library's `commit_trailer_notice` callback, which sees every new commit,
+  including those that change nothing under `openspec/` (the library's
+  DECISIONS.md, *A skill may print notices about a commit*). A shell `grep`
+  of the paths the commit adds spares starting Python for other commits.
+- Each commit that adds `src/` files prints the gate-two pass again, since
+  each may build more of what the change says "will" happen.
+- An amend prints only the passes its replaced commit would not have
+  printed. The replaced commit is found from HEAD's reflog. A pass for the
+  same change or archive, adding no `src/` file the replaced commit lacked,
+  is not asked for again, so folding a pass's own edits into the commit, or
+  dropping a file from it, asks for nothing. To know what the replaced
+  commit printed, it is judged as its own hook judged it: by the base-branch
+  rule when the base branch's reflog records it committed there, otherwise
+  by the branch rule (only open changes the branch adds or edits). Judging
+  it by the narrower branch rule when unsure means a pass it may not have
+  printed is printed now rather than lost. With no reflog entry for it, the
+  branch rule is used.
+- Whether a commit is on the base branch is read from the commit, not from
+  HEAD: it is when the local base branch or the base ref holds it. The hook
+  runs after the whole command, so `git commit && git checkout main` leaves
+  HEAD elsewhere, and after `git push origin HEAD:main` from another branch
+  only the remote's copy holds the commit.
+
+**Known limits.**
+- **A rebase continued after a conflict on the gate-two commit asks for the
+  pass again,** as does a cherry-pick of it. The library counts
+  `rebase (continue)` and `cherry-pick` as authored, and the replayed commit
+  adds the same `src/` files against its new parent. It is not fixed because
+  the original commit is not in the reflog, so pairing the replay with it
+  would mean guessing, by subject or patch-id. The repeat is one advisory
+  notice, and doing the pass again is cheap.
+- **Amending a cherry-picked, reverted or `git am` commit on the base
+  branch asks for the pass again.** The replaced commit counts as made on
+  the base branch only when that branch's reflog records an action starting
+  with `commit`; these log `cherry-pick:`, `revert:` or `am`, so it is judged
+  by the branch rule and its pass looks unprinted. To avoid it, commit there
+  rather than amend. An agent that already did the pass for that change can
+  skip the repeat.
+- **A commit reset away in the same command may never get its pass.** The
+  replaced commit is judged by whether it was ever committed on the base
+  branch, not whether the branch held it when its hook ran. So
+  `git commit && git reset --hard HEAD~1` in one command on the base branch,
+  then restoring and amending that commit, may show no pass at all: its own
+  hook used the branch rule, and the amend counts the pass as printed. No
+  test has proved this case; it is reasoned from the code.
+- **"On the base branch" is judged at commit time.** A commit made on
+  another branch and pushed to main in a later, separate command gets no
+  gate-two notice: when the hook judges the commit, neither the base ref nor
+  the local base branch holds it, and a push moves no HEAD reflog entry for
+  the hook to see. Committing and pushing in one command gets the notice.
+- The archive pass is printed for the commit that archives, in the clone
+  where it is made. A merge that brings an archive in is not that commit,
+  and prints nothing.
+- The hand-back pass is prose's to print in the session, since the
+  single-pass rule is prose's, and prose may be installed where spec-check is
+  not. The workflow's notice is for a hand-back made elsewhere.
 
 ---
 
