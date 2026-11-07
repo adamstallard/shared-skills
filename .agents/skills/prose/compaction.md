@@ -9,7 +9,8 @@ only to the lines a change touched. `$S` is prose's scripts directory, as
 
 **When it is due.** `prose check`'s first call prints
 `compaction due for <file>: <why>` for each changed doc that agents read often
-and that is due. A doc is read often when it is:
+and that is due; in a merge, each doc the merge itself changed. A doc is read
+often when it is:
 - a `CLAUDE.md`, `AGENTS.md` or `SKILL.md`;
 - a file a `SKILL.md` or `AGENTS.md` links in a paragraph that asks for it to
   be read first, or read before some task. A link to be read only before

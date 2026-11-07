@@ -154,6 +154,14 @@ every post, whatever its length. The commit message gets none, so a commit
 that changes no comment or doc signs without one. A doc that git diffs as
 binary is skipped, since prose cannot read it.
 
+**A merge's change is only what the merge itself changed:** the passages where
+the staged result differs from every parent, exactly the hunks `git show`
+prints for the merge (`git diff --cc`), such as a conflict resolution or an
+edit neither branch made. Text the result takes unchanged from a parent is not
+listed, except a line one parent lacks within those hunks' 3 lines of context,
+such as a clean change from the merged-in branch. This covers a merge in
+progress and `--amend` of a merge commit.
+
 **How.** Run the signing call as usual. When it has something to read cold and
 you pass no report, it signs nothing, keeps the token and exits 5. It prints a
 brief between `=== cold-read brief ===` lines, on stdout for `check` and on

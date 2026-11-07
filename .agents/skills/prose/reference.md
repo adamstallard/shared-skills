@@ -36,9 +36,10 @@ docs/api.md: call the API correctly; see what each error means
 /README.md: what it's for; how to start
 ```
 
-Every changed doc and spec must get goals, except a deleted one. Without them
-the call refuses, naming each file and its kind's default from the reader
-table in [rules.md](rules.md) for you to adjust. A code comment may go
+Every changed doc and spec must get goals, except a deleted one. In a merge, a
+changed doc is one the merge itself changed (SKILL.md's *The cold read*).
+Without them the call refuses, naming each file and its kind's default from the
+reader table in [rules.md](rules.md) for you to adjust. A code comment may go
 without, and then gets the table's code-comment row, labelled as a default.
 
 The first call prints the message's goals; the prose in the change (the
@@ -138,9 +139,11 @@ $C --minted-by $B/scripts/mint-trailer.sh Bug-hunter "1 iteration, 1 bug fixed" 
 SKILL.md (*Commit*) shows it.
 
 **To amend,** run both calls with `--amend`, so the first lists the change
-against the commit's parent; the `Prose:` value has the same form as for a
-new commit. The commit
-script cannot amend, so pass the block's whole `Prose:` line to git:
+against the amended commit's parents: one for a plain commit, all of them
+for a merge (SKILL.md's *The cold read*). The `Prose:` value has the same
+form as for a new commit. `--amend` refuses while a merge is in progress, as
+`git commit --amend` does. The commit script cannot amend, so pass the
+block's whole `Prose:` line to git:
 
 ```sh
 git commit --amend -F msg.txt --trailer "<the Prose: line>"

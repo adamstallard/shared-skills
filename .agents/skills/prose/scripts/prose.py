@@ -176,12 +176,22 @@ def scanner():
     return comment_scan
 
 
+def git_env():
+    """This process's environment without the variables that change what a
+    diff reads, and with GIT_ATTR_NOSYSTEM set, as comment_scan.git_env
+    says (its UNSET_ENV is this tuple)."""
+    env = {key: value for key, value in os.environ.items()
+           if key not in ("GIT_ATTR_SOURCE", "GIT_NO_REPLACE_OBJECTS", "GIT_REPLACE_REF_BASE")}
+    env["GIT_ATTR_NOSYSTEM"] = "1"
+    return env
+
+
 def git(args, cwd=None):
     """git with the reads pinned the way the commit-trailer library pins them."""
     result = subprocess.run(
         ["git", "-c", "log.showSignature=false", "-c", "trailer.separators=:",
          "-c", "core.quotePath=false", "-c", "i18n.logOutputEncoding=UTF-8"] + args,
-        cwd=cwd, capture_output=True, check=False,
+        cwd=cwd, capture_output=True, check=False, env=git_env(),
     )
     # Read as bytes and decoded here. Text mode would turn a bare CR into a
     # newline, and line numbers would then drift from git's. surrogateescape
@@ -434,8 +444,9 @@ def _changed_docs(root, base):
     # --ignore-submodules=none as in prose_in's diff: under a config that
     # ignores submodules, a bumped submodule would be missing here and read
     # as a doc.
-    raw = git(["diff", "--cached", "--raw", "-z", "--no-abbrev", "-M", "--no-relative",
-               "--no-color", "--ignore-submodules=none", base], root)
+    raw = git(scanner().DIFF_CONFIG + [
+        "diff", "--cached", "--raw", "-z", "--no-abbrev", "-M", "-l1000", "--no-relative",
+        "--no-color", "--ignore-submodules=none", base], root)
     fields = raw.split("\0")
     found, index = {}, 0
     while index < len(fields) and fields[index].startswith(":"):
@@ -475,26 +486,130 @@ def _runs(numbers):
     return tuple(runs)
 
 
-def prose_in(root, base, read: Callable[[str], str]):
+def _combined_entries(root, tree, parents):
+    """{path: (deleted, link)} for each path whose staged entry differs from
+    every parent's, read from git's combined `--raw`. link: what is staged
+    there is a symlink or a submodule. Each record there is one mode per
+    parent and then the result's, the blobs in the same order, one status
+    letter per parent, and the path; it starts with one colon per parent."""
+    # -M and -l1000 as in _combined_touched, so both pair the same files.
+    raw = git(scanner().DIFF_CONFIG + [
+        "diff", "--cc", "--raw", "-z", "--no-abbrev", "-M", "-l1000", "--no-relative",
+        "--no-color", "--ignore-submodules=none", tree] + parents, root)
+    fields, found, count = raw.split("\0"), {}, len(parents) + 1
+    for index in range(0, len(fields) - 1, 2):
+        if not fields[index].startswith("::"):
+            break
+        meta, path = fields[index].lstrip(":").split(" "), fields[index + 1]
+        modes, blobs = meta[:count], meta[count:2 * count]
+        # As in _changed_docs: a parent with the same blob and the same kind
+        # of entry means the merge took that parent's content unchanged.
+        if any(blobs[n] == blobs[-1] and modes[n][:2] == modes[-1][:2]
+               for n in range(len(parents))):
+            continue
+        found[path] = (modes[-1] == "000000", modes[-1] in ("120000", "160000"))
+    return found
+
+
+def merge_changes(scan, root, parents):
+    """(touched, entries) for a merge: what _combined_touched maps, and, from
+    _combined_entries, each path the merge itself changed. A path both sides
+    changed and git merged cleanly differs from every parent, yet `--cc`
+    keeps no hunk of it, so a path counts only with a hunk, or when it is
+    binary, deleted, a symlink or a submodule. The listing and the
+    compaction trigger both read a merge from here."""
+    # write-tree fails on an unmerged index; the pre-commit run before this
+    # already writes the tree and refuses one, so none reaches here.
+    tree = git(["write-tree"], root).strip()
+    touched = _combined_touched(scan, root, tree, parents)
+    entries = {path: kind for path, kind in _combined_entries(root, tree, list(parents)).items()
+               if path in touched or any(kind)}
+    for path in touched:
+        entries.setdefault(path, (False, False))
+    return touched, entries
+
+
+def merge_paths(root, parents):
+    """The paths a merge itself changed, as merge_changes finds them,
+    deletions left out: the compaction trigger's input for a merge."""
+    _, entries = merge_changes(scanner(), root, parents)
+    return sorted(path for path, (deleted, _) in entries.items() if not deleted)
+
+
+def _combined_touched(scan, root, tree, parents):
+    """_touched for a merge: each file git's combined diff (`--cc`) shows a
+    hunk of, or calls binary, mapped to the staged lines it shows as added:
+    those missing from at least one parent, in the hunks `--cc` keeps. `--cc`
+    drops each hunk where the result takes one parent's version unchanged,
+    so what is left is the text the merge resolved or wrote.
+
+    Read with git's default 3 lines of context, as `git show` prints a
+    merge, so the listing matches it. Context joins nearby changes into one
+    hunk, which is how a resolution taking one side's line and the other
+    side's line a few lines on counts as the merge's own. With context,
+    every line of a kept hunk is printed, so counting from the hunk's start
+    numbers each one."""
+    # scan.DIFF pins git's defaults, so the hunks match `git show` on a
+    # machine with no config; the later --unified=3 replaces its 0. -M pairs
+    # a rename a branch made with the other branch's edits to the old path,
+    # as the merge did.
+    diff = git(scan.DIFF + ["--unified=3", "--cc", "--submodule=short", "-M", tree]
+               + list(parents), root)
+    width = len(parents)
+    header = re.compile(r"^@{%d} (?:-[0-9,]+ ){%d}\+([0-9]+)" % (width + 1, width))
+    touched, path, in_header, line_number = {}, None, False, 0
+    for line in diff.split("\n"):
+        if line.startswith("diff --cc "):
+            # The combined header names the path once, with no a/ or b/.
+            path, in_header = scan.unquote_path(line[len("diff --cc "):]), True
+            continue
+        found = header.match(line)
+        if in_header and not found:
+            if line.startswith("Binary files "):
+                touched.setdefault(path, set())
+            continue
+        if found:
+            in_header, line_number = False, int(found.group(1))
+            touched.setdefault(path, set())
+            continue
+        # A result line is its prefix, one column per parent, then its text;
+        # a `+` in the prefix means some parent lacks it. Three kinds of line
+        # are skipped without counting: a line lost from some parent (a `-`
+        # in the prefix), which is not in the result; a `\ No newline`
+        # marker; and the empty string after the diff's last newline.
+        if len(line) < width or line.startswith("\\") or "-" in line[:width]:
+            continue
+        if "+" in line[:width]:
+            touched[path].add(line_number)
+        line_number += 1
+    return touched
+
+
+def prose_in(root, parents, read: Callable[[str], str]):
     """([Item], [flag lines]) for the prose the staged change touches.
 
     A listing for the pass, not what the trailer hashes: the message, each doc
     or spec file the diff touches, and each code comment it adds to or edits.
-    The flags are history-language warnings on those comments. base is the
-    revision the diff is against, or None for the empty tree.
+    The flags are history-language warnings on those comments. parents are
+    the commit's parents: none diffs against the empty tree; two or more, a
+    merge, list only what git's combined diff shows the merge changed
+    (DECISIONS.md, *A merge commit is judged by what the merge changed*).
     """
     scan = scanner()
     items, flags = [Item("commit message", "", None)], []
-    # This module's git(), not the scanner's: its surrogateescape decoding
-    # keeps a path that is not UTF-8 usable by `read`. -M finds renames
-    # whatever the user's config, so a pure rename lists nothing.
-    # --submodule=short shows a submodule as one line; at a code-looking path
-    # it is listed as "could not be read".
-    base = base or _empty_tree(root)
-    diff = git(scan.DIFF + ["-M", "--submodule=short", "--ignore-submodules=none",
-                            "--cached", base], root)
-    touched = _touched(scan, diff)
-    docs = _changed_docs(root, base)
+    if len(parents) > 1:
+        touched, entries = merge_changes(scan, root, parents)
+        docs = {path: kind for path, kind in entries.items() if is_doc(path)}
+    else:
+        # This module's git(), not the scanner's: its surrogateescape decoding
+        # keeps a path that is not UTF-8 usable by `read`. -M finds renames
+        # whatever the user's config, so a pure rename lists nothing.
+        # --submodule=short shows a submodule as one line; at a code-looking
+        # path it is listed as "could not be read".
+        base = parents[0] if parents else _empty_tree(root)
+        diff = git(scan.DIFF + ["-M", "--submodule=short", "--cached", base], root)
+        touched = _touched(scan, diff)
+        docs = _changed_docs(root, base)
     for path in docs:
         touched.setdefault(path, set())
     for path, lines in sorted(touched.items()):
@@ -781,13 +896,44 @@ def run_pre_commit(root, signing):
         print(f"prose: the pre-commit hook changed the staged files; {what}", file=sys.stderr)
 
 
+def merge_heads(root):
+    """The commits a merge in progress brings in, one per line of MERGE_HEAD
+    (several for an octopus); [] when no merge is in progress."""
+    path = os.path.join(root, git(["rev-parse", "--git-path", "MERGE_HEAD"], root).rstrip("\n"))
+    try:
+        with open(path, encoding="utf-8", errors="replace") as handle:
+            names = handle.read().split()
+    except FileNotFoundError:
+        return []
+    heads = [_revision(name, root) for name in names]
+    if None in heads:
+        raise Refused(f"MERGE_HEAD names a commit git cannot find ({path}); finish or abort "
+                      f"the merge, then run this call again")
+    return heads
+
+
+def commit_parents(root, amend=False):
+    """The parents the commit will have: HEAD and any merge in progress's
+    heads, or with amend HEAD's own parents, since `git commit --amend`
+    replaces HEAD. [] before the first commit, or to amend a root commit."""
+    if amend:
+        if _revision("HEAD", root) is None:
+            raise Refused("--amend, but there is no commit to amend")
+        if merge_heads(root):
+            raise Refused("--amend, but a merge is in progress, and `git commit --amend` "
+                          "refuses one; finish or abort the merge first")
+        return git(["rev-parse", "HEAD^@"], root).split()
+    head = _revision("HEAD", root)
+    return ([head] if head else []) + merge_heads(root)
+
+
 def check(message, root, amend=False, signing=False):
     """(items, flags, trailer line) for the staged change and this message.
 
-    The listing's diff is against the commit's eventual first parent: HEAD,
-    or with amend HEAD's first parent, since `git commit --amend` replaces
-    HEAD. The trailer does not depend on it. The pre-commit hook runs after
-    the message is accepted and before anything is listed or hashed.
+    The listing's diff is against the commit's parents (commit_parents): one
+    parent, or none, is a plain diff; a merge lists only what it changed. The
+    trailer does not depend on it. The pre-commit hook runs after the message
+    is accepted and before anything is listed or hashed.
     """
     refuse_non_utf8_commit_encoding(root)
     refuse_non_utf8_message(message)
@@ -796,14 +942,9 @@ def check(message, root, amend=False, signing=False):
     refuse_comment_lines(message, root)
     if not message_body(message):
         raise Refused("the commit message is empty; write it first, then run the check on it")
-    if amend:
-        if _revision("HEAD", root) is None:
-            raise Refused("--amend, but there is no commit to amend")
-        base = _revision("HEAD^", root)
-    else:
-        base = _revision("HEAD", root)
+    parents = commit_parents(root, amend)
     run_pre_commit(root, signing)
-    items, flags = prose_in(root, base, lambda path: git(["show", f":0:{path}"], root))
+    items, flags = prose_in(root, parents, lambda path: read_staged(path, root))
     return items, flags, snapshot(message, root)
 
 
@@ -2108,10 +2249,17 @@ def record_brief(token, items, texts, root=None):
     os.replace(draft, path)
 
 
+def read_staged(path, root):
+    """The staged text of the file at path. The path is matched as the index
+    spells it, whatever core.precomposeUnicode says: on, git would rewrite a
+    decomposed name the diff printed, and find no such entry."""
+    return git(["-c", "core.precomposeUnicode=false", "show", f":0:{path}"], root)
+
+
 def staged_text(path, root):
     """The staged text of the file at path, or "" when none is staged."""
     try:
-        return git(["show", f":0:{path}"], root)
+        return read_staged(path, root)
     except Refused:
         return ""
 
@@ -2644,7 +2792,7 @@ def main(argv=None):
     p_check.add_argument("-F", "--message-file", required=True,
                          help="the final commit message; - reads stdin")
     p_check.add_argument("--amend", action="store_true",
-                         help="list against HEAD's parent, for git commit --amend")
+                         help="list against HEAD's parents, for git commit --amend")
     p_check.add_argument("--repo", default=".")
     p_check.add_argument("--goals-for", nargs=2, action="append", default=[],
                          metavar=("PATTERN", "GOALS"),
@@ -2845,8 +2993,12 @@ def main(argv=None):
             # makes any file current-state (DECISIONS: Compaction). The
             # triggers only advise, so a listing that fails skips them.
             try:
-                staged_paths = compact.changed_paths(root, args.amend)
-            except ValueError:
+                # A merge is advised only on the paths it changed itself, the
+                # ones its listing reads.
+                parents = commit_parents(args.repo, args.amend)
+                staged_paths = merge_paths(root, parents) if len(parents) > 1 \
+                    else compact.changed_paths(root, args.amend)
+            except (ValueError, Refused):
                 staged_paths = []
             # The pass directory holds the completed-review records that mark
             # a compaction which cut little (DECISIONS: Compaction).
