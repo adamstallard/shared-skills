@@ -1,42 +1,58 @@
-# spec-check's workflow checks that every OpenSpec change on a pull
-# request's branch had a consistency read after its last edit.
+# spec-check's workflow checks that every OpenSpec change a pull request
+# adds or edits has had a consistency read since its last edit. A
+# consistency read is a step of the spec-check skill: before a pull request
+# goes to a person for review, a fresh agent reads each such change against
+# the repository's other specs and changes.
 #
-# A consistency read is a step of the spec-check skill: before a pull request
-# goes to a person for review, a fresh agent reads each OpenSpec change the
-# branch adds or edits against the repository's other specs and changes. The
-# author then makes a commit whose `Spec-check:` trailer, printed by
-# `spec_check.py sign`, names the changes read. A change under
-# openspec/changes is unread when no commit on the branch records a read of
-# it, or when its files differ from what they were in the newest commit that
-# does.
+# Whoever wrote the change, a person or an agent, records the read by
+# committing with a `Spec-check:` trailer, printed by `spec_check.py sign`,
+# that names the changes read. The trailer is the only record of a read. A
+# change under openspec/changes is unread when no commit in the history of
+# the pull request's head has a trailer naming that change, or when the
+# change's files have changed since the newest commit whose trailer names it.
 #
 # When no change is unread, the `spec-check` check passes and the pull
-# request is left alone. When one is, `spec_check.py ci` acts by event type:
-# - opened, reopened, ready_for_review: each puts the pull request in front
-#   of a reviewer, for the first time or again. The check fails, and the
-#   script makes the pull request a draft again.
+# request is left alone. When one is, what `spec_check.py ci` does depends
+# on the event and on whether the pull request is a draft.
+#
+# A ready pull request:
+# - opened, reopened, ready_for_review: each puts it in front of a reviewer,
+#   for the first time or again. The check fails, and the script makes the
+#   pull request a draft.
 # - review_requested: the same, and the script also withdraws that review
 #   request.
 # - synchronize (a push to the branch): the check fails, but the pull
 #   request stays ready. An agent often pushes several times before doing
 #   the read, and a draft on each push would flip the pull request back and
 #   forth.
-# A draft pull request passes on every event except review_requested; on
-# that one, the check fails and the script withdraws the review request.
+#
+# A draft pull request passes even with a change unread, because no one is
+# yet asked to review it; the check runs again when it is marked ready. The
+# exception is review_requested: the check fails and the script withdraws
+# the review request. The script makes no other change to a draft.
+#
 # When the base branch's protection rules require `spec-check`, a failed
 # check blocks the merge.
 #
 # The script makes the draft and withdraws the request through gh, with the
 # GH_TOKEN below and the `pull-requests: write` permission. Without the
-# token or the permission, or on a pull request from a fork, whose token is
-# read-only, the check still fails but the pull request is left as it is.
+# token or the permission, the check still fails but the pull request is
+# left as it is. The same happens on a pull request from a fork, because
+# GitHub gives the workflow only a read-only token there.
 #
-# Editing this file: `spec_check.py setup-ci` writes it from the template
-# .agents/skills/spec-check/ci/spec-check.yml in adamstallard/shared-skills.
-# `setup-ci --force`, which is how SPEC_CHECK_SHA is updated, replaces the
-# whole file. A change every repository should get belongs in that template.
-# A change only this repository needs can be made here, but must be made
-# again after each `setup-ci --force`.
+# Editing this file: in a repository that uses spec-check, this file is
+# .github/workflows/spec-check.yml, written by `spec_check.py setup-ci` from
+# the template .agents/skills/spec-check/ci/spec-check.yml in
+# adamstallard/shared-skills. `setup-ci --force` replaces the whole file,
+# discarding any local edit, and is also the way to update SPEC_CHECK_SHA.
+# The pin is the commit given with `--sha`, or else the newest commit that
+# changed spec_check.py in the shared-skills clone `setup-ci` runs from; that
+# commit must be on one of the clone's remote-tracking branches, so GitHub
+# can serve it. A change every repository should get goes in the template,
+# by a pull request to adamstallard/shared-skills; once it merges, run
+# `setup-ci --force` from an updated clone. A change only this repository
+# needs can be made here, but must be made again after each
+# `setup-ci --force`.
 name: spec-check
 on:
   pull_request:
