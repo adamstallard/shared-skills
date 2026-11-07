@@ -87,14 +87,20 @@ same name its GitHub App identity uses.
 
 ### 4. Add the bot to a server
 
+Ask your agent to add the bot to a server. It runs the `invite-url` command
+and gives you the link that adds the bot, and tells you about any
+developer-portal setting to fix first (listed below). Adding a bot needs
+Discord's Manage Server permission on the server it joins. If you have it,
+open the link yourself; if not, send it to an admin who does. They pick the
+server and click **Authorize**. A bot can't join through an ordinary invite
+link.
+
+Without an agent, run the command yourself. It prints JSON, with the link in
+`inviteUrl`:
+
 ```bash
 python3 ~/.agents/skills/discord-bot/scripts/discord_bot.py --identity acme invite-url
 ```
-
-It prints `inviteUrl`, the link that adds the bot to a server. Open it
-yourself if you have Manage Server there, or send it to an admin who does.
-They pick the server and click **Authorize**. A bot can't join through an
-ordinary invite link.
 
 Use this link, not the one on the developer portal's Installation tab. The
 portal's link uses the app's default install settings, which may hold only
@@ -150,6 +156,10 @@ Every field is optional:
 | `keychain`       | `{"service": ..., "account": ...}` to read a token stored under another name |
 
 ### 6. Check it
+
+Once the bot is in the server, ask your agent to check the setup. It runs
+`check` and tells you what, if anything, still needs fixing. Without an agent,
+run it yourself:
 
 ```bash
 python3 ~/.agents/skills/discord-bot/scripts/discord_bot.py --identity acme check
