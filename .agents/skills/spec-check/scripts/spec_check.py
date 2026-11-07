@@ -10,6 +10,11 @@
     spec_check.py ci [--event FILE] [--repo DIR]
     spec_check.py setup-ci [--repo DIR] [--sha SHA] [--force]
 
+A change's committed `.spec-check-kept` file clears the `evolution` errors a
+person chose to keep, for check and sign alike: one entry per line,
+`<file>: «<line text>» kept (asked): <reason>` (SKILL.md, "Keeping a line
+the evolution check flags").
+
 A target is a change name, a change directory (openspec/changes/<name>), or
 `specs` for every spec under openspec/specs. With no target, every open change
 is checked. `--ref` reads openspec/ from a git ref instead of the working tree,
@@ -58,6 +63,7 @@ Standard library only. Read DECISIONS.md next to SKILL.md before changing this.
 from __future__ import annotations
 
 import argparse
+import bisect
 import io
 import json
 import os
@@ -726,6 +732,13 @@ class Finding:
         # the duplicate matched). add_hints looks for an open pull request
         # that retires one of them.
         self.retirable = None
+        # Set on an evolution finding: the flagged line, stripped, which a
+        # kept entry quotes.
+        self.quote = None
+        # Set on a kept entry that matches an evolution error but lacks
+        # `(asked)`: the text sign prints in its refusal, for the agent to
+        # pass to whoever started it, who asks a person.
+        self.handback = None
 
     def text(self):
         where = f"{self.path}:{self.line}" if self.line else self.path
@@ -1067,6 +1080,333 @@ def judge_citation(m, base):
     if holds(base.line_count(found)) or holds(base.change_line_count(found)):
         return None
     return "check", f"{found}, the one file named {cited}, has no line {line}"
+
+
+# -- document-evolution text -----------------------------------------------------
+
+# A change states what is true now; git and pull request comments hold how
+# it got there (DECISIONS.md, "Decisions live in design.md"). Each entry is
+# (name, pattern, what the phrase does, veto). A veto is matched against the
+# text left of the hit and suppresses it, as the vetoes in the prose skill's
+# scripts/comment_scan.py do for code comments. EVOLUTION_DETERMINER is the
+# one veto: a determiner
+# directly before the hit, as in `a previously rejected rule` (behaviour);
+# in `the rule previously said` (history) nothing vetoes it. Behaviour text
+# uses `supersedes`, `reversible` and `no longer` freely, so a verb here
+# fires only beside a decision ("amends decision 4"), a person, a date, or a
+# word naming the document's own drafts or rounds ("an earlier draft", "this
+# push"). Three kinds of hit need no such word: `amendment`, `amended
+# by/on/in`, and the bare adverbs `previously` and `originally`. Behaviour
+# text in the measured changes did not use the first two; the adverbs are
+# held back by the veto and by EVOLUTION_PARTICIPLE. DECISIONS.md, "Document-evolution text
+# is an error", has what the patterns were measured on.
+
+EVOLUTION_DETERMINER = re.compile(
+    r"(?:\b(?:a|an|the|any|all|some|its|their|every|each|no|one)|'s|’s)[\s-]+$", re.I)
+# A veto reads only this many characters left of the hit. Reading the whole
+# text left of each hit took quadratic time on a long line with many hits.
+EVOLUTION_LOOKBACK = 80
+# Headings often capitalise every word ("#### Scenario: Claim confirmed"),
+# so a capitalised word before a decision verb there is rarely a name. The
+# person-decided pattern does not fire up to the end of this match.
+EVOLUTION_HEADING = re.compile(r"[ \t]*#+[^:]*:?\s*")
+# A past participle right after `previously` is almost always adjectival in a
+# spec ("a candidate previously rejected is not proposed again").
+EVOLUTION_PARTICIPLE = re.compile(r"\s+\w+(?:ed|en|wn)\b", re.I)
+# The person-decided pattern takes any capitalised word before a decision
+# verb as a name ("Adam decided"), unless the word is listed here. Names
+# cannot be listed, since the check runs in any repository. The common words
+# that can stand before such a verb without naming anyone can be: pronouns,
+# determiners, conjunctions, prepositions and adverbs ("Also ruled out by
+# scenarios"). A word left off still draws an error.
+# Don't treat every capitalised word ending in -ly as an adverb instead of
+# listing adverbs: that would skip names such as "Anatoly". A missed credit
+# passes silently, while a person can keep a false error in the change's
+# kept file (apply_kept).
+# Each entry goes into the pattern unescaped, as a regex fragment.
+EVOLUTION_NOT_NAMES = (
+    # pronouns
+    "I", "It", "He", "She", "They", "We", "You", "Me", "Him", "Us", "Them",
+    "Who", "Whom", "Whoever", "Which", "What", "Whatever", "Nobody", "Somebody",
+    "Someone", "Everyone", "Everybody", "Anyone", "Anybody", "Everything",
+    "Something", "Nothing", "Anything", "Itself", "Themselves", "Others",
+    # determiners and quantifiers ("An?" matches "A" and "An")
+    "The", "An?", "This", "That", "These", "Those", "Its", "Their", "His", "Her",
+    "Our", "My", "Your", "Each", "Every", "Both", "All", "None", "One", "Any",
+    "Some", "No", "Neither", "Either", "Few", "Many", "Most", "Several", "Such",
+    "Other", "Another", "Whose",
+    # conjunctions, prepositions and question words
+    "And", "But", "Or", "Nor", "Yet", "So", "If", "Unless", "Because", "Although",
+    "Though", "As", "Since", "When", "Whenever", "Where", "While", "After",
+    "Before", "Until", "Once", "Than", "Whether", "Why", "How",
+    # adverbs
+    "Also", "Then", "Later", "Earlier", "Still", "Never", "Only", "Just", "Even",
+    "Again", "Instead", "Therefore", "Now", "Here", "There", "Already", "Soon",
+    "First", "Next", "Last", "Often", "Always", "Sometimes", "Rarely", "Seldom",
+    "Early", "Ever", "Together", "Otherwise", "Likewise", "Meanwhile", "Moreover",
+    "Furthermore", "However", "Nevertheless", "Nonetheless", "Indeed", "Perhaps",
+    "Maybe", "Rather", "Quite", "Almost", "Not", "Today", "Thereby", "Thus", "Hence",
+    # common adverbs in -ly
+    "Finally", "Eventually", "Initially", "Recently", "Currently", "Usually",
+    "Normally", "Typically", "Generally", "Additionally", "Similarly",
+    "Alternatively", "Consequently", "Accordingly", "Subsequently", "Ultimately",
+    "Newly", "Fully", "Mostly", "Simply", "Merely", "Properly", "Partly",
+    "Clearly", "Explicitly", "Implicitly", "Automatically",
+)
+_DATE = r"\d{4}-\d{2}-\d{2}"
+_RULING = r"(?:decisions?|rulings?)"
+_EARLIER = r"(?:(?:the|an?|its|this|that|their|#\d+['’]s|\w+['’]s)\s+)?" \
+           r"(?:(?:earlier|previous|prior|original|first|old|later|last)\s+)?"
+_RULED = (r"(?i:decided|approved|ruled|agreed|amended|reversed|narrowed|widened|"
+          r"loosened|tightened|overruled|settled|chose|chosen|recorded)")
+
+EVOLUTION_PATTERNS = [
+    ("amended",
+     re.compile(r"\b(?:amend(?:s|ed|ing)?|revers(?:es|ed|ing)|supersed(?:es|ed|ing)|"
+                r"replac(?:es|ed|ing)|narrow(?:s|ed|ing)|widen(?:s|ed|ing)|"
+                r"overrul(?:es|ed|ing)|revis(?:es|ed|ing)|withdr(?:aws|ew|awn)|"
+                r"retract(?:s|ed|ing)?)\s+(?:by\s+|on\s+|in\s+)?" + _EARLIER + _RULING + r"\b"
+                r"|\bamended\s+(?:by|on|in)\b|\bamendments?\b", re.I),
+     "records how a decision was amended", None),
+    ("attribution",
+     re.compile(r"\(\s*@?[A-Z][\w.-]*,\s*(?:" + _DATE + r"|$)" +
+                r"|\b" + _RULED + r"\s+by\s+@?[A-Z][a-z]\w*\b"
+                r"|\b" + _RULED + r"\b[^.;]{0,40}?\bon\s+" + _DATE +
+                r"|\b(?i:" + _RULING + r")\s+[\d, ]+(?:(?:and|to)\s+\d+\s+)?on\s+" + _DATE +
+                r"|\b(?i:recorded)\s+(?:on\s+)?" + _DATE),
+     "credits a decision to a person or a date", None),
+    ("person-decided",
+     re.compile(r"(?<![\w@])@?(?!(?:" + "|".join(EVOLUTION_NOT_NAMES) + r")\b)"
+                r"[A-Z][a-z]+\s+(?:decided|ruled|approved|agreed|chose|confirmed|accepted|adopted|"
+                r"narrowed|widened|amended|reversed|overruled|settled)\b"),
+     "credits a decision to a person", EVOLUTION_DETERMINER),
+    ("previously",
+     re.compile(r"\b(?:previously|originally|formerly|hitherto)\b", re.I),
+     "narrates an earlier state of the document", EVOLUTION_DETERMINER),
+    ("earlier-draft",
+     re.compile(r"\b(?:earlier|previous|prior|older|original|first|former)\s+"
+                r"(?:drafts?|wording|phrasing)\b"
+                r"|\b(?:earlier|previous|prior|older|original|first|former|last|next)\s+"
+                r"(?:versions?|revisions?)\s+of\s+(?:this|the)\s+(?:change|spec|proposal|design|"
+                r"document|requirement|rule|decision|section)\b"
+                r"|\b(?:this|the\s+next|the\s+previous|the\s+last|a\s+later|an\s+earlier)\s+"
+                r"revision\b"
+                r"|\b(?:change|proposal|spec|design)['’]s\s+(?:next|previous|last|first)\s+"
+                r"revision\b", re.I),
+     "refers to another draft of the document", None),
+    ("was-changed",
+     re.compile(r"\b(?:the|this|that)\s+(?:decision|requirement|rule|scenario|section|wording|"
+                r"text|entry|proposal|design|spec)\s+(?:was|were|has\s+been|had\s+been)\s+"
+                r"(?:changed|amended|reversed|narrowed|widened|reworded|rewritten|revised|"
+                r"dropped|tightened|loosened|relaxed)\b"
+                r"|\b(?:it|this)\s+(?:was|has\s+been|had\s+been)\s+(?:amended|reworded|"
+                r"rewritten|revised)\b", re.I),
+     "narrates a change to the document", None),
+    ("review-round",
+     re.compile(r"\bthis\s+(?:push|round|review\s+round)\b"
+                r"|\bsince\s+(?:the\s+(?:last|previous|first)\s+)?review\b"
+                r"|\b(?:after|in|during|since)\s+(?:the\s+)?(?:first|second|third|last|"
+                r"previous|latest|earlier)\s+(?:review|round)\b"
+                r"|\b(?:first|second|third|fourth|fifth|last|latest|later|next|previous|earlier)"
+                r"\s+(?:(?:to|and)\s+\w+\s+)?(?:consistency\s+reads?|review\s+rounds?)\b", re.I),
+     "dates the text against a review round a later reader cannot see", None),
+]
+
+# Text quoted in backticks or double quotes is an example, not the document
+# speaking: a spec about a checker quotes the phrases it checks for.
+# Code spans are paired by a scan in evolution_mask, not by one regex. A
+# regex such as (`+).*?\1 can start at the second backtick of a ``` run and
+# pair it with a lone backtick later, and it backtracks in cubic time on a
+# long run with no closer.
+EVOLUTION_BACKTICKS = re.compile(r"`+")
+EVOLUTION_QUOTED = re.compile(r"\"[^\"\n]*\"|“[^”\n]*”")
+# Masked text keeps its width, so positions hold, but is neither a space nor
+# a word: a veto or a pattern never reads across it as if the quoted words
+# were gone ("The `claim` previously held" keeps "The" away from the hit).
+EVOLUTION_MASK = "\u2063"
+EVOLUTION_QUOTE_MAX = 160
+
+
+def evolution_mask(line: str) -> str:
+    r"""line with its code spans and double-quoted text masked. As in
+    CommonMark, a run of backticks opens a code span only when a later run
+    of exactly its length closes it, and a run with no closer is literal
+    text. Outside a span, a backslash makes the one backtick after it
+    literal. For example, in \```x`` the first backtick is escaped, so the
+    run of two after it opens a span, and the final run of two closes it.
+    Inside a span a backslash is plain text, so a closer is never escaped.
+
+    Each line is masked on its own. A code span wrapped across two lines is
+    therefore read as prose, and can give a false error on the second
+    line."""
+    runs = [(m.start(), m.end()) for m in EVOLUTION_BACKTICKS.finditer(line)]
+    by_length: dict[int, list[int]] = {}
+    for i, (start, end) in enumerate(runs):
+        by_length.setdefault(end - start, []).append(i)
+    chars = list(line)
+    i = 0
+    while i < len(runs):
+        start, end = runs[i]
+        slashes = 0
+        while start - slashes > 0 and line[start - slashes - 1] == "\\":
+            slashes += 1
+        if slashes % 2:
+            start += 1  # the escaped backtick is literal
+        later = by_length.get(end - start, [])
+        k = bisect.bisect_right(later, i)
+        if start == end or k == len(later):
+            i += 1
+            continue
+        j = later[k]
+        chars[start:runs[j][1]] = EVOLUTION_MASK * (runs[j][1] - start)
+        i = j + 1
+    masked = "".join(chars)
+    return EVOLUTION_QUOTED.sub(lambda m: EVOLUTION_MASK * len(m.group(0)), masked)
+
+
+def evolution_match(line: str) -> tuple[int, int, str] | None:
+    """(start, end, what it does) of the first pattern that fires on one
+    line of prose, quotes already masked, or None."""
+    heading = EVOLUTION_HEADING.match(line) if line.lstrip().startswith("#") else None
+    for name, pattern, why, veto in EVOLUTION_PATTERNS:
+        for m in pattern.finditer(line):
+            before = line[max(0, m.start() - EVOLUTION_LOOKBACK):m.start()]
+            if veto is not None and veto.search(before):
+                continue
+            if name == "person-decided" and heading and m.start() <= heading.end():
+                continue
+            if m.group(0).lower() == "previously" and EVOLUTION_PARTICIPLE.match(line, m.end()):
+                continue
+            return m.start(), m.end(), why
+    return None
+
+
+def evolution_hits(text: str) -> list[tuple[int, str, str, str]]:
+    """(line number, phrase, what it does, line) for each line of the
+    markdown text that records how the document changed, outside code fences
+    and quotes. One hit per line: the first pattern that fires."""
+    hits: list[tuple[int, str, str, str]] = []
+    for n, raw, fenced in markdown_lines(text):
+        if fenced:
+            continue
+        # The mask keeps positions, so the phrase is read from the line as
+        # written, quotes included.
+        hit = evolution_match(evolution_mask(raw))
+        if hit:
+            hits.append((n, raw[hit[0]:hit[1]].strip(), hit[2], raw.strip()))
+    return hits
+
+
+def check_evolution(paths: list[str], corpus: Corpus, out: list[Finding]) -> None:
+    """An error on each line of the change's files that records how the
+    document got to its shape rather than what is true now. A person can
+    keep a false one through the change's kept file (apply_kept)."""
+    for path in paths:
+        text: str = corpus.texts[path]
+        for n, phrase, why, line in evolution_hits(text):
+            quote = line if len(line) <= EVOLUTION_QUOTE_MAX \
+                else line[:EVOLUTION_QUOTE_MAX - 1] + "…"
+            f = Finding(path, n, "error", "evolution",
+                        f'"{phrase}" {why}; state what holds now and leave the history '
+                        f'to git: {quote}')
+            f.quote = line
+            out.append(f)
+
+
+# -- kept evolution errors ---------------------------------------------------------
+
+# A change's kept file, committed with it, holds the evolution errors a person
+# chose to keep. Each entry quotes the flagged line's text rather than its
+# number, so it survives edits elsewhere in the file and lapses only when the
+# line itself changes. The quote ends at the first `» kept`, so a line whose
+# text holds `» kept:` or `» kept (asked):` cannot be quoted.
+KEPT_FILE = ".spec-check-kept"
+KEPT_ENTRY = re.compile(r"^(?P<file>[^«]+?): «(?P<text>.+?)» kept(?P<asked> \(asked\))?:"
+                        r"(?P<reason>.*)$")
+KEPT_FORM = "`<file>: «<line text>» kept (asked): <reason>`"
+
+
+def kept_text(text: str) -> str:
+    """text with each run of whitespace made one space and the ends stripped:
+    an entry matches a line whatever its spacing."""
+    return " ".join(text.split())
+
+
+def apply_kept(change: str, corpus: Corpus, own: list[Finding]) -> list[str]:
+    """Read the change's kept file, if it has one, against own, the change's
+    findings. Each entry clears every evolution error in its file whose line
+    text equals its quote, after whitespace is normalised (kept_text); the
+    cleared findings leave own. These add a `kept` finding and clear
+    nothing:
+    - an unreadable file, or an entry that is malformed, gives no reason or
+      repeats an earlier entry: an error;
+    - an entry that matches no evolution error, with or without `(asked)`:
+      a check asking for its removal;
+    - an entry that matches but lacks `(asked)`: an error carrying the
+      text sign prints in its refusal (Finding.handback).
+    Returns one report line per cleared finding,
+    `<path>:<line>: kept (asked) [evolution] <reason>`, which check and
+    sign print and count. `(asked)` is the agent's statement that a person
+    approved the entry; nothing here can check it."""
+    prefix = f"openspec/changes/{change}/"
+    rel = prefix + KEPT_FILE
+    full = os.path.join(corpus.root, *rel.split("/"))
+    if not os.path.lexists(full):
+        return []
+    try:
+        with open(full, encoding="utf-8") as f:
+            # Split as markdown_lines splits a spec: at "\n" only, after a
+            # leading byte-order mark is dropped. str.splitlines() would also
+            # split at a form feed or a Unicode line separator, cutting an
+            # entry that quotes a line holding one; a kept byte-order mark
+            # would become part of the first entry's file name.
+            lines = normalize_line_endings(f.read()).removeprefix("\ufeff").split("\n")
+    except (OSError, UnicodeDecodeError) as e:
+        own.append(Finding(rel, 0, "error", "kept", f"cannot read the kept file: {e}"))
+        return []
+    errors: dict[tuple[str, str], list[Finding]] = {}
+    for f in own:
+        if f.severity == "error" and f.kind == "evolution" and f.quote is not None:
+            errors.setdefault((f.path[len(prefix):], kept_text(f.quote)), []).append(f)
+    seen: dict[tuple[str, str], int] = {}
+    cleared: list[tuple[Finding, str]] = []
+    for n, raw in enumerate(lines, 1):
+        if not raw.strip():
+            continue
+        m = KEPT_ENTRY.match(raw.strip())
+        if not m:
+            own.append(Finding(rel, n, "error", "kept", f"the entry is not {KEPT_FORM}"))
+            continue
+        name, text = m.group("file").strip(), kept_text(m.group("text"))
+        key = (name, text)
+        reason = m.group("reason").strip()
+        matched = errors.get(key, [])
+        if key in seen:
+            own.append(Finding(rel, n, "error", "kept",
+                               f"the entry quotes the same line of {name} as line {seen[key]}"))
+            continue
+        seen[key] = n
+        if not reason:
+            own.append(Finding(rel, n, "error", "kept", "the entry gives no reason"))
+        elif not matched:
+            # Checked before `(asked)`: an entry that keeps nothing is not
+            # handed to a person to approve.
+            own.append(Finding(rel, n, "check", "kept",
+                               f"«{text}» matches no evolution error in {name}: the line "
+                               f"changed or is gone, so remove the entry"))
+        elif not m.group("asked"):
+            f = Finding(rel, n, "error", "kept",
+                        "the entry has no `(asked)`, so no person approved keeping the line")
+            f.handback = "\n".join([f"{rel}:{n}: {name}: «{text}»"] +
+                                   [f"    {e.path}:{e.line}: {e.message}" for e in matched] +
+                                   [f"    reason: {reason}"])
+            own.append(f)
+        else:
+            cleared += [(e, reason) for e in matched]
+    gone = {id(e) for e, _ in cleared}
+    own[:] = [f for f in own if id(f) not in gone]
+    return [f"{e.path}:{e.line}: kept (asked) [evolution] {reason}"
+            for e, reason in sorted(cleared, key=lambda c: (c[0].path, c[0].line))]
 
 
 # -- stacked changes -------------------------------------------------------------
@@ -2512,7 +2852,7 @@ def run_checks(root, repo, base_ref, targets, validate, base_required=False, cha
     if not base.ok and base_required:
         raise Fatal(f"the base {base_ref!r} does not resolve to a commit")
     findings, statuses, archives = [], [], []
-    stacks, declared = [], {}
+    stacks, declared, kept = [], {}, []
     main_names = {(spec_cap(p), r.name) for p, rs in corpus.specs.items() for r in rs}
     for change in changes:
         reqs = [r for rs in corpus.changes[change].values() for r in rs]
@@ -2525,6 +2865,8 @@ def run_checks(root, repo, base_ref, targets, validate, base_required=False, cha
                                f"`openspec show` cannot read this change's deltas: "
                                f"{corpus.unread[change]}"))
         check_scenarios(reqs, own)
+        check_evolution(corpus.files_of(change), corpus, own)
+        kept += apply_kept(change, corpus, own)
         stack, problems, complete = build_stack(change, corpus, repo, base)
         findings += own + problems
         # The specs the change is checked against, for the advice on a stray
@@ -2581,18 +2923,19 @@ def run_checks(root, repo, base_ref, targets, validate, base_required=False, cha
                                     f"check read it: {why}"))
     add_hints(repo, findings, declared)
     shown = f"not run: {corpus.missing}" if corpus.missing else "read"
-    return changes, specs, findings, statuses, archives, stacks, shown
+    return changes, specs, findings, statuses, archives, stacks, shown, kept
 
 
-def print_report(changes, specs, findings, statuses, archives, stacks, shown, base_ref, source,
-                 as_json):
+def print_report(changes, specs, findings, statuses, archives, stacks, shown, kept, base_ref,
+                 source, as_json):
     errors = sum(1 for f in findings if f.severity == "error")
     checks = len(findings) - errors
     if as_json:
         print(json.dumps({
             "source": source, "base": base_ref, "changes": changes, "specs": specs,
-            "errors": errors, "checks": checks,
+            "errors": errors, "checks": checks, "evolution_kept": len(kept),
             "findings": [f.as_dict() for f in findings],
+            "kept": kept,
             "openspec_show": shown,
             "openspec_validate": {k: v for k, v in statuses},
             "openspec_archive": {k: v for k, v in archives},
@@ -2602,7 +2945,9 @@ def print_report(changes, specs, findings, statuses, archives, stacks, shown, ba
         return errors
     for f in findings:
         print(f.text())
-    if findings:
+    for line in kept:
+        print(line)
+    if findings or kept:
         print()
     for change, deps in stacks:
         print(f"{change} builds on " + ", then ".join(
@@ -2617,7 +2962,8 @@ def print_report(changes, specs, findings, statuses, archives, stacks, shown, ba
     if not statuses:
         print("openspec validate --strict: not run (--no-validate)")
     scope = ", ".join(changes + (["openspec/specs"] if specs else [])) or "nothing"
-    print(f"spec-check: {errors} error(s), {checks} check(s) in {scope}; "
+    count = f", {len(kept)} evolution kept" if kept else ""
+    print(f"spec-check: {errors} error(s), {checks} check(s){count} in {scope}; "
           f"read from {source}; citations checked against {base_ref}")
     return errors
 
@@ -2859,6 +3205,15 @@ def cmd_sign(args):
         res = run_checks(tmp, repo, base_ref, targets, not args.no_validate,
                          bool(args.base), tree)
     errors = print_report(*res, base_ref, "the staged tree", False)
+    unasked = [f.handback for f in res[2] if f.handback]
+    if unasked:
+        print("\nThese kept entries keep an evolution error that no person approved:")
+        for text in unasked:
+            print(f"  {text}")
+        print("Do not commit. Leave the change staged and put this message, whole, in your "
+              "result. Whoever receives it asks a person about each entry, adds `(asked)` to "
+              "each one the person keeps, fixes the text of the others and deletes their "
+              "entries, and signs again.")
     if errors:
         print("\nspec-check sign: not signed. Fix the errors and sign again, or commit "
               "work in progress with `Spec-check: skipped (<reason>)`.", file=sys.stderr)
@@ -2885,7 +3240,9 @@ def cmd_sign(args):
         reader = "a fresh subagent" if args.read == "subagent" else "its author, no subagent"
         read = (f"read by {reader}: {', '.join(c for c, _ in due)}; "
                 f"{args.amended} amended, {args.open} open")
-    print(f"\n{KEY}: \u2713 {tree[:12]} 0 errors, {len(res[2])} checks; {validate}; {read}")
+    kept = res[7]
+    counts = f"0 errors, {len(res[2])} checks" + (f", {len(kept)} evolution kept" if kept else "")
+    print(f"\n{KEY}: \u2713 {tree[:12]} {counts}; {validate}; {read}")
     return 0
 
 

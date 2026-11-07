@@ -13,11 +13,13 @@ unless OpenSpec 1.15.0 or later is on PATH.
 import json
 import os
 import pathlib
+import random
 import re
 import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from unittest import mock
 
@@ -1472,6 +1474,496 @@ class CitationRuleTests(unittest.TestCase):
         r = self.sign()
         self.assertEqual(r.returncode, 1, r.stdout)
         self.assertIn("error [citation] src/gone.py:5", r.stdout)
+
+
+class EvolutionTextTests(unittest.TestCase):
+    """Text recording how a change got to its shape is an error, which only
+    a person's override through the change's kept file clears. The examples are
+    taken from real changes the patterns were measured on (DECISIONS.md,
+    "Document-evolution text is an error")."""
+
+    HISTORY = [
+        "Amended by Adam's decision 298: no decline can be reopened.",
+        "This rule amends decision 4.",
+        "It reverses the earlier decision to keep records.",
+        "That paragraph is superseded by decision 12.",
+        "104. **A release deletes the files** (Adam, 2026-10-21, amending decision 79).",
+        "Its scope was narrowed by decision 9.",
+        "and Adam narrowed it on 2026-10-20.",
+        "The store keeps records (Adam, 2026-10-21).",
+        "A fetch authenticates as the App (Adam,",
+        "Adam decided that a seat's reserve is a line.",
+        "Issue #212, decided by Adam and recorded in igor.",
+        "Approved by Adam (2026-10-20), as written.",
+        "- decisions 21 and 22 on 2026-10-20, answering two questions.",
+        "Recorded 2026-09-28. This changes no requirement.",
+        "The rule previously said thirty days.",
+        "Previously, records were kept forever.",
+        "This change originally assumed a weaker signal.",
+        "An earlier draft defined a role file here.",
+        "The earlier wording kept records forever.",
+        "This rule was changed to ninety days.",
+        "It was reworded after the read.",
+        "This requirement was narrowed to one store.",
+        "Fixed in this push.",
+        "Found this round.",
+        "## Since review: the reserve becomes a line",
+        "Findings for this change's next revision.",
+        "Hitherto it said thirty days.",
+        "Then this was amended.",
+        "It moves to the next version of this spec.",
+        "Questions this change's second to fourth consistency reads raised.",
+    ]
+
+    BEHAVIOUR = [
+        "A newer file supersedes an older one.",
+        "The item is no longer claimed.",
+        "The derived length supersedes the built-in one.",
+        "The new session replaces the lock and holds it.",
+        "Every action is cheap to reverse.",
+        "A candidate previously rejected is not proposed again.",
+        "New evidence may raise a previously rejected rule.",
+        "#### Scenario: Claim confirmed",
+        "No link is kept, since the review is planned and has no spec.",
+        "Its accepted cost is that Igor sees its spend late.",
+        "An added seat file has no earlier version in the first parent.",
+        "The agent decided it on its own.",
+        "- **WHEN** on 2026-10-20 the agent logs the question",
+        "The record names who asked and what they said.",
+        "A comment that was changed by a later commit is not counted.",
+        "Each field that was changed is listed.",
+        "The decision is recorded where the question was asked.",
+        "One previously held claim is released.",
+        "Adam's previously held claim is released.",
+        "A claim previously shown is hidden.",
+        "A previously held claim is released.",
+    ]
+
+    def test_each_kind_of_history_is_flagged(self):
+        for line in self.HISTORY:
+            with self.subTest(line=line):
+                self.assertEqual(len(spec_check.evolution_hits(line + "\n")), 1)
+
+    def test_behaviour_using_the_same_words_is_not_flagged(self):
+        for line in self.BEHAVIOUR:
+            with self.subTest(line=line):
+                self.assertEqual(spec_check.evolution_hits(line + "\n"), [])
+
+    def test_code_fences_and_quoted_examples_are_not_flagged(self):
+        text = ("A checker flags `amended by` and \"this round\" in a change.\n\n"
+                "```\nAmended by decision 3 (Adam, 2026-10-21)\n```\n")
+        self.assertEqual(spec_check.evolution_hits(text), [])
+
+    def test_property_a_history_line_is_found_at_its_own_line_number(self):
+        # Seeded, so a failure reproduces: any mix of behaviour lines and blank
+        # lines, with history lines dropped in at random places, reports each
+        # history line once, at its own number, quoting it, and nothing else.
+        rng = random.Random(20261102)
+        for trial in range(200):
+            lines, expected = [], []
+            for _ in range(rng.randint(1, 12)):
+                kind = rng.random()
+                if kind < 0.3:
+                    lines.append(rng.choice(self.HISTORY))
+                    expected.append((len(lines), lines[-1]))
+                elif kind < 0.8:
+                    lines.append(rng.choice(self.BEHAVIOUR))
+                else:
+                    lines.append("")
+            with self.subTest(trial=trial):
+                hits = spec_check.evolution_hits("\n".join(lines) + "\n")
+                self.assertEqual([(n, quote) for n, _, _, quote in hits], expected)
+                for _, phrase, _, quote in hits:
+                    self.assertIn(phrase.lower(), quote.lower())
+
+    def test_a_word_opening_a_sentence_is_not_taken_for_a_name(self):
+        # A word in EVOLUTION_NOT_NAMES before a decision verb is not a name.
+        # The first line is from a real design.md that the check flagged as
+        # crediting a person named "Also". Each line of the second loop is a
+        # real credit and gives one error, from whichever pattern fires first:
+        # plain names, names ending in -ly ("Anatoly"), a name after a listed
+        # word ("Then Alice"), an @ handle, and an "(Adam, <date>)" credit.
+        for line in ["Also ruled out by scenarios:",
+                     "This settled the order.", "Then approved by the reviewer.",
+                     "Later agreed in the session.", "And chose the second path.",
+                     "Once accepted, a claim holds.", "Finally settled by a test.",
+                     "- Eventually adopted by every store.", "So confirmed: the claim holds."]:
+            with self.subTest(line=line):
+                self.assertEqual(spec_check.evolution_hits(line + "\n"), [])
+        for line in ["Adam ruled out the second store.", "Alice decided the order.",
+                     "Also, Adam ruled out the second store.", "Then Alice decided it.",
+                     "Beverly decided the order.", "Emily approved it.",
+                     "Anatoly decided the order.", "Then Anatoly decided it.",
+                     "@Adam decided the order.",
+                     "(Adam, 2026-11-04) decided the order."]:
+            with self.subTest(line=line):
+                self.assertEqual(len(spec_check.evolution_hits(line + "\n")), 1)
+
+    def test_function_words_are_not_names(self):
+        for line in ["The agreed order holds.", "We decided to keep one store.",
+                     "However settled the rule is, it holds.", "Today approved stores sync hourly.",
+                     "They agreed on one store.", "A settled rule stays.", "An approved list is final.",
+                     "When accepted, a claim holds.", "Newly accepted claims are held for a day.",
+                     "Typically accepted claims stay.", "Ultimately chose one store.",
+                     "Clearly settled by a test."]:
+            with self.subTest(line=line):
+                self.assertEqual(spec_check.evolution_hits(line + "\n"), [])
+
+    def test_property_quoting_a_history_line_silences_it(self):
+        for line in self.HISTORY:
+            with self.subTest(line=line):
+                self.assertEqual(spec_check.evolution_hits(f"`{line}`\n"), [])
+
+    def test_a_quoted_word_does_not_make_the_text_before_it_a_determiner(self):
+        # A mask of spaces would put "The" right before "previously" in the
+        # first line, and right before "Adam" in the second, so the
+        # determiner veto would silence both.
+        # The mask is neither space nor word. Found by bug-hunter.
+        self.assertEqual(len(spec_check.evolution_hits("The `claim` previously held for an hour.\n")), 1)
+        self.assertEqual(len(spec_check.evolution_hits("The \"Claim\" Adam decided on.\n")), 1)
+
+    def test_a_code_span_holding_a_backtick_is_skipped_whole(self):
+        # A ``double-backtick`` span may hold a single backtick. Found by
+        # bug-hunter.
+        self.assertEqual(spec_check.evolution_hits("``Adam decided ` x``\n"), [])
+
+    def test_a_long_line_of_vetoed_hits_is_read_in_linear_time(self):
+        # A veto that reads all the text before each hit takes 11 s on the
+        # first line. Found by bug-hunter.
+        start = time.monotonic()
+        spec_check.evolution_hits("a previously " * 8000 + "\n")
+        spec_check.evolution_hits("the " + "previously rejected " * 5000 + "\n")
+        self.assertLess(time.monotonic() - start, 2.0)
+
+    def test_a_backtick_run_opens_a_span_only_as_a_whole_run(self):
+        # ``x ... ` is no code span in CommonMark: two backticks never close on
+        # one. Found by bug-hunter, iteration 2.
+        self.assertEqual(len(spec_check.evolution_hits("A ``x Adam decided it` y.\n")), 1)
+        self.assertEqual(spec_check.evolution_hits("A ``x Adam decided it`` y.\n"), [])
+
+    def test_the_phrase_is_the_line_as_written(self):
+        # The phrase carried the invisible mask character where a quote sat.
+        # Found by bug-hunter, iteration 2.
+        hit = spec_check.evolution_hits("Adam decided `the scope` on 2026-01-01.\n")
+        self.assertEqual(hit[0][1], "decided `the scope` on 2026-01-01")
+        self.assertEqual(spec_check.evolution_hits("(Adam,   \n")[0][1], "(Adam,")
+
+    def test_a_veto_reads_past_a_run_of_spaces_and_late_in_a_long_line(self):
+        self.assertEqual(spec_check.evolution_hits("every      previously held claim\n"), [])
+        self.assertEqual(spec_check.evolution_hits("x " * 60 + "the previously held claim\n"), [])
+        self.assertEqual(spec_check.evolution_hits("The previously held claim stays. " + "x " * 60 + "\n"),
+                         [])
+
+    def test_an_escaped_backtick_opens_no_code_span(self):
+        # A backslash makes the backtick after it literal, so it opens no code
+        # span and the text after it is still read. Found by bug-hunter,
+        # iteration 3.
+        self.assertEqual(len(spec_check.evolution_hits("The rule \\`previously` held.\n")), 1)
+        self.assertEqual(spec_check.evolution_hits("Write \\`x` previously `y` here.\n"), [])
+
+    def test_a_change_with_history_fails_with_an_error_naming_the_line(self):
+        repo = Repo(self)
+        repo.change("x")
+        repo.write("openspec/changes/x/design.md",
+                   "## Decisions\n\nRecords expire after ninety days (Adam, 2026-10-21).\n")
+        r = repo.check("x")
+        self.assertEqual((r.returncode, kinds(r)), (1, ["evolution"]), r.stdout + r.stderr)
+        self.assertIn("openspec/changes/x/design.md:3: error [evolution] \"(Adam, 2026-10-21\"",
+                      r.stdout)
+        self.assertIn("to git: Records expire after ninety days (Adam, 2026-10-21).", r.stdout)
+
+    def test_history_blocks_sign(self):
+        repo = Repo(self)
+        repo.change("x", proposal=GOOD_PROPOSAL.replace("- Records expire.",
+                                                        "- Records expire. An earlier draft kept them."))
+        repo.git("add", "-A")
+        r = repo.run("sign", "--read", "self", "--base", "main", "--no-validate")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("error [evolution]", r.stdout)
+        self.assertNotIn("Spec-check: ✓", r.stdout)
+
+    def test_main_specs_are_not_scanned(self):
+        repo = Repo(self)
+        repo.write("openspec/specs/cap/spec.md",
+                   MAIN_SPEC.replace("What cap does.", "What cap does (Adam, 2026-10-21)."))
+        repo.change("x")
+        r = repo.check("x", "specs")
+        self.assertNotIn("evolution", kinds(r), r.stdout)
+
+    def test_the_finding_says_what_the_phrase_does_and_quotes_the_line_stripped(self):
+        hit = spec_check.evolution_hits("  - The rule previously said thirty days.\n")
+        self.assertEqual(hit, [(1, "previously", "narrates an earlier state of the document",
+                                "- The rule previously said thirty days.")])
+
+    def test_a_line_of_exactly_the_limit_is_quoted_whole(self):
+        corpus = mock.Mock(texts={})
+        for length, quote in ((160, None), (161, 159)):
+            line = "Adam decided " + "x" * (length - len("Adam decided "))
+            corpus.texts["d.md"] = line + "\n"
+            out = []
+            spec_check.check_evolution(["d.md"], corpus, out)
+            with self.subTest(length=length):
+                tail = out[0].message.split("to git: ", 1)[1]
+                self.assertEqual(tail, line if quote is None else line[:quote] + "…")
+
+    def test_a_long_line_is_quoted_cut_short(self):
+        repo = Repo(self)
+        repo.change("x")
+        repo.write("openspec/changes/x/design.md", "Adam decided " + "x" * 300 + "\n")
+        r = repo.check("x")
+        line = next(l for l in r.stdout.splitlines() if "[evolution]" in l)
+        self.assertTrue(line.endswith("…"), line)
+
+
+class KeptEvolutionTests(unittest.TestCase):
+    """A person overrules a false evolution error through the change's
+    committed kept file, which check and sign both read; the spec text stays
+    as written and the trailer counts the errors it cleared."""
+
+    DESIGN = "openspec/changes/x/design.md"
+    KEPT = "openspec/changes/x/.spec-check-kept"
+    NARROWS = "The spec narrows the decision."
+    DATED = "Records expire (Adam, 2026-10-21)."
+
+    def setUp(self):
+        self.repo = Repo(self)
+        self.repo.change("x")
+        self.design(self.NARROWS, self.DATED)
+
+    def design(self, *lines):
+        self.repo.write(self.DESIGN, "## Decisions\n\n" + "".join(l + "\n" for l in lines))
+        self.repo.git("add", "-A")
+
+    def kept(self, text):
+        self.repo.write(self.KEPT, text)
+        self.repo.git("add", "-A")
+
+    def sign(self, kept=None):
+        if kept is not None:
+            self.kept(kept)
+        return self.repo.run("sign", "--read", "self", "--base", "main", "--no-validate")
+
+    def both(self, how1="kept (asked)", how2="kept (asked)"):
+        return (f"design.md: «{self.NARROWS}» {how1}: compares a spec with a decision\n"
+                f"design.md: «{self.DATED}» {how2}: the date is part of the rule\n")
+
+    def test_kept_entries_sign_and_the_trailer_counts_them(self):
+        r = self.sign(self.both())
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertNotIn("error [evolution]", r.stdout)
+        self.assertIn(f"{self.DESIGN}:3: kept (asked) [evolution] compares a spec with a decision",
+                      r.stdout)
+        trailer = r.stdout.strip().splitlines()[-1]
+        self.assertRegex(trailer, r"^Spec-check: ✓ [0-9a-f]{12} 0 errors, 0 checks, "
+                                  r"2 evolution kept; ")
+        self.assertIn(self.NARROWS, (self.repo.path / self.DESIGN).read_text())
+
+    def test_check_reads_the_committed_file_so_a_reviewer_sees_no_error(self):
+        self.kept(self.both())
+        self.repo.git("commit", "-q", "-m", "x")
+        for args in ((), ("--ref", "HEAD")):
+            with self.subTest(args=args):
+                r = self.repo.check("x", *args)
+                self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+                self.assertIn(f"{self.DESIGN}:4: kept (asked) [evolution] the date is part",
+                              r.stdout)
+                self.assertIn("0 error(s), 0 check(s), 2 evolution kept in x", r.stdout)
+
+    def test_blank_lines_between_entries_are_skipped(self):
+        first, second = self.both().splitlines()
+        r = self.sign(f"{first}\n\n   \n{second}\n")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("0 checks, 2 evolution kept; ", r.stdout)
+
+    def test_json_and_text_reports_list_the_kept_errors(self):
+        self.kept(self.both())
+        kept = [f"{self.DESIGN}:3: kept (asked) [evolution] compares a spec with a decision",
+                f"{self.DESIGN}:4: kept (asked) [evolution] the date is part of the rule"]
+        data = json.loads(self.repo.check("x", "--json").stdout)
+        self.assertEqual((data["evolution_kept"], data["kept"], data["errors"]), (2, kept, 0))
+        # When the kept file clears every finding, a blank line still
+        # follows the kept lines, before the summary.
+        self.assertEqual(self.repo.check("x").stdout.splitlines()[:3], kept + [""])
+
+    def test_without_entries_the_trailer_has_no_count(self):
+        self.design("Records expire.")
+        r = self.sign()
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertNotIn("kept", r.stdout.strip().splitlines()[-1])
+
+    def test_a_finding_not_kept_still_blocks_sign(self):
+        r = self.sign(self.both().splitlines()[0] + "\n")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn(f"{self.DESIGN}:4: error [evolution]", r.stdout)
+        self.assertNotIn("Spec-check: ✓", r.stdout)
+
+    def test_an_entry_survives_lines_inserted_above_and_other_spacing(self):
+        self.design("A new first line.", "", "Another.", "   " + self.NARROWS.replace(" ", "  "),
+                    self.DATED)
+        r = self.sign(self.both())
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn(f"{self.DESIGN}:6: kept (asked) [evolution] compares", r.stdout)
+
+    def test_one_entry_keeps_every_line_with_its_text(self):
+        self.design(self.DATED, "Records last.", self.DATED)
+        r = self.sign(f"design.md: «{self.DATED}» kept (asked): the date is part of the rule\n")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("0 checks, 2 evolution kept; ", r.stdout)
+
+    def test_an_entry_whose_text_changed_is_a_check_asking_for_its_removal(self):
+        self.kept(self.both())
+        self.design(self.NARROWS, "Records expire (Adam, 2026-10-22).")
+        r = self.sign()
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn(f"{self.DESIGN}:4: error [evolution]", r.stdout)
+        self.assertIn(f"{self.KEPT}:2: check [kept] «{self.DATED}» matches no evolution error in "
+                      f"design.md: the line changed or is gone, so remove the entry", r.stdout)
+        self.design(self.NARROWS, "Records expire after a year.")
+        r = self.sign()
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertRegex(r.stdout.strip().splitlines()[-1], r" 0 errors, 1 checks, 1 evolution kept; ")
+
+    def test_an_entry_quoting_a_line_of_another_kind_of_error_is_stale(self):
+        self.repo.change("x", delta=GOOD_DELTA.split("#### Scenario")[0])
+        self.repo.git("add", "-A")
+        r = self.sign(self.both() + "specs/cap/spec.md: «The store SHALL keep records.» "
+                                    "kept (asked): not history\n")
+        self.assertIn("error [no-scenario]", r.stdout)
+        self.assertIn(f"{self.KEPT}:3: check [kept]", r.stdout)
+
+    def test_an_entry_without_asked_is_refused_and_named_for_hand_back(self):
+        r = self.sign(self.both(how2="kept"))
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn(f"{self.KEPT}:2: error [kept] the entry has no `(asked)`", r.stdout)
+        handback = r.stdout.split("no person approved:", 1)[1]
+        self.assertIn(f"{self.KEPT}:2: design.md: «{self.DATED}»", handback)
+        self.assertIn(f"{self.DESIGN}:4: \"(Adam, 2026-10-21\"", handback)
+        self.assertIn("reason: the date is part of the rule", handback)
+        self.assertIn("Do not commit.", handback)
+        self.assertNotIn(f"{self.DESIGN}:3:", handback)
+        self.assertNotIn("Spec-check: ✓", r.stdout)
+
+    def test_an_entry_without_a_reason_or_twice_or_malformed_is_refused(self):
+        for extra, why in ((f"design.md: «{self.DATED}» kept (asked):   \n",
+                            "the entry quotes the same line of design.md as line 2"),
+                           (f"design.md:4 kept (asked): the date\n",
+                            "the entry is not `<file>: «<line text>» kept (asked): <reason>`"),
+                           ("whatever\n", "the entry is not")):
+            with self.subTest(why=why):
+                r = self.sign(self.both() + extra)
+                self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+                self.assertIn(f"{self.KEPT}:3: error [kept] {why}", r.stdout)
+        r = self.sign(self.both().replace("the date is part of the rule", ""))
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn(f"{self.KEPT}:2: error [kept] the entry gives no reason", r.stdout)
+
+    def test_an_unreadable_kept_file_is_an_error(self):
+        (self.repo.path / self.KEPT).write_bytes(b"\xff\xfe\n")
+        self.repo.git("add", "-A")
+        r = self.repo.check("x")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn(f"{self.KEPT}: error [kept] cannot read the kept file", r.stdout)
+
+    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.15.0 or later")
+    def test_the_file_passes_validate_and_archives_with_its_change(self):
+        self.kept(self.both())
+        exe = shutil.which("openspec")
+        v = subprocess.run([exe, "validate", "x", "--strict"], cwd=self.repo.path,
+                           capture_output=True, text=True, env=ENV)
+        self.assertEqual(v.returncode, 0, v.stdout + v.stderr)
+        a = subprocess.run([exe, "archive", "x", "-y"], cwd=self.repo.path,
+                           capture_output=True, text=True, env=ENV)
+        self.assertEqual(a.returncode, 0, a.stdout + a.stderr)
+        archived = list((self.repo.path / "openspec/changes/archive").glob("*-x/.spec-check-kept"))
+        self.assertEqual([p.read_text() for p in archived], [self.both()])
+        self.assertFalse((self.repo.path / self.KEPT).exists())
+
+    def test_property_entries_clear_exactly_the_findings_whose_text_they_quote(self):
+        # Seeded: entries for any subset of the flagged texts clear exactly the
+        # findings with those texts and count them; they still do with plain
+        # lines inserted anywhere. Editing one quoted line so that it is still
+        # flagged, with another text, gives it an error the entry no longer
+        # clears, and makes the entry a stale check.
+        rng = random.Random(20261103)
+        pool = EvolutionTextTests.HISTORY[:8] + ["Plain line %d." % i for i in range(8)]
+        prefix = "openspec/changes/x/"
+        for trial in range(150):
+            lines = [rng.choice(pool) for _ in range(rng.randint(1, 12))]
+            with self.subTest(trial=trial), tempfile.TemporaryDirectory() as tmp:
+                corpus = mock.Mock(root=tmp, texts={})
+
+                def run(lines, entries):
+                    corpus.texts[prefix + "design.md"] = "".join(l + "\n" for l in lines)
+                    p = pathlib.Path(tmp, prefix, ".spec-check-kept")
+                    p.parent.mkdir(parents=True, exist_ok=True)
+                    p.write_text("".join(f"design.md: «{t}» kept (asked): r\n" for t in entries))
+                    own = []
+                    spec_check.check_evolution([prefix + "design.md"], corpus, own)
+                    before = list(own)
+                    kept = spec_check.apply_kept("x", corpus, own)
+                    return before, own, kept
+
+                flagged = sorted({l for l in lines if spec_check.evolution_hits(l + "\n")})
+                chosen = rng.sample(flagged, rng.randint(0, len(flagged)))
+                before, left, kept = run(lines, chosen)
+                cleared = [f for f in before if f.quote in chosen]
+                self.assertEqual(left, [f for f in before if f not in cleared])
+                self.assertEqual(len(kept), len(cleared))
+                moved = list(lines)
+                for _ in range(rng.randint(1, 4)):
+                    moved.insert(rng.randint(0, len(moved)), "Inserted plain line.")
+                _, left, kept = run(moved, chosen)
+                self.assertEqual((len(kept), [f.kind for f in left]),
+                                 (len(cleared), ["evolution"] * (len(before) - len(cleared))))
+                if chosen:
+                    gone = rng.choice(chosen)
+                    edited = [l[:-1] + " (Adam, 2026-01-01)." if l == gone else l for l in moved]
+                    _, left, kept = run(edited, chosen)
+                    stale = [f for f in left if f.kind == "kept"]
+                    self.assertEqual([(f.severity, f.line) for f in stale],
+                                     [("check", chosen.index(gone) + 1)])
+                    self.assertEqual(len(kept), len(cleared) - lines.count(gone))
+                    self.assertEqual(sum(1 for f in left if f.kind == "evolution"),
+                                     len(before) - len(cleared) + lines.count(gone))
+
+
+class FoundByBugHunterKeptTests(unittest.TestCase):
+    """Kept-file cases found by the first pass of a bug-hunter run on the
+    kept file."""
+
+    DESIGN = "openspec/changes/x/design.md"
+    KEPT = "openspec/changes/x/.spec-check-kept"
+
+    def setUp(self):
+        self.repo = Repo(self)
+        self.repo.change("x")
+
+    def test_a_byte_order_mark_does_not_hide_the_first_entry(self):
+        self.repo.write(self.DESIGN, "## Decisions\n\nRecords expire (Adam, 2026-10-21).\n")
+        self.repo.write(self.KEPT, "\ufeffdesign.md: «Records expire (Adam, 2026-10-21).» "
+                                   "kept (asked): the date is the rule\n")
+        r = self.repo.check("x")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("1 evolution kept", r.stdout)
+
+    def test_entries_split_only_at_newlines_as_the_markdown_does(self):
+        for sep in ("\u2028", "\x0c"):
+            with self.subTest(sep=repr(sep)):
+                line = f"Records expire (Adam, 2026-10-21).{sep}See the table."
+                self.repo.write(self.DESIGN, f"## Decisions\n\n{line}\n")
+                self.repo.write(self.KEPT, f"design.md: «{line}» kept (asked): the date is the rule\n")
+                r = self.repo.check("x")
+                self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+                self.assertIn("1 evolution kept", r.stdout)
+
+    def test_an_unasked_entry_that_keeps_nothing_is_stale_not_handed_back(self):
+        self.repo.write(self.DESIGN, "## Decisions\n\nRecords expire (Adam, 2026-10-21).\n")
+        self.repo.write(self.KEPT, "design.md: «Records expire (Adam, 2026-10-20).» kept: the date\n")
+        self.repo.git("add", "-A")
+        r = self.repo.run("sign", "--read", "self", "--base", "main", "--no-validate")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn(f"{self.KEPT}:1: check [kept]", r.stdout)
+        self.assertNotIn("no person approved", r.stdout)
 
 
 class FencesAndLinksTests(unittest.TestCase):
@@ -4361,6 +4853,75 @@ class RoundTests(unittest.TestCase):
         self.repo.write("openspec/specs/cap/spec.md", MAIN_SPEC + "\n")
         self.repo.git("add", "-A")
         self.assertIn("read by a fresh subagent: good;", self.value(self.sign("subagent")))
+
+class KeptInRoundsTests(unittest.TestCase):
+    """Kept lines inside a review round: evolution errors fail every commit,
+    deferred or not; the kept count sits beside the checks on each kind of
+    value; and a value carrying it still records the round's read for sign,
+    unread_at and ci."""
+
+    DESIGN = "openspec/changes/x/design.md"
+    KEPT = "openspec/changes/x/.spec-check-kept"
+    ENTRY = "design.md: «The spec narrows the decision.» kept (asked): compares a spec with a decision\n"
+
+    def setUp(self):
+        self.repo = Repo(self)
+        self.repo.git("checkout", "-q", "-b", "spec")
+        self.repo.change("x")
+        self.repo.write(self.DESIGN, "## Decisions\n\nThe spec narrows the decision.\n")
+
+    def keep(self, text=ENTRY):
+        self.repo.write(self.KEPT, text)
+        self.repo.git("add", "-A")
+
+    def sign(self, read):
+        return self.repo.run("sign", "--read", read, "--base", "main", "--no-validate")
+
+    def test_a_deferred_commit_refuses_an_evolution_error_nobody_kept(self):
+        self.repo.git("add", "-A")
+        r = self.sign("deferred")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("error [evolution]", r.stdout)
+
+    def test_a_deferred_commit_counts_kept_lines_and_records_no_read(self):
+        self.keep()
+        value = signed_commit(self, self.repo, read="deferred")
+        self.assertRegex(value, r"^✓ [0-9a-f]{12} 0 errors, 0 checks, 1 evolution kept; "
+                                r"validate not run; read deferred to the round's end$")
+        self.assertEqual(spec_check.unread_at(str(self.repo.path), "HEAD", "main"), ["x"])
+
+    def test_a_read_carrying_kept_counts_is_the_changes_last_read(self):
+        self.keep()
+        value = signed_commit(self, self.repo)
+        self.assertRegex(value, r"^✓ [0-9a-f]{12} 0 errors, 0 checks, 1 evolution kept; "
+                                r"validate not run; read by a fresh subagent: x; 0 amended, 0 open$")
+        self.assertEqual(spec_check.unread_at(str(self.repo.path), "HEAD", "main"), [])
+        self.repo.write("openspec/specs/cap/spec.md", MAIN_SPEC + "\n")
+        self.repo.git("add", "-A")
+        r = self.sign("subagent")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertTrue(r.stdout.strip().endswith("; no read due"), r.stdout)
+
+    def test_editing_only_the_kept_file_makes_the_change_due(self):
+        self.keep()
+        signed_commit(self, self.repo)
+        self.keep(self.ENTRY + "\n")
+        signed_commit(self, self.repo, read="deferred")
+        self.assertEqual(spec_check.unread_at(str(self.repo.path), "HEAD", "main"), ["x"])
+
+    def test_ci_passes_a_head_whose_read_carries_kept_counts(self):
+        self.keep()
+        signed_commit(self, self.repo)
+        tmp = pathlib.Path(tempfile.mkdtemp(prefix="spec-check-ci-")).resolve()
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        event = tmp / "event.json"
+        event.write_text(json.dumps({"action": "ready_for_review", "pull_request": {
+            "html_url": "https://github.com/o/r/pull/7", "draft": False,
+            "head": {"sha": self.repo.git("rev-parse", "HEAD")}, "base": {"ref": "main"}}}))
+        r = self.repo.run("ci", "--event", str(event))
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("no OpenSpec change is unread", r.stdout)
+
 
 class RoundStartTests(unittest.TestCase):
     """Which commit a never-read change's edits are counted from (the merge

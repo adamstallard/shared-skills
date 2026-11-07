@@ -19,8 +19,8 @@ description: >-
 on holding every other spec in mind.** This skill does the holding: a script
 checks what is mechanical on every commit, and once per review round a fresh
 subagent reads the change against everything it must agree with.
-Readability is the `prose` skill's job; linking
-tests to scenarios after implementation is a separate step.
+Readability is the `prose` skill's job; linking tests to scenarios after
+implementation is a separate step.
 
 - **Why it works this way:** [DECISIONS.md](DECISIONS.md). Read it before
   changing this file or the script.
@@ -30,15 +30,15 @@ tests to scenarios after implementation is a separate step.
 
 - **The mechanical checks:** before any commit that changes a path under
   `openspec/changes/` or `openspec/specs/`.
-- **The consistency read:** once per review round, at its end. A review
-  round is your work between two hand-backs to a person for review: a pull
-  request opened or marked ready, a review requested, or telling a person
-  the work is ready. A push does not end a round. Do the read before the
-  round's last commit, the one you will hand back. Commits before it record
-  the read as deferred, and may be pushed (see [Commit](#commit)). A draft
-  pull request that requests no review is not a hand-back.
-- When reviewing a spec pull request, yours or someone else's: both.
-- When asked to check a spec: both.
+- **The consistency read:** once per review round, before the round's last
+  commit, the one you hand back. A review round is your work between two
+  hand-backs to a person: a pull request opened or marked ready, a review
+  requested, or telling a person the work is ready. A push does not end a
+  round, and a draft pull request that requests no review is not a
+  hand-back. Commits inside a round record the read as deferred and may be
+  pushed (see [Commit](#commit)).
+- When reviewing a spec pull request, yours or someone else's, or when asked
+  to check a spec: both.
 
 ## 1. Mechanical checks
 
@@ -55,38 +55,38 @@ Exit 0: no errors. Exit 1: errors to fix. Exit 2: it could not run, and says
 why.
 
 **It needs OpenSpec 1.15.0 or later on PATH** (`npm install -g
-@fission-ai/openspec`). It reads specs and deltas only through the CLI:
-`openspec show --json` for their requirements, `openspec validate --strict
---json` for what a delta drops or misfiles, and `openspec archive --json` for
-whether a change applies. Without that CLI, every check that needs a
-requirement reports `not run: install OpenSpec 1.15.0 or later`, followed by
-why the CLI on PATH cannot be used, such as `(this one is 1.14.3)`.
-Citations, `Builds on:` lines and the `renamed-block` scan still run, and a
-stacked change gets a `stack` error.
+@fission-ai/openspec`), and reads specs and deltas only through it:
+`openspec show --json` for requirements, `openspec validate --strict --json`
+for what a delta drops or misfiles, `openspec archive --json` for whether a
+change applies. Without it, each check that needs a requirement reports
+`not run: install OpenSpec 1.15.0 or later` and why, such as `(this one is
+1.14.3)`; citations, `Builds on:` lines and the `renamed-block` scan still
+run, and a stacked change gets a `stack` error.
 
 | Kind | Severity | What it means |
 | --- | --- | --- |
 | `no-scenario` | error | A requirement states a SHALL or MUST and has no scenario |
-| `renamed-block` | error | A `###` heading under `## RENAMED Requirements` with anything under it besides FROM and TO lines. OpenSpec reads only FROM and TO lines there, so `openspec archive` drops the rest, and OpenSpec itself does not say so. Restate the requirement under `## MODIFIED Requirements` with its new name |
+| `renamed-block` | error | A `###` heading under `## RENAMED Requirements` with anything under it besides FROM and TO lines. `openspec archive` drops the rest without saying so. Restate the requirement under `## MODIFIED Requirements` with its new name |
 | `scenario-incomplete` | error | A scenario has no WHEN or no THEN |
 | `duplicate` | error | A sentence of the rule also appears under another requirement, here or in another spec or change. Two requirements with one name may share sentences only when one is a MODIFIED requirement in the other's capability |
 | `archive` | error | `openspec archive` refuses the change: an ADDED requirement whose name is already there, a RENAMED onto a name already taken, a MODIFIED that drops a scenario, or a requirement modified, removed or renamed that is not there. The error quotes the CLI. See [Archive refusals](#archive-refusals) |
-| `purpose` | error, or check | Error: a delta creates a capability, one with no spec in main or in what the change builds on, and the Purpose `openspec archive` would give the new spec fails `openspec validate --strict`. When the delta's `## Purpose` is missing or empty, or would leave the spec unreadable, archive writes "TBD - created by archiving change ..." instead, and nobody replaces it. A `TBD` or `TODO` placeholder, or a Purpose under 50 characters, archive copies as written. Write what the capability is for under `## Purpose` in the delta. Check: a `## Purpose` in a delta for a capability that exists, which archive ignores, when it differs from the spec's. Runs with the archive, so without the CLI it is not run |
+| `purpose` | error, or check | Error: a delta creates a capability (no spec in main or in what the change builds on), and the Purpose `openspec archive` would give the new spec fails `openspec validate --strict`. A missing or empty `## Purpose`, or one that would leave the new spec unreadable, becomes "TBD - created by archiving change ...", which nobody replaces; a `TBD` or `TODO` placeholder, or a Purpose under 50 characters, is copied as written and fails the same way. Write what the capability is for under `## Purpose` in the delta. Check: a delta's `## Purpose` for an existing capability differs from the spec's; archive ignores it. Runs with the archive, so not without the CLI |
 | `citation` | error, or check | A `path:line` with a `/` whose line is in neither the base branch nor the change is an error. Any other citation finding is a check: a bare name such as `config.py:50`, or a line only the change adds. Text in a code fence, and addresses such as `0.0.0.0:8080`, are skipped |
-| `openspec-validate` | error, or check when validation passed; an INFO note is always a check | An issue `openspec validate --strict` reported, at OpenSpec's line and in its words. Among them: a section or text above the first `##` that the archive drops, a requirement under a misspelt or other section, and a `###` heading in a delta that is not a requirement header, which OpenSpec reports as an INFO note, so it is a check. To that last one spec-check adds where the rule goes: restated under MODIFIED when the specs already have its title, moved to ADDED when they do not |
+| `openspec-validate` | error, or check | An ERROR is an error; a WARNING is an error when validation failed, a check when it passed; an INFO note is a check. An issue `openspec validate --strict` reported, at OpenSpec's line and in its words: for example a section or text above the first `##` that the archive drops, a requirement under a misspelt or other section, or (an INFO note) a `###` heading in a delta that is not a requirement header. To that note spec-check adds where the rule goes: under MODIFIED when the specs already have its title, under ADDED when they do not |
 | `openspec-show` | error, or check | `openspec show` cannot read a change's deltas or a main spec, so no requirement check read it. A main spec is a check when only changes are checked |
-| `stack` | error, or check | Error: a `Builds on:` line that cannot be read or is listed twice; a change that names itself; the OpenSpec CLI missing from PATH, or older than 1.15.0; a pull request that holds no change of that name; a dependency that cannot be read, or whose deltas `openspec archive` refuses; a merged dependency whose result your branch does not hold; a dependency that builds on a change this one does not list before it, whose result your tree lacks. Check: a dependency whose result your tree already holds, so its line should be removed; one only partly there; one whose version a later dependency replaces without building on it; one whose pull request was closed without merging (see [Stacked changes](#stacked-changes)) |
-| `drift` | error, or check | Error: a stacked change modifies, removes or renames a requirement that main plus its dependencies no longer define. Check, quoting both texts: a modified requirement keeps a sentence its dependency has since replaced, or a requirement a dependency adds is already in your tree with another text |
+| `stack` | error, or check | A `Builds on:` line or its dependency is wrong or stale. See [Stacked changes](#stacked-changes) for each case |
+| `drift` | error, or check | A stacked change disagrees with what its dependencies now say. See [Stacked changes](#stacked-changes) |
+| `evolution` | error | A line in the change's files records history, not what holds now (see [Decisions and open questions](#decisions-and-open-questions)). It quotes the line. Text in a code fence, backticks or double quotes is skipped |
+| `kept` | error, or check | An entry in a change's `.spec-check-kept` file is malformed, unasked or stale, or the file cannot be read. See [Keeping a line the evolution check flags](#keeping-a-line-the-evolution-check-flags) |
 
 A **check** is a heuristic: judge it, and fix it or leave it. An `openspec
 archive` or `openspec validate` result of "not run" means it was not
 checked, never that it passed; say so in your report.
 
-`--no-validate` skips the whole `openspec validate --strict` run, so its
-result reads `not run (--no-validate)` and no `openspec-validate` finding
-appears, including the ones about sections the archive drops. Every other
-check still runs, the archive check included: only a missing or older CLI
-skips the archive.
+`--no-validate` skips the `openspec validate --strict` run: its result reads
+`not run (--no-validate)` and no `openspec-validate` finding appears, not
+even about sections the archive drops. Every other check still runs,
+including the archive, which only a missing or older CLI skips.
 
 Citations are checked against the base branch: by default `origin/HEAD`, then
 `origin/main`, then `main`. Pass `--base` when the change targets another
@@ -96,17 +96,15 @@ branch.
 
 `check` copies the tree's specs into a temporary directory and archives the
 checked change, and only that change, into the copy with the real `openspec
-archive`. Each refusal is an `archive` error at the requirement it is about,
-or at line 0 of the delta file when it is about the file as a whole. OpenSpec
-stops at its first refusal, so fix it and run `check` again to see the next.
-The tree itself is never touched.
+archive`; a stacked change goes on top of its dependencies (see
+[Stacked changes](#stacked-changes)). The tree itself is never touched. Each
+refusal is an `archive` error at the requirement it is about, or at line 0
+of the delta file when it is about the file as a whole. OpenSpec stops at
+its first refusal, so fix it and run `check` again to see the next.
 
-A stacked change is archived on top of its dependencies rather than onto the
-tree's specs alone (see [Stacked changes](#stacked-changes)).
-
-Without OpenSpec 1.15.0 or later on PATH, a change with no `Builds on:`
-line, which is archived alone, gets the line `openspec archive (<change>): not run`, saying why. A stacked change
-gets a `stack` error instead.
+Without OpenSpec 1.15.0 or later on PATH, an unstacked change gets the line
+`openspec archive (<change>): not run`, saying why; a stacked one gets a
+`stack` error.
 
 ## Stacked changes
 
@@ -129,82 +127,77 @@ Builds on: seat-files (adamstallard/igor#171)
 The syntax is exactly `Builds on: <change> (<owner>/<repo>#<number>)`, alone
 on its line with no markup: the change's directory name under
 `openspec/changes/`, then its pull request in the same repository. For a
-chain, where this change builds on B and B builds on C, list both, in the
-order they apply to main: C's line first, then B's. Leaving out C's line
-is a `stack` error, unless your tree already holds C's result, as it does
-once C has merged and you have merged main.
+chain, where this change builds on B and B builds on C, list both in the
+order they apply to main: C's line first, then B's. You may leave out C's
+line only once your tree holds C's result, as it does after C merges and you
+merge main.
 
-`check` then reads each dependency's change from its pull request's head
-commit (with `gh pr view` and `git fetch`; nothing is checked out), and
-handles it by its pull request's state:
+`check` and `sign` read each dependency from its pull request's head commit
+(`gh pr view` and `git fetch`; nothing is checked out), so stacked changes
+need `gh`, the network and OpenSpec 1.15.0 or later. Each dependency is
+handled by its pull request's state:
 
-- **Open, or closed without merging.** `check` copies your tree's specs
-  into a temporary directory. In the order of the lines, it archives each
-  such dependency into that copy with one run of the real `openspec
-  archive`. First it drops the deltas the copy already shows: an addition
-  there with the same text, a removal already absent, a modification with
-  the same text, and a delta's renames when, read in order, every one is
-  already done. When an addition is in your tree with another text, your
-  tree's text is kept, and a `drift` check quotes both. A closed pull
-  request also gets a `stack` check, since its change may never land.
-- **Merged.** Its result is already in main, so it is never archived
-  again. Instead, `check` looks for that result in your tree by
-  requirement name: each requirement it adds or modifies must be there,
-  with any text (main may have reworded it since), each it removes absent,
-  and its renames, read in order, done. Another merged dependency, listed
-  after this one or building on it, may have changed those names since. A
-  name the later dependency removes or renames away need not be there, and
-  a name the later dependency adds or renames onto need not be absent. When the
-  result shows, a `stack` check says the line is stale: remove it. When it
-  does not, a `stack` error names what is missing: merge main into your
-  branch. One exception: a dependency that has merged but is still open in
-  your tree, with the same deltas, because it is not archived yet, is
-  handled as an open one.
+- **Open, or closed without merging.** In line order, `check` archives each
+  into a temporary copy of your tree's specs with one run of the real
+  `openspec archive`, first dropping the deltas the copy already shows: an
+  addition or modification with the same text, a removal already absent,
+  and a delta's renames when, read in order, all are done. An addition
+  already in your tree with another text keeps your tree's text, with a
+  `drift` check.
+- **Merged.** Its result is in main, so it is never archived again; `check`
+  looks for it in your tree by requirement name. Each requirement it adds
+  or modifies must be there, with any text (main may have reworded it), each
+  it removes absent, and its renames, read in order, done. When a later merged
+  dependency, listed after it or building on it, removes or renames away
+  one of those names, the name need not be there; when the later one adds
+  or renames onto it, it need not be absent. A merged dependency whose
+  change directory is still under `openspec/changes/` in your tree with the
+  same deltas, not yet archived, is handled as an open one.
 
-Every check then runs against the result.
+The change itself is archived last, on top of its dependencies, and every
+check runs against the result. A refusal on a line where a `drift` error
+already sits is not reported again.
 
-**Stacked changes need OpenSpec 1.15.0 or later on PATH,** since the
-dependencies are read and archived with it. Without it, the change gets a
-`stack` error.
+**`stack` errors.** Each blocks; none is a pass:
+- a `Builds on:` line that cannot be read or is listed twice, or a change
+  that names itself;
+- the OpenSpec CLI missing from PATH, or older than 1.15.0;
+- a dependency that cannot be read, or a delta in it where `openspec show`
+  reads nothing;
+- a pull request that holds no change of the name on the line: the line
+  names the wrong change or the wrong pull request;
+- deltas `openspec archive` refuses, where the error quotes the CLI and
+  names the dependency;
+- a merged dependency whose result your tree lacks, naming what is missing:
+  merge main into your branch;
+- a dependency that builds on a change this one does not list before it,
+  whose result your tree lacks.
 
-**What stops the check.** Each of these is a `stack` error, never a pass:
-a dependency that cannot be read; a pull request that holds no change of
-the name on the line, which means the line names the wrong change or the
-wrong pull request; a delta in which `openspec show` reads nothing; and
-deltas `openspec archive` refuses, where the error quotes the CLI and names
-the dependency. After any of these errors, the duplicate and drift checks do
-not run for the change, and the error says so; the other checks still run.
+After any `stack` error, the duplicate and drift checks do not run for the
+change, and the error says so; the other checks still run.
 
-**The change itself is archived last,** on top of its dependencies, as
-[Archive refusals](#archive-refusals) describes. A refusal on a line where
-a `drift` error already sits is not reported again.
+**`stack` checks:**
+- a dependency whose result your tree already holds: remove its line;
+- an open or closed dependency only partly there, naming which deltas were
+  there and which were archived;
+- two dependencies that set the same requirement, where the later, whose
+  version wins, does not build on the earlier: make sure the later text
+  includes what your change needs;
+- a pull request closed without merging, since its change may never land.
 
-**Remove the line once the dependency is in your tree.** When all of an
-open or closed dependency's deltas are already in your specs, a `stack`
-check says your tree already holds its result: remove the line. When only some
-are, a check names which deltas were already there and which were
-archived.
-
-**Two dependencies that set the same requirement.** The one listed later
-replaces the earlier one's version. When the later one does not build on
-the earlier one, a check says the earlier version is left out: make sure
-the later text includes what your change needs.
-
-**A `drift` check** quotes a sentence your change kept from an earlier text
-of the dependency's requirement, and the sentences the dependency has now
-instead. If your change was written against the earlier text, restate the
-requirement from the dependency's current text. If you kept the sentence on
-purpose, leave it.
+**`drift`.** An error when your change modifies, removes or renames a
+requirement that main plus its dependencies no longer define. A check,
+quoting both texts, when a requirement a dependency adds is already in your
+tree with another text, or when your change keeps a sentence from an earlier
+text of the dependency's requirement. If your change was written against the
+earlier text, restate the requirement from the dependency's current text. If
+you kept the sentence on purpose, leave it.
 
 **The hint.** A `duplicate` error against a main requirement that an open
 pull request removes or renames ends with the line to add, for example:
-``add `Builds on: seat-files (adamstallard/igor#171)` to its proposal.md``. If
-your change really applies on top of that pull request, add the line. If it
-does not, the duplicate is real: state the rule once. The hint does not
-clear the error; only the line does.
-
-`sign` checks a stacked change the same way, so it needs `gh`, the
-network and the OpenSpec CLI too.
+``add `Builds on: seat-files (adamstallard/igor#171)` to its proposal.md``.
+Add it if your change really applies on top of that pull request; if not,
+the duplicate is real: state the rule once. Only the line clears the error.
 
 ## 2. The consistency read, by a fresh subagent
 
@@ -212,28 +205,28 @@ Once per round, at its end, each **due** change gets a read of the whole
 change. A change is due when the branch adds or edits it and it differs
 from its **last read**: the newest commit in the branch's history whose
 `Spec-check:` trailer records a read that names it (see [Commit](#commit)).
-To see which changes are due before you read them, run `sign --read
-subagent` on the staged tree: the value it prints names them, or says `no
-read due`. Run it again after the read, with the read's counts, to sign the
-commit.
+To see which changes are due, run `sign --read subagent` on the staged tree:
+the value it prints names them, or says `no read due`. Nothing commits that
+value, so throw it away; without `--amended` and `--open` it says `0
+amended, 0 open`. After the read, run it again with those counts (see
+[Commit](#commit)) to sign the commit.
 
 For each due change, start a general-purpose subagent (not Explore) that
-did not write the change and give it [consistency-read.md](consistency-read.md)
-as its brief, with its four placeholders filled in: the change's directory,
+did not write the change, with [consistency-read.md](consistency-read.md)
+as its brief and its four placeholders filled in: the change's directory,
 where to read it from (the working tree, or the pull request's branch), its
-base branch, and the list of every file under the change's directory
-(`git ls-files openspec/changes/<change>`, or `git ls-tree -r --name-only
-<ref> openspec/changes/<change>`). Keep the brief's instruction to read
-each listed file whole, every line, paging long files with the Read tool,
-never skimming, grepping or sampling: a problem may sit anywhere in a long
-delta spec. Do not paste the files into the brief, and do not add your own
-summary of the change: what you would say is what the read is checking.
+base branch, and every file under the change's directory (`git ls-files
+openspec/changes/<change>`, or `git ls-tree -r --name-only <ref>
+openspec/changes/<change>`). Keep the brief's instruction to read each
+listed file whole, paging long files, never skimming, grepping or sampling:
+a problem may sit anywhere in a long delta spec. Don't paste the files or
+add your own summary of the change: what you would say is what the read
+checks.
 
 The subagent reads the change against every spec on the base branch, every
 open change, every open pull request touching the same specs, and the
-repository's architecture docs, and reports findings with quotes from both
-sides. For a stacked change it also reads each dependency's change and
-treats main plus the dependencies as the base, as the brief says.
+repository's architecture docs, quoting both sides of each finding. For a
+stacked change, main plus the dependencies is the base.
 
 If no subagent can be started in this environment, do the read yourself from
 the same brief, and say in your report and in the trailer (`--read self`)
@@ -262,6 +255,13 @@ sections OpenSpec's instructions for design.md name; create design.md when the
 change has none. When a decision changes, rewrite its entry: keep no record of
 how it was amended. Git and pull request comments hold the history.
 proposal.md stays OpenSpec's one or two pages of why and what.
+
+`check` gives an `evolution` error on each line of a change's files that
+records history: an amendment ("amending decision 79"), a credit ("(Adam,
+2026-10-21)", "Adam decided"), an earlier draft, or a review round ("this
+push", "since review"). Restate the line as what holds now, or delete it. A
+line it flags wrongly is never reworded; see
+[Keeping a line the evolution check flags](#keeping-a-line-the-evolution-check-flags).
 
 ## When to write a TLA+ model
 
@@ -300,34 +300,35 @@ staged tree, ending with what it records of the consistency read:
 - `read deferred to the round's end`, from `--read deferred`, on a commit
   inside a round;
 - `read by a fresh subagent: <change>, <change>; 3 amended, 1 open`, from
-  `--read subagent`, on the commit that ends the round. It names every
-  change that is due, and records that the read covered each one at this
-  tree. `--amended` is how many amendments the
-  read led to; `--open` is how many open questions the due changes'
-  design.md files now list, added together.
+  `--read subagent`, on the commit that ends the round. It names every due
+  change and records that the read covered each one at this tree.
+  `--amended` counts the read's amendments; `--open`, the open questions
+  the due changes' design.md files now list, added together.
   `--read self` writes `read by its author, no subagent: ...`;
 - `no read due`, whichever `--read` is given, when no change is due.
 
-A value from before rounds, `read by a fresh subagent; ...` with no names,
-records a read of every change its commit touched.
+An older value, `read by a fresh subagent; ...` with no names, counts as a
+last read of every change its commit touched, when deciding which are due.
 
-The round's last commit carries the read, so do the read before that
-commit, and stage its amendments with the rest. `sign --read subagent`
-also signs a commit that changes nothing under `openspec/`, such as a code
-commit, while a change is due: its read is recorded there. When every edit of
-the round is already committed and the last commit is not pushed, undo it
-with `git reset --soft HEAD~1`, do the read, and commit again with
-`--read subagent`. Never rewrite a pushed commit. If the last commit is
-pushed and the read amends nothing, record the read on an empty commit: sign
-with nothing staged, and pass `--allow-empty` as the first argument to
-bug-hunter's commit script, or among the library's options, as in the
-example below.
+`evolution` errors a person chose to keep are cleared by the change's
+`.spec-check-kept` file ([below](#keeping-a-line-the-evolution-check-flags)),
+and the value counts them after the checks, `0 errors, 2 checks, 1
+evolution kept; ...`, whatever the `--read`. Editing the kept file makes
+the change due like any other edit.
+
+Stage the read's amendments with the rest of the round's last commit.
+While a change is due, `sign --read subagent` also signs a commit that
+changes nothing under `openspec/`, such as a code commit, and records the
+read there. When every edit of the round is committed and the last commit
+is not pushed, undo it with `git reset --soft HEAD~1`, do the read, and
+commit again. Never rewrite a pushed commit: commit the read's amendments as a new
+commit signed with `--read subagent`, or, if it amends nothing, record it
+on an empty commit, signed with nothing staged, as below.
 
 **The hand-back checks.** A hand-back is `gh pr create` (not a draft, unless
-it requests a review),
-`gh pr ready`, `gh pr edit --add-reviewer`, or the GitHub MCP's equivalents.
-Each is judged at the pull request's head on GitHub, so push the read before
-you hand back:
+it requests a review), `gh pr ready`, `gh pr edit --add-reviewer`, or the
+GitHub MCP's equivalents. Each is judged at the pull request's head on
+GitHub, so push the read before you hand back:
 - A hook blocks one that names its pull request (`gh pr ready 7 -R o/r`,
   or its URL) while a change there was edited after its last read.
 - After the call, the hook judges a command that holds just that one gh
@@ -338,10 +339,9 @@ you hand back:
   (`gh pr create`, or `gh pr ready` by branch), only `git push`, `git add`
   and `git commit` with plain options, `cd`, `true` or `sleep`. If a change
   is unread, the hook makes the pull request a draft again, withdraws the
-  review requests the call made, and tells you. A hand-back in any other
-  form is not checked: the hook adds a note saying why, without blocking.
-  To have it checked, run `gh pr ...` on its own, or with only those
-  programs beside it.
+  review requests the call made, and tells you. Any other form is not
+  checked, and the hook adds a note saying why, without blocking: to have
+  it checked, run `gh pr ...` alone or with only those programs beside it.
 - Where the repository has spec-check's GitHub workflow, it does the same
   for every hand-back, however it was made.
 
@@ -376,12 +376,12 @@ value, and the co-author.
   -F msg.txt "skipped at triage (spec only, no code)" "<co-author>"
 ```
 
-For a read that amends nothing, with every edit already committed, the
-same call with `--allow-empty` first makes an empty commit carrying the
-trailers: `"$BH" --allow-empty --verified-value ... -- -F msg.txt
-"skipped at triage (no change)" "<co-author>"`.
+For the empty commit, pass `--allow-empty` first: `"$BH" --allow-empty
+--verified-value ... -- -F msg.txt "skipped at triage (no change)"
+"<co-author>"`.
 
-Without bug-hunter, call the library directly with the same families:
+Without bug-hunter, call the library directly with the same families (and
+`--allow-empty` among its options for an empty commit):
 `$SC/../../../lib/commit-trailer/commit-with-trailers.sh <families>
 --co-authored-by "<co-author>" --message-file msg.txt --`.
 
@@ -389,14 +389,61 @@ Sign after prose's rewrite is staged: staging anything after signing changes
 the tree, and the commit script refuses the stale value.
 
 The commit hook reports a commit that changes `openspec/` without a valid
-`Spec-check:` trailer. It never reports a commit that changes nothing under
-`openspec/`.
+`Spec-check:` trailer, and never one that changes nothing under `openspec/`.
+
+### Keeping a line the evolution check flags
+
+The same words can describe behaviour ("Each new vote amends the
+decision.", in a spec for a voting system), so an `evolution` error can be
+wrong. When you believe one is, don't reword the line; a person decides.
+
+1. Ask a person one question per line through your host's interactive
+   picker (in Claude Code, the `AskUserQuestion` tool): show the line, the
+   error, and why you think it is not history, with two options. "Fix it":
+   restate the line as what holds now and restage. "Keep as is": the line
+   stays as written.
+2. Add an entry for each kept line to the change's kept file,
+   `openspec/changes/<name>/.spec-check-kept`, and stage it. As part of the
+   change, it shows a reviewer who runs `check` on your branch the line as
+   kept, not as an error. An entry names the file, relative to the change,
+   and quotes the flagged line between `«` and `»`:
+
+   ```text
+   design.md: «The spec narrows the decision.» kept (asked): compares the spec with a decision, not history
+   ```
+
+   The quote is the whole line without its indent; copy it from the file,
+   since the error cuts long lines short. Runs of spaces or tabs count as
+   one space. The entry keeps every `evolution` error in that file whose
+   line has that text, so it lapses only when the line itself changes.
+   Blank lines between entries are skipped. `(asked)` is your statement
+   that a person answered; the script cannot check it.
+3. Sign. The kept errors no longer fail the run, and the value counts them:
+   `Spec-check: ✓ <tree> 0 errors, 1 checks, 1 evolution kept; ...`, so
+   the override shows in git.
+
+A `kept` error is an entry that is not in that form, gives no reason, or
+quotes the same line as an earlier entry; an entry that matches an
+`evolution` error but lacks `(asked)` (see *When you cannot ask*, below); or
+a kept file that cannot be read. An entry whose line changed or is gone
+keeps nothing and is a `kept` check, with or without `(asked)`: remove it,
+and if the line's new text is still flagged, ask the person about the new
+text. `openspec archive` moves the file with the rest of the change into
+`openspec/changes/archive/`, where spec-check does not read it.
+
+**When you cannot ask** (you are a subagent or a background job, or your
+host has no picker), `sign` will refuse, so don't commit. Write each entry
+you would keep without `(asked)`, as `<file>: «<line text>» kept:
+<reason>`, stage it, and run `sign` anyway: its refusal names each such
+entry with the errors it matches and your reason. Leave the change staged
+and put that refusal, whole, in your result. Whoever receives it asks the
+person, adds `(asked)` to each entry kept, fixes the other lines and
+deletes their entries, and signs again.
 
 ## Report
 
 Say, in this order: the mechanical result (errors fixed, checks judged, the
 `openspec archive` and `openspec validate` results), who did the consistency
 read and which changes it covered, or that it is deferred to the round's
-end, the findings and what
-each became (amended, open question, reported to another change), and
-anything not checked.
+end, the findings and what each became (amended, open question, reported to
+another change), and anything not checked.

@@ -24,7 +24,13 @@ When an agent works on anything under `openspec/`, it:
      drops a scenario. `check` archives the change into a scratch copy of
      your specs to find out;
    - a requirement written out under `## RENAMED Requirements`, whose text
-     the archive drops.
+     the archive drops;
+   - a line recording how the change got to its shape, such as "amending
+     decision 79" or "(Adam, 2026-10-21)". The agent removes it; when the
+     line is not history, the agent asks you, and only your answer keeps
+     it. A kept line is recorded in the change's `.spec-check-kept` file,
+     committed with the change, which quotes the line's text. Anyone who
+     runs `check` on the change sees the line as kept, not as an error.
 
    It also runs `openspec validate --strict` and includes what it reports,
    such as a misspelt section title or a section the archive drops.
@@ -62,7 +68,8 @@ When an agent works on anything under `openspec/`, it:
 
 Decisions go in design.md: a change states each one once, as it stands now,
 in design.md's *Decisions*, and keeps proposal.md to OpenSpec's short why and
-what. This is a convention for authors; `check` does not test it.
+what. `check` does not test where a decision sits, but a line recording how
+one was amended is an error.
 
 Each commit that changes `openspec/` carries a `Spec-check:` trailer, such as
 `Spec-check: ✓ 4d593e935186 0 errors, 2 checks; validate passed; read by a
@@ -71,11 +78,15 @@ checks ran on, so staging anything afterwards breaks it. The end names the
 changes the round's read covered at that tree; a change is read again only
 once it differs from that tree. A commit inside a round ends `read deferred to the round's end`
 instead. "read by its author, no subagent" means no fresh reader was
-available.
+available. When a person kept a flagged line (one recording how the change
+got to its shape) as written, the value adds a count after the checks, such
+as "1 evolution kept", on any commit, inside a round or at its end.
 
 **What it proves.** The trailer proves the mechanical checks passed on exactly
 what was committed. It does not prove a fresh subagent did the read: it
-records who the agent says did.
+records who the agent says did. Likewise, an "evolution kept" count
+records that the agent says a person approved each kept line; it does not
+prove it.
 
 ## Setup
 

@@ -107,6 +107,138 @@ broken.
 
 ---
 
+## Document-evolution text is an error
+
+**Decision.** `check` gives an `evolution` error on each line of a checked
+change's files that records how the change got to its shape rather than what
+holds now:
+- an amendment: "amending decision 79", "superseded by decision 12";
+- a credit naming who decided or when: "(Adam, 2026-10-21)", "Adam decided",
+  "decided by Adam", "decisions 21 and 22 on 2026-10-20";
+- "previously" or "originally", an earlier draft, the next revision;
+- a review round: "this push", "since review", "the second consistency read".
+
+The finding quotes the line. Text in a code fence, a code span or double
+quotes is skipped, since a spec about a checker quotes what it checks for.
+Every line of a change's files is read, not only the lines a branch
+changed. The specs under `openspec/specs` are not read: they are the
+archived result of earlier changes, which no author is reviewing now.
+
+**A person keeps a false `evolution` error.** Each change can hold a
+`.spec-check-kept` file, committed with it, which `check` and `sign` both
+read. An entry names a file relative to the change and quotes the flagged
+line's text: `design.md: «The spec narrows the decision.» kept (asked):
+<reason>`. The agent writes an entry only after a person chose "Keep as is"
+in a question the agent asked through its host's interactive picker (in
+Claude Code, `AskUserQuestion`). The entry clears every `evolution` error in
+that file whose line has the quoted text, compared after runs of whitespace
+are made one space. The spec text stays as written, and the trailer counts
+the errors the file cleared (`1 evolution kept`), so the override shows in
+git. The quote ends at the first `» kept`, so a line holding `» kept:` or
+`» kept (asked):` cannot be kept. That limit is accepted: lifting it would
+need an escape syntax in the entry form.
+
+An entry that is malformed, gives no reason, or quotes the same line as an
+earlier entry is a `kept` error.
+
+An entry that matches no `evolution` error is a `kept` check asking for its
+removal, whether or not it has `(asked)`. Its line changed or is gone, so
+the person's answer no longer covers it. It is a check, not an error,
+because it keeps nothing.
+
+An entry that matches an error but lacks `(asked)` is a `kept` error. An
+agent that cannot ask, such as a subagent, writes its entries without
+`(asked)`. `sign` then refuses and names each such entry with the errors it
+matches. The agent passes that message to whoever started it, who asks the
+person. The prose skill uses the same `kept (asked)` wording when a person
+keeps a passage its reviewer flagged, so an agent learns one convention.
+The script cannot check that a person answered: `(asked)` is the agent's
+statement.
+
+The file is part of the change, so `openspec archive` moves it into
+`openspec/changes/archive/<date>-<name>/` with the change's other files,
+and spec-check never reads an archived change. `openspec validate --strict`
+accepts it.
+
+**Within a review round** (*One consistency read per round*), the
+`evolution` check runs on every commit, since it is mechanical. An unkept
+error refuses a commit whose read is deferred, just as it refuses the
+round's last commit. The kept count goes after the check count on every value, whatever
+its read clause says: `0 errors, 2 checks, 1 evolution kept; validate
+passed; read deferred to the round's end`. The read clause is unchanged,
+so `sign`, `ci` and the hand-back hook find a round's read on a commit
+whose value counts kept lines. The kept file is one of the change's files,
+so editing it, even alone, makes the change due for a read again. Reading
+it costs the reader one short file, and a separate rule for it would let a
+kept file change after the read with no reader seeing it.
+
+**Limits.** Each line is read on its own, so a code span wrapped across two
+lines reads as prose, and its second line can draw a false error. An
+indented code block also reads as prose, as it does for every other check
+that reads lines through `markdown_lines`.
+
+**Why an error.** A finding of `check` severity never fails the run, so it
+asks whoever runs spec-check to judge it. History is never worth keeping in
+a change: it should simply be removed before a person reviews the change. An error makes the agent remove
+it, and only a person can let a line through.
+
+Behaviour uses the same words: a newer file supersedes an older one, a
+candidate previously rejected is not proposed again, the agent decided. So
+most patterns fire only beside a decision, a person, a date, or a word
+naming the document's own drafts or review rounds ("an earlier draft",
+"this push"). The bare "previously" and "originally" fire alone, unless a
+determiner precedes them ("a previously rejected rule"). The patterns were
+measured on two kinds of text:
+- About 25,000 lines of open changes: the `inquisitor` change in this
+  repository's pull request #25; in
+  the igor repository (adamstallard/igor), the six changes open on its main
+  branch and the changes in four of its spec pull requests. The patterns
+  flagged 292 lines, of which 2 were not history.
+- igor's 5,000 lines of main specs, which describe settled behaviour and so
+  show how often behaviour text is flagged. The patterns flagged 1 line
+  there, and it was history.
+
+So a false error is rare, and the override covers it.
+
+**Why its own patterns, not prose's.** prose's history patterns, in its
+`comment_scan.py`, catch a code comment narrating the code's past: "the old
+implementation", "we refactored". A change's history is about decisions,
+people, dates and review rounds, and none of prose's patterns covers those.
+The three that carry over ("previously", "originally", an earlier draft) are
+adapted here. So is prose's veto: no hit when a word such as "a" or "the"
+sits right before "previously", as in "a previously rejected rule". spec-check
+uses only the standard library and installs without prose, so it cannot
+import them.
+
+**Rejected:**
+- **A warning.** It asks whoever runs the check to review each line, when
+  the line should just be fixed.
+- **Rewording a false positive until the pattern misses it.** The words were
+  right; rewording them to suit a regex makes the spec worse and hides that
+  a person was needed. The override keeps the text and records the person's
+  call.
+- **The bare words**: `supersedes`, `replaces`, `reversed`, `was changed`,
+  `no longer`. In the `inquisitor` change's specs they describe behaviour on
+  31 lines, and each of those would fire.
+- **A list of people's names.** A credit is found as a capitalised word before
+  a decision verb ("Adam decided"), so it works in any repository. The word
+  is not a name when it is in a heading, or in a list of common pronouns,
+  determiners, conjunctions, prepositions and adverbs ("Also ruled out by
+  scenarios"). An unlisted word draws an error. Treating every capitalised
+  word ending in -ly as an adverb was rejected: it would also skip names
+  such as "Anatoly". A missed credit passes silently, while a person can
+  keep a false error (*A person keeps a false `evolution` error*, above).
+- **A kept file outside the commit**, passed to `sign` as `--kept <file>`.
+  `check` does not read it, so a reviewer, or a reviewing agent, running
+  `check` on the branch sees each kept line as an error again, and may fix
+  a line a person kept.
+- **Entries keyed by line number** (`design.md:5035`). Any line added or
+  removed above a kept line makes the entry stale.
+- **An inline marker in the spec**, such as an HTML comment beside the
+  line. It puts tooling noise in text people read.
+
+---
+
 ## A stacked change declares what it builds on
 
 **Decision (Adam, 2026-10-21; on 2026-10-24: the severities, reading an
@@ -887,7 +1019,9 @@ nobody is doing.
 design.md's *Decisions*, and each undecided item in its *Open Questions*,
 both sections OpenSpec's instructions for design.md name. No record is kept
 of how a decision was amended: git and pull request comments hold that.
-spec-check does not check where a decision sits; the reviewer judges it.
+The reviewer judges where a decision sits; the `check` command
+gives an error on a line that records how one was amended
+(*Document-evolution text is an error*).
 
 **Why.** OpenSpec keeps a proposal to one or two pages of why and what, and
 puts decisions and their rationale in design.md. Reviews of this repository's
