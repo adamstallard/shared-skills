@@ -440,6 +440,38 @@ and put that refusal, whole, in your result. Whoever receives it asks the
 person, adds `(asked)` to each entry kept, fixes the other lines and
 deletes their entries, and signs again.
 
+## Current-state passes
+
+When docs, or a pull request's body and title, may still describe an
+earlier state, a hook prints `current-state pass due for: ...`, naming what
+to rewrite. Do the pass without asking first: rewrite each named text to
+describe the state as it now is. Ask a person only before dropping a
+conclusion, as `prose compact` does.
+
+- **The implementation lands on a spec branch.** The commit hook prints it
+  for a commit that adds a file under a `src/` directory while the branch
+  adds or edits an open change; on the base branch itself, every open
+  change counts.
+  Rewrite the change's proposal.md and design.md, and the pull request's
+  body and title, wherever they say "specification only", or "will" for
+  what is now built.
+- **A change is archived.** The commit hook prints it for a commit that
+  moves a change into `openspec/changes/archive/`, as `openspec archive`
+  does. Fold the change's
+  reasoning into the DECISIONS.md of each skill it affects, rewriting older
+  reasoning rather than appending to it; then run `prose check` on each, and
+  compact any it reports as due.
+- **`openspec` is a symlink.** For a commit that changes the symlink or
+  adds a `src/` file, the commit hook prints `no current-state notice for
+  this commit: ...` in place of the implementation and archive notices
+  above. Replace the symlink with a real `openspec` folder. Replacing it
+  starts no pass for what was missed while it was a symlink.
+- **A pull request is handed back for review.** prose's hook prints it
+  after the agent's hand-back, and the GitHub workflow as a notice when a
+  hand-back leaves no change unread. Do the final pass over each doc the
+  pull request changes, and its body and title: fix any that still
+  describes work as unfinished or to come.
+
 ## Report
 
 Say, in this order: the mechanical result (errors fixed, checks judged, the

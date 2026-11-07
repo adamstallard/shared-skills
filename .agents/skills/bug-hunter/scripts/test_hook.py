@@ -4138,5 +4138,64 @@ class HookReportTextTests(unittest.TestCase):
         self.assertIn("abc1234 FEAT: a\n\nbug-hunter: 1 commit(s) carry", text)
 
 
+class SkillNoticeTests(unittest.TestCase):
+    """A skill's report file may define commit_trailer_notice, whose output
+    the hook says for each new commit, whatever its trailer and its
+    pathspec. See ../../../lib/commit-trailer/DECISIONS.md#a-skill-may-print-notices-about-a-commit.
+    """
+
+    # The demo skill of SkillVerifyTests, without rerunning its tests.
+    GIT, LIB, REPORT, VERIFY = (SkillVerifyTests.GIT, SkillVerifyTests.LIB,
+                                SkillVerifyTests.REPORT, SkillVerifyTests.VERIFY)
+    setUp, use_report, hook, git, commit, tree12, tree12_after = (
+        SkillVerifyTests.setUp, SkillVerifyTests.use_report, SkillVerifyTests.hook,
+        SkillVerifyTests.git, SkillVerifyTests.commit, SkillVerifyTests.tree12,
+        SkillVerifyTests.tree12_after)
+
+    NOTICE = (
+        'commit_trailer_notice() {\n'
+        '  case $(git log -1 --format=%s "$1") in *notable*) echo "notice: notable commit" ;; esac\n'
+        '}\n'
+    )
+
+    def use_notice(self, notice, pathspec=""):
+        self.use_report(self.REPORT + self.VERIFY + notice)
+        if pathspec:
+            text = self.wrapper.read_text()
+            self.wrapper.write_text(f"COMMIT_TRAILER_PATHSPEC='{pathspec}'\n" + text)
+
+    def test_a_notice_is_said_for_a_commit_with_a_valid_trailer(self):
+        self.use_notice(self.NOTICE)
+        self.commit("FEAT: notable", f"Demo: ok {self.tree12_after('f.py', 'n')}", content="n")
+        result = self.hook()
+        self.assertEqual(result.returncode, REPORTED, result.stderr)
+        self.assertEqual(result.stderr.strip(), "notice: notable commit")
+
+    def test_a_notice_is_said_outside_the_pathspec(self):
+        self.use_notice(self.NOTICE, pathspec=":(top)spec/")
+        self.commit("FEAT: notable", "Demo: skipped (code)", content="p")
+        result = self.hook()
+        self.assertEqual(result.returncode, REPORTED, result.stderr)
+        self.assertIn("notice: notable commit", result.stderr)
+
+    def test_an_ordinary_commit_or_a_failing_callback_says_nothing(self):
+        self.use_notice(self.NOTICE)
+        self.commit("FEAT: plain", "Demo: skipped (x)", content="q")
+        self.assertEqual(self.hook().returncode, QUIET)
+        self.use_notice('commit_trailer_notice() { echo oops >&2; exit 3; }\n')
+        self.commit("FEAT: notable", "Demo: skipped (x)", content="r")
+        result = self.hook()
+        self.assertEqual((result.returncode, result.stderr), (QUIET, ""))
+
+    def test_a_notice_beside_a_report_and_an_amend_said_once(self):
+        self.use_notice('commit_trailer_notice() { echo "notice: same"; }\n')
+        self.commit("FEAT: unsigned", "Other: x", content="s")
+        self.git("commit", "-q", "--amend", "-m", "FEAT: unsigned again", "--trailer", "Other: y")
+        result = self.hook()
+        self.assertEqual(result.returncode, REPORTED)
+        self.assertEqual(result.stderr.count("notice: same"), 1, result.stderr)
+        self.assertIn("demo report", result.stderr)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

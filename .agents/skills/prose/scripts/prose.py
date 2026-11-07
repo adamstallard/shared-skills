@@ -27,12 +27,17 @@ Both calls of `check` run the repository's pre-commit hook first, if it has one.
         A report with findings needs --dispositions, answering each one.
     prose.py sign --goals <goals> | --goals-file <file>
         Before posting, first call. Prints the rules and a token; reads no stdin.
-        start's and sign's goals file holds the goals --goals would, one or
-        more per line. Unlike check's --goals-file, its lines have no
+        For start and sign, the goals file holds the same goals --goals
+        takes, one or more per line. Unlike check's --goals-file, its lines have no
         'pattern:' prefix, since neither command lists files.
     prose.py sign --pass <token> [--cold-read <report> [--dispositions <file>]] < text > signed
         Second call. Prints stdin's text with a signed footer, or, as check
         does, a cold-read brief on stderr, exiting 5.
+    prose.py sign --pass <token> --defer-cold-read < text > signed
+        For a pull request body posted between two hand-backs for review
+        (see hook-handback): signs with no
+        cold read, in a footer that says the cold read is due at the
+        hand-back.
     prose.py compact <file> [--paths-from <file|-> [-0]] [-- <path>...]
     prose.py compact <file> --verify [--answers <file>] [--paths-from <file|-> [-0]] [-- <path>...]
     prose.py compact <file> --review
@@ -54,6 +59,9 @@ Both calls of `check` run the repository's pre-commit hook first, if it has one.
     prose.py verify-commit <sha>              after a commit (the commit hook)
     prose.py verify-post                      stdin: posted text
     prose.py hook-post --host <platform>      the posting hook
+    prose.py hook-handback --host <platform>  the hook after each tool call: prints
+                                              the current-state pass when the call
+                                              handed a pull request back
     prose.py hook-gate                        the first-write gate
 
 Standard library only. Read ../DECISIONS.md before changing what is hashed
@@ -70,6 +78,7 @@ import pathlib
 import re
 import secrets
 import shlex
+import shutil
 import subprocess
 import sys
 import time
@@ -104,14 +113,25 @@ try:
         _commands,
         _gh_args,
     )
+    import gh_shell as READER  # noqa: E402
     GH_SHELL_MISSING = False
 except ImportError:
+    READER = None
     GH_SHELL_MISSING = True
     # Copies of gh_shell.py's GITHUB_MCP and GH_TEXT, so MCP posts are still
     # checked and a command naming gh is still caught. Change them with
     # gh_shell.py's.
     GITHUB_MCP = re.compile(r"^mcp__(?:plugin_.+_)?github__")
     GH_TEXT = re.compile(r"\bgh(?![\w-])")
+# What counts as a hand-back for review, shared with spec-check's hand-back
+# hook (DECISIONS: A pull request body is cold-read at a hand-back). Without
+# it, no call is read as a hand-back: a deferred footer is accepted on any
+# pull request body post, a hand-back's included, no hand-back is blocked for
+# a deferred body, and no current-state pass is printed.
+try:
+    import handbacks  # noqa: E402
+except ImportError:
+    handbacks = None
 # The path this file was run by, with any link in it kept. The commands prose
 # prints for its caller to run next name this, not HERE: a caller granted
 # permission by path, or told where the skill is, needs the same path back,
@@ -143,6 +163,14 @@ TRAILER = re.compile(r"✓ (?P<tree>[0-9a-f]{%d}):(?P<message>[0-9a-f]{%d})"
                      r"(?:; compacted: (?P<compacted>[^;\n]+))?" % (HALF, HALF))
 FOOTER_LENGTH = 6
 FOOTER = re.compile(r"^prose ✓ ([0-9a-f]{%d})$" % FOOTER_LENGTH)
+# A pull request body signed inside a review round, with its cold read
+# deferred to the hand-back (DECISIONS: A pull request body is cold-read at a
+# hand-back). Its hash covers DEFERRED_SALT before the body, so cutting the
+# note off by hand leaves a footer that does not match.
+DEFERRED_NOTE = "(cold read deferred to the hand-back)"
+DEFERRED_FOOTER = re.compile(r"^prose ✓ ([0-9a-f]{%d}) %s$"
+                             % (FOOTER_LENGTH, re.escape(DEFERRED_NOTE)))
+DEFERRED_SALT = "cold read deferred\n"
 
 # Directories holding other people's docs. Build and output directories are
 # left off: a doc in one may have been written in this repository.
@@ -1095,36 +1123,52 @@ def _post_lines(text):
     return lines
 
 
-def split_footer(text):
-    """(body, footer hash or None). The body is normalised for hashing:
-    line endings to LF, trailing blanks off each line and off the end."""
+def _footer(text):
+    """(body, footer hash or None, whether the footer defers the cold read).
+    The body is normalised for hashing: line endings to LF, trailing blanks
+    off each line and off the end."""
     lines = _post_lines(text)
     found = FOOTER.match(lines[-1]) if lines else None
-    if found:
+    deferred = DEFERRED_FOOTER.match(lines[-1]) if lines and not found else None
+    if found or deferred:
         lines = lines[:-1]
         while lines and not lines[-1]:
             lines.pop()
-    return "\n".join(lines), (found.group(1) if found else None)
+    hit = found or deferred
+    return "\n".join(lines), (hit.group(1) if hit else None), bool(deferred)
 
 
-def footer_hash(body):
-    return hashlib.sha256(body.encode("utf-8", TEXT_ERRORS)).hexdigest()[:FOOTER_LENGTH]
+def split_footer(text):
+    """(body, footer hash or None), as _footer reads them."""
+    body, found, _ = _footer(text)
+    return body, found
 
 
-def sign(text):
+def deferred_footer(text):
+    """Whether the text ends with a footer that defers its cold read."""
+    return _footer(text)[2]
+
+
+def footer_hash(body, deferred=False):
+    salted = (DEFERRED_SALT if deferred else "") + body
+    return hashlib.sha256(salted.encode("utf-8", TEXT_ERRORS)).hexdigest()[:FOOTER_LENGTH]
+
+
+def sign(text, deferred=False):
     body, _ = split_footer(text)
     if not body.strip():
         raise Refused("nothing to sign: the text is empty")
-    return f"{body}\n\nprose ✓ {footer_hash(body)}\n"
+    note = f" {DEFERRED_NOTE}" if deferred else ""
+    return f"{body}\n\nprose ✓ {footer_hash(body, deferred)}{note}\n"
 
 
 def verify_post(text):
-    body, found = split_footer(text)
+    body, found, deferred = _footer(text)
     if found is None:
         return False, "no `prose ✓ <hash>` footer on the last line"
-    if found != footer_hash(body):
+    if found != footer_hash(body, deferred):
         return False, "the footer does not match the text above it (edited after signing?)"
-    return True, "signed"
+    return True, f"signed, {DEFERRED_NOTE[1:-1]}" if deferred else "signed"
 
 
 # ---------------------------------------------------------------------------
@@ -1414,6 +1458,66 @@ def posts_in(payload, host):
     return []
 
 
+# gh, for reading a pull request's body before a hand-back.
+GH = shutil.which("gh") or "gh"
+GH_TIMEOUT = 30
+PR_BODY_VERBS = {"create", "new", "edit"}
+PR_BODY_TOOLS = {"create_pull_request", "update_pull_request"}
+HANDBACK_PASS = ("current-state pass due for: each doc the pull request changes, and its body "
+                 "and title. It was handed back for review ({what}): flag and fix any that "
+                 "still describes work as unfinished or to come. Sign a body you change now "
+                 "with its cold read, since a person reads it.")
+
+
+def handbacks_of(payload, host):
+    """[Handback] the call makes, read by the shared handbacks.py."""
+    if handbacks is None or not isinstance(payload, dict):
+        return []
+    try:
+        found, _, _ = handbacks.handbacks_in(READER, payload, host)
+    except Exception:  # noqa: BLE001 - a reader bug must not block a post
+        return []
+    return found
+
+
+def pr_body_post(where, payload, host):
+    """Whether a post is a pull request's body. The where argument names the
+    post in posts_in's form, such as `gh pr edit`. A body is posted by gh pr
+    create, new or edit, or as the body of the GitHub MCP's
+    create_pull_request or update_pull_request."""
+    if where.startswith("gh pr "):
+        return where.split()[2] in PR_BODY_VERBS
+    tool = payload.get("tool_name") if isinstance(payload.get("tool_name"), str) else ""
+    return where == "body" and GITHUB_MCP.sub("", tool) in PR_BODY_TOOLS
+
+
+def pr_body(handback, payload, host):
+    """The body of the pull request a hand-back names, from GitHub; None when
+    it cannot be found without guessing the directory gh runs in, or gh
+    cannot show it. A shell command that is the gh call alone runs gh in the
+    payload's directory, so a ready or edit by branch is found there too."""
+    if handback.kind == "create":
+        return None  # the pull request does not exist yet
+    if not handback.named():
+        command = (payload.get("command") if host == "cursor" and "command" in payload
+                   else (payload.get("tool_input") or {}).get("command")
+                   if isinstance(payload.get("tool_input"), dict) else None)
+        words = _words(command.strip()) if isinstance(command, str) and not GH_SHELL_MISSING \
+            else None
+        if not words or words[0] != ("gh", False):
+            return None
+    args = ["pr", "view", *([handback.selector] if handback.selector else []),
+            "--json", "body", "--jq", ".body"]
+    if handback.repo:
+        args += ["-R", handback.repo]
+    try:
+        out = subprocess.run([GH, *args], cwd=handbacks.where(payload), capture_output=True,
+                             text=True, timeout=GH_TIMEOUT, check=False)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return out.stdout if out.returncode == 0 else None
+
+
 def hook_post(raw, host):
     """(exit code, stdout, stderr) for one posting-hook call."""
     allow = (0, '{"permission":"allow"}\n' if host == "cursor" else "", "")
@@ -1423,14 +1527,26 @@ def hook_post(raw, host):
         return allow
     if not isinstance(payload, dict):
         return allow
-    problems = []
-    for where, text in posts_in(payload, host):
+    problems, posts = [], posts_in(payload, host)
+    found = handbacks_of(payload, host)
+    for where, text in posts:
         if isinstance(text, Unreadable):
             problems.append(f"{where}: {text.why}")
             continue
         ok, reason = verify_post(text)
         if not ok:
             problems.append(f"{where}: {reason}")
+        elif deferred_footer(text) and (found or not pr_body_post(where, payload, host)):
+            problems.append(
+                f"{where}: signed with its cold read deferred to the hand-back, and this post "
+                + ("hands the pull request back for review" if found
+                   else "is not a pull request body")
+                + ", so it needs its cold read: sign it without --defer-cold-read")
+    if not problems and not any(pr_body_post(w, payload, host) for w, _ in posts):
+        for handback in found:
+            body = pr_body(handback, payload, host)
+            if body is not None and deferred_footer(body):
+                return _block_handback(handback, host)
     if not problems:
         return allow
     message = (
@@ -1445,6 +1561,55 @@ def hook_post(raw, host):
         flat = message.replace("\n", " ").strip()
         return 0, json.dumps({"permission": "deny", "user_message": flat, "agent_message": flat}) + "\n", ""
     return 2, "", message
+
+
+def _block_handback(handback, host):
+    """The block for a hand-back whose pull request's body still defers its
+    cold read."""
+    target = handback.selector or "<pull request>"
+    message = (
+        f"prose: blocked this hand-back for review ({handback.what}), because the pull "
+        "request's body was signed with its cold read deferred to the hand-back. Do the "
+        "body's cold read now: run the first call, do the pass, sign the body without "
+        "--defer-cold-read (the signing call prints the cold-read brief), post it, and "
+        "hand back again:\n"
+        f"  {_prose_command()} sign --goals '<reader goals>'\n"
+        f"  {_prose_command()} sign --pass <token> < body.md > signed.md\n"
+        f"  gh pr edit {target} --body-file signed.md\n")
+    if host == "cursor":
+        flat = message.replace("\n", " ").strip()
+        return 0, json.dumps({"permission": "deny", "user_message": flat,
+                              "agent_message": flat}) + "\n", ""
+    return 2, "", message
+
+
+# Claude Code runs a PostToolUse hook only after a call that succeeded; a
+# failed call gets PostToolUseFailure. A failed hand-back most likely did not
+# happen, so no pass is asked for: a missed one costs only the pass the next
+# hand-back asks for. spec-check's hook does run on a failure, since a
+# hand-back that did go through must still be taken back.
+FAILED_EVENTS = {"PostToolUseFailure"}
+
+
+def hook_handback(raw, host):
+    """(exit code, stdout, stderr) for the hook after a tool call: the
+    current-state pass a hand-back starts, as context for the agent."""
+    try:
+        payload = json.loads(raw)
+    except ValueError:
+        return 0, "", ""
+    if not isinstance(payload, dict) or payload.get("hook_event_name") in FAILED_EVENTS:
+        return 0, "", ""
+    found = handbacks_of(payload, host)
+    if not found:
+        return 0, "", ""
+    note = "prose: " + HANDBACK_PASS.format(what=", ".join(h.what for h in found))
+    if host == "cursor":
+        return 0, json.dumps({"additional_context": note}) + "\n", ""
+    name = payload.get("hook_event_name")
+    return 0, json.dumps({"hookSpecificOutput": {
+        "hookEventName": name if isinstance(name, str) and name else "PostToolUse",
+        "additionalContext": note}}) + "\n", ""
 
 
 # ---------------------------------------------------------------------------
@@ -2812,11 +2977,19 @@ def main(argv=None):
     p_verify = sub.add_parser("verify-commit", help="recompute a landed commit's Prose trailer")
     p_verify.add_argument("sha")
     p_verify.add_argument("--repo", default=".")
-    sub.add_parser("sign", parents=[passing, text_goals_file],
-                   help="first call: the rules and a pass token; with --pass: stdin with a signed footer")
+    p_sign = sub.add_parser("sign", parents=[passing, text_goals_file],
+                            help="first call: the rules and a pass token; with --pass: stdin "
+                                 "with a signed footer")
+    p_sign.add_argument("--defer-cold-read", action="store_true",
+                        help="with --pass, for a pull request body posted inside a review "
+                             "round: sign after the rules pass alone; its cold read is due "
+                             "at the hand-back")
     sub.add_parser("verify-post", help="exit 0 when stdin's footer matches its text")
     p_hook = sub.add_parser("hook-post", help="the posting hook: payload on stdin")
     p_hook.add_argument("--host", default="")
+    p_handback = sub.add_parser("hook-handback", help="after a call: the current-state pass "
+                                                       "a hand-back starts; payload on stdin")
+    p_handback.add_argument("--host", default="")
     sub.add_parser("hook-gate", help="the first-write gate: payload on stdin")
     # allow_abbrev=False: an abbreviation such as --paths would make the
     # split at `--` below misread the option's value as the file.
@@ -3088,6 +3261,8 @@ def main(argv=None):
             # signs nothing, prints to stderr and leaves stdout empty.
             goals = text_goals(args.goals, args.goals_file)
             if not args.token:
+                if args.defer_cold_read:
+                    raise Refused("--defer-cold-read goes with --pass, on the signing call")
                 require_goals(goals, "pass token")
                 read_rules()
                 print_goals(goals, sys.stderr)
@@ -3095,11 +3270,16 @@ def main(argv=None):
                 token = issue_pass(goals, "sign", _session(args))
                 print_pass(token, [next_sign(token)], sys.stderr)
                 return PASS_ISSUED
+            if args.defer_cold_read and args.report:
+                raise Refused("--defer-cold-read signs without a cold read, so it takes no "
+                              "--cold-read")
             goals, _ = redeem_pass(args.token, goals, "sign")
             text = _read_stdin()
             # Signed first, so an empty text is refused before any brief.
-            signed = sign(text)
-            if args.report:
+            signed = sign(text, args.defer_cold_read)
+            if args.defer_cold_read:
+                pass  # the posting hook accepts this footer only inside a round
+            elif args.report:
                 check_cold_read(args.token, pass_record(args.token), args.report,
                                 args.dispositions, lambda _: split_footer(text)[0])
             else:
@@ -3118,6 +3298,11 @@ def main(argv=None):
             return 0 if ok else 1
         if args.command == "hook-post":
             code, out, err = hook_post(_read_stdin(), args.host)
+            sys.stdout.write(out)
+            sys.stderr.write(err)
+            return code
+        if args.command == "hook-handback":
+            code, out, err = hook_handback(_read_stdin(), args.host)
             sys.stdout.write(out)
             sys.stderr.write(err)
             return code
