@@ -5,7 +5,8 @@ description: >-
   bot account, and start threads. Use when the user asks to post or reply on
   Discord, check what was said in a Discord channel, tell the team something
   on Discord, or follow up in a Discord thread; and when a Discord message you
-  read needs an answer. Not for Discord direct messages or voice.
+  read needs an answer; and when the user wants to add the bot to a server or
+  asks for its invite link. Not for Discord direct messages or voice.
 ---
 
 # Discord as a bot
@@ -40,6 +41,11 @@ them out; tell the user, and point them at the README's setup step 1.3, which
 turns the intent on. `null` means
 `check` couldn't read the setting from Discord; `messageContentError` says why.
 
+`check` can succeed while `servers` or `defaultChannel` holds
+`{"ok": false, "error": ...}`. Give the user that error: it names the fix, such
+as the `invite-url` command to run or the config value to correct. When
+`defaultChannel` holds it, the bot can't post to its default channel yet.
+
 If it fails with "no bot token", the bot isn't set up on this machine. Point the
 user at the skill's README; don't try to find a token yourself.
 
@@ -51,6 +57,20 @@ Use the identity you are given; never switch to another one to get around a
 refusal. A token in the environment belongs only to `$DISCORD_BOT_IDENTITY`'s
 bot, or `default`'s when that is unset; any other identity uses its own
 keychain entry.
+
+## Adding the bot to a server
+
+```bash
+python3 $D invite-url
+```
+
+It prints `inviteUrl`, the link that adds the bot to a server. Give it to the
+user to open, or to send to an admin of the server the bot should join. Don't
+build a link by hand or point at the developer portal's install link, which can
+be authorized without the bot ever joining.
+If it has `warnings`, pass them on before the user sends the link: each names
+a developer-portal setting that would stop the link working. Remind the user that a private channel needs the bot's role
+added to it. Once the user says the bot has been added, run `check`.
 
 ## Posting
 

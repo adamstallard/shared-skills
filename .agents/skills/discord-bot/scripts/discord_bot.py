@@ -24,6 +24,7 @@ import urllib.parse
 import urllib.request
 
 API = "https://discord.com/api/v10"
+AUTHORIZE = "https://discord.com/oauth2/authorize"
 USER_AGENT = "DiscordBot (https://github.com/adamstallard/shared-skills, 1)"
 KEYCHAIN_SERVICE = "discord-bot"
 MAX_CONTENT = 2000
@@ -279,26 +280,44 @@ def _json_or_empty(raw):
 # --- servers, channels and threads ----------------------------------------------
 
 
-def servers(api, config):
+def invite_hint(identity):
+    """The command that prints this bot's invite link.
+
+    It names the identity, so following it prints this bot's link and not
+    another's, and uses "=" so an identity starting with "-" still parses.
+    """
+    return f"run 'discord_bot.py --identity={identity} invite-url' for the link that adds it"
+
+
+def servers(api, config, identity="default"):
     guilds = api.request("GET", "/users/@me/guilds")
+    # Checked before the "server" filter: the filter's error tells the user to
+    # fix a mistyped value, which misleads when the bot is in no server at all.
+    if not guilds:
+        raise Failure(f"the bot is not in any server; {invite_hint(identity)}")
     wanted = str(config.get("server") or "").strip()
     if wanted:
-        guilds = [g for g in guilds if wanted in (g["id"], g["name"])]
-        if not guilds:
-            raise Failure(f"the bot is not in a server named or numbered {wanted!r}")
-    if not guilds:
-        raise Failure("the bot is not in any server; invite it first")
+        matching = [g for g in guilds if wanted in (g["id"], g["name"])]
+        if not matching:
+            # The value is often a typo or differs in case, so the servers the bot is
+            # in come first and the invite link last. JSON quoting, so a name can be
+            # pasted into the config as shown.
+            names = ", ".join(json.dumps(g["name"], ensure_ascii=False) for g in guilds)
+            raise Failure(f"the bot is not in a server named or numbered {json.dumps(wanted, ensure_ascii=False)}; "
+                          f"it is in {names}. "
+                          f"Fix \"server\" in the identity's config, or {invite_hint(identity)}")
+        guilds = matching
     return guilds
 
 
-def find_channel(api, config, name):
+def find_channel(api, config, name, identity="default"):
     """The text channel called `name` (or with that id), and the id of its server."""
     name = str(name).lstrip("#")
     if is_id(name):
         channel = api.request("GET", f"/channels/{name}")
         return channel, channel.get("guild_id")
     matches = []
-    for guild in servers(api, config):
+    for guild in servers(api, config, identity):
         for channel in api.request("GET", f"/guilds/{guild['id']}/channels"):
             if channel.get("type") in TEXT_CHANNEL_TYPES and channel.get("name") == name:
                 matches.append((channel, guild["id"]))
@@ -331,7 +350,7 @@ def target(api, config, args):
     name = str(args.channel or os.environ.get("DISCORD_BOT_CHANNEL") or config.get("defaultChannel") or "")
     if not name:
         raise Failure("no channel given: pass --channel, or set \"defaultChannel\" in the identity's config")
-    return find_channel(api, config, name)
+    return find_channel(api, config, name, args.identity)
 
 
 # --- message text ------------------------------------------------------------------
@@ -690,14 +709,69 @@ def cmd_thread(api, config, args):
     return {"threadId": thread["id"], "threadName": thread["name"], "messageId": args.message_id, "channelId": where["id"]}
 
 
+def invite_url(application_id):
+    """The link that adds the bot to a server with exactly the permissions in PERMISSIONS.
+
+    CHANNEL_BITS is the sum of their bits.
+
+    scope=bot makes it a server install whatever the application's default
+    install settings say. See DECISIONS.md.
+    """
+    query = {"client_id": application_id, "scope": "bot", "permissions": CHANNEL_BITS}
+    return f"{AUTHORIZE}?{urllib.parse.urlencode(query)}"
+
+
+def cmd_invite_url(api, config, args):
+    """The link that adds the bot to a server, and a warning for each setting that would stop it working.
+
+    Needs no server, so it works before the bot has joined one.
+    """
+    application = api.request("GET", "/applications/@me")
+    application_id = str(application.get("id") or "")
+    if not is_id(application_id):
+        raise Failure(f"Discord's application object had no usable id: {application.get('id')!r}")
+    public = application.get("bot_public")
+    public = public if isinstance(public, bool) else None
+    result = {
+        "bot": (application.get("bot") or {}).get("username") or application.get("name"),
+        "inviteUrl": invite_url(application_id),
+        "permissions": list(PERMISSIONS),
+        "publicBot": public,
+    }
+    # Each setting that stops the link working gets its own warning; several can apply at once.
+    warnings = []
+    if public is False:
+        warnings.append("Public Bot is off, so only the bot's owner can use this link; before sending "
+                        "it to a server admin, turn on Public Bot (Developer Portal, Bot tab)")
+    elif public is None:
+        warnings.append("could not tell whether Public Bot is on; if a server admin's attempt fails, "
+                        "turn it on (Developer Portal, Bot tab)")
+    if application.get("bot_require_code_grant") is True:
+        warnings.append("Requires OAuth2 Code Grant is on, so this link cannot add the bot; turn it off "
+                        "(Developer Portal, Bot tab)")
+    # Only a non-empty set of contexts that leaves out Guild Install ("0") warns. A
+    # missing, null or empty value doesn't show Guild Install is off, and a wrong
+    # warning would send the user to change a setting that is already right.
+    contexts = application.get("integration_types_config")
+    if isinstance(contexts, dict) and contexts and "0" not in contexts:
+        warnings.append("Guild Install is off, so this link cannot add the bot to a server; turn it on "
+                        "(Developer Portal, Installation tab, Installation Contexts)")
+    if warnings:
+        result["warnings"] = warnings
+    return result
+
+
 def cmd_check(api, config, args):
     """Report who the bot is, where it can post, and what it may do there."""
     me = api.request("GET", "/users/@me")
-    result = {
-        "identity": args.identity,
-        "bot": me.get("username"),
-        "servers": [g["name"] for g in servers(api, config)],
-    }
+    result = {"identity": args.identity, "bot": me.get("username")}
+    # A failed server lookup, whether the bot is in no server or not in the
+    # configured one, goes under "servers", and check goes on with the rest of
+    # the report.
+    try:
+        result["servers"] = [g["name"] for g in servers(api, config, args.identity)]
+    except Failure as e:
+        result["servers"] = {"ok": False, "error": str(e)}
     for key in ("channels", "people"):
         if config.get(key):
             result[key] = config[key]
@@ -841,6 +915,8 @@ def parser():
     c = sub.add_parser("check", help="show who the bot is and what it may do")
     where(c, threads=False)
 
+    sub.add_parser("invite-url", help="print the link that adds the bot to a server")
+
     sub.add_parser("store-token", help="save this identity's bot token in the keychain")
     return p
 
@@ -852,6 +928,7 @@ COMMANDS = {
     "delete": cmd_delete,
     "thread": cmd_thread,
     "check": cmd_check,
+    "invite-url": cmd_invite_url,
 }
 
 
