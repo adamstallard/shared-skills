@@ -1576,6 +1576,39 @@ class EvolutionTextTests(unittest.TestCase):
                 for _, phrase, _, quote in hits:
                     self.assertIn(phrase.lower(), quote.lower())
 
+    def test_a_word_opening_a_sentence_is_not_taken_for_a_name(self):
+        # A word in EVOLUTION_NOT_NAMES before a decision verb is not a name.
+        # The first line is from a real design.md that the check flagged as
+        # crediting a person named "Also". Each line of the second loop is a
+        # real credit and gives one error, from whichever pattern fires first:
+        # plain names, names ending in -ly ("Anatoly"), a name after a listed
+        # word ("Then Alice"), an @ handle, and an "(Adam, <date>)" credit.
+        for line in ["Also ruled out by scenarios:",
+                     "This settled the order.", "Then approved by the reviewer.",
+                     "Later agreed in the session.", "And chose the second path.",
+                     "Once accepted, a claim holds.", "Finally settled by a test.",
+                     "- Eventually adopted by every store.", "So confirmed: the claim holds."]:
+            with self.subTest(line=line):
+                self.assertEqual(spec_check.evolution_hits(line + "\n"), [])
+        for line in ["Adam ruled out the second store.", "Alice decided the order.",
+                     "Also, Adam ruled out the second store.", "Then Alice decided it.",
+                     "Beverly decided the order.", "Emily approved it.",
+                     "Anatoly decided the order.", "Then Anatoly decided it.",
+                     "@Adam decided the order.",
+                     "(Adam, 2026-11-04) decided the order."]:
+            with self.subTest(line=line):
+                self.assertEqual(len(spec_check.evolution_hits(line + "\n")), 1)
+
+    def test_function_words_are_not_names(self):
+        for line in ["The agreed order holds.", "We decided to keep one store.",
+                     "However settled the rule is, it holds.", "Today approved stores sync hourly.",
+                     "They agreed on one store.", "A settled rule stays.", "An approved list is final.",
+                     "When accepted, a claim holds.", "Newly accepted claims are held for a day.",
+                     "Typically accepted claims stay.", "Ultimately chose one store.",
+                     "Clearly settled by a test."]:
+            with self.subTest(line=line):
+                self.assertEqual(spec_check.evolution_hits(line + "\n"), [])
+
     def test_property_quoting_a_history_line_silences_it(self):
         for line in self.HISTORY:
             with self.subTest(line=line):

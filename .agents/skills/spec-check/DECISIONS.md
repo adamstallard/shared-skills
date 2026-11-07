@@ -221,8 +221,13 @@ import them.
   `no longer`. In the `inquisitor` change's specs they describe behaviour on
   31 lines, and each of those would fire.
 - **A list of people's names.** A credit is found as a capitalised word before
-  a decision verb ("Adam decided"), excluding pronouns, determiners and
-  headings, so it works in any repository.
+  a decision verb ("Adam decided"), so it works in any repository. The word
+  is not a name when it is in a heading, or in a list of common pronouns,
+  determiners, conjunctions, prepositions and adverbs ("Also ruled out by
+  scenarios"). An unlisted word draws an error. Treating every capitalised
+  word ending in -ly as an adverb was rejected: it would also skip names
+  such as "Anatoly". A missed credit passes silently, while a person can
+  keep a false error (*A person keeps a false `evolution` error*, above).
 - **A kept file outside the commit**, passed to `sign` as `--kept <file>`.
   `check` does not read it, so a reviewer, or a reviewing agent, running
   `check` on the branch sees each kept line as an error again, and may fix

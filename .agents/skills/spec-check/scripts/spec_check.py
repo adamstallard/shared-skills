@@ -1113,6 +1113,46 @@ EVOLUTION_HEADING = re.compile(r"[ \t]*#+[^:]*:?\s*")
 # A past participle right after `previously` is almost always adjectival in a
 # spec ("a candidate previously rejected is not proposed again").
 EVOLUTION_PARTICIPLE = re.compile(r"\s+\w+(?:ed|en|wn)\b", re.I)
+# The person-decided pattern takes any capitalised word before a decision
+# verb as a name ("Adam decided"), unless the word is listed here. Names
+# cannot be listed, since the check runs in any repository. The common words
+# that can stand before such a verb without naming anyone can be: pronouns,
+# determiners, conjunctions, prepositions and adverbs ("Also ruled out by
+# scenarios"). A word left off still draws an error.
+# Don't treat every capitalised word ending in -ly as an adverb instead of
+# listing adverbs: that would skip names such as "Anatoly". A missed credit
+# passes silently, while a person can keep a false error in the change's
+# kept file (apply_kept).
+# Each entry goes into the pattern unescaped, as a regex fragment.
+EVOLUTION_NOT_NAMES = (
+    # pronouns
+    "I", "It", "He", "She", "They", "We", "You", "Me", "Him", "Us", "Them",
+    "Who", "Whom", "Whoever", "Which", "What", "Whatever", "Nobody", "Somebody",
+    "Someone", "Everyone", "Everybody", "Anyone", "Anybody", "Everything",
+    "Something", "Nothing", "Anything", "Itself", "Themselves", "Others",
+    # determiners and quantifiers ("An?" matches "A" and "An")
+    "The", "An?", "This", "That", "These", "Those", "Its", "Their", "His", "Her",
+    "Our", "My", "Your", "Each", "Every", "Both", "All", "None", "One", "Any",
+    "Some", "No", "Neither", "Either", "Few", "Many", "Most", "Several", "Such",
+    "Other", "Another", "Whose",
+    # conjunctions, prepositions and question words
+    "And", "But", "Or", "Nor", "Yet", "So", "If", "Unless", "Because", "Although",
+    "Though", "As", "Since", "When", "Whenever", "Where", "While", "After",
+    "Before", "Until", "Once", "Than", "Whether", "Why", "How",
+    # adverbs
+    "Also", "Then", "Later", "Earlier", "Still", "Never", "Only", "Just", "Even",
+    "Again", "Instead", "Therefore", "Now", "Here", "There", "Already", "Soon",
+    "First", "Next", "Last", "Often", "Always", "Sometimes", "Rarely", "Seldom",
+    "Early", "Ever", "Together", "Otherwise", "Likewise", "Meanwhile", "Moreover",
+    "Furthermore", "However", "Nevertheless", "Nonetheless", "Indeed", "Perhaps",
+    "Maybe", "Rather", "Quite", "Almost", "Not", "Today", "Thereby", "Thus", "Hence",
+    # common adverbs in -ly
+    "Finally", "Eventually", "Initially", "Recently", "Currently", "Usually",
+    "Normally", "Typically", "Generally", "Additionally", "Similarly",
+    "Alternatively", "Consequently", "Accordingly", "Subsequently", "Ultimately",
+    "Newly", "Fully", "Mostly", "Simply", "Merely", "Properly", "Partly",
+    "Clearly", "Explicitly", "Implicitly", "Automatically",
+)
 _DATE = r"\d{4}-\d{2}-\d{2}"
 _RULING = r"(?:decisions?|rulings?)"
 _EARLIER = r"(?:(?:the|an?|its|this|that|their|#\d+['’]s|\w+['’]s)\s+)?" \
@@ -1136,9 +1176,7 @@ EVOLUTION_PATTERNS = [
                 r"|\b(?i:recorded)\s+(?:on\s+)?" + _DATE),
      "credits a decision to a person or a date", None),
     ("person-decided",
-     re.compile(r"(?<![\w@])@?(?!(?:It|This|That|He|She|They|We|You|Who|Which|Nobody|Somebody|"
-                r"Someone|Everyone|Everybody|Anyone|Each|Every|Both|All|None|One|The|An?|Its|Their|"
-                r"His|Her|Our|My|Your|Any|Some|No)\b)"
+     re.compile(r"(?<![\w@])@?(?!(?:" + "|".join(EVOLUTION_NOT_NAMES) + r")\b)"
                 r"[A-Z][a-z]+\s+(?:decided|ruled|approved|agreed|chose|confirmed|accepted|adopted|"
                 r"narrowed|widened|amended|reversed|overruled|settled)\b"),
      "credits a decision to a person", EVOLUTION_DETERMINER),
