@@ -34,9 +34,9 @@ where prose keeps its session marks, for the same reason: a session spans
 repositories, and a hook's working directory can differ from the one `vet`
 ran in (prose's DECISIONS.md, *The gate blocks a session's first file
 write*). They are the hooks' state, not a question log. Everything under one
-HOME shares them, concurrent Igor workers included, since a verdict is about
-the text, not the worker. Every record expires after 2 hours, so the skill
-keeps no lasting record of any question, a vulnerability included. A
+HOME shares them (*Verdict records are shared under one HOME*). Every record
+expires after 2 hours, so the skill keeps no lasting record of any question,
+one about a vulnerability included. A
 vulnerability's lasting record is the repository's private security advisory.
 
 When a hook can't read the records, the picker hook lets the question
@@ -120,9 +120,10 @@ by `IGOR_RUN` (*The script tells an Igor's run by `IGOR_RUN`*).
 prose's posting hook reads the body of a `gh` post from a short allow-list
 of command forms, and the body fields of GitHub MCP tools
 (`.agents/skills/prose/DECISIONS.md`, *The posting hook reads an
-allow-list*). shared-skills PR #55 moves the part that splits a command
-line into commands, and gh's flag tables, to `.agents/lib/gh-shell/`, where
-spec-check's hand-back hook reads them too. This change moves the rest of
+allow-list*). The part that splits a command line into commands, and gh's
+flag tables, are already in `.agents/lib/gh-shell/`, where spec-check's
+hand-back hook reads them too (prose's `DECISIONS.md`, *The command reader is
+shared, in `.agents/lib/gh-shell/`*). This change moves the rest of
 the reader, which finds a post's body, into the same library for both post
 hooks; the `gh-post` spec states its rules. prose's tests are
 unchanged except where the reader changes:
@@ -568,8 +569,8 @@ there. Without a pull request there is no hand-back, so the end of a turn is
 the only place a round can end.
 
 **The hand-back is spec-check's,** so one word means one moment across the
-skills. shared-skills PR #55 defines it in spec-check, and the spec cites #55's rule and
-gives one example instead of copying #55's list of what counts as a
+skills. spec-check defines it, and this change's inquisitor spec cites spec-check's rule and
+gives one example instead of copying spec-check's list of what counts as a
 hand-back, so that list is kept in one place. The inquisitor's round also
 ends at each end of the agent's turn, which spec-check's review round does
 not, so it has a name of its own: a question round.
@@ -585,7 +586,7 @@ arose.
 
 *Rejected:* asking every surviving question as soon as it arises, which
 interrupts the person once per question. Ending a round at each push, which
-shared-skills PR #55 rejects too: agents push after almost every commit, so every
+spec-check rejects too (its `DECISIONS.md`, *One consistency read per round*): agents push after almost every commit, so every
 question would still be asked almost at once.
 
 #### bug-hunter's Step 9 recommendations go through the filters
@@ -799,19 +800,22 @@ worker ask that text.
 
 **A verdict record identifies its question by the plain SHA-256 of its text.**
 
-**Accepted:** a short sensitive question could be guessed from its hash, but
-only for 2 hours, since every record is deleted then, whether or not the
-agent gave the question a category.
+**Accepted:** a short sensitive question could be guessed from its hash until
+its record is deleted, whether or not the agent gave the question a category.
+The first call or hook to read the records after 2 hours deletes it, which
+can be days later if nothing runs (*For Adam to decide*).
 
 *Rejected:* an HMAC with a per-HOME key, which would stop that guessing: the
 2-hour limit already keeps the exposure brief.
 
 #### Every verdict record expires after 2 hours
 
-**Every verdict record is deleted 2 hours after it was made, whatever its
-verdict or category.** Each hook accepts a record only while it is less
-than 2 hours old and treats an older one as missing, so deleting a record at
-2 hours removes nothing a hook would still accept. A post
+**Every verdict record expires 2 hours after it was made, whatever its
+verdict or category, and the next call or hook to read the records deletes
+it.** Each hook accepts a record only while it is less than 2 hours old and
+treats an older one as missing, so deleting an expired record removes nothing
+a hook would still accept. Until some call or hook runs, an expired record
+stays on disk. A post
 edited more than 2 hours after an `ask`, or listing a question deferred more
 than 2 hours earlier, is vetted again, which costs only one pair of calls.
 
@@ -1560,9 +1564,11 @@ Igor's run: a plain headless session would lose its lore search.
 
 #### Task 0.12: an Igor worker cannot run the skill
 
-**Measured on 2026-10-20: an Igor worker cannot run this skill, with a lore
-clone and `inquisitor.json` in reach, on igor's main branch or once igor
-PRs #174 and #175 land as specified.** So gate two builds everything except
+**Measured on 2026-10-20 on igor's main branch: an Igor worker cannot run
+this skill, even with a lore clone and `inquisitor.json` in reach. Read from the
+specs of igor PRs #174 and #175, not checked since neither is built, the
+same holds once they land.** So gate two, the implementation (*Terms used
+throughout*), builds everything except
 Igor-worker mode. *What task 0.12 measured* gives the evidence.
 
 #### An Igor worker asks only in its handback comment
@@ -1960,8 +1966,8 @@ so (task 5.2).
 
 **The answer session polls about every 60 seconds, only while open, and uses
 no webhooks.** Questions-branch log files never appear in notifications, so
-it fetches those branches at each poll. A webhook needs a public HTTPS server and Discord's push a
-permanent connection, each a service to run. GitHub documents that the
+it fetches those branches at each poll. *Polling while open, with the
+person's credentials* says why there are no webhooks. GitHub documents that the
 notifications endpoint's conditional requests do not count against the rate
 limit, and it sets the interval between polls; task 0.15 measures both.
 Unless task 0.15 shows notifications report every GitHub message the session
@@ -2079,10 +2085,11 @@ they decline under filter 1 the draft may fill in the URL of the record that
 answers the question.
 
 **`propose_reply` refuses any call carrying an `agentId`, and takes a call
-without one as the main conversation's.** Claude Code sets `agentId` on a
-tool call made outside the main conversation, by a subagent or a side
-conversation it forks, and a mod's `tool.call` handler receives it with the
-call. Nothing else tells the main conversation's calls from the others'.
+without one as the main conversation's.** The spec takes it that Claude Code
+sets `agentId` on every tool call made outside the main conversation, by a
+subagent or by a side conversation Claude Code forks; task 0.26 checks both.
+A mod's `tool.call` handler receives the `agentId` with the call. Nothing
+else tells the main conversation's calls from the others'.
 The approved prototype does this (fc3c35f,
 `answer-session/hooks/register.tsx`, the `tool.call` handler for
 `propose_reply`).
@@ -2099,7 +2106,8 @@ marks its calls with an `agentId`. One that arrived without one would be
 taken as the main conversation's. The cost is bounded: the draft lands in
 the prompt box, where the person sees it, and nothing is sent until they
 confirm it. Task 0.26 records whether any such call arrives; the rule
-stands either way.
+stands either way. If a subagent's call can arrive without an `agentId`, the
+same bound applies to it.
 
 #### The UI is built from prototype build v0.1-33
 
@@ -2121,8 +2129,7 @@ The replies and the recorded answer each appear in the one fixed place the
 tagged build shows them. The approval covers the whole build, including the
 asker withdrawing their question in the thread (the prototype's twelfth
 sample question) and the held-back post's notice, which the build's pre-tag
-notes list as still to try. Tasks G.1 and 6.9, the approvals the tasks ask for, are
-done. The tag `answer-session-ui-approved` (f964903) lacks the declining
+notes list as still to try. The tag `answer-session-ui-approved` (f964903) lacks the declining
 screens and is not a base.
 
 #### How the approved prototype meets the spec
@@ -2480,8 +2487,8 @@ by <skill>).`, which the second call prints and the agent copies exactly; the
 answer session finds it by its fixed wording and always shows such a question
 to the person, never replying with filters 2 to 4.** The inquisitor spec's *A
 question another skill requires carries a person-required line* and the
-`answer-session` spec's *A question with a person-required line always
-reaches the person* state the rules. On GitHub the post hook checks that the
+`answer-session` spec's *A question with a person-required line gets no
+filter 2 to 4 reply* state the rules. On GitHub the post hook checks that the
 line is there on each such question, names the right skill, and is on no other
 question; elsewhere nothing checks it.
 
@@ -3002,10 +3009,11 @@ one for its text, such as its length, and one for lack of permission. A
 refusal the session
 cannot place waits for the person, as the answer-session spec's *A refusal
 the session cannot place waits for the person* says: one it cannot sort
-into either kind. Task 0.26 decides
-nothing: it records whether a forked conversation's `propose_reply` call
-can arrive without an `agentId` (*Claude drafts a reply only into the
-prompt box*).
+into either kind. Task 0.26 records whether a forked conversation's or a
+subagent's `propose_reply` call can arrive without an `agentId`. Either way
+the rule stands: a call without one would get through, but its draft only
+lands in the prompt box, where the person sees it before anything is sent
+(*Claude drafts a reply only into the prompt box*).
 
 - **Do Linear and Discord return a posted line's words unchanged?** (task
   0.28) The answer session finds a person-required line by its fixed wording
@@ -3225,6 +3233,30 @@ to its 149.
   surface counts only through a decision document, such as the scribe's
   record; one typed in the answer session and relayed there counts through its
   log file's signature.
+
+### For Adam to decide
+
+- **Should an expired verdict record be deleted without waiting for a read?**
+  The inquisitor spec's *The two calls' files and records stay private* has
+  the next call or hook delete a record over 2 hours old, so with no call or
+  hook for days, a record and its question's plain SHA-256 stay on disk that
+  long. *Records hash a question with plain SHA-256* rejects an HMAC because
+  the exposure is brief, which holds only while something runs. The options:
+  delete on a timer or at session end, use the HMAC, or accept the longer
+  exposure.
+- **Where do this change's behavioural rejections and constraints go?**
+  Among its decided points, shared-skills issue #56 makes a behavioural
+  rejection or constraint a requirement with a scenario the rejected
+  approach would fail, and leaves a decision record only what no test can
+  check. Task 7.2 instead
+  moves every constraint and rejected alternative in design.md into the
+  decision records at archive. #56 also expects an open change to keep its
+  rejections in its own `specs/<capability>/decisions.md`, which spec-check
+  would check once it implements #56. This change keeps them in design.md's
+  *Decisions*, since spec-check's SKILL.md says an open change states each
+  decision there. The options: turn the behavioural ones into requirements
+  now; do so at archive, in task 7.2; or keep task 7.2 as it is until
+  spec-check implements #56.
 
 ### Left to implementation
 

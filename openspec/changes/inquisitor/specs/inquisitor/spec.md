@@ -428,8 +428,8 @@ file input, labelled unreadable, as that requirement says.
 
 ### Requirement: An Igor's handback comment is no post, but the post hook vets what it sees
 
-An Igor posts the comment handing an item back through its own code,
-where no post hook runs. That comment SHALL NOT be a post, and nothing in
+The comment an Igor posts through its own code to hand an item back
+SHALL NOT count as a post under this spec, and nothing in
 this spec batches it with questions asked elsewhere, or tags anyone in
 it. Any comment the post hook does see SHALL be
 a post, and vetted, even when it carries igor's handback marker, which the
@@ -1258,9 +1258,9 @@ same log file in `answers` SHALL still supersede older files.
 ### Requirement: A named file's answer is the newest proven answer file naming it
 
 A named file's answer SHALL be the newest answer file naming it in
-`answers` that would count, proven the asked person's or, if the named
-file tags no one, an account's with write access to what its question
-concerns, and added alone in its commit (design.md: *A named file's
+`answers` that would count, proven to be the answer of the person the
+named file's question tags or, if that file tags no one, of an account
+with write access to what its question concerns, and added alone in its commit (design.md: *A named file's
 answer must be the person's own, added alone*). Only these files decide
 whether a named file is answered: one that hash grouping supersedes still
 answers the file it names.
@@ -1487,6 +1487,14 @@ whose old head can be fetched, the heads before and after it; otherwise,
 the base and the head. It SHALL take only path names from the head, matched
 to a relay file's pattern first, and run no code from the head.
 
+#### Scenario: The workflow's runner, trigger and token
+
+- **WHEN** `relay-notice.yml` is read
+- **THEN** it runs on a GitHub-hosted runner, its only trigger is
+  `pull_request_target` with no `paths` filter, and its token's
+  permissions are `contents: read` and `pull-requests: write` and nothing
+  else
+
 #### Scenario: A push compares the heads before and after it
 
 - **WHEN** `bob` pushes a commit changing only `README.md` to a pull request
@@ -1688,7 +1696,7 @@ run the two calls on it again.
 ### Requirement: A question round ends at a hand-back or at the end of the agent's turn
 
 A **question round** SHALL end at a hand-back to a person, as spec-check's
-skill defines one (shared-skills PR #55: `.agents/skills/spec-check/DECISIONS.md`,
+skill defines one (`.agents/skills/spec-check/DECISIONS.md`,
 *One consistency read per round*), such as opening a pull request for
 review. With a person in the session, it SHALL also end at every end of
 the agent's turn, on work with a pull request too; with no person in the
@@ -3165,16 +3173,18 @@ questions-branch log and miss file but a handled one SHALL hold
 - **WHEN** the agent logs a miss against filter 1 for a question logged in
   a repository
 - **THEN** the miss file is under `.inquisitor/misses/`, and its
-  frontmatter holds only `repository`, `asked`, `filter: "1"` and `said`
+  frontmatter holds `asked`, `filter: "1"` and `said`, `repository` and
+  `asked_from` only as below, and no other key
 - **AND** `repository` and `asked` are as in the question's log file, or,
-  for a miss an answer session logs, the repository the question concerns,
-  absent for an organization's or project's question, and the day it was
-  asked; `filter`, `"1"` to `"4"`, is the filter that
+  for a miss an answer session logs, `repository` is as the
+  `answer-session` spec's *A miss records who judged it and where it was
+  asked from* gives and `asked` is the day the question was asked; `filter`, `"1"` to `"4"`, is the filter that
   should have stopped the question; `said` is what the person said, in
   their words or in one sentence, with any place they named, such as a
   spec's path, or, for a miss an answer session logs by itself or with no
   note from the person, the fixed text the `answer-session` spec gives; any
-  `asked_from` is as in a log file; and the body is the question under
+  `asked_from` follows the rules for a log file's, or, for a miss an
+  answer session logs, that requirement's; and the body is the question under
   `## Question`
 
 #### Scenario: What a log file's body holds

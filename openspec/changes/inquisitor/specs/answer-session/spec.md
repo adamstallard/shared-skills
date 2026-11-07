@@ -207,10 +207,9 @@ file counting as the person's answer names in `answers`.
 An answer file SHALL count as **the person's answer** only when it is the
 answer of the log file it names in `answers`. The inquisitor's *A named
 file's answer is the newest proven answer file naming it* sets that answer:
-the newest answer file naming it that is proven to come from the asked
-person, or, for a file that tags no one, from an account with write access
-to what the named file's question concerns, and whose commit adds it
-alone.
+the newest answer file naming it that its commit adds alone, proven to
+come from the person the named file's question tags or, if it tags no
+one, from an account with write access to what its question concerns.
 
 #### Scenario: An answer file proven to be the asked person's counts
 
@@ -221,7 +220,7 @@ alone.
 
 #### Scenario: An answer file committed with another file does not count
 
-- **WHEN** an answer file is proven to be the asked person's, but its
+- **WHEN** an answer file is proven to be the tagged person's, but its
   commit also adds another file
 - **THEN** it does not count as the person's answer
 
@@ -229,7 +228,8 @@ alone.
 
 - **WHEN** a log file about the organization tags no one, and an answer
   file naming it, added alone, is proven to be an account's with write
-  access to the lore repository
+  access to the lore repository, which is what an organization's question
+  concerns for this rule
 - **THEN** it counts as the person's answer, though the file tags no
   person
 
@@ -1709,9 +1709,8 @@ In the holder (*The holder is the session whose answer session holds the
 lock*), linear-app's and discord-bot's post hooks SHALL block every tool
 call that would post, edit or delete on Linear or Discord, telling
 the model to draft the reply with `propose_reply` for the person to
-confirm. A post the person confirmed SHALL pass with no further prompt:
-the answer session runs it as a host command, which task 0.18 checks
-reaches no hook.
+confirm. The answer session SHALL send a post the person confirmed
+outside any tool call, so no hook sees it and no further prompt appears.
 
 #### Scenario: The model's own Discord post is blocked
 
@@ -2109,6 +2108,8 @@ answer session makes by itself holds.
 The person's post for filter 1 SHALL be a recorded answer in the form
 filter 1's automatic post has, its `Recorded in: ` line holding the URL
 of the place the person gave, or of one filter 1 found that they chose.
+The session SHALL refuse to post one whose URL holds a space or line
+break, telling the person why.
 
 #### Scenario: A filter 1 reply names the place the person gave
 
@@ -2118,6 +2119,13 @@ of the place the person gave, or of one filter 1 found that they chose.
 - **THEN** once they confirm it, the relay posts a reply starting
   `Recorded answer: ` whose `Recorded in: ` line holds that file's URL,
   and a miss file with `filter` `"1"` is logged
+
+#### Scenario: A filter 1 reply whose URL holds a line break is refused
+
+- **WHEN** the draft of a filter 1 reply has a `Recorded in: ` value
+  holding a line break followed by a `Re: ` line
+- **THEN** the answer session posts nothing, since the `Re: ` line would
+  make the fixed post name another question, and tells the person why
 
 ### Requirement: The preview warns when a filter 1 record is more private than the thread
 
@@ -2665,11 +2673,11 @@ repository's questions branch* says.
 
 A miss the answer session logs by itself SHALL say
 `answer session: clearly filter <n>` in `said`. A miss on questions-branch
-files SHALL copy their most private `asked_from` and the `repository`
-they hold, if any; files naming different repositories get no miss. Any
-other miss's `asked_from` SHALL name its GitHub thread's repository, or,
-on Linear or Discord, the repository the question concerns; an
-organization's question there gets no miss (design.md: *Misses the
+files SHALL copy their most private `asked_from` and any `repository`,
+with no miss if their `repository` keys differ. Any other miss SHALL hold
+as `repository` the repository the question concerns, if any, and as
+`asked_from` its GitHub thread's repository, or on Linear or Discord
+that same repository, else no miss (design.md: *Misses the
 answer session logs*).
 
 #### Scenario: An automatic miss is marked as the answer session's

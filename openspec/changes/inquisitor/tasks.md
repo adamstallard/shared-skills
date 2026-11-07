@@ -173,11 +173,16 @@ contradicts what design.md assumed.
       registers, such as `propose_reply`, let Claude Code's forked side
       conversations, such as the one that guesses the next prompt, run,
       and record whether any of their calls arrives without an `agentId`.
-      This decides nothing: `propose_reply` refuses a call carrying one and
+      Record too whether a subagent's call carries one. For forks this
+      decides nothing: `propose_reply` refuses a call carrying one and
       takes a call without one as the main conversation's (answer-session
       spec: *Claude's draft goes to the prompt box, never to a post*). If
       any arrives without one, record it in design.md's *Claude drafts a
-      reply only into the prompt box*; the rule stands
+      reply only into the prompt box*; the rule stands. If a subagent's
+      call arrives without one, the scenario *A subagent cannot call
+      propose_reply* cannot hold, and design.md's *Claude drafts a reply
+      only into the prompt box* already accepts that case at the same
+      bound as a fork's
 - [ ] 0.27 List the tools of the Linear MCP servers an agent may have
       wired, such as Linear's own, and check that every tool named `get_…`,
       `list_…` or `search_…` only reads. If one writes, linear-app's post
@@ -194,10 +199,9 @@ contradicts what design.md assumed.
 
 ## 1. Shared post reader
 
-- [ ] 1.1 Once shared-skills PR #55 has merged, move prose's body
-      reader, which finds a `gh` or GitHub MCP post's body, into
-      `.agents/lib/gh-shell/`, beside the command splitter and gh flag
-      tables #55 put there, and build the `gh-post` rules on it. Each
+- [ ] 1.1 Move prose's body reader, which finds a `gh` or GitHub MCP
+      post's body, into `.agents/lib/gh-shell/`, beside the command
+      splitter and gh flag tables already there, and build the `gh-post` rules on it. Each
       skill calls it from a thin script, and its behaviour changes only
       as tasks 1.3 and 2.9 list
 - [ ] 1.2 prose's tests pass unchanged, except as task 1.3 allows; add the

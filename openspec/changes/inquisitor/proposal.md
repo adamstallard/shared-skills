@@ -75,7 +75,7 @@ None.
   posts the person confirmed go out. The
   answer session's setup writes `~/.local/bin/answer`.
 - prose: its posting hook's body reader moves to `.agents/lib/gh-shell/`,
-  beside the command splitter shared-skills PR #55 puts there, so the
+  beside the command splitter and gh flag tables already there, so the
   inquisitor's post hook reads posts the same way. The reader also
   reads posts sent through the github-app skill, its `gh api` calls
   included, and `gh api` comments. It counts a `gh api` call as a

@@ -85,8 +85,8 @@ post verb SHALL send no post.
 
 ### Requirement: The reader reads only gh's own top-level commands
 
-A `gh` command whose first word after `gh` is not on gh's own top-level
-commands, fixed in the reader, such as an alias or an extension, SHALL be
+A `gh` command whose first word after `gh` is not one of gh's top-level
+commands, fixed in the reader, such as an alias or extension, SHALL be
 unreadable wherever it appears, even where another requirement says no
 post, bar a line that only runs prose's script. Both a simple command
 whose command is `gh` and the word `gh`, quoted or not, in another's text
@@ -120,6 +120,19 @@ whose simple commands send no text is no post*) given no code.
 
 - **WHEN** a hook asks about `git commit -m 'use gh dash'`
 - **THEN** the reader reports that the command sends no post
+
+### Requirement: gh's version and help are no post
+
+`gh` given only `--version`, `--help` or `-h` SHALL be no post, despite
+*The reader reads only gh's own top-level commands*. Any other first word after
+`gh` starting with `-` SHALL be unreadable.
+
+#### Scenario: gh's version or help is no post, another leading flag unreadable
+
+- **WHEN** a hook asks about `gh --version`, `gh --help` or `gh -h`, and
+  about `gh -x pr comment 5 -b x`
+- **THEN** the reader reports the first three as no post and the last as
+  unreadable
 
 ### Requirement: A command that only runs prose's script sends no post
 
