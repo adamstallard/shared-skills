@@ -1,0 +1,685 @@
+## Purpose
+
+The sequencer recommends the order in which a repository's open work is
+specified, implemented, reviewed and merged. Its script computes the order
+with no model, from the repository's open pull requests and issues and,
+where they exist, its open OpenSpec changes. One rule, that a change whose
+code calls another change's code is built after it, needs a model, and
+runs only where one is available. The script publishes the order in one
+issue's body and a block in each ordered item's body, names each
+reviewer's next review, and puts each question of judgement to a person
+through the inquisitor skill. It recommends and never merges.
+
+These terms hold throughout this spec:
+
+- **The script** is the skill's script. **A caller** is whatever runs it:
+  an agent in a session, the skill's CI workflow, or an Igor, one of the AI
+  teammates of adamstallard/igor, whose Sequencer role adamstallard/igor#231
+  specifies.
+- **An item** is an open issue or open pull request that the order holds.
+  An item's **number** is its issue or pull request number.
+- **The order's issue** is the one issue whose body holds the whole order.
+- **A change** is an OpenSpec change: a directory under `openspec/changes/`
+  other than `archive/`. **An open change** is one on the default branch or
+  on an open pull request's head. A change **belongs to** the
+  lowest-numbered open pull request whose diff against its base adds or
+  changes a file in the change's directory, and the order places the
+  change where it places that pull request. A change on the default branch
+  that belongs to no open pull request merges before every item, so it is
+  not placed, and an edge to it is dropped.
+- **A change's requirement** is a requirement that the change's delta adds,
+  or renames onto a new name, and that no spec on the default branch holds.
+- **An explicit link** is a GitHub "blocked by" relation, or a `Depends on`
+  line in a body, as *Explicit links order the items they connect*
+  defines.
+- **An edge** is a rule's finding that one item comes after another, with
+  its **reason**. **A cycle** is a set of items whose edges lead from each
+  back to itself. **A merge wait**, set by *Pull requests that change the
+  same files merge one after another*, is not an edge.
+- **The inputs hash** is a hash of everything the script read to compute
+  an order, which `order` prints.
+- **The model step** applies the one rule that needs a model: a change
+  whose code will call another change's code is built after it.
+- **The inquisitor's** *Title* names a requirement of the inquisitor spec,
+  and **the answer session's** *Title* one of the answer-session spec.
+
+## ADDED Requirements
+
+### Requirement: The order holds every open pull request and the issues linked to the work
+
+The order SHALL hold each open pull request, and each open issue that an
+explicit link or a pull request's closing reference connects to another
+item, and no other issue; the order's issue is never an item.
+
+#### Scenario: An issue linked to nothing is not ordered
+
+- **WHEN** an open issue has no explicit link to or from another issue or
+  pull request, and no open pull request closes it
+- **THEN** the order does not hold it, and its body gets no block
+
+#### Scenario: A blocked issue is ordered
+
+- **WHEN** open issue #12's body has the line `Depends on #9`
+- **THEN** the order holds both #12 and #9
+
+### Requirement: An issue an open pull request closes takes that pull request's place
+
+An issue that an open pull request closes, by GitHub's closing references,
+SHALL share that pull request's position, and its block SHALL name the
+pull request.
+
+#### Scenario: A spec pull request and its issue share a place
+
+- **WHEN** open pull request #50 closes issue #43, and #50 is third in the
+  order
+- **THEN** #43 is third too, and its block says it is closed by #50
+
+### Requirement: The script reads OpenSpec changes only through the OpenSpec CLI
+
+The script SHALL read each open change's requirements and deltas only
+through OpenSpec's CLI, version 1.15.0 or later, from each pull request's
+head without checking it out. Without that CLI it SHALL apply no rule that
+reads a change, and the order SHALL say that dependencies between
+requirements were not checked and why.
+
+#### Scenario: An old CLI checks no requirement
+
+- **WHEN** the script runs where `openspec --version` prints `1.14.3`, and
+  two open pull requests hold changes
+- **THEN** no edge comes from a change's files, and the order's issue says
+  `Dependencies between requirements were not checked: OpenSpec 1.15.0 or
+  later is not installed (this one is 1.14.3).`
+
+### Requirement: A change that modifies another change's requirement comes after it
+
+A change whose delta modifies, removes or renames a requirement that
+another open change adds SHALL come after that change.
+
+#### Scenario: A modifying change waits for the one that adds the requirement
+
+- **WHEN** #82's change adds *An open condition never ends a running
+  service*, and #90's change modifies it
+- **THEN** #90 comes after #82, with the reason `after #82: modifies its
+  *An open condition never ends a running service*`
+
+### Requirement: A change that names another change's requirement comes after it
+
+A change in whose files, other than its own deltas' requirement headers,
+the full title of another open change's requirement appears verbatim SHALL
+come after that change.
+
+#### Scenario: A citing change waits for the cited one
+
+- **WHEN** #91's `design.md` names *An open condition never ends a running
+  service*, which #82's change adds
+- **THEN** #91 comes after #82, with the reason `after #82: cites its *An
+  open condition never ends a running service*`
+
+#### Scenario: A requirement already in force orders nothing
+
+- **WHEN** #91 names a requirement that the default branch's specs hold
+- **THEN** that citation gives no edge
+
+### Requirement: Two changes that modify one requirement owe a copy, which sets no order
+
+Where two open changes both modify one requirement of one capability, the
+order's issue SHALL say that the later of the two in the order must add the
+earlier one's new scenarios to its own copy of the requirement before it
+archives; this finding SHALL add no edge, because archiving replaces a
+requirement with the archiving change's whole copy.
+
+#### Scenario: The second to archive owes the copy
+
+- **WHEN** #82 and #90 both modify *Claims expire after an hour*, and #82
+  comes first in the order
+- **THEN** the order's issue says #90 must add #82's new scenarios of
+  *Claims expire after an hour* to its copy before it archives, and neither
+  item gains an edge from it
+
+### Requirement: Explicit links order the items they connect
+
+An item SHALL come after each item that a GitHub "blocked by" relation, or a
+`Depends on` line in its body, says it waits on, in every repository. A
+`Depends on` line SHALL be a body line, outside code fences, that starts
+with `Depends on ` followed by one or more `#<number>` references in the
+same repository, separated by commas or `and`.
+
+#### Scenario: A Depends on line orders two issues
+
+- **WHEN** #12's body holds the line `Depends on #9 and #10`
+- **THEN** #12 comes after #9 and #10, with the reasons `after #9: depends
+  on it` and `after #10: depends on it`
+
+#### Scenario: A blocked-by relation orders two items
+
+- **WHEN** GitHub records #14 as blocked by #11
+- **THEN** #14 comes after #11, with the reason `after #11: blocked by it`
+
+#### Scenario: A Depends on line in a code fence is ignored
+
+- **WHEN** the only `Depends on #9` in #12's body is inside a code fence
+- **THEN** it gives no edge
+
+### Requirement: Pull requests that change the same files merge one after another
+
+Where two open pull requests change a file in common, the later of them in
+the order SHALL get a merge wait on the earlier, with a reason naming the
+files in common. A merge wait SHALL move neither pull request in the order
+and count in no reviewer's ranking, so each later pull request rebases
+once, onto the one merged before it.
+
+#### Scenario: Overlapping pull requests get a merge wait
+
+- **WHEN** #30 and #33 both change `src/claims.py`, and no edge connects
+  them
+- **THEN** #33 stays after #30, where the tiebreak placed it, and #33's
+  block says `merges after #30: both change src/claims.py; rebase once
+  onto it`
+
+### Requirement: Items no rule orders keep the order they were opened in
+
+Among the items whose predecessors are all placed, the lowest-numbered SHALL
+go next, and a cycle SHALL count as one item numbered as its lowest member.
+No caller, an Igor's Sequencer role included, SHALL ask a person about a
+place this tiebreak decides.
+
+#### Scenario: Two unrelated items are placed by number
+
+- **WHEN** no edge connects #20 and #17
+- **THEN** #17 comes before #20, and neither block gives a reason for that
+  place
+
+#### Scenario: An unordered pair raises no question
+
+- **WHEN** an Igor's Sequencer role publishes an order in which no edge
+  connects #20 and #17
+- **THEN** no question about their order is posted or asked
+
+### Requirement: A cycle is asked about, never chosen
+
+The script SHALL NOT choose which member of a cycle goes first. The order
+SHALL list a cycle's members together at one place, marked unchosen, with a
+link to the question that asks a person to choose, and SHALL place each
+item that comes after any member after all of them.
+
+#### Scenario: Two changes that cite each other wait for a person
+
+- **WHEN** #82's change cites a requirement #85's adds, and #85's cites one
+  #82's adds, and no person has chosen
+- **THEN** the order lists #82 and #85 together at one place, marked
+  unchosen, with a link to the question asking which archives first
+- **AND** #91, which cites #85, comes after both
+
+### Requirement: A cycle a person has decided is ordered as decided
+
+The order's issue SHALL keep a list of decided cycles, each naming the
+member a person with write access chose to go first and linking their
+answer. The order SHALL place each decided cycle's members as chosen, and
+the chosen member's reason SHALL link the answer.
+
+#### Scenario: A chosen member goes first though it cites the other
+
+- **WHEN** a person with write access chose #85 to archive before #82, in a
+  cycle where each cites the other's requirement
+- **THEN** #85 comes first, with the reason `before #82, though it cites
+  #82's *<title>*: chosen at <link to the answer>`, and #82 comes after it
+
+### Requirement: A person's choice in a cycle is read from the order's issue
+
+A run SHALL add to the decided cycles a comment on the order's issue, posted
+after the cycle's question, whose text starts with one of the question's
+options, `#<n> first`: either a comment by a person with write access, or
+one by that person's relay App (the inquisitor's *A relay App is one its
+person's counted relay file lists*), read after its `User says: ` line. In
+a session, `publish --decide '#<n> first' --by <login>` SHALL add the
+choice a person made through the picker.
+
+#### Scenario: A reply naming an option decides the cycle
+
+- **WHEN** a person with write access comments `#85 first` on the order's
+  issue after the question about #82 and #85
+- **THEN** the next run adds the cycle to the decided cycles, linking that
+  comment, and places #85 first
+
+#### Scenario: A reply from someone without write access decides nothing
+
+- **WHEN** a person without write access comments `#82 first` after the
+  question
+- **THEN** the cycle stays unchosen
+
+### Requirement: The model step orders changes whose code calls each other's code
+
+A change whose code will call code another open change adds SHALL come after
+that change, as the model step finds. To help it, the script SHALL print,
+for each pair of open changes, the backticked names that both changes'
+`tasks.md` files hold. The script SHALL take the model step's edges only
+between items in the order, each with a reason, and refuse the whole set
+when any edge names something else or has no reason.
+
+#### Scenario: The script points the model step at shared names
+
+- **WHEN** #82's `tasks.md` adds a function `claim_item()`, and #90's
+  `tasks.md` calls `claim_item()`
+- **THEN** the script prints `claim_item()` as a name both #82 and #90's
+  tasks hold
+
+#### Scenario: A model-step edge naming no item is refused
+
+- **WHEN** the model step's edges include one after #400, and #400 is not
+  in the order
+- **THEN** the script publishes none of that set's edges, and says which
+  edge it refused
+
+### Requirement: A code edge is kept while both changes it joins are unchanged
+
+The order's issue SHALL record, with each model-step edge, one hash for
+each of the two changes it joins, of that change's files. A later run
+SHALL keep the edge while both hashes match, and drop it when either
+differs. `publish` SHALL refuse a model-step edges file whose inputs hash
+differs from the inputs hash of what it reads.
+
+#### Scenario: A run with no model keeps an unchanged code edge
+
+- **WHEN** a session's model step recorded #90 after #82 for calling its
+  code, and a CI run with no credential recomputes the order after #77
+  merges, with #82 and #90's change files unchanged
+- **THEN** the edge stays, and the order counts code dependencies between
+  #82 and #90 as checked
+
+#### Scenario: A code edge goes when a change is revised
+
+- **WHEN** a push revises #90's `tasks.md`
+- **THEN** the next run drops the code edge between #82 and #90, and counts
+  that pair as unchecked
+
+#### Scenario: Edges computed against changed inputs are refused
+
+- **WHEN** the model step computed edges from an `order` run before a
+  merge, and the merge changed the inputs
+- **THEN** `publish` refuses that edges file and publishes nothing from it
+
+#### Scenario: Edges computed against the same inputs are taken
+
+- **WHEN** the order was published again after the model step's `order`
+  run, but no input has changed
+- **THEN** `publish` takes the edges
+
+### Requirement: The order says plainly what it did not check
+
+The order's issue SHALL say `Build dependencies between changes' code were
+not checked.` when no model step has checked any pair of open changes, and
+name the unchecked pairs when it checked only some; it SHALL never present
+an unchecked pair as checked. Where no open change exists, it SHALL say
+`Dependencies between requirements were not checked: no open OpenSpec
+change.`
+
+#### Scenario: A CI run with no credential says code was not checked
+
+- **WHEN** the workflow runs with no model step, and no recorded code edge
+  is kept
+- **THEN** the order's issue says `Build dependencies between changes' code
+  were not checked.`
+
+#### Scenario: A repository without OpenSpec says requirements were not checked
+
+- **WHEN** no open change exists in a repository whose pull requests
+  change overlapping files
+- **THEN** the order comes from explicit links and overlapping files, and
+  its issue says `Dependencies between requirements were not checked: no
+  open OpenSpec change.`
+
+### Requirement: Every place a rule decides gives its reason
+
+Each item placed after another by an edge SHALL show the edge's reason,
+naming the other item and, where a requirement set the edge, the
+requirement's title, in the order's issue and in the item's block.
+
+#### Scenario: A reason names the rule and the requirement
+
+- **WHEN** #90 comes after #82 because it modifies #82's *Claims expire
+  after an hour*
+- **THEN** both the order's issue and #90's block say `after #82: modifies
+  its *Claims expire after an hour*`
+
+### Requirement: The same inputs give the same order whoever runs the script
+
+Given the same repository state and the same recorded code edges, the script
+SHALL produce byte-identical order text, whichever caller runs it and
+wherever.
+
+#### Scenario: A session and CI agree
+
+- **WHEN** an agent's session and the CI workflow run the script against the
+  same commit, items and recorded code edges
+- **THEN** both produce the same text for the order's issue and every block
+
+### Requirement: The whole order lives in one issue's body
+
+The script SHALL keep the whole order in the body of the open issue labelled
+`sequencer`, creating that issue when none is open and publishing nothing
+when more than one is. Nothing of the order SHALL go in a comment, because
+`gh issue view` shows a body without its comments.
+
+#### Scenario: The first publish creates the order's issue
+
+- **WHEN** the script publishes in a repository with no open issue labelled
+  `sequencer`
+- **THEN** it opens one, labelled `sequencer`, whose body holds the order
+
+#### Scenario: Two order issues stop the publish
+
+- **WHEN** two open issues are labelled `sequencer`
+- **THEN** the script edits nothing and names both issues
+
+### Requirement: Each item's body carries a block giving its place
+
+Each item SHALL carry, in its own body and never in a comment, one block
+giving its position in the order, what it waits on with each reason, and a
+link to the order's issue.
+
+#### Scenario: A pull request's block names its place and waits
+
+- **WHEN** #90 is fifth of twelve and waits on #82
+- **THEN** #90's body holds a block saying it is fifth of twelve, that it
+  waits on #82 with the reason, and linking the order's issue
+
+### Requirement: The script edits only the text between its markers
+
+The order's issue body and each block SHALL lie between the lines
+`<!-- sequencer:begin -->` and `<!-- sequencer:end -->`, and the script
+SHALL change nothing in a body outside them, adding a new block at the
+body's end.
+
+#### Scenario: A person's text around a block is untouched
+
+- **WHEN** #90's body holds a person's text before and after its block, and
+  the order changes
+- **THEN** only the text between the markers changes
+
+### Requirement: A block is rewritten only when the order or its reasons change
+
+The script SHALL edit a body only when the text between its markers would
+change, and that text SHALL hold no date or time.
+
+#### Scenario: An unchanged order edits nothing
+
+- **WHEN** the daily run finds the same order and reasons as the last
+  publish
+- **THEN** the script makes no edit to any body
+
+### Requirement: An item that leaves the order loses its block
+
+When an item leaves the order, by closing, merging or ceasing to be linked,
+the script SHALL remove its block, markers included, and leave the rest of
+its body as it was.
+
+#### Scenario: A merged pull request's block is removed
+
+- **WHEN** #82 merges
+- **THEN** the next publish removes #82's block, and the order does not
+  hold #82
+
+### Requirement: An item the script cannot edit is named, not skipped silently
+
+Where the script cannot edit an item's body, the order's issue SHALL name
+the item as having no block, saying why.
+
+#### Scenario: A body the token cannot edit is reported
+
+- **WHEN** editing #95's body fails with a permission error
+- **THEN** the order still places #95, and the order's issue says #95 has no
+  block because the edit was refused
+
+### Requirement: The order's issue names each reviewer's next review
+
+The order's issue SHALL name, for each reviewer, the open pull request,
+neither a draft nor authored by them, that they should review next: of
+those awaiting their review, the one with the most items after it through
+edges, followed directly or not, and on a tie the one earlier in the
+order.
+
+#### Scenario: The pull request that unblocks most is reviewed first
+
+- **WHEN** a reviewer is asked to review #82, which four items come after,
+  and #88, which one item comes after
+- **THEN** the order's issue names #82 as that reviewer's next review
+
+#### Scenario: A draft is not offered for review
+
+- **WHEN** #93 is a draft requesting review from a reviewer
+- **THEN** #93 is not that reviewer's next review
+
+### Requirement: Reviewers come from the caller, else from GitHub's requests, else CODEOWNERS
+
+A pull request's reviewers SHALL be the list that the caller running the
+script passes with `--reviewers`, such as an Igor's configured `reviewers`,
+each of whom a non-draft pull request they did not author then awaits; with
+none passed, its requested reviewers on
+GitHub; and when it requests no one, the owners the repository's CODEOWNERS
+file gives its changed files.
+
+#### Scenario: A passed list makes each pull request await each reviewer
+
+- **WHEN** a caller passes `--reviewers maya,li`, and `li` authored #97
+- **THEN** #97 awaits `maya`'s review, and every other non-draft open pull
+  request awaits both
+
+#### Scenario: A pull request requesting no one falls back to CODEOWNERS
+
+- **WHEN** no caller passes reviewers, #96 requests no reviewer, and
+  CODEOWNERS gives `@maya` the files it changes
+- **THEN** #96 is awaiting `@maya`'s review
+
+### Requirement: The sequencer recommends a merge order and never merges
+
+The script SHALL NOT merge, approve, close or reopen any pull request or
+issue; the order it publishes SHALL be a recommendation.
+
+#### Scenario: A pull request first in the order and approved stays open
+
+- **WHEN** #82 is first in the order, approved and passing its checks
+- **THEN** the script leaves it open and unmerged
+
+### Requirement: A judgement question goes to a person through the inquisitor
+
+The script SHALL put each question of judgement, such as which member of a
+cycle goes first, through the inquisitor skill as a question the sequencer
+requires a person to decide (the inquisitor's *A question another skill
+requires skips filters 2 to 4*), and in a session with a person in it the
+agent SHALL ask it as the inquisitor's *Where the host has a picker, an
+agent asks through it, never in its reply* says.
+
+#### Scenario: In a session the agent asks through the picker
+
+- **WHEN** an agent running the skill in a session with a person in it
+  finds an undecided cycle
+- **THEN** it asks the person which member goes first through the picker,
+  as a question the sequencer requires, and no filter 2 to 4 stops it
+
+### Requirement: In CI a judgement question is posted once on the order's issue
+
+The workflow SHALL post each undecided judgement question once on the
+order's issue, carrying the person-required line naming `sequencer` (the
+inquisitor's *A question another skill requires carries a person-required
+line*). The post SHALL be tagged as the inquisitor's *A question in a post
+tags one person who can decide, if there is one* says, with the cycle's
+change directories as the files the question concerns. The order SHALL
+link that post at the place it leaves unchosen.
+
+#### Scenario: A cycle found in CI is posted on the order's issue
+
+- **WHEN** a CI run finds a cycle between #82 and #85 that no person has
+  decided
+- **THEN** it posts the question on the order's issue, with the line
+  `Inquisitor: a person must decide this (required by sequencer).`, and the
+  order links that post at the cycle's unchosen place
+
+#### Scenario: A question already posted is not posted again
+
+- **WHEN** a later CI run finds the same undecided cycle, and its question
+  is already posted on the order's issue
+- **THEN** it posts nothing new, and the order links the earlier post
+
+### Requirement: The setup command writes the CI workflow and never overwrites it
+
+`setup-ci` SHALL write the skill's workflow template to
+`.github/workflows/sequencer.yml`, refuse when that file exists, and replace
+it with the newer template when given `--force`.
+
+#### Scenario: An existing workflow is kept
+
+- **WHEN** `setup-ci` runs in a repository that already has
+  `.github/workflows/sequencer.yml`
+- **THEN** it leaves the file unchanged, exits non-zero, and says to pass
+  `--force` to replace it
+
+#### Scenario: --force replaces the workflow
+
+- **WHEN** `setup-ci --force` runs where an older template exists
+- **THEN** the file holds the current template
+
+### Requirement: The workflow recomputes the order on each event that can change it
+
+The workflow SHALL run the script when an issue is opened, when a pull
+request is opened, when a push reaches an open pull request's branch, when
+a pull request merges, and once a day; all its runs SHALL share one
+concurrency group, so two never edit a body at once.
+
+#### Scenario: Two quick merges run one after the other
+
+- **WHEN** two pull requests merge a second apart
+- **THEN** the second run starts only after the first has finished
+
+### Requirement: The workflow's deterministic part needs no secret
+
+The workflow SHALL compute and publish the order using only the token
+GitHub gives each run, whichever way the repository chose to run the model
+step.
+
+#### Scenario: A repository with no secrets gets an order
+
+- **WHEN** a repository holding no secret runs the workflow
+- **THEN** it publishes the order, saying build dependencies between
+  changes' code were not checked
+
+### Requirement: The repository chooses how the model step runs
+
+`setup-ci` SHALL write the workflow for one of three ways of running the
+model step, which the repository chooses: not at all; through the API key
+the repository holds as the secret `ANTHROPIC_API_KEY`; or by an Igor.
+
+#### Scenario: The default runs no model step
+
+- **WHEN** `setup-ci` runs with no choice given
+- **THEN** the workflow it writes runs no model step
+
+### Requirement: With an API key, the workflow runs the model step without write access
+
+Where the repository chose its API key, the workflow SHALL run the model
+step through Anthropic's `claude-code-action` in a job with read-only access
+to the repository, and publish its edges through the script; when the
+secret is missing or the step fails, the order SHALL say code dependencies
+were not checked.
+
+#### Scenario: A missing key leaves code unchecked
+
+- **WHEN** a repository that chose its API key holds no `ANTHROPIC_API_KEY`
+- **THEN** the order is published, saying build dependencies between
+  changes' code were not checked
+
+### Requirement: With an Igor, the workflow labels the order's issue for the model step
+
+Where the repository chose an Igor, `publish`, as the workflow runs it,
+SHALL label the order's issue `sequencer: check code` whenever it publishes
+an order with a pair of changes unchecked. `publish` SHALL remove that
+label when it publishes model-step edges that leave no pair unchecked, and
+keep it when it refuses them.
+
+#### Scenario: An unchecked order is labelled for an Igor
+
+- **WHEN** a repository that chose an Igor publishes an order in which #82
+  and #90 are unchecked
+- **THEN** the order's issue carries the label `sequencer: check code`
+
+#### Scenario: Publishing the model step's edges removes the label
+
+- **WHEN** an Igor publishes model-step edges through the script that check
+  every pair of open changes
+- **THEN** the script removes the label `sequencer: check code`
+
+### Requirement: A Sequencer Igor runs the model step on the labelled issue
+
+`publish --code-edges` SHALL take a Sequencer Igor's edges file, from the
+model step it runs on the issue labelled `sequencer: check code`, with the
+same checks as any caller's and no input that only an Igor gives; what Igor
+builds to claim that issue and run the model step is
+adamstallard/igor#231's.
+
+#### Scenario: A stale result from an Igor leaves the label on
+
+- **WHEN** a Sequencer Igor publishes edges computed before a merge that
+  changed the inputs
+- **THEN** `publish` refuses them, and the label `sequencer: check code`
+  stays on the order's issue
+
+### Requirement: The workflow runs no code from a pull request
+
+The workflow SHALL run only the script, from the shared-skills commit that
+`setup-ci` writes into the template, reading pull requests' files as
+data, and SHALL NOT check out or run code from a pull request's head.
+
+#### Scenario: A fork's pull request cannot run code with the token
+
+- **WHEN** a pull request from a fork changes `.github/workflows/` and adds
+  a script
+- **THEN** the run reads the pull request's change files as data and runs
+  none of its code
+
+### Requirement: An Igor's worker runs the skill in its own session
+
+An Igor's worker SHALL be able to run the skill in its own session as any
+agent does, with `order` and the model step, and SHALL ask a judgement
+question in its handback comment, the comment in which its Igor hands the
+item back, since the inquisitor's *A session with no person in it asks in
+a post, a handback or nowhere* lets an Igor worker ask only there. A
+`publish` that another process runs SHALL accept and apply an edges file a
+worker wrote, while the inputs are unchanged.
+
+#### Scenario: A worker's edges are published by its Igor
+
+- **WHEN** an Igor's worker runs `order` and the model step, writes an
+  edges file, and its Igor runs `publish --code-edges` with that file
+  before any input changes
+- **THEN** `publish` takes the edges
+
+#### Scenario: A worker asks about a cycle in its handback comment
+
+- **WHEN** an Igor's worker running the skill finds an undecided cycle
+- **THEN** it asks which member goes first in its handback comment, and
+  opens no post and calls no picker
+
+### Requirement: Igor's Sequencer role calls the script as any caller does
+
+An Igor's Sequencer role SHALL run the same commands as any caller and get
+the same order for the same inputs; the reviewers it passes with
+`--reviewers` SHALL be the only input it adds.
+
+#### Scenario: The Sequencer role and CI agree
+
+- **WHEN** a Sequencer Igor runs `publish --reviewers maya,li` and the CI
+  workflow runs `publish`, against the same inputs and recorded code edges
+- **THEN** both give the same order, and differ only in the reviewers'
+  next reviews
+
+### Requirement: The script prints the order for callers without editing anything
+
+`order` SHALL print the order, each item's position, its edges with reasons,
+the unchosen cycles, the copy duties, the shared names for the model step
+and the hash of the inputs, as JSON with `--json`, and SHALL write to no
+issue or pull request; `publish` SHALL be the only command that edits.
+
+#### Scenario: An Igor reads positions without editing
+
+- **WHEN** an Igor's work triage runs `order --json`
+- **THEN** it gets each item's position, and no body, label or comment in
+  the repository changes
