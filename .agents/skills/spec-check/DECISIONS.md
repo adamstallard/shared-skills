@@ -1362,8 +1362,11 @@ spec, not the commit message.
 ## Only commits that change `openspec/` are judged
 
 **Decision.** The commit hook sets the library's `COMMIT_TRAILER_PATHSPEC` to
-`:(top)openspec/`. A commit that changes nothing there is never judged, with
-or without a trailer.
+`:(top)openspec`. `sign` lists the staged paths with the same pathspec, to
+decide whether the commit needs a trailer and what to check. The pathspec
+matches a folder, file or symlink named `openspec` at the root, and every path
+under it, but not a path such as `openspec-notes/`. A commit that changes nothing there is
+never judged, with or without a trailer.
 
 **Why.** A code-only commit has nothing to check, and a report on it would
 teach readers to ignore the report.
@@ -1374,6 +1377,10 @@ teach readers to ignore the report.
   generic one.
 - **A callback the library calls per commit.** A pathspec is data, so it
   needs none of the subshell and marker machinery a sourced callback does.
+- **`:(top)openspec/`, with the slash.** It matches only paths under a
+  folder, so a commit that only adds or retargets an `openspec` symlink
+  would never be judged. That symlink decides which specs the repository
+  holds, so changing it changes the specs.
 
 **Limit:** only `openspec/` at the repository root counts, which is where
 OpenSpec puts it.
