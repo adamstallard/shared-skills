@@ -59,13 +59,11 @@ published vulnerability can't be taken back.
   hook blocks a picker question that was not vetted*, scenario *A verdict
   recorded in another repository counts*).
 
-**Rejected:**
-
-- **The hook running the filters itself:** a hook is a script with no
-  model, so it can't tell whether two options both have merit, which is
-  filter 3's test.
-- **A signed footer in the question,** as prose signs a post: the person
-  reads the question in the picker, where a hash is noise.
+**Rejected,** in the inquisitor's decision record,
+`specs/inquisitor/decisions.md`, which holds what no test can check
+(*Decisions* explains its *Recorded:* labels): *Rejected: The hook running the
+four filters itself* and *Rejected: A signed footer in each question, as prose
+signs a post*.
 
 ### What the hook relies on, not yet measured
 
@@ -176,7 +174,8 @@ unchanged except where the reader changes:
   it.
 
 A plain or bold line ending in a colon begins an open-questions section only
-when its label names questions, such as "Open questions:". Agents often list
+when its label names questions or a deferral, such as "Open questions:" or
+"Deferred:". Agents often list
 their open questions under such a line, and a deferred question listed there
 passes on its `deferred` verdict. Outside an open-questions section, "Open a
 terminal and run:" names no questions, so the commands after it need no
@@ -224,14 +223,13 @@ beside it.
   agents. The files hold no `conditions`, the frontmatter key that marks a
   lore entry, so neither the search nor Igor reads one as a lore entry.
 
-  Anyone who can push may write any `answered_by`, and GitHub takes a commit's
-  author login from the author email, which the committer sets. So a file
-  there whose `authority` is `decision` needs a proven writer: a linked GitHub
-  comment by `answered_by`, or a signature on the adding commit that GitHub
-  verifies for `answered_by`'s account. The agent commits from the person's session, so after a one-time
-  signing setup the person never signs an answer by hand. A file there never
-  changes once pushed; a later answer is a new file. So a proof made on the
-  commit that added a file covers everything the file says.
+  A file there whose `authority` key is `decision`, the answer that binds,
+  needs a proven writer: a linked GitHub comment by the person its
+  `answered_by` key names, or a signature on the adding commit that GitHub
+  verifies for that person's account (*A questions-branch
+  decision needs a proven writer* gives why). The agent commits from the
+  person's session, so after a one-time signing setup the person never signs
+  an answer by hand.
 
   An Igor worker holds no credential for the lore repository, so its Igor
   pushes the files the worker reports. The Igor accepts an answered file
@@ -488,25 +486,27 @@ lore-search`, can make pass gets no tagged test until igor builds it. A
 skipped test would not do: spec-trace counts a skipped test's tag as
 coverage. Task 4.2, which writes the tests, lists each expected gap here by
 name, and task 4.3 tags it once igor provides what it needs. The change is
-archived only after every gap is tagged, since archiving moves its scenarios
-under `openspec/specs/`, where spec-trace's CI fails on an untagged one
-(*The change is archived only after every expected gap is tagged*). A gap
+archived only after every gap is tagged (*The change is archived only after
+every expected gap is tagged*). A gap
 cannot be exempted through spec-trace's baseline,
 `openspec/spec-trace-baseline.txt`, because the baseline takes no new lines
 after adoption.
 
 ## Decisions
 
-Each entry states the decision, its reasons and the alternatives not taken,
-under one of three labels:
+Each entry states the decision and its reasons, and labels each alternative
+not taken or cost taken on:
 
 - ***Ruled out by a scenario:*** an alternative a test can check. The spec
   holds the rule as a requirement, with a scenario the alternative would
   fail; the entry gives only the reason, and names that requirement and
   scenario.
-- ***Rejected:*** an alternative no test can check, such as a choice of
-  tool, or of how the spec is written.
-- ***Accepted:*** a cost the decision takes on.
+- ***Recorded:*** an entry in a capability's decision record,
+  `specs/<capability>/decisions.md` in this change, in the form
+  shared-skills issue #56 sets. An alternative no test can check, such as a
+  choice of tool or of how the spec is written, is under its *Rejected*; a
+  cost a decision takes on, or a constraint no test can check, is under its
+  *Constraints*. The label names the record and the entry.
 
 Terms used throughout, as the specs define them:
 
@@ -634,9 +634,8 @@ bug-hunter changes before the inquisitor skill exists.
 **Why:** every skill's questions go through one set of filters, rather than
 each skill making its own exceptions.
 
-*Rejected:* changing bug-hunter's Step 9 rules on their own, ahead of the
-inquisitor skill: that would be a rule of bug-hunter's own that skips the
-shared filters.
+*Recorded:* `specs/inquisitor/decisions.md`, *Rejected: Changing bug-hunter's
+Step 9 rules on their own, ahead of the inquisitor skill*.
 
 #### A prepared question can be answered "yes"
 
@@ -825,8 +824,9 @@ recommends, the agent's own words from its verdict on what that option would
 change, but no option's label,** since the labels
 are part of the question's text, which no record holds.
 
-**Accepted:** the records can't show later whether the person took the
-recommendation.
+*Recorded:* `specs/inquisitor/decisions.md`, *Constraint: A picker `ask`
+record keeps no option's label, so the records cannot show later whether the
+person took the recommendation*.
 
 #### Verdict records are shared under one HOME
 
@@ -843,19 +843,12 @@ text, and stays on disk until the first call or hook to read the records
 after its 2 hours deletes it.** On a machine where nothing runs, that can be
 days.
 
-**Accepted:** an idle machine keeps its records, with their hashes, until
-the next call or hook. Until then, anyone who can read the state folder and
-guesses a short question's text can hash it and confirm the question was
-asked, whether or not the agent gave it a category. Only the agent's user
-can read that folder (spec: *The two calls' files and records stay
-private*), so a guesser needs that user's access, or root's, first.
-
-*Rejected:* an HMAC with a per-HOME key. The hooks must read the key, so it
-would sit under the same HOME, readable by whoever can read the records,
-and would stop only a guesser holding a copy of the records without it.
-*Rejected:* deleting expired records on a timer or at session end, which
-would shorten the exposure but needs something to run when no call or hook
-does.
+*Recorded:* `specs/inquisitor/decisions.md`, *Constraint: An idle machine
+keeps its verdict records, each naming its question by plain SHA-256, until
+the next call or hook, so anyone who can read the state folder and guesses a
+short question's text can confirm it was asked, with a category or without*
+and *Rejected: Keying verdict records' hashes with an HMAC and a per-HOME key*
+and *Rejected: Deleting expired verdict records on a timer or at session end*.
 
 #### Every verdict record expires after 2 hours
 
@@ -895,8 +888,9 @@ which records it with the verdict, and adds the line after that call with no
 further vetting. No vetting sees the line. That is why both hooks block a
 related-decision line holding a credential pattern.
 
-**Accepted:** the agent links only a decision that everyone who can read the
-question can read, and no hook checks that.
+*Recorded:* `specs/inquisitor/decisions.md`, *Constraint: An agent's `Related:
+` line links only a decision that everyone who can read the question can read,
+and no hook checks that*.
 
 #### What each hook does when it can't read
 
@@ -915,8 +909,9 @@ vulnerability can't be taken back (*Proving the filters ran*).
 and the 2-hour expiry, cover only its own records.** The host's transcripts,
 such as Claude Code's under `~/.claude/projects/`, are outside its control.
 
-**Accepted:** those transcripts hold a question asked through the picker in
-full.
+*Recorded:* `specs/inquisitor/decisions.md`, *Constraint: The host's
+transcripts, such as Claude Code's under `~/.claude/projects/`, hold a
+question asked through the picker in full*.
 
 ### The shared post reader
 
@@ -970,8 +965,9 @@ comment`, `gh c 5 -b 'User says: yes'` names no gh post verb, so passing it
 would forge a relayed answer past both hooks' block (*The post hook blocks a
 reserved prefix on GitHub*). prose's hook gains the alias rule too.
 
-**Accepted:** gh's default alias `gh co` and read-only extensions such as
-`gh dash` are blocked for every prose user.
+*Recorded:* `specs/gh-post/decisions.md`, *Constraint: gh's default alias `gh
+co` and read-only extensions such as `gh dash` are unreadable, so both post
+hooks block them for every prose user*.
 
 *Ruled out by a scenario:* letting a command through when `gh` appears in it
 only inside quotes: `sh -c 'gh pr comment …'` would then post unread (gh-post
@@ -995,18 +991,19 @@ no-post line reaches only data commands*.
 **Why:** each of these can run a post the reader never sees. A program piped
 into `python`, `python3` or `node` is read from that input, and telling which
 script runs would mean reading the interpreter's options, so any input
-reaching one makes the line unreadable. Finding the code
-flag without reading the interpreter's options means an option that takes a
-value, such as `-W ignore`, cannot hide it. A list of git forms that run code
-is never complete, as prose's `DECISIONS.md` says (`git config alias.p '!…' &&
-git p`, `git difftool -x`, `git filter-branch --tree-filter`); a list of
-subcommands that never take code is. prose's hook calls the same reader, so it
+reaching one makes the line unreadable. The code flag is looked for anywhere
+among the interpreter's words, so an option that takes a value, such as `-W ignore`, cannot hide it. A list of commands that run text
+as code is never complete, as prose's `DECISIONS.md` says, and git alone has
+many such forms (`git config alias.p '!…' && git p`, `git difftool -x`, `git
+filter-branch --tree-filter`); a list of git subcommands that never take code
+is complete. prose's hook calls the same reader, so it
 blocks these forms too. prose's `DECISIONS.md` today calls a script handed
 to another interpreter (`python3 - <<'EOF'`, `node -e`) and git aliases
 outside its hook's reach, so task 1.3 removes that claim.
 
-**Accepted:** `git commit` and `git push` run the repository's git hooks,
-which can run anything; that is outside this reader.
+*Recorded:* `specs/gh-post/decisions.md`, *Constraint: `git commit` and `git
+push` run the repository's git hooks, which can run anything, and the reader
+does not read them*.
 
 #### Posts sent through the github-app skill's script
 
@@ -1081,11 +1078,12 @@ sees. gh sends a GraphQL query's fields with `POST`, as it does a
 mutation's, so the method tells nothing there, and only the operation does; a query the reader cannot see might be
 a mutation. A method or endpoint the shell builds might be anything.
 
-**Accepted:** a GraphQL query read from standard input, or from a file in a
-longer line, counts as a write the reader cannot read, so it is blocked. A
+*Recorded:* `specs/gh-post/decisions.md`, *Constraint: A GraphQL query read
+from standard input, or from a file on a line holding more than the `gh api`
+call, counts as a write the reader cannot read, and is blocked; a `gh api`
 read whose words the shell builds, such as `-f q="$Q"`, counts as a possible
-post, so the line mentions a gh post verb, and an interpreter with a code flag
-on that line makes it unreadable.
+post, so its line counts as mentioning a gh post verb, and an interpreter with
+a code flag on that line makes the line unreadable*.
 
 *Ruled out by a scenario:* counting every `gh api` call as a possible post: it
 blocks reads piped into a script, which post nothing (gh-post spec: *A command
@@ -1121,11 +1119,11 @@ session's. A `User says: ` comment from the person's relay App proves their
 answer, and that App may do other work, so the block stops an agent holding
 the App from forging an answer through `gh`.
 
-**Accepted:** outside the holder, nothing checks a reserved prefix on Linear
-or Discord. A forged `User says: ` there would mark its question answered in
-every answer session, but filter 1 would never count it as the person's
-answer, since a relayed answer on those surfaces proves nothing; the skill's
-instructions are the only guard.
+*Recorded:* `specs/answer-session/decisions.md`, *Constraint: Outside the
+Claude Code session running the answer session, nothing checks a reserved
+prefix on Linear or Discord, so a forged `User says: ` there marks its
+question answered in every answer session, and the skill's instructions are
+the only guard*.
 
 *Ruled out by a scenario:* reducing the body as a comment is reduced for
 comparison with a recorded answer (*A linked comment holds the answer only
@@ -1178,9 +1176,9 @@ write the same file.
 
 **Why:** a change's questions belong in its history, and merge with it.
 
-**Accepted:** until the work merges, its log file is invisible to parallel
-work, so an agent on another branch may ask the same question again. A file
-pushed to the lore questions branch has no such cost: the next fetch finds it.
+*Recorded:* `specs/inquisitor/decisions.md`, *Constraint: Until its work
+merges, a repository's log file is invisible to parallel work, so an agent on
+another branch may ask the same question again*.
 
 #### Organization questions go on lore's `questions` branch
 
@@ -1218,8 +1216,8 @@ question to its questions branch and promoting an answer from there.
 **Why:** a question's record keeps the privacy of what it concerns. Each
 default makes the cautious choice, so nothing is sent somewhere that might be
 more visible. So a log file's `asked_in`, the URL of the post where its
-question was asked, is withheld when that post is private, unless the lore
-repository is private too. *Configuration* gives how visibility is read.
+question was asked, is written only where the lore repository is no more
+visible than that post. *Configuration* gives how visibility is read.
 
 #### Records are written at the question's privacy
 
@@ -1533,9 +1531,9 @@ Its fixed author, day-only date and lack of signature say nothing about who
 asked. `git -c commit.gpgsign=false` keeps a person's signing setup for the
 writer proof from signing a citation with their key.
 
-**Accepted:** GitHub's events API still records each push's pusher and time,
-visible to anyone who can see the lore repository. That repository is never
-more visible than the question's.
+*Recorded:* `specs/inquisitor/decisions.md`, *Constraint: GitHub's events API
+shows each citation push's pusher and time to anyone who can see the lore
+repository*.
 
 ### Lore and misses
 
@@ -1566,7 +1564,8 @@ Igor injects lore into.
 Filter 1 fetches only the `questions` branch, and reads each clone's default
 branch as last fetched.
 
-**Accepted:** an entry merged since the person's last fetch is not found.
+*Recorded:* `specs/inquisitor/decisions.md`, *Constraint: Filter 1 does not
+find a lore entry merged since the person's last fetch*.
 
 #### Scope hides an entry; status only labels it
 
@@ -1582,9 +1581,10 @@ igor PR #216 decides the same on igor's side.
 
 That is igor's rule (`scopeMatches` in igor's `src/firing.ts`).
 
-**Accepted:** a project whose repositories have other names needs a mapping
-file in the lore repository, read by igor and the inquisitor alike, which
-this change does not build.
+*Recorded:* `specs/inquisitor/decisions.md`, *Constraint: A `project:` scope
+matches only a repository's short name, so a project whose repositories have
+other names needs a mapping file in the lore repository, read by igor and the
+inquisitor alike, which nothing provides*.
 
 #### Filter 1 searches igor's scribe's records where #202 puts them
 
@@ -1602,8 +1602,9 @@ concerns, or in the team's lore repository when it spans repositories, so
 filter 1 reads both. A rule that depends on igor is specified in its end
 state.
 
-*Rejected:* a fixed `docs/decisions/` until #202 settles the path: an interim
-design for an igor dependency while igor has no users.
+*Recorded:* `specs/inquisitor/decisions.md`, *Rejected: Searching a fixed
+`docs/decisions/` for igor's scribe's records until igor PR #202 settles their
+path*.
 
 #### A general answer is proposed as a provisional lore entry
 
@@ -1631,8 +1632,8 @@ edit, never automatically.
 **Why** shared-skills gets only a generalized lesson: question and miss logs
 can hold private content, so they stay with the repositories they concern.
 
-*Rejected:* the script refusing a lesson that quotes a logged question: a
-lesson in general terms never does.
+*Recorded:* `specs/inquisitor/decisions.md`, *Rejected: The script refusing a
+lesson that quotes a logged question*.
 
 ### Igor workers and Igor runs
 
@@ -1667,12 +1668,9 @@ headless session without IGOR_RUN searches lore*).
 
 #### Task 0.12: an Igor worker cannot run the skill
 
-**Measured on 2026-10-20 on igor's main branch: an Igor worker cannot run
-this skill, even with a lore clone and `inquisitor.json` in reach. Read from the
-specs of igor PRs #174 and #175, not checked since neither is built, the
-same holds once they land.** So gate two, the implementation (*Terms used
-throughout*), builds everything except
-Igor-worker mode. *What task 0.12 measured* gives the evidence.
+**Gate two, the implementation (*Terms used throughout*), builds everything
+except Igor-worker mode,** since an Igor worker cannot run this skill. *What
+task 0.12 measured* gives the evidence.
 
 #### An Igor worker asks only in its handback comment
 
@@ -1846,8 +1844,9 @@ file by the suffix and date.
 reads a file's name from the comment. The random suffix makes a name unique,
 so a second file matching the record can only be a planted look-alike.
 
-**Accepted:** the slug in a file's name carries some of the question's words;
-the record holds none.
+*Recorded:* `specs/inquisitor/decisions.md`, *Constraint: A questions-branch
+log file's name carries a slug of its question's words, though the Igor's
+record of a handback holds none of them*.
 
 *Ruled out by a scenario:* naming the files a search found by their words,
 or reading the file's name from the handback comment's text (inquisitor
@@ -1889,7 +1888,7 @@ such as:
   Igor's handback*).
 
 **Why:** igor has no users yet, so this change specifies no interim design for
-it.
+it. *Recorded:* `specs/inquisitor/decisions.md`, *Constraint: A rule that depends on igor states its end state, with no clause for an igor state before the igor change it needs lands*.
 
 #### Alignment with igor PR #216
 
@@ -1913,11 +1912,13 @@ not specified.
 
 #### A failed relay check turns off only its channel
 
-**Accepted:** where no check can read whether a relay identity may post in a
-channel (task 0.20), the first refused post is the check: it turns the
-channel off, and its answer is kept pending (*An answer that cannot reach its
-thread is kept pending*). Setup shows such a channel as not checked, since
-nothing checked it.
+**A relay check that fails turns off only the channel it checked; the
+person's other channels stay on.**
+
+*Recorded:* `specs/answer-session/decisions.md`, *Constraint: Where no check
+can read whether a relay identity may post in a channel, the first refused
+post is the check: it turns the channel off and keeps its answer pending, and
+setup shows the channel as not checked*.
 
 #### Setup checks questions-branch commits are the person's
 
@@ -2037,18 +2038,16 @@ what the check needs, such as GitHub giving a commit's pull request.
 **Why:** anyone who can push to the lore repository can then stop a person's
 relayed answers counting, but not make another App speak for them.
 
-**Accepted:** someone who can push to the person's open pull request, such as
-a maintainer the person's fork lets edit it, can change the file under it,
-and the change counts once merged; the relay notice @-mentions the person for
-that push, so they can close it.
+*Recorded:* `specs/inquisitor/decisions.md`, *Constraint: Someone who can push
+to a person's open pull request, such as a maintainer GitHub's "allow edits by
+maintainers" lets push to it, can change the person's relay file under it, and
+the change counts once merged* and *Constraint: Anyone who can rewrite the
+lore repository's default branch can restore an older relay file of the
+person's own, listing an App the person removed, so removing a compromised App
+from the file does not stop it speaking for the person* and *Rejected:
+Counting a relay file's pull request only when all its commits are the
+person's*.
 
-**Accepted:** anyone who can rewrite the default branch can restore an older
-file of the person's own, listing an App the person had removed. So removing a
-compromised App from the file does not stop it speaking for the person; the
-README says to uninstall the App or revoke its key.
-
-*Rejected:* counting the pull request only when all its commits are the
-person's: GitHub's API can't show a pushed commit's pusher.
 *Ruled out by a scenario:* requiring review through branch protection, with
 setup warning where none is required: ownership ties the file to its person
 without it (inquisitor spec: *A person changes their own relay file, listing
@@ -2074,9 +2073,8 @@ opener, so a pull request cannot make it mention anyone it likes, which is
 also why igor's workflow reads the owner from the default branch. No reader
 depends on the notice, so setup carries on when GitHub refuses to add it.
 
-*Rejected:* igor's seat-notice workflow covering relay files too: simpler in
-the end, but the notice would wait for igor's release and a change to another
-repository's spec.
+*Recorded:* `specs/inquisitor/decisions.md`, *Rejected: igor's seat-notice
+workflow covering relay files too*.
 
 #### github-app refuses `token`, `run`, `credential get` and `wire` for a relay identity
 
@@ -2090,11 +2088,14 @@ unseen. `token` prints its token to any agent on the machine; `run`,
 `credential get` and `wire` hand it to a command, git or a clone's
 configuration.
 
-**Accepted:** like the post hook, the refusals guard against accidents, not
-against an agent set on forging a relayed answer. Until github-app's change
-ships, any agent on the person's machine can print a relay App's token and
-post `User says: ` with a plain HTTP call no post hook sees; the README says
-so (task 5.2).
+*Recorded:* `specs/answer-session/decisions.md`, *Constraint: The post hooks,
+on GitHub, Linear and Discord, and github-app's refusals for a relay identity
+guard against accidents, not against an agent set on forging a relayed answer,
+which can read a relay's credentials from the keychain and post with `curl`*
+and *Constraint: Until github-app refuses `token`, `run`, `credential get` and
+`wire` for a relay identity, any agent on the person's machine can print a
+relay App's token and post `User says: ` with a plain HTTP call no post hook
+sees, and the README says so*. Task 5.2 writes that README section.
 
 ### Running the answer session
 
@@ -2113,11 +2114,11 @@ requests and assignments naming the person, so a question of any source is
 found if notifications miss it. Those reads also catch a mention of the relay
 in a thread the person never subscribed to.
 
-**Accepted:** these reads cost rate-limited requests for each subscribed
-repository at each poll. A subscription can name a whole owner, such as
-`adamstallard` in the example configuration, rather than one repository. Such
-a subscription costs these requests at each poll for every repository of that
-owner.
+*Recorded:* `specs/answer-session/decisions.md`, *Constraint: Unless
+notifications report every GitHub message the answer session needs, each poll
+reads each subscribed repository's issues, pull requests, comments, reviews,
+review requests and assignments, costing rate-limited requests for each
+repository, and for every repository of an owner a subscription names*.
 
 #### Local state is per machine, in the state folder
 
@@ -2128,8 +2129,8 @@ once its question is answered, handled or closed. So the state folder is not
 the personal question log that *Every asked question is logged with what it
 concerns* rules out.
 
-**Accepted:** a question set aside on one machine is new on another, costing
-only a second look.
+*Recorded:* `specs/answer-session/decisions.md`, *Constraint: A question the
+person sets aside for later on one machine is new on their other machines*.
 
 #### Which cross-machine cases are accepted
 
@@ -2137,6 +2138,9 @@ only a second look.
 question shown twice or asked again is accepted, and gets no rule of its own.**
 A case that could record a wrong answer, close a question wrongly, leak
 private content or lose an answer is still raised for a decision.
+*Recorded:* `specs/answer-session/decisions.md`, *Constraint: A case between
+two machines of the same person whose worst outcome is a question shown twice
+or asked again gets no rule of its own*.
 
 #### One answer session runs on each machine
 
@@ -2154,8 +2158,9 @@ it,** because a session an app starts from its session list, with no
 terminal, cannot set one. `answer` opens it fullscreen, the layout it is
 designed for.
 
-**Accepted:** the answer session also works on Claude Code's main screen, but
-nothing is designed or built for that screen alone.
+*Recorded:* `specs/answer-session/decisions.md`, *Constraint: The answer
+session works on Claude Code's main screen too, but nothing is designed or
+built for that screen alone*.
 
 #### A discussion runs in the session's own conversation
 
@@ -2164,9 +2169,10 @@ the model reads before it replies. A picker would hide the answer session's
 screen from them. So a question the model asks back is the one exception to
 the rule that an agent asks only through the picker.
 
-**Accepted:** the model runs with the person's tools, so it could reach the
-keychain entry holding their Linear key; *The session's model* says why no
-guard is added.
+*Recorded:* `specs/answer-session/decisions.md`, *Constraint: The session's
+model runs with the person's tools, so it can reach the keychain entry holding
+the person's own Linear key, and the answer session adds no guard against
+that*.
 
 #### The model's own Linear and Discord posts are blocked
 
@@ -2202,11 +2208,10 @@ before. A lock that cannot be read counts as naming whichever session the
 hook runs in, so it blocks those posts in every session: the hook fails
 closed like the other post hooks.
 
-**Accepted:** a model set on it could still read a relay's credentials from
-the keychain with a plain command and post with `curl`, naming neither
-script. That is the exposure *The session's model* already accepts for the
-person's own credentials. The hooks stop a model that uses the skills, as
-the instructions it has read tell it to, not one that works around them.
+*Recorded:* `specs/answer-session/decisions.md`, *Constraint: The post hooks,
+on GitHub, Linear and Discord, and github-app's refusals for a relay identity
+guard against accidents, not against an agent set on forging a relayed answer,
+which can read a relay's credentials from the keychain and post with `curl`*.
 
 *Ruled out by a scenario:* only telling the model, in its context, to post
 nothing: a crafted thread can override an instruction, not a hook
@@ -2241,13 +2246,10 @@ what the person is typing. A subagent that read an untrusted Linear or
 Discord message could plant text the person then sends without seeing where
 it came from.
 
-**Accepted:** the rule stops a forked conversation only if Claude Code
-marks its calls with an `agentId`. One that arrived without one would be
-taken as the main conversation's. The cost is bounded: the draft lands in
-the prompt box, where the person sees it, and nothing is sent until they
-confirm it. Task 0.26 records whether any such call arrives; the rule
-stands either way. If a subagent's call can arrive without an `agentId`, the
-same bound applies to it.
+*Recorded:* `specs/answer-session/decisions.md`, *Constraint: `propose_reply`
+takes a call without an `agentId` as the main conversation's, so a forked
+conversation's or a subagent's call that arrives without one can fill the
+prompt box*.
 
 #### The UI is built from prototype build v0.1-33
 
@@ -2365,7 +2367,8 @@ Editing an automatic post turns it into the person's words, starting
 so without a new file the branch would keep the first answer. Which file
 counts is in *The newest proven answer counts*.
 
-**Accepted:** the person can edit only a question's latest relay post.
+*Recorded:* `specs/answer-session/decisions.md`, *Constraint: The person can
+edit only a question's latest relay post*.
 
 #### A rephrased answer carries its rephrasing, and the asker logs it
 
@@ -2400,9 +2403,10 @@ written only where the lore repository is no more visible than the thread,
 so the one case left, a lore repository made more public later, publishes
 everything already in it, and the answer file adds nothing worse.
 
-*Rejected:* showing the file's question beside the message.
-*Rejected:* a rule of its own for that later case, generalising the
-message's words or relaying only in the thread: the case barely arises.
+*Recorded:* `specs/answer-session/decisions.md`, *Rejected: Showing the log
+file's question beside the linked message's* and *Rejected: A rule of its own
+for a lore repository made more public after `asked_in` was written, such as
+generalising the message's words or relaying only in the thread*.
 
 #### An answer file names the file it answers
 
@@ -2416,7 +2420,8 @@ what the Igor writes; *Open Questions* carries that request.
 gives machines different answers (inquisitor spec: *A named file's answer is
 the newest proven answer file naming it*, scenario *An answer naming one file
 does not answer another with the same question*).
-*Rejected:* accepting an `answers` key planted in a worker's file.
+*Recorded:* `specs/inquisitor/decisions.md`, *Rejected: Accepting an `answers`
+key planted in a worker's file*.
 
 #### The newest proven answer counts
 
@@ -2444,8 +2449,9 @@ date and the time this machine first fetched that commit: the signer sets the
 committer date, so a proven writer, or a skewed clock, could date a commit far
 in the future and outrank every later answer for good.
 
-**Accepted:** two machines that first fetched a file at different times can
-order it differently against a file pushed between those fetches.
+*Recorded:* `specs/inquisitor/decisions.md`, *Constraint: Among proven answers
+to one question, two machines that first fetched a file at different times can
+order it differently against a file pushed between those fetches*.
 
 #### `answers` decides a named file's answer; the search groups by hash
 
@@ -2489,8 +2495,10 @@ does not count*).
 their own, added alone*, scenario *A file that tags no one is answered by an
 account with write access*).
 
-**Accepted:** a copy of another of the person's answers, carrying their proof
-and pushed alone in its own commit, becomes the named file's answer.
+*Recorded:* `specs/answer-session/decisions.md`, *Constraint: A copy of
+another of the person's answers, carrying their proof, a linked comment or
+verified signature, and pushed alone in its own commit, becomes a named file's
+answer*.
 
 #### A named file stays shown until its answer counts
 
@@ -2549,16 +2557,16 @@ post, edit or drop it. The person's other machines read only the thread, and
 ask the question again as usual, as *Which cross-machine cases are accepted*
 allows.
 
-*Rejected:* pending answers as a state in the list of questions answered and
-handled; how the lists look is prototyped, not specified.
-*Ruled out by a scenario:* returning an answer no check brings back to the
-queue at the next opening (answer-session spec: *A pending answer no check
-returns waits for the person*, scenario *A text refused for its length
-stays pending after a recheck*); and an "Answered on another machine, not
-relayed" notice on other machines, offering to relay, edit or answer
-afresh, even only for a file linked by `asked_in` (answer-session spec:
-*Only the person is told an answer is pending*, scenario *Another machine
-asks again while an answer is pending*).
+*Recorded:* `specs/answer-session/decisions.md`, *Rejected: Pending answers as
+a state in the list of questions answered and handled*. *Ruled out by a
+scenario:* returning an answer no check brings back to the queue at the next
+opening (answer-session spec: *A pending answer no check returns waits for the
+person*, scenario *A text refused for its length stays pending after a
+recheck*); and an "Answered on another machine, not relayed" notice on other
+machines, offering to relay, edit or answer afresh, even only for a file
+linked by `asked_in` (answer-session spec: *Only the person is told an answer
+is pending*, scenario *Another machine asks again while an answer is
+pending*).
 
 #### The push order for a questions-branch answer
 
@@ -2586,16 +2594,17 @@ the channel is off. The person later edits it to "Use SQLite", and it is posted
 once the channel is on, but the push of the edited file fails. The "Use
 Postgres" file, already known here, does not drop the retry.
 
-**Accepted:** a file pushed at once, for an answer whose channel is off or
-not read here, gives up the comment link that would prove it on GitHub, and
-counts only through its signature. A dropped pending answer of that kind
-leaves its file on the branch, still answering the file it names.
+*Recorded:* `specs/answer-session/decisions.md`, *Constraint: An answer file
+pushed at once, because its channel is off or not read on this machine, gives
+up the comment link that would prove it on GitHub and counts only through its
+signature, and a dropped pending answer of that kind leaves its file on the
+branch, still answering the file it names*.
 
 *Ruled out by a scenario:* pushing every answer file on confirmation: a
 held-back or dropped answer would leave a file for an answer never posted
 (answer-session spec: *An answer whose thread is unreachable here is logged
 at once*, scenario *An answer held back by a new message pushes no file*).
-Also ruled out by scenarios:
+*Ruled out by a scenario:* each of these:
 - pushing the file of an answer whose thread cannot be read only once the
   answer is relayed (answer-session spec: *An answer whose thread is
   unreachable here is logged at once*, scenario *An answer to a
@@ -2698,8 +2707,8 @@ line's words unchanged. A question carrying the line gets no filter 2 to 4
 reply even when the person declines it, since the requiring skill wants the
 person's own answer; filter 1 still applies, as it does for the asking agent.
 
-**Accepted:** anyone can type the line. A forged one only sends a question to
-the person instead of answering it, the safe direction.
+*Recorded:* `specs/answer-session/decisions.md`, *Constraint: Anyone can type
+the person-required line, and outside GitHub nothing checks it*.
 
 *Ruled out by a scenario:* the answer session only suggesting a verdict on
 every agent's question: the person would have to handle every deferrable or
@@ -2744,8 +2753,8 @@ since the person chose it. How the confirmation looks is prototyped (task
 6.9). The person can still answer on the surface by hand. Reason 1 is named
 "nothing to answer" to keep clear of filter 3's text, "not a real question".
 
-*Rejected:* separate reasons for a conversation that is over and a message
-that isn't a question: they behave alike.
+*Recorded:* `specs/answer-session/decisions.md`, *Rejected: Separate decline
+reasons for a conversation that is over and a message that isn't a question*.
 *Ruled out by a scenario:* the session's model asking the person which filter
 should have stopped the question, and why: the person picks and confirms
 instead (answer-session spec: *Declining for the inquisitor posts the picked
@@ -2778,8 +2787,8 @@ did not need asking, and the decline reasons and filters 2 to 4 cover a
 question that needs no answer (answer-session spec: *Filter 3 also offers that
 the agent shouldn't have asked*, scenario *The agent shouldn't have asked
 posts nothing*).
-*Rejected:* calling filter 3's choice "not a question": only reason 1 says
-that, so two labels never share a name.
+*Recorded:* `specs/answer-session/decisions.md`, *Rejected: Calling filter 3's
+"the agent shouldn't have asked" option "not a question"*.
 
 #### Declining with nothing to answer closes only that question
 
@@ -2815,11 +2824,31 @@ igor's search, and reveals nothing even for a question with a category. An
 Igor worker could still report a file holding the handled keys for its Igor
 to push; refusing one is asked of igor PR #216, and is open on its side.
 
-**Accepted:** a record the asking agent's own filter 1 would not count still
-closes the question in the person's queue. The asker's question still stands
-in its thread, and the asker may legitimately ask again, since it may be
-unable to see or count the record: a private one, one withheld by the
-visibility rules, or one without authority.
+A close that cites a record takes the question out of the person's queue
+whether or not the asking agent's own filter 1 would count that record.
+*Recorded:* `specs/answer-session/decisions.md`, *Constraint: A close that
+cites a record, such as a filter 1 decline or a `Recorded answer: ` post,
+closes the question in the person's queue even when the asking agent's own
+filter 1 would not count that record*.
+
+**An automatic filter 3 or 4 reply pushes no handled file,** so it does not
+close the questions-branch file: the asking agent acts on such a reply only
+when the person chose the filter (inquisitor spec: *An Inquisitor reply is
+acted on only from a writer's relay App*), and the file stays shown until
+the person handles it.
+
+**A reader takes a handled file at its word, with no proven writer,** though an
+answer file needs one. **Why:** as elsewhere in the design, the hooks and
+github-app's refusals stop accidents, not a determined forger, and a forger
+here already has push access to the lore repository. Such a forger can close
+a question so that the person answering never sees it, and that person cannot
+reopen it:
+only a thread copy declined with nothing posted is reopened (answer-session
+spec: *Only a thread copy declined with nothing posted is reopened*).
+*Recorded:* `specs/answer-session/decisions.md`, *Constraint: A reader takes a
+handled file at its word, with no proven writer, so anyone who can push to a
+lore repository's questions branch can close one of its questions so that the
+person never sees it*.
 
 *Ruled out by a scenario:* the asking agent marking its own file handled, or
 deciding the close: it would have to check the post's author, which waits on
@@ -2845,8 +2874,9 @@ answers, and each fix raised another case; exact identity cannot disagree.
 A file a handled file closed is still unanswered, so an answer given to its
 thread copy, where that copy is open, still pushes a log file answering it.
 
-**Accepted:** a thread copy declined with nothing posted on one machine shows
-again on the person's other machines, where they can decline it again.
+*Recorded:* `specs/answer-session/decisions.md`, *Constraint: A thread copy
+declined with nothing posted on one machine shows again on the person's other
+machines, where they can decline it again*.
 
 *Ruled out by a scenario:* closing by question hash, by any relay post naming
 the same question, by topic repository, or by comparing the handled day or
@@ -2898,16 +2928,16 @@ file's push, the answer session's own included, is recorded as owed and
 retried as a miss's is (*Misses the answer session logs*).
 
 *Ruled out by a scenario:* pushing a decline's citation only when its miss is
-pushed: without that rule, the only duplicate left is two machines declining one
-question, accepted below (answer-session spec: *A filter 1 decline cites its
+pushed. The spec pushes the citation whether or not the miss is pushed, which
+leaves one duplicate case, two machines declining one question, which
+`specs/answer-session/decisions.md` accepts (answer-session spec: *A filter 1 decline cites its
 lore entry once*, scenario *A decline's citation is pushed when its miss is
 not*).
 
-**Accepted:** one question can get a citation from each of two machines,
-when it is open on both at once, or when a thread copy declined with nothing
-posted on one is declined again on another. The case is rare, so no rule
-prevents it, such as re-reading the questions branch before a decline's
-pushes, or pushing no citation for a reason 2 decline.
+*Recorded:* `specs/answer-session/decisions.md`, *Constraint: One question can
+get a citation from each of two machines, when it is open on both at once, or
+when a thread copy declined with nothing posted on one is declined again on
+another*.
 
 #### Agreeing to a recorded answer is a filter 1 decline
 
@@ -3008,10 +3038,10 @@ text.** Merging only avoids a duplicate, which is low priority, while any
 merge rule can pair a message with another asker's file in the same words,
 so that a decline or an answer lands on that asker's question.
 
-**Accepted:** where the link is withheld, on Linear and Discord from a lore
+*Recorded:* `specs/answer-session/decisions.md`, *Constraint: Where a log
+file's `asked_in` link is withheld, on Linear and Discord from a lore
 repository that is not private and on GitHub from a more visible one, the
-person may see one question twice (*Which cross-machine cases are
-accepted*).
+person may see one question twice*.
 
 *Ruled out by a scenario:* merging a log file and a thread message that ask
 the same question, with any set of guards: each guard left a case that closed
@@ -3034,9 +3064,9 @@ and then the creator.
 someone else and not them: it gives a bot question more than one owner
 (answer-session spec: *Whom a message reaches is set by its mentions*,
 scenario *A bot's message reaches only the first person it mentions*).
-*Rejected:* routing an Igor's handback by assignment until igor's specs
-state the order of issue #229: no one uses igor yet, so the spec states only
-the end state.
+*Recorded:* `specs/answer-session/decisions.md`, *Rejected: Routing an Igor's
+handback by assignment until igor's specs state the mention order of igor
+issue #229*.
 
 #### igor's handback marker
 
@@ -3059,9 +3089,9 @@ follows only once the person returns the item to the Igor without answering
 the older one, so the case is rare, and the newest says where the Igor is
 blocked now.
 
-**Accepted:** a passed-over handback's log file stays on the questions branch,
-unanswered, and is never shown again. If its blocker still matters, the Igor
-asks again on its next run.
+*Recorded:* `specs/answer-session/decisions.md`, *Constraint: A passed-over
+handback's log file stays on the questions branch, unanswered, and is never
+shown again*.
 
 *Ruled out by a scenario:* a new log file linking its own handback only while
 an earlier one is unanswered: less simple than every file linking its own
@@ -3120,16 +3150,18 @@ one place, not a log. An existing skill gets its spec in a change of its own, sk
 by skill, as shared-skills issue #57 plans; a change that edits a skill with
 no spec, as this one edits github-app and bug-hunter (tasks 5.5 and 5.7),
 lists the edit as a task. While a
-change is open, its decisions are each stated once, in design.md's
-*Decisions*, and each undecided item in *Open Questions*, as spec-check's
-convention has it. When it is archived, its lasting reasoning is folded into
-the decision record of each capability it specifies, and into the
-`DECISIONS.md` of each skill without a spec that it affects, rewriting the
-reasoning it replaces rather than appending. So this change writes
-`openspec/specs/inquisitor/decisions.md`, `answer-session`'s and
-`gh-post`'s, and no `.agents/skills/inquisitor/DECISIONS.md`. `AGENTS.md`
-states this, and `openspec/config.yaml` makes it the last task of every
-change.
+change is open, it keeps the constraints and rejected alternatives it adds
+in its own decision record per capability, `specs/<capability>/decisions.md`,
+as issue #56 sets; design.md's *Decisions* gives each decision's reasons, and
+*Open Questions* each undecided item. When it is archived, spec-check's fold
+merges its records into the main ones, and its author folds the rest of its
+lasting reasoning by hand into each affected capability's record, or the
+`DECISIONS.md` of each affected skill without a spec, rewriting the reasoning
+it replaces rather than appending. So this change holds
+`specs/inquisitor/decisions.md`, `answer-session`'s and `gh-post`'s, and
+writes no `.agents/skills/inquisitor/DECISIONS.md`. `AGENTS.md` states
+this arrangement, and `openspec/config.yaml` makes the fold at archive the
+last task of every change.
 
 #### How the three specs are laid out
 
@@ -3149,7 +3181,8 @@ detail moves first to scenarios, then reasons move here, then the text is
 compacted, and only a requirement still too long is split, along its own
 rule boundaries.
 
-*Rejected:* a glossary requirement holding every term, at 17,651 characters.
+*Recorded:* `specs/inquisitor/decisions.md`, *Rejected: A glossary requirement
+holding every term*.
 
 #### UI is prototyped and approved by use, not specified
 
@@ -3165,7 +3198,9 @@ exception.
 **Why:** whether a UI works is easier to see by using it than by reading a
 spec.
 
-*Rejected:* keeping the exception only in this change, outside `AGENTS.md`.
+*Recorded:* `specs/answer-session/decisions.md`, *Rejected: Keeping the
+exception for screens designed at implementation only in this change, outside
+`AGENTS.md`*.
 
 #### Igor-worker scenarios stay untagged until igor builds what they need
 
@@ -3180,8 +3215,8 @@ skipped test would not do.
 wait for igor PR #216 to merge, since archiving writes the scenarios into
 the directory where spec-trace's CI fails on an untagged one.**
 
-*Rejected:* archiving the rest and leaving the Igor-worker scenarios in an
-open change.
+*Recorded:* `specs/inquisitor/decisions.md`, *Rejected: Archiving the rest of
+the change and leaving the Igor-worker scenarios in an open change*.
 
 ## Open Questions
 
@@ -3249,8 +3284,9 @@ not queried, and task 0.22 checks how one reads.
 
 ### Facts the answer session relies on
 
-**Tasks 0.15 to 0.24 measure facts the answer session relies on, and each
-says what the spec does until it is measured.** They cover GitHub's
+**Tasks 0.15 to 0.24 measure facts the answer session relies on. Each says
+what the spec does if the measurement goes against it, except tasks 0.18 and
+0.19, which stop the work until Adam decides.** They cover GitHub's
 notifications endpoint; how Linear and Discord show mentions and replies;
 how the Linear relay posts a comment; that a command the mod runs reaches no
 tool hook; that a mod keeps polling while idle or in the background; how
@@ -3297,11 +3333,12 @@ to its 149.
   text, and this change adopts it. igor must also let a worker run the skill's
   script, which today means a role's `commands` lists it. The spec's rule that
   a failed command searches no lore stays as a guard.
-- **The archive waits for task 4.3.** Task 4.3 tags every expected gap, the
-  Igor-worker scenarios no test covers, once igor builds `igor lore-search`
-  and lets a role's `commands` list the skill's script. Task 7.0 also waits
-  for igor PR #216 to merge and for igor PR #202 to set the path of the
-  scribe's records.
+- **Task 4.3 waits for igor.** It tags every expected gap, the Igor-worker
+  scenarios no test covers, once igor builds `igor lore-search` and lets a
+  role's `commands` list the skill's script; the archive waits for it (*The
+  change is archived only after every expected gap is tagged*). Task 7.0
+  also waits for igor PR #216 to merge and for igor PR #202 to set the path
+  of the scribe's records.
 - **igor PR #216, with igor issue
   [#215](https://github.com/adamstallard/igor/issues/215),** amends igor's
   lore-firing spec, holds every rule for an Igor's citations, and has not
@@ -3469,14 +3506,18 @@ to its 149.
 
 ### What other changes must provide
 
+- **spec-check must fold a change's decision records into the main ones at
+  archive,** as shared-skills issue #56 sets: `openspec archive` leaves a
+  change's `specs/<capability>/decisions.md` only in the archived copy.
+  Task 7.2 archives with a spec-check that does.
 - **bug-hunter needs a matching note:** the regression-test rule of
   *Weaknesses stay out of public text until disclosure*, carried by a separate
   change to bug-hunter.
 - **The github-app skill's `token`, `run`, `credential get` and `wire`
   commands must refuse an identity marked as a relay.** No pull request for it
   is open. This change asks for it and ships without it, at the cost
-  *github-app refuses `token`, `run`, `credential get` and `wire` for a relay
-  identity* accepts.
+  `specs/answer-session/decisions.md` states (*Constraint: Until github-app refuses
+  `token`, `run`, `credential get` and `wire` for a relay identity, …*).
 
 ### Outside this change
 
@@ -3488,31 +3529,6 @@ to its 149.
   surface counts only through a decision document, such as the scribe's
   record; one typed in the answer session and relayed there counts through its
   log file's signature.
-
-### For Adam to decide
-
-- **May anyone who can push to a questions branch close its questions with
-  a handled file?** A reader takes a handled file at its word: it closes
-  the file its `closes` names on every machine, for good, with no proof of
-  who wrote it (answer-session spec: *A handled file closes a
-  questions-branch question*). Only the `log` command's handled option
-  writes one, and that command does not check its caller. An answer file
-  needs a proven writer; a handled file needs none, and no **Accepted:**
-  entry takes on that cost. The options: accept it, as the post hook's
-  guards are accepted as guards against accidents; or count a handled file
-  only when its commit carries a signature GitHub verifies for a person
-  with write access to the lore repository.
-- **Should this change keep its untestable rejections in its own
-  `specs/<capability>/decisions.md` now?** Issue #56 plans that an open
-  change records new constraints and rejections there, and that spec-check
-  flags a change whose design.md names one that is in neither that file
-  nor the main record. This change keeps them in design.md's *Decisions*,
-  as spec-check's SKILL.md says an open change does today, and task 7.2
-  writes the main records at archive. Once spec-check implements #56, it
-  would flag each *Rejected:* and **Accepted:** entry here. The options:
-  move them into per-capability `decisions.md` files in this change now;
-  or keep them in design.md until spec-check implements #56, and move them
-  then.
 
 ### Left to implementation
 

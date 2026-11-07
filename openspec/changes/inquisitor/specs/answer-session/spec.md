@@ -39,6 +39,7 @@ inquisitor's, or that spec's, *Title*:
   is proven by its comment or its signature*).
 - discord-bot's **header options** are `--agent`, `--session` and
   `--project`.
+- **The picker** is Claude Code's question tool, `AskUserQuestion`.
 - **Task 0.N** is that task in this change's tasks.md.
 
 ## ADDED Requirements
@@ -394,6 +395,15 @@ unreadable (task 0.20), a channel SHALL stay on, not checked, until any
 post there is refused. An off channel SHALL be neither read nor posted
 in; each opening SHALL rerun any check that failed or never ran.
 
+#### Scenario: Refused member search does not fail setup
+
+- **WHEN** discord-bot's `check` reports `messageContent` as `true` and
+  `memberSearch`, whether the bot may look up members to mention them, as
+  `false`, and every other check passes
+- **THEN** setup counts the Discord relay's check as passed
+- **AND** each later Discord relay post leaves every `@name` plain text,
+  and the person is shown one warning for that post
+
 #### Scenario: A channel the relay cannot post in is off alone
 
 - **WHEN** setup finds that the Discord relay cannot post in one of two
@@ -482,7 +492,7 @@ open, as the person by host command, each pull request below the person
 does not have open:
 
 - their relay file, with a new `# confirmed by` date, if it is missing,
-  lacks a relay of theirs or another last changed it;
+  lacks a relay of theirs or would not count;
 - a missing `.github/workflows/relay-notice.yml`.
 
 It SHALL report links, never push to the default branch, say when
@@ -740,8 +750,9 @@ review request alone SHALL NOT make such an item a question.
 
 ### Requirement: An item's newest handback is open until a relay post names it
 
-The newest handback SHALL be **open** until a relay post whose `Re: `
-line holds its URL answers or handles it; while a `User asks: ` post
+The newest handback SHALL be **open** until a relay post answers or
+handles it, a post whose `Re: ` line (*A GitHub or Linear relay post names
+its question in a Re line*) holds the handback's URL; while a `User asks: ` post
 names it, it waits for the asker, out of the queue, like any question.
 
 #### Scenario: An answered handback is no longer open
@@ -830,8 +841,8 @@ When the handback comment an Igor worker's log file links in `asked_in`
 is on an issue or pull request in the repository its `asked_from` names,
 the log file SHALL follow that comment, even on a machine that does not
 read the comment's item. The log file SHALL be shown only while that
-comment is its item's newest handback. Otherwise the log file is shown on
-its own.
+comment is its item's newest handback. A log file whose handback comment
+is on no such item is shown on its own.
 
 #### Scenario: An Igor's log file follows its handback comment
 
@@ -1037,14 +1048,6 @@ ping*).
 - **THEN** `@maya` stays plain text and pings no one, and the person is
   shown that warning after the post or edit
 
-#### Scenario: Refused member search does not fail setup
-
-- **WHEN** discord-bot's `check` reports `messageContent` as `true` and
-  `memberSearch` as `false`, and every other check passes
-- **THEN** setup counts the Discord relay's check as passed
-- **AND** a later Discord relay post leaves every `@name` plain text,
-  under one warning the person is shown
-
 ### Requirement: A GitHub or Linear relay post names its question in a Re line
 
 A relay post on Linear, or on GitHub outside a review thread, SHALL end
@@ -1064,13 +1067,13 @@ SHALL name its question by replying to it.
 
 ### Requirement: A relay post is posted by a host command, unvetted
 
-The answer session SHALL post through the relay identity's skill as a
-command it runs on the host, never as a tool call of the session's model,
-as an argument vector with no shell, passing the post's text on standard
-input or in a private file. Neither prose's pass nor the inquisitor's
-filters SHALL apply to a relay post. The answer session SHALL scan every
-relay post for the inquisitor's credential patterns, and SHALL post
-nothing that matches.
+The answer session SHALL post by a host command, never a tool call of the
+model: the relay's skill, or on Linear, where linear-app has no post
+command, the answer session's own request with linear-app's `headers`. It SHALL run it as
+an argument vector with no shell, passing the text on standard input or
+in a private file. Neither prose's pass nor the inquisitor's filters SHALL
+apply to a relay post; it SHALL scan each for the credential patterns and
+post none that matches.
 
 #### Scenario: A relay post carries no prose footer and is not vetted
 
@@ -1123,12 +1126,13 @@ says.
 
 ### Requirement: An answer that cannot reach its thread is kept pending
 
-The answer session SHALL keep, never drop, a confirmed answer that cannot
-be posted in its thread, as **answered, not relayed**, with its thread,
-on the pending list: when its channel is off or not read here, or its
-post is refused or fails, or is held back because the fetch before
-posting found a reply the person has not seen (*The thread is read again
-before a question is shown and before a post*).
+The answer session SHALL keep a confirmed answer that cannot be posted
+in its thread as **answered, not relayed**, with its thread, on the
+pending list: when its channel is off or not read here, or its post is
+refused or fails, or is held back because the fetch before posting found
+a reply the person has not seen (*The thread is read again before a
+question is shown and before a post*). For a question with a category it
+keeps the answer only in memory.
 
 #### Scenario: A refused answer is kept pending
 
@@ -1537,6 +1541,13 @@ outlives it. On opening, the answer session SHALL show the question last
 on screen, even after Claude Code restarted, unless it has since been
 answered.
 
+#### Scenario: A discussion record goes once its question is settled
+
+- **WHEN** the person answers a question they discussed with the model,
+  and the answer cannot reach its thread
+- **THEN** the discussion record is deleted, and the pending answer stays
+  in the state folder
+
 #### Scenario: The state folder holds all working state
 
 - **WHEN** the answer session saves its working state
@@ -1570,8 +1581,9 @@ answered.
 
 For a question with a category, the answer session SHALL keep no
 readable record, as the inquisitor's *Some questions are recorded by
-hash only* requires: no discussion record, and its question on screen
-and pending answer only in memory, so neither outlives the session. The
+hash only* requires: no discussion record, no log file and no owed push,
+and its question on screen and pending answer only in memory, so neither
+outlives the session. The
 state folder SHALL name such a question only by its hash and its
 thread's ids.
 
@@ -1583,6 +1595,13 @@ thread's ids.
 - **THEN** the state folder held no discussion record and none of the
   question's or the answer's text, and the question returns unanswered,
   with no pending answer
+
+#### Scenario: An answer to a questions-branch question with a category pushes no file
+
+- **WHEN** the person answers a questions-branch question the session's
+  model judges has a category
+- **THEN** the answer session relays the answer in its thread, if it can,
+  and pushes no log file and records no owed push for it
 
 ### Requirement: One answer session runs on each machine
 
@@ -1673,12 +1692,12 @@ discussion record SHALL keep the person's and the model's messages.
 ### Requirement: Claude's draft goes to the prompt box, never to a post
 
 The answer session SHALL give the model `propose_reply`, a tool putting
-a reply draft in the prompt box, for the question under discussion or
-as an edited relay post's text; the tool SHALL post nothing, refuse any
-call carrying an `agentId`, and take a call without one as the main
-conversation's. The context SHALL tell the model to call it when asked to
-draft, at the question's privacy. For a filter 1 decline, the draft MAY
-fill in only the record's URL, on the fixed post's `Recorded in: ` line.
+a draft reply, or an edited relay post's text, in the prompt box; it
+SHALL post nothing, refuse a call carrying an `agentId`, and take a call
+without one as the main conversation's. The context SHALL tell the model to
+call it when asked to draft, fit for whichever is more public, the
+thread's audience or the subject's. A filter 1 decline's draft MAY fill in only the
+record's URL, on the fixed post's `Recorded in: ` line.
 
 #### Scenario: A draft lands in the prompt box
 
@@ -1687,19 +1706,19 @@ fill in only the record's URL, on the fixed post's `Recorded in: ` line.
 - **THEN** the draft is in the prompt box for the person to edit, and
   nothing is posted or changed until the person relays it
 
-#### Scenario: The context asks for a draft at the question's privacy
+#### Scenario: The context asks for a draft readable by the thread's audience
 
-- **WHEN** the person discusses a question asked in a public repository
+- **WHEN** the person discusses a question asked in an issue of the public
+  `o/web` about code in the private `o/api`
 - **THEN** the context tells the model to call `propose_reply` for a
-  draft, written at that repository's privacy, by the inquisitor's rule
-  *A question is written at the privacy of what it concerns*
+  draft that anyone who can read `o/web` may read, generalising or leaving
+  out what only `o/api`'s readers may see
 
 #### Scenario: A subagent cannot call propose_reply
 
-- **WHEN** a subagent of the session's model calls `propose_reply`
-- **THEN** the tool refuses the call, since Claude Code sets an `agentId`
-  on a call made outside the main conversation, and the prompt box is
-  unchanged
+- **WHEN** a subagent of the session's model calls `propose_reply`, and
+  the call carries an `agentId`
+- **THEN** the tool refuses the call, and the prompt box is unchanged
 
 #### Scenario: A forked conversation's call carrying an agentId is refused
 
@@ -1762,10 +1781,10 @@ outside any tool call.
 The hooks SHALL count as posting discord-bot's `post`, `edit`, `delete`
 and `thread` commands; linear-app's `token` and `headers`, whose output
 can post as an identity; a Linear MCP tool not named `get_…`, `list_…`
-or `search_…`; and a line `.agents/lib/gh-shell/` cannot read that names
-either script or runs one whose path it cannot tell. A session SHALL be
-the holder while a lock that is not stale names its id, and a lock that
-cannot be read SHALL count as naming every session.
+or `search_…`; and a line naming either script, or running one whose path
+it cannot tell, that `.agents/lib/gh-shell/`'s splitter cannot split.
+For these hooks only, a lock that cannot be read SHALL count as naming
+every session.
 
 #### Scenario: A token printed for a Linear post is blocked
 
@@ -1805,8 +1824,9 @@ Discussion: <the discussion in one sentence>
 ```
 
 with its `Re: ` line on GitHub and Linear. The model drafts both added
-lines at the privacy of what the question concerns. The agent logging the
-answer SHALL record both in its log file.
+lines fit for whichever is more public, the thread's audience or the
+subject's.
+The asking agent, logging the answer, SHALL record both in its log file.
 
 #### Scenario: An unconfirmed rephrasing is not posted
 
@@ -1942,17 +1962,18 @@ sent to the relay's skill, and the command fetches nothing.
 
 ### Requirement: A handled file closes a questions-branch question
 
-Whenever the answer session closes a question, by declining it or
-posting a recorded answer or an `Inquisitor: ` reply, it SHALL push,
-only through the `log` command's handled option, one **handled file**
-naming each unanswered questions-branch log file that holds the question
-and that no handled file names. A file holds it when shown from that
-file or when its `asked_in` links the closed message. A handled file
-closes only the file it names, on every machine, and answers nothing.
+When the answer session closes a question by a decline, a recorded
+answer or an `Inquisitor: ` reply, except a filter 3 or 4 reply it posts
+by itself, it SHALL push, only through the `log` command's handled
+option, one **handled file** naming each unanswered questions-branch log
+file holding the question and named by no handled file: one the question
+was shown from, or whose `asked_in` links the closed message. A
+handled file closes only the file it names, on every machine, and answers
+nothing.
 
-#### Scenario: An automatic Inquisitor reply pushes a handled file
+#### Scenario: An automatic filter 2 reply pushes a handled file
 
-- **WHEN** the answer session posts filter 4's reply by itself on a thread
+- **WHEN** the answer session posts filter 2's reply by itself on a thread
   copy an unanswered log file holds
 - **THEN** it pushes, through the `log` command's handled option, a
   handled file naming that log file
@@ -1960,6 +1981,14 @@ closes only the file it names, on every machine, and answers nothing.
   decline, agreeing included, with a thread or without, being the only
   writer of handled files under the inquisitor's *Only an answer session
   writes a handled file*
+
+#### Scenario: An automatic filter 3 or 4 reply pushes no handled file
+
+- **WHEN** the answer session posts filter 4's reply by itself on a thread
+  copy an unanswered log file holds
+- **THEN** it pushes no handled file, and the log file stays unanswered
+  and shown until the person handles it
+- **AND** the same holds for filter 3's reply
 
 #### Scenario: A handled file closes only the file it names
 

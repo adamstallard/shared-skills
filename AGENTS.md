@@ -24,10 +24,14 @@
   reason, evidence and the paths it governs, in the form shared-skills
   issue #56 sets. A skill with no spec keeps its reasoning in its
   `DECISIONS.md`. While a
-  change is open, its reasoning lives in its proposal and `design.md`.
-  When the change is archived, fold its lasting reasoning into the
-  decision record of each capability it specifies, and the `DECISIONS.md`
-  of each skill without a spec that it affects. Where that reasoning
+  change is open, its reasoning lives in its proposal and `design.md`, and
+  the constraints and rejected alternatives it adds live in
+  `openspec/changes/<change>/specs/<capability>/decisions.md`, in issue
+  #56's form. When the change is archived, spec-check folds those records
+  into each capability's decision record, and the author folds the rest of
+  the reasoning a later reader still needs into each affected capability's
+  record, or into the
+  `DECISIONS.md` of each skill without a spec that it affects. Where that reasoning
   replaces older reasoning in the file, rewrite the older reasoning rather
   than appending.
 - **Tests tag the OpenSpec scenario they check** with

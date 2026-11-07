@@ -124,9 +124,12 @@ contradicts what design.md assumed.
       the author login `<slug>[bot]` with type `Bot`, or
       `performed_via_github_app` (design.md: *Only a listed relay App
       speaks for a person on GitHub*). Until shown, no comment counts as a
-      relayed answer, and an agent treats an `Inquisitor: ` reply as
-      input. If GitHub does not, both stay so for good: record it and stop
-      for Adam
+      relayed answer, an agent treats an `Inquisitor: ` reply as input,
+      and the answer session counts as a GitHub relay post only one whose
+      id its own state folder holds, so another machine may show the
+      question again (design.md: *Which cross-machine cases are
+      accepted*). If GitHub does not, these three rules stay for good:
+      record it and stop for Adam
 - [ ] 0.22 What a reader needs to tie a relay file to its person
       (design.md: *Who last changed a relay file ties it to its person*):
       that GitHub's API gives, for the newest commit that changed
@@ -421,7 +424,8 @@ contradicts what design.md assumed.
       #216 is asked to (design.md: *A
       general answer is proposed as a provisional lore entry*)
 - [ ] 2.8 `relay-notice.yml`, a lore repository's workflow template,
-      modelled on igor PR #171's `templates/seat-notice.yml` (design.md:
+      modelled on the `templates/seat-notice.yml` that igor PR #171
+      specifies (design.md:
       *A notice workflow mentions a relay file's person*)
 - [ ] 2.9 Two refusals not built in tasks 1.3 and 2.4:
       - the `log` command's input file, refused unless it has mode 0600
@@ -842,18 +846,16 @@ contradicts what design.md assumed.
       exempt from their trailers, and say in prose's `DECISIONS.md` that
       its file filter skips files under `.inquisitor/` (task 5.6) because
       they are records quoted word for word
-- [ ] 7.2 Write the decision records
-      `openspec/specs/inquisitor/decisions.md`,
-      `openspec/specs/answer-session/decisions.md` and
-      `openspec/specs/gh-post/decisions.md`, one per capability, in the
-      form shared-skills issue #56 sets, holding only what no test can
-      check: each alternative design.md marks *Rejected:*, each
-      constraint and **Accepted:** cost, and each reason longer than the
-      one *because* sentence a requirement may hold. An alternative marked
-      *Ruled out by a scenario:* gets no entry, since its requirement and
-      scenario already hold the rule; only a reason for it longer than
-      that one sentence goes in. Write no
-      `.agents/skills/inquisitor/DECISIONS.md`. Point each requirement's
+- [ ] 7.2 At archive, spec-check's fold merges this change's decision
+      records, `specs/inquisitor/decisions.md`,
+      `specs/answer-session/decisions.md` and `specs/gh-post/decisions.md`,
+      into `openspec/specs/<capability>/decisions.md`. The change already
+      holds them, in the form shared-skills issue #56 sets. Archive with a
+      spec-check that has that fold, since `openspec archive` leaves a
+      change's `decisions.md` only in the archived copy (issue #56). Write no
+      `.agents/skills/inquisitor/DECISIONS.md`. Fold by hand any other
+      lasting reasoning in design.md into the capability's record, as
+      `AGENTS.md` says. Point each requirement's
       citation of a task 0.N or of design.md at its measured result or its
       decision record entry. Fold the reasoning for moving prose's post
       reader into `.agents/lib/gh-shell/` (task 1.1) into prose's

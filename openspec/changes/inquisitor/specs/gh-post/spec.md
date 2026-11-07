@@ -274,6 +274,13 @@ its scenarios list as unreadable SHALL be unreadable.
 - **WHEN** a hook asks about `(cd sub && gh pr edit 3 --add-assignee @me)`
 - **THEN** the reader reports that the line sends no post
 
+#### Scenario: A backslash-newline and a comment are read as nothing
+
+- **WHEN** a hook asks about `gh pr comment 5 \` and, on the next line,
+  `--body-file b.md # reply`
+- **THEN** the reader reads one simple command, `gh pr comment 5
+  --body-file b.md`, joining the two lines and dropping the comment
+
 #### Scenario: A form the reader can't split exactly is unreadable
 
 - **WHEN** a hook asks about a line that mentions a gh post verb and holds
@@ -502,7 +509,10 @@ message saying how to fix it.
 - **WHEN** a hook asks about `python3 "$G" gh pr view 12 --comments`, and
   the command assigns `G` nowhere
 - **THEN** the reader reports that the command sends no post
-- **AND** so it does for `python3 "$G" gh api repos/o/r/pulls/5`, a read
+- **AND** for `python3 "$G" gh api repos/o/r/pulls/5`, with `G` assigned
+  nowhere, it reports the command as unreadable: a `gh api` call is a
+  read only as a plain `gh` command or the github-app skill's form, which
+  an unset `G` is not, so the call counts as a possible post
 
 #### Scenario: A gh api call through the github-app script is judged as a direct one
 

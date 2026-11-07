@@ -403,8 +403,9 @@ A question about an organization or project SHALL be bounded by the
 visibility of **the repository it was asked from**: the one holding the
 current work, or, for a logged question, the one its file's `asked_from`
 names. Such a question concerns no one repository (design.md: *A
-question's audience is no wider than its subject*). A question
-about one person's way of working SHALL never be posted.
+question's audience is no wider than its subject*). An agent working in no
+git repository SHALL ask such a question only through the picker. A
+question about one person's way of working SHALL never be posted.
 
 #### Scenario: An organization's question in private work stays private
 
@@ -412,6 +413,13 @@ about one person's way of working SHALL never be posted.
   organization `o`, and another about the person's way of working
 - **THEN** the first goes to no place more visible than `o/api`, and the
   second is posted nowhere
+
+#### Scenario: An organization's question outside any repository goes only to the picker
+
+- **WHEN** an agent working in no git repository has a question about the
+  organization `o`
+- **THEN** it asks the question only through the picker, and posts it
+  nowhere
 
 ### Requirement: A log or miss file is as private as its more private repository
 
@@ -813,11 +821,11 @@ the last fetch*).
 ### Requirement: The script tells an Igor's run by IGOR_RUN
 
 The script SHALL tell an Igor's run only by the exact name and value of
-`IGOR_RUN`: `worker` marks a worker's run, `igor` the Igor's own inquisitor run, anything else no run. In either
-run it SHALL read no lore clone, search lore as *In an Igor's run, filter 1
-searches through igor* says, push nothing to a lore repository itself, and
-say so each time (design.md: *The script tells an Igor's run by
-`IGOR_RUN`*). Outside a run, filter 1 SHALL need no Igor role,
+`IGOR_RUN`: `worker` marks a worker's run, `igor` the Igor's own
+inquisitor run, anything else no run. In either run it SHALL read no lore
+clone, search lore as *In an Igor's run, filter 1 searches through igor*
+says, push as *No worker or Igor-started run pushes to a lore repository*
+says, and say so each time. Outside a run, filter 1 SHALL need no Igor role,
 configuration or service.
 
 #### Scenario: A run is told by IGOR_RUN
@@ -1108,12 +1116,12 @@ SHALL count as no write access.
 ### Requirement: A questions-branch file's writer is proven by its comment or its signature
 
 A questions-branch file's writer SHALL be proven only in one of two ways.
-Either its `answer_link` is the github.com URL of a comment or review, on
-an issue or pull request of the repository its `repository` key names or
-of that lore repository, that holds the answer the file records and whose
-author GitHub gives as `answered_by`, or that is a relayed answer of
-`answered_by`'s. Or the commit that added the file carries a signature
-GitHub verifies for `answered_by`'s account.
+First: its `answer_link` is the github.com URL of a comment or review on
+an issue or pull request of the repository its `repository` or
+`asked_from` names, or of the file's lore repository, that holds the
+answer the file records and was written by `answered_by`, as GitHub gives
+its author, or is a relayed answer of `answered_by`'s. Second: the commit
+adding the file carries a signature GitHub verifies for `answered_by`.
 
 #### Scenario: A questions-branch decision linking its comment is an answer
 
@@ -1232,9 +1240,9 @@ A file's newness SHALL be its proof's date: for a comment link, GitHub's
 `lastEditedAt`, or `createdAt` if never edited; for a signature, the
 earlier of the signed commit's committer date and the time this machine
 first fetched the commit that added the file. A file that would not count,
-such as an `input`, unanswered or unproven one, SHALL supersede nothing.
-An answer file that would count but for a newer answer file naming the
-same log file in `answers` SHALL still supersede older files.
+such as an `input`, unanswered or unproven one, SHALL supersede nothing;
+*A replaced answer file stops counting even in its own hash group* says
+how a replaced answer file supersedes.
 
 #### Scenario: A re-pushed copy of an older answer does not count
 
@@ -1848,9 +1856,9 @@ question is igor PR #216's.
 ### Requirement: A way-of-working or sensitive question is held back, not asked
 
 With no person in the session, *A session with no person in it holds back
-a question with a category* governs one with a category, and an Igor
-worker SHALL ask none, raising the category flag. A
-way-of-working question SHALL NOT be asked there: the session stops only
+a question with a category* governs one with a category, an Igor
+worker's included. A
+way-of-working question SHALL NOT be asked in such a session: the session stops only
 if the work needs the answer,
 and reports it waits for the person. In any session, filter 2 SHALL defer
 such a question only into the agent's report, never a post or issue; a
@@ -2166,12 +2174,6 @@ footer hold no question.
 - **WHEN** a body is vetted and then signed by prose, which appends its
   footer, such as `prose ✓ 3f2a91`, as its last line
 - **THEN** the hook finds the same questions and lets the post through
-
-#### Scenario: A question holding a secret is refused in a post
-
-- **WHEN** the first call takes a post whose question holds a string
-  shaped like a GitHub access token
-- **THEN** it refuses, and names the question
 
 ### Requirement: The post hook vets what the shared post reader returns
 
@@ -3043,6 +3045,12 @@ in a post that holds such a string. The agent SHALL never put a credential
 into a question, an answer or a verdict field; a question that needs one
 gets the `secret` category.
 
+#### Scenario: A question holding a secret is refused in a post
+
+- **WHEN** the first call takes a post whose question holds a string
+  shaped like a GitHub access token
+- **THEN** it refuses, and names the question
+
 #### Scenario: A question needing a password gets the secret category
 
 - **WHEN** the agent's question needs a database password to make sense
@@ -3866,12 +3874,13 @@ question. Otherwise it is input.
 
 #### Scenario: A filter 4 reply the person chose is acted on
 
-- **WHEN** an agent's question gets a reply starting `Inquisitor: filter 4`
-  whose last line before its `Re: ` line is `The person chose this
-  filter.`, the line the `answer-session` spec adds when the person chose
-  that filter under decline reason 2, from the relay App of a person with
-  write access to what the question concerns, and task 0.21 has shown that
-  GitHub reports which App wrote a comment
+- **WHEN** an agent's question gets, from the relay App of a person with
+  write access to what the question concerns, a reply starting
+  `Inquisitor: filter 4` whose last line before its `Re: ` line is `The
+  person chose this filter.`, the line the `answer-session` spec adds when
+  the person chose that filter, declining because the inquisitor should
+  have handled the question, and task 0.21 has shown that GitHub reports
+  which App wrote a comment
 - **THEN** the agent chooses one option, and records what it chose and why,
   as filter 4 says (design.md: *A post the person chose says so*)
 
