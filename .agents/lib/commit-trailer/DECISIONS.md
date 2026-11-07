@@ -1360,7 +1360,8 @@ separated by spaces. The check then judges only a commit whose diff against
 its parent (`git diff-tree --root`) changes a matching path. Every other
 commit is skipped before its trailer is read, so it is never reported or
 verified. When the variable is unset, every commit is judged. spec-check sets
-`:(top)openspec/`.
+`:(top)openspec`, with no trailing slash, so that a symlink named `openspec`
+counts too; spec-check's DECISIONS.md says why.
 
 **Why.** A skill whose trailer means something only for some files, such as
 spec-check's for specs, would otherwise report every code-only commit, and a
@@ -1379,7 +1380,8 @@ report that is usually noise gets ignored.
   skill code needs the subshell and status-marker guards that *A skill may
   verify its own trailer* describes. A pathspec is data and needs none.
 - **Filtering in the skill's report.** By then the library has decided to
-  report, and an empty report falls back to the generic one.
+  report, and a skill cannot take that decision back from its report: when
+  the skill's report is empty, the library prints its generic one instead.
 
 ---
 
