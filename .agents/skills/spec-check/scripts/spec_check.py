@@ -3001,7 +3001,7 @@ def is_skip(value):
 
 
 def staged_targets(repo):
-    out = git(repo, "diff", "--cached", "--name-only", "--no-renames", "--", ":(top)openspec/")
+    out = git(repo, "diff", "--cached", "--name-only", "--no-renames", "--", ":(top)openspec")
     paths = out.stdout.splitlines()
     changes, specs = set(), False
     for p in paths:

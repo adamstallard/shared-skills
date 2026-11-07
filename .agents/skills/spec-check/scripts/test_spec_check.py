@@ -2153,6 +2153,45 @@ class TrailerTests(unittest.TestCase):
         r = self.hook()
         self.assertEqual((r.returncode, r.stdout, r.stderr), (0, "", ""))
 
+    def stage_openspec_symlink(self):
+        """Stages a symlink named openspec at the root as the commit's only
+        change, after a commit that removes the openspec/ folder."""
+        self.repo.git("rm", "-q", "-r", "openspec")
+        self.repo.git("commit", "-q", "-m", "Drop the folder")
+        # The hook reports each commit once: this run reports the removal, so
+        # the test's next run reports only the symlink commit.
+        self.hook()
+        (self.repo.path / "specs-elsewhere").mkdir()
+        (self.repo.path / "openspec").symlink_to("specs-elsewhere")
+        self.repo.git("add", "openspec")
+
+    def test_a_commit_that_only_adds_an_openspec_symlink_is_reported(self):
+        self.stage_openspec_symlink()
+        self.repo.git("commit", "-q", "-m", "Link the specs")
+        r = self.hook()
+        self.assertEqual(r.returncode, 2, r.stderr)
+        self.assertIn("1 new commit(s) changed openspec/ without a Spec-check: trailer", r.stderr)
+        self.assertIn("Link the specs", r.stderr)
+
+    def test_staged_targets_lists_a_staged_openspec_symlink(self):
+        self.stage_openspec_symlink()
+        self.assertEqual(spec_check.staged_targets(str(self.repo.path)), (["openspec"], [], False))
+
+    def test_staged_targets_takes_a_file_named_changes_as_no_change(self):
+        self.repo.write("openspec/changes", "x\n")
+        self.repo.git("add", "-A")
+        self.assertEqual(spec_check.staged_targets(str(self.repo.path)),
+                         (["openspec/changes"], [], False))
+
+    def test_a_path_that_only_starts_with_openspec_is_never_reported(self):
+        self.repo.write("openspec-notes/a.md", "x\n")
+        self.repo.write("openspecx", "x\n")
+        self.repo.git("add", "-A")
+        self.assertEqual(spec_check.staged_targets(str(self.repo.path)), ([], [], False))
+        self.repo.git("commit", "-q", "-m", "Notes only")
+        r = self.hook()
+        self.assertEqual((r.returncode, r.stdout, r.stderr), (0, "", ""))
+
     def test_a_signed_commit_is_quiet(self):
         self.stage_change()
         r = self.commit_with("--verified-value", str(VERIFY), "Spec-check", self.value())

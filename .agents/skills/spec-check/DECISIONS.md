@@ -910,23 +910,27 @@ committed again with `git reset --soft`.
 
 ## Events start a current-state pass
 
-**Decision.** On each event below, a hook prints `current-state pass due
-for: ...`, naming the texts to rewrite, and the agent rewrites them to
+**Decision.** A current-state pass rewrites texts that may still describe
+an earlier state, such as a design that says "will" for what is now built.
+On each event below, a hook in the agent's session prints `current-state
+pass due for: ...`, naming the texts, and the agent rewrites them to
 describe the state as it now is, without asking first. It asks a person
-only before dropping a conclusion, the rule `prose compact` follows ("just
-do it; ask on loss").
+only before deleting a conclusion, such as a decision or its reason; this is
+the same rule `prose compact` follows ("just do it; ask on loss").
 
 | Event | Detected as | The pass |
 |---|---|---|
-| The implementation is pushed onto a spec branch (gate two of the two-gate workflow, where a specification is approved first and its implementation is then pushed onto the same branch) | the commit hook sees a commit add a file under a `src/` directory while the branch adds or edits an open change, compared with the point where it left the base branch (its merge base). On the base branch itself, every open change counts | the change's proposal.md and design.md, and the pull request's body and title, for wording such as "specification only", or "will" for what is now built |
-| A change is archived | the commit hook sees a commit add a folder under `openspec/changes/archive/` | the change's reasoning folded into the affected skills' DECISIONS.md, rewriting older reasoning rather than appending to it; then `prose check` on each, compacting any it reports as due |
-| A pull request is handed back for review | a hand-back, as *One consistency read per round* detects it: prose's hook after the agent's call, or the workflow, which prints a `::notice::` when the hand-back leaves no change unread | the final pass of prose's single-pass rule, done once before a person reads the docs: any doc the pull request changes, or its body, that still describes work as unfinished or to come |
+| The implementation is pushed onto a spec branch (gate two of the two-gate workflow, where a specification is approved first and its implementation is then pushed onto the same branch) | the commit hook sees a commit add a file under a `src/` directory while the branch adds or edits an open change (a change folder not yet archived). The branch's changes are found by comparing with the point where it left the base branch, its merge base. On the base branch itself, every open change counts | the change's proposal.md and design.md, and the pull request's body and title, for wording such as "specification only", or "will" for what is now built |
+| A change is archived | the commit hook sees a commit add a folder under `openspec/changes/archive/` | the change's reasoning folded into the DECISIONS.md of each part of the repository it affects (in this repository, each skill), rewriting older reasoning rather than appending to it; then `prose check` on each, compacting any it reports as due |
+| A pull request is handed back for review | a hand-back, as *One consistency read per round* detects it: prose's hook, after the agent's `gh` or GitHub MCP call that hands back; or spec-check's GitHub Actions workflow, which prints a `::notice::` when every change already has its consistency read, so the hand-back stands | prose's single-pass rule holds doc rewrites back to one pass at the end, before a person reads them; this is that pass: any doc the pull request changes, or its body, that still describes work as unfinished or to come |
 
-**Why.** These rules had slipped: the bodies of igor pull request #216 sat
-stale for six rounds. An agent does a pass when something tells it to at
+**Why.** Keeping proposals, designs and pull request bodies current had
+slipped: in the igor repository, pull request #216's body sat stale for six
+review rounds. An agent does a pass when something tells it to at
 the moment it is due.
 
-- The commit hook finds the first two events through the commit-trailer
+- The commit hook, which the agent host runs after each shell command
+  (not a git hook), finds the first two events through the commit-trailer
   library's `commit_trailer_notice` callback, which sees every new commit,
   including those that change nothing under `openspec/` (the library's
   DECISIONS.md, *A skill may print notices about a commit*). A shell `grep`
@@ -935,25 +939,28 @@ the moment it is due.
   each may build more of what the change says "will" happen.
 - An amend prints only the passes its replaced commit would not have
   printed. The replaced commit is found from HEAD's reflog. A pass for the
-  same change or archive, adding no `src/` file the replaced commit lacked,
-  is not asked for again, so folding a pass's own edits into the commit, or
+  same change or archive is not asked for again when the amend adds no
+  `src/` file the replaced commit lacked, so folding a pass's own edits into the commit, or
   dropping a file from it, asks for nothing. To know what the replaced
   commit printed, it is judged as its own hook judged it: by the base-branch
   rule when the base branch's reflog records it committed there, otherwise
-  by the branch rule (only open changes the branch adds or edits). Judging
-  it by the narrower branch rule when unsure means a pass it may not have
-  printed is printed now rather than lost. With no reflog entry for it, the
+  by the branch rule (only open changes the branch adds or edits). The
+  branch rule counts fewer passes as already printed, so using it when
+  unsure makes the amend print more: a pass the replaced commit may not
+  have printed is printed now rather than lost. With no reflog entry for it, the
   branch rule is used.
 - Whether a commit is on the base branch is read from the commit, not from
-  HEAD: it is when the local base branch or the base ref holds it. The hook
+  HEAD: it is when the local base branch, or the base ref (such as
+  `origin/main`), holds it. The hook
   runs after the whole command, so `git commit && git checkout main` leaves
   HEAD elsewhere, and after `git push origin HEAD:main` from another branch
   only the remote's copy holds the commit.
 
 **Known limits.**
 - **A rebase continued after a conflict on the gate-two commit asks for the
-  pass again,** as does a cherry-pick of it. The library counts
-  `rebase (continue)` and `cherry-pick` as authored, and the replayed commit
+  pass again,** as does a cherry-pick of it. The library treats the reflog
+  actions `rebase (continue)` and `cherry-pick` as new commits and passes
+  them to the callback, and the replayed commit
   adds the same `src/` files against its new parent. It is not fixed because
   the original commit is not in the reflog, so pairing the replay with it
   would mean guessing, by subject or patch-id. The repeat is one advisory
@@ -969,20 +976,29 @@ the moment it is due.
   replaced commit is judged by whether it was ever committed on the base
   branch, not whether the branch held it when its hook ran. So
   `git commit && git reset --hard HEAD~1` in one command on the base branch,
-  then restoring and amending that commit, may show no pass at all: its own
-  hook used the branch rule, and the amend counts the pass as printed. No
+  then `git reset --hard <that commit>` and an amend, may show no pass at
+  all. The commit's hook ran after the reset, when the base branch no longer
+  held it, so it used the branch rule and printed nothing. The amend finds
+  the commit in the base branch's reflog and counts the pass as printed. No
   test has proved this case; it is reasoned from the code.
 - **"On the base branch" is judged at commit time.** A commit made on
   another branch and pushed to main in a later, separate command gets no
   gate-two notice: when the hook judges the commit, neither the base ref nor
-  the local base branch holds it, and a push moves no HEAD reflog entry for
-  the hook to see. Committing and pushing in one command gets the notice.
+  the local base branch holds it. The library finds new commits in HEAD's
+  reflog, and a push adds no entry there for the hook to see. Committing and pushing in one command gets the notice.
+- **A repository whose `openspec` is a symlink gets no gate-two or archive
+  notice.** Open changes and archived folders are read from the commit's
+  git tree under `openspec/changes/`, as the hand-back check reads them, and
+  a symlink holds no tree there. The trailer check still judges a commit
+  that changes the symlink (*Only commits that change `openspec/` are
+  judged*).
 - The archive pass is printed for the commit that archives, in the clone
   where it is made. A merge that brings an archive in is not that commit,
   and prints nothing.
 - The hand-back pass is prose's to print in the session, since the
   single-pass rule is prose's, and prose may be installed where spec-check is
-  not. The workflow's notice is for a hand-back made elsewhere.
+  not. The workflow's notice is for a hand-back made outside such a
+  session, such as by a person on GitHub or from a clone without prose.
 
 ---
 
@@ -1442,8 +1458,11 @@ spec, not the commit message.
 ## Only commits that change `openspec/` are judged
 
 **Decision.** The commit hook sets the library's `COMMIT_TRAILER_PATHSPEC` to
-`:(top)openspec/`. A commit that changes nothing there is never judged, with
-or without a trailer.
+`:(top)openspec`. `sign` lists the staged paths with the same pathspec, to
+decide whether the commit needs a trailer and what to check. The pathspec
+matches a folder, file or symlink named `openspec` at the root, and every path
+under it, but not a path such as `openspec-notes/`. A commit that changes nothing there is
+never judged, with or without a trailer.
 
 **Why.** A code-only commit has nothing to check, and a report on it would
 teach readers to ignore the report.
@@ -1454,6 +1473,10 @@ teach readers to ignore the report.
   generic one.
 - **A callback the library calls per commit.** A pathspec is data, so it
   needs none of the subshell and marker machinery a sourced callback does.
+- **`:(top)openspec/`, with the slash.** It matches only paths under a
+  folder, so a commit that only adds or retargets an `openspec` symlink
+  would never be judged. That symlink decides which specs the repository
+  holds, so changing it changes the specs.
 
 **Limit:** only `openspec/` at the repository root counts, which is where
 OpenSpec puts it.
