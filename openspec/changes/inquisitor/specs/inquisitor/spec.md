@@ -312,8 +312,9 @@ branch as the clone's remote-tracking branch has it. Its `status` SHALL be
 When the agent works in no git repository and the question is about none,
 no repository SHALL be the one the question concerns: filter 1 SHALL search
 only the configured lore repositories, its scope SHALL admit only `global`
-entries, nothing SHALL be logged, no citation SHALL be sent, and a post's
-question SHALL tag no one.
+entries, and no citation SHALL be sent. If the agent asks such a question
+anyway, against *A question is written at the privacy of what it concerns*,
+nothing SHALL be logged and a post's question SHALL tag no one.
 
 #### Scenario: A question outside any repository is answered only from global lore
 
@@ -356,6 +357,14 @@ configured.
 - **THEN** `alice` is the person running the session's login
 - **AND** were `gh` logged in as `bob`, or the configuration to name no
   login, the session would have no login configured
+
+#### Scenario: An agent posting as a GitHub App keeps the configured login
+
+- **WHEN** the configuration's `login` is `alice`, `gh` run as the person
+  is logged in as `alice`, and the agent posts as a GitHub App through the
+  github-app skill
+- **THEN** `alice` is still the person running the session's login, and no
+  login is read from the App's token or from where the agent posts
 
 ### Requirement: Nothing about a repository goes somewhere more visible
 
@@ -826,6 +835,13 @@ configuration or service.
   that starts with `IGOR_RUN`, and no `IGOR_RUN`, or holds `IGOR_RUN=yes`
 - **THEN** the script counts the session as outside any Igor's run
 
+#### Scenario: A headless session without IGOR_RUN searches lore
+
+- **WHEN** a session with no person in it, such as a scheduled agent, runs
+  filter 1 with no `IGOR_RUN` in its environment
+- **THEN** the script counts it as outside any Igor's run, and searches
+  the configured lore clones
+
 ### Requirement: In an Igor's run, filter 1 searches through igor
 
 During an Igor's run, filter 1 SHALL search lore and the questions branch
@@ -1152,8 +1168,7 @@ A reader SHALL take a linked comment to **hold the answer** a log file
 records only when the two whole texts are equal once each is reduced as *A
 question's text and hash are built one way* reduces a question in a post,
 ignoring a leading `User says: ` and a last line `Re: <URL>`. No model
-judges it, and igor's search applies this rule (igor PR #216's decision
-72).
+judges it.
 
 #### Scenario: A relayed comment holds the answer once both texts are reduced
 
@@ -1274,6 +1289,13 @@ answers the file it names.
 - **THEN** that answer file is the named file's answer
 - **AND** for a named file whose `repository` key is `o/api`, the answer
   file counts only when `alice` has write access to `o/api`
+
+#### Scenario: An answer naming one file does not answer another with the same question
+
+- **WHEN** two unanswered questions-branch files hold the same question,
+  and a proven answer file names only the first in `answers`
+- **THEN** that answer file is the first file's answer and not the
+  second's, though the two files' questions have one hash
 
 ### Requirement: A replaced answer file stops counting even in its own hash group
 
@@ -2023,6 +2045,14 @@ hook does when it can't read*).
 - **WHEN** the hook's input is not JSON, or its records cannot be read
 - **THEN** it lets the call through
 
+#### Scenario: A verdict recorded in another repository counts
+
+- **WHEN** the second call recorded `ask` for a question while the agent
+  worked in one repository, and that agent, another session or an Igor
+  worker running under the same HOME then asks the question through the
+  picker from another repository, or from another clone of the same one
+- **THEN** the hook finds the record and lets the call through
+
 ### Requirement: Questions in posts pass the same filters
 
 A `PreToolUse` hook, the **post hook**, SHALL block a post holding a
@@ -2285,8 +2315,8 @@ decide could be found.
 
 ### Requirement: A candidate or login that cannot be checked is skipped
 
-The script SHALL count access it cannot read as none, and SHALL skip a
-candidate whose pull request, approver or GitHub login it cannot find. In
+The script SHALL skip a candidate whose pull request, approver or GitHub
+login it cannot find. In
 tagging and in filter 1's checks of an issue's author or a log file's
 `answered_by`, it SHALL pass to a GitHub API call only a login in GitHub's
 login syntax: 1 to 39 letters, digits and single hyphens, not starting or
@@ -2637,6 +2667,12 @@ a person's answer* rules it out.
   repository while the agent works in a first one
 - **THEN** no log file is written in either repository, and the only record
   is the citation file on the lore repository's questions branch
+
+#### Scenario: A lore entry the search shows but that stops nothing gets no citation
+
+- **WHEN** filter 1's search shows a lore entry for a question, and the
+  agent finds that the entry does not answer it and asks the question
+- **THEN** no citation file is pushed for that entry
 
 ### Requirement: No worker or Igor-started run pushes to a lore repository
 

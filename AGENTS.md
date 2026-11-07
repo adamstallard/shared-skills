@@ -16,8 +16,11 @@
 - **A capability's decision record, or a skill's `DECISIONS.md`, is its
   current reasoning in one place, not a log.** A capability is what one
   spec, `openspec/specs/<capability>/spec.md`, specifies, such as a skill
-  or part of one. It keeps its constraints and rejected alternatives in
-  `openspec/specs/<capability>/decisions.md`, one entry each, with its
+  or part of one. A rejected alternative that a test can check becomes a
+  requirement in that spec, with a scenario the alternative would fail,
+  and so does a constraint, with a scenario that breaking it would fail.
+  The capability keeps the alternatives and constraints no test can check
+  in `openspec/specs/<capability>/decisions.md`, one entry each, with its
   reason, evidence and the paths it governs, in the form shared-skills
   issue #56 sets. A skill with no spec keeps its reasoning in its
   `DECISIONS.md`. While a

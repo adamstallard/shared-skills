@@ -360,7 +360,8 @@ contradicts what design.md assumed.
         - with a github.com `answer_link`, read from the linked comment
           and recorded word for word;
         - with a Linear or Discord `answer_link`, recorded as given, its
-          link never fetched, and only into a private lore repository
+          link never fetched, and only where the lore repository is
+          private; elsewhere the file is written without the link
           (design.md: *Questions-branch answers relayed on Linear or
           Discord*);
         - any other answer a person gave, without an `answer_link`, in
@@ -598,11 +599,10 @@ contradicts what design.md assumed.
         pending list, which reuses the approved queue's screens
         (design.md: *An answer that cannot reach its thread is kept
         pending*)
-      - (d) Any screen Adam approves separately, in any build, is taken
-        from its own approved tag, and goes where that tagged build puts
-        it. The screens `answer-session-ui-approved-v0.1-33` approved this
-        way are: the thread's replies since the question, including when
-        the asker withdraws it; filter 1's recorded answer shown with the
+      - (d) The screens v0.1-33 added to v0.1-30 are taken as that build
+        has them, each in the one place it shows them: the thread's
+        replies since the question, including when the asker withdraws
+        it; filter 1's recorded answer shown with the
         question, a questions-branch question included; and the wording
         and placement of the notice for a post held back because a reply
         arrived
@@ -842,12 +842,17 @@ contradicts what design.md assumed.
       exempt from their trailers, and say in prose's `DECISIONS.md` that
       its file filter skips files under `.inquisitor/` (task 5.6) because
       they are records quoted word for word
-- [ ] 7.2 Write this change's constraints and rejected alternatives from
-      design.md, and any reason longer than a requirement's one sentence,
-      as the decision records `openspec/specs/inquisitor/decisions.md`,
+- [ ] 7.2 Write the decision records
+      `openspec/specs/inquisitor/decisions.md`,
       `openspec/specs/answer-session/decisions.md` and
       `openspec/specs/gh-post/decisions.md`, one per capability, in the
-      form shared-skills issue #56 sets; write no
+      form shared-skills issue #56 sets, holding only what no test can
+      check: each alternative design.md marks *Rejected:*, each
+      constraint and **Accepted:** cost, and each reason longer than the
+      one *because* sentence a requirement may hold. An alternative marked
+      *Ruled out by a scenario:* gets no entry, since its requirement and
+      scenario already hold the rule; only a reason for it longer than
+      that one sentence goes in. Write no
       `.agents/skills/inquisitor/DECISIONS.md`. Point each requirement's
       citation of a task 0.N or of design.md at its measured result or its
       decision record entry. Fold the reasoning for moving prose's post

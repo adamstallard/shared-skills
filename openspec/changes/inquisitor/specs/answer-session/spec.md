@@ -932,6 +932,12 @@ fetch the questions branch of each configured lore repository.
   first time
 - **THEN** it reads that repository's messages from the last 14 days
 
+#### Scenario: Each poll fetches the questions branches
+
+- **WHEN** the answer session polls its channels
+- **THEN** it also fetches the questions branch of each configured lore
+  repository
+
 #### Scenario: Nothing polls without an open answer session in the holder
 
 - **WHEN** Claude Code sessions with the skill are running, and none is
@@ -1235,6 +1241,13 @@ whose file was logged at once, then posted unedited, gets no owed push.
   before pushing the answer file
 - **THEN** at its next opening it pushes the answer file it recorded as
   owed
+
+#### Scenario: A machine that owes no push pushes no file for a relay post
+
+- **WHEN** a machine reads, in the thread a questions-branch file's
+  `asked_in` links, a relay post answering that file's question, holds no
+  owed push for it, and finds no answer file naming that file
+- **THEN** it pushes no answer file for that post
 
 ### Requirement: An owed push with no URL is settled from the thread
 
@@ -1576,8 +1589,8 @@ thread's ids.
 The answer session SHALL hold a lock, a file `lock` in the state folder
 naming its session's id, name, start and whether it is a background
 session; refresh it at least every 30 seconds, stale after 2 minutes
-unrefreshed; and write it atomically, only when absent, stale or taken
-over. A session SHALL open none while another holds a fresh lock, but
+unrefreshed; and write it atomically, only when absent, stale, unparsable
+or taken over. A session SHALL open none while another holds a fresh lock, but
 say which holds it and how to reach it, and offer a takeover. Before
 each poll and post, the holder SHALL close if the lock names another.
 
@@ -1609,6 +1622,12 @@ each poll and post, the holder SHALL close if the lock names another.
 
 - **WHEN** a session crashes while replacing a stale lock
 - **THEN** the lock file holds either the old lock or the new one, whole
+
+#### Scenario: A lock that cannot be parsed is replaced on opening
+
+- **WHEN** the lock file exists but cannot be parsed, and a session opens
+  the answer session
+- **THEN** it replaces the lock with its own, as it would a stale one
 
 ### Requirement: A discussion runs in the session's own conversation
 
@@ -1710,7 +1729,7 @@ lock*), linear-app's and discord-bot's post hooks SHALL block every tool
 call that would post, edit or delete on Linear or Discord, telling
 the model to draft the reply with `propose_reply` for the person to
 confirm. The answer session SHALL send a post the person confirmed
-outside any tool call, so no hook sees it and no further prompt appears.
+outside any tool call.
 
 #### Scenario: The model's own Discord post is blocked
 
@@ -1966,6 +1985,12 @@ closes only the file it names, on every machine, and answers nothing.
   thread holds, and another machine shows the thread copy, for the
   person to decline again
 
+#### Scenario: Dropping a pending answer pushes no handled file
+
+- **WHEN** the person drops a pending answer to a question that a
+  questions-branch file holds
+- **THEN** no handled file is pushed for that file
+
 ### Requirement: A handled file is pushed once its close takes effect
 
 The answer session SHALL push a handled file once its close takes
@@ -2126,6 +2151,12 @@ break, telling the person why.
   holding a line break followed by a `Re: ` line
 - **THEN** the answer session posts nothing, since the `Re: ` line would
   make the fixed post name another question, and tells the person why
+
+#### Scenario: A filter 1 reply whose URL holds a space is refused
+
+- **WHEN** the draft of a filter 1 reply has a `Recorded in: ` value
+  holding a space
+- **THEN** the answer session posts nothing, and tells the person why
 
 ### Requirement: The preview warns when a filter 1 record is more private than the thread
 
