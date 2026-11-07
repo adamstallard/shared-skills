@@ -591,8 +591,11 @@ def view(selector, repo, cwd):
 
 
 def unread(pr):
-    """The changes unread at a pull request's head, from its own commits; None
-    when its commits cannot be fetched."""
+    """Why handing back a pull request would leave its head unread, judged
+    from the pull request's own commits as fetched from GitHub: the changes
+    unread there, or the symlinks under openspec/
+    there, which spec-check does not support; "" when nothing is unread;
+    None when its commits cannot be fetched."""
     m = PR_URL.match(pr["url"])
     number = m.group("number")
     store = str(store_for(m.group("repo")))
@@ -616,20 +619,24 @@ def unread(pr):
         # The viewed head could not be fetched by its id, as when the head moved
         # since gh looked: judge the pull request's ref, what is there now.
         head = head_ref
+    links = sc.openspec_links(store, head)
+    if links:
+        return sc.links_problem(links)
     if not sc.git(store, "ls-tree", "-d", "--name-only", head, "--", "openspec/changes",
                   check=False).stdout.strip():
-        return []
-    return sc.unread_at(store, head, base_ref)
+        return ""
+    changes = sc.unread_at(store, head, base_ref)
+    return f"{', '.join(changes)} changed after its last consistency read" if changes else ""
 
 
 def judge(selector, repo, cwd):
-    """(pull request, [unread change]) for a pull request, or None when it
-    cannot be judged."""
+    """(pull request, why it is unread, or "") for a pull request, or None
+    when it cannot be judged."""
     pr = view(selector, repo, cwd)
     if pr is None:
         return None
-    changes = unread(pr)
-    return None if changes is None else (pr, changes)
+    why = unread(pr)
+    return None if why is None else (pr, why)
 
 
 # -- before the call ----------------------------------------------------------
@@ -644,10 +651,9 @@ def before(reader, payload, host):
             continue
         judged = judge(handback.selector, handback.repo, where(payload))
         if judged and judged[1]:
-            pr, changes = judged
-            lines.append(f"{handback.what}: {', '.join(changes)} in {pr['url']} "
-                         f"(head {pr['headRefOid'][:12]}) changed after its last "
-                         "consistency read.")
+            pr, why = judged
+            lines.append(f"{handback.what}: in {pr['url']} (head {pr['headRefOid'][:12]}), "
+                         f"{why}.")
     return lines
 
 
@@ -789,14 +795,13 @@ def after(reader, payload, host):
             own = view(handback.selector, handback.repo, cwd)
             if own is None or own["url"] != pr["url"]:
                 return []
-    changes = unread(pr)
-    if not changes:
+    why = unread(pr)
+    if not why:
         return []
     if pr.get("isDraft") and not handback.reviewers:
         return []  # a draft that requested nobody was not handed back
     done = undo(pr, handback, cwd)
-    return [f"{pr['url']} was handed back while {', '.join(changes)} changed after its "
-            f"last consistency read (head {pr['headRefOid'][:12]}); "
+    return [f"{pr['url']} (head {pr['headRefOid'][:12]}) was handed back, but {why}; "
             + "; ".join(done or ["nothing could be undone"]) + "."]
 
 

@@ -12,15 +12,24 @@ The change's files:
 <one path per line: every file under the change's directory, e.g.
 openspec/changes/keep-action-log/proposal.md>
 
+The decision records it must agree with:
+<one path per line, as `spec_check.py records <change>` prints them, or "none">
+
 Read each of these files whole, every line. With the Read tool, page
 through a long file with offset and limit until you reach its end; from a
 ref, read `git show` in pieces with `sed -n` the same way. Do not skim, grep
-or sample them: a problem may sit anywhere in a long delta spec.
+or sample them: a problem may sit anywhere in a long delta spec. Read each
+decision record listed above whole too, from the same place.
 
 Read, in this order:
 
 1. Every file of the change, listed above, whole: proposal.md, design.md if
-   present, tasks.md, and each specs/<capability>/spec.md.
+   present, tasks.md, each specs/<capability>/spec.md, and each
+   specs/<capability>/decisions.md, the change's own decision record.
+   Then each decision record listed above. A record entry under a change's
+   `## Retired` section removes that entry from the main record when the
+   change archives, and one whose kind and title match a main entry
+   replaces it.
 2. Every spec under openspec/specs/ on the base branch:
    `git show <base>:openspec/specs/<capability>/spec.md`. Read all of them,
    not only those the change names.
@@ -52,11 +61,11 @@ Read, in this order:
    docs/architecture.md, ARCHITECTURE.md, docs/design/).
 
 Then go through the checklist below. For a finding that sets the change
-against something else (items 1, 2, 3, 7, 9, 11, 12), quote both sides: the
-change's words with file:line, and the words it conflicts with, with
+against something else (items 1, 2, 3, 7, 9, 11, 12, 14), quote both sides:
+the change's words with file:line, and the words it conflicts with, with
 file:line, PR number or issue number. Such a finding with one quote is a
-guess. A finding about the change alone (items 4, 5, 6, 8, 10, 13) quotes
-the change and says what is missing.
+guess. A finding about the change alone (items 4, 5, 6, 8, 10, 13, 15)
+quotes the change and says what is missing.
 
 1. Contradiction inside the change: two of its rules that cannot both hold
    (a rule that the log keeps no file contents, beside a rule that keeps shell
@@ -70,6 +79,9 @@ the change and says what is missing.
    its requirement's text.
 5. A term used before it is defined, or defined nowhere.
 6. Rationale inside requirement text that is not needed to apply the rule.
+   A requirement holds its SHALL statement plus at most one *because*
+   sentence; longer rationale moves to the change's decision record,
+   specs/<capability>/decisions.md.
 7. A code citation (file:line) that does not point at what it claims on the
    base branch. Open each one: `git show <base>:<path>`.
 8. An unhandled hazard: credentials reachable by repository code; secrets
@@ -91,6 +103,16 @@ the change and says what is missing.
 13. A decision not needed to build the change: one that only records who
     asked what or when, or settles something no requirement, task or other
     decision rests on.
+14. A rule, design or task that brings back an approach a decision record
+    rejects, or breaks a constraint one records while its *Holds while*
+    condition still holds (a change that adds a lookup tool the worker
+    calls, beside a record entry "Rejected: A retrieval tool the worker
+    calls"). Quote the record entry as the other side. A change that means
+    to reverse the entry retires or replaces it in its own decision record.
+15. A rejected alternative or constraint named in design.md that neither
+    the change's own decisions.md nor a main record holds. design.md is
+    archived with the change and never read again, so one that must
+    outlive the change belongs in the record.
 
 Write each finding as:
 

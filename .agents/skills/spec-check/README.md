@@ -30,7 +30,11 @@ When an agent works on anything under `openspec/`, it:
      line is not history, the agent asks you, and only your answer keeps
      it. A kept line is recorded in the change's `.spec-check-kept` file,
      committed with the change, which quotes the line's text. Anyone who
-     runs `check` on the change sees the line as kept, not as an error.
+     runs `check` on the change sees the line as kept, not as an error;
+   - a requirement holding more than its SHALL statement and one *because*
+     sentence (a check, never a failure);
+   - a decision record (below) that departs from its form, or names a path
+     that does not exist.
 
    It also runs `openspec validate --strict` and includes what it reports,
    such as a misspelt section title or a section the archive drops.
@@ -55,9 +59,12 @@ When an agent works on anything under `openspec/`, it:
    with a `stack` error. When a duplicate matches a main requirement that
    an open pull request removes or renames, the error suggests the
    `Builds on:` line to add.
-2. **Has a fresh subagent read the change** against every spec, every other
-   open change, every open pull request touching the same specs, and your
-   architecture docs. Findings come with quotes from both sides. The read
+2. **Has a fresh subagent read the change** against every spec, the
+   decision records of the capabilities it touches, the records whose
+   *Paths* name a file it changes,
+   every other open change, every open pull request touching the same
+   specs, and your architecture docs. It reports a change that brings back
+   an approach a record rejects, or breaks a constraint one records. Findings come with quotes from both sides. The read
    runs once per review round: the agent's work between two hand-backs to
    you for review. A push does not end a round. The read runs before the
    hand-back that ends it. When a pull request is handed back without
@@ -70,6 +77,25 @@ Decisions go in design.md: a change states each one once, as it stands now,
 in design.md's *Decisions*, and keeps proposal.md to OpenSpec's short why and
 what. `check` does not test where a decision sits, but a line recording how
 one was amended is an error.
+
+### Decision records
+
+Each capability can have a **decision record**, by default
+`openspec/specs/<capability>/decisions.md` beside its spec. It holds what no
+requirement can: constraints and rejected alternatives that no test can
+check, such as a cost policy or a choice of tool, and rationale too long for
+a requirement. A rejection a test can check is written as a requirement
+instead. Each entry has a fixed form, with the files or areas it governs
+under *Paths*; SKILL.md, *Decision records*, gives it.
+
+A change writes its new entries in its own `specs/<capability>/decisions.md`.
+OpenSpec ignores that file when it archives the change, so the agent
+archives through spec-check, which folds the entries into the main record
+afterwards:
+
+```bash
+python3 ~/.agents/skills/spec-check/scripts/spec_check.py archive my-change
+```
 
 Each commit that changes `openspec/` carries a `Spec-check:` trailer, such as
 `Spec-check: ✓ 4d593e935186 0 errors, 2 checks; validate passed; read by a
@@ -98,9 +124,19 @@ spec-check needs OpenSpec 1.15.0 or later on `PATH` (`npm install -g
 through the OpenSpec CLI only. Without that version, the checks on
 requirements are reported as not run.
 
-Nothing needs setting up per repository. spec-check reads no
-`openspec/spec-check.yaml`, a file earlier versions wrote; if your repository
-has one, delete it.
+Nothing needs setting up per repository. To keep decision records somewhere
+other than beside each spec, write `openspec/spec-check.yaml` with one line:
+
+```yaml
+decision-records: openspec/decisions/<capability>/decisions.md
+```
+
+The path must be under `openspec/` but not under `openspec/changes/`, hold
+`<capability>` as a folder of its own, and end in a fixed `.md` file name.
+Every file the path matches is read as a record, so a name that varies
+would match ordinary docs too. An older spec-check wrote a
+`decisions-first:` line into the same file; delete it, since nothing reads
+it.
 
 ## Examples of what to say
 
@@ -246,6 +282,16 @@ there it fails the check without making a draft.
   your change needs, or ask its author to stack it on the earlier one.
 - **`check` says a pull request holds no change of that name.** The
   `Builds on:` line names the wrong change or the wrong pull request.
+- **A `record` error says a path in *Paths* matches nothing.** The
+  file or directory moved or is gone. In a main record, fix the path, or
+  retire the entry if it no longer governs anything: list its title under
+  `## Retired` in a change's own `specs/<capability>/decisions.md`. In a
+  change's own record it is only a check, since the implementation may add
+  the file.
+- **`spec_check.py archive` says nothing was archived.** A decision record
+  could not be folded: the change's record departs from its form, retires
+  an entry the main record lacks, or the main record itself departs from
+  its form. Fix it and run it again; the change was left in place.
 - **`check` says it cannot read a pull request's full file list.** `gh`
   lists only the first 100 files, and reading the rest from GitHub failed.
   Check that `gh` is signed in and run it again.

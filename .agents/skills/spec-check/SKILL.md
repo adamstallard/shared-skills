@@ -78,6 +78,9 @@ run, and a stacked change gets a `stack` error.
 | `drift` | error, or check | A stacked change disagrees with what its dependencies now say. See [Stacked changes](#stacked-changes) |
 | `evolution` | error | A line in the change's files records history, not what holds now (see [Decisions and open questions](#decisions-and-open-questions)). It quotes the line. Text in a code fence, backticks or double quotes is skipped |
 | `kept` | error, or check | An entry in a change's `.spec-check-kept` file is malformed, unasked or stale, or the file cannot be read. See [Keeping a line the evolution check flags](#keeping-a-line-the-evolution-check-flags) |
+| `rationale` | check | A requirement in a change holds more than its SHALL statement and one *because* sentence. Move the rest to the change's own `specs/<capability>/decisions.md` (see [Decision records](#decision-records)) |
+| `record` | error, or check | Error: a decision record departs from its form, or a change's record retires an entry the main record lacks. A path in *Paths* that the tree lacks is an error in a main record, and a check in a change's own record, since the implementation may add it. Check: *Because* or *Lost because* holds more than one sentence, or *Evidence* or *Lost because* has no link |
+| `config` | error, or check | `openspec/spec-check.yaml` holds a line, key or path spec-check cannot use; spec-check then uses the default location. `decisions-first:`, which no spec-check reads, is a check |
 
 A **check** is a heuristic: judge it, and fix it or leave it. An `openspec
 archive` or `openspec validate` result of "not run" means it was not
@@ -213,19 +216,24 @@ amended, 0 open`. After the read, run it again with those counts (see
 
 For each due change, start a general-purpose subagent (not Explore) that
 did not write the change, with [consistency-read.md](consistency-read.md)
-as its brief and its four placeholders filled in: the change's directory,
+as its brief and its five placeholders filled in: the change's directory,
 where to read it from (the working tree, or the pull request's branch), its
-base branch, and every file under the change's directory (`git ls-files
+base branch, every file under the change's directory (`git ls-files
 openspec/changes/<change>`, or `git ls-tree -r --name-only <ref>
-openspec/changes/<change>`). Keep the brief's instruction to read each
+openspec/changes/<change>`), and the decision records it must agree with,
+as `python3 "$SC/spec_check.py" records <change>` prints them (add `--ref
+<ref>` for a branch): each touched capability's main record, and each record
+whose *Paths* match a file the branch changes. Keep the brief's instruction to read each
 listed file whole, paging long files, never skimming, grepping or sampling:
 a problem may sit anywhere in a long delta spec. Don't paste the files or
 add your own summary of the change: what you would say is what the read
 checks.
 
-The subagent reads the change against every spec on the base branch, every
-open change, every open pull request touching the same specs, and the
-repository's architecture docs, quoting both sides of each finding. For a
+The subagent reads the change against every spec on the base branch, the
+decision records listed, every open change, every open pull request
+touching the same specs, and the repository's architecture docs, quoting
+both sides of each finding. It reports a change that brings back a rejected
+approach or breaks a recorded constraint. For a
 stacked change, main plus the dependencies is the base.
 
 If no subagent can be started in this environment, do the read yourself from
@@ -247,10 +255,75 @@ that the author did it.
 
 Run the mechanical checks again after amending.
 
+## Decision records
+
+**What a requirement cannot hold goes in its capability's decision
+record:** constraints and rejected alternatives that no test can check,
+such as a cost policy or a choice of tool, and rationale longer than a
+requirement's one *because* sentence. A rejection or constraint that a test
+can check is a requirement instead, with a scenario the rejected approach
+would fail, under the requirement it would break. Each entry is stated as
+it stands now, with no history.
+
+```markdown
+# <capability>: constraints and rejected alternatives
+
+## Constraints
+- **Constraint: <the rule, in the words a proposal would use>.**
+  Because: <one sentence>.
+  Evidence: <a failure, a measurement (value, how, date) or an outside fact>, <link>
+  Holds while: <the condition that would retire it>.
+  Paths: <files or areas it governs>
+
+## Rejected
+- **Rejected: <the approach, named as someone would propose it>.**
+  Facing: <the problem it tried to solve>.
+  Lost because: <one sentence>, <link>.
+  Instead: <what was chosen>.
+  Paths: <files or areas it governs>
+```
+
+*Paths* is a comma-separated list of files, directories (`src/store/`) or
+globs (`src/**/*.go`). A part may wrap onto indented lines.
+
+- **Where.** The main record is at `openspec/specs/<capability>/decisions.md`,
+  unless `openspec/spec-check.yaml` says otherwise, in one line:
+  `decision-records: openspec/decisions/<capability>/decisions.md`. The
+  path must be under `openspec/`, outside `openspec/changes/`, with
+  `<capability>` as a folder of its own and a fixed `.md` file name after
+  it; every file it matches is a record. spec-check refuses any symlink
+  under `openspec/`.
+  For a stacked change, `check` folds
+  each dependency's own record in first, as it does with the specs.
+- **In a change.** Write new or changed entries in the change's own
+  `specs/<capability>/decisions.md`, in the same form, whatever the main
+  record's location. An entry whose kind and title match a main entry
+  replaces it. To retire a main entry, list its bold line alone under a
+  `## Retired` section. The file is one of the change's files: editing it
+  makes the change due for a read, and the `evolution` check reads it.
+- **At archive**, OpenSpec ignores a change's `decisions.md`, so archive
+  through spec-check, which folds the records in after `openspec archive`
+  succeeds:
+
+  ```sh
+  python3 "$SC/spec_check.py" archive <change>   # [-- <openspec archive arguments>]
+  ```
+
+  It always passes `--yes`, so OpenSpec never prompts. With
+  `-- --skip-specs`, the records are left alone along with the specs.
+  A replaced entry keeps its place, a new one goes at the end of its
+  section, and a record left with no entry is deleted. Nothing is archived
+  when a record cannot be folded: fix the record. Nothing is archived
+  either while a change it builds on is still open in the tree: archive
+  that dependency first.
+
 ## Decisions and open questions
 
 A change states each decision once, as it stands now, in design.md's
-*Decisions* section, and each undecided item in its *Open Questions*. Both are
+*Decisions* section, and each undecided item in its *Open Questions*.
+design.md is archived with the change and never read again, so a
+constraint or rejected alternative that must outlive the change also goes
+in its decision record (see [Decision records](#decision-records)). Both are
 sections OpenSpec's instructions for design.md name; create design.md when the
 change has none. When a decision changes, rewrite its entry: keep no record of
 how it was amended. Git and pull request comments hold the history.
