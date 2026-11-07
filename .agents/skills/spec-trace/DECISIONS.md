@@ -302,16 +302,147 @@ spot such files:
 It would need a list of every runner's configuration file names, which is
 never complete: the problem of finding test files again, in smaller form.
 
-## A code fence closes only with its own kind of line
+## Scenarios are read only through the OpenSpec CLI
 
-**Decision.** Headings inside a code fence are not read, in a spec or in a
-change's delta. A fence opened with backticks or tildes closes only on a
-line of the same character, at least as long, with nothing else on it.
+**Decision.** spec-trace reads specs and deltas only through the public
+commands of the OpenSpec CLI, 1.15.0 or later, as spec-check does:
 
-**Why.** A spec that shows a Markdown example puts it in a `~~~` fence when
-the example itself holds a ```` ``` ```` fence. Closing on any fence line
-would end the example at that inner line, read the example's headings as
-real ones, and then skip the rest of the file as fenced.
+- `openspec show <capability> --json --type spec` for each
+  `openspec/specs/<capability>/spec.md` gives each requirement's name and
+  its scenarios' names.
+- `openspec show <change> --json --deltas-only` for each open change gives
+  what each delta spec adds, modifies, removes and renames. `show` refuses a
+  change whose proposal lacks "Why" or "What Changes", so the change's delta
+  specs are copied into an empty temporary directory beside a stub proposal
+  and read there. A main spec is read the same way, alone in an empty
+  directory, so nothing else in the repository affects the reading.
+- Each reading is kept for the run, keyed by the files' content. `check`
+  reads the specs twice, once alone and once with open changes applied, and
+  still runs `show` once per main spec and once per open change. Up to 8
+  runs of `show` go at once.
+
+spec-trace finds the files by listing directories:
+`openspec/specs/<capability>/spec.md` and
+`openspec/changes/<change>/specs/<capability>/spec.md`, one level deep, with
+`changes/archive/` skipped. What each file holds is decided by `show` alone.
+
+The same files decide which capabilities a tag may name. `check` and plain
+`report` count one capability per main spec file. `report --include-changes`
+also counts one per delta spec file of an open change. When a tag's
+capability is counted but no scenario has the tag's name, the tag fails as
+naming no scenario, never as naming no capability. When a tag's capability is
+not counted, the tag fails as naming no capability. Its message says "under
+openspec/specs" in `check` and plain `report`, and "in openspec/specs or an
+open change" in `report --include-changes`, so it names every place searched.
+
+That holds even for a capability with no scenario left after applying the
+open changes, which `report --include-changes` judges tags against. A change
+can remove a capability's only requirement. A change can also restate the
+only requirement, and `show` can read the restatement with no scenario. So
+the set of capabilities is never built from those scenarios: either case
+would make a capability with a spec file look missing.
+
+Without the CLI, or below 1.15.0, `check`, `report` and `baseline` (with or
+without `--prune`) print `not run: install OpenSpec 1.15.0 or later`, with
+the reason, and exit 2. `state`, `decline` and the hook read no spec, so they
+work without the CLI.
+
+A main spec that `show` cannot read fails `check` with OpenSpec's message,
+and `baseline` writes nothing. Tags and baseline lines naming its capability
+are not judged until it can be read: without its scenarios, calling them
+wrong would tell the author to delete good tags. An open change that `show`
+cannot read also fails `check`, as a problem of its own beside the tags it
+breaks: a tag naming one of its scenarios fails as naming none.
+
+`show` can read less from a delta spec than its author wrote, without an
+error:
+- **No requirement at all**, when the file's only section title is one
+  OpenSpec does not know, such as `## ADDED Requirement` (singular).
+- **A requirement with no scenario**, when the delta adds or modifies a
+  requirement whose scenario headings `show` does not read, such as
+  `#### Scenario: Fresh` with no text under it.
+
+A tag naming a scenario written there then fails as naming no scenario. When
+the delta was to bring in a new capability and `show` read none of its
+requirements, `check` and plain `report` fail the tag as naming no capability
+instead, since they count only main spec files as capabilities. Either message
+points the author at the tag instead of the file. So when a tag names no
+scenario, or no capability, and its capability has such a delta spec, the
+tag's message says what `show` read in which file, and to run `openspec
+validate <change> --type change`, which explains the cause. spec-trace says
+this itself because it cannot count on spec-check being installed.
+
+**Why.**
+- **A hand-written reader drifts from OpenSpec.** One that matches a
+  section by its prefix counts `## MODIFIED Requirements:`, a title OpenSpec
+  ignores. It also has to know that OpenSpec drops a heading's closing `#`s
+  from a scenario's name, and skips a scenario heading with no text under
+  it. spec-check's hand-written readers kept producing bugs of this kind,
+  which is why spec-check moved to the CLI first.
+- **A tag must name a scenario exactly as archiving its change writes it
+  into `openspec/specs/`.** Only OpenSpec's own reading says what that is.
+- **One minimum for both skills.** `show --json` names requirements and
+  scenarios from 1.14.0, but spec-check needs 1.15.0, so one install serves
+  both.
+- **Nothing `check` does is sound without the scenarios.** A partial run
+  could still say whether a tag names a capability directory, but it could
+  never pass, since it cannot tell whether any scenario is untagged. It
+  would report some problems now and the rest once OpenSpec is installed.
+  So these commands refuse whole.
+
+**Rejected:**
+- **Importing OpenSpec's parsers.** They sit outside the package's
+  `exports`, so any release may move or change them.
+- **A fallback reader for older CLIs.** It would run only on machines whose
+  OpenSpec nobody tests against.
+
+**Where it stops.**
+- **A scenario heading with no text under it is not a scenario.** OpenSpec
+  1.15.0 leaves it out of `show`, and `openspec validate --strict` does not
+  report it. So no test needs to tag it, and neither OpenSpec nor
+  spec-trace warns the author that it is not a scenario.
+- **An ambiguous tag gets no note naming a misread delta.** In `report
+  --include-changes`, a tag can fail as ambiguous, its scenario name
+  repeating under two requirements, only because `show` read no requirement
+  in a delta meant to remove one of them, such as one titled `## REMOVED
+  Requirement` (singular). The message lists the two qualified tags and says nothing
+  about the delta. `check` judges tags against the main specs, where the
+  name does repeat, so only `report` is affected.
+- **Nested capabilities are not read.** OpenSpec 1.15 reads
+  `openspec/specs/<area>/<capability>/spec.md` as capability
+  `<area>/<capability>`, but a tag's capability cannot hold a `/`, so
+  spec-trace lists only one level.
+
+## A scenario's line is a text search
+
+**Decision.** `show --json` gives no line numbers. A scenario's line, which
+`check` prints with an untagged scenario and with a repeated name, comes
+from a plain text search for the names `show` gives, with no grammar of
+OpenSpec's headers:
+
+- A requirement is at the first line on which its name follows
+  "Requirement:", compared ignoring case, backticks, `#`s and runs of space,
+  and which no earlier requirement or scenario was given. When several lines
+  match, a line starting with `###` wins over any other, such as a rename's
+  FROM line. Among those, a line naming it exactly wins.
+- A scenario is at the first line after its requirement's, before the next
+  line starting with `## ` or `### `, that starts with `####`, names it with
+  or without "Scenario:", and is not taken by another.
+- Lines inside a code fence are skipped, since OpenSpec reads a fenced
+  heading as text. A fence closes only on a line of its own character, at
+  least as long, with nothing else on it, so a ```` ``` ```` line inside a
+  `~~~` example does not end the example.
+- A scenario the search cannot find is given its requirement's line. When
+  neither is found, the line is 0 and the message names the file only.
+
+**Why.** spec-check's locator first copied OpenSpec's header grammar, and one
+bug-hunter run found 11 bugs, every one that copy disagreeing with OpenSpec
+1.15. A search with no grammar has nothing to drift from. The names, which
+decide what a tag counts for, come from `show`; a wrong guess here only puts
+a message on the wrong line.
+
+**Rejected:** keeping a copy of the header grammar as a best-effort locator,
+for the reason above.
 
 ## The agent asks whether to adopt it, when scenarios are written
 
