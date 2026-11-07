@@ -921,7 +921,7 @@ the same rule `prose compact` follows ("just do it; ask on loss").
 | Event | Detected as | The pass |
 |---|---|---|
 | The implementation is pushed onto a spec branch (gate two of the two-gate workflow, where a specification is approved first and its implementation is then pushed onto the same branch) | the commit hook sees a commit add a file under a `src/` directory while the branch adds or edits an open change (a change folder not yet archived). The branch's changes are found by comparing with the point where it left the base branch, its merge base. On the base branch itself, every open change counts | the change's proposal.md and design.md, and the pull request's body and title, for wording such as "specification only", or "will" for what is now built |
-| A change is archived | the commit hook sees a commit add a folder under `openspec/changes/archive/` | the change's reasoning folded into the DECISIONS.md of each part of the repository it affects (in this repository, each skill), rewriting older reasoning rather than appending to it; then `prose check` on each, compacting any it reports as due |
+| A change is archived | the commit hook sees one commit delete `openspec/changes/<name>/` and add `openspec/changes/archive/<date>-<name>/`, as `openspec archive` does | the change's reasoning folded into the DECISIONS.md of each part of the repository it affects (in this repository, each skill), rewriting older reasoning rather than appending to it; then `prose check` on each, compacting any it reports as due |
 | A pull request is handed back for review | a hand-back, as *One consistency read per round* detects it: prose's hook, after the agent's `gh` or GitHub MCP call that hands back; or spec-check's GitHub Actions workflow, which prints a `::notice::` when every change already has its consistency read, so the hand-back stands | prose's single-pass rule holds doc rewrites back to one pass at the end, before a person reads them; this is that pass: any doc the pull request changes, or its body, that still describes work as unfinished or to come |
 
 **Why.** Keeping proposals, designs and pull request bodies current had
@@ -949,6 +949,36 @@ the moment it is due.
   unsure makes the amend print more: a pass the replaced commit may not
   have printed is printed now rather than lost. With no reflog entry for it, the
   branch rule is used.
+- **A symlinked `openspec` gets one line in place of a pass.** These
+  notices read open changes from a commit's git tree under
+  `openspec/changes/`, and a symlink holds no tree there. The link is never
+  followed, since its target may lie outside the repository or name a path
+  in one checkout only, and then what it holds is not part of the commit.
+  When `openspec` at the root of the commit's tree is a symlink, the hook
+  prints `no current-state notice for this commit: openspec is a symlink,
+  ...`, telling the agent to replace it with a real folder. Saying so
+  matters: a hook that printed nothing would read as "no pass due". The
+  line is printed for each commit that changes the symlink or adds a `src/`
+  file, and not again for an amend of such a commit. Other commits, such as
+  one adding files under the link's target, print nothing.
+- **A branch off a symlinked merge base gets no gate-two pass, and no
+  line.** Which open changes are the branch's is read by comparing them
+  with the merge base, and a merge base holding `openspec` as a symlink has
+  none to compare. Such a branch is the one that replaced the symlink with
+  the folder; its commits on the old layout already got the line, and the
+  silence ends when it merges. This rule covers the current-state notices
+  only: `sign` and the workflow still compare a symlinked merge base's
+  missing `openspec/changes/` as empty, so they count every open change as
+  the branch's.
+- **An archive is the pair `openspec archive` makes.** The archive pass is
+  asked for only when one commit deletes `openspec/changes/<name>/` and adds
+  `openspec/changes/archive/<date>-<name>/`. A commit that only brings
+  archive folders in archives nothing and asks for nothing. Replacing a
+  symlinked `openspec` with the folder is such a commit, whether done at
+  once or spread over several commits, so it starts no pass; any pass missed
+  while `openspec` was a symlink is not asked for later. Neither does archiving a change that was never committed as
+  open, which the two-gate workflow never does, since its spec is committed
+  first.
 - Whether a commit is on the base branch is read from the commit, not from
   HEAD: it is when the local base branch, or the base ref (such as
   `origin/main`), holds it. The hook
@@ -986,12 +1016,6 @@ the moment it is due.
   gate-two notice: when the hook judges the commit, neither the base ref nor
   the local base branch holds it. The library finds new commits in HEAD's
   reflog, and a push adds no entry there for the hook to see. Committing and pushing in one command gets the notice.
-- **A repository whose `openspec` is a symlink gets no gate-two or archive
-  notice.** Open changes and archived folders are read from the commit's
-  git tree under `openspec/changes/`, as the hand-back check reads them, and
-  a symlink holds no tree there. The trailer check still judges a commit
-  that changes the symlink (*Only commits that change `openspec/` are
-  judged*).
 - The archive pass is printed for the commit that archives, in the clone
   where it is made. A merge that brings an archive in is not that commit,
   and prints nothing.

@@ -3308,14 +3308,43 @@ SHOWN_SRC = 3
 HANDBACK_PASS = (f"{PASS_DUE} each doc the pull request changes, and its body and title. "
                  "It was handed back for review: flag and fix any that still describes "
                  "work as unfinished or to come.")
+# Printed in place of any pass for a commit that changes a symlinked openspec
+# or adds a src/ file (link_judged), since a symlink holds no tree to read
+# changes from. Its target is never read (DECISIONS.md, "Events start a
+# current-state pass", says why).
+SYMLINK_NOTE = ("no current-state notice for this commit: openspec is a symlink, and "
+                "spec-check reads changes only from a real openspec folder. Replace the "
+                "symlink with the folder.")
 
 
 def added_paths(repo, sha):
     """The paths a commit adds, against its first parent, renames read as an
     addition and a deletion."""
+    return changed_paths(repo, sha, "A")
+
+
+def changed_paths(repo, sha, status):
+    """The paths a commit changes with a git status letter (A, D, ...) against
+    its first parent, renames read as an addition and a deletion."""
     out = git(repo, "diff-tree", "--no-commit-id", "--name-only", "--no-renames",
-              "--diff-filter=A", "-r", "-z", "--root", sha, check=False)
+              f"--diff-filter={status}", "-r", "-z", "--root", sha, check=False)
     return [p for p in out.stdout.split("\0") if p] if out.returncode == 0 else []
+
+
+def openspec_is_link(repo, treeish):
+    """Whether openspec at the root of a tree is a symlink: git's mode for a
+    symlink is 120000. Its target is never read, since it may lie outside
+    the repository."""
+    out = git(repo, "ls-tree", "--full-tree", treeish, "--", "openspec", check=False)
+    return out.returncode == 0 and out.stdout.startswith("120000 ")
+
+
+def link_judged(repo, sha):
+    """Whether a commit in a tree whose openspec is a symlink gets
+    SYMLINK_NOTE: it changes the symlink or adds a src/ file, the commits
+    that a real folder would have had checked for a pass."""
+    return "openspec" in changed_paths(repo, sha, "ACDMRT") or any(
+        SRC_PATH.search(p) for p in added_paths(repo, sha))
 
 
 def amended_from(repo, sha):
@@ -3370,8 +3399,15 @@ def commit_passes(repo, sha, base_ref):
     the key names the pass, ("archive", folder) or ("change", name)."""
     added = added_paths(repo, sha)
     passes = []
+    # An archive is the pair `openspec archive` makes in one commit: the
+    # change's folder deleted, and archive/<date>-<name>/ added. A folder
+    # merely brought in, as when a symlinked openspec becomes a real one,
+    # deletes no change.
+    removed = {p.split("/")[2] for p in changed_paths(repo, sha, "D")
+               if p.startswith("openspec/changes/") and p.count("/") >= 3}
     archived = sorted({p.split("/")[3] for p in added
-                       if p.startswith("openspec/changes/archive/") and p.count("/") >= 4})
+                       if p.startswith("openspec/changes/archive/") and p.count("/") >= 4
+                       and ARCHIVE_DATE.sub("", p.split("/")[3]) in removed})
     for folder in archived:
         name = ARCHIVE_DATE.sub("", folder)
         passes.append((("archive", folder), set(), (
@@ -3384,6 +3420,10 @@ def commit_passes(repo, sha, base_ref):
         return passes
     tree = git(repo, "rev-parse", f"{sha}^{{tree}}").stdout.strip()
     start = None if base_ref == "HEAD" else merge_base_tree(repo, sha, base_ref)
+    if start is not None and openspec_is_link(repo, start):
+        # The merge base's changes cannot be read, so no gate-two pass, and
+        # no line: archive passes found above still stand.
+        return passes
     shown = ", ".join(src[:SHOWN_SRC]) + (f" and {len(src) - SHOWN_SRC} more"
                                           if len(src) > SHOWN_SRC else "")
     for c in sorted(open_changes(repo, tree)):
@@ -3408,14 +3448,24 @@ def cmd_pass_due(args):
     if out.returncode != 0:
         raise Fatal(f"no commit {args.sha}")
     sha = out.stdout.strip()
+    if openspec_is_link(repo, sha):
+        # Once per judged commit: an amend of a commit that would have
+        # printed SYMLINK_NOTE too prints nothing.
+        amended = amended_from(repo, sha)
+        if link_judged(repo, sha) and not (
+                amended and openspec_is_link(repo, amended) and link_judged(repo, amended)):
+            print(SYMLINK_NOTE)
+        return 0
     base_ref = args.base or default_base(repo)
     # On the base branch every open change counts as the branch's, as
-    # spec_check.py's sign command counts them.
+    # spec_check.py's sign command counts them, so the hook and sign agree.
+    # base_ref "HEAD" marks that case below; holders stays empty when it is
+    # given as HEAD already.
     # Judged by the commit, not HEAD: the hook runs after the whole command,
     # and `git commit && git checkout main` leaves HEAD on another branch.
     # The commit is on the base branch when the local base branch or base_ref
-    # holds it: after
-    # `git push origin HEAD:main`, only the remote's copy does.
+    # holds it: after `git push origin HEAD:main`, only the remote's copy
+    # does.
     branch_ref = base_ref
     branch = branch_of(repo, base_ref) if base_ref != "HEAD" else None
     holders = [base_ref] + ([f"refs/heads/{branch}"] if branch else []) \

@@ -6488,6 +6488,103 @@ class PassDueTests(unittest.TestCase):
         self.repo.git("commit", "-q", "--amend", "--no-edit")
         self.assertNotIn("current-state pass due for:", self.hook().stderr)
 
+    def test_a_symlinked_openspec_says_once_why_no_pass_is_given(self):
+        # A symlinked openspec holds no tree to read changes from, so the hook
+        # prints the note, once per commit, for each commit that changes the
+        # symlink or adds a src/ file. Printing it makes the hook exit 2.
+        note = ("no current-state notice for this commit: openspec is a symlink, and "
+                "spec-check reads changes only from a real openspec folder. Replace "
+                "the symlink with the folder.")
+        self.repo.git("mv", "openspec", "real")
+        self.repo.write("real/changes/good/proposal.md", GOOD_PROPOSAL)
+        os.symlink("real", self.repo.path / "openspec")
+        self.commit("Link openspec")
+        r = self.hook()
+        self.assertEqual(r.stderr.count(note), 1, r.stderr)
+        self.commit("Build it", "src/store.py", "src/more.py")
+        r = self.hook()
+        self.assertEqual(r.returncode, 2, r.stderr)
+        self.assertEqual(r.stderr.count(note), 1, r.stderr)
+        self.assertNotIn("current-state pass due for:", r.stderr)
+        # A path under the target changes neither the symlink nor a src/
+        # file, so it gets no note.
+        self.commit("Archive it", "real/changes/archive/2026-01-01-old/proposal.md")
+        self.assertNotIn(note, self.hook().stderr)
+        self.commit("Unrelated", "docs/readme.md")
+        self.assertNotIn(note, self.hook().stderr)
+        self.repo.write("src/app.py", "edited\n")
+        self.commit("Edit only")
+        self.assertNotIn(note, self.hook().stderr)
+
+    SYMLINK_NOTE = "no current-state notice for this commit: openspec is a symlink"
+
+    def link_openspec(self, target, folder):
+        # Moves openspec to folder, adds an open change and an archive there,
+        # makes openspec a symlink pointing at target, commits and runs the
+        # hook.
+        self.repo.git("mv", "openspec", folder)
+        self.repo.write(f"{folder}/changes/good/proposal.md", GOOD_PROPOSAL)
+        self.repo.write(f"{folder}/changes/archive/2026-01-01-old/proposal.md", GOOD_PROPOSAL)
+        os.symlink(target, self.repo.path / "openspec")
+        self.commit("Link openspec")
+        self.hook()
+
+    def test_amending_a_commit_under_a_symlinked_openspec_says_nothing_more(self):
+        # The note is printed once per judged commit, not again for its amend.
+        self.link_openspec("real", "real")
+        self.commit("Build it", "src/b.py")
+        self.assertIn(self.SYMLINK_NOTE, self.hook().stderr)
+        self.repo.git("commit", "-q", "--amend", "-m", "Build it (reworded)",
+                      "--trailer", "Spec-check: skipped (test)")
+        self.assertNotIn(self.SYMLINK_NOTE, self.hook().stderr)
+
+    def test_replacing_the_symlink_with_the_folder_starts_no_archive_pass(self):
+        # The archive folders the target already held are brought in, not
+        # archived: no change folder is deleted.
+        self.link_openspec("real", "real")
+        self.repo.git("rm", "-q", "openspec")
+        self.repo.git("mv", "real", "openspec")
+        self.commit("Replace the symlink with the folder")
+        self.assertNotIn("current-state pass due for:", self.hook().stderr)
+        self.assertEqual(self.pass_due().stdout, "")
+
+    def test_moving_the_target_in_after_removing_the_symlink_starts_no_archive_pass(self):
+        # The same over two commits: the second commit's parent holds no
+        # openspec, so nothing under openspec/changes/ is deleted.
+        self.link_openspec("real", "real")
+        self.repo.git("rm", "-q", "openspec")
+        self.commit("Drop the symlink")
+        self.repo.git("mv", "real", "openspec")
+        self.commit("Move the folder in")
+        self.assertEqual(self.pass_due().stdout, "")
+
+    def test_a_branch_off_a_symlinked_base_asks_for_no_gate_two_pass(self):
+        # The merge base's changes cannot be read through a symlink, so which
+        # changes are the branch's cannot be told.
+        self.link_openspec("real", "real")
+        self.repo.git("checkout", "-q", "-b", "feat")
+        self.repo.git("rm", "-q", "openspec")
+        self.repo.git("mv", "real", "openspec")
+        self.commit("Replace the symlink with the folder")
+        self.commit("Build", "src/a.py")
+        self.assertEqual(self.pass_due().stdout, "")
+        self.repo.write("openspec/changes/good/design.md", "## Decisions\n\nNone.\n")
+        self.commit("Design good, and build more", "src/b.py")
+        self.assertEqual(self.pass_due().stdout, "")
+
+    def test_a_replacement_through_a_partial_folder_starts_no_archive_pass(self):
+        # As in the replacements above, no archive pass when a real openspec
+        # holding only specs comes first and the changes move in after.
+        self.link_openspec("real", "real")
+        self.repo.git("rm", "-q", "openspec")
+        (self.repo.path / "openspec").mkdir()
+        self.repo.git("mv", "real/specs", "openspec/specs")
+        self.commit("Move the specs in")
+        self.assertEqual(self.pass_due().stdout, "")
+        self.repo.git("mv", "real/changes", "openspec/changes")
+        self.commit("Move the changes in")
+        self.assertEqual(self.pass_due().stdout, "")
+
     def test_a_handed_back_pull_request_gets_the_notice_in_ci(self):
         self.spec_branch()
         tmp = pathlib.Path(tempfile.mkdtemp(prefix="spec-check-ci-")).resolve()
