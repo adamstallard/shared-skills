@@ -46,8 +46,21 @@ turns the intent on. `null` means
 as the `invite-url` command to run or the config value to correct. When
 `defaultChannel` holds it, the bot can't post to its default channel yet.
 
-If it fails with "no bot token", the bot isn't set up on this machine. Point the
-user at the skill's README; don't try to find a token yourself.
+If it fails with "no bot token", the bot has no token on this machine. Give the
+user the command that stores one, with their identity in place of `<name>` and
+the path `$D` holds in place of the example's:
+
+```
+! python3 ~/.claude/skills/discord-bot/scripts/discord_bot.py --identity <name> store-token
+```
+
+In Claude Code, a message that starts with `!` runs as a shell command in the
+user's own session. The command prompts for the token without echoing it and
+checks it with Discord. If the `!` form doesn't prompt, the user runs the same
+command, without the `!`, in a separate terminal. Once they say it's done, run
+`check`. Never ask for the token, read it or type it yourself. If the user
+says they haven't created the bot yet, point them at the README's setup
+instead.
 
 ## Which bot
 

@@ -61,8 +61,19 @@ On your own machine, keep it in the keychain:
 python3 ~/.agents/skills/discord-bot/scripts/discord_bot.py --identity acme store-token
 ```
 
-It asks for the token without echoing it, and stores it under service
-`discord-bot`, account `acme`.
+It asks for the token without echoing it and checks it with Discord before
+storing it under service `discord-bot`, account `acme`. The output's `bot`
+field names the bot the token belongs to. If that is a different bot, you
+copied another bot's token: run `store-token` again with the right one.
+
+If Discord rejects the token, nothing is stored. The usual cause is pasting
+the Client Secret or the Public Key, from other tabs of the developer portal,
+instead of the bot token.
+
+To delete a stored token, run `forget-token` the same way. It says if nothing
+was stored. If `DISCORD_BOT_TOKEN` or `DISCORD_BOT_TOKEN_FILE` supplies a token
+for that identity, it warns you: the bot keeps using that token until you
+unset the variable.
 
 On a server or in a container, give each bot's process its token in its own
 environment instead, for example a systemd `EnvironmentFile` or a Docker env
@@ -197,6 +208,18 @@ line.
 identity name too: without `--identity` or `DISCORD_BOT_IDENTITY`, it's
 `default`. If the error says the token in the environment belongs to another
 identity, that token is another bot's; give this identity its own.
+
+**"Discord rejected the token entered"** from `store-token`: what you pasted
+isn't a bot token. Copy it from the developer portal's **Bot** tab, after
+**Reset Token**; the Client Secret and Public Key are not it.
+
+**Rotating a token.** On the developer portal's **Bot** tab, click **Reset
+Token**. Run `store-token` and paste the new token; it replaces the stored one,
+so `forget-token` isn't needed first. Then run `check`. Resetting stops the old
+token at once, so every machine and server using it needs the new one: on a
+server, put it in the bot's environment file or token file.
+Discord also resets a bot's token when it finds the token in a public GitHub
+repository.
 
 **"the bot is not in any server"** or **"no text channel #… that the bot can
 see"**: the bot hasn't been added to that server, or the channel is private and

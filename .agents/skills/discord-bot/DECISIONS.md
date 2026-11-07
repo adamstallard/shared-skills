@@ -395,6 +395,53 @@ On Linux, `secret-tool` asks once and stores all of its standard input as
 the secret, so the one-copy case can't arise there, and `store-token`
 doesn't read the token back.
 
+## `store-token` checks the token with Discord before storing it
+
+**Decision.** `store-token` calls `GET /users/@me` with the token entered
+before writing anything. If Discord answers 401, it stores nothing and says
+the value isn't a bot token, naming the Client Secret and Public Key, which
+the developer portal shows on other tabs. Any other failure, such as no
+network, also stores nothing and says the token could not be checked. So
+does an answer that names no bot. On success, the output's `bot` field holds
+the bot's username. A token that is not printable ASCII without spaces is
+refused before the request: Python's HTTP library would reject it with an
+error that quotes the token. On macOS, the read-back in the entry above still
+runs after the token is stored.
+
+**Why.** A wrong value stored without a check fails later, in whichever
+command runs next, as a bare 401 far from where it was pasted. A valid token
+pasted under the wrong identity passes any check of the token alone; printing
+the bot's name lets the user see that it is the wrong bot.
+
+**Rejected: storing anyway when Discord can't be reached.** The user is at the
+prompt with the token in hand now; a later failure finds them without it.
+Running `store-token` again once online costs one paste.
+
+**Rejected: checking only the token's format.** Discord doesn't document the
+format, and a Client Secret is printable ASCII too.
+
+## `forget-token` deletes the identity's entry
+
+**Decision.** `forget-token` deletes the entry `keychain_entry()` names, with
+the config's `keychain` override applied: `security delete-generic-password`
+on macOS, `secret-tool clear` on Linux. `"removed": false` and a warning say
+when nothing was stored. After a deletion it reads the entry again and warns
+if another keychain still holds a match, because `security` deletes only the
+first. It also warns when the environment's token belongs to this identity,
+since that token keeps working.
+
+**Why.** Without it, removing a token means knowing the service and account
+names and the platform's tool. A user rotating a leaked token, or retiring a
+bot, needs it gone in one step.
+
+`secret-tool clear` exits 0 whether or not anything matched, so on Linux
+`forget-token` runs `secret-tool lookup` first to tell the two apart. On macOS
+no lookup is needed: `security delete-generic-password` exits 44 when nothing
+matches.
+
+**Rejected: deleting every matching entry in a loop.** A match in another
+keychain may belong to something else; the warning lets the user decide.
+
 ## Output is JSON with fixed exit codes
 
 **Decision.** One JSON object on standard output, with `ok`; exit status 0
