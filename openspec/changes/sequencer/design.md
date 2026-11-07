@@ -60,11 +60,13 @@ commands:
   inputs and, for each pair of open changes, the names written in
   backticks in both changes' `tasks.md` files, to help the model step. It
   edits nothing.
-- `publish [--code-edges FILE] [--decide '#<n> first' --by <login>]`
+- `publish [--code-edges FILE] [--decide '#<n> first' --by <login>]
+  [--reviewers <login>,...]`
   computes the order and edits the order's issue and the items' bodies. It
   takes the model step's edges from `FILE`, which carries the inputs hash
   `order` printed, and records a person's choice in a cycle given with
-  `--decide`.
+  `--decide`. A caller with its own reviewer list passes it with
+  `--reviewers`.
 - `setup-ci [--model-step none|api-key|igor] [--force]` writes the workflow
   template.
 
@@ -138,6 +140,23 @@ whichever member archives first cites a requirement not yet in force, and
 only a person may accept that gap (igor#231, decision 3). Once a person
 chooses, the chosen member's reason links the answer.
 
+**The order's issue body keeps the list of decided cycles, and the
+sequencer checks that list before asking,** as the inquisitor's filter 1,
+already answered, checks for an earlier answer. So a decided cycle is not
+asked again. A run with no model can judge no free-text answer, so each
+question offers its members as options labelled `#<n> first`. A run counts
+a comment on the order's issue as the answer when it was posted after the
+cycle's question and starts with one of those labels. The comment must
+come from a person with write access, or from their relay App, the bot
+that posts a person's answers for them; for a relay App, only the text
+after its `User says: ` line is read. In a session, the agent records the
+answer the person gave through the picker, the host's question tool, with
+`publish --decide`.
+
+The decided cycles are kept in the order's issue rather than in a committed
+file, as the inquisitor keeps a repository's answers, because the order's
+issue has no branch to commit a file to.
+
 - *Ruled out by a scenario:* choosing by number or age (*A cycle is asked
   about, never chosen*).
 
@@ -179,11 +198,13 @@ text in the same body.
 - *Ruled out by a scenario:* stamping each block with the date of the last
   run (*A block is rewritten only when the order or its reasons change*).
 
-### Without OpenSpec, explicit links and overlapping files
+### Explicit links and overlapping files, in every repository
 
-**A repository without OpenSpec gets an order from explicit links and
-overlapping files, and the order says dependencies between requirements
-were not checked** (#43). Overlapping files give merge waits, so each later
+**Explicit links and overlapping files order work in every repository,
+whether or not it has OpenSpec changes,** since an OpenSpec repository
+still has issues with no change yet and code pull requests that overlap. A
+repository without OpenSpec gets its order from them alone, and the order
+says dependencies between requirements were not checked (#43). Overlapping files give merge waits, so each later
 pull request rebases once, onto the one merged before it, rather than after
 every merge. A merge wait follows the order the other rules and the
 tiebreak give, and never changes it.
@@ -197,6 +218,71 @@ the caller passes, such as an Igor's `reviewers`; with none, each pull
 request's requested reviewers; and when it requests no one, the CODEOWNERS
 file (#43). A draft is not offered for review, since its author has not
 handed it over yet.
+
+### Which issues the order holds
+
+**The order holds every open pull request, and only the issues that an
+explicit link, or a closing reference such as a pull request's `Fixes #n`,
+connects to another item.** Every
+open issue in a large repository would otherwise get a block, most with no
+rule placing them.
+
+### Items no rule orders go lowest number first, unasked
+
+**Among items no rule orders, the lowest number goes first, and nobody is
+asked, for every caller, Igor's Sequencer included.** The order needs a
+deterministic tiebreak, nearly every pair of items is unordered, and a
+wrong guess is cheap to reverse. igor#231's decision 3 sends only a
+cycle's order to a person, and says that items the rules leave unordered go
+lowest number first, unasked.
+
+- *Ruled out by a scenario:* asking a person about each unordered pair
+  (*Items no rule orders keep the order they were opened in*).
+
+### The order's issue is found by its label
+
+**The order's issue is the one open issue labelled `sequencer`.** `publish`
+creates it when none is open, and refuses, naming both, when there are
+two. `igor init`, or a person, can then make one by adding the label, and
+no configuration names it.
+
+### Code edges outlast runs with no model
+
+**The order's issue body stores each model-step edge with one hash for each
+of the two changes it joins, of that change's files, and a later run keeps
+the edge while both hashes match.** These per-change hashes keep the order
+steady between a Sequencer Igor's runs where the repository hands it the
+model step. A CI run with no model, after a merge, keeps the code edges
+the Igor found for the changes the merge left unchanged.
+
+**An edges file also carries the inputs hash, a hash of everything `order`
+read to compute the order it was built from, and `publish` refuses the
+file when the inputs it reads hash differently.** This stops a result
+computed before a merge from overwriting the order computed after it. Any
+change to the inputs, such as a newly opened issue, makes a file stale, and
+the model step runs again on the new order. Both hashes adopt igor#231's
+hash recommendation for every caller.
+
+### Three ways Igor uses the skill
+
+**An Igor uses the skill in three ways, and the skill expects of each only
+what it expects of any caller:**
+
+- An Igor's worker may run the skill in its own session, as any agent
+  does. A worker's session has no person in it, so it asks a judgement
+  question in its handback comment, the comment in which its Igor hands
+  the item back to a person, as the inquisitor's *A session with no person
+  in it asks in a post, a handback or nowhere* says.
+- Igor's Sequencer role calls the script, passing the reviewers its
+  configuration lists. Igor's work triage, the step where an Igor chooses
+  which items to take, reads positions from `order --json`.
+- Where a repository hands the model step to an Igor, `publish`, run by
+  the workflow, labels the order's issue `sequencer: check code`. A
+  Sequencer Igor then runs the model step and publishes its edges through
+  the script.
+
+What Igor builds for these, such as claiming the labelled issue, editing a
+body from its loop and gating gate two on the order, is igor#231's.
 
 ### It recommends and never merges
 
@@ -262,61 +348,7 @@ workflow file.
 
 ## Open Questions
 
-Each of these is a design question #43 does not answer. The spec follows
-the recommendation, and each entry names the requirements to change if
-Adam decides otherwise.
-
-- **Where a person's answer to a judgement question is recorded, and how a
-  run with no model checks it before asking again.** The inquisitor's
-  filter 1 prints search hits for a model to judge, and a CI run with no
-  credential has no model. The inquisitor records a repository's answers
-  in files committed with the work, and no branch exists for the order's
-  issue to commit an answer file to. *Recommended:* the order's issue body
-  keeps a list of decided cycles, each naming the member chosen first and
-  linking the answer. The question offers each member as an option
-  labelled `#<n> first`. A run counts as the answer a later comment on the
-  order's issue whose text starts with one of those labels, from a person
-  with write access or from their relay App, the bot that posts a person's
-  answers from their answer session, after its `User says: ` line. In a
-  session, the agent records the picker's answer with `publish --decide`.
-  The sequencer checks that list before asking, as filter 1 checks for an
-  earlier answer, so a decided cycle is not asked again. Built on it: *A
-  cycle a person has decided is ordered as decided*, *A person's choice in
-  a cycle is read from the order's issue*.
-- **Which issues the order holds.** Every open issue in a large repository
-  would get a block, most with no rule placing them. *Recommended:* every
-  open pull request, and each issue that an explicit link or a closing
-  reference connects to another item. Built on it: *The order holds every
-  open pull request and the issues linked to the work*.
-- **Whether explicit links and overlapping files also apply where OpenSpec
-  changes exist.** #43 decides them for a repository without OpenSpec.
-  *Recommended:* yes, in every repository, since an OpenSpec repository
-  still has issues with no change yet and code pull requests that overlap.
-  Built on it: *Explicit links order the items they connect*, *Pull
-  requests that change the same files merge one after another*.
-- **How items the rules leave unordered are placed.** The order needs a
-  deterministic tiebreak, and igor#231's decision 3 names "a choice between
-  two changes the rules leave unordered" as a move needing judgement.
-  *Recommended:* the lowest number goes first, with no question, for every
-  caller, Igor's Sequencer included, since nearly every pair is unordered
-  and a wrong guess is cheap to reverse; only cycles are asked. This reads
-  decision 3 as asking only about cycles, which Adam would need to confirm.
-  Built on it: *Items no rule orders keep the order they were opened in*.
-- **How the script finds the order's issue.** igor#231 leaves open whether
-  `igor init` creates it or the config names it. *Recommended:* the one open
-  issue labelled `sequencer`, which `publish` creates when none is open, so
-  `igor init` can create it by the same label. Built on it: *The whole order
-  lives in one issue's body*.
-- **Whether model-step edges outlast a run that cannot run the model step,
-  and how a stale result is refused.** Otherwise a CI run with no
-  credential would erase, at the next merge, what a session's model step
-  found. For Igor mode, igor#231 recommends that the order carry a hash of
-  its inputs; Adam has not ruled on it. *Recommended:* for every caller,
-  the edges file carries the inputs hash `order` printed, and `publish`
-  refuses it when the inputs it reads hash differently. The order records,
-  with each code edge, one hash for each of the two changes' files, and
-  keeps the edge while both match. Built on it: *A code edge is kept while
-  both changes it joins are unchanged*.
+No design question is open. Three facts are measured before building.
 
 ### Facts measured before building
 

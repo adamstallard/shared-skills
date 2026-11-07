@@ -180,12 +180,20 @@ once, onto the one merged before it.
 
 Among the items whose predecessors are all placed, the lowest-numbered SHALL
 go next, and a cycle SHALL count as one item numbered as its lowest member.
+No caller, an Igor's Sequencer role included, SHALL ask a person about a
+place this tiebreak decides.
 
 #### Scenario: Two unrelated items are placed by number
 
 - **WHEN** no edge connects #20 and #17
 - **THEN** #17 comes before #20, and neither block gives a reason for that
   place
+
+#### Scenario: An unordered pair raises no question
+
+- **WHEN** an Igor's Sequencer role publishes an order in which no edge
+  connects #20 and #17
+- **THEN** no question about their order is posted or asked
 
 ### Requirement: A cycle is asked about, never chosen
 
@@ -443,10 +451,18 @@ order.
 
 ### Requirement: Reviewers come from the caller, else from GitHub's requests, else CODEOWNERS
 
-A pull request's reviewers SHALL be the list its caller passes, such as an
-Igor's configured `reviewers`; with none passed, its requested reviewers on
+A pull request's reviewers SHALL be the list that the caller running the
+script passes with `--reviewers`, such as an Igor's configured `reviewers`,
+each of whom a non-draft pull request they did not author then awaits; with
+none passed, its requested reviewers on
 GitHub; and when it requests no one, the owners the repository's CODEOWNERS
 file gives its changed files.
+
+#### Scenario: A passed list makes each pull request await each reviewer
+
+- **WHEN** a caller passes `--reviewers maya,li`, and `li` authored #97
+- **THEN** #97 awaits `maya`'s review, and every other non-draft open pull
+  request awaits both
 
 #### Scenario: A pull request requesting no one falls back to CODEOWNERS
 
@@ -576,9 +592,8 @@ were not checked.
 Where the repository chose an Igor, `publish`, as the workflow runs it,
 SHALL label the order's issue `sequencer: check code` whenever it publishes
 an order with a pair of changes unchecked. `publish` SHALL remove that
-label when it publishes model-step edges that leave no pair unchecked. A Sequencer Igor
-claims the labelled issue, runs the model step and publishes its edges
-through the script; what Igor builds for that is adamstallard/igor#231's.
+label when it publishes model-step edges that leave no pair unchecked, and
+keep it when it refuses them.
 
 #### Scenario: An unchecked order is labelled for an Igor
 
@@ -592,11 +607,26 @@ through the script; what Igor builds for that is adamstallard/igor#231's.
   every pair of open changes
 - **THEN** the script removes the label `sequencer: check code`
 
+### Requirement: A Sequencer Igor runs the model step on the labelled issue
+
+`publish --code-edges` SHALL take a Sequencer Igor's edges file, from the
+model step it runs on the issue labelled `sequencer: check code`, with the
+same checks as any caller's and no input that only an Igor gives; what Igor
+builds to claim that issue and run the model step is
+adamstallard/igor#231's.
+
+#### Scenario: A stale result from an Igor leaves the label on
+
+- **WHEN** a Sequencer Igor publishes edges computed before a merge that
+  changed the inputs
+- **THEN** `publish` refuses them, and the label `sequencer: check code`
+  stays on the order's issue
+
 ### Requirement: The workflow runs no code from a pull request
 
 The workflow SHALL run only the script, from the shared-skills commit that
-`setup-ci` writes into the template, reading pull requests' files as data, and SHALL NOT check out or run code from a
-pull request's head.
+`setup-ci` writes into the template, reading pull requests' files as
+data, and SHALL NOT check out or run code from a pull request's head.
 
 #### Scenario: A fork's pull request cannot run code with the token
 
@@ -604,6 +634,42 @@ pull request's head.
   a script
 - **THEN** the run reads the pull request's change files as data and runs
   none of its code
+
+### Requirement: An Igor's worker runs the skill in its own session
+
+An Igor's worker SHALL be able to run the skill in its own session as any
+agent does, with `order` and the model step, and SHALL ask a judgement
+question in its handback comment, the comment in which its Igor hands the
+item back, since the inquisitor's *A session with no person in it asks in
+a post, a handback or nowhere* lets an Igor worker ask only there. A
+`publish` that another process runs SHALL accept and apply an edges file a
+worker wrote, while the inputs are unchanged.
+
+#### Scenario: A worker's edges are published by its Igor
+
+- **WHEN** an Igor's worker runs `order` and the model step, writes an
+  edges file, and its Igor runs `publish --code-edges` with that file
+  before any input changes
+- **THEN** `publish` takes the edges
+
+#### Scenario: A worker asks about a cycle in its handback comment
+
+- **WHEN** an Igor's worker running the skill finds an undecided cycle
+- **THEN** it asks which member goes first in its handback comment, and
+  opens no post and calls no picker
+
+### Requirement: Igor's Sequencer role calls the script as any caller does
+
+An Igor's Sequencer role SHALL run the same commands as any caller and get
+the same order for the same inputs; the reviewers it passes with
+`--reviewers` SHALL be the only input it adds.
+
+#### Scenario: The Sequencer role and CI agree
+
+- **WHEN** a Sequencer Igor runs `publish --reviewers maya,li` and the CI
+  workflow runs `publish`, against the same inputs and recorded code edges
+- **THEN** both give the same order, and differ only in the reviewers'
+  next reviews
 
 ### Requirement: The script prints the order for callers without editing anything
 

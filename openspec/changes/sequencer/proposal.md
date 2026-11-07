@@ -40,9 +40,14 @@ Igor's Sequencer role (adamstallard/igor#231).
   repository's API key, or by an Igor.
 
 design.md's *Decisions* gives the reason for each rule, and its *Open
-Questions* lists what shared-skills issue #43 leaves undecided.
+Questions* lists three facts to measure before building.
 `specs/sequencer/decisions.md` holds the constraints and rejected
 alternatives no test can check.
+
+An Igor uses the skill in three ways, each through the same commands as
+any other caller: its worker, the agent an Igor starts to do one item, runs
+it in its own session; its Sequencer role calls the script; and a
+repository's workflow can hand the model step to a Sequencer Igor.
 
 **Out of scope:** what Igor builds for its Sequencer role, igor#231: builders
 claiming work in the order, an approved spec's implementation waiting on
