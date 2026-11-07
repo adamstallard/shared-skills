@@ -1,0 +1,95 @@
+The tasks below are the implementation, built on this branch once Adam
+approves the spec. Every test tags the scenario it checks with `@scenario sequencer:
+<Scenario name>` (spec-trace).
+
+## 0. Measure before building
+
+Record each result in design.md's *Facts measured before building*,
+including a result that contradicts what design.md assumed.
+
+- [ ] 0.1 GitHub's "blocked by" relations of an issue or pull request can
+      be read through its API with a workflow run's `GITHUB_TOKEN`
+- [ ] 0.2 A `pull_request_target` run's `GITHUB_TOKEN`, with
+      `pull-requests: write`, can edit the body of a pull request from a fork
+- [ ] 0.3 `openspec show --json` reads a change's deltas, with each
+      requirement's operation and title, from files fetched from a pull
+      request's head without checking it out
+
+## 1. Reading the repository
+
+- [ ] 1.1 `.agents/skills/sequencer/scripts/sequencer.py`, checked by
+      `pyright --strict`: read the open issues and pull requests through
+      `gh`, with closing references, blocked-by relations, requested
+      reviewers, drafts and changed files
+- [ ] 1.2 Find each open change on the default branch and on each open pull
+      request's head, and the pull request it belongs to
+- [ ] 1.3 Read each change's deltas through the OpenSpec CLI, 1.15.0 or
+      later, and report a missing or older CLI as the spec says
+- [ ] 1.4 Select the issues the order holds, as *The order holds every
+      open pull request and the issues linked to the work* says
+
+## 2. The rules
+
+- [ ] 2.1 Modifies and cites edges, with their reasons
+- [ ] 2.2 Copy duties
+- [ ] 2.3 `Depends on` lines, outside code fences, and blocked-by relations
+- [ ] 2.4 Merge waits between pull requests that change a file in common
+- [ ] 2.5 The topological order with the lowest-number tiebreak, cycles
+      grouped and marked unchosen, decided cycles placed as decided
+- [ ] 2.6 The names both changes' `tasks.md` files hold, for the model step
+- [ ] 2.7 Model-step edges: validate, record with the two changes' hashes,
+      keep or drop them on later runs, and refuse edges computed against
+      other inputs
+- [ ] 2.8 The statements of what the order did not check
+- [ ] 2.9 A test that two runs on the same inputs give byte-identical text
+
+## 3. Publishing
+
+- [ ] 3.1 Find or create the order's issue labelled `sequencer`, and stop on
+      two
+- [ ] 3.2 Write the order's issue and each item's block between the
+      markers, editing a body only when that text changes, and removing
+      the block of an item that leaves the order
+- [ ] 3.3 Name each item whose body could not be edited
+- [ ] 3.4 Each reviewer's next review, with reviewers from the caller,
+      GitHub's requests or CODEOWNERS
+- [ ] 3.5 A test that no command calls a merge, approve, close or reopen
+      API
+- [ ] 3.6 `order --json`, which edits nothing
+
+## 4. Judgement questions
+
+- [ ] 4.1 Put each undecided cycle through the inquisitor as a question the
+      sequencer requires: through the picker in a session, and posted once
+      on the order's issue in CI, with the person-required line and the
+      inquisitor's tag
+- [ ] 4.2 Read a person's choice in a cycle and record it, as *A person's
+      choice in a cycle is read from the order's issue* says, and
+      `publish --decide`
+
+## 5. The CI workflow
+
+- [ ] 5.1 `.agents/skills/sequencer/ci/sequencer.yml`: the triggers, one
+      concurrency group, `pull_request_target` reading pull requests as data,
+      the sequencer script fetched from the shared-skills commit `setup-ci`
+      writes into the template
+- [ ] 5.2 The three model-step choices: none; `ANTHROPIC_API_KEY` through
+      `claude-code-action` in a read-only job; an Igor, through the label
+      `sequencer: check code`
+- [ ] 5.3 `setup-ci [--model-step none|api-key|igor] [--force]`, refusing an
+      existing file without `--force`
+- [ ] 5.4 Run the workflow in this repository
+
+## 6. Docs
+
+- [ ] 6.1 `.agents/skills/sequencer/SKILL.md`: when to run it, the session's
+      model step, and the commands
+- [ ] 6.2 The README's skills table
+
+## 7. Archive
+
+- [ ] 7.1 At archive, spec-check merges this change's decision
+      record, `specs/sequencer/decisions.md`, into
+      `openspec/specs/sequencer/decisions.md`. Move by hand any other
+      lasting reasoning in design.md into that record, as `AGENTS.md` says.
+      Write no `.agents/skills/sequencer/DECISIONS.md`
