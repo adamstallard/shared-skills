@@ -39,6 +39,29 @@
       }
     },
     {
+      "summary": "After a pull request is handed back for review, tells the agent the current-state pass that is due.",
+      "command": "scripts/handback-notice.sh",
+      "events": {
+        "claude": {
+          "event": "PostToolUse",
+          "matcher": "^(Bash|mcp__github__.*|mcp__plugin_.*_github__.*)$"
+        },
+        "cursor": {
+          "event": "postToolUse",
+          "matcher": "Shell"
+        }
+      }
+    },
+    {
+      "summary": "The same after a GitHub MCP call in Cursor (unverified).",
+      "command": "scripts/handback-notice.sh",
+      "events": {
+        "cursor": {
+          "event": "afterMCPExecution"
+        }
+      }
+    },
+    {
       "summary": "Blocks a session's first file write or GitHub post until prose's first call has printed the rules (Claude Code only).",
       "command": "scripts/require-first-call.sh",
       "events": {

@@ -19,6 +19,21 @@ commit_trailer_verify() {
 python3 "${SPEC_CHECK_SCRIPTS:-.}/spec_check.py" verify-commit "$1" "$2"
 }
 
+# Called by the commit-trailer library for each new commit, whatever its
+# trailer: prints `current-state pass due for: ...` when the commit adds a
+# file under a src/ directory while the branch adds or edits an open change
+# (gate two of the two-gate workflow; on the base branch, any open change),
+# or archives a change. pass-due decides which. The two git reads spare starting Python
+# for a commit whose tree has no openspec/changes/, or that adds no src/ file
+# and no archive.
+commit_trailer_notice() {
+git cat-file -e "$1:openspec/changes" 2>/dev/null || return 0
+git -c core.quotePath=false diff-tree --no-commit-id --name-only --no-renames \
+  --diff-filter=A -r --root "$1" 2>/dev/null |
+  grep -qE '(^|/)src/|^openspec/changes/archive/' || return 0
+python3 "${SPEC_CHECK_SCRIPTS:-.}/spec_check.py" pass-due "$1"
+}
+
 commit_trailer_report() {
 REPORT=""
 

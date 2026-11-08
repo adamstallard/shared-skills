@@ -13,15 +13,19 @@
 #                          invalid with the reason on stdout, anything else
 #                          "could not verify", reported as such. A callback
 #                          that exits instead of returning has not answered.
-#                          So does a callback returning non-zero under the
+#                          Nor has a callback returning non-zero under the
 #                          file's own `set -e`, because sh cannot tell that
 #                          return from an aborted command: such a file can
 #                          never report "invalid". The file runs without this
-#                          hook's `set -u`, so it may read unset variables
+#                          hook's `set -u`, so it may read unset variables.
+#                          It may also define commit_trailer_notice <sha>,
+#                          which prints notices about each new commit;
+#                          commit_notice, below, calls it
 #   COMMIT_TRAILER_PATHSPEC  optional: git pathspecs, separated by spaces. When
 #                          set, only a commit that changes a path they match
 #                          needs the trailer; every other commit is not
-#                          judged at all. Unset, every commit needs it
+#                          checked for one, though commit_trailer_notice
+#                          still sees it. Unset, every commit needs it
 #
 # Sourced, not executed, so $0 stays the wrapper: the submodule walk re-invokes
 # $0 and has to come back through the wrapper's configuration.
@@ -497,10 +501,29 @@ touches_pathspec() {   # touches_pathspec <sha>
   [ -n "$changed" ]
 }
 
+# A skill may print notices about a commit, whatever its trailer, by defining
+# commit_trailer_notice <sha> in its report file (DECISIONS.md, "A skill may
+# print notices about a commit"). The file is sourced in a subshell with
+# stderr closed and set -u off, as for commit_trailer_verify, so it cannot
+# break the hook. A notice only advises, so a file or callback that fails
+# prints nothing, and unlike commit_trailer_verify no status marker records
+# how it ended.
+commit_notice() {   # commit_notice <sha>
+  [ -n "$report_file" ] && [ -r "$report_file" ] || return 0
+  (
+    exec 2>/dev/null
+    set +u
+    . "$report_file" >/dev/null || exit 0
+    command -v commit_trailer_notice >/dev/null 2>&1 || exit 0
+    commit_trailer_notice "$1"
+  ) || true
+}
+
 unchecked=""
 unminted=""
 rejected=""
 misplaced=""
+notices=""
 for sha in $authored; do
   # A merge is never reported — `git reset --soft HEAD~1` on one drops the
   # second parent, so the remedy would be actively destructive. Excluding the
@@ -510,6 +533,11 @@ for sha in $authored; do
   case "$(g log -1 --format='%P' "$sha" 2>/dev/null)" in
     *' '*) continue ;;
   esac
+  # Before the pathspec filter: a notice may be about a commit the skill's
+  # trailer does not cover. $() drops the notice's trailing newlines.
+  notice=$(commit_notice "$sha")
+  [ -n "$notice" ] && notices="${notices}${notice}
+"
   if [ -n "$PATHSPEC" ] && ! touches_pathspec "$sha"; then
     continue
   fi
@@ -599,7 +627,14 @@ for sha in $authored; do
   fi
 done
 
-[ -n "$unchecked" ] || [ -n "$unminted" ] || [ -n "$rejected" ] || return 0
+notice_status=0
+if [ -n "$notices" ]; then
+  # A line said for two commits, such as a commit and its amend, is said once.
+  say "$(printf '%s' "$notices" | awk '!seen[$0]++')"
+  notice_status=2
+fi
+
+[ -n "$unchecked" ] || [ -n "$unminted" ] || [ -n "$rejected" ] || return $notice_status
 
 count_unchecked=$(printf '%s' "$unchecked" | grep -c . || true)
 
