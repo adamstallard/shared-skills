@@ -1207,7 +1207,9 @@ dispositions, next section), it checks both, then signs.
 **What it reads, and what it skips.**
 - **Every comment block the change touches, whole,** since a reader meets it
   whole, including a comment on a changed line whose own text did not change.
-  Every doc or spec passage the change adds to. Every post.
+  Every doc or spec passage the change adds to. Every post, except a pull
+  request body posted between two hand-backs for review, which is read cold
+  at the next one (*A pull request body is cold-read at a hand-back*).
 - **No length threshold.** A version reading only texts of three or more
   lines had every one of its bugs in that counting (comment syntax,
   binary-diffed docs, BOMs, UTF-16), and a character count has the same hard
@@ -1654,6 +1656,52 @@ access can forge, as with tokens.
 
 ---
 
+## A pull request body is cold-read at a hand-back
+
+**Decision.** A pull request body gets its cold read when the pull request
+is handed back for review, the moment spec-check also reads a change. It
+gets none at each edit before that, since no person reads those. A
+hand-back is what spec-check's *One consistency read per round* names:
+`gh pr create` unless a draft with no reviewer, `gh pr ready` unless
+`--undo`, `gh pr edit --add-reviewer`, and the GitHub MCP's equivalents. An
+edit in between still gets the rules pass.
+
+- `sign --pass <token> --defer-cold-read` signs without a cold read. Its
+  footer is `prose ✓ <6 hex> (cold read deferred to the hand-back)`, and
+  the hash covers a fixed prefix before the body, so cutting the note off by
+  hand leaves a footer that does not match.
+- The posting hook accepts that footer only on a pull request body posted
+  by a call that is not a hand-back: `gh pr create --draft` with no
+  reviewer, `gh pr edit` without `--add-reviewer`, or the MCP's
+  `create_pull_request` or `update_pull_request` doing the same. On any
+  other post it blocks, saying a cold read is due.
+- A hand-back that posts no body (`gh pr ready`, `--add-reviewer` alone, an
+  MCP update to ready) is checked before the call: the hook reads the pull
+  request's body with `gh pr view` and blocks while it still defers its cold
+  read. It looks only where it can find the pull request without guessing
+  the directory gh runs in: a call naming it by URL, by `-R` or `GH_REPO`,
+  or by the MCP's owner, repo and number, or a command that is the gh call
+  alone, run in the hook's directory. A lookup that fails lets the call
+  through.
+- After a hand-back, prose's session hook (`prose.py hook-handback`) prints
+  `current-state pass due for: ...`, the
+  single-pass rule's final pass (spec-check's DECISIONS.md, *Events start a
+  current-state pass*). A body changed then is signed with its cold read,
+  since a person reads it.
+
+**Why.** A body is edited many times inside a round, and each cold read
+cost a subagent's read of text no person would see until the hand-back.
+Who reads it is what makes a cold read worth its cost.
+
+**The detection is shared.** What a hand-back is, and which pull request
+it names, is read by `.agents/lib/gh-shell/handbacks.py`, which spec-check's
+hand-back hook also imports, so the two skills agree on every form. Only
+the session hooks use it here: prose has no workflow (*Rejected: a GitHub
+Action*), so a hand-back made outside the agent's session, such as on the
+web page, is not checked by prose.
+
+---
+
 ## Without subagents, the cold read goes back to the caller
 
 An agent that cannot start a subagent hands back the brief, its token, and the
@@ -1958,7 +2006,8 @@ without `-F -`.
 `.agents/lib/gh-shell/gh_shell.py`. prose.py imports it from there,
 finding the directory from prose.py's own real path in the clone, as the
 skills' commit scripts find `.agents/lib/commit-trailer/`. What is a post,
-and which bodies are read, stays in prose.py.
+and which bodies are read, stays in prose.py. What is a hand-back for
+review is read by `handbacks.py` in the same directory.
 
 **Why.** spec-check's hand-back hook reads the same commands, and must
 agree with this hook on what a command runs. A copy would drift; loading

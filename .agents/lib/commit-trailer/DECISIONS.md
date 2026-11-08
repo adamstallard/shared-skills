@@ -1023,27 +1023,66 @@ callback.
 
 ---
 
+## A skill may print notices about a commit
+
+**Decision.** A skill's report file may define `commit_trailer_notice <sha>`.
+The hook calls it for every new commit (one made since the hook's cursor)
+except a merge, whatever the commit's trailer, including commits
+`COMMIT_TRAILER_PATHSPEC` leaves out. Once every new commit is checked, the
+hook prints what the callback wrote to stdout, before any report, and exits
+2, as it does for a report, even when no commit is reported. A line printed
+for two commits, such as a commit and its amend, is printed once. spec-check
+uses it to print `current-state pass due for: ...` when a commit may leave
+docs describing an earlier state, so the agent rewrites them (spec-check's
+DECISIONS.md, *Events start a current-state pass*).
+
+**Why.** The events that start such a pass, such as the first source files
+on a spec branch, are found in commits the trailer check never reads: a
+commit that changes nothing under `openspec/` is skipped before anything
+else. The reflog walk already finds each new commit exactly once. A second
+walk in the skill could come to disagree with it about which commits are
+new, the drift *One library, a thin wrapper per skill* exists to prevent.
+
+**How it differs from `commit_trailer_verify`.** Like that callback, it runs
+in a subshell with stderr closed and `set -u` off, so the report file cannot
+break the hook. Unlike it, it needs no marker to tell a returned status from
+an aborted one, since a notice only advises. What the callback writes is
+printed even if it then fails or exits; a report file that fails to source,
+or a callback that prints nothing, prints no notice. Either way the trailer
+check runs as it would without the callback.
+
+**Rejected.**
+- **A separate hook for the notices.** It would need its own copy of the
+  parts this hook uses to find each new commit once (the cursor, its lock
+  and the submodule walk), and could disagree with this one about which
+  commits are new.
+
+---
+
 ## A family whose value is its own binding
 
 **Decision.** `commit-with-trailers.sh` takes
-`--verified-value <verifier> <Key> <value>`: a family whose trailer value is
-itself the binding, with no `<Key>-<suffix>` line. The verifier runs from the
+`--verified-value <verifier> <Key> <value>`: a family (see the terms at the
+top) whose trailer value is itself the binding, with no `<Key>-<suffix>`
+line. The verifier runs from the
 caller's directory, with the message on stdin and the trailer line
-`<Key>: <value>` as its argument. Every other guarantee holds: `takes`, the
+`<Key>: <value>` as its argument. Every other guarantee of the commit script
+holds, each described in its own entry: `takes`, the
 required `--`, the prefix-key refusal, validation before side effects,
-verifiers before mints, and the pinned trailer config. A skip note is not
-verified.
+verifiers before mints, and the pinned trailer config. A skip note, a value
+starting `skipped` that says the skill's pass did not run, is not verified.
 
 **Why.** prose signs the snapshot it worked on, the staged tree and the
 message, and puts the signature in its own value, `Prose: ✓ <tree>:<message>`.
 One line carries the claim and its proof, so a reader cannot keep one and lose
 the other. The commit script must still refuse a stale signature before
-anything lands, because whatever commits verifies against the snapshot the
-skill signed.
+anything lands, as it refuses a stale binding: the signature is checked
+against the snapshot the skill signed, and only the commit script sees the
+staged tree and message together before they become a commit.
 
 **Rejected.**
 - A separate binding line beside prose's value (see *One commit, several
-  families*), filled with a dummy. It lands a second trailer that means nothing
+  families*), filled with a placeholder value. It lands a second trailer that means nothing
   and invites someone to "fix" it.
 - A `--plain <Key> <value>` family with no check. It is a hand-assembled trailer
   with extra steps: nothing would refuse a signature minted over another tree.
@@ -1359,9 +1398,13 @@ rarer.
 separated by spaces. The check then judges only a commit whose diff against
 its parent (`git diff-tree --root`) changes a matching path. Every other
 commit is skipped before its trailer is read, so it is never reported or
-verified. When the variable is unset, every commit is judged. spec-check sets
-`:(top)openspec`, with no trailing slash, so that a symlink named `openspec`
-counts too; spec-check's DECISIONS.md says why.
+verified. A skill's `commit_trailer_notice` callback, which the hook calls
+for every new commit, still sees it (*A skill may print notices about a
+commit*). When the variable is unset, every commit is judged. spec-check
+sets `:(top)openspec`, with no trailing slash: with one, git matches only
+paths inside a folder named `openspec`, so a commit changing only an
+`openspec` symlink would be skipped. spec-check's DECISIONS.md says why that
+symlink matters.
 
 **Why.** A skill whose trailer means something only for some files, such as
 spec-check's for specs, would otherwise report every code-only commit, and a

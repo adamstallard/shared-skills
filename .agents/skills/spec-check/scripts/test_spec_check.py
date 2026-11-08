@@ -6248,5 +6248,315 @@ class FoundByBugHunterHandbackRun7Tests(FoundByBugHunterHandbackRun6Tests):
                                           extra_env=self.env(seven)), "good")
 
 
+class PassDueTests(unittest.TestCase):
+    """The commit hook prints `current-state pass due for: ...` for a commit
+    that adds a src/ file on a branch with an open change (gate two), and for
+    one that archives a change (SKILL.md, *Current-state passes*)."""
+
+    def setUp(self):
+        self.repo = Repo(self)
+        self.hook()  # settles the cursor past the base commit
+
+    def hook(self):
+        return subprocess.run(["sh", str(HOOK), "--host", "claude"],
+                              input=json.dumps({"cwd": str(self.repo.path)}),
+                              capture_output=True, text=True, cwd=self.repo.path, env=ENV)
+
+    def commit(self, message, *paths):
+        for rel in paths:
+            self.repo.write(rel, "x\n")
+        self.repo.git("add", "-A")
+        self.repo.git("commit", "-q", "-m", message, "--trailer", "Spec-check: skipped (test)")
+
+    def spec_branch(self):
+        self.repo.git("checkout", "-q", "-b", "spec")
+        self.repo.change("good")
+        self.repo.write("openspec/changes/good/design.md", "## Decisions\n\nNone.\n")
+        self.commit("Add the spec")
+        self.hook()
+
+    def pass_due(self, sha="HEAD"):
+        return self.repo.run("pass-due", sha, "--base", "main")
+
+    def test_new_src_files_on_a_spec_branch_start_a_pass(self):
+        self.spec_branch()
+        self.commit("Build it", "src/store.py", "packages/web/src/view.ts")
+        r = self.hook()
+        self.assertEqual(r.returncode, 2, r.stderr)
+        self.assertIn("current-state pass due for: openspec/changes/good/proposal.md, "
+                      "openspec/changes/good/design.md, and the pull request's body and title. "
+                      "The implementation is on the branch of the open change good "
+                      "(packages/web/src/view.ts, src/store.py added)", r.stderr)
+        self.assertNotIn("without a Spec-check: trailer", r.stderr)
+
+    def test_an_edited_src_file_or_a_branch_without_its_own_change_starts_none(self):
+        self.spec_branch()
+        self.repo.write("src/app.py", "changed\n")
+        self.commit("Edit only")
+        self.assertEqual(self.pass_due().stdout, "")
+        # A change already on main is not this branch's.
+        self.repo.git("checkout", "-q", "main")
+        self.repo.git("merge", "-q", "--ff-only", "spec")
+        self.repo.git("checkout", "-q", "-b", "impl")
+        self.commit("Build elsewhere", "src/new.py")
+        self.assertEqual(self.pass_due().stdout, "")
+        # On main itself, every open change counts, as spec_check.py sign
+        # counts them.
+        self.repo.git("checkout", "-q", "main")
+        self.commit("Build on main", "src/main.py")
+        self.assertIn("open change good", self.pass_due().stdout)
+
+    def test_no_open_change_means_no_pass(self):
+        self.repo.git("checkout", "-q", "-b", "code")
+        self.commit("Build", "src/new.py")
+        self.assertEqual(self.pass_due().stdout, "")
+        self.assertEqual(self.hook().returncode, 0)
+
+    def test_an_archive_commit_starts_the_decisions_fold(self):
+        self.spec_branch()
+        (self.repo.path / "openspec/changes/archive").mkdir()
+        self.repo.git("mv", "openspec/changes/good", "openspec/changes/archive/2026-11-06-good")
+        self.repo.git("commit", "-q", "-m", "Archive good", "--trailer",
+                      "Spec-check: skipped (test)")
+        r = self.hook()
+        self.assertEqual(r.returncode, 2, r.stderr)
+        self.assertIn("current-state pass due for: the DECISIONS.md of each skill the change "
+                      "good affects. It is archived as openspec/changes/archive/2026-11-06-good: "
+                      "fold its reasoning into those files, rewriting older reasoning rather "
+                      "than appending to it, then run prose check on each and compact any it "
+                      "reports as due.", r.stderr)
+
+    def test_an_amended_commit_says_its_pass_once(self):
+        self.spec_branch()
+        self.commit("Build it", "src/store.py")
+        self.repo.git("commit", "-q", "--amend", "-m", "Build it again", "--trailer",
+                      "Spec-check: skipped (test)")
+        r = self.hook()
+        self.assertEqual(r.stderr.count("current-state pass due for:"), 1, r.stderr)
+
+    def test_a_commit_then_a_checkout_of_main_judges_the_commits_branch(self):
+        # Found by bug-hunter: with HEAD back on main, every open change on
+        # main counted as the branch's own.
+        self.repo.change("other")
+        self.commit("An open change on main")
+        self.hook()
+        self.repo.git("checkout", "-q", "-b", "feature")
+        self.commit("Build", "src/a.py")
+        self.repo.git("checkout", "-q", "main")
+        r = self.hook()
+        self.assertNotIn("current-state pass due for:", r.stderr)
+
+    def test_amending_the_pass_into_the_commit_asks_for_it_no_more(self):
+        # Found by bug-hunter: the amend still adds src/ against its parent,
+        # so the pass just done was asked for again.
+        self.spec_branch()
+        self.commit("Build it", "src/store.py")
+        self.assertIn("current-state pass due for:", self.hook().stderr)
+        self.repo.write("openspec/changes/good/proposal.md", "## Why\n\nBuilt.\n")
+        self.repo.git("add", "-A")
+        self.repo.git("commit", "-q", "--amend", "--no-edit")
+        self.assertNotIn("current-state pass due for:", self.hook().stderr)
+        # An amend that adds another src/ file builds more: asked again.
+        self.repo.write("src/more.py", "x\n")
+        self.repo.git("add", "-A")
+        self.repo.git("commit", "-q", "--amend", "--no-edit")
+        self.assertIn("(src/more.py, src/store.py added)", self.hook().stderr)
+
+    def test_a_change_with_no_specs_folder_is_archived_too(self):
+        self.repo.git("checkout", "-q", "-b", "spec")
+        self.commit("A proposal-only change", "openspec/changes/lone/proposal.md",
+                    "openspec/changes/lone/tasks.md")
+        (self.repo.path / "openspec/changes/archive").mkdir()
+        self.repo.git("mv", "openspec/changes/lone", "openspec/changes/archive/2026-11-06-lone")
+        self.commit("Archive lone")
+        self.assertIn("the change lone affects", self.pass_due().stdout)
+
+    def test_a_deep_src_path_is_not_read_as_an_archive(self):
+        self.spec_branch()
+        self.commit("Build deep", "packages/web/src/ui/view.ts")
+        out = self.pass_due().stdout
+        self.assertIn("(packages/web/src/ui/view.ts added)", out)
+        self.assertNotIn("is archived as", out)
+
+    def test_more_than_three_src_files_are_counted_not_listed(self):
+        self.spec_branch()
+        self.commit("Build three", "src/a.py", "src/b.py", "src/c.py")
+        self.assertIn("(src/a.py, src/b.py, src/c.py added)", self.pass_due().stdout)
+        self.commit("Build four", "src/d.py", "src/e.py", "src/f.py", "src/g.py")
+        self.assertIn("(src/d.py, src/e.py, src/f.py and 1 more added)", self.pass_due().stdout)
+
+    def test_amending_the_decisions_fold_into_an_archive_asks_no_more(self):
+        # Found by bug-hunter: the amend still adds the archive folder.
+        self.spec_branch()
+        (self.repo.path / "openspec/changes/archive").mkdir()
+        self.repo.git("mv", "openspec/changes/good", "openspec/changes/archive/2026-11-06-good")
+        self.commit("Archive good")
+        self.assertIn("the change good affects", self.hook().stderr)
+        self.repo.write("DECISIONS.md", "Folded.\n")
+        self.repo.git("add", "-A")
+        self.repo.git("commit", "-q", "--amend", "--no-edit")
+        self.assertNotIn("current-state pass due for:", self.hook().stderr)
+
+    def test_a_commit_pushed_to_main_from_another_branch_counts_as_main(self):
+        # Found by bug-hunter: the push moved origin/main to the commit
+        # while local main lagged, so the commit looked like nobody's.
+        self.repo.change("good")
+        self.commit("An open change on main")
+        remote = pathlib.Path(tempfile.mkdtemp(prefix="spec-check-remote-")).resolve()
+        self.addCleanup(shutil.rmtree, remote, ignore_errors=True)
+        self.repo.git("init", "-q", "--bare", str(remote))
+        self.repo.git("remote", "add", "origin", str(remote))
+        self.repo.git("push", "-q", "origin", "main")
+        self.repo.git("fetch", "-q", "origin")
+        self.repo.git("checkout", "-q", "-b", "direct", "origin/main")
+        self.commit("Build on main", "src/a.py")
+        self.repo.git("push", "-q", "origin", "HEAD:main")
+        self.repo.git("fetch", "-q", "origin")
+        r = self.repo.run("pass-due", "HEAD", "--base", "origin/main")
+        self.assertIn("open change good", r.stdout)
+
+    def test_amending_the_change_into_a_code_commit_starts_the_pass(self):
+        # Found by bug-hunter: the amend filter dropped src/ files the replaced
+        # commit held, though that commit, made before the branch had an open
+        # change, started no pass.
+        self.repo.git("checkout", "-q", "-b", "feat")
+        self.commit("Build first", "src/a.py")
+        self.assertNotIn("current-state pass due for:", self.hook().stderr)
+        self.repo.change("good")
+        self.repo.git("add", "-A")
+        self.repo.git("commit", "-q", "--amend", "--no-edit")
+        self.assertIn("open change good", self.hook().stderr)
+
+    def test_an_amend_that_drops_a_src_file_asks_no_more(self):
+        # Found by bug-hunter: the shown file list changed, so the whole pass
+        # was asked for again.
+        self.spec_branch()
+        self.commit("Build it", "src/a.py", "src/b.py")
+        self.assertIn("current-state pass due for:", self.hook().stderr)
+        self.repo.git("rm", "-q", "src/b.py")
+        self.repo.git("commit", "-q", "--amend", "--no-edit")
+        self.assertNotIn("current-state pass due for:", self.hook().stderr)
+
+    def test_an_amend_after_landing_on_main_still_asks_for_mains_changes(self):
+        # Found by bug-hunter: the replaced commit was judged as on main, so
+        # main's other open change looked asked for, though its own hook,
+        # on the branch, never printed it.
+        self.repo.change("other")
+        self.commit("An open change on main")
+        self.spec_branch()
+        self.commit("Build it", "src/a.py")
+        self.assertNotIn("open change other", self.hook().stderr)
+        self.repo.git("checkout", "-q", "main")
+        self.repo.git("merge", "-q", "--ff-only", "spec")
+        self.repo.write("openspec/changes/good/proposal.md", "## Why\n\nBuilt.\n")
+        self.repo.git("add", "-A")
+        self.repo.git("commit", "-q", "--amend", "--no-edit")
+        self.assertIn("open change other", self.hook().stderr)
+
+    def test_an_amend_with_nothing_older_in_the_reflog_is_judged_alone(self):
+        self.spec_branch()
+        self.commit("Build it", "src/a.py")
+        self.repo.git("reflog", "expire", "--expire=now", "--all")
+        self.repo.git("commit", "-q", "--amend", "-m", "Build it again")
+        self.assertIn("open change good", self.pass_due().stdout)
+
+    def test_a_short_id_or_head_reads_the_amend_as_the_full_id_does(self):
+        # Found by bug-hunter: the reflog names commits in full, so `HEAD`
+        # or a short id never matched an amend.
+        self.spec_branch()
+        self.commit("Build it", "src/a.py")
+        self.repo.git("rm", "-q", "--cached", "src/a.py")
+        self.repo.git("add", "-A")
+        self.repo.write("openspec/changes/good/proposal.md", "## Why\n\nBuilt.\n")
+        self.repo.git("add", "-A")
+        self.repo.git("commit", "-q", "--amend", "--no-edit")
+        short = self.repo.git("rev-parse", "--short", "HEAD")
+        for ref in ("HEAD", short):
+            with self.subTest(ref=ref):
+                self.assertEqual(self.pass_due(ref).stdout, "")
+
+    def test_amending_a_commit_made_on_main_asks_no_more(self):
+        # Found by bug-hunter: the replaced commit was judged as on a branch,
+        # so main's open changes looked unasked and were asked again.
+        self.repo.change("good")
+        self.commit("An open change on main")
+        self.hook()
+        self.commit("Build on main", "src/a.py")
+        self.assertIn("open change good", self.hook().stderr)
+        self.repo.write("src/a.py", "more\n")
+        self.repo.git("add", "-A")
+        self.repo.git("commit", "-q", "--amend", "--no-edit")
+        self.assertNotIn("current-state pass due for:", self.hook().stderr)
+
+    def test_moving_an_existing_archive_folder_starts_no_pass(self):
+        # Archiving deletes the change's folder; moving archive folders that
+        # already exist deletes none, so it is not archiving.
+        # docs/old/old ends in "old", the name in archive/2026-01-01-old, but
+        # it is no change folder: only a deletion under openspec/changes/
+        # pairs with an archive.
+        self.repo.write("docs/old/old/proposal.md", GOOD_PROPOSAL)
+        self.repo.write("openspec/changes/archive/2026-01-02-archive/proposal.md",
+                        GOOD_PROPOSAL)
+        self.commit("Keep old archives")
+        self.hook()
+        self.repo.git("mv", "docs/old/old",
+                      "openspec/changes/archive/2026-01-01-old")
+        self.repo.git("mv", "openspec/changes/archive/2026-01-02-archive",
+                      "openspec/changes/archive/2026-01-03-archive")
+        self.commit("Move the archives")
+        self.assertNotIn("is archived as", self.hook().stderr)
+        self.assertEqual(self.pass_due().stdout, "")
+
+    def test_a_change_named_with_a_date_is_archived_under_its_own_name(self):
+        # Found by bug-hunter: `openspec archive` adds no second date to a
+        # name that starts with one. Stripping the date from the archive
+        # folder left "dated", which matched no deleted change folder.
+        self.repo.change("2026-01-01-dated")
+        self.commit("Add the change")
+        self.hook()
+        (self.repo.path / "openspec/changes/archive").mkdir()
+        self.repo.git("mv", "openspec/changes/2026-01-01-dated",
+                      "openspec/changes/archive/2026-01-01-dated")
+        self.commit("Archive it")
+        self.assertIn("the change 2026-01-01-dated affects. It is archived as "
+                      "openspec/changes/archive/2026-01-01-dated:", self.hook().stderr)
+
+    def test_deleting_a_change_archives_nothing_outside_the_archive(self):
+        # Only a folder under openspec/changes/archive/ pairs with a deleted
+        # change. Both added paths below have "ui" as their fourth part, the
+        # position the archive folder's name is read from, but neither is
+        # under archive/: one is deep in packages/, one inside change new.
+        self.repo.change("ui")
+        self.commit("Add ui")
+        self.hook()
+        self.repo.git("rm", "-rq", "openspec/changes/ui")
+        self.repo.change("new")
+        self.commit("Drop ui", "packages/web/src/ui/view.ts",
+                    "openspec/changes/new/ui/notes.md")
+        self.assertNotIn("is archived as", self.pass_due().stdout)
+
+    def test_a_handed_back_pull_request_gets_the_notice_in_ci(self):
+        self.spec_branch()
+        tmp = pathlib.Path(tempfile.mkdtemp(prefix="spec-check-ci-")).resolve()
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        def ci(action):
+            event = tmp / "event.json"
+            event.write_text(json.dumps({"action": action, "pull_request": {
+                "html_url": "https://github.com/o/r/pull/7", "draft": False,
+                "head": {"sha": self.repo.git("rev-parse", "HEAD")},
+                "base": {"ref": "main"}}}))
+            return self.repo.run("ci", "--event", str(event))
+        # The change is unread: the hand-back is taken back, so no pass yet.
+        self.assertNotIn("current-state pass due for:", ci("ready_for_review").stdout)
+        self.repo.write("openspec/changes/good/tasks.md", TASKS + "- [ ] 1.2 More\n")
+        self.repo.git("add", "-A")
+        signed_commit(self, self.repo)
+        r = ci("ready_for_review")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("::notice::current-state pass due for: each doc the pull request "
+                      "changes, and its body and title.", r.stdout)
+        self.assertNotIn("current-state pass due for:", ci("synchronize").stdout)
+
+
 if __name__ == "__main__":
     unittest.main()
