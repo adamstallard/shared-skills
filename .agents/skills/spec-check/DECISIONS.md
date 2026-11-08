@@ -32,12 +32,13 @@ terms are left to the consistency read*).
 
 Two items came later, once decisions moved to design.md (see *Decisions live
 in design.md*): decisions that contradict or repeat each other (item 12), and
-a decision not needed to build the change (item 13). Two more came with
+a decision not needed to build the change (item 13). Three more came with
 decision records (see *Decision records per capability*): a change that
 brings back a rejected approach or breaks a recorded constraint (item 14),
-and a rejection or constraint named only in design.md (item 15). Every
-consistency read covers items 12 to 15, so decisions need no check of
-their own, even after `prose compact` (the prose skill's command that
+a rejection or constraint named only in design.md (item 15), and a record
+entry that repeats a requirement (item 16). Every consistency read covers
+items 12 to 16, so neither decisions nor record entries need a script
+check of their content, even after `prose compact` (the prose skill's command that
 shortens docs) shortens a change's docs: whether a compaction kept every
 conclusion is checked by `prose compact`'s own review.
 
@@ -1053,9 +1054,10 @@ under the requirement that approach would break. A requirement holds its
 rule: its SHALL statement plus at most one *because* sentence, with any
 evidence linked. What a requirement cannot hold goes in a decision record,
 one per capability: constraints and rejected alternatives that no test can
-check, and longer rationale, each stated as it stands now, in the form
-SKILL.md, *Decision records*, gives. It works in any repository that uses
-spec-check.
+check, and, in a Rationale entry named after a requirement, reasoning
+longer than that requirement's *because* sentence; each is stated as it
+stands now, in the form SKILL.md, *Decision records*, gives. Decision
+records work in any repository that uses spec-check.
 
 spec-check:
 - **reads the record's location** from `openspec/spec-check.yaml`
@@ -1063,15 +1065,17 @@ spec-check:
   `openspec/specs/<capability>/decisions.md`, beside the spec, so an agent
   reading a spec sees the record in the same folder;
 - **checks a record's form** (`record`): its title, its sections, every part
-  of every entry, and each path in *Paths*;
+  of every entry, each path in *Paths*, and that each Rationale entry names
+  a requirement;
 - **flags a requirement with more** than its statement and one sentence
   (`rationale`, a check), and the consistency read's item 6 asks for the
   rest to move to the record;
 - **gives the reader** the record of every capability the change touches
   and every record whose *Paths* match a file the branch changes
   (`spec_check.py records`), and the reader reports a change that brings
-  back a rejected approach or breaks a constraint (item 14), or names one
-  in design.md that no record holds (item 15);
+  back a rejected approach or breaks a constraint (item 14), names one in
+  design.md that no record holds (item 15), or keeps a record entry whose
+  rule a requirement already states (item 16);
 - **folds a change's record into the main one at archive**
   (`spec_check.py archive`), since OpenSpec does not.
 
@@ -1082,6 +1086,27 @@ nothing flagged a change that brought one back. A rule a test can check
 belongs where spec-trace, the skill that links tests to scenarios, ties it
 to a test; the rest needs a fixed place
 and form, so a script can check it and a reader can be handed it.
+
+**A record never repeats a requirement.** A Constraint or Rejected entry
+whose rule a requirement or scenario already states is cut. A reason that
+fits in one sentence becomes the requirement's *because* sentence; longer
+reasoning goes in a `## Rationale` entry, `- **Rationale: <requirement
+title>.**`, followed by the reasoning on its own lines and any number of
+`Evidence:` lines. The entry never restates the rule. Why: two statements
+of one rule drift apart, and the reader of a later change cannot tell
+which one holds. The requirement and its scenario are the statement a test
+checks, so that one stays. A Rationale entry's title must name a
+requirement in force (in main's specs, plus those of the changes the
+change builds on), or one the change adds, modifies or renames to. `check`
+reports any other as an error, since reasoning for a requirement that is
+gone explains nothing; it skips the check when `openspec show` cannot read
+those requirements. `records` names a Rationale entry whose requirement
+the change's delta adds, modifies, removes or renames, so the reader
+checks that the reasoning still holds. The
+repeat itself is the consistency read's to find (item 16). Rejected: a
+mechanical check of text overlap between entries and requirements. The
+same rule is worded differently in each place, so matching words would
+both miss repeats and flag entries that only share terms.
 
 **What OpenSpec does with a record**, measured on 1.16.0 and 1.15.0 in a
 scratch project: `openspec validate --all --strict` passes with a record
@@ -1150,7 +1175,10 @@ that key is a `config` check asking for its removal, never an error.
 wherever the main record is configured to be: beside the delta it goes
 with, where issue #56 puts it. It uses the record's form, and adds one
 section, `## Retired`, whose entries are bold lines alone naming main
-entries to remove. An entry whose kind and title (compared ignoring case,
+entries to remove. A Rationale entry is matched by its requirement's
+title, so a change's Rationale entry replaces the main one for the same
+requirement. An
+entry whose kind and title (compared ignoring case,
 spacing, backticks and a closing period) match a main entry replaces it in
 place; any other is added at the end of its section. A record left with no
 entry is deleted. So a record holds no history: an amendment replaces the

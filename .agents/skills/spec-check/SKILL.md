@@ -265,6 +265,12 @@ can check is a requirement instead, with a scenario the rejected approach
 would fail, under the requirement it would break. Each entry is stated as
 it stands now, with no history.
 
+**A record never repeats a requirement.** Cut an entry whose rule a
+requirement or scenario already states. If its reason fits in one
+sentence, make that the requirement's *because* sentence; longer reasoning
+goes in a Rationale entry, which names the requirement and never restates
+its rule. The consistency read flags a repeat (item 16).
+
 ```markdown
 # <capability>: constraints and rejected alternatives
 
@@ -281,10 +287,21 @@ it stands now, with no history.
   Lost because: <one sentence>, <link>.
   Instead: <what was chosen>.
   Paths: <files or areas it governs>
+
+## Rationale
+- **Rationale: <the title of the requirement it explains>.**
+  <the reasoning, on the lines after the bold line>
+  Evidence: <a failure, a measurement or an outside fact>, <link>
 ```
 
+A Rationale entry's title must name a requirement in force, or one the
+change adds, modifies or renames to; `check` reports any other as an
+error. Its *Evidence* lines are optional, may repeat, and come last: an
+indented line right after an Evidence line continues that line. The reasoning has no blank line inside it.
+
 *Paths* is a comma-separated list of files, directories (`src/store/`) or
-globs (`src/**/*.go`). A part may wrap onto indented lines.
+globs (`src/**/*.go`). Any labelled part may wrap onto indented lines,
+with no blank line between the part and its continuation.
 
 - **Where.** The main record is at `openspec/specs/<capability>/decisions.md`,
   unless `openspec/spec-check.yaml` says otherwise, in one line:
@@ -298,7 +315,8 @@ globs (`src/**/*.go`). A part may wrap onto indented lines.
 - **In a change.** Write new or changed entries in the change's own
   `specs/<capability>/decisions.md`, in the same form, whatever the main
   record's location. An entry whose kind and title match a main entry
-  replaces it. To retire a main entry, list its bold line alone under a
+  replaces it; a Rationale entry is matched by its requirement's title.
+  To retire a main entry, list its bold line alone under a
   `## Retired` section. The file is one of the change's files: editing it
   makes the change due for a read, and the `evolution` check reads it.
 - **At archive**, OpenSpec ignores a change's `decisions.md`, so archive

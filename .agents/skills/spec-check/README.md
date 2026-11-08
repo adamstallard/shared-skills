@@ -33,8 +33,9 @@ When an agent works on anything under `openspec/`, it:
      runs `check` on the change sees the line as kept, not as an error;
    - a requirement holding more than its SHALL statement and one *because*
      sentence (a check, never a failure);
-   - a decision record (below) that departs from its form, or names a path
-     that does not exist.
+   - a decision record (below) that departs from its form, names a path
+     that does not exist, or gives a Rationale entry for a requirement that
+     does not exist.
 
    It also runs `openspec validate --strict` and includes what it reports,
    such as a misspelt section title or a section the archive drops.
@@ -64,7 +65,9 @@ When an agent works on anything under `openspec/`, it:
    *Paths* name a file it changes,
    every other open change, every open pull request touching the same
    specs, and your architecture docs. It reports a change that brings back
-   an approach a record rejects, or breaks a constraint one records. Findings come with quotes from both sides. The read
+   an approach a record rejects, or breaks a constraint one records, and a
+   record entry that repeats a requirement. Findings come with quotes from
+   both sides. The read
    runs once per review round: the agent's work between two hand-backs to
    you for review. A push does not end a round. The read runs before the
    hand-back that ends it. When a pull request is handed back without
@@ -83,10 +86,13 @@ one was amended is an error.
 Each capability can have a **decision record**, by default
 `openspec/specs/<capability>/decisions.md` beside its spec. It holds what no
 requirement can: constraints and rejected alternatives that no test can
-check, such as a cost policy or a choice of tool, and rationale too long for
-a requirement. A rejection a test can check is written as a requirement
-instead. Each entry has a fixed form, with the files or areas it governs
-under *Paths*; SKILL.md, *Decision records*, gives it.
+check, such as a cost policy or a choice of tool, and, in a *Rationale*
+entry named after a requirement, reasoning too long for that requirement's
+one *because* sentence. A rejection a test can check is written as a
+requirement instead, and a record never repeats what a requirement or its
+scenario already states. Each entry has a fixed form, with the files or
+areas a constraint or rejection governs under *Paths*; SKILL.md, *Decision
+records*, gives it.
 
 A change writes its new entries in its own `specs/<capability>/decisions.md`.
 OpenSpec ignores that file when it archives the change, so the agent

@@ -47,23 +47,33 @@ REJECTED = """- **Rejected: A retrieval tool the worker calls.**
 """
 
 
-def record(cap="cap", constraints=(CONSTRAINT,), rejected=(REJECTED,), retired=()):
+RATIONALE = """- **Rationale: Records are kept.**
+  Thirty days covers the longest audit window any customer has asked for.
+  A shorter window lost a disputed record twice.
+  Evidence: the second loss, #31
+  Evidence: the audit terms, https://example.com/terms
+"""
+
+
+def record(cap="cap", constraints=(CONSTRAINT,), rejected=(REJECTED,), retired=(), rationale=()):
     text = f"# {cap}: constraints and rejected alternatives\n"
     for heading, entries in (("Constraints", constraints), ("Rejected", rejected),
-                             ("Retired", retired)):
+                             ("Rationale", rationale), ("Retired", retired)):
         if entries:
             text += f"\n## {heading}\n" + "\n".join(entries)
     return text
 
 
-def findings(text, change=False, names=("src/app.py", "src/lib/x.py")):
+def findings(text, change=False, names=("src/app.py", "src/lib/x.py"), requirements=None):
     """[(severity, line, message)] of check_record on text, against a tree
-    holding names."""
+    holding names, and with requirements, the titles a Rationale entry may
+    name (None: not checked)."""
     class FakeBase:
         def change_names(self):
             return list(names)
     out = []
-    spec_check.check_record("r.md", text, FakeBase(), out, change=change, cap="cap")
+    spec_check.check_record("r.md", text, FakeBase(), out, change=change, cap="cap",
+                            requirements=requirements)
     return [(f.severity, f.line, f.message) for f in out]
 
 
@@ -1516,6 +1526,269 @@ class FoundByBugHunterGateRunTests(unittest.TestCase):
                     self.fail(f"check hung reading a FIFO named {name}")
                 self.assertIn("spec-check:", r.stdout + r.stderr)
                 self.assertNotIn("Traceback", r.stderr)
+
+
+class RationaleFormTests(unittest.TestCase):
+    """`## Rationale` holds reasoning longer than a requirement's one
+    *because* sentence, one entry per requirement, named by its title."""
+
+    def test_a_rationale_entry_in_the_form_passes(self):
+        text = record(rationale=(RATIONALE,))
+        self.assertEqual(findings(text, requirements={"Records are kept"}), [])
+        rec = spec_check.parse_record(text)
+        (e,) = [e for e in rec.entries if e.kind == "Rationale"]
+        self.assertEqual(e.title, "Records are kept.")
+        self.assertEqual(e.section, "rationale")
+        self.assertEqual(e.reasoning, "Thirty days covers the longest audit window any customer "
+                                      "has asked for. A shorter window lost a disputed record twice.")
+        self.assertEqual([v for _, v in e.evidence],
+                         ["the second loss, #31", "the audit terms, https://example.com/terms"])
+
+    def test_evidence_is_optional_and_reasoning_is_not(self):
+        bare = "- **Rationale: Records are kept.**\n  Thirty days covers every audit window.\n"
+        self.assertEqual(findings(record(rationale=(bare,))), [])
+        empty = "- **Rationale: Records are kept.**\n  Evidence: the audit terms, #4\n"
+        problems = findings(record(rationale=(empty,)))
+        self.assertTrue(any(sev == "error" and "no reasoning" in m for sev, _, m in problems), problems)
+
+    def test_reasoning_after_evidence_is_an_error(self):
+        late = ("- **Rationale: Records are kept.**\n  Evidence: the audit terms, #4\n"
+                "\n  Thirty days covers every audit window.\n")
+        problems = findings(record(rationale=(late,)))
+        self.assertTrue(any(sev == "error" for sev, _, _ in problems), problems)
+
+    def test_evidence_that_links_nothing_is_a_check(self):
+        text = record(rationale=(RATIONALE.replace("#31", "the incident"),))
+        self.assertEqual([(sev, m.split(":")[0]) for sev, _, m in findings(text)],
+                         [("check", "Evidence")])
+
+    def test_entries_go_under_their_own_section(self):
+        misplaced = record(rejected=(REJECTED, RATIONALE))
+        self.assertTrue(any("goes under `## Rationale`" in m for _, _, m in findings(misplaced)))
+        wrong = record(rationale=(RATIONALE, CONSTRAINT))
+        self.assertTrue(any("goes under `## Constraints`" in m for _, _, m in findings(wrong)))
+
+    def test_a_rationale_must_name_a_requirement(self):
+        text = record(rationale=(RATIONALE.replace("Records are kept", "Records are shredded"),))
+        problems = findings(text, requirements={"Records are kept"})
+        self.assertEqual([(sev, line) for sev, line, _ in problems], [("error", 18)])
+        self.assertIn('"Records are shredded" names no requirement of cap', problems[0][2])
+        self.assertEqual(findings(record(rationale=(RATIONALE.replace(
+            "Records are kept.", "records ARE `kept`"),)), requirements={"Records are kept"}), [])
+
+    def test_a_rationale_is_retired_under_retired(self):
+        text = record(constraints=(), rejected=(), retired=("- **Rationale: Records are kept.**\n",))
+        self.assertEqual(findings(text, change=True, requirements=set()), [])
+
+    def test_the_fold_keys_rationale_by_requirement_title(self):
+        main = record(rationale=(RATIONALE,))
+        new = RATIONALE.replace("A shorter window", "A seven-day window")
+        other = "- **Rationale: Records expire.**\n  Ninety days bounds what a leak exposes.\n"
+        folded, problems = spec_check.fold_record(
+            "cap", main, record(constraints=(), rejected=(), rationale=(new, other)))
+        self.assertEqual(problems, [])
+        self.assertEqual(folded, record(rationale=(new, other)))
+        retired, problems = spec_check.fold_record("cap", main, record(
+            constraints=(), rejected=(), retired=("- **Rationale: records are kept**\n",)))
+        self.assertEqual((retired, problems), (record(), []))
+
+    def test_the_fold_writes_rationale_after_constraints_and_rejected(self):
+        folded, _ = spec_check.fold_record("cap", None, record(rationale=(RATIONALE,)))
+        self.assertLess(folded.index("## Rejected"), folded.index("## Rationale"))
+
+
+class RationaleCheckTests(unittest.TestCase):
+    """check holds a Rationale entry's title to the requirements in force,
+    or in the change."""
+
+    def setUp(self):
+        self.repo = Repo(self)
+
+    def record_errors(self, *args):
+        r = self.repo.check(*args)
+        return [line for line in r.stdout.splitlines() if "error [record]" in line]
+
+    @unittest.skipUnless(HAS_OPENSPEC, NEEDS)
+    def test_a_change_record_may_name_a_requirement_in_force_or_in_the_change(self):
+        self.repo.change("x")
+        why = "- **Rationale: {}.**\n  The reasoning, at more length than one sentence holds.\n"
+        self.repo.write("openspec/changes/x/specs/cap/decisions.md", record(
+            constraints=(), rejected=(), rationale=(why.format("Records are kept"),
+                                                    why.format("Records expire"))))
+        self.assertEqual(self.record_errors("x"), [])
+        self.repo.write("openspec/changes/x/specs/cap/decisions.md", record(
+            constraints=(), rejected=(), rationale=(why.format("Records are shredded"),)))
+        (error,) = self.record_errors("x")
+        self.assertIn('"Records are shredded" names no requirement of cap', error)
+
+    @unittest.skipUnless(HAS_OPENSPEC, NEEDS)
+    def test_a_change_record_may_not_name_a_requirement_the_change_removes(self):
+        self.repo.change("x", delta="## REMOVED Requirements\n\n### Requirement: Records are kept\n\n"
+                                    "**Reason**: no longer needed.\n\n**Migration**: none.\n")
+        self.repo.write("openspec/changes/x/specs/cap/decisions.md", record(
+            constraints=(), rejected=(), rationale=(RATIONALE,)))
+        (error,) = self.record_errors("x")
+        self.assertIn('"Records are kept" names no requirement of cap', error)
+
+    @unittest.skipUnless(HAS_OPENSPEC, NEEDS)
+    def test_a_main_record_must_name_a_main_requirement(self):
+        self.repo.write("openspec/specs/cap/decisions.md", record(rationale=(
+            RATIONALE, RATIONALE.replace("Records are kept", "Records are shredded"))))
+        (error,) = self.record_errors("specs")
+        self.assertIn("openspec/specs/cap/decisions.md:", error)
+        self.assertIn('"Records are shredded" names no requirement of cap', error)
+
+    @unittest.skipUnless(HAS_OPENSPEC, NEEDS)
+    def test_archive_folds_a_rationale_entry(self):
+        self.repo.write("openspec/specs/cap/spec.md", MAIN_SPEC.replace(
+            "What cap does.", "What cap does: it keeps the records it is given, and reads them back."))
+        self.repo.git("add", "-A")
+        self.repo.git("commit", "-q", "-m", "purpose")
+        self.repo.change("x", proposal=GOOD_PROPOSAL.replace("Records pile up",
+                                                             "Records pile up, and the disk fills"))
+        self.repo.write("openspec/changes/x/specs/cap/decisions.md", record(
+            constraints=(), rejected=(), rationale=(RATIONALE,)))
+        r = self.repo.run("archive", "x")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual((self.repo.path / "openspec/specs/cap/decisions.md").read_text(),
+                         record(constraints=(), rejected=(), rationale=(RATIONALE,)))
+
+    def test_records_says_when_a_rationale_covers_a_requirement_the_change_changes(self):
+        self.repo.write("openspec/specs/cap/decisions.md", record(rationale=(RATIONALE,)))
+        self.repo.git("add", "-A")
+        self.repo.git("commit", "-q", "-m", "record")
+        self.repo.git("checkout", "-q", "-b", "spec")
+        self.repo.change("x", delta=MAIN_SPEC.split("## Requirements\n", 1)[1].replace(
+            "### Requirement", "## MODIFIED Requirements\n\n### Requirement").replace(
+            "thirty days", "sixty days"))
+        r = self.repo.run("records", "--base", "main", "x")
+        self.assertEqual(r.stdout.splitlines(), [
+            'openspec/specs/cap/decisions.md  (the change touches cap; its Rationale for '
+            '"Records are kept" covers a requirement the change changes)'])
+
+
+class FoundByBugHunterRationaleRunTests(unittest.TestCase):
+    """Found by bug-hunter in its run over the Rationale work."""
+
+    @unittest.skipUnless(HAS_OPENSPEC, NEEDS)
+    def test_a_main_spec_openspec_cannot_read_leaves_rationale_titles_unchecked(self):
+        repo = Repo(self)
+        repo.write("openspec/specs/cap/spec.md", MAIN_SPEC.replace("## Purpose\n\nWhat cap does.\n\n", ""))
+        repo.change("x")
+        repo.write("openspec/changes/x/specs/cap/decisions.md", record(
+            constraints=(), rejected=(), rationale=(RATIONALE,)))
+        r = repo.check("x")
+        self.assertNotIn("error [record]", r.stdout)
+        self.assertIn("openspec-show", r.stdout)
+
+    def test_reasoning_may_start_with_a_word_another_kind_uses_as_a_label(self):
+        text = record(rationale=("- **Rationale: Records are kept.**\n  Thirty days was chosen over\n"
+                                 "  Instead: of ninety, which the auditors refused.\n",))
+        self.assertEqual(findings(text), [])
+        (e,) = [e for e in spec_check.parse_record(text).entries if e.kind == "Rationale"]
+        self.assertIn("Instead: of ninety", e.reasoning)
+
+    def test_a_blank_line_inside_an_entry_says_so(self):
+        text = record(rationale=("- **Rationale: Records are kept.**\n  Thirty days.\n\n  More.\n",))
+        self.assertTrue(any("a blank line ends" in m for _, _, m in findings(text)), findings(text))
+
+    def test_the_blank_line_hint_needs_a_blank_line(self):
+        unlabelled = CONSTRAINT.replace("  Because:", "  plain text first\n  Because:")
+        problems = findings(record(constraints=(unlabelled,)))
+        self.assertTrue(problems)
+        self.assertFalse(any("blank line" in m for _, _, m in problems), problems)
+        retired = record(constraints=(), rejected=(), retired=(
+            "- **Rationale: Records are kept.**\n  old reasoning\n",))
+        problems = findings(retired, change=True)
+        self.assertEqual([m for _, _, m in problems],
+                         ["an entry under `## Retired` is its bold line alone"])
+
+    def test_a_main_records_rationale_error_names_main_requirements_only(self):
+        text = record(rationale=(RATIONALE.replace("Records are kept", "Records are shredded"),))
+        (problem,) = findings(text, requirements={"Records are kept"})
+        self.assertNotIn("this change", problem[2])
+        (problem,) = findings(text, change=True, requirements={"Records are kept"})
+        self.assertIn("this change adds or modifies", problem[2])
+
+
+class MutationGapRationaleRunTests(unittest.TestCase):
+    """Mutants that survived the mutation testing of bug-hunter's run over
+    the Rationale work, each killed by a test here."""
+
+    RENAME = ("## RENAMED Requirements\n\n- FROM: `### Requirement: Records are kept`\n"
+              "- TO: `### Requirement: Records are retained`\n")
+
+    def test_a_wrapped_evidence_value_joins_its_line(self):
+        wrapped = "- **Rationale: Records are kept.**\n  Thirty days.\n  Evidence:\n    the terms, #4\n"
+        text = record(rationale=(wrapped,))
+        self.assertEqual(findings(text), [])
+        (e,) = [e for e in spec_check.parse_record(text).entries if e.kind == "Rationale"]
+        self.assertEqual([v for _, v in e.evidence], ["the terms, #4"])
+
+    def test_a_wrapped_line_under_a_wrong_label_is_one_error(self):
+        text = record(rationale=("- **Rationale: Records are kept.**\n  Thirty days.\n"
+                                 "  Evidence: the terms, #4\n  Because: of audits.\n    and more.\n",))
+        problems = findings(text)
+        self.assertEqual([m.split(";")[0] for _, _, m in problems],
+                         ["a Rationale entry has no part 'Because'"])
+        (e,) = [e for e in spec_check.parse_record(text).entries if e.kind == "Rationale"]
+        self.assertEqual([v for _, v in e.evidence], ["the terms, #4"])
+
+    def test_requirements_that_cannot_be_told_leave_titles_unchecked(self):
+        class FakeCorpus:
+            missing, unread, items = None, {}, {}
+        self.assertIsNone(spec_check.change_requirements("x", FakeCorpus(), None, "cap"))
+        FakeCorpus.missing = "openspec is not installed"
+        self.assertIsNone(spec_check.change_requirements("x", FakeCorpus(), {("cap", "A")}, "cap"))
+
+    @unittest.skipUnless(HAS_OPENSPEC, NEEDS)
+    def test_a_change_renaming_a_requirement_moves_its_rationale_title(self):
+        repo = Repo(self)
+        repo.change("x", delta=self.RENAME)
+        why = "- **Rationale: {}.**\n  The reasoning, at more length than one sentence holds.\n"
+        repo.write("openspec/changes/x/specs/cap/decisions.md", record(
+            constraints=(), rejected=(), rationale=(why.format("Records are retained"),)))
+        self.assertNotIn("error [record]", repo.check("x").stdout)
+        repo.write("openspec/changes/x/specs/cap/decisions.md", record(
+            constraints=(), rejected=(), rationale=(why.format("Records are kept"),)))
+        self.assertIn('"Records are kept" names no requirement of cap', repo.check("x").stdout)
+
+    @unittest.skipUnless(HAS_OPENSPEC, NEEDS)
+    def test_a_main_spec_openspec_cannot_read_leaves_main_rationale_unchecked(self):
+        repo = Repo(self)
+        repo.write("openspec/specs/cap/spec.md", MAIN_SPEC.replace("## Purpose\n\nWhat cap does.\n\n", ""))
+        repo.write("openspec/specs/cap/decisions.md", record(rationale=(
+            RATIONALE.replace("Records are kept", "Records are shredded"),)))
+        self.assertNotIn("error [record]", repo.check("specs").stdout)
+
+    def test_records_names_a_rationale_on_either_side_of_a_rename(self):
+        for title in ("Records are kept", "Records are retained"):
+            with self.subTest(title=title):
+                repo = Repo(self)
+                repo.write("openspec/specs/cap/decisions.md", record(rationale=(
+                    RATIONALE.replace("Records are kept", title),)))
+                repo.git("add", "-A")
+                repo.git("commit", "-q", "-m", "record")
+                repo.change("x", delta=self.RENAME)
+                r = repo.run("records", "--base", "main", "x")
+                self.assertIn(f'its Rationale for "{title}" covers a requirement the change changes',
+                              r.stdout)
+
+
+class ConsistencyReadChecklistTests(unittest.TestCase):
+    """consistency-read.md's checklist asks the reader to flag a record
+    entry that repeats a requirement."""
+
+    def test_item_16_flags_a_record_entry_a_requirement_already_states(self):
+        text = (pathlib.Path(spec_check.__file__).parent.parent / "consistency-read.md").read_text()
+        items = re.findall(r"^(\d+)\. ", text.split("Then go through the checklist", 1)[1], re.M)
+        self.assertEqual(items, [str(n) for n in range(1, 17)])
+        item = re.search(r"^16\. (.*?)(?=^\S|\Z)", text, re.M | re.S).group(1)
+        for words in ("Constraint or Rejected", "requirement or scenario already states",
+                      "*because* sentence", "Rationale entry"):
+            self.assertIn(words, " ".join(item.split()))
+        both_sides = re.search(r"\(items ([\d, ]+)\), quote both sides", text).group(1)
+        self.assertIn("16", both_sides.replace(" ", "").split(","))
 
 
 class MutationGapRun9Tests(unittest.TestCase):

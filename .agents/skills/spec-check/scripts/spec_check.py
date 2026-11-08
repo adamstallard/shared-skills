@@ -1593,13 +1593,18 @@ def change_record_cap(rel):
 
 RECORD_TITLE = re.compile(r"^#[ \t]+(?P<cap>.+?):[ \t]+constraints and rejected alternatives[ \t]*$",
                           re.I)
-RECORD_SECTIONS = {"constraints": "Constraint", "rejected": "Rejected", "retired": None}
+RECORD_SECTIONS = {"constraints": "Constraint", "rejected": "Rejected", "rationale": "Rationale",
+                   "retired": None}
+SECTION_OF = {"Constraint": "Constraints", "Rejected": "Rejected", "Rationale": "Rationale"}
 RECORD_SECTION = re.compile(r"^##[ \t]+(?P<name>.*?)[ \t]*$")
-RECORD_ENTRY = re.compile(r"^[-*][ \t]+\*\*(?P<kind>Constraint|Rejected):[ \t]*(?P<title>.+?)\*\*[ \t]*$")
+RECORD_ENTRY = re.compile(r"^[-*][ \t]+\*\*(?P<kind>Constraint|Rejected|Rationale):[ \t]*(?P<title>.+?)\*\*[ \t]*$")
 RECORD_PART = re.compile(r"^[ \t]+(?P<label>[A-Z][a-z]*(?: [a-z]+)?):(?:[ \t]+(?P<value>.*?))?[ \t]*$")
 RECORD_PARTS = {
     "Constraint": ("Because", "Evidence", "Holds while", "Paths"),
     "Rejected": ("Facing", "Lost because", "Instead", "Paths"),
+    # A Rationale entry's reasoning is the lines after its bold line, with
+    # no label; any number of Evidence lines may follow it.
+    "Rationale": ("Evidence",),
 }
 # Parts that end with a link: a URL, a markdown link, an issue or pull
 # request (#12, owner/repo#12) or a commit.
@@ -1615,6 +1620,8 @@ class RecordEntry:
         self.line, self.kind, self.title, self.section = line, kind, title, section
         self.parts = {}     # label -> [line, value]
         self.lines = []     # the entry's lines as the file writes them
+        self.reasoning = ""  # a Rationale entry's reasoning
+        self.evidence = []  # a Rationale entry's Evidence lines, as [line, value]
 
     @property
     def key(self):
@@ -1651,11 +1658,12 @@ def parse_record(text, change=False):
     record, which may also hold a `## Retired` section naming main-record
     entries the change removes."""
     rec = Record()
-    section, entry, part, seen_sections = None, None, None, set()
+    section, entry, part, seen_sections, after_blank = None, None, None, set(), False
     for n, raw, fenced in markdown_lines(text):
         if not raw.strip():
-            part = None
+            part, after_blank = None, True
             continue
+        blank_before, after_blank = after_blank, False
         if fenced:
             rec.problems.append((n, "a code fence is not part of a decision record"))
             continue
@@ -1675,7 +1683,8 @@ def parse_record(text, change=False):
             name = m.group("name").casefold()
             entry = part = None
             if name not in RECORD_SECTIONS or (name == "retired" and not change):
-                allowed = "`## Constraints`, `## Rejected`" + (" or `## Retired`" if change else "")
+                allowed = "`## Constraints`, `## Rejected`, `## Rationale`" + \
+                    (" or `## Retired`" if change else "")
                 rec.problems.append((n, f"a decision record has no section {raw.strip()!r}; "
                                         f"its sections are {allowed}"))
                 section = "?"
@@ -1692,16 +1701,21 @@ def parse_record(text, change=False):
             entry = RecordEntry(n, kind, title, section)
             entry.lines.append(raw.rstrip())
             if section is None:
-                rec.problems.append((n, "an entry above `## Constraints` or `## Rejected`"))
+                rec.problems.append((n, "an entry above `## Constraints`, `## Rejected` or "
+                                        "`## Rationale`"))
             elif section != "?" and RECORD_SECTIONS[section] not in (None, kind):
-                want = "Constraints" if kind == "Constraint" else "Rejected"
                 rec.problems.append((n, f"a {kind} entry under `## {section.title()}`; "
-                                        f"it goes under `## {want}`"))
+                                        f"it goes under `## {SECTION_OF[kind]}`"))
             if not title.rstrip("."):
                 rec.problems.append((n, "the entry names nothing after its label"))
             rec.entries.append(entry)
+            if kind == "Rationale" and section != "retired":
+                part = "reasoning"
             continue
         m = RECORD_PART.match(raw)
+        if m and entry is not None and entry.kind == "Rationale" and part == "reasoning" \
+                and m.group("label") != "Evidence":
+            m = None  # a reasoning line that starts with a word and a colon
         if entry is not None and m and m.group("label") in RECORD_PARTS["Constraint"] + \
                 RECORD_PARTS["Rejected"]:
             label = m.group("label")
@@ -1711,23 +1725,45 @@ def parse_record(text, change=False):
             elif label not in RECORD_PARTS[entry.kind]:
                 rec.problems.append((n, f"a {entry.kind} entry has no part {label!r}; its parts "
                                         f"are " + ", ".join(RECORD_PARTS[entry.kind])))
+            elif entry.kind == "Rationale":
+                entry.evidence.append([n, m.group("value") or ""])
             elif label in entry.parts:
                 rec.problems.append((n, f"{label} appears twice in this entry"))
             else:
                 entry.parts[label] = [n, m.group("value") or ""]
             part = label
             continue
+        if entry is not None and part == "reasoning" and raw[:1] in (" ", "\t"):
+            entry.lines.append(raw.rstrip())
+            entry.reasoning = (entry.reasoning + " " + raw.strip()).strip()
+            continue
         if entry is not None and part is not None and raw[:1] in (" ", "\t"):
             entry.lines.append(raw.rstrip())  # a part's value, wrapped
-            if part in entry.parts:
+            if entry.kind == "Rationale" and part == "Evidence" and entry.evidence:
+                entry.evidence[-1][1] = (entry.evidence[-1][1] + " " + raw.strip()).strip()
+            elif part in entry.parts:
                 entry.parts[part][1] = (entry.parts[part][1] + " " + raw.strip()).strip()
             continue
+        indented = entry is not None and raw[:1] in (" ", "\t")
+        if indented and section == "retired":
+            rec.problems.append((n, "an entry under `## Retired` is its bold line alone"))
+            continue
         rec.problems.append((n, "not part of an entry: a decision record holds only its title, "
-                                "its sections and their entries"))
+                                "its sections and their entries" +
+                                ("; a blank line ends the text before it, so this line belongs "
+                                 "to nothing" if indented and blank_before else "")))
     if rec.title_line == 0:
         rec.problems.append((0, "the record is empty"))
     for e in rec.entries:
         if e.section == "retired":
+            continue
+        if e.kind == "Rationale":
+            if not e.reasoning:
+                rec.problems.append((e.line, "the Rationale entry has no reasoning: write it on "
+                                             "the lines after its bold line"))
+            for n, value in e.evidence:
+                if not value.strip():
+                    rec.problems.append((n, "Evidence: is empty"))
             continue
         for label in RECORD_PARTS[e.kind]:
             if label not in e.parts:
@@ -1792,10 +1828,12 @@ def sentences(text):
     return out
 
 
-def check_record(rel, text, base, out, change=False, cap=None):
+def check_record(rel, text, base, out, change=False, cap=None, requirements=None):
     """Format checks on one record. A path in Paths that the tree being
     checked lacks is an error in a main record and a check in a change's
-    own, whose implementation may add it. Returns the Record."""
+    own, whose implementation may add it. requirements: the titles of the
+    requirements a Rationale entry may name, or None when they cannot be
+    told. Returns the Record."""
     rec = parse_record(text, change)
     for n, msg in rec.problems:
         out.append(Finding(rel, n, "error", "record", msg))
@@ -1803,14 +1841,24 @@ def check_record(rel, text, base, out, change=False, cap=None):
         out.append(Finding(rel, rec.title_line, "error", "record",
                            f"the title names {rec.cap!r}, and the record is {cap!r}'s"))
     names = None
+    allowed = None if requirements is None else {record_key(r) for r in requirements}
     for e in rec.entries:
         if e.section == "retired":
             continue
-        for label in LINKED_PARTS:
-            if label in e.parts and e.parts[label][1].strip() and not LINK.search(e.parts[label][1]):
-                out.append(Finding(rel, e.parts[label][0], "check", "record",
+        linked = [(label, e.parts[label]) for label in LINKED_PARTS if label in e.parts] + \
+            [("Evidence", ev) for ev in e.evidence]
+        for label, (n, value) in linked:
+            if value.strip() and not LINK.search(value):
+                out.append(Finding(rel, n, "check", "record",
                                    f"{label}: links nothing; end it with a link to the failure, "
                                    "measurement or outside fact (a URL, #<issue> or a commit)"))
+        if e.kind == "Rationale" and allowed is not None and record_key(e.title) not in allowed:
+            out.append(Finding(rel, e.line, "error", "record",
+                               f'Rationale: "{e.title.rstrip(".")}" names no requirement of '
+                               f"{cap or rec.cap}; name " +
+                               ("a requirement in force, or one this change adds or modifies,"
+                                if change else "a requirement of its main spec") +
+                               " by its title"))
         for label in ONE_SENTENCE_PARTS:
             if label in e.parts and sentence_count(e.parts[label][1]) > 1:
                 out.append(Finding(rel, e.parts[label][0], "check", "record",
@@ -1846,19 +1894,43 @@ def change_records(corpus, change):
     return out
 
 
-def check_change_records(change, corpus, base, out, deps=()):
+def change_requirements(change, corpus, known, cap):
+    """The titles a Rationale entry in change's own record for cap may name:
+    the requirements of cap the change is checked against (known, as
+    {(capability, title)}), with those the change adds, modifies or renames
+    to, less those it removes or renames away. None when they cannot be
+    told: known is None, or `openspec show` could not read the change's
+    deltas or cap's main spec."""
+    if known is None or corpus.missing or change in corpus.unread \
+            or f"openspec/specs/{cap}/spec.md" in corpus.unread:
+        return None
+    names = {n for c, n in known if c == cap}
+    for i in corpus.items.get(change, {}).get(cap, []):
+        if i.kind in ("ADDED", "MODIFIED"):
+            names.add(i.name)
+        elif i.kind == "REMOVED":
+            names.discard(i.name)
+        elif i.kind == "RENAMED":
+            names.discard(i.name)
+            names.add(i.new)
+    return names
+
+
+def check_change_records(change, corpus, base, out, deps=(), known=None):
     """Format checks on a change's own records, and every refusal folding
     them into the main records at archive would meet (fold_change), with a
     stacked change's dependencies' records in deps folded in first. deps
     is None when the stack could not be built, and then only the format is
-    checked."""
+    checked. known: {(capability, title)} of the requirements the change
+    is checked against, which a Rationale entry may name, or None."""
     _, refusals = fold_change(change, corpus, deps) if deps is not None else ({}, [])
     own = set(change_records(corpus, change).values())
     # A refusal over a dependency's record is reported at its `Builds on:`
     # line in the proposal, not at a file of this change's.
     out += [f for f in refusals if f.path not in own]
     for cap, rel in sorted(change_records(corpus, change).items()):
-        rec = check_record(rel, corpus.texts[rel], base, out, change=True, cap=cap)
+        rec = check_record(rel, corpus.texts[rel], base, out, change=True, cap=cap,
+                           requirements=change_requirements(change, corpus, known, cap))
         # A refusal over the change record's own form repeats check_record;
         # one over the main record, or over the path the change record would
         # be folded into, does not.
@@ -1882,7 +1954,12 @@ def check_main_records(corpus, base, out):
     caps = {spec_cap(p) for p in corpus.specs}
     for rel in sorted(corpus.records):
         cap = record_cap(corpus.template, rel)
-        check_record(rel, corpus.records[rel], base, out, cap=cap)
+        spec = f"openspec/specs/{cap}/spec.md"
+        # A Rationale entry's title is checked against its capability's
+        # main spec, unless OpenSpec is unavailable or could not read it.
+        names = None if corpus.missing or spec in corpus.unread else \
+            {r.name for r in corpus.specs.get(spec, [])}
+        check_record(rel, corpus.records[rel], base, out, cap=cap, requirements=names)
         if cap not in caps:
             out.append(Finding(rel, 0, "check", "record",
                                f"no spec in openspec/specs/ is {cap!r}, the capability this "
@@ -1979,7 +2056,7 @@ def fold_record(cap, main_text, change_text):
     title = main.title_raw if main and main.title_raw else \
         f"# {cap}: constraints and rejected alternatives"
     lines = [title]
-    for heading, kind in (("Constraints", "Constraint"), ("Rejected", "Rejected")):
+    for kind, heading in SECTION_OF.items():
         of_kind = [e for e in entries if e.kind == kind]
         if of_kind:
             lines += ["", f"## {heading}"]
@@ -2070,6 +2147,23 @@ def changed_files(repo, base_ref, ref=None):
     return sorted(set(n for n in names if n))
 
 
+REQUIREMENT_TITLE = re.compile(r"^###\s*Requirement:\s*(.+?)\s*$", re.I)
+
+
+def delta_titles(corpus, change, cap):
+    """The record keys of the requirement titles change's delta for cap
+    names, read from its text: `records` reads no requirements with
+    `openspec show`."""
+    rel = change_deltas(corpus, change).get(cap)
+    out = set()
+    for _, raw, fenced in markdown_lines(corpus.texts.get(rel, "")) if rel else []:
+        m = None if fenced else (REQUIREMENT_TITLE.match(raw) or RENAMED_FROM.match(raw)
+                                 or RENAMED_TO.match(raw))
+        if m:
+            out.add(record_key(m.group(1)))
+    return out
+
+
 def records_for(change, corpus, changed, deps=()):
     """[(record, why)]: the main record of each capability the change
     touches; each dependency's own records in deps, as `<path> in
@@ -2081,7 +2175,14 @@ def records_for(change, corpus, changed, deps=()):
     for cap in sorted(caps):
         rel = record_path(corpus.template, cap)
         if rel in corpus.records:
-            out.append((rel, f"the change touches {cap}"))
+            # A Rationale entry for a requirement the change rewrites is
+            # named, so the reader checks the reasoning still holds.
+            touched = delta_titles(corpus, change, cap)
+            covered = [e.title.rstrip(".") for e in parse_record(corpus.records[rel]).entries
+                       if e.kind == "Rationale" and record_key(e.title) in touched]
+            out.append((rel, f"the change touches {cap}" + "".join(
+                f'; its Rationale for "{t}" covers a requirement the change changes'
+                for t in covered)))
             seen.add(rel)
     for dep in deps:
         for cap in sorted(dep.records):
@@ -3648,16 +3749,18 @@ def run_checks(root, repo, base_ref, targets, validate, base_required=False, cha
         kept += apply_kept(change, corpus, own)
         stack, problems, complete = build_stack(change, corpus, repo, base)
         findings += own + problems
-        check_change_records(change, corpus, base, findings, stack_records(stack, complete))
-        # The specs the change is checked against, for the advice on a stray
-        # heading: main's, or main plus the dependencies once the stack is
-        # built; unknown when it could not be.
+        # The specs the change is checked against, which run_validate uses
+        # to advise on a heading it does not recognize, and which give the
+        # requirements a Rationale entry may name: main's, or
+        # main plus the dependencies once the stack is built; unknown when it
+        # could not be.
         if stack is None:
             known = main_names
         elif complete:
             known = {(cap, r.name) for cap, rs in stack.caps.items() for r in rs}
         else:
             known = None
+        check_change_records(change, corpus, base, findings, stack_records(stack, complete), known)
         if stack is None:
             check_duplicates(reqs, corpus, findings)
             refusals, archived = archive_alone(change, corpus)

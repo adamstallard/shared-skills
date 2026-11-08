@@ -61,7 +61,7 @@ Read, in this order:
    docs/architecture.md, ARCHITECTURE.md, docs/design/).
 
 Then go through the checklist below. For a finding that sets the change
-against something else (items 1, 2, 3, 7, 9, 11, 12, 14), quote both sides:
+against something else (items 1, 2, 3, 7, 9, 11, 12, 14, 16), quote both sides:
 the change's words with file:line, and the words it conflicts with, with
 file:line, PR number or issue number. Such a finding with one quote is a
 guess. A finding about the change alone (items 4, 5, 6, 8, 10, 13, 15)
@@ -80,8 +80,8 @@ quotes the change and says what is missing.
 5. A term used before it is defined, or defined nowhere.
 6. Rationale inside requirement text that is not needed to apply the rule.
    A requirement holds its SHALL statement plus at most one *because*
-   sentence; longer rationale moves to the change's decision record,
-   specs/<capability>/decisions.md.
+   sentence; longer rationale moves to a Rationale entry in the change's
+   decision record, specs/<capability>/decisions.md.
 7. A code citation (file:line) that does not point at what it claims on the
    base branch. Open each one: `git show <base>:<path>`.
 8. An unhandled hazard: credentials reachable by repository code; secrets
@@ -113,6 +113,14 @@ quotes the change and says what is missing.
     the change's own decisions.md nor a main record holds. design.md is
     archived with the change and never read again, so one that must
     outlive the change belongs in the record.
+16. A Constraint or Rejected entry, in the change's own decisions.md or a
+    record listed above, whose rule a requirement or scenario already
+    states (an entry "Constraint: Records are kept for thirty days" beside
+    a requirement that keeps them thirty days, with a scenario testing it).
+    Quote the requirement or scenario as the other side. Say to cut the
+    entry: a reason that fits in one sentence becomes the requirement's
+    *because* sentence, and longer reasoning goes in a Rationale entry
+    naming the requirement.
 
 Write each finding as:
 
