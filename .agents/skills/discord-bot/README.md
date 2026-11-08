@@ -26,7 +26,6 @@ Do this in a browser, once per bot. The script can't do any of it.
 1. [Discord Developer Portal](https://discord.com/developers/applications) →
    **New Application**. Name it after the agent, not after yourself
    (`acme-agent-adam`, `acme-reviewer`): every message appears under this name.
-   Copy the **Application ID** from General Information.
 2. **Bot** tab → set the same username, then **Reset Token** and copy it.
    Discord shows it once; you'll store it in step 3. Resetting it later stops
    the old token immediately.
@@ -39,24 +38,10 @@ Do this in a browser, once per bot. The script can't do any of it.
    Leave Server Members Intent and Presence Intent off; the skill uses
    neither. `@name` mentions don't need Server Members Intent: they were
    tested with it off.
-4. Invite the bot to your server with this URL, using your Application ID:
-
-   ```
-   https://discord.com/api/oauth2/authorize?client_id=<APPLICATION_ID>&scope=bot&permissions=309237713920
-   ```
-
-   That number grants exactly the five permissions the skill uses:
-
-   | Permission               | Used for                                   |
-   | ------------------------ | ------------------------------------------ |
-   | View Channel             | seeing the channels at all                 |
-   | Send Messages            | `post`                                     |
-   | Read Message History     | `read`, and finding a message to edit      |
-   | Create Public Threads    | `thread`                                   |
-   | Send Messages in Threads | posting inside a thread                    |
-
-5. If a channel is private, add the bot's role to it (channel → Edit Channel →
-   Permissions). Being in the server doesn't give access to private channels.
+4. If someone else will add the bot to their server, such as an admin of a
+   server you don't manage, turn on **Public Bot** on the same tab. While it is
+   off, only you can add the bot, and only to servers where you have Manage
+   Server. You can turn it off again once the bot has joined.
 
 ### 2. Name the identity
 
@@ -76,8 +61,21 @@ On your own machine, keep it in the keychain:
 python3 ~/.agents/skills/discord-bot/scripts/discord_bot.py --identity acme store-token
 ```
 
-It asks for the token without echoing it, and stores it under service
-`discord-bot`, account `acme`.
+Run it in a terminal window. It asks for the token without echoing it and
+checks it with Discord before storing it under service `discord-bot`, account
+`acme`. When it has no terminal, as when Claude Code's `!` prefix or an agent's
+shell runs it, it refuses and stores nothing. The output's `bot`
+field names the bot the token belongs to. If that is a different bot, you
+copied another bot's token: run `store-token` again with the right one.
+
+If Discord rejects the token, nothing is stored. The usual cause is pasting
+the Client Secret or the Public Key, from other tabs of the developer portal,
+instead of the bot token.
+
+To delete a stored token, run `forget-token` the same way. It says if nothing
+was stored. If `DISCORD_BOT_TOKEN` or `DISCORD_BOT_TOKEN_FILE` supplies a token
+for that identity, it warns you: the bot keeps using that token until you
+unset the variable.
 
 On a server or in a container, give each bot's process its token in its own
 environment instead, for example a systemd `EnvironmentFile` or a Docker env
@@ -100,7 +98,46 @@ keychain entry, so a process can't act as one bot with another bot's token.
 Where one agent role runs per process, name the identity after the role, the
 same name its GitHub App identity uses.
 
-### 4. Describe the channels and people
+### 4. Add the bot to a server
+
+Ask your agent to add the bot to a server. It runs the `invite-url` command
+and gives you the link that adds the bot, and tells you about any
+developer-portal setting to fix first (listed below). Adding a bot needs
+Discord's Manage Server permission on the server it joins. If you have it,
+open the link yourself; if not, send it to an admin who does. They pick the
+server and click **Authorize**. A bot can't join through an ordinary invite
+link.
+
+Without an agent, run the command yourself. It prints JSON, with the link in
+`inviteUrl`:
+
+```bash
+python3 ~/.agents/skills/discord-bot/scripts/discord_bot.py --identity acme invite-url
+```
+
+Use this link, not the one on the developer portal's Installation tab. The
+portal's link uses the app's default install settings, which may hold only
+`applications.commands`: the admin authorizes, but the bot never joins the
+server. This one asks for exactly the five permissions the skill
+uses:
+
+| Permission               | Used for                                   |
+| ------------------------ | ------------------------------------------ |
+| View Channel             | seeing the channels at all                 |
+| Send Messages            | `post`                                     |
+| Read Message History     | `read`, and finding a message to edit      |
+| Create Public Threads    | `thread`                                   |
+| Send Messages in Threads | posting inside a thread                    |
+
+The output's `warnings` name each developer-portal setting that would stop
+the link working: Public Bot off (Bot tab, step 1.4), Requires OAuth2 Code
+Grant on (Bot tab), or Guild Install off (Installation tab, Installation
+Contexts). Fix them before sending the link.
+
+If a channel is private, add the bot's role to it (channel → Edit Channel →
+Permissions). Being in the server doesn't give access to private channels.
+
+### 5. Describe the channels and people
 
 Create `~/.config/discord-bot/<identity>.json`, or under `$XDG_CONFIG_HOME` if
 you set it. The agent reads it through `check`, so this is where you tell it
@@ -131,7 +168,11 @@ Every field is optional:
 | `people`         | who each handle belongs to, in your words; use exact Discord names, since mentions match only exact names |
 | `keychain`       | `{"service": ..., "account": ...}` to read a token stored under another name |
 
-### 5. Check it
+### 6. Check it
+
+Once the bot is in the server, ask your agent to check the setup. It runs
+`check` and tells you what, if anything, still needs fixing. Without an agent,
+run it yourself:
 
 ```bash
 python3 ~/.agents/skills/discord-bot/scripts/discord_bot.py --identity acme check
@@ -139,7 +180,8 @@ python3 ~/.agents/skills/discord-bot/scripts/discord_bot.py --identity acme chec
 
 You should see:
 
-- the bot's name and your server;
+- the bot's name and your server. If `servers` holds `{"ok": false, ...}`
+  instead, its error says what to fix;
 - the default channel, with every permission `true`;
 - `"memberSearch": true`: a search for the bot's own name returned members, so
   `@name` mentions will work;
@@ -179,8 +221,27 @@ identity name too: without `--identity` or `DISCORD_BOT_IDENTITY`, it's
 `default`. If the error says the token in the environment belongs to another
 identity, that token is another bot's; give this identity its own.
 
-**"no text channel #… that the bot can see"**: the bot isn't in that server,
-or the channel is private and the bot's role wasn't added (setup step 1.5).
+**"Discord rejected the token entered"** from `store-token`: what you pasted
+isn't a bot token. Copy it from the developer portal's **Bot** tab, after
+**Reset Token**; the Client Secret and Public Key are not it.
+
+**Rotating a token.** On the developer portal's **Bot** tab, click **Reset
+Token**. Run `store-token` and paste the new token; it replaces the stored one,
+so `forget-token` isn't needed first. Then run `check`. Resetting stops the old
+token at once, so every machine and server using it needs the new one: on a
+server, put it in the bot's environment file or token file.
+Discord also resets a bot's token when it finds the token in a public GitHub
+repository.
+
+**"the bot is not in any server"** or **"no text channel #… that the bot can
+see"**: the bot hasn't been added to that server, or the channel is private and
+the bot's role wasn't added to it (setup step 4). The first error gives the
+`invite-url` command to run, its identity filled in.
+
+**"the bot is not in a server named or numbered …"**: `server` in the config
+matches none of the servers the error lists. Matching is exact and
+case-sensitive, so first compare the value with those names and fix it. If the
+server really is missing, run the `invite-url` command the error gives.
 
 **"#… exists in more than one server"**: set `server` in the config.
 

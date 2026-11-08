@@ -22,8 +22,10 @@ import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
+import warnings
 
 API = "https://discord.com/api/v10"
+AUTHORIZE = "https://discord.com/oauth2/authorize"
 USER_AGENT = "DiscordBot (https://github.com/adamstallard/shared-skills, 1)"
 KEYCHAIN_SERVICE = "discord-bot"
 MAX_CONTENT = 2000
@@ -193,11 +195,18 @@ def env_token(env):
             raise Failure(f"{source} is not a text file")
         if not token:
             raise Failure(f"{source} is empty")
-    # A token is printable ASCII with no spaces. Anything else would fail in the
-    # HTTP header with an error quoting the token, so refuse it here unquoted.
-    if not re.fullmatch(r"[!-~]+", token):
+    if not token_shaped(token):
         raise Failure(f"{source} must hold only the token: one line of printable ASCII, no spaces")
     return token
+
+
+def token_shaped(token):
+    """Whether `token` is printable ASCII with no spaces, as every Discord token is.
+
+    Anything else would fail in the HTTP header with an error quoting the
+    token, so callers refuse it first, without quoting it.
+    """
+    return re.fullmatch(r"[!-~]+", token) is not None
 
 
 def token_advice(identity, env):
@@ -279,26 +288,44 @@ def _json_or_empty(raw):
 # --- servers, channels and threads ----------------------------------------------
 
 
-def servers(api, config):
+def invite_hint(identity):
+    """The command that prints this bot's invite link.
+
+    It names the identity, so following it prints this bot's link and not
+    another's, and uses "=" so an identity starting with "-" still parses.
+    """
+    return f"run 'discord_bot.py --identity={identity} invite-url' for the link that adds it"
+
+
+def servers(api, config, identity="default"):
     guilds = api.request("GET", "/users/@me/guilds")
+    # Checked before the "server" filter: the filter's error tells the user to
+    # fix a mistyped value, which misleads when the bot is in no server at all.
+    if not guilds:
+        raise Failure(f"the bot is not in any server; {invite_hint(identity)}")
     wanted = str(config.get("server") or "").strip()
     if wanted:
-        guilds = [g for g in guilds if wanted in (g["id"], g["name"])]
-        if not guilds:
-            raise Failure(f"the bot is not in a server named or numbered {wanted!r}")
-    if not guilds:
-        raise Failure("the bot is not in any server; invite it first")
+        matching = [g for g in guilds if wanted in (g["id"], g["name"])]
+        if not matching:
+            # The value is often a typo or differs in case, so the servers the bot is
+            # in come first and the invite link last. JSON quoting, so a name can be
+            # pasted into the config as shown.
+            names = ", ".join(json.dumps(g["name"], ensure_ascii=False) for g in guilds)
+            raise Failure(f"the bot is not in a server named or numbered {json.dumps(wanted, ensure_ascii=False)}; "
+                          f"it is in {names}. "
+                          f"Fix \"server\" in the identity's config, or {invite_hint(identity)}")
+        guilds = matching
     return guilds
 
 
-def find_channel(api, config, name):
+def find_channel(api, config, name, identity="default"):
     """The text channel called `name` (or with that id), and the id of its server."""
     name = str(name).lstrip("#")
     if is_id(name):
         channel = api.request("GET", f"/channels/{name}")
         return channel, channel.get("guild_id")
     matches = []
-    for guild in servers(api, config):
+    for guild in servers(api, config, identity):
         for channel in api.request("GET", f"/guilds/{guild['id']}/channels"):
             if channel.get("type") in TEXT_CHANNEL_TYPES and channel.get("name") == name:
                 matches.append((channel, guild["id"]))
@@ -331,7 +358,7 @@ def target(api, config, args):
     name = str(args.channel or os.environ.get("DISCORD_BOT_CHANNEL") or config.get("defaultChannel") or "")
     if not name:
         raise Failure("no channel given: pass --channel, or set \"defaultChannel\" in the identity's config")
-    return find_channel(api, config, name)
+    return find_channel(api, config, name, args.identity)
 
 
 # --- message text ------------------------------------------------------------------
@@ -690,14 +717,69 @@ def cmd_thread(api, config, args):
     return {"threadId": thread["id"], "threadName": thread["name"], "messageId": args.message_id, "channelId": where["id"]}
 
 
+def invite_url(application_id):
+    """The link that adds the bot to a server with exactly the permissions in PERMISSIONS.
+
+    CHANNEL_BITS is the sum of their bits.
+
+    scope=bot makes it a server install whatever the application's default
+    install settings say. See DECISIONS.md.
+    """
+    query = {"client_id": application_id, "scope": "bot", "permissions": CHANNEL_BITS}
+    return f"{AUTHORIZE}?{urllib.parse.urlencode(query)}"
+
+
+def cmd_invite_url(api, config, args):
+    """The link that adds the bot to a server, and a warning for each setting that would stop it working.
+
+    Needs no server, so it works before the bot has joined one.
+    """
+    application = api.request("GET", "/applications/@me")
+    application_id = str(application.get("id") or "")
+    if not is_id(application_id):
+        raise Failure(f"Discord's application object had no usable id: {application.get('id')!r}")
+    public = application.get("bot_public")
+    public = public if isinstance(public, bool) else None
+    result = {
+        "bot": (application.get("bot") or {}).get("username") or application.get("name"),
+        "inviteUrl": invite_url(application_id),
+        "permissions": list(PERMISSIONS),
+        "publicBot": public,
+    }
+    # Each setting that stops the link working gets its own warning; several can apply at once.
+    warnings = []
+    if public is False:
+        warnings.append("Public Bot is off, so only the bot's owner can use this link; before sending "
+                        "it to a server admin, turn on Public Bot (Developer Portal, Bot tab)")
+    elif public is None:
+        warnings.append("could not tell whether Public Bot is on; if a server admin's attempt fails, "
+                        "turn it on (Developer Portal, Bot tab)")
+    if application.get("bot_require_code_grant") is True:
+        warnings.append("Requires OAuth2 Code Grant is on, so this link cannot add the bot; turn it off "
+                        "(Developer Portal, Bot tab)")
+    # Only a non-empty set of contexts that leaves out Guild Install ("0") warns. A
+    # missing, null or empty value doesn't show Guild Install is off, and a wrong
+    # warning would send the user to change a setting that is already right.
+    contexts = application.get("integration_types_config")
+    if isinstance(contexts, dict) and contexts and "0" not in contexts:
+        warnings.append("Guild Install is off, so this link cannot add the bot to a server; turn it on "
+                        "(Developer Portal, Installation tab, Installation Contexts)")
+    if warnings:
+        result["warnings"] = warnings
+    return result
+
+
 def cmd_check(api, config, args):
     """Report who the bot is, where it can post, and what it may do there."""
     me = api.request("GET", "/users/@me")
-    result = {
-        "identity": args.identity,
-        "bot": me.get("username"),
-        "servers": [g["name"] for g in servers(api, config)],
-    }
+    result = {"identity": args.identity, "bot": me.get("username")}
+    # A failed server lookup, whether the bot is in no server or not in the
+    # configured one, goes under "servers", and check goes on with the rest of
+    # the report.
+    try:
+        result["servers"] = [g["name"] for g in servers(api, config, args.identity)]
+    except Failure as e:
+        result["servers"] = {"ok": False, "error": str(e)}
     for key in ("channels", "people"):
         if config.get(key):
             result[key] = config[key]
@@ -767,13 +849,63 @@ def store_in_macos_keychain(service, account, token, run=subprocess.run):
                       "run store-token again, or add the entry with Keychain Access")
 
 
-def cmd_store_token(args, env=None, run=subprocess.run, which=shutil.which):
+def bot_for_token(token, make_api=Api):
+    """The username of the bot `token` belongs to, asked of Discord.
+
+    Raises, so nothing gets stored, when the token is malformed, Discord
+    rejects it or can't be reached, or Discord's answer names no bot.
+
+    Checking first stops a wrong value, such as the Client Secret, from being
+    stored and failing later in some other command. See DECISIONS.md.
+    """
+    if not token_shaped(token):
+        raise Failure("the token entered is not a bot token: it must be one line of printable ASCII, "
+                      "no spaces; nothing was stored")
+    try:
+        me = make_api(token).request("GET", "/users/@me")
+    except Failure as e:
+        if e.status == 401:
+            raise Failure("Discord rejected the token entered (401 Unauthorized), so nothing was stored. "
+                          "Copy the token from the developer portal's Bot tab (Reset Token); the Client "
+                          "Secret and Public Key on other tabs are not the bot token", status=401)
+        raise Failure(f"could not check the token with Discord, so nothing was stored: {e}",
+                      status=e.status, code=e.code)
+    name = me.get("username") if isinstance(me, dict) else None
+    if not isinstance(name, str) or not name:
+        raise Failure("Discord accepted the token entered but named no bot, so nothing was stored")
+    return name
+
+
+def read_hidden_token(identity):
+    """Prompt on the terminal for a token without echoing it.
+
+    Without a terminal, getpass warns and falls back to reading standard input
+    with echo on, which would show the token, so refuse instead.
+    """
+    if sys.stdin is None or not sys.stdin.isatty():
+        raise Failure("store-token needs a terminal to read the token without showing it: run it in a "
+                      "terminal window, not through a tool or Claude Code's '!' prefix")
+    try:
+        with warnings.catch_warnings():
+            # Turn getpass's echoing fallback into an error before it reads anything.
+            warnings.simplefilter("error", getpass.GetPassWarning)
+            token = getpass.getpass(f"Bot token for {identity!r} (input hidden): ").strip()
+    except getpass.GetPassWarning:
+        raise Failure("store-token could not hide the input on this terminal, so it read nothing: "
+                      "run it in a terminal window") from None
+    except EOFError:
+        raise Failure("no token entered") from None
+    if not token:
+        raise Failure("no token entered")
+    return token
+
+
+def cmd_store_token(args, env=None, run=subprocess.run, which=shutil.which, make_api=Api):
     env = os.environ if env is None else env
     config, _ = load_config(args.identity, env)
     service, account = keychain_entry(args.identity, config)
-    token = getpass.getpass(f"Bot token for {args.identity!r} (input hidden): ").strip()
-    if not token:
-        raise Failure("no token entered")
+    token = read_hidden_token(args.identity)
+    bot = bot_for_token(token, make_api)
     if which("security"):
         store_in_macos_keychain(service, account, token, run)
     elif which("secret-tool"):
@@ -784,7 +916,7 @@ def cmd_store_token(args, env=None, run=subprocess.run, which=shutil.which):
     else:
         raise Failure("no keychain tool found (macOS 'security' or Linux 'secret-tool'); "
                       f"{token_advice(args.identity, env)} instead")
-    stored = {"identity": args.identity, "stored": True, "service": service, "account": account}
+    stored = {"identity": args.identity, "bot": bot, "stored": True, "service": service, "account": account}
     present = env_token_set(env)
     if present and args.identity == env_identity(env):
         stored["warnings"] = [
@@ -792,6 +924,66 @@ def cmd_store_token(args, env=None, run=subprocess.run, which=shutil.which):
             "unset it for the stored token to take effect"
         ]
     return stored
+
+
+# `security` exits 44 when no entry matches (measured with
+# `security delete-generic-password` on a missing entry).
+SECURITY_NOT_FOUND = 44
+
+
+def delete_keychain_entry(service, account, run, which):
+    """Delete the identity's keychain entry: True if one was deleted, False if none was stored."""
+    if which("security"):
+        cmd = ["security", "delete-generic-password", "-s", service, "-a", account]
+        result = run(cmd, capture_output=True, text=True)
+        if result.returncode == SECURITY_NOT_FOUND:
+            return False
+        if result.returncode != 0:
+            raise Failure(f"deleting the token failed: {result.stderr.strip()}")
+        return True
+    if which("secret-tool"):
+        # `secret-tool clear` exits 0 whether or not anything matched, so look first.
+        found = run(["secret-tool", "lookup", "service", service, "account", account],
+                    capture_output=True, text=True)
+        if found.returncode != 0:
+            if found.stderr.strip():
+                raise Failure(f"looking up the token failed: {found.stderr.strip()}")
+            return False
+        result = run(["secret-tool", "clear", "service", service, "account", account],
+                     capture_output=True, text=True)
+        if result.returncode != 0:
+            raise Failure(f"deleting the token failed: {result.stderr.strip()}")
+        return True
+    raise Failure("no keychain tool found (macOS 'security' or Linux 'secret-tool'), so no token is stored")
+
+
+def cmd_forget_token(args, env=None, run=subprocess.run, which=shutil.which):
+    """Delete the identity's stored token.
+
+    The output never holds the token: no keychain tool's stdout is copied into it.
+    """
+    env = os.environ if env is None else env
+    config, _ = load_config(args.identity, env)
+    service, account = keychain_entry(args.identity, config)
+    removed = delete_keychain_entry(service, account, run, which)
+    result = {"identity": args.identity, "removed": removed, "service": service, "account": account}
+    warnings = []
+    if not removed:
+        warnings.append(f"no token was stored for identity {args.identity!r} "
+                        f"(service {service!r}, account {account!r}); nothing was deleted")
+    elif read_keychain(service, account, run, which):
+        # On macOS, `security` deletes the first match only, so another keychain
+        # can still hold one. On Linux, `secret-tool clear` removes every match,
+        # so this finds nothing.
+        warnings.append("another keychain entry with the same service and account still holds a token; "
+                        "run forget-token again to delete it")
+    present = env_token_set(env)
+    if present and args.identity == env_identity(env):
+        warnings.append(f"{' and '.join(present)} in the environment still supplies a token for this "
+                        "identity; unset it to stop the bot using it")
+    if warnings:
+        result["warnings"] = warnings
+    return result
 
 
 def message_url(guild_id, channel_id, message_id):
@@ -841,7 +1033,10 @@ def parser():
     c = sub.add_parser("check", help="show who the bot is and what it may do")
     where(c, threads=False)
 
-    sub.add_parser("store-token", help="save this identity's bot token in the keychain")
+    sub.add_parser("invite-url", help="print the link that adds the bot to a server")
+
+    sub.add_parser("store-token", help="check this identity's bot token with Discord and save it in the keychain")
+    sub.add_parser("forget-token", help="delete this identity's bot token from the keychain")
     return p
 
 
@@ -852,6 +1047,7 @@ COMMANDS = {
     "delete": cmd_delete,
     "thread": cmd_thread,
     "check": cmd_check,
+    "invite-url": cmd_invite_url,
 }
 
 
@@ -861,6 +1057,8 @@ def main(argv=None):
         args.identity = resolve_identity(args.identity)
         if args.command == "store-token":
             result = cmd_store_token(args)
+        elif args.command == "forget-token":
+            result = cmd_forget_token(args)
         else:
             config, _ = load_config(args.identity)
             api = Api(resolve_token(args.identity, config))
