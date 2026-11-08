@@ -64,7 +64,7 @@ Then go through the checklist below. For a finding that sets the change
 against something else (items 1, 2, 3, 7, 9, 11, 12, 14, 16), quote both sides:
 the change's words with file:line, and the words it conflicts with, with
 file:line, PR number or issue number. Such a finding with one quote is a
-guess. A finding about the change alone (items 4, 5, 6, 8, 10, 13, 15)
+guess. A finding about the change alone (items 4, 5, 6, 8, 10, 13, 15, 17)
 quotes the change and says what is missing.
 
 1. Contradiction inside the change: two of its rules that cannot both hold
@@ -121,6 +121,20 @@ quotes the change and says what is missing.
     entry: a reason that fits in one sentence becomes the requirement's
     *because* sentence, and longer reasoning goes in a Rationale entry
     naming the requirement.
+17. Reasoning in design.md, or an entry in the change's own decisions.md or
+    in a record listed above, that does any of these:
+    - names a person as its reason;
+    - records who decided or amended a decision, or when ("(<name>,
+      <date>)", "reversed by <name> on <date>", "<name> narrowed the
+      scope", "decided on <date>");
+    - states a preference;
+    - claims a fact without Evidence;
+    - only restates its requirement ("Constraint: Keep it simple", or a
+      Rationale entry that says only that its requirement is needed).
+
+    Say to fix it in this round:
+    ask the person who decided for the evidence and write it, reopen the
+    decision, or strike the entry.
 
 Write each finding as:
 

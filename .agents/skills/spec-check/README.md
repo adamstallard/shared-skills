@@ -35,7 +35,9 @@ When an agent works on anything under `openspec/`, it:
      sentence (a check, never a failure);
    - a decision record (below) that departs from its form, names a path
      that does not exist, or gives a Rationale entry for a requirement that
-     does not exist.
+     does not exist, including one the change removes or renames while its
+     record neither retires the entry (lists it under `## Retired`) nor, for
+     a rename, carries it over (writes it again under the new title).
 
    It also runs `openspec validate --strict` and includes what it reports,
    such as a misspelt section title or a section the archive drops.
@@ -125,7 +127,7 @@ prove it.
 Install it by asking your agent: "Install the spec-check skill". Installing
 turns on its hooks (see below).
 
-spec-check needs OpenSpec 1.15.0 or later on `PATH` (`npm install -g
+spec-check needs OpenSpec 1.16.0 or later on `PATH` (`npm install -g
 @fission-ai/openspec`). It reads the requirements of every spec and change
 through the OpenSpec CLI only. Without that version, the checks on
 requirements are reported as not run.
@@ -226,8 +228,8 @@ there it fails the check without making a draft.
 
 ## Troubleshooting
 
-- **`not run: install OpenSpec 1.15.0 or later`.** The `openspec` CLI is
-  not on `PATH`, or is older than 1.15.0. The requirement checks, validation
+- **`not run: install OpenSpec 1.16.0 or later`.** The `openspec` CLI is
+  not on `PATH`, or is older than 1.16.0. The requirement checks, validation
   and the archive did not run; citations and the `renamed-block` scan did.
   A stacked change also gets a `stack` error, since its dependencies are read
   and archived with the same CLI. Install or update OpenSpec (`npm install -g

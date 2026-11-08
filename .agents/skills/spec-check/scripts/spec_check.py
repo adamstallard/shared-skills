@@ -34,7 +34,7 @@ Every checked change is also archived into a scratch copy of the specs by
 `openspec archive`: alone, or for a stacked change, on top of its
 dependencies. Each refusal is an error.
 
-Specs and deltas are read only through the OpenSpec CLI, 1.15.0 or later:
+Specs and deltas are read only through the OpenSpec CLI, 1.16.0 or later:
 `openspec show --json` for their requirements, `openspec validate --strict
 --json` for what a delta drops, `openspec archive --json` for whether a
 change applies. Without it, every check that needs a requirement is
@@ -66,8 +66,9 @@ openspec/specs/<capability>/decisions.md; a change's own record is its
 specs/<capability>/decisions.md. check gives each record format checks,
 and each requirement of a change a `rationale` check when its text holds
 more than its statement and one sentence. records prints the records a
-change's consistency read is given: main records, and the records of the
-changes it builds on. archive runs `openspec archive` and then folds the
+change's consistency read is given: the main record of each capability the
+change touches, each main record whose Paths match a file the branch
+changes, and the records of the changes it builds on. archive runs `openspec archive` and then folds the
 change's records into the main records, since OpenSpec ignores records.
 
 Standard library only. Read DECISIONS.md next to SKILL.md before changing this.
@@ -338,12 +339,15 @@ class Scenario:
 # `openspec show --json` for the requirements a spec or delta holds,
 # `openspec validate --strict --json` for what a delta drops or misfiles,
 # and `openspec archive --json` for whether a change applies. `show --json`
-# names requirements and scenarios from 1.14.0, and from 1.15.0 `validate`
-# reports the text the archive drops, so 1.15.0 is the minimum. Without it,
+# names requirements and scenarios from 1.14.0, from 1.15.0 `validate`
+# reports the text the archive drops, and from 1.16.0 a backtick fence's
+# info string may not hold a backtick. openspec_fence_mask reads fences by
+# that 1.16.0 rule, so an older CLI would disagree with it about which
+# lines are fenced, and 1.16.0 is the minimum. Without it,
 # every check that needs a requirement is reported as not run.
 
-OPENSPEC_SINCE = (1, 15, 0)
-NEEDS_OPENSPEC = "install OpenSpec 1.15.0 or later"
+OPENSPEC_SINCE = (1, 16, 0)
+NEEDS_OPENSPEC = "install OpenSpec 1.16.0 or later"
 CLI_TIMEOUT = 120
 # `openspec show` refuses a change whose proposal.md lacks "Why" or "What
 # Changes", so a change's deltas are read beside this one instead of its own.
@@ -1309,11 +1313,20 @@ def evolution_mask(line: str) -> str:
     return EVOLUTION_QUOTED.sub(lambda m: EVOLUTION_MASK * len(m.group(0)), masked)
 
 
-def evolution_match(line: str) -> tuple[int, int, str] | None:
-    """(start, end, what it does) of the first pattern that fires on one
-    line of prose, quotes already masked, or None."""
+# The patterns that credit a decision to a person or a date. A change's own
+# decision record skips them (DECISIONS.md, "Record entries are grounded"):
+# its Evidence names products, standards and dated runs, and attribution in a
+# record is the consistency read's item 17.
+EVOLUTION_CREDITS = frozenset({"attribution", "person-decided"})
+
+
+def evolution_match(line: str, skip: frozenset[str] = frozenset()) -> tuple[int, int, str] | None:
+    """(start, end, what it does) of the first pattern not in skip that
+    fires on one line of prose, quotes already masked, or None."""
     heading = EVOLUTION_HEADING.match(line) if line.lstrip().startswith("#") else None
     for name, pattern, why, veto in EVOLUTION_PATTERNS:
+        if name in skip:
+            continue
         for m in pattern.finditer(line):
             before = line[max(0, m.start() - EVOLUTION_LOOKBACK):m.start()]
             if veto is not None and veto.search(before):
@@ -1326,7 +1339,7 @@ def evolution_match(line: str) -> tuple[int, int, str] | None:
     return None
 
 
-def evolution_hits(text: str) -> list[tuple[int, str, str, str]]:
+def evolution_hits(text: str, skip: frozenset[str] = frozenset()) -> list[tuple[int, str, str, str]]:
     """(line number, phrase, what it does, line) for each line of the
     markdown text that records how the document changed, outside code fences
     and quotes. One hit per line: the first pattern that fires."""
@@ -1336,7 +1349,7 @@ def evolution_hits(text: str) -> list[tuple[int, str, str, str]]:
             continue
         # The mask keeps positions, so the phrase is read from the line as
         # written, quotes included.
-        hit = evolution_match(evolution_mask(raw))
+        hit = evolution_match(evolution_mask(raw), skip)
         if hit:
             hits.append((n, raw[hit[0]:hit[1]].strip(), hit[2], raw.strip()))
     return hits
@@ -1345,10 +1358,12 @@ def evolution_hits(text: str) -> list[tuple[int, str, str, str]]:
 def check_evolution(paths: list[str], corpus: Corpus, out: list[Finding]) -> None:
     """An error on each line of the change's files that records how the
     document got to its shape rather than what is true now. A person can
-    keep a false one through the change's kept file (apply_kept)."""
+    keep a false one through the change's kept file (apply_kept). A change's
+    own decision record is read for history wording only, not for credits."""
     for path in paths:
         text: str = corpus.texts[path]
-        for n, phrase, why, line in evolution_hits(text):
+        skip = EVOLUTION_CREDITS if change_record_cap(path) is not None else frozenset()
+        for n, phrase, why, line in evolution_hits(text, skip):
             quote = line if len(line) <= EVOLUTION_QUOTE_MAX \
                 else line[:EVOLUTION_QUOTE_MAX - 1] + "…"
             f = Finding(path, n, "error", "evolution",
@@ -1625,16 +1640,40 @@ class RecordEntry:
 
     @property
     def key(self):
-        return (self.kind, record_key(self.title))
+        return (self.kind, entry_title(self.title))
 
     def paths(self):
         return [p for p in (split_paths(self.parts["Paths"][1]) if "Paths" in self.parts else [])]
 
 
-def record_key(title):
-    """A title as entries are matched by it: case, spacing, backticks and a
-    closing period ignored."""
+def entry_title(title):
+    """The requirement title an entry's bold title names, as entries and
+    requirements are matched (DECISIONS.md, "Record titles match exactly"):
+    the title as written, less the entry's closing period, with surrounding
+    space trimmed as `openspec archive` trims a requirement's name. A
+    requirement whose title ends in a period is written with two."""
+    title = title.strip(JS_SPACE)
+    return (title[:-1] if title.endswith(".") else title).strip(JS_SPACE)
+
+
+def loose_key(title):
+    """A title with case, spacing, backticks and a closing period ignored,
+    used only to suggest the exact title on a miss; nothing matches by it."""
     return " ".join(title.replace("`", "").split()).rstrip(".").casefold()
+
+
+def as_written(name):
+    """The bold title an entry for a requirement named name is written with:
+    the name, with a second period when it ends in one (entry_title)."""
+    return name + "." if name.endswith(".") else name
+
+
+def did_you_mean(title, names):
+    """ '; did you mean "<name>"?' when exactly one of names matches title
+    loosely, else '', with the name as an entry writes it. Called only for
+    a title not among names."""
+    near = sorted({n for n in names if loose_key(n) == loose_key(title)})
+    return f'; did you mean "{as_written(near[0])}"?' if len(near) == 1 else ""
 
 
 def split_paths(value):
@@ -1697,7 +1736,7 @@ def parse_record(text, change=False):
         m = RECORD_ENTRY.match(raw)
         if m:
             part = None
-            kind, title = m.group("kind"), m.group("title").strip()
+            kind, title = m.group("kind"), m.group("title").strip(JS_SPACE)
             entry = RecordEntry(n, kind, title, section)
             entry.lines.append(raw.rstrip())
             if section is None:
@@ -1706,7 +1745,7 @@ def parse_record(text, change=False):
             elif section != "?" and RECORD_SECTIONS[section] not in (None, kind):
                 rec.problems.append((n, f"a {kind} entry under `## {section.title()}`; "
                                         f"it goes under `## {SECTION_OF[kind]}`"))
-            if not title.rstrip("."):
+            if not entry_title(title):
                 rec.problems.append((n, "the entry names nothing after its label"))
             rec.entries.append(entry)
             if kind == "Rationale" and section != "retired":
@@ -1841,7 +1880,7 @@ def check_record(rel, text, base, out, change=False, cap=None, requirements=None
         out.append(Finding(rel, rec.title_line, "error", "record",
                            f"the title names {rec.cap!r}, and the record is {cap!r}'s"))
     names = None
-    allowed = None if requirements is None else {record_key(r) for r in requirements}
+    allowed = None if requirements is None else set(requirements)
     for e in rec.entries:
         if e.section == "retired":
             continue
@@ -1852,13 +1891,13 @@ def check_record(rel, text, base, out, change=False, cap=None, requirements=None
                 out.append(Finding(rel, n, "check", "record",
                                    f"{label}: links nothing; end it with a link to the failure, "
                                    "measurement or outside fact (a URL, #<issue> or a commit)"))
-        if e.kind == "Rationale" and allowed is not None and record_key(e.title) not in allowed:
+        if e.kind == "Rationale" and allowed is not None and e.key[1] and e.key[1] not in allowed:
             out.append(Finding(rel, e.line, "error", "record",
-                               f'Rationale: "{e.title.rstrip(".")}" names no requirement of '
+                               f'Rationale: "{e.key[1]}" names no requirement of '
                                f"{cap or rec.cap}; name " +
                                ("a requirement in force, or one this change adds or modifies,"
                                 if change else "a requirement of its main spec") +
-                               " by its title"))
+                               " by its exact title" + did_you_mean(e.key[1], allowed)))
         for label in ONE_SENTENCE_PARTS:
             if label in e.parts and sentence_count(e.parts[label][1]) > 1:
                 out.append(Finding(rel, e.parts[label][0], "check", "record",
@@ -1916,6 +1955,119 @@ def change_requirements(change, corpus, known, cap):
     return names
 
 
+CLOSING_HASHES = re.compile(r"[ \t]+#+[ \t]*$")
+
+
+def requirement_name(title):
+    """A requirement's name in a delta line, as OpenSpec's
+    normalizeRequirementName reads it: a closing run of `#` is not part of
+    it."""
+    return CLOSING_HASHES.sub("", title).strip(JS_SPACE)
+
+
+def delta_requirements(text):
+    """({title} of every requirement a delta's text names in a
+    requirements section, [(line, title)] of each it removes, [(line, old
+    title, new title)] of each it renames, [(line, title)] of each it
+    adds), read from the text as OpenSpec reads it: a fenced line is never a
+    title. archive and `records` call this because they read no
+    requirements with `openspec show`. As
+    OpenSpec does, it drops a leading byte-order mark and reads `\r` and
+    `\r\n` as line ends."""
+    named, removed, renames, added, section, pending = set(), [], [], [], None, None
+    lines = normalize_line_endings(text.removeprefix("\ufeff")).split("\n")
+    for n, (raw, fenced) in enumerate(zip(lines, openspec_fence_mask(lines)), 1):
+        if fenced:
+            continue
+        m = H2.match(raw)
+        if m:
+            section, pending = m.group(1).strip(JS_SPACE).lower(), None
+            continue
+        if section in ("added requirements", "modified requirements"):
+            m = DELTA_TITLE.match(raw)
+            if m:
+                named.add(requirement_name(m.group(1)))
+                if section == "added requirements":
+                    added.append((n, requirement_name(m.group(1))))
+        elif section == "removed requirements":
+            m = DELTA_TITLE.match(raw) or REMOVED_BULLET.match(raw)
+            if m:
+                removed.append((n, requirement_name(m.group(1))))
+        elif section == "renamed requirements":
+            m = DELTA_FROM.match(raw)
+            if m:
+                pending = (n, requirement_name(m.group(1)))
+                continue
+            m = DELTA_TO.match(raw)
+            if m and pending is not None:
+                renames.append((pending[0], pending[1], requirement_name(m.group(1))))
+                pending = None
+    named |= {t for _, t in removed}
+    named |= {t for _, old, new in renames for t in (old, new)}
+    return named, removed, renames, added
+
+
+def delta_changes(text):
+    """([(line, title)] of each requirement a delta's text removes,
+    [(line, old title, new title)] of each it renames)."""
+    return delta_requirements(text)[1:3]
+
+
+def check_title_reuse(rel, text, out):
+    """An error for each title a delta both takes away (removes or renames
+    from) and brings in (adds or renames to) (DECISIONS.md, "No title reused
+    within one change"). Titles compare exactly, as `openspec archive`
+    compares names; near-duplicates differing in case or spacing are the
+    archive's to refuse."""
+    _, removed, renames, added = delta_requirements(text)
+    away = {}
+    for n, title in sorted([(n, t) for n, t in removed] + [(n, old) for n, old, _ in renames]):
+        away.setdefault(title, n)
+    come = sorted(added + [(n, new) for n, _, new in renames])
+    reported = set()
+    for n, title in come:
+        if title in away and title not in reported:
+            reported.add(title)
+            out.append(Finding(rel, max(n, away[title]), "error", "title-reuse",
+                               f'this change renames or removes "{title}" and also adds or renames '
+                               f'to "{title}"; spec-check doesn\'t support reusing a title within one '
+                               "change. Split it into two changes, the second with a `Builds on:` "
+                               "line for the first (both can sit in one pull request), or choose "
+                               "another title"))
+
+
+def check_gone_rationale(change, corpus, base, out):
+    """A record error on the change for each requirement it removes or
+    renames that base ({main record rel: text}, the main records with any
+    dependencies' records folded in) gives a Rationale entry, unless the
+    change's own record retires that entry, or for a rename carries it
+    over as a Rationale entry titled with the new name."""
+    own_recs = change_records(corpus, change)
+    for cap, rel in sorted(change_deltas(corpus, change).items()):
+        main_rel = record_path(corpus.template, cap)
+        if base.get(main_rel) is None:
+            continue
+        held = {e.key[1] for e in parse_record(base[main_rel]).entries if e.kind == "Rationale"}
+        own = parse_record(corpus.texts[own_recs[cap]], change=True) if cap in own_recs else None
+        retired = {e.key[1] for e in own.entries
+                   if e.kind == "Rationale" and e.section == "retired"} if own else set()
+        carried = {e.key[1] for e in own.entries
+                   if e.kind == "Rationale" and e.section != "retired"} if own else set()
+        here = f"in this change's specs/{cap}/decisions.md"
+        removed, renames = delta_changes(corpus.texts[rel])
+        for n, title in removed:
+            if title in held and title not in retired:
+                out.append(Finding(rel, n, "error", "record",
+                                   f'removes "{title}", which {main_rel} gives a Rationale entry; '
+                                   f"retire that entry under `## Retired` {here}"))
+        for n, old, new in renames:
+            if old in held and old not in retired and new not in carried:
+                out.append(Finding(rel, n, "error", "record",
+                                   f'renames "{old}" to "{new}", which {main_rel} gives a Rationale '
+                                   f"entry; retire that entry under `## Retired`, or carry it over "
+                                   f'as a Rationale entry titled "{as_written(new)}", {here}'))
+
+
 def check_change_records(change, corpus, base, out, deps=(), known=None):
     """Format checks on a change's own records, and every refusal folding
     them into the main records at archive would meet (fold_change), with a
@@ -1924,6 +2076,9 @@ def check_change_records(change, corpus, base, out, deps=(), known=None):
     checked. known: {(capability, title)} of the requirements the change
     is checked against, which a Rationale entry may name, or None."""
     _, refusals = fold_change(change, corpus, deps) if deps is not None else ({}, [])
+    if deps is not None:
+        proposal = f"openspec/changes/{change}/proposal.md"
+        check_gone_rationale(change, corpus, fold_deps(corpus, deps, proposal)[0], out)
     own = set(change_records(corpus, change).values())
     # A refusal over a dependency's record is reported at its `Builds on:`
     # line in the proposal, not at a file of this change's.
@@ -1956,8 +2111,9 @@ def check_main_records(corpus, base, out):
         cap = record_cap(corpus.template, rel)
         spec = f"openspec/specs/{cap}/spec.md"
         # A Rationale entry's title is checked against its capability's
-        # main spec, unless OpenSpec is unavailable or could not read it.
-        names = None if corpus.missing or spec in corpus.unread else \
+        # main spec, unless OpenSpec is unavailable or could not read it, or
+        # there is no spec, which the finding below reports instead.
+        names = None if corpus.missing or spec in corpus.unread or cap not in caps else \
             {r.name for r in corpus.specs.get(spec, [])}
         check_record(rel, corpus.records[rel], base, out, cap=cap, requirements=names)
         if cap not in caps:
@@ -2023,26 +2179,45 @@ def check_rationale(reqs, corpus, out):
 
 # -- folding a change's records at archive --------------------------------------
 
-def fold_record(cap, main_text, change_text):
+def fold_record(cap, main_text, change_text, renames=()):
     """(the main record's new text, or None to delete it; [message] of what
     stops the fold). Each entry of the change's record replaces the main
     entry of the same kind and title, in place, or is added at the end of
-    its section; each entry under its `## Retired` removes one."""
+    its section; each entry under its `## Retired` removes one. renames:
+    (old title, new title) of each requirement the change renames; a
+    Rationale entry titled with the new name replaces, in place, the main
+    one titled with the old."""
+    moved = {new: old for old, new in renames}
+    carried = {}  # old title -> the new title its entry was carried over to
     problems = []
     main = parse_record(main_text) if main_text is not None else None
     if main is not None and main.problems:
         problems += [f"the main record, line {n}: {m}" for n, m in main.problems]
     ours = parse_record(change_text, change=True)
     problems += [f"line {n}: {m}" for n, m in ours.problems]
+    held = {m.key for m in main.entries} if main else set()
+    for e in ours.entries:
+        if e.kind == "Rationale" and e.section != "retired" and e.key[1] in moved \
+                and e.key not in held and ("Rationale", moved[e.key[1]]) in held:
+            carried[moved[e.key[1]]] = e.key[1]
     if problems:
         return None, problems
     entries = list(main.entries) if main else []
     for e in ours.entries:
         at = next((i for i, m in enumerate(entries) if m.key == e.key), None)
+        if at is None and e.kind == "Rationale" and e.section != "retired" and e.key[1] in moved:
+            # Carried over from the requirement's old title.
+            at = next((i for i, m in enumerate(entries)
+                       if m.key == ("Rationale", moved[e.key[1]])), None)
         if e.section == "retired":
-            if at is None:
+            if e.kind == "Rationale" and e.key[1] in carried:
+                problems.append(f"line {e.line}: retires the Rationale entry {e.title!r}, and "
+                                f'this record also carries it over to "{carried[e.key[1]]}"; '
+                                "keep one of the two")
+            elif at is None:
                 problems.append(f"line {e.line}: retires a {e.kind} entry {e.title!r} that the "
-                                "main record does not hold")
+                                "main record does not hold" + did_you_mean(
+                                    e.key[1], [m.key[1] for m in entries if m.kind == e.kind]))
             else:
                 del entries[at]
         elif at is None:
@@ -2093,7 +2268,10 @@ def fold_change(change, corpus, deps=()):
                                     f"cannot fold into {main_rel}: a file is there that is not "
                                     "read as a record; check the case of the configured location"))
             continue
-        text, problems = fold_record(cap, base.get(main_rel), corpus.texts[rel])
+        delta = change_deltas(corpus, change).get(cap)
+        renames = delta_changes(corpus.texts[delta])[1] if delta else []
+        text, problems = fold_record(cap, base.get(main_rel), corpus.texts[rel],
+                                     [(old, new) for _, old, new in renames])
         for p in problems:
             findings.append(Finding(rel, 0, "error", "record", f"cannot fold into {main_rel}: {p}"))
         # A change record with no entry, for a capability with no main record,
@@ -2115,7 +2293,9 @@ def fold_deps(corpus, deps, proposal):
             if cap in failed:
                 continue
             main_rel = record_path(corpus.template, cap)
-            new, problems = fold_record(cap, base.get(main_rel), text)
+            renames = delta_changes(dep.deltas[cap])[1] if cap in dep.deltas else []
+            new, problems = fold_record(cap, base.get(main_rel), text,
+                                        [(old, new) for _, old, new in renames])
             for p in problems:
                 findings.append(Finding(proposal, dep.line, "error", "record",
                                         f"cannot fold {dep.label}'s record into {main_rel} "
@@ -2155,13 +2335,7 @@ def delta_titles(corpus, change, cap):
     names, read from its text: `records` reads no requirements with
     `openspec show`."""
     rel = change_deltas(corpus, change).get(cap)
-    out = set()
-    for _, raw, fenced in markdown_lines(corpus.texts.get(rel, "")) if rel else []:
-        m = None if fenced else (REQUIREMENT_TITLE.match(raw) or RENAMED_FROM.match(raw)
-                                 or RENAMED_TO.match(raw))
-        if m:
-            out.add(record_key(m.group(1)))
-    return out
+    return delta_requirements(corpus.texts[rel])[0] if rel else set()
 
 
 def records_for(change, corpus, changed, deps=()):
@@ -2178,8 +2352,8 @@ def records_for(change, corpus, changed, deps=()):
             # A Rationale entry for a requirement the change rewrites is
             # named, so the reader checks the reasoning still holds.
             touched = delta_titles(corpus, change, cap)
-            covered = [e.title.rstrip(".") for e in parse_record(corpus.records[rel]).entries
-                       if e.kind == "Rationale" and record_key(e.title) in touched]
+            covered = [e.key[1] for e in parse_record(corpus.records[rel]).entries
+                       if e.kind == "Rationale" and e.key[1] in touched]
             out.append((rel, f"the change touches {cap}" + "".join(
                 f'; its Rationale for "{t}" covers a requirement the change changes'
                 for t in covered)))
@@ -2793,13 +2967,18 @@ def records_not_shown(dep, corpus, later=()):
     records do not show, as [what it lacks], judged like not_shown by
     presence, never by text: each entry it adds or replaces is in the main
     record by kind and title; each it retires is absent. An entry a later
-    merged dependency retires need not be there, and one a later one adds
-    need not be absent."""
+    merged dependency retires, or carries over to a requirement's new title,
+    need not be there, and one a later one adds need not be absent."""
     gone, back = set(), set()
     for d in later:
         for cap, text in d.records.items():
+            renames = delta_changes(d.deltas[cap])[1] if cap in d.deltas else []
+            moved = {new: old for _, old, new in renames}
             for e in parse_record(text, change=True).entries:
                 (gone if e.section == "retired" else back).add((cap, e.key))
+                if e.kind == "Rationale" and e.section != "retired" and e.key[1] in moved:
+                    # Carried over from the old title, which the fold replaces.
+                    gone.add((cap, ("Rationale", moved[e.key[1]])))
     missing = []
     for cap, text in sorted(dep.records.items()):
         main = corpus.records.get(record_path(corpus.template, cap))
@@ -3026,7 +3205,7 @@ def build_stack(change, corpus, repo, base):
     return stack, findings, complete
 
 
-# The refusals `openspec archive` gives for one delta spec (OpenSpec 1.15.0,
+# The refusals `openspec archive` gives for one delta spec (OpenSpec 1.16.0,
 # dist/core/specs-apply.js, buildUpdatedSpec). Each names the capability;
 # only REFUSAL also names one requirement of the delta.
 REFUSAL = re.compile(r'^(\S+) (RENAMED|REMOVED|MODIFIED|ADDED) failed for header '
@@ -3100,7 +3279,7 @@ def archive_own(change, corpus, copy, stacked):
     return out + purposes
 
 
-# `openspec archive` (OpenSpec 1.15.0 and 1.16.0, dist/core/specs-apply.js,
+# `openspec archive` (OpenSpec 1.16.0, dist/core/specs-apply.js,
 # buildUpdatedSpec) uses a delta's `## Purpose` only when the delta creates
 # the spec, and ignores it for a spec that exists. When a new spec's delta
 # has no Purpose, an empty one, or one that would leave the spec unreadable,
@@ -3109,8 +3288,8 @@ def archive_own(change, corpus, copy, stacked):
 # sentence from PURPOSE_PLACEHOLDER_PREFIX and PURPOSE_PLACEHOLDER_SUFFIX in
 # dist/core/validation/constants.js.
 #
-# The three strings after MIN_PURPOSE_LENGTH are the starts of the archive
-# warning and validate messages that check_purposes matches, as OpenSpec
+# The three strings after MIN_PURPOSE_LENGTH are the fixed parts of the
+# archive warning and validate messages that check_purposes matches, as OpenSpec
 # 1.16.0 prints them. If OpenSpec rewords one, check_purposes stops
 # reporting that case, with no error of its own.
 #
@@ -3157,6 +3336,17 @@ def mask_html_comments(text):
 JS_SPACE = ("\t\n\v\f\r \u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006"
             "\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff")
 _S = f"[{JS_SPACE}]"
+# A delta read as OpenSpec's parseDeltaSpec reads it (delta_requirements): a
+# section runs from its `## ` heading, whose trimmed title it compares
+# ignoring case, to the next one; a removed requirement is a heading or a
+# bullet holding one.
+_DOT = "[^\n\r\u2028\u2029]"  # JavaScript's `.`
+H2 = re.compile(rf"^##{_S}+({_DOT}+)$")
+_REQUIREMENT = "[Rr][Ee][Qq][Uu][Ii][Rr][Ee][Mm][Ee][Nn][Tt]"
+DELTA_TITLE = re.compile(rf"^###{_S}*{_REQUIREMENT}:{_S}*({_DOT}+){_S}*$")
+REMOVED_BULLET = re.compile(rf"^{_S}*[-*+]{_S}*`?###{_S}*Requirement:{_S}*({_DOT}+?)`?{_S}*$")
+DELTA_FROM = re.compile(rf"^{_S}*[-*+]?{_S}*FROM:{_S}*`?###{_S}*Requirement:{_S}*({_DOT}+?)`?{_S}*$")
+DELTA_TO = re.compile(rf"^{_S}*[-*+]?{_S}*TO:{_S}*`?###{_S}*Requirement:{_S}*({_DOT}+?)`?{_S}*$")
 OPENSPEC_FENCE = re.compile(rf"^{_S}*(`{{3,}}|~{{3,}})([^\n\r\u2028\u2029]*)")
 OPENSPEC_FENCE_CLOSE = re.compile(rf"^{_S}*(`{{3,}}|~{{3,}}){_S}*$")
 OPENSPEC_PURPOSE = re.compile(rf"^##{_S}+[Pp][Uu][Rr][Pp][Oo][Ss][Ee]{_S}*$")
@@ -3738,6 +3928,7 @@ def run_checks(root, repo, base_ref, targets, validate, base_required=False, cha
         own = []
         for cap, rel in change_deltas(corpus, change).items():
             check_renamed_blocks(rel, corpus.texts[rel], own)
+            check_title_reuse(rel, corpus.texts[rel], own)
         if change in corpus.unread:
             rel = next(iter(change_deltas(corpus, change).values()), f"openspec/changes/{change}")
             own.append(Finding(rel, 0, "error", "openspec-show",
@@ -4321,11 +4512,25 @@ def commit_passes(repo, sha, base_ref):
         name = folder if folder in removed else ARCHIVE_DATE.sub("", folder)
         if name not in removed:
             continue
+        prefix = f"openspec/changes/archive/{folder}/specs/"
+        caps = sorted({p[len(prefix):].rpartition("/")[0] for p in added
+                       if p.startswith(prefix) and p.rpartition("/")[2] in ("spec.md", "decisions.md")
+                       and p.count("/") > prefix.count("/")})
         passes.append((("archive", folder), set(), (
-            f"{PASS_DUE} the DECISIONS.md of each skill the change {name} affects. "
-            f"It is archived as openspec/changes/archive/{folder}: fold its reasoning "
-            "into those files, rewriting older reasoning rather than appending to it, "
-            "then run prose check on each and compact any it reports as due.")))
+            f"{PASS_DUE} the decision record of each capability the change {name} changes"
+            + (f" ({', '.join(caps)})" if caps else "") + ". "
+            f"It is archived as openspec/changes/archive/{folder}: move the reasoning in "
+            "its design.md that no requirement or record entry holds into those records, "
+            "at the location decision records are configured to: a Rationale entry for "
+            "reasoning about one requirement, a Constraint entry for a rule the code must "
+            "keep that no test can check, with its Evidence (a principle with none becomes "
+            "Rejected entries for what it rules out), a Rejected entry for an alternative "
+            "turned down (including the fix not taken behind an accepted limit or "
+            "trade-off); leave the rest, and anything without Evidence or too slight to "
+            "decide anything with, in the archived "
+            "design.md (spec-check's SKILL.md, Decision records). In shared-skills, also fold it into the DECISIONS.md of "
+            "each skill it affects that keeps one. Then run prose check on each file "
+            "changed and compact any it reports as due.")))
     src = [p for p in added if SRC_PATH.search(p)]
     if not src:
         return passes
