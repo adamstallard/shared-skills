@@ -22,6 +22,7 @@ import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
+import warnings
 
 API = "https://discord.com/api/v10"
 AUTHORIZE = "https://discord.com/oauth2/authorize"
@@ -194,11 +195,18 @@ def env_token(env):
             raise Failure(f"{source} is not a text file")
         if not token:
             raise Failure(f"{source} is empty")
-    # A token is printable ASCII with no spaces. Anything else would fail in the
-    # HTTP header with an error quoting the token, so refuse it here unquoted.
-    if not re.fullmatch(r"[!-~]+", token):
+    if not token_shaped(token):
         raise Failure(f"{source} must hold only the token: one line of printable ASCII, no spaces")
     return token
+
+
+def token_shaped(token):
+    """Whether `token` is printable ASCII with no spaces, as every Discord token is.
+
+    Anything else would fail in the HTTP header with an error quoting the
+    token, so callers refuse it first, without quoting it.
+    """
+    return re.fullmatch(r"[!-~]+", token) is not None
 
 
 def token_advice(identity, env):
@@ -841,13 +849,63 @@ def store_in_macos_keychain(service, account, token, run=subprocess.run):
                       "run store-token again, or add the entry with Keychain Access")
 
 
-def cmd_store_token(args, env=None, run=subprocess.run, which=shutil.which):
+def bot_for_token(token, make_api=Api):
+    """The username of the bot `token` belongs to, asked of Discord.
+
+    Raises, so nothing gets stored, when the token is malformed, Discord
+    rejects it or can't be reached, or Discord's answer names no bot.
+
+    Checking first stops a wrong value, such as the Client Secret, from being
+    stored and failing later in some other command. See DECISIONS.md.
+    """
+    if not token_shaped(token):
+        raise Failure("the token entered is not a bot token: it must be one line of printable ASCII, "
+                      "no spaces; nothing was stored")
+    try:
+        me = make_api(token).request("GET", "/users/@me")
+    except Failure as e:
+        if e.status == 401:
+            raise Failure("Discord rejected the token entered (401 Unauthorized), so nothing was stored. "
+                          "Copy the token from the developer portal's Bot tab (Reset Token); the Client "
+                          "Secret and Public Key on other tabs are not the bot token", status=401)
+        raise Failure(f"could not check the token with Discord, so nothing was stored: {e}",
+                      status=e.status, code=e.code)
+    name = me.get("username") if isinstance(me, dict) else None
+    if not isinstance(name, str) or not name:
+        raise Failure("Discord accepted the token entered but named no bot, so nothing was stored")
+    return name
+
+
+def read_hidden_token(identity):
+    """Prompt on the terminal for a token without echoing it.
+
+    Without a terminal, getpass warns and falls back to reading standard input
+    with echo on, which would show the token, so refuse instead.
+    """
+    if sys.stdin is None or not sys.stdin.isatty():
+        raise Failure("store-token needs a terminal to read the token without showing it: run it in a "
+                      "terminal window, not through a tool or Claude Code's '!' prefix")
+    try:
+        with warnings.catch_warnings():
+            # Turn getpass's echoing fallback into an error before it reads anything.
+            warnings.simplefilter("error", getpass.GetPassWarning)
+            token = getpass.getpass(f"Bot token for {identity!r} (input hidden): ").strip()
+    except getpass.GetPassWarning:
+        raise Failure("store-token could not hide the input on this terminal, so it read nothing: "
+                      "run it in a terminal window") from None
+    except EOFError:
+        raise Failure("no token entered") from None
+    if not token:
+        raise Failure("no token entered")
+    return token
+
+
+def cmd_store_token(args, env=None, run=subprocess.run, which=shutil.which, make_api=Api):
     env = os.environ if env is None else env
     config, _ = load_config(args.identity, env)
     service, account = keychain_entry(args.identity, config)
-    token = getpass.getpass(f"Bot token for {args.identity!r} (input hidden): ").strip()
-    if not token:
-        raise Failure("no token entered")
+    token = read_hidden_token(args.identity)
+    bot = bot_for_token(token, make_api)
     if which("security"):
         store_in_macos_keychain(service, account, token, run)
     elif which("secret-tool"):
@@ -858,7 +916,7 @@ def cmd_store_token(args, env=None, run=subprocess.run, which=shutil.which):
     else:
         raise Failure("no keychain tool found (macOS 'security' or Linux 'secret-tool'); "
                       f"{token_advice(args.identity, env)} instead")
-    stored = {"identity": args.identity, "stored": True, "service": service, "account": account}
+    stored = {"identity": args.identity, "bot": bot, "stored": True, "service": service, "account": account}
     present = env_token_set(env)
     if present and args.identity == env_identity(env):
         stored["warnings"] = [
@@ -866,6 +924,66 @@ def cmd_store_token(args, env=None, run=subprocess.run, which=shutil.which):
             "unset it for the stored token to take effect"
         ]
     return stored
+
+
+# `security` exits 44 when no entry matches (measured with
+# `security delete-generic-password` on a missing entry).
+SECURITY_NOT_FOUND = 44
+
+
+def delete_keychain_entry(service, account, run, which):
+    """Delete the identity's keychain entry: True if one was deleted, False if none was stored."""
+    if which("security"):
+        cmd = ["security", "delete-generic-password", "-s", service, "-a", account]
+        result = run(cmd, capture_output=True, text=True)
+        if result.returncode == SECURITY_NOT_FOUND:
+            return False
+        if result.returncode != 0:
+            raise Failure(f"deleting the token failed: {result.stderr.strip()}")
+        return True
+    if which("secret-tool"):
+        # `secret-tool clear` exits 0 whether or not anything matched, so look first.
+        found = run(["secret-tool", "lookup", "service", service, "account", account],
+                    capture_output=True, text=True)
+        if found.returncode != 0:
+            if found.stderr.strip():
+                raise Failure(f"looking up the token failed: {found.stderr.strip()}")
+            return False
+        result = run(["secret-tool", "clear", "service", service, "account", account],
+                     capture_output=True, text=True)
+        if result.returncode != 0:
+            raise Failure(f"deleting the token failed: {result.stderr.strip()}")
+        return True
+    raise Failure("no keychain tool found (macOS 'security' or Linux 'secret-tool'), so no token is stored")
+
+
+def cmd_forget_token(args, env=None, run=subprocess.run, which=shutil.which):
+    """Delete the identity's stored token.
+
+    The output never holds the token: no keychain tool's stdout is copied into it.
+    """
+    env = os.environ if env is None else env
+    config, _ = load_config(args.identity, env)
+    service, account = keychain_entry(args.identity, config)
+    removed = delete_keychain_entry(service, account, run, which)
+    result = {"identity": args.identity, "removed": removed, "service": service, "account": account}
+    warnings = []
+    if not removed:
+        warnings.append(f"no token was stored for identity {args.identity!r} "
+                        f"(service {service!r}, account {account!r}); nothing was deleted")
+    elif read_keychain(service, account, run, which):
+        # On macOS, `security` deletes the first match only, so another keychain
+        # can still hold one. On Linux, `secret-tool clear` removes every match,
+        # so this finds nothing.
+        warnings.append("another keychain entry with the same service and account still holds a token; "
+                        "run forget-token again to delete it")
+    present = env_token_set(env)
+    if present and args.identity == env_identity(env):
+        warnings.append(f"{' and '.join(present)} in the environment still supplies a token for this "
+                        "identity; unset it to stop the bot using it")
+    if warnings:
+        result["warnings"] = warnings
+    return result
 
 
 def message_url(guild_id, channel_id, message_id):
@@ -917,7 +1035,8 @@ def parser():
 
     sub.add_parser("invite-url", help="print the link that adds the bot to a server")
 
-    sub.add_parser("store-token", help="save this identity's bot token in the keychain")
+    sub.add_parser("store-token", help="check this identity's bot token with Discord and save it in the keychain")
+    sub.add_parser("forget-token", help="delete this identity's bot token from the keychain")
     return p
 
 
@@ -938,6 +1057,8 @@ def main(argv=None):
         args.identity = resolve_identity(args.identity)
         if args.command == "store-token":
             result = cmd_store_token(args)
+        elif args.command == "forget-token":
+            result = cmd_forget_token(args)
         else:
             config, _ = load_config(args.identity)
             api = Api(resolve_token(args.identity, config))

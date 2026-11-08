@@ -591,13 +591,80 @@ class EnvironmentToken(unittest.TestCase):
         with self.assertRaisesRegex(d.Failure, "DISCORD_BOT_IDENTITY=reviewer"):
             d.resolve_token("reviewer", {}, {}, lambda s, a: None)
 
+TERMINAL = types.SimpleNamespace(isatty=lambda: True)
+NO_TERMINAL = types.SimpleNamespace(isatty=lambda: False)
+
+
 class StoreToken(unittest.TestCase):
+    def setUp(self):
+        # The tests run with or without a terminal; store-token needs one.
+        patcher = mock.patch.object(d.sys, "stdin", TERMINAL)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def prompt(self, getpass_effect, stdin=TERMINAL):
+        """Run store-token with a fake getpass; returns the Failure, the getpass mock and the keychain calls."""
+        run = mock.Mock(return_value=types.SimpleNamespace(returncode=0, stdout="", stderr=""))
+        args = types.SimpleNamespace(identity="acme")
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(d.sys, "stdin", stdin), \
+                mock.patch.object(d.getpass, "getpass", side_effect=getpass_effect) as fake, \
+                self.assertRaises(d.Failure) as e:
+            d.cmd_store_token(args, {"XDG_CONFIG_HOME": tmp}, run=run,
+                              which=lambda t: t == "secret-tool", make_api=accepting_api)
+        return e.exception, fake, run.call_args_list
+
+    def test_without_a_terminal_it_refuses_before_prompting(self):
+        failure, fake, calls = self.prompt(lambda prompt: "tok", stdin=NO_TERMINAL)
+        self.assertIn("terminal window", str(failure))
+        self.assertIn("'!' prefix", str(failure))
+        fake.assert_not_called()
+        self.assertEqual(calls, [])
+
+    def test_without_a_terminal_main_prints_a_clean_error(self):
+        out, err = io.StringIO(), io.StringIO()
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(d.sys, "stdin", NO_TERMINAL), \
+                mock.patch.dict(os.environ, {"XDG_CONFIG_HOME": tmp}), \
+                mock.patch.object(d.getpass, "getpass") as fake, \
+                redirect_stdout(out), mock.patch.object(sys, "stderr", err):
+            code = d.main(["--identity", "acme", "store-token"])
+        self.assertEqual(code, 1)
+        self.assertIn("terminal window", json.loads(out.getvalue())["error"])
+        self.assertEqual(err.getvalue(), "")
+        fake.assert_not_called()
+
+    def test_no_stdin_at_all_refuses(self):
+        failure, fake, _ = self.prompt(lambda prompt: "tok", stdin=None)
+        self.assertIn("terminal window", str(failure))
+        fake.assert_not_called()
+
+    def test_end_of_input_at_the_prompt_is_no_token_entered(self):
+        failure, _, calls = self.prompt(EOFError())
+        self.assertEqual(str(failure), "no token entered")
+        self.assertEqual(calls, [])
+
+    def test_the_prompt_names_the_identity(self):
+        _, fake, _ = self.prompt(EOFError())
+        self.assertIn("'acme'", fake.call_args.args[0])
+
+    def test_getpass_falling_back_to_an_echoing_read_is_refused(self):
+        read = mock.Mock(return_value="s3cret")
+
+        def getpass_that_falls_back(prompt):
+            # What getpass does when it can't turn echo off: issue a GetPassWarning
+            # (a warning, not an exception), then read with echo on.
+            d.warnings.warn("Can not control echo on the terminal.", d.getpass.GetPassWarning, stacklevel=2)
+            return read()
+        failure, _, calls = self.prompt(getpass_that_falls_back)
+        self.assertIn("could not hide the input", str(failure))
+        read.assert_not_called()
+        self.assertEqual(calls, [])
+
     def store(self, identity, env):
         run = mock.Mock(return_value=types.SimpleNamespace(returncode=0, stderr=""))
         args = types.SimpleNamespace(identity=identity)
         with tempfile.TemporaryDirectory() as tmp, mock.patch.object(d.getpass, "getpass", return_value="tok"):
             result = d.cmd_store_token(args, {"XDG_CONFIG_HOME": tmp, **env}, run=run,
-                                       which=lambda t: t == "secret-tool")
+                                       which=lambda t: t == "secret-tool", make_api=accepting_api)
         self.assertEqual(run.call_args[0][0][:2], ["secret-tool", "store"])
         return result
 
@@ -626,7 +693,8 @@ class StoreToken(unittest.TestCase):
         args = types.SimpleNamespace(identity="acme")
         with tempfile.TemporaryDirectory() as tmp, mock.patch.object(d.getpass, "getpass", return_value=" s3cret\n"):
             try:
-                result = d.cmd_store_token(args, {"XDG_CONFIG_HOME": tmp}, run=run, which=lambda t: t == "security")
+                result = d.cmd_store_token(args, {"XDG_CONFIG_HOME": tmp}, run=run, which=lambda t: t == "security",
+                                           make_api=accepting_api)
             except d.Failure as e:
                 result = e
         return result, run.call_args_list
@@ -678,7 +746,187 @@ class StoreToken(unittest.TestCase):
         args = types.SimpleNamespace(identity="reviewer")
         with tempfile.TemporaryDirectory() as tmp, mock.patch.object(d.getpass, "getpass", return_value="tok"), \
                 self.assertRaisesRegex(d.Failure, "DISCORD_BOT_IDENTITY=reviewer"):
-            d.cmd_store_token(args, {"XDG_CONFIG_HOME": tmp}, run=None, which=lambda t: None)
+            d.cmd_store_token(args, {"XDG_CONFIG_HOME": tmp}, run=None, which=lambda t: None, make_api=accepting_api)
+
+    def store_checked(self, answer, token="s3cret"):
+        """Store `token` with Discord answering /users/@me with `answer`.
+
+        Returns the result or Failure, the calls made to the fake keychain tool
+        (empty when nothing was stored), and the tokens sent to Discord.
+        """
+        run = mock.Mock(return_value=types.SimpleNamespace(returncode=0, stdout="", stderr=""))
+        checked = []
+
+        def make_api(tok):
+            checked.append(tok)
+            return FakeApi({("GET", "/users/@me"): answer})
+        args = types.SimpleNamespace(identity="acme")
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(d.getpass, "getpass", return_value=token):
+            try:
+                result = d.cmd_store_token(args, {"XDG_CONFIG_HOME": tmp}, run=run,
+                                           which=lambda t: t == "secret-tool", make_api=make_api)
+            except d.Failure as e:
+                result = e
+        return result, run.call_args_list, checked
+
+    def test_the_token_is_checked_with_discord_and_the_bot_named(self):
+        result, calls, checked = self.store_checked({"id": BOT, "username": "acme-agent"})
+        self.assertEqual(checked, ["s3cret"])
+        self.assertEqual(result["bot"], "acme-agent")
+        self.assertEqual(len(calls), 1)
+
+    def test_a_rejected_token_is_not_stored_and_not_echoed(self):
+        result, calls, _ = self.store_checked(d.Failure("401: Unauthorized", status=401))
+        self.assertIsInstance(result, d.Failure)
+        self.assertEqual(calls, [])
+        self.assertIn("Client Secret", str(result))
+        self.assertIn("Public Key", str(result))
+        self.assertNotIn("s3cret", str(result))
+
+    def test_a_network_failure_refuses_to_store(self):
+        result, calls, _ = self.store_checked(d.Failure("cannot reach Discord: timed out"))
+        self.assertIsInstance(result, d.Failure)
+        self.assertEqual(calls, [])
+        self.assertIn("could not check the token", str(result))
+        self.assertIn("timed out", str(result))
+
+    def test_an_answer_without_a_username_refuses_to_store(self):
+        result, calls, _ = self.store_checked({"id": BOT})
+        self.assertIsInstance(result, d.Failure)
+        self.assertEqual(calls, [])
+
+    def test_an_empty_or_non_string_username_refuses_to_store(self):
+        for username in ("", 5):
+            with self.subTest(username=username):
+                result, calls, _ = self.store_checked({"id": BOT, "username": username})
+                self.assertIsInstance(result, d.Failure)
+                self.assertIn("named no bot", str(result))
+                self.assertEqual(calls, [])
+
+    def test_a_discord_error_keeps_its_status_and_code(self):
+        result, _, _ = self.store_checked(d.Failure("Service unavailable", status=503, code=0))
+        self.assertEqual((result.status, result.code), (503, 0))
+        result, _, _ = self.store_checked(d.Failure("Missing Access", status=403, code=50001))
+        self.assertEqual((result.status, result.code), (403, 50001))
+
+    def test_empty_input_says_no_token_was_entered_and_asks_nobody(self):
+        result, calls, checked = self.store_checked({"username": "x"}, token="  \n")
+        self.assertEqual(str(result), "no token entered")
+        self.assertEqual((calls, checked), ([], []))
+
+    def test_a_token_with_a_space_is_refused_before_any_request_without_echoing_it(self):
+        # Python's HTTP library would reject the header with an error quoting the token.
+        result, calls, checked = self.store_checked({"username": "x"}, token="Bot s3cret")
+        self.assertIsInstance(result, d.Failure)
+        self.assertEqual((calls, checked), ([], []))
+        self.assertNotIn("s3cret", str(result))
+
+
+def accepting_api(token):
+    return FakeApi({("GET", "/users/@me"): {"id": BOT, "username": "acme-agent"}})
+
+
+class ForgetToken(unittest.TestCase):
+    def forget(self, tool, answers, env=None, config=None):
+        """Run forget-token with only `tool` installed.
+
+        `answers` maps a command's first two words to (returncode, stdout, stderr);
+        a command not listed gets (0, "", ""), a success.
+        """
+        def run(cmd, **kwargs):
+            rc, out, err = answers.get(tuple(cmd[:2]), (0, "", ""))
+            return types.SimpleNamespace(returncode=rc, stdout=out, stderr=err)
+        run = mock.Mock(side_effect=run)
+        args = types.SimpleNamespace(identity="acme")
+        with tempfile.TemporaryDirectory() as tmp:
+            if config is not None:
+                os.makedirs(os.path.join(tmp, "discord-bot"))
+                with open(os.path.join(tmp, "discord-bot", "acme.json"), "w") as f:
+                    json.dump(config, f)
+            try:
+                result = d.cmd_forget_token(args, {"XDG_CONFIG_HOME": tmp, **(env or {})}, run=run,
+                                            which=lambda t: t == tool)
+            except d.Failure as e:
+                result = e
+        return result, [c.args[0] for c in run.call_args_list]
+
+    GONE = ("security", "find-generic-password")
+
+    def test_macos_deletes_the_entry(self):
+        result, cmds = self.forget("security", {self.GONE: (44, "", "not found")})
+        self.assertEqual(cmds[0], ["security", "delete-generic-password", "-s", "discord-bot", "-a", "acme"])
+        self.assertIs(result["removed"], True)
+        self.assertNotIn("warnings", result)
+
+    def test_macos_reports_when_nothing_was_stored(self):
+        result, cmds = self.forget("security", {("security", "delete-generic-password"): (44, "", "not found")})
+        self.assertIs(result["removed"], False)
+        self.assertIn("no token was stored", result["warnings"][0])
+        self.assertEqual(len(cmds), 1)
+
+    def test_macos_failure_is_an_error(self):
+        result, _ = self.forget("security", {("security", "delete-generic-password"): (1, "", "denied")})
+        self.assertIsInstance(result, d.Failure)
+        self.assertIn("denied", str(result))
+
+    def test_macos_warns_when_another_entry_still_holds_a_token(self):
+        result, _ = self.forget("security", {self.GONE: (0, "older\n", "")})
+        self.assertIn("still holds a token", result["warnings"][0])
+        self.assertNotIn("older", json.dumps(result))
+
+    def test_the_config_keychain_override_is_honoured(self):
+        _, cmds = self.forget("security", {self.GONE: (44, "", "")},
+                              config={"keychain": {"service": "svc", "account": "acct"}})
+        self.assertEqual(cmds[0], ["security", "delete-generic-password", "-s", "svc", "-a", "acct"])
+
+    def test_linux_looks_up_then_clears(self):
+        answers = {("secret-tool", "lookup"): (0, "tok", "")}
+        calls = []
+
+        def run(cmd, **kwargs):
+            calls.append(cmd)
+            # After the clear, the lookup finds nothing.
+            cleared = any(c[1] == "clear" for c in calls)
+            rc, out, err = (1, "", "") if cleared and cmd[1] == "lookup" else answers.get(tuple(cmd[:2]), (0, "", ""))
+            return types.SimpleNamespace(returncode=rc, stdout=out, stderr=err)
+        with tempfile.TemporaryDirectory() as tmp:
+            result = d.cmd_forget_token(types.SimpleNamespace(identity="acme"), {"XDG_CONFIG_HOME": tmp},
+                                        run=run, which=lambda t: t == "secret-tool")
+        self.assertIn(["secret-tool", "clear", "service", "discord-bot", "account", "acme"], calls)
+        self.assertIs(result["removed"], True)
+        self.assertNotIn("warnings", result)
+
+    def test_linux_reports_when_nothing_was_stored_without_clearing(self):
+        result, cmds = self.forget("secret-tool", {("secret-tool", "lookup"): (1, "", "")})
+        self.assertIs(result["removed"], False)
+        self.assertEqual([c[1] for c in cmds], ["lookup"])
+
+    def test_linux_lookup_error_is_an_error(self):
+        result, _ = self.forget("secret-tool", {("secret-tool", "lookup"): (1, "", "no secret service")})
+        self.assertIsInstance(result, d.Failure)
+
+    def test_warns_that_the_environment_still_supplies_a_token(self):
+        result, _ = self.forget("security", {self.GONE: (44, "", "")},
+                                env={"DISCORD_BOT_TOKEN_FILE": "/x", "DISCORD_BOT_IDENTITY": "acme"})
+        self.assertIn("DISCORD_BOT_TOKEN_FILE", result["warnings"][-1])
+        self.assertIn("still supplies", result["warnings"][-1])
+
+    def test_no_environment_warning_for_another_identity(self):
+        result, _ = self.forget("security", {self.GONE: (44, "", "")}, env={"DISCORD_BOT_TOKEN": "t"})
+        self.assertNotIn("warnings", result)
+
+    def test_no_keychain_tool_is_an_error(self):
+        result, _ = self.forget(None, {})
+        self.assertIsInstance(result, d.Failure)
+
+    def test_main_runs_it_without_a_token(self):
+        out = io.StringIO()
+        with mock.patch.dict(os.environ, {"XDG_CONFIG_HOME": tempfile.gettempdir()}, clear=True), \
+                mock.patch.object(d, "cmd_forget_token", return_value={"removed": False}) as forget, \
+                redirect_stdout(out):
+            code = d.main(["--identity", "nobody-here", "forget-token"])
+        self.assertEqual(code, 0)
+        self.assertEqual(forget.call_args.args[0].identity, "nobody-here")
 
 
 class Http(unittest.TestCase):
