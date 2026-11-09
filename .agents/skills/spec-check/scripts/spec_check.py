@@ -1562,8 +1562,8 @@ def parse_config(text):
         else:
             value = re.sub(r"[ \t]+#.*$", "", value).strip()
         if key != RECORDS_KEY:
-            problems.append((n, "error", f"spec-check reads no key {key!r}; the one key is "
-                                         f"{RECORDS_KEY}"))
+            problems.append((n, "error", f"spec-check reads no key {key!r}; delete this line "
+                                         f"(the only key is {RECORDS_KEY})"))
             continue
         if key in seen:
             problems.append((n, "error", f"{key} is set twice"))

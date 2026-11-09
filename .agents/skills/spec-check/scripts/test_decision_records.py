@@ -101,8 +101,11 @@ class ConfigTests(unittest.TestCase):
         # the first in place.
         default = spec_check.DEFAULT_RECORD
         for text, what, location in (
-                ("decision-record: openspec/x/<capability>/d.md\n", "reads no key", default),
-                ("decisions-first: enforce\n", "reads no key", default),
+                ("decision-record: openspec/x/<capability>/d.md\n",
+                 "reads no key 'decision-record'; delete this line (the only key is "
+                 "decision-records)", default),
+                ("decisions-first: enforce\n",
+                 "reads no key 'decisions-first'; delete this line", default),
                 ("- a list\n", "not a `key: value` line", default),
                 ("decision-records: 'unclosed\n", "not one quoted string", default),
                 ("decision-records: openspec/a/<capability>/d.md\n"
