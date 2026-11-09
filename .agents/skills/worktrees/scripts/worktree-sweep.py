@@ -3,7 +3,7 @@
 
 A worktree holding a branch stops anyone checking that branch out elsewhere,
 so it should go as soon as its work is pushed. This hook never removes
-anything itself. Read ../DECISIONS.md before changing it.
+anything itself.
 
 When it looks, and at what:
   - After a command that pushed (PostToolUse, or Cursor's postToolUse): only
@@ -20,7 +20,8 @@ When it looks, and at what:
   - At Stop: every worktree of every repo it finds, except two kinds. Locked
     ones are skipped. A worktree that isn't the session's own is also skipped
     when git did something in it during the last RECENT_SECONDS, by
-    last_used. Those times are read before git runs in the
+    last_used. The hook's own git commands must not make a worktree look
+    recently used: last_used reads those times before git runs in the
     worktree, and git runs with GIT_OPTIONAL_LOCKS=0, so `git status` does not
     rewrite the index.
 

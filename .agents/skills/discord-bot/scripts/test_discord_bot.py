@@ -473,7 +473,7 @@ class Token(unittest.TestCase):
 
 
 class EnvironmentToken(unittest.TestCase):
-    """The environment's token belongs to DISCORD_BOT_IDENTITY's bot only (DECISIONS.md)."""
+    """The environment's token belongs to DISCORD_BOT_IDENTITY's bot only."""
 
     def token_file(self, content):
         tmp = tempfile.TemporaryDirectory()

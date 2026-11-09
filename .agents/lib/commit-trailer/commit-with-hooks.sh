@@ -3,10 +3,6 @@
 # the commit script commits with a plain `git commit -m ... --trailer ...`, and
 # none of this runs.
 #
-# BEFORE CHANGING ANY OF THIS, READ DECISIONS.md next to this file — "The
-# pre-commit hook runs before anything is bound" and "The pre-commit hook runs
-# once per commit".
-#
 # Not run on its own: it uses the commit script's variables (families, args,
 # subject, body, lib_dir, nl) and functions (fail, q, verify).
 #

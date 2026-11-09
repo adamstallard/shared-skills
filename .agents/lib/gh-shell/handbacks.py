@@ -2,10 +2,14 @@
 tool call.
 
 Shared by spec-check's hand-back hook (.agents/skills/spec-check/scripts/
-handback.py), which blocks or takes back a hand-back while an OpenSpec
-change has had no consistency read since its last edit, and prose's posting
-hook (.agents/skills/prose/scripts/prose.py), which cold-reads a pull request
-body only at a hand-back and prints the current-state pass due after one.
+handback.py), which blocks a hand-back, or takes it back by making the pull
+request a draft again and removing the reviewers the call requested, while
+an OpenSpec change has had no consistency read
+since its last edit; and prose's posting hook
+(.agents/skills/prose/scripts/prose.py), which cold-reads a pull request
+body only at a hand-back and, after one, prints a reminder of the
+current-state pass: rewriting any doc, body or title the pull request
+changes that still describes work as unfinished or to come.
 Each hook imports it from this directory of the shared-skills clone. The
 functions here take the gh_shell module, beside this file, as their `reader`
 argument, to split shell commands; with no reader (None), a shell command
@@ -20,8 +24,7 @@ A hand-back is:
 - the GitHub MCP server's `create_pull_request`, unless it is a draft, and its
   `update_pull_request` with `draft: false` or with reviewers.
 
-Why it is read the way it is: spec-check's DECISIONS.md, "One consistency
-read per round". Standard library only.
+Standard library only.
 """
 
 import json

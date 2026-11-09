@@ -19,9 +19,7 @@ true but slow to read has failed.
 The rules live only in [rules.md](rules.md). This skill's script, `prose.py`,
 prints them at `prose.py start` and at the first call of `prose.py check`
 (before a commit) or `prose.py sign` (before a post); *Two calls* says how.
-Work from that printout, not from memory of an earlier session. Before
-changing this file, read [DECISIONS.md](DECISIONS.md), which says why each rule
-and mechanism is the way it is.
+Work from that printout, not from memory of an earlier session.
 
 ## What counts as prose
 

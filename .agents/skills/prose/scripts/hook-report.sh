@@ -7,7 +7,7 @@
 #
 # The report says which commits and what is wrong with them, then names
 # SKILL.md's *Committing* section instead of restating it, and names none of
-# the skill's files (the library's DECISIONS.md, "Each report names its skill's section").
+# the skill's files.
 #
 # The function bodies are not indented: the strings below are multi-line
 # report text, and indenting them would indent what the user reads.

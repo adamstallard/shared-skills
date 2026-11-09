@@ -80,7 +80,15 @@ class CurrentStateDocs(unittest.TestCase):
     """Which docs the triggers measure when no attribute says."""
 
     def test_the_defaults(self):
-        for path, expected in (("DECISIONS.md", True),
+        for path, expected in (("DECISIONS.md", False), ("skills/a/decisions.md", False),
+                               ("docs/adr/0001-use-x.md", False),
+                               ("docs/decisions/0002-architecture-x.md", False),
+                               ("skills/adr/SKILL.md", True), ("docs/adr/AGENTS.md", True),
+                               ("docs/adr/architecture.md", True),
+                               (".agents/skills/decisions/CLAUDE.md", True),
+                               (".agents/skills/openspec/DECISIONS.md", False),
+                               ("openspec/specs/seat/decisions.md", True),
+                               ("openspec/changes/fix-x/specs/seat/decisions.md", True),
                                (".agents/skills/prose/SKILL.md", True),
                                ("AGENTS.md", True), ("sub/CLAUDE.md", True),
                                ("docs/architecture.md", True), ("ARCHITECTURE.md", True),
@@ -169,21 +177,26 @@ class CompactionDue(unittest.TestCase):
         self.assertNotIn("compaction due", self.check().stdout)
 
     def test_a_doc_not_read_often_is_not_due_whatever_it_holds(self):
-        self.repo.write("DECISIONS.md", repeated(5, "**Revised 2026-09-30.** It holds.\n\n"))
+        self.repo.write("docs/architecture.md",
+                        repeated(5, "**Revised 2026-09-30.** It holds.\n\n"))
         self.repo.write("README.md", repeated(5))
         self.assertNotIn("compaction due", self.check().stdout)
 
     def test_a_file_a_skill_links_to_be_read_first_is_read_often(self):
         self.repo.write("skills/a/SKILL.md", "# A\n\n- [The rules](rules.md). Read them first.\n"
-                                             "- [Why](DECISIONS.md). Read it before changing this "
-                                             "file.\n")
+                                             "- [Notes](notes.md). Read it before changing this "
+                                             "file.\n"
+                                             "- [Why](DECISIONS.md). Read it first.\n")
         self.repo.commit("skill\n")
         self.repo.write("skills/a/rules.md", repeated())
+        self.repo.write("skills/a/notes.md", repeated())
         self.repo.write("skills/a/DECISIONS.md", repeated())
         out = self.check().stdout
         self.assertIn("compaction due for skills/a/rules.md: read often (skills/a/SKILL.md links "
                       "it to be read first)", out)
         # Read before changing the skill is a read only when the skill changes.
+        self.assertNotIn("compaction due for skills/a/notes.md", out)
+        # A DECISIONS.md is for people, so no link makes it read often.
         self.assertNotIn("compaction due for skills/a/DECISIONS.md", out)
 
     def test_an_open_changes_proposal_is_read_often(self):
@@ -358,6 +371,25 @@ class CompactionDue(unittest.TestCase):
         self.assertNotIn("compaction due for SKILL.md", out)
         self.assertIn("compaction due for notes.md: read often (declared prose-compact in "
                       ".gitattributes)", out)
+
+    def test_a_decisions_md_or_an_adr_is_never_due_even_declared(self):
+        self.repo.write(".gitattributes", "* prose-compact-flagged=50 prose-compact-reads=0\n"
+                                          "*.md prose-compact\n")
+        self.repo.write("notes.md", repeated())
+        self.repo.write("DECISIONS.md", repeated())
+        self.repo.write("docs/adr/0001-x.md", repeated())
+        out = self.check().stdout
+        self.assertIn("compaction due for notes.md", out)
+        self.assertNotIn("compaction due for DECISIONS.md", out)
+        self.assertNotIn("compaction due for docs/adr/0001-x.md", out)
+
+    def test_a_skill_named_adr_keeps_its_read_first_files(self):
+        self.repo.write(".gitattributes", "* prose-compact-flagged=50\n")
+        self.repo.write("skills/adr/SKILL.md", "# A\n\n- [The rules](rules.md). Read them first.\n")
+        self.repo.commit("skill\n")
+        self.repo.write("skills/adr/rules.md", repeated())
+        self.assertIn("compaction due for skills/adr/rules.md: read often (skills/adr/SKILL.md "
+                      "links it to be read first)", self.check().stdout)
 
     def test_growth_and_flagged_settings_apply_per_file(self):
         self.repo.write(".gitattributes", "* prose-compact-flagged=50\n"

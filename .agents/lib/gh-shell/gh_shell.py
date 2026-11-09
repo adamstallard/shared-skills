@@ -4,9 +4,10 @@ Shared by prose's posting hook (.agents/skills/prose/scripts/prose.py) and
 spec-check's hand-back hook (.agents/skills/spec-check/scripts/handback.py),
 so the two agree on what a command runs. Each hook imports it from this
 directory of the shared-skills clone, found from the hook's own real path,
-as the skills' commit scripts find ../lib/commit-trailer. Without it, prose's
-posting hook blocks any command that may run gh, and spec-check's hand-back
-hook judges nothing.
+as the skills' commit scripts find ../lib/commit-trailer. When this module is
+missing, as in a skill folder copied out of the clone, prose's posting hook
+blocks any command that may run gh, and spec-check's hand-back hook judges
+nothing.
 
 - _commands(command) splits a command into simple commands, or gives None
   for anything it cannot read exactly;
@@ -14,8 +15,7 @@ hook judges nothing.
 - the tables give each gh verb's flags, as `gh <noun> <verb> --help` lists
   them.
 
-Why it reads the shell the way it does: prose's DECISIONS.md, "The posting
-hook reads an allow-list". Standard library only.
+Standard library only.
 """
 
 import re
@@ -116,8 +116,8 @@ def _words(command):
     double-quoted string holding $, a backtick or a backslash. For zsh it is
     also a word starting with an unquoted `=`, even after empty quotes
     (`''=x`), which zsh replaces with a command's path. Such a command is not
-    one of the forms prose's posting hook accepts (prose's DECISIONS.md, "The
-    posting hook reads an allow-list"), so the hook does not try to read it.
+    one of the forms prose's posting hook accepts, so the hook does not try
+    to read it.
     """
     words, text, quoted, started, i = [], "", False, False, 0
     while i < len(command):

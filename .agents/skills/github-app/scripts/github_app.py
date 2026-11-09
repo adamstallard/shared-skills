@@ -5,8 +5,6 @@ The long-lived credential is the App's private key. Installation tokens, which
 last an hour, are minted from it on demand, cached per identity, and replaced
 halfway through their life. Standard library only, plus the `openssl` command
 for the RS256 signature.
-
-Why it is built this way, and what was tried and rejected: ../DECISIONS.md.
 """
 
 import argparse
@@ -475,7 +473,7 @@ def script_command(identity, *rest, python=None, script=None):
 # --- the agent's environment -------------------------------------------------------
 #
 # The agent's identity lives only in the environment of the processes that act
-# as it. Nothing here writes a git config file: see ../DECISIONS.md.
+# as it. Nothing here writes a git config file.
 
 
 def bot_cache_path(identity, env=None):

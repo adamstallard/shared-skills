@@ -112,7 +112,7 @@ class PostingHook(unittest.TestCase):
         self.assertEqual(self.hook(self.bash(command)).returncode, 0)
 
     def test_the_heredoc_idiom_is_blocked(self):
-        # Not on the allow-list (DECISIONS: the posting hook reads an allow-list).
+        # Not on the posting hook's allow-list.
         body = self.good.rstrip("\n")
         command = f"gh pr create --title T --body \"$(cat <<'EOF'\n{body}\nEOF\n)\""
         self.assertEqual(self.hook(self.bash(command)).returncode, 2)
@@ -127,7 +127,7 @@ class PostingHook(unittest.TestCase):
 
     def test_gh_body_file_from_a_heredoc_is_not_an_accepted_form(self):
         command = f"gh pr comment 3 --body-file - <<'EOF'\n{self.good}EOF\n"
-        # Not an accepted form (DECISIONS: the posting hook reads an allow-list), so blocked.
+        # Not a form the posting hook accepts, so blocked.
         self.assertEqual(self.hook(self.bash(command)).returncode, 2)
 
     def test_gh_body_from_a_pipe_cannot_be_read_and_is_blocked(self):
@@ -149,7 +149,7 @@ class PostingHook(unittest.TestCase):
         escaped = signed.rstrip("\n").replace("\\", "\\\\").replace("`", "\\`").replace("$", "\\$")
         command = f'gh pr comment 12 --body "{escaped}"'
         result = self.hook(self.bash(command))
-        # Not an accepted form (DECISIONS: the posting hook reads an allow-list), so blocked.
+        # Not a form the posting hook accepts, so blocked.
         self.assertEqual(result.returncode, 2, result.stderr)
 
     def test_a_body_built_by_the_shell_is_called_unreadable(self):
@@ -182,7 +182,7 @@ class PostingHook(unittest.TestCase):
 
     def test_a_backslash_heredoc_delimiter_is_not_an_accepted_form(self):
         command = f"gh pr comment 3 --body-file - <<\\EOF\n{self.good}EOF\n"
-        # Not an accepted form (DECISIONS: the posting hook reads an allow-list), so blocked.
+        # Not a form the posting hook accepts, so blocked.
         self.assertEqual(self.hook(self.bash(command)).returncode, 2)
 
     def test_gh_aliases_and_attached_short_flags_are_checked(self):
@@ -198,7 +198,7 @@ class PostingHook(unittest.TestCase):
 
     def test_a_post_in_a_substitution_trusts_no_file_an_earlier_command_writes(self):
         (self.dir / "pr.md").write_text(self.good)
-        # Not an accepted form (DECISIONS: the posting hook reads an allow-list), so blocked.
+        # Not a form the posting hook accepts, so blocked.
         self.assertEqual(self.hook(self.bash("url=$(gh pr edit 5 --body-file pr.md)")).returncode, 2)
         command = "printf 'unsigned\\n' > pr.md && url=$(gh pr edit 5 --body-file pr.md)"
         self.assertEqual(self.hook(self.bash(command)).returncode, 2)
@@ -206,7 +206,7 @@ class PostingHook(unittest.TestCase):
     def test_a_signed_post_in_a_substitution_is_not_an_accepted_form(self):
         body = self.good.rstrip("\n")
         command = f"url=$(gh pr create --title T --body \"$(cat <<'EOF'\n{body}\nEOF\n)\")"
-        # Not an accepted form (DECISIONS: the posting hook reads an allow-list), so blocked.
+        # Not a form the posting hook accepts, so blocked.
         self.assertEqual(self.hook(self.bash(command)).returncode, 2)
 
     def test_more_attached_flag_forms_are_read(self):
@@ -262,7 +262,7 @@ class PostingHook(unittest.TestCase):
     def test_arithmetic_shift_is_not_a_heredoc(self):
         body = self.good.rstrip("\n")
         command = f"echo $((1<<x))\ngh pr comment 5 -b \"$(cat <<'EOF'\n{body}\nEOF\n)\""
-        # Not an accepted form (DECISIONS: the posting hook reads an allow-list), so blocked.
+        # Not a form the posting hook accepts, so blocked.
         self.assertEqual(self.hook(self.bash(command)).returncode, 2)
         command = "echo $((1<<EOF))\ngh pr comment 5 -b 'unsigned'\nEOF\n"
         self.assertEqual(self.hook(self.bash(command)).returncode, 2)
@@ -315,7 +315,7 @@ class PostingHook(unittest.TestCase):
         self.assertEqual(self.hook(self.bash(command)).returncode, 2)
         signed = self.good.rstrip("\n")
         command = f"cat <<<x; gh pr comment 1 -F - <<'EOF'\n{signed}\nEOF\n"
-        # Not an accepted form (DECISIONS: the posting hook reads an allow-list), so blocked.
+        # Not a form the posting hook accepts, so blocked.
         self.assertEqual(self.hook(self.bash(command)).returncode, 2)
 
     def test_the_accepted_forms_pass_when_signed(self):
@@ -333,7 +333,7 @@ class PostingHook(unittest.TestCase):
                 self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_a_signed_heredoc_body_is_blocked_and_pointed_at_body_file(self):
-        # The heredoc form is not accepted (DECISIONS: the posting hook reads an allow-list).
+        # The heredoc form is not on the posting hook's allow-list.
         body = self.good.rstrip("\n")
         command = f"gh pr create --title T --body \"$(cat <<'EOF'\n{body}\nEOF\n)\""
         result = self.hook(self.bash(command))
@@ -1147,8 +1147,7 @@ HANDBACK_NOTICE = HERE / "handback-notice.sh"
 class DeferredColdRead(unittest.TestCase):
     """A pull request body is cold-read at a hand-back: inside a round it may
     be signed with `--defer-cold-read`, and the posting hook lets that footer
-    through only on a body that is not a hand-back (DECISIONS: A pull request
-    body is cold-read at a hand-back)."""
+    through only on a body that is not a hand-back."""
 
     def setUp(self):
         self.dir = pathlib.Path(tempfile.mkdtemp()).resolve()
