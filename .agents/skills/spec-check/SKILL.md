@@ -621,11 +621,8 @@ conclusion, as `prose compact` does.
   What fits none of these (how the design was reached, rollout or migration
   steps, overviews that describe the code, open questions), and anything
   still without Evidence or too slight for a later reader to decide
-  anything with,
-  stays in the archived design.md. In shared-skills, also add the reasoning to the
-  DECISIONS.md of each skill the change affects, where that skill keeps
-  one. Then run `prose check` on each file you changed, and compact any it
-  reports as due.
+  anything with, stays in the archived design.md. Then run `prose check` on
+  each file you changed, and compact any it reports as due.
 - **A pull request is handed back for review.** prose's hook prints it
   after the agent's hand-back, and the GitHub workflow as a notice when a
   hand-back leaves no change unread. Do the final pass over each doc the
