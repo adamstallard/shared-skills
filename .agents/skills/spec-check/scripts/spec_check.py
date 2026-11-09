@@ -4377,8 +4377,9 @@ def commit_passes(repo, sha, base_ref):
         passes.append((("archive", folder), set(), (
             f"{PASS_DUE} the decision record of each capability the change {name} changes"
             + (f" ({', '.join(caps)})" if caps else "") + ". "
-            f"It is archived as openspec/changes/archive/{folder}: move the reasoning in "
-            "its design.md that no requirement or record entry holds into those records, "
+            f"It is archived as openspec/changes/archive/{folder}: move anything "
+            "still in its design.md that should have been in a decision record out of "
+            "design.md into those records, "
             "editing each main record directly at the location decision records are "
             "configured to, under the same rules as any record edit: a Rationale entry for "
             "reasoning about one requirement, with its Evidence, a Constraint entry for a "

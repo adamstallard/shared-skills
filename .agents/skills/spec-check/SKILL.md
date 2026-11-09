@@ -368,12 +368,21 @@ with no blank line between the part and its continuation.
 
 ## Decisions and open questions
 
-A change states each decision once, as it stands now, in design.md's
-*Decisions* section, and each undecided item in its *Open Questions*.
-design.md is archived with the change and never read again, so a
-constraint, a rejected alternative or an evidenced reason that must
-outlive the change goes in the decision record of the capability it
-concerns as well (see [Decision records](#decision-records)).
+Record material goes only in the decision record of each capability it
+concerns, never in design.md: a constraint no test can check, an alternative turned down, or a reason
+for a requirement, when it has evidence (see
+[Decision records](#decision-records), which says which kind of entry
+each becomes; a turned-down alternative that a requirement guards against
+is that requirement's Rationale entry). Create the record if the
+capability has none. Later changes and
+their consistency reads read the record; design.md is archived with its
+change and never read again. design.md does not restate a record entry,
+though it may link to one.
+
+design.md's *Decisions* section states each of the change's other
+decisions once, as it stands now: design choices that are not record
+material, and reasoning without the evidence a record entry needs. Its
+*Open Questions* section holds each undecided item.
 *Decisions* and *Open Questions* are both sections OpenSpec's
 instructions for design.md name; create design.md when the
 change has none. When a decision changes, rewrite its entry: keep no record of
@@ -598,9 +607,11 @@ conclusion, as `prose compact` does.
   what is now built.
 - **A change is archived.** The commit hook prints it for a commit that
   moves a change into `openspec/changes/archive/`, as `openspec archive`
-  does. Move the reasoning in the change's design.md that no requirement or
-  record entry holds into the decision record of each capability it
-  changes, editing each record directly under the same rules as any
+  does. This is a safety net: the consistency read's checklist (item 15
+  in consistency-read.md) already flags record material in design.md.
+  Anything still in the change's design.md that should have been in a
+  decision record moves out of design.md into the record of each
+  capability it concerns, editing each record directly under the same rules as any
   record edit (see *Decision records*):
   - a Rationale entry for reasoning about one requirement, with its
     Evidence; reasoning with none stays in the archived design.md;

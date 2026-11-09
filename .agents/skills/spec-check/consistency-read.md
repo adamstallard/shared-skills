@@ -64,8 +64,9 @@ Then go through the checklist below. For a finding that sets the change
 against something else (items 1, 2, 3, 7, 9, 11, 12, 14, 16), quote both sides:
 the change's words with file:line, and the words it conflicts with, with
 file:line, PR number or issue number. Such a finding with one quote is a
-guess. A finding about the change alone (items 4, 5, 6, 8, 10, 13, 15, 17)
-quotes the change and says what is missing.
+guess. A finding about the change alone (items 4, 5, 6, 8, 10, 13, 17)
+quotes the change and says what is missing. Item 15 is either kind,
+depending on whether a record already holds what it flags.
 
 1. Contradiction inside the change: two of its rules that cannot both hold
    (a rule that the log keeps no file contents, beside a rule that keeps shell
@@ -111,10 +112,18 @@ quotes the change and says what is missing.
     calls, beside a record entry "Rejected: A retrieval tool the worker
     calls"). Quote the record entry as the other side. A change that means
     to reverse the entry edits or deletes it in the record, on its branch.
-15. A rejected alternative or constraint named in design.md that no
-    decision record holds. design.md is
-    archived with the change and never read again, so one that must
-    outlive the change belongs in the record.
+15. Record material written in design.md, whether or not a decision record
+    also holds it: a constraint no test can check, an alternative turned
+    down, or a reason for a requirement, when it has evidence. Reasoning
+    without evidence is not record material and may stay. Record material
+    goes only in the record of each capability it concerns: later changes read
+    the record, and design.md is archived with the change and never read
+    again. If that record holds it, quote both sides, as for an item that
+    sets the change against something else, and say to delete the
+    design.md copy; if not, quote the design.md text and say to move it
+    into that record in this pull request, creating the record if the
+    capability has none. A turned-down alternative that a requirement
+    guards against moves as that requirement's Rationale entry (item 17).
 16. A Constraint or Rejected entry, in a record listed above, whose rule a requirement or scenario already
     states (an entry "Constraint: Records are kept for thirty days" beside
     a requirement that keeps them thirty days, with a scenario testing it).

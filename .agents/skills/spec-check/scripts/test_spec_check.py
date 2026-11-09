@@ -6320,8 +6320,9 @@ class PassDueTests(unittest.TestCase):
         self.assertEqual(r.returncode, 2, r.stderr)
         self.assertIn("current-state pass due for: the decision record of each capability the "
                       "change good changes (cap). It is archived as "
-                      "openspec/changes/archive/2026-11-06-good: move the reasoning in its "
-                      "design.md that no requirement or record entry holds into those records, "
+                      "openspec/changes/archive/2026-11-06-good: move anything still in its "
+                      "design.md that should have been in a decision record out of design.md into "
+                      "those records, "
                       "editing each main record directly at the location decision records are "
                       "configured to, under the same rules as any record edit: a Rationale entry "
                       "for reasoning about one requirement, with its Evidence, a Constraint entry for "

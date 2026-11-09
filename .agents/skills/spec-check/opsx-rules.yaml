@@ -13,6 +13,7 @@ rules:
     - A rule or rejection a test can check is a requirement with a scenario, not a decision-record entry.
     - A requirement holds its SHALL statement and at most one because sentence; a reason with evidence goes in a Rationale entry, however short, in the capability's decision record (decisions.md beside its main spec, unless openspec/spec-check.yaml puts it elsewhere), edited directly in the same pull request; a change holds no decisions.md of its own.
   design:
+    - A constraint no test can check, an alternative turned down, or a reason for a requirement, each with its evidence, goes only in the capability's decisions.md, edited in the same pull request, never in design.md; design.md may link to the record entry.
     - Each decision needs linked evidence - a failure (the bug or incident itself, linked, with its regression test as a further pointer), a measurement (an experiment someone ran), or an outside fact. A test alone never shows why a rule is needed. Purely logical reasoning with none of these stays in design.md.
     - The requirement's own test is not evidence for it, since it shows the rule is enforced, not why it is needed.
     - A rejection that a requirement guards against (one its scenario would fail) is written as that requirement's Rationale, with evidence. Otherwise it is a Rejected entry whose Lost because links evidence, or it is struck.
