@@ -7,9 +7,8 @@ Whether it runs before or after the call comes from the payload's
 hook_event_name, or else from whether the payload holds the call's output.
 
 A review round ends at a hand-back to a person, and its consistency read must
-be recorded by then (DECISIONS.md, "One consistency read per round"). What
-is a hand-back, and which pull request it names, is read by the shared
-.agents/lib/gh-shell/handbacks.py.
+be recorded by then. The shared .agents/lib/gh-shell/handbacks.py decides
+what is a hand-back and which pull request it names.
 
 The hook judges the pull request, never a directory: it asks GitHub for the
 pull request's head, fetches it into a cache, and finds the changes unread
@@ -21,15 +20,15 @@ commits.
   and number is judged, and blocked while a change is unread.
 - After the call (post), one GitHub MCP call that hands back is judged, and
   so is a shell command on an allowlist:
-  - the shared command reader parses all of it, refusing no part;
+  - the shared command reader parses every word of the command;
   - it holds exactly one gh call, and that call is a hand-back;
   - no word in it expands, and no variable is assigned, except GH_REPO
     before the gh;
   - every other command in it is git, cd, echo, printf, true or sleep. When
     the hand-back names no pull request by number or URL (a create, or a
     ready or edit by branch), only git push, git add and git commit with
-    plain options, cd, true and sleep. gh may print nothing there, and
-    another command's output would then be the only pull request printed.
+    plain options, cd, true and sleep: gh may print nothing there, so echo
+    or printf could print the only pull request the hook would see.
   The one pull request the call printed (its URL, gh's "Pull request
   owner/repo#N is" line, or the MCP result's html_url) is then the
   hand-back's. If a change is unread there, the pull request is made a draft
@@ -43,7 +42,7 @@ the check that holds, where a repository has one. In Claude Code, exit 2
 with the reason on stderr blocks before the call and tells the agent after
 it. Cursor gets a JSON permission before, and additional_context after.
 
-Standard library only. Read DECISIONS.md next to SKILL.md before changing this.
+Standard library only.
 """
 
 import hashlib

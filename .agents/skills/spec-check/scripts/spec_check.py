@@ -5,7 +5,7 @@
                         [--no-validate] [--json]
     spec_check.py sign --read subagent|self|deferred [--amended N] [--open N]
                        [--base REF] [--no-validate]
-    spec_check.py verify-staged "Spec-check: <value>"   (message on stdin)
+    spec_check.py verify-staged "Spec-check: <value>"   (reads and ignores the commit message on stdin)
     spec_check.py verify-commit <sha> <value>
     spec_check.py ci [--event FILE] [--repo DIR]
     spec_check.py setup-ci [--repo DIR] [--sha SHA] [--force]
@@ -72,7 +72,7 @@ and one sentence. The records command prints the records a change's consistency 
 each capability the change touches, and each main record whose Paths match
 a file the branch changes.
 
-Standard library only. Read DECISIONS.md next to SKILL.md before changing this.
+Standard library only.
 """
 
 from __future__ import annotations
@@ -337,7 +337,7 @@ class Scenario:
 # -- the OpenSpec CLI ----------------------------------------------------------
 #
 # spec-check reads specs and deltas only through the OpenSpec CLI's public
-# commands (DECISIONS.md, "spec-check reads OpenSpec only through its CLI"):
+# commands:
 # `openspec show --json` for the requirements a spec or delta holds,
 # `openspec validate --strict --json` for what a delta drops or misfiles,
 # and `openspec archive --json` for whether a change applies. `show --json`
@@ -442,8 +442,7 @@ def show(kind, name, files):
 #
 # `openspec show --json` gives no line numbers. A finding's line is found by
 # searching the file's text for the names the CLI gives: a plain, tolerant
-# text search with no header grammar of its own (DECISIONS.md, "A finding's
-# line is a text search"). A wrong guess only misplaces a finding, and a
+# text search with no header grammar of its own. A wrong guess only misplaces a finding, and a
 # name it cannot find gives line 0, so the finding names the file only.
 
 
@@ -857,8 +856,7 @@ def check_renamed_blocks(rel, text, out):
     """A line scan, not a reading of the delta. Under "## RENAMED
     Requirements" OpenSpec reads only FROM and TO lines, so `openspec
     archive` drops a requirement written out there, and neither `openspec
-    show` nor `openspec validate` says so (DECISIONS.md, "spec-check reads
-    OpenSpec only through its CLI").
+    show` nor `openspec validate` says so.
     Each `### ` heading in that section with anything under it but FROM and
     TO lines is an error."""
     inside, head, under = False, None, False
@@ -1085,8 +1083,7 @@ def check_citations(paths, corpus, base, out):
     The one rule: a citation is an error only when it has a `/` and its line is
     in neither the base nor the change's own copy. That is the only case the
     script can be sure of. Every other finding, such as a bare name that
-    matches no file or several, is a check (DECISIONS.md, "A citation fails only
-    where it cannot be wrong").
+    matches no file or several, is a check.
     """
     for path in paths:
         for n, raw, fenced in markdown_lines(corpus.texts[path]):
@@ -1150,21 +1147,21 @@ def judge_citation(m, base):
 # -- document-evolution text -----------------------------------------------------
 
 # A change states what is true now; git and pull request comments hold how
-# it got there (DECISIONS.md, "Decisions live in design.md"). Each entry is
+# it got there. Each entry is
 # (name, pattern, what the phrase does, veto). A veto is matched against the
 # text left of the hit and suppresses it, as the vetoes in the prose skill's
 # scripts/comment_scan.py do for code comments. EVOLUTION_DETERMINER is the
 # one veto: a determiner
 # directly before the hit, as in `a previously rejected rule` (behaviour);
 # in `the rule previously said` (history) nothing vetoes it. Behaviour text
-# uses `supersedes`, `reversible` and `no longer` freely, so a verb here
-# fires only beside a decision ("amends decision 4"), a person, a date, or a
+# uses `supersedes`, `reversible` and `no longer` freely, so a verb in
+# EVOLUTION_PATTERNS fires only beside a decision ("amends decision 4"), a person, a date, or a
 # word naming the document's own drafts or rounds ("an earlier draft", "this
 # push"). Three kinds of hit need no such word: `amendment`, `amended
 # by/on/in`, and the bare adverbs `previously` and `originally`. Behaviour
-# text in the measured changes did not use the first two; the adverbs are
-# held back by the veto and by EVOLUTION_PARTICIPLE. DECISIONS.md, "Document-evolution text
-# is an error", has what the patterns were measured on.
+# text in the real changes these patterns were tuned on did not use the
+# first two; the adverbs are
+# held back by the veto and by EVOLUTION_PARTICIPLE.
 
 EVOLUTION_DETERMINER = re.compile(
     r"(?:\b(?:a|an|the|any|all|some|its|their|every|each|no|one)|'s|’s)[\s-]+$", re.I)
@@ -1329,8 +1326,8 @@ def evolution_mask(line: str) -> str:
     return EVOLUTION_QUOTED.sub(lambda m: EVOLUTION_MASK * len(m.group(0)), masked)
 
 
-# The patterns that credit a decision to a person or a date. A change's own
-# decision record skips them (DECISIONS.md, "Record entries are grounded"):
+# The patterns that credit a decision to a person or a date. The evolution check
+# skips them on a decision record a branch edits:
 # its Evidence names products, standards and dated runs, and attribution in a
 # record is the consistency read's item 17.
 EVOLUTION_CREDITS = frozenset({"attribution", "person-decided"})
@@ -1516,11 +1513,11 @@ def apply_kept_in(prefix: str, corpus: Corpus, own: list[Finding],
 # -- decision records -------------------------------------------------------------
 
 # A decision record, one per capability, holds only what a test can't
-# express: the evidence for why a rule exists, or why an alternative lost
-# (DECISIONS.md, "Decision records per capability"). OpenSpec reads none of
-# it: `validate`, `list`, `show` and `archive` all ignore a decision record,
-# wherever the configured location puts it, and a decisions.md in a change (OpenSpecIgnoresDecisionRecordsTests pins
-# that). So spec-check checks a record's form, gives the consistency read
+# express: the evidence for why a rule exists, or why an alternative lost.
+# OpenSpec reads none of
+# it: `validate`, `list`, `show` and `archive` all ignore a decision record
+# wherever the configured location puts it, and they ignore a decisions.md
+# in a change too (OpenSpecIgnoresDecisionRecordsTests pins that). So spec-check checks a record's form, gives the consistency read
 # the records a change must agree with, and reads a branch's edits to a
 # record as it reads a change. A change holds no record of its own: a pull
 # request edits the main record directly.
@@ -1676,7 +1673,7 @@ class RecordEntry:
 
 def entry_title(title):
     """The requirement title an entry's bold title names, as entries and
-    requirements are matched (DECISIONS.md, "Record titles match exactly"):
+    requirements are matched:
     the title as written, less the entry's closing period, with surrounding
     space trimmed as `openspec archive` trims a requirement's name. A
     requirement whose title ends in a period is written with two."""
@@ -2014,8 +2011,7 @@ def delta_changes(text):
 
 def check_title_reuse(rel, text, out):
     """An error for each title a delta both takes away (removes or renames
-    from) and brings in (adds or renames to) (DECISIONS.md, "No title reused
-    within one change"). Titles compare exactly, as `openspec archive`
+    from) and brings in (adds or renames to). Titles compare exactly, as `openspec archive`
     compares names; near-duplicates differing in case or spacing are the
     archive's to refuse."""
     _, removed, renames, added = delta_requirements(text)
@@ -2154,7 +2150,7 @@ def check_records_of_change(change, corpus, out):
 # -- rationale in a requirement ---------------------------------------------------
 
 # A requirement holds its rule: its SHALL statement plus at most one
-# *because* sentence (DECISIONS.md, "Decision records per capability"). A
+# *because* sentence. A
 # sentence with no RFC 2119 keyword is not the statement, and only one may
 # stand beside it. A list item continues the statement it hangs from, so
 # only the sentences after an item's first count. A sentence that is only
@@ -2278,8 +2274,7 @@ def records_for(change, corpus, changed):
 #
 # It is then checked against the specs of the tree being checked, with each
 # open dependency's delta archived into a copy of them and each merged one
-# looked for in them (DECISIONS.md, "A stacked change declares what it builds
-# on").
+# looked for in them.
 BUILDS_ON = re.compile(
     r"^Builds on:[ \t]+([A-Za-z0-9][A-Za-z0-9._-]*)[ \t]+"
     r"\(([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)#([0-9]+)\)[ \t]*$")
@@ -2564,10 +2559,10 @@ def plain(r):
     return " ".join(t.strip() for _, t in r.text if t.strip())
 
 
-# A stacked change's base is built by archiving its open dependencies with
-# the OpenSpec CLI in a scratch copy of the specs (DECISIONS.md, "Why the real
-# `openspec archive`, and only for open dependencies"), so the CLI is
-# required for one.
+# The tasks.md written into an open dependency's scratch copy, with every
+# task done, so that `openspec archive` accepts it. A stacked change's base
+# is built by archiving its open dependencies this way in a scratch copy of
+# the specs, so a stacked change needs the OpenSpec CLI.
 TASKS_DONE = "## 1. Tasks\n\n- [x] 1.1 Done\n"
 
 
@@ -2770,14 +2765,14 @@ class Decision:
 
 def decide(dep, caps):
     """Splits an open dependency's items by whether caps ({capability:
-    [Req]}, the specs so far) already shows them, by content (DECISIONS.md,
-    "Whether the specs hold an open dependency is read from its content"):
+    [Req]}, the specs so far) already shows them, by content:
     an addition is there when the requirement is, with the same text, and
-    is the specs' own version when it is there with another text; a removal
+    goes in d.third when the specs hold that name with another text; a removal
     is there when the requirement is absent; a modification when the text
     is the same; one delta's renames when renames_done says so. Names match
-    exactly, as OpenSpec matches them. The renames kept move their names
-    before the other items are read, as the archive applies them first."""
+    exactly, as OpenSpec matches them. Renames the specs don't show yet (in
+    d.kept, still to be applied) move their names before the other items
+    are read, as the archive applies renames first."""
     d = Decision()
     for cap, items in items_of(dep).items():
         names = {r.name: r for r in caps.get(cap, [])}
@@ -2807,10 +2802,9 @@ def decide(dep, caps):
 
 
 def not_shown(dep, caps, later):
-    """What of a merged dependency's result caps (the tree being checked)
-    does not show, as [what it lacks], judged by content and never by
-    replaying it (DECISIONS.md, "A merged dependency is judged, never
-    replayed"): each requirement it adds or modifies is there by name,
+    """The parts of a merged dependency's result that caps (the tree being
+    checked) does not show, as [what it lacks], judged by content and never by
+    replaying it: each requirement it adds or modifies is there by name,
     with any text, since main may have reworded it since; each it removes
     is absent; and for its renames, read in order, the names they end on
     are there and the names they move away from are absent (rename_ends).
@@ -2858,8 +2852,7 @@ class Stack:
     """The base a stacked change is checked against: the specs of the tree
     being checked, with each open dependency's change archived into a
     scratch copy of them by `openspec archive`, after dropping what they
-    already show (DECISIONS.md, "Why the real `openspec archive`, and only
-    for open dependencies")."""
+    already show."""
 
     def __init__(self, corpus):
         self.caps = {}       # capability -> [Req]
@@ -3067,8 +3060,7 @@ def refusal_place(said, items):
 
 def archive_own(change, corpus, copy, stacked):
     """[Finding] for the change itself, archived verbatim with `openspec
-    archive` into copy (DECISIONS.md, "Every change is archived into a
-    scratch copy"). For a stacked change, copy is a copy of the scratch
+    archive` into copy. For a stacked change, copy is a copy of the scratch
     specs with its open dependencies archived; otherwise it is a copy of the
     tree's specs. Each refusal is an archive error in the delta file of the
     capability it names, at the requirement it is about or at line 0
@@ -3226,8 +3218,7 @@ def existing_purpose(path):
 
 def check_purposes(change, corpus, rels, copy):
     """[Finding] of kind `purpose` for change's delta specs ({capability:
-    rel path}), judged against copy before the change is archived into it
-    (DECISIONS.md, "A new capability's Purpose is checked in its delta").
+    rel path}), judged against copy before the change is archived into it.
 
     A capability is created by the change when copy has no spec for it. Its
     delta is an error unless `openspec archive` would carry its `## Purpose`
@@ -3910,7 +3901,7 @@ def staged_targets(repo):
 # -- rounds: where the last consistency read was ---------------------------
 #
 # A consistency read runs once per review round, before the hand-back to a
-# person that ends it (DECISIONS.md, "One consistency read per round"); a push
+# person that ends it; a push
 # ends nothing. handback.py, the hand-back hook, judges a hand-back with
 # unread_at: it blocks one that names its pull request, and takes back an
 # allowlisted one after the call, while a change is unread. The read's
@@ -3918,7 +3909,7 @@ def staged_targets(repo):
 # Spec-check: trailer of the round's last commit:
 # `read by a fresh subagent: <change>, <change>; ...` names the changes it
 # read, at that commit's tree. A commit inside a round says `read deferred to
-# the round's end`. A value written before this rule existed, `read by a
+# the round's end`. A value written before reads named their changes, `read by a
 # fresh subagent; ...` with no names, read every change its commit touched.
 
 READ_FIELD = re.compile(r"; read by (?:a fresh subagent|its author, no subagent)(?:: ([^;]*))?;")
@@ -4001,7 +3992,7 @@ def merge_base_tree(repo, head, base_ref):
 
 def openspec_links(where, treeish=None):
     """Every symlink in the tree being judged that is openspec or under it,
-    sorted (DECISIONS.md, "No symlink under openspec/"). With treeish, from
+    sorted. With treeish, from
     git's modes in that tree of the repository at where; without, from the
     files at where, as a checkout or a tree written out from git."""
     if treeish is not None:
@@ -4282,9 +4273,10 @@ def cmd_verify_commit(args):
 
 # -- current-state passes ------------------------------------------------
 
-# How every line starts that a hook prints when an event may leave docs
-# describing an earlier state. The agent does the pass without asking (SKILL.md, *Current-state
-# passes*); DECISIONS.md, "Events start a current-state pass".
+# The start of every line a hook prints when an event may leave docs
+# describing an earlier state. The line asks for a current-state pass, which
+# brings those docs up to date; the agent does it without asking (SKILL.md,
+# *Current-state passes*).
 PASS_DUE = "current-state pass due for:"
 # A path under a src/ directory, at the top or deeper, as in packages/x/src/.
 SRC_PATH = re.compile(r"(?:^|/)src/")
@@ -4398,9 +4390,8 @@ def commit_passes(repo, sha, base_ref):
             "against, with its evidence (including the fix not taken behind an accepted "
             "limit or trade-off); leave the rest, and anything without Evidence or too "
             "slight to decide anything with, in the archived "
-            "design.md (spec-check's SKILL.md, Decision records). In shared-skills, also add it to the DECISIONS.md of "
-            "each skill it affects that keeps one. Then run prose check on each file "
-            "changed and compact any it reports as due.")))
+            "design.md (spec-check's SKILL.md, Decision records). Then run prose check "
+            "on each file changed and compact any it reports as due.")))
     src = [p for p in added if SRC_PATH.search(p)]
     if not src:
         return passes
@@ -4490,8 +4481,8 @@ def cmd_ci(args):
                     "fetch-depth: 0")
     links = openspec_links(repo, head)
     if links:
-        # A symlink under openspec/ means no change can be judged read
-        # (DECISIONS.md, "No symlink under openspec/"). So the hand-back
+        # spec-check refuses to judge a tree with a symlink under openspec/,
+        # so no change there can be judged read, and the hand-back
         # (marking the pull request ready, or requesting a reviewer) is undone
         # in the block below, as for an unread change; without that, the pull
         # request would reach review while the link stays.

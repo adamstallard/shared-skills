@@ -461,8 +461,7 @@ class OpenSpecIgnoresDecisionRecordsTests(unittest.TestCase):
     """Pins what OpenSpec does with a decisions.md, as measured on 1.16.0
     for issue #56. A release that starts reading one fails here, and the
     reliance on plain `openspec archive` leaving a main record untouched,
-    with a change holding no record of its own, must then be reconsidered
-    (DECISIONS.md, "Decision records per capability")."""
+    with a change holding no record of its own, must then be reconsidered."""
 
     def setUp(self):
         self.repo = Repo(self)

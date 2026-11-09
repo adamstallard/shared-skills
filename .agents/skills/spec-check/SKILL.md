@@ -22,8 +22,6 @@ subagent reads the change against everything it must agree with.
 Readability is the `prose` skill's job; linking tests to scenarios after
 implementation is a separate step.
 
-- **Why it works this way:** [DECISIONS.md](DECISIONS.md). Read it before
-  changing this file or the script.
 - `$SC` below is this skill's `scripts/` directory, as an absolute path.
 
 ## When
@@ -283,8 +281,7 @@ requirement or scenario already states; a Rationale entry names its
 requirement and never restates the rule. The consistency read's item 16
 flags a repeat.
 
-**Every entry gives a later reader something to decide with** (DECISIONS.md,
-*Record entries are grounded*):
+**Every entry gives a later reader something to decide with:**
 
 - A Constraint is a rule the code must keep that no test can check, with
   Evidence: a failure, a measurement or an outside fact, never invented. A
@@ -500,9 +497,10 @@ Without OpenSpec 1.16.0 or later, `sign` still signs, and the value says
 For work in progress, skip `sign` and write the value yourself: `skipped
 (<reason>)`. A skip note records no read.
 
-Commit once, carrying every installed skill's trailer
-([the rule](../../lib/commit-trailer/DECISIONS.md#every-installed-skills-trailer-on-one-commit)).
-Pass the text after `Spec-check: ` as a `--verified-value` family. The
+Commit once, carrying the trailer of every skill installed that asks for
+one, such as Prose, Bug-hunter and Spec-check. Each trailer goes in as a
+`--verified-value` family: the script that verifies it, its key, and its
+value; for spec-check, the value is the text after `Spec-check: `. The
 example goes through bug-hunter's commit script, `$BH`, with prose's scripts
 directory as `$S`; bug-hunter's and prose's SKILL.md say where each is. After
 the `--` come bug-hunter's own arguments: the message file, its `Bug-hunter:`

@@ -5,8 +5,7 @@ code exists. The slow part of reviewing a spec is holding every other spec in
 mind. spec-check does that part, so you only judge whether the rules are the
 right ones.
 
-> Agent instructions: [SKILL.md](SKILL.md). Why it works this way:
-> [DECISIONS.md](DECISIONS.md).
+> Agent instructions: [SKILL.md](SKILL.md).
 
 ## What you get
 

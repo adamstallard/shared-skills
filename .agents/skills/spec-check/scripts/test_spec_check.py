@@ -1485,8 +1485,7 @@ class CitationRuleTests(unittest.TestCase):
 class EvolutionTextTests(unittest.TestCase):
     """Text recording how a change got to its shape is an error, which only
     a person's override through the change's kept file clears. The examples are
-    taken from real changes the patterns were measured on (DECISIONS.md,
-    "Document-evolution text is an error")."""
+    taken from real changes the patterns were measured on."""
 
     HISTORY = [
         "Amended by Adam's decision 298: no decline can be reopened.",
@@ -3549,9 +3548,8 @@ class ContentCheckTests(unittest.TestCase):
         self.s.repo.git("commit", "-q", "-m", "a later change")
         self.s.stacked(modified("Records are kept", KEPT, AUDIT, SEARCH), "seat-files (acme/widgets#171)")
         out = self.s.check("lore-search")
-        # The dependency's pull request is open, so its text is used quietly
-        # (DECISIONS.md, "A modified requirement is decided by its pull
-        # request's state").
+        # The dependency's pull request is open, so its text is applied
+        # with no stack error, drift check or hint to drop its Builds on: line.
         self.assertNotIn("error [stack]", out.stdout)
         self.assertNotIn("check [drift]", out.stdout)
         self.assertNotIn("remove the `Builds on:", out.stdout)
@@ -3658,9 +3656,8 @@ class FoundByBugHunterRun4Tests(unittest.TestCase):
         s.repo.git("commit", "-qam", "another change on main")
         s.stacked(GOOD_DELTA.replace("Records expire", "Lore"), "seat-files (acme/widgets#171)")
         out = s.check("lore-search")
-        # The dependency's pull request is open, so its text is used quietly
-        # (DECISIONS.md, "A modified requirement is decided by its pull
-        # request's state").
+        # The dependency's pull request is open, so its text is applied
+        # with no stack error, drift check or hint to drop its Builds on: line.
         self.assertNotIn("error [stack]", out.stdout)
         self.assertNotIn("check [drift]", out.stdout)
         self.assertNotIn("remove the `Builds on:", out.stdout)
@@ -3684,9 +3681,8 @@ class FoundByBugHunterRun4Iteration2Tests(unittest.TestCase):
         r.git("commit", "-q", "-m", "archive X")
         s.stacked(ADDED_SEAT, "audit-log (acme/widgets#172)")
         out = s.check("lore-search")
-        # The dependency's pull request is open, so its text is used quietly
-        # (DECISIONS.md, "A modified requirement is decided by its pull
-        # request's state").
+        # The dependency's pull request is open, so its text is applied
+        # with no stack error, drift check or hint to drop its Builds on: line.
         self.assertNotIn("error [stack]", out.stdout)
         self.assertNotIn("check [drift]", out.stdout)
         self.assertNotIn("remove the `Builds on:", out.stdout)
@@ -3771,9 +3767,8 @@ class FoundByBugHunterRun4Iteration3Tests(unittest.TestCase):
         s.repo.git("commit", "-q", "-m", "A in tree")
         s.stacked(modified("Records are kept", KEPT, SEAT_REWORDED, AUDIT, SEARCH), "b-change (acme/widgets#172)")
         out = s.check("lore-search")
-        # The dependency's pull request is open, so its text is used quietly
-        # (DECISIONS.md, "A modified requirement is decided by its pull
-        # request's state").
+        # The dependency's pull request is open, so its text is applied
+        # with no stack error, drift check or hint to drop its Builds on: line.
         self.assertNotIn("error [stack]", out.stdout)
         self.assertNotIn("check [drift]", out.stdout)
         self.assertNotIn("remove the `Builds on:", out.stdout)
@@ -4679,9 +4674,8 @@ class ExactComparisonTests(unittest.TestCase):
 
 class StackedChangeArchiveTests(unittest.TestCase):
     """The stacked change itself is archived by `openspec archive`, after its
-    open dependencies, into a copy of the scratch specs (DECISIONS.md,
-    "The stacked change itself is archived too"). Each refusal is a drift error naming its delta file
-    and requirement and quoting the CLI."""
+    open dependencies, into a copy of the scratch specs. Each refusal is an `archive` error naming its delta
+    file and requirement and quoting the CLI."""
 
     A = "a-change (acme/widgets#171)"
     DELTA = "openspec/changes/lore-search/specs/cap/spec.md"
@@ -4803,8 +4797,7 @@ def signed_commit(test, repo, read="subagent", message="Change the spec", extra=
 
 
 class RoundTests(unittest.TestCase):
-    """One consistency read per round: the trailer records where it ran
-    (DECISIONS.md, "One consistency read per round")."""
+    """One consistency read per round: the trailer records where it ran."""
 
     def setUp(self):
         self.repo = Repo(self)
@@ -4970,7 +4963,7 @@ class KeptInRoundsTests(unittest.TestCase):
 
 class RoundStartTests(unittest.TestCase):
     """Which commit a never-read change's edits are counted from (the merge
-    base, or HEAD on the base branch), and which changes count as open (DECISIONS.md, "One consistency read per round")."""
+    base, or HEAD on the base branch), and which changes count as open."""
 
     def setUp(self):
         self.repo = Repo(self)
@@ -5253,8 +5246,7 @@ class HandbackBase(unittest.TestCase):
 
 class HandbackBeforeTests(HandbackBase):
     """Before the call: a hand-back whose pull request can be found without
-    knowing the directory gh runs in (DECISIONS.md, "One consistency read per
-    round")."""
+    knowing the directory gh runs in."""
 
     def test_a_named_hand_back_with_an_unread_change_is_blocked(self):
         self.deferred()
@@ -6342,8 +6334,7 @@ class PassDueTests(unittest.TestCase):
                       "taken behind an accepted limit or trade-off); leave the rest, and anything "
                       "without Evidence or too slight to decide anything with, in the archived "
                       "design.md (spec-check's SKILL.md, Decision "
-                      "records). In shared-skills, also add "
-                      "it to the DECISIONS.md of each skill it affects that keeps one. Then "
+                      "records). Then "
                       "run prose check on each file changed and compact any it reports as due.",
                       r.stderr)
 
