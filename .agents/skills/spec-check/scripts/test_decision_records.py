@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Tests for spec-check's decision records: the configured location, the
-format checks, the rationale check, the reader's list, the fold at archive,
-and the OpenSpec behaviour the records rely on.
+format checks, the rationale check, the checks on a branch's record edits,
+the reader's list, and the OpenSpec behaviour the records rely on.
 
 Standard library only:
 
@@ -21,6 +21,7 @@ import shutil
 import subprocess
 import sys
 import unittest
+from unittest import mock
 
 HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
@@ -55,25 +56,28 @@ RATIONALE = """- **Rationale: Records are kept.**
 """
 
 
-def record(cap="cap", constraints=(CONSTRAINT,), rejected=(REJECTED,), retired=(), rationale=()):
+def record(cap="cap", constraints=(CONSTRAINT,), rejected=(REJECTED,), rationale=()):
     text = f"# {cap}: constraints and rejected alternatives\n"
     for heading, entries in (("Constraints", constraints), ("Rejected", rejected),
-                             ("Rationale", rationale), ("Retired", retired)):
+                             ("Rationale", rationale)):
         if entries:
             text += f"\n## {heading}\n" + "\n".join(entries)
     return text
 
 
-def findings(text, change=False, names=("src/app.py", "src/lib/x.py"), requirements=None):
+def findings(text, pending=False, names=("src/app.py", "src/lib/x.py"), requirements=None,
+             gone=None):
     """[(severity, line, message)] of check_record on text, against a tree
     holding names, and with requirements, the titles a Rationale entry may
-    name (None: not checked)."""
+    name (None: not checked), and gone, {title: why} for the titles an open
+    change removes or renames away. pending: an open change touches the
+    capability, so its implementation may add a missing path."""
     class FakeBase:
         def change_names(self):
             return list(names)
     out = []
-    spec_check.check_record("r.md", text, FakeBase(), out, change=change, cap="cap",
-                            requirements=requirements)
+    spec_check.check_record("r.md", text, FakeBase(), out, cap="cap",
+                            requirements=requirements, gone=gone, pending=pending)
     return [(f.severity, f.line, f.message) for f in out]
 
 
@@ -213,14 +217,25 @@ class RecordFormatTests(unittest.TestCase):
                 text = record(constraints=(CONSTRAINT.replace("#12", link),))
                 self.assertEqual(findings(text), [])
 
+    def test_a_link_check_names_what_evidence_is(self):
+        text = record(constraints=(CONSTRAINT.replace(", #12", ""),),
+                      rejected=(REJECTED.replace(", https://example.com/run/7", ""),),
+                      rationale=(RATIONALE.replace("#31", "the incident").replace(
+                          ", https://example.com/terms", " terms"),))
+        messages = [m for _, _, m in findings(text) if "links nothing" in m]
+        self.assertEqual(len(messages), 4, messages)
+        for m in messages:
+            self.assertIn("the failure, measurement or outside fact", m)
+            self.assertNotIn("test", m)
+
     def test_a_because_of_two_sentences_is_a_check(self):
         text = record(constraints=(CONSTRAINT.replace("every seat.", "every seat. It did once."),))
         self.assertEqual([(sev, n) for sev, n, _ in findings(text)], [("check", 5)])
 
-    def test_a_missing_path_is_an_error_in_a_main_record_and_a_check_in_a_change(self):
+    def test_a_missing_path_is_an_error_unless_an_open_change_touches_the_capability(self):
         text = record(constraints=(CONSTRAINT.replace("src/app.py", "src/gone.py"),))
         self.assertEqual([sev for sev, _, _ in findings(text)], ["error"])
-        self.assertEqual([sev for sev, _, _ in findings(text, change=True)], ["check"])
+        self.assertEqual([sev for sev, _, _ in findings(text, pending=True)], ["check"])
 
     def test_paths_name_files_directories_and_globs(self):
         for paths in ("src/app.py", "src", "src/", "`src/lib/`", "src/*.py", "src/**/x.py",
@@ -251,21 +266,6 @@ class RecordFormatTests(unittest.TestCase):
                 self.assertTrue(spec_check.path_matches("*", path))
                 self.assertTrue(spec_check.path_matches("*/" * (len(parts) - 1) + "*", path))
                 self.assertFalse(spec_check.path_matches("*/" * len(parts) + "*", path))
-
-    def test_property_a_record_survives_a_fold_of_nothing(self):
-        """Folding an empty change record into a record rewrites it with the
-        same entries, parts and order."""
-        rng = random.Random(77)
-        for _ in range(100):
-            cons = [CONSTRAINT.replace("credentials", f"credentials {i}") for i in range(rng.randint(0, 3))]
-            rejs = [REJECTED.replace("calls", f"calls {i}") for i in range(rng.randint(0, 3))]
-            if not cons and not rejs:
-                continue
-            text = record(constraints=cons, rejected=rejs)
-            folded, problems = spec_check.fold_record("cap", text, record(constraints=(), rejected=()))
-            self.assertEqual(problems, [])
-            self.assertEqual(folded, text)
-
 
 class RationaleTests(unittest.TestCase):
     def extra(self, body):
@@ -304,87 +304,13 @@ class RationaleTests(unittest.TestCase):
         if HAS_OPENSPEC:
             self.assertEqual(kinds(r), ["rationale"])
             self.assertIn("holds 3 sentences beside its SHALL statement", r.stdout)
-            self.assertIn("move the rest to openspec/changes/x/specs/cap/decisions.md", r.stdout)
+            self.assertIn("move the rest to openspec/specs/cap/decisions.md", r.stdout)
 
     def test_main_specs_are_not_given_the_rationale_check(self):
         repo = Repo(self)
         repo.write("openspec/specs/cap/spec.md", MAIN_SPEC.replace(
             "after the last read.", "after the last read. Disks fill. Auditors agree."))
         self.assertNotIn("rationale", kinds(repo.check("specs")))
-
-
-class ChangeRecordTests(unittest.TestCase):
-    def setUp(self):
-        self.repo = Repo(self)
-        self.repo.write("openspec/specs/cap/decisions.md", record())
-        self.repo.git("add", "-A")
-        self.repo.git("commit", "-q", "-m", "record")
-
-    def test_a_change_record_in_the_form_passes(self):
-        self.repo.change("x")
-        self.repo.write("openspec/changes/x/specs/cap/decisions.md", record(
-            constraints=(CONSTRAINT.replace("credentials", "tokens"),), rejected=()))
-        r = self.repo.check("x")
-        self.assertEqual(kinds(r), [], r.stdout)
-
-    def test_retiring_an_entry_the_main_record_lacks_is_an_error(self):
-        self.repo.change("x")
-        self.repo.write("openspec/changes/x/specs/cap/decisions.md", record(
-            constraints=(), rejected=(), retired=("- **Rejected: A retrieval tool the worker calls.**\n",
-                                                  "- **Constraint: Nothing like this.**\n")))
-        r = self.repo.check("x")
-        self.assertEqual(kinds(r), ["record"], r.stdout)
-        self.assertIn("retires a Constraint entry 'Nothing like this.'", r.stdout)
-
-    def test_a_change_record_is_checked_for_history(self):
-        self.repo.change("x")
-        self.repo.write("openspec/changes/x/specs/cap/decisions.md", record(
-            constraints=(CONSTRAINT.replace("seats are shared between roles.",
-                                            "seats are originally shared."),), rejected=()))
-        r = self.repo.check("x")
-        self.assertEqual(kinds(r), ["evolution"], r.stdout)
-        self.repo.write("openspec/changes/x/.spec-check-kept",
-                        "specs/cap/decisions.md: «Holds while: seats are originally shared.» "
-                        "kept (asked): seats start shared, before any split\n")
-        self.assertEqual(kinds(self.repo.check("x")), [])
-
-    def test_a_change_record_s_evidence_may_name_products_and_dated_runs(self):
-        self.repo.change("x")
-        self.repo.write("openspec/changes/x/specs/cap/decisions.md", record(
-            constraints=(CONSTRAINT.replace("Evidence: ", "Evidence: the run (Linux, 2024-05-01), ", 1),),
-            rejected=(REJECTED.replace("Lost because: ", "Lost because: Chrome chose a stricter parser; ", 1),)))
-        r = self.repo.check("x")
-        self.assertEqual(kinds(r), [], r.stdout)
-
-    def test_a_credit_in_the_change_s_other_files_is_still_an_error(self):
-        for name in ("proposal.md", "design.md"):
-            with self.subTest(name=name):
-                self.repo.change("x")
-                self.repo.write(f"openspec/changes/x/{name}",
-                                "# X\n\n## Why\n\nSeats are shared (Adam, 2026-10-21). Adam decided it.\n")
-                r = self.repo.check("x")
-                self.assertIn("evolution", kinds(r), r.stdout)
-                self.assertIn("credits a decision", r.stdout)
-
-    def test_a_main_record_is_checked_with_the_specs(self):
-        self.repo.write("openspec/specs/cap/decisions.md", record().replace("Paths: src/\n", "Paths: lib/\n"))
-        r = self.repo.check("specs")
-        self.assertEqual(kinds(r), ["record"], r.stdout)
-        self.assertIn("openspec/specs/cap/decisions.md:", r.stdout)
-
-    def test_a_record_at_a_configured_location_is_checked(self):
-        self.repo.write("openspec/spec-check.yaml", "decision-records: openspec/decisions/<capability>/decisions.md\n")
-        self.repo.write("openspec/decisions/cap/decisions.md", record().replace("Instead:", "Instead"))
-        r = self.repo.check("specs")
-        self.assertIn("openspec/decisions/cap/decisions.md", r.stdout)
-        self.assertEqual(r.returncode, 1)
-        # The default location is no longer a record.
-        self.assertNotIn("openspec/specs/cap/decisions.md:", r.stdout)
-
-    def test_a_record_for_a_capability_with_no_spec_is_a_check(self):
-        self.repo.write("openspec/specs/gone/decisions.md", record(cap="gone"))
-        r = self.repo.check("specs")
-        self.assertIn("openspec/specs/gone/decisions.md: check [record] no spec", r.stdout)
 
 
 class SignTests(unittest.TestCase):
@@ -419,17 +345,7 @@ class SignTests(unittest.TestCase):
         self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
         self.assertIn("error [config]", r.stdout)
 
-    def test_editing_a_change_record_makes_the_change_due(self):
-        self.repo.change("good")
-        self.repo.git("add", "-A")
-        signed_commit(self, self.repo)
-        self.repo.write("openspec/changes/good/specs/cap/decisions.md", record(rejected=()))
-        self.repo.git("add", "-A")
-        r = self.sign("subagent")
-        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-        self.assertIn("read by a fresh subagent: good;", r.stdout.strip().splitlines()[-1])
-
-    def test_a_main_record_edit_makes_no_change_due(self):
+    def test_editing_a_record_makes_the_change_touching_its_capability_due(self):
         self.repo.change("good")
         self.repo.git("add", "-A")
         signed_commit(self, self.repo)
@@ -437,8 +353,33 @@ class SignTests(unittest.TestCase):
         self.repo.git("add", "-A")
         r = self.sign("subagent")
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-        self.assertTrue(r.stdout.strip().endswith("; no read due"), r.stdout)
+        self.assertIn("read by a fresh subagent: good;", r.stdout.strip().splitlines()[-1])
+        self.assertNotIn("decisions.md", r.stdout.strip().splitlines()[-1])
 
+    def test_a_record_edit_no_open_change_touches_is_due_on_its_own(self):
+        self.repo.write("openspec/specs/cap/decisions.md", record())
+        self.repo.git("add", "-A")
+        r = self.sign("subagent")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("read by a fresh subagent: openspec/specs/cap/decisions.md;",
+                      r.stdout.strip().splitlines()[-1])
+        self.repo.git("commit", "-q", "-m", "record", "--trailer",
+                      "Spec-check: " + r.stdout.strip().splitlines()[-1][len("Spec-check: "):])
+        self.repo.write("README.md", "unrelated\n")
+        self.repo.git("add", "-A")
+        r = self.sign("subagent")
+        self.assertIn("nothing waits for its consistency read", r.stderr)
+
+    def test_a_record_edit_beside_a_change_to_another_capability_is_due_on_its_own(self):
+        self.repo.change("good")
+        self.repo.git("add", "-A")
+        signed_commit(self, self.repo)
+        self.repo.write("openspec/specs/other/decisions.md", record(cap="other"))
+        self.repo.git("add", "-A")
+        r = self.sign("subagent")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("read by a fresh subagent: openspec/specs/other/decisions.md;",
+                      r.stdout.strip().splitlines()[-1])
 
 class RecordsForTheReaderTests(unittest.TestCase):
     def setUp(self):
@@ -480,97 +421,27 @@ class RecordsForTheReaderTests(unittest.TestCase):
                          ["openspec/specs/cap/decisions.md  (the change touches cap)",
                           "openspec/specs/third/decisions.md  (its Paths docs/ matches docs/guide.md)"])
 
+    def test_a_record_the_branch_edits_says_to_read_its_diff(self):
+        self.repo.change("y")
+        self.repo.write("openspec/specs/cap/decisions.md", record(rejected=()))
+        self.repo.git("add", "-A")
+        self.repo.git("commit", "-q", "-m", "edit the record")
+        self.assertEqual(self.records("y"),
+                         ["openspec/specs/cap/decisions.md  (the change touches cap; the branch "
+                          "edits it: read its diff against the merge base)"])
+
     def test_no_record_prints_none(self):
         self.repo.change("y", cap="newcap", delta=GOOD_DELTA)
         self.assertEqual(self.records("y"), ["none"])
 
 
 @unittest.skipUnless(HAS_OPENSPEC, NEEDS)
-class FoldAtArchiveTests(unittest.TestCase):
-    def setUp(self):
-        self.repo = Repo(self)
-        # A Purpose long enough for OpenSpec's own checks at archive.
-        self.repo.write("openspec/specs/cap/spec.md", MAIN_SPEC.replace(
-            "What cap does.", "What cap does: it keeps the records it is given, and reads them back."))
-        self.repo.write("openspec/specs/cap/decisions.md", record())
-        self.repo.git("add", "-A")
-        self.repo.git("commit", "-q", "-m", "record")
-        self.repo.change("x", proposal=GOOD_PROPOSAL.replace("Records pile up",
-                                                             "Records pile up, and the disk fills"))
-
-    def archive(self, change="x"):
-        return self.repo.run("archive", change, "--", "--yes")
-
-    def main(self, rel="openspec/specs/cap/decisions.md"):
-        p = self.repo.path / rel
-        return p.read_text() if p.exists() else None
-
-    def test_a_new_entry_is_added_and_one_with_the_same_title_replaced_in_place(self):
-        new = CONSTRAINT.replace("credentials", "tokens")
-        changed = REJECTED.replace("lessons are injected into the prompt", "lessons are injected")
-        self.repo.write("openspec/changes/x/specs/cap/decisions.md",
-                        record(constraints=(new,), rejected=(changed,)))
-        r = self.archive()
-        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-        self.assertEqual(self.main(), record(constraints=(CONSTRAINT, new), rejected=(changed,)))
-        self.assertFalse((self.repo.path / "openspec/changes/x").exists())
-
-    def test_a_retired_entry_is_removed_and_an_empty_record_deleted(self):
-        self.repo.write("openspec/changes/x/specs/cap/decisions.md", record(
-            constraints=(), rejected=(), retired=("- **Constraint: The store keeps no credentials.**\n",)))
-        self.assertEqual(self.archive().returncode, 0)
-        self.assertEqual(self.main(), record(constraints=()))
-        self.repo.git("add", "-A")
-        self.repo.git("commit", "-q", "-m", "archived")
-        self.repo.change("y", proposal=GOOD_PROPOSAL.replace("Records pile up", "Records pile up again"),
-                         delta=GOOD_DELTA.replace("Records expire", "Records shrink"))
-        self.repo.write("openspec/changes/y/specs/cap/decisions.md", record(
-            constraints=(), rejected=(), retired=("- **Rejected: A retrieval tool the worker calls**\n",)))
-        r = self.archive("y")
-        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-        self.assertIsNone(self.main())
-        self.assertIn("has no entry left; removed it", r.stdout)
-
-    def test_a_record_is_created_at_the_configured_location(self):
-        self.repo.write("openspec/spec-check.yaml", "decision-records: openspec/decisions/<capability>/decisions.md\n")
-        self.repo.write("openspec/changes/x/specs/cap/decisions.md", record(rejected=()))
-        self.assertEqual(self.archive().returncode, 0)
-        self.assertEqual(self.main("openspec/decisions/cap/decisions.md"), record(rejected=()))
-        # The file at the default location is no longer a record, and is left alone.
-        self.assertEqual(self.main(), record())
-
-    def test_nothing_is_archived_when_a_record_cannot_be_folded(self):
-        self.repo.write("openspec/changes/x/specs/cap/decisions.md", record(
-            constraints=(), rejected=(), retired=("- **Constraint: Not there.**\n",)))
-        r = self.archive()
-        self.assertEqual(r.returncode, 1)
-        self.assertIn("nothing archived", r.stderr)
-        self.assertIn("retires a Constraint entry 'Not there.'", r.stdout)
-        self.assertTrue((self.repo.path / "openspec/changes/x").exists())
-        self.assertEqual(self.main(), record())
-
-    def test_a_malformed_main_record_stops_the_fold(self):
-        self.repo.write("openspec/specs/cap/decisions.md", record() + "\nA stray line.\n")
-        self.repo.write("openspec/changes/x/specs/cap/decisions.md", record(rejected=()))
-        r = self.archive()
-        self.assertEqual(r.returncode, 1)
-        self.assertIn("the main record, line", r.stdout)
-
-    def test_folding_twice_is_folding_once(self):
-        main = record()
-        ours = record(constraints=(CONSTRAINT.replace("credentials", "tokens"),), rejected=(REJECTED,))
-        once, _ = spec_check.fold_record("cap", main, ours)
-        twice, _ = spec_check.fold_record("cap", once, ours)
-        self.assertEqual(once, twice)
-
-
-@unittest.skipUnless(HAS_OPENSPEC, NEEDS)
 class OpenSpecIgnoresDecisionRecordsTests(unittest.TestCase):
     """Pins what OpenSpec does with a decisions.md, as measured on 1.16.0
-    for issue #56. A release that starts reading one fails here, and spec-
-    check's fold at archive, which exists because OpenSpec leaves a change's
-    record behind, must then be reconsidered (DECISIONS.md, "Decision
-    records per capability")."""
+    for issue #56. A release that starts reading one fails here, and the
+    reliance on plain `openspec archive` leaving a main record untouched,
+    with a change holding no record of its own, must then be reconsidered
+    (DECISIONS.md, "Decision records per capability")."""
 
     def setUp(self):
         self.repo = Repo(self)
@@ -686,13 +557,13 @@ class FoundByBugHunterRun2Iteration2Tests(unittest.TestCase):
     NEWCAP = GOOD_DELTA.replace("## ADDED Requirements", "## Purpose\n\nWhat newcap does: it keeps "
                                 "the records it is given.\n\n## ADDED Requirements")
 
-    def test_check_reports_a_malformed_main_record_the_fold_would_refuse(self):
+    def test_a_change_holding_its_own_record_is_refused(self):
         repo = Repo(self)
-        repo.write("openspec/specs/cap/decisions.md", record() + "\nA stray line.\n")
         repo.change("x")
-        repo.write("openspec/changes/x/specs/cap/decisions.md", record(rejected=()))
+        repo.write("openspec/changes/x/specs/cap/decisions.md", record())
         r = repo.check("x")
-        self.assertIn("cannot fold into openspec/specs/cap/decisions.md", r.stdout)
+        self.assertIn("a change holds no decision record of its own: edit the main record "
+                      "directly, at openspec/specs/cap/decisions.md", r.stdout)
         self.assertEqual(r.returncode, 1)
 
     def test_a_path_under_openspec_changes_is_never_a_main_record(self):
@@ -714,27 +585,8 @@ class ConfiguredLocationRecordTests(unittest.TestCase):
                 r = repo.check("specs")
                 self.assertIn("src/nonexistent.py matches nothing", r.stdout)
 
-    def test_an_empty_change_record_with_no_main_record_folds_to_nothing(self):
-        repo = Repo(self)
-        repo.change("x")
-        repo.write("openspec/changes/x/specs/cap/decisions.md", record(constraints=(), rejected=()))
-        corpus = spec_check.Corpus(str(repo.path), requirements=False)
-        self.assertEqual(spec_check.fold_change("x", corpus), ({}, []))
-
-
 class FoundByBugHunterRun2Iteration3Tests(unittest.TestCase):
-    def test_a_malformed_change_record_still_shows_a_malformed_main_record(self):
-        repo = Repo(self)
-        repo.write("openspec/specs/cap/decisions.md", record() + "\nA stray line.\n")
-        repo.change("x")
-        repo.write("openspec/changes/x/specs/cap/decisions.md",
-                   record(rejected=()).replace("  Holds while: seats are shared between roles.\n", ""))
-        r = repo.check("x")
-        self.assertIn("the main record, line", r.stdout)
-        self.assertIn("has no Holds while: line", r.stdout)
-        self.assertEqual(r.stdout.count("has no Holds while: line"), 1, r.stdout)
-
-    def test_a_record_the_template_puts_under_openspec_changes_is_refused(self):
+    def test_a_change_record_whose_capability_has_no_record_path_names_none(self):
         repo = Repo(self)
         repo.write("openspec/spec-check.yaml", "decision-records: openspec/<capability>/decisions.md\n")
         repo.change("x", cap="changes", delta=GOOD_DELTA.replace(
@@ -742,385 +594,14 @@ class FoundByBugHunterRun2Iteration3Tests(unittest.TestCase):
             "## ADDED Requirements"))
         repo.write("openspec/changes/x/specs/changes/decisions.md", record(cap="changes"))
         r = repo.check("x")
-        self.assertIn("cannot fold into openspec/changes/decisions.md", r.stdout)
+        self.assertIn("a change holds no decision record of its own", r.stdout)
+        self.assertNotIn("at openspec/changes/decisions.md", r.stdout)
         self.assertEqual(r.returncode, 1)
-        folded, out = spec_check.fold_change("x", spec_check.Corpus(str(repo.path), requirements=False))
-        self.assertEqual(folded, {})
-        self.assertEqual(len(out), 1, [f.text() for f in out])
-
-
-class StackedRecordTests(unittest.TestCase):
-    """A stacked change's records are folded onto main's with each
-    dependency's own record folded in first."""
-
-    def setUp(self):
-        self.repo = Repo(self)
-        self.repo.write("openspec/specs/cap/decisions.md", record(rejected=()))
-        self.repo.git("add", "-A")
-        self.repo.git("commit", "-q", "-m", "record")
-
-    def dep(self, records):
-        d = spec_check.Dep("seat-files", "acme/widgets", "171", 1)
-        d.records = records
-        return d
-
-    def corpus(self, retired):
-        self.repo.change("x", proposal="Builds on: seat-files (acme/widgets#171)\n\n" + GOOD_PROPOSAL)
-        self.repo.write("openspec/changes/x/specs/cap/decisions.md", record(
-            constraints=(), rejected=(), retired=(retired,)))
-        return spec_check.Corpus(str(self.repo.path), requirements=False)
-
-    def test_retiring_an_entry_a_dependency_adds_is_no_error(self):
-        corpus = self.corpus("- **Rejected: A retrieval tool the worker calls.**\n")
-        dep = self.dep({"cap": record(constraints=())})
-        self.assertEqual(spec_check.fold_change("x", corpus)[1][0].kind, "record")  # main alone lacks it
-        folded, problems = spec_check.fold_change("x", corpus, [dep])
-        self.assertEqual(problems, [])
-        self.assertEqual(folded, {"openspec/specs/cap/decisions.md": record(rejected=())})
-
-    @unittest.skipUnless(HAS_OPENSPEC, NEEDS)
-    def test_check_passes_a_stacked_change_retiring_what_its_dependency_adds(self):
-        s = StackRepo(self)
-        s.put("openspec/changes/seat-files/specs/cap/decisions.md", record(rejected=()))
-        s.dependency(171, "seat-files", GOOD_DELTA)
-        s.stacked(GOOD_DELTA.replace("Records expire", "Records are searched").replace(
-            "delete a record ninety days after its last read", "index each record for search").replace(
-            "An old record goes", "A record is found"), "seat-files (acme/widgets#171)")
-        s.repo.write("openspec/changes/lore-search/specs/cap/decisions.md", record(
-            constraints=(), rejected=(), retired=("- **Constraint: The store keeps no credentials.**\n",)))
-        r = s.check("lore-search")
-        self.assertNotIn("[record]", r.stdout)
-        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-
-    def test_retiring_an_entry_no_dependency_adds_is_still_an_error(self):
-        corpus = self.corpus("- **Rejected: Nothing like this.**\n")
-        _, problems = spec_check.fold_change("x", corpus, [self.dep({"cap": record(constraints=())})])
-        self.assertIn("retires a Rejected entry 'Nothing like this.'", problems[0].message)
-
-    def test_a_dependency_whose_record_cannot_fold_is_named(self):
-        corpus = self.corpus("- **Constraint: The store keeps no credentials.**\n")
-        bad = self.dep({"cap": record(constraints=(), rejected=(), retired=("- **Rejected: Gone.**\n",))})
-        _, problems = spec_check.fold_change("x", corpus, [bad])
-        self.assertIn("cannot fold seat-files (acme/widgets#171)'s record", problems[0].message)
-
-    def test_a_merged_dependency_is_left_out_and_an_unbuilt_stack_checks_only_the_form(self):
-        open_dep, merged, pending = (self.dep({}) for _ in range(3))
-        open_dep.state, merged.state, pending.state, pending.pending = "OPEN", "MERGED", "MERGED", True
-        class S:
-            loaded = [open_dep, merged, pending]
-        self.assertEqual(spec_check.stack_records(S, True), [open_dep, pending])
-        self.assertIsNone(spec_check.stack_records(S, False))
-        self.assertEqual(spec_check.stack_records(None, True), ())
-
-    def test_records_lists_a_dependencys_own_record(self):
-        corpus = self.corpus("- **Rejected: A retrieval tool the worker calls.**\n")
-        dep = self.dep({"cap": record(constraints=())})
-        dep.deltas = {"other": "x"}
-        self.assertIn(("openspec/changes/seat-files/specs/cap/decisions.md in acme/widgets#171",
-                       "the record of seat-files (acme/widgets#171), which this change builds on"),
-                      spec_check.records_for("x", corpus, [], [dep]))
 
 
 LORE = GOOD_DELTA.replace("Records expire", "Records are searched").replace(
     "delete a record ninety days after its last read", "index each record for search").replace(
     "An old record goes", "A record is found")
-RETIRE_TOOL = record(constraints=(), rejected=(),
-                     retired=("- **Rejected: A retrieval tool the worker calls.**\n",))
-
-
-@unittest.skipUnless(HAS_OPENSPEC, NEEDS)
-class FoundByBugHunterRun3Tests(unittest.TestCase):
-    def stack(self):
-        s = StackRepo(self)
-        s.repo.write("openspec/specs/cap/decisions.md", record(rejected=()))
-        s.repo.git("add", "-A")
-        s.repo.git("commit", "-q", "-m", "rec")
-        s.repo.git("push", "-q", "origin", "main")
-        return s
-
-    def test_check_reports_a_dependencys_record_that_cannot_fold(self):
-        for own in (None, record(constraints=(CONSTRAINT.replace("credentials", "tokens"),), rejected=())):
-            with self.subTest(own=own is not None):
-                s = self.stack()
-                s.put("openspec/changes/seat-files/specs/cap/decisions.md", record(
-                    constraints=(), rejected=(), retired=("- **Rejected: Gone.**\n",)))
-                s.dependency(171, "seat-files", GOOD_DELTA)
-                s.stacked(LORE, "seat-files (acme/widgets#171)")
-                if own:
-                    s.repo.write("openspec/changes/lore-search/specs/cap/decisions.md", own)
-                r = s.check("lore-search")
-                self.assertIn("cannot fold seat-files (acme/widgets#171)'s record", r.stdout)
-                self.assertEqual(r.returncode, 1)
-
-    def merged_dependency(self, with_delta):
-        s = self.stack()
-        rec = record(constraints=(), rejected=(REJECTED,))
-        s.put("openspec/changes/seat-files/specs/cap/decisions.md", rec)
-        if with_delta:
-            s.dependency(171, "seat-files", GOOD_DELTA, state="MERGED")
-            s.repo.change("seat-files", delta=GOOD_DELTA)
-        else:
-            o = str(s.other)
-            s.sh("git", "-C", o, "fetch", "-q", "origin")
-            s.sh("git", "-C", o, "checkout", "-q", "-B", "seat-files", "origin/main")
-            s.put("openspec/changes/seat-files/proposal.md", GOOD_PROPOSAL)
-            s.put("openspec/changes/seat-files/tasks.md", TASKS)
-            s.push("seat-files", "add")
-            s.register(171, "seat-files", "MERGED")
-            s.repo.write("openspec/changes/seat-files/proposal.md", GOOD_PROPOSAL)
-            s.repo.write("openspec/changes/seat-files/tasks.md", TASKS)
-        s.repo.write("openspec/changes/seat-files/specs/cap/decisions.md", rec)
-        s.repo.git("add", "-A")
-        s.repo.git("commit", "-q", "-m", "merge #171")
-        s.repo.git("checkout", "-q", "-b", "spec")
-        s.stacked(LORE, "seat-files (acme/widgets#171)")
-        s.repo.write("openspec/changes/lore-search/specs/cap/decisions.md", RETIRE_TOOL)
-        return s
-
-    def test_records_lists_a_merged_dependency_the_tree_still_holds_open(self):
-        s = self.merged_dependency(with_delta=True)
-        r = s.repo.run("records", "--base", "main", "lore-search", env=s.env())
-        self.assertIn("openspec/changes/seat-files/specs/cap/decisions.md in acme/widgets#171", r.stdout)
-
-    def test_a_merged_dependency_holding_only_a_record_is_folded_while_open(self):
-        s = self.merged_dependency(with_delta=False)
-        r = s.check("lore-search")
-        self.assertNotIn("[record]", r.stdout)
-        self.assertNotIn("already in the tree", r.stdout)
-        self.assertEqual(r.returncode, 0, r.stdout)
-
-    def test_archive_refuses_while_a_dependency_is_open_in_the_tree(self):
-        repo = Repo(self)
-        repo.change("seat-files")
-        repo.change("lore-search", delta=LORE,
-                    proposal="Builds on: seat-files (acme/widgets#171)\n\n" + GOOD_PROPOSAL)
-        r = repo.run("archive", "lore-search", "--", "--yes")
-        self.assertEqual(r.returncode, 1)
-        self.assertIn("archive seat-files first", r.stdout + r.stderr)
-        self.assertTrue((repo.path / "openspec/changes/lore-search").exists())
-
-
-RETIRE_STORE = record(constraints=(), rejected=(),
-                      retired=("- **Constraint: The store keeps no credentials.**\n",))
-
-
-def dep_with(records):
-    d = spec_check.Dep("seat-files", "acme/widgets", "171", 1)
-    d.records = records
-    return d
-
-
-class FoundByBugHunterRun3Iteration2Tests(unittest.TestCase):
-    def repo_with_retiring_change(self, text):
-        repo = Repo(self)
-        repo.write("openspec/specs/cap/decisions.md", record(rejected=()))
-        repo.change("x", proposal="Builds on: seat-files (acme/widgets#171)\n\n" + GOOD_PROPOSAL)
-        repo.write("openspec/changes/x/specs/cap/decisions.md", text)
-        return spec_check.Corpus(str(repo.path), requirements=False)
-
-    def test_a_dependency_record_that_cannot_fold_brings_no_second_error(self):
-        corpus = self.repo_with_retiring_change(RETIRE_TOOL)
-        broken = REJECTED.replace("  Paths: src/\n", "")
-        dep = dep_with({"cap": record(constraints=(), rejected=(broken,))})
-        _, out = spec_check.fold_change("x", corpus, [dep])
-        self.assertEqual([f.path for f in out], ["openspec/changes/x/proposal.md"], [f.text() for f in out])
-
-    def test_a_dependency_retiring_the_last_entry_deletes_the_record_first(self):
-        corpus = self.repo_with_retiring_change(RETIRE_STORE)
-        _, out = spec_check.fold_change("x", corpus, [dep_with({"cap": RETIRE_STORE})])
-        self.assertEqual(len(out), 1, [f.text() for f in out])
-        self.assertIn("does not hold", out[0].message)
-        self.assertEqual(out[0].path, "openspec/changes/x/specs/cap/decisions.md")
-
-    def test_a_dependency_record_that_cannot_fold_brings_no_error_on_a_later_one(self):
-        corpus = self.repo_with_retiring_change(record(constraints=(CONSTRAINT,), rejected=()))
-        broken = REJECTED.replace("  Paths: src/\n", "")
-        d1 = dep_with({"cap": record(constraints=(), rejected=(broken,))})
-        d2 = spec_check.Dep("d2", "acme/widgets", "172", 2)
-        d2.records = {"cap": RETIRE_TOOL}
-        _, out = spec_check.fold_change("x", corpus, [d1, d2])
-        self.assertEqual(len(out), 1, [f.text() for f in out])
-        self.assertIn("seat-files", out[0].message)
-
-    def test_archive_refuses_a_change_that_builds_on_itself(self):
-        repo = Repo(self)
-        repo.change("lore-search", delta=LORE,
-                    proposal="Builds on: lore-search (acme/widgets#9)\n\n" + GOOD_PROPOSAL)
-        r = repo.run("archive", "lore-search", "--", "--yes")
-        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
-        self.assertIn("cannot build on itself", r.stderr)
-        self.assertTrue((repo.path / "openspec/changes/lore-search").exists())
-
-    def test_records_lists_no_main_record_a_dependency_touches_that_does_not_exist(self):
-        repo = Repo(self)
-        repo.change("x", proposal="Builds on: seat-files (acme/widgets#171)\n\n" + GOOD_PROPOSAL)
-        corpus = spec_check.Corpus(str(repo.path), requirements=False)
-        d = dep_with({"other": record(cap="other")})
-        d.dir, d.slug = "openspec/changes/seat-files", "acme/widgets"
-        listed = [rel for rel, _ in spec_check.records_for("x", corpus, [], [d])]
-        self.assertEqual(listed, ["openspec/changes/seat-files/specs/other/decisions.md in acme/widgets#171"])
-
-    def test_a_template_with_a_parent_segment_is_refused(self):
-        self.assertIsNotNone(spec_check.template_problem("openspec/../x/<capability>/decisions.md"))
-
-    def test_a_sibling_of_a_record_in_its_capability_folder_is_not_one(self):
-        t = "openspec/decisions/<capability>/decisions.md"
-        self.assertIsNone(spec_check.record_cap(t, "openspec/decisions/cap/notes-on-the-capability.md"))
-        self.assertEqual(spec_check.record_cap(t, "openspec/decisions/cap/decisions.md"), "cap")
-
-    def test_archive_refuses_a_change_whose_builds_on_line_is_malformed(self):
-        repo = Repo(self)
-        repo.change("seat-files")
-        repo.change("lore-search", delta=LORE,
-                    proposal="Builds on: seat-files, see #171\n\n" + GOOD_PROPOSAL)
-        r = repo.run("archive", "lore-search", "--", "--yes")
-        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
-        self.assertIn("Builds on:", r.stderr)
-        self.assertTrue((repo.path / "openspec/changes/lore-search").exists())
-
-
-@unittest.skipUnless(HAS_OPENSPEC, NEEDS)
-class FoundByBugHunterRun3Iteration2StackTests(FoundByBugHunterRun3Tests):
-    def records_only_dependency(self, state, text, in_tree):
-        s = self.stack()
-        o = str(s.other)
-        s.sh("git", "-C", o, "fetch", "-q", "origin")
-        s.sh("git", "-C", o, "checkout", "-q", "-B", "seat-files", "origin/main")
-        p = s.other / "openspec/changes/seat-files/specs/cap/decisions.md"
-        p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_bytes(text.encode())
-        s.put("openspec/changes/seat-files/proposal.md", GOOD_PROPOSAL)
-        s.put("openspec/changes/seat-files/tasks.md", TASKS)
-        s.push("seat-files", "add")
-        s.register(171, "seat-files", state)
-        if in_tree:
-            s.repo.write("openspec/changes/seat-files/proposal.md", GOOD_PROPOSAL)
-            s.repo.write("openspec/changes/seat-files/tasks.md", TASKS)
-            q = s.repo.path / "openspec/changes/seat-files/specs/cap/decisions.md"
-            q.parent.mkdir(parents=True, exist_ok=True)
-            q.write_bytes(text.encode())
-            s.repo.git("add", "-A")
-            s.repo.git("commit", "-q", "-m", "merge #171")
-        s.repo.git("checkout", "-q", "-b", "spec")
-        return s
-
-    def test_a_records_only_dependency_with_crlf_lines_is_pending_while_open(self):
-        rec = record(constraints=(), rejected=(REJECTED,)).replace("\n", "\r\n")
-        s = self.records_only_dependency("MERGED", rec, in_tree=True)
-        s.stacked(LORE, "seat-files (acme/widgets#171)")
-        s.repo.write("openspec/changes/lore-search/specs/cap/decisions.md", RETIRE_TOOL)
-        r = s.check("lore-search")
-        self.assertNotIn("[record]", r.stdout)
-        self.assertNotIn("already in the tree", r.stdout)
-        self.assertEqual(r.returncode, 0, r.stdout)
-
-    def test_a_merged_records_only_dependency_the_branch_lacks_says_merge_main(self):
-        s = self.records_only_dependency("MERGED", record(constraints=(), rejected=(REJECTED,)),
-                                         in_tree=False)
-        s.stacked(LORE, "seat-files (acme/widgets#171)")
-        r = s.check("lore-search")
-        self.assertIn("Merge main into your branch", r.stdout)
-        self.assertNotIn("already in the tree", r.stdout)
-        self.assertEqual(r.returncode, 1, r.stdout)
-
-    def test_an_unlisted_dependency_whose_records_a_listed_one_holds_passes(self):
-        from test_spec_check import stacked_proposal
-        s = self.stack()
-        held = record(constraints=(), rejected=(REJECTED,))
-        o = str(s.other)
-        for num, name in ((169, "a-rec"), (170, "c-rec")):
-            s.sh("git", "-C", o, "fetch", "-q", "origin")
-            s.sh("git", "-C", o, "checkout", "-q", "-B", name, "origin/main")
-            s.put(f"openspec/changes/{name}/specs/cap/decisions.md", held)
-            s.put(f"openspec/changes/{name}/proposal.md", GOOD_PROPOSAL)
-            s.put(f"openspec/changes/{name}/tasks.md", TASKS)
-            s.push(name, "add " + name)
-            s.register(num, name, "OPEN")
-        s.put("openspec/changes/seat-files/specs/cap/decisions.md", RETIRE_TOOL)
-        s.dependency(171, "seat-files", GOOD_DELTA, base="c-rec",
-                     proposal=stacked_proposal("c-rec (acme/widgets#170)"))
-        s.stacked(LORE, "a-rec (acme/widgets#169)", "seat-files (acme/widgets#171)")
-        r = s.check("lore-search")
-        self.assertEqual(r.returncode, 0, r.stdout)
-
-    def test_an_unlisted_records_only_dependency_of_a_dependency_is_named(self):
-        from test_spec_check import stacked_proposal
-        s = self.stack()
-        o = str(s.other)
-        s.sh("git", "-C", o, "fetch", "-q", "origin")
-        s.sh("git", "-C", o, "checkout", "-q", "-B", "c-rec", "origin/main")
-        s.put("openspec/changes/c-rec/specs/cap/decisions.md", record(constraints=(), rejected=(REJECTED,)))
-        s.put("openspec/changes/c-rec/proposal.md", GOOD_PROPOSAL)
-        s.put("openspec/changes/c-rec/tasks.md", TASKS)
-        s.push("c-rec", "add c")
-        s.register(170, "c-rec", "OPEN")
-        s.put("openspec/changes/seat-files/specs/cap/decisions.md", RETIRE_TOOL)
-        s.dependency(171, "seat-files", GOOD_DELTA, base="c-rec",
-                     proposal=stacked_proposal("c-rec (acme/widgets#170)"))
-        s.stacked(LORE, "seat-files (acme/widgets#171)")
-        r = s.check("lore-search")
-        self.assertIn("which this change does not list before it", r.stdout)
-        self.assertNotIn("cannot fold", r.stdout)
-
-
-
-@unittest.skipUnless(HAS_OPENSPEC, NEEDS)
-class StackedRecordsJudgedLikeDeltasTests(FoundByBugHunterRun3Iteration2StackTests):
-    """An open dependency's records are held, meaning the tree already has
-    what they add, only when folding them onto main plus the listed
-    dependencies' records changes nothing."""
-
-    def test_an_open_dependency_whose_deltas_main_holds_but_not_its_records_is_kept(self):
-        s = self.stack()
-        spec = s.repo.path / "openspec/specs/cap/spec.md"
-        s.repo.write("openspec/specs/cap/spec.md", spec.read_text() + "\n" + GOOD_DELTA.split("\n", 2)[2])
-        s.repo.git("add", "-A")
-        s.repo.git("commit", "-q", "-m", "x")
-        s.repo.git("push", "-q", "origin", "main")
-        s.put("openspec/changes/seat-files/specs/cap/decisions.md", record(constraints=(), rejected=(REJECTED,)))
-        s.dependency(171, "seat-files", GOOD_DELTA)
-        s.stacked(LORE, "seat-files (acme/widgets#171)")
-        s.repo.write("openspec/changes/lore-search/specs/cap/decisions.md", RETIRE_TOOL)
-        r = s.check("lore-search")
-        self.assertNotIn("remove the `Builds on", r.stdout)
-        self.assertIn("its decision records are not, and are folded in", r.stdout)
-        self.assertEqual(r.returncode, 0, r.stdout)
-
-    def test_an_unlisted_dependency_rewording_an_entry_must_be_listed(self):
-        from test_spec_check import stacked_proposal
-        reworded = CONSTRAINT.replace("seats are shared between roles", "seats are shared between any two roles")
-        s = self.stack()
-        o = str(s.other)
-        s.sh("git", "-C", o, "fetch", "-q", "origin")
-        s.sh("git", "-C", o, "checkout", "-q", "-B", "c-rec", "origin/main")
-        s.put("openspec/changes/c-rec/specs/cap/decisions.md", record(constraints=(reworded,), rejected=()))
-        s.put("openspec/changes/c-rec/proposal.md", GOOD_PROPOSAL)
-        s.put("openspec/changes/c-rec/tasks.md", TASKS)
-        s.push("c-rec", "add c")
-        s.register(170, "c-rec", "OPEN")
-        s.dependency(171, "seat-files", GOOD_DELTA, base="c-rec",
-                     proposal=stacked_proposal("c-rec (acme/widgets#170)"))
-        s.stacked(LORE, "seat-files (acme/widgets#171)")
-        r = s.check("lore-search")
-        self.assertIn("which this change does not list before it", r.stdout)
-        self.assertEqual(r.returncode, 1, r.stdout)
-
-    def test_an_open_records_only_dependency_main_already_holds_is_stale(self):
-        s = self.records_only_dependency("OPEN", record(rejected=()), in_tree=False)
-        s.stacked(LORE, "seat-files (acme/widgets#171)")
-        r = s.check("lore-search")
-        self.assertIn("every decision record it holds is already in the tree", r.stdout)
-        self.assertEqual(r.returncode, 0, r.stdout)
-
-    def test_merge_main_names_a_plain_openspec_archive(self):
-        s = self.records_only_dependency("MERGED", record(constraints=(), rejected=(REJECTED,)),
-                                         in_tree=False)
-        s.stacked(LORE, "seat-files (acme/widgets#171)")
-        r = s.check("lore-search")
-        self.assertIn("Merge main into your branch", r.stdout)
-        self.assertIn("plain `openspec archive`", r.stdout)
-        self.assertEqual(r.returncode, 1, r.stdout)
-
 
 
 def rejected_first(cap="cap"):
@@ -1128,13 +609,6 @@ def rejected_first(cap="cap"):
 
 
 class FoundByBugHunterRun4Tests(unittest.TestCase):
-    def test_records_held_ignores_the_order_of_the_sections(self):
-        repo = Repo(self)
-        repo.write("openspec/specs/cap/decisions.md", rejected_first())
-        corpus = spec_check.Corpus(str(repo.path), requirements=False)
-        self.assertTrue(spec_check.records_held(dep_with({"cap": rejected_first()}), corpus, corpus.records))
-        self.assertFalse(spec_check.records_held(dep_with({"cap": record(rejected=())}), corpus, {}))
-
     def test_a_path_with_non_ascii_letters_matches_its_file(self):
         repo = Repo(self)
         repo.write("src/café.py", "x\n")
@@ -1199,87 +673,6 @@ class FoundByBugHunterRun4Tests(unittest.TestCase):
         self.assertNotIn("Traceback", r.stderr)
         self.assertIn("openspec/specs/other/decisions.md", r.stdout)
 
-    @unittest.skipUnless(HAS_OPENSPEC, NEEDS)
-    def test_archive_passes_yes_so_openspec_never_prompts(self):
-        for extra in ((), ("--", "-y"), ("--", "--yes")):
-            with self.subTest(extra=extra):
-                repo = Repo(self)
-                repo.write("openspec/specs/cap/decisions.md", record(rejected=()))
-                repo.change("x")
-                repo.write("openspec/changes/x/specs/cap/decisions.md",
-                           record(constraints=(), rejected=(REJECTED,)))
-                repo.git("add", "-A")
-                repo.git("commit", "-q", "-m", "c")
-                r = repo.run("archive", "x", *extra, stdin="n\nn\nn\n")
-                self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-                self.assertIn("Records expire", (repo.path / "openspec/specs/cap/spec.md").read_text())
-                self.assertIn("Rejected: A retrieval tool",
-                              (repo.path / "openspec/specs/cap/decisions.md").read_text())
-
-    @unittest.skipUnless(HAS_OPENSPEC, NEEDS)
-    def test_archive_with_skip_specs_leaves_the_records_alone(self):
-        repo = Repo(self)
-        repo.write("openspec/specs/cap/decisions.md", record(rejected=()))
-        repo.change("x")
-        repo.write("openspec/changes/x/specs/cap/decisions.md", record(constraints=(), rejected=(REJECTED,)))
-        repo.git("add", "-A")
-        repo.git("commit", "-q", "-m", "c")
-        r = repo.run("archive", "x", "--", "--yes", "--skip-specs")
-        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-        self.assertEqual((repo.path / "openspec/specs/cap/decisions.md").read_text(), record(rejected=()))
-
-
-
-class RecordsNotShownTests(unittest.TestCase):
-    def corpus(self, main):
-        repo = Repo(self)
-        repo.write("openspec/specs/cap/decisions.md", main)
-        return spec_check.Corpus(str(repo.path), requirements=False)
-
-    def test_an_entry_a_later_merged_dependency_retires_need_not_be_there(self):
-        corpus = self.corpus(record(rejected=()))
-        adds = dep_with({"cap": record(constraints=(), rejected=(REJECTED,))})
-        later = dep_with({"cap": RETIRE_TOOL})
-        self.assertEqual(spec_check.records_not_shown(adds, corpus, [later]), [])
-        self.assertEqual(len(spec_check.records_not_shown(adds, corpus)), 1)
-
-    def test_an_entry_a_later_merged_dependency_adds_back_need_not_be_gone(self):
-        corpus = self.corpus(record(rejected=()))
-        retires = dep_with({"cap": RETIRE_STORE})
-        later = dep_with({"cap": record(rejected=())})
-        self.assertEqual(spec_check.records_not_shown(retires, corpus, [later]), [])
-        self.assertEqual(len(spec_check.records_not_shown(retires, corpus)), 1)
-
-    def test_fold_deps_leaves_the_corpus_records_alone(self):
-        corpus = self.corpus(record(rejected=()))
-        before = dict(corpus.records)
-        spec_check.fold_deps(corpus, [dep_with({"cap": RETIRE_STORE})], "p.md")
-        self.assertEqual(corpus.records, before)
-
-
-@unittest.skipUnless(HAS_OPENSPEC, NEEDS)
-class MergedDependencyOfADependencyTests(FoundByBugHunterRun3Iteration2StackTests):
-    def test_an_unlisted_merged_dependency_whose_records_the_branch_lacks_says_merge_main(self):
-        from test_spec_check import stacked_proposal
-        s = self.stack()
-        o = str(s.other)
-        s.sh("git", "-C", o, "fetch", "-q", "origin")
-        s.sh("git", "-C", o, "checkout", "-q", "-B", "c-rec", "origin/main")
-        s.put("openspec/changes/c-rec/specs/cap/decisions.md", record(constraints=(), rejected=(REJECTED,)))
-        s.put("openspec/changes/c-rec/proposal.md", GOOD_PROPOSAL)
-        s.put("openspec/changes/c-rec/tasks.md", TASKS)
-        s.push("c-rec", "add c")
-        s.register(170, "c-rec", "MERGED")
-        s.dependency(171, "seat-files", GOOD_DELTA, base="c-rec",
-                     proposal=stacked_proposal("c-rec (acme/widgets#170)"))
-        s.stacked(LORE, "seat-files (acme/widgets#171)")
-        r = s.check("lore-search")
-        self.assertIn("builds on c-rec (acme/widgets#170), which has merged", r.stdout)
-        self.assertIn("plain `openspec archive`", r.stdout)
-        self.assertEqual(r.returncode, 1, r.stdout)
-
-
-
 class FoundByBugHunterRun5Tests(unittest.TestCase):
     def test_a_template_naming_spec_md_or_changes_in_another_case_is_refused(self):
         for t in ("openspec/specs/<capability>/Spec.md", "openspec/Changes/<capability>/decisions.md"):
@@ -1288,33 +681,15 @@ class FoundByBugHunterRun5Tests(unittest.TestCase):
         self.assertIsNone(spec_check.record_cap("openspec/<capability>/decisions.md",
                                                 "openspec/Changes/x/decisions.md"))
 
-    def test_a_file_at_the_record_path_that_is_not_read_as_a_record_stops_the_fold(self):
-        repo = Repo(self)
-        repo.write("openspec/spec-check.yaml", "decision-records: openspec/Specs/<capability>/decisions.md\n")
-        repo.write("openspec/specs/cap/decisions.md", record(rejected=()))
-        repo.change("x")
-        repo.write("openspec/changes/x/specs/cap/decisions.md", record(constraints=(), rejected=(REJECTED,)))
-        corpus = spec_check.Corpus(str(repo.path), requirements=False)
-        main = repo.path / "openspec/Specs/cap/decisions.md"
-        if not main.exists():
-            self.skipTest("needs a filesystem that ignores case")
-        folded, out = spec_check.fold_change("x", corpus)
-        self.assertEqual(folded, {})
-        self.assertEqual(len(out), 1, [f.text() for f in out])
-        self.assertIn("not read as a record", out[0].message)
-
     def test_records_given_specs_says_it_takes_a_change(self):
         repo = Repo(self)
         repo.change("x")
-        for cmd in ("records", "archive"):
-            for target in ("specs", "openspec/specs", "specs/", "openspec/specs/"):
-                with self.subTest(cmd=cmd, target=target):
-                    r = repo.run(cmd, target, *(("--base", "main") if cmd == "records" else ()))
-                    self.assertNotIn("Traceback", r.stderr)
-                    self.assertIn(f"{cmd} takes a change's name", r.stderr)
-                    self.assertEqual(r.returncode, 2)
-
-
+        for target in ("specs", "openspec/specs", "specs/", "openspec/specs/"):
+            with self.subTest(target=target):
+                r = repo.run("records", target, "--base", "main")
+                self.assertNotIn("Traceback", r.stderr)
+                self.assertIn("records takes a change's name", r.stderr)
+                self.assertEqual(r.returncode, 2)
 
 class MutationGapRun5Tests(unittest.TestCase):
     def test_check_rationale_passes_one_sentence_and_flags_two(self):
@@ -1326,13 +701,6 @@ class MutationGapRun5Tests(unittest.TestCase):
             out = []
             spec_check.check_rationale([req], corpus, out)
             self.assertEqual(bool(out), flagged, body)
-
-    def test_a_title_only_main_record_holds_a_dependency_record_with_no_entry(self):
-        repo = Repo(self)
-        title = "# cap: constraints and rejected alternatives\n"
-        repo.write("openspec/specs/cap/decisions.md", title)
-        corpus = spec_check.Corpus(str(repo.path), requirements=False)
-        self.assertTrue(spec_check.records_held(dep_with({"cap": title}), corpus, corpus.records))
 
     def test_a_stream_that_already_writes_raw_bytes_is_left_alone(self):
         repo = Repo(self)
@@ -1355,42 +723,11 @@ class MutationGapRun5Tests(unittest.TestCase):
         self.assertIn(b"lib/caf\xe9.c", r.stdout)
 
 
-
 class FoundByBugHunterRun7Tests(unittest.TestCase):
-    def test_a_change_record_keeping_and_retiring_one_entry_is_an_error(self):
-        kept = CONSTRAINT.replace("a leaked store leaks every seat", "a leak exposes every seat")
-        retired = "- **Constraint: The store keeps no credentials.**\n"
-        for text in (record(constraints=(kept,), rejected=(), retired=(retired,)),
-                     "# cap: constraints and rejected alternatives\n\n## Retired\n" + retired +
-                     "\n## Constraints\n" + kept):
-            with self.subTest(order=text.index("Retired") < text.index("Because")):
-                problems = spec_check.parse_record(text, change=True).problems
-                self.assertEqual(len(problems), 1, problems)
-                self.assertIn("keeps and retires the same Constraint entry", problems[0][1])
-
     def test_a_glob_ending_in_a_slash_names_what_is_under_it(self):
         for pattern in ("src/*/", "src/**/", "src/l*/", "src/?ib/"):
             with self.subTest(pattern=pattern):
                 self.assertTrue(spec_check.path_matches(pattern, "src/lib/x.py"))
-
-class MutationGapRun7Tests(unittest.TestCase):
-    @unittest.skipUnless(HAS_OPENSPEC, NEEDS)
-    def test_skip_specs_says_the_records_were_left_alone_only_when_there_were_some(self):
-        for has_record in (True, False):
-            with self.subTest(has_record=has_record):
-                repo = Repo(self)
-                repo.write("openspec/specs/cap/decisions.md", record(rejected=()))
-                repo.change("x")
-                if has_record:
-                    repo.write("openspec/changes/x/specs/cap/decisions.md",
-                               record(constraints=(), rejected=(REJECTED,)))
-                repo.git("add", "-A")
-                repo.git("commit", "-q", "-m", "c")
-                r = repo.run("archive", "x", "--", "--skip-specs")
-                self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-                self.assertEqual("records were not folded either" in r.stdout, has_record)
-
-
 
 class SymlinkGateTests(unittest.TestCase):
     """spec-check refuses every symlink under openspec/, openspec itself
@@ -1449,7 +786,7 @@ class SymlinkGateTests(unittest.TestCase):
         repo.git("commit", "-q", "-m", "linked changes")
         self.refused(repo.check("--ref", "HEAD"), "openspec/changes")
 
-    def test_sign_records_and_archive_refuse_a_symlink(self):
+    def test_sign_and_records_refuse_a_symlink(self):
         repo = Repo(self)
         repo.git("checkout", "-q", "-b", "spec")
         repo.change("x")
@@ -1459,8 +796,6 @@ class SymlinkGateTests(unittest.TestCase):
         self.refused(repo.run("sign", "--read", "deferred", "--base", "main", "--no-validate"),
                      "openspec/changes/x/notes.md")
         self.refused(repo.run("records", "x"), "openspec/changes/x/notes.md")
-        self.refused(repo.run("archive", "x"), "openspec/changes/x/notes.md")
-        self.assertTrue((repo.path / "openspec/changes/x").is_dir())
 
     def test_ci_takes_back_a_hand_back_whose_head_holds_a_symlink(self):
         repo = Repo(self)
@@ -1562,9 +897,12 @@ class RationaleFormTests(unittest.TestCase):
         self.assertEqual([v for _, v in e.evidence],
                          ["the second loss, #31", "the audit terms, https://example.com/terms"])
 
-    def test_evidence_is_optional_and_reasoning_is_not(self):
+    def test_evidence_and_reasoning_are_both_required(self):
         bare = "- **Rationale: Records are kept.**\n  Thirty days covers every audit window.\n"
-        self.assertEqual(findings(record(rationale=(bare,))), [])
+        self.assertEqual([(sev, n) for sev, n, m in findings(record(rationale=(bare,)))
+                          if "no Evidence" in m], [("error", 18)])
+        test = bare + "  Evidence: the regression test for the lost-record bug, [test_audit](tests/test_audit.py)\n"
+        self.assertEqual(findings(record(rationale=(test,))), [])
         empty = "- **Rationale: Records are kept.**\n  Evidence: the audit terms, #4\n"
         problems = findings(record(rationale=(empty,)))
         self.assertTrue(any(sev == "error" and "no reasoning" in m for sev, _, m in problems), problems)
@@ -1611,11 +949,6 @@ class RationaleFormTests(unittest.TestCase):
         ((_, _, message),) = findings(record(rationale=(RATIONALE.replace(
             "Records are kept.", "records are kept."),)), requirements={"Records are kept."})
         self.assertTrue(message.endswith('did you mean "Records are kept.."?'), message)
-        _, problems = spec_check.fold_record("cap", record(rationale=(RATIONALE.replace(
-            "Records are kept.", "Ends with a dot.."),)), record(
-            constraints=(), rejected=(), retired=("- **Rationale: Ends with a dot.**\n",)))
-        self.assertEqual(problems, ["line 4: retires a Rationale entry 'Ends with a dot.' that the "
-                                    'main record does not hold; did you mean "Ends with a dot.."?'])
 
     def test_an_entry_title_is_trimmed_as_javascript_trims(self):
         (entry,) = spec_check.parse_record(record(constraints=(), rejected=(), rationale=(RATIONALE.replace(
@@ -1634,30 +967,15 @@ class RationaleFormTests(unittest.TestCase):
                                       requirements={"."})
         self.assertIn("names nothing after its label", message)
 
-    def test_a_rationale_is_retired_under_retired(self):
-        text = record(constraints=(), rejected=(), retired=("- **Rationale: Records are kept.**\n",))
-        self.assertEqual(findings(text, change=True, requirements=set()), [])
-
-    def test_the_fold_keys_rationale_by_requirement_title(self):
-        main = record(rationale=(RATIONALE,))
-        new = RATIONALE.replace("A shorter window", "A seven-day window")
-        other = "- **Rationale: Records expire.**\n  Ninety days bounds what a leak exposes.\n"
-        folded, problems = spec_check.fold_record(
-            "cap", main, record(constraints=(), rejected=(), rationale=(new, other)))
-        self.assertEqual(problems, [])
-        self.assertEqual(folded, record(rationale=(new, other)))
-        retired, problems = spec_check.fold_record("cap", main, record(
-            constraints=(), rejected=(), retired=("- **Rationale: Records are kept**\n",)))
-        self.assertEqual((retired, problems), (record(), []))
-        _, problems = spec_check.fold_record("cap", main, record(
-            constraints=(), rejected=(), retired=("- **Rationale: records are kept**\n",)))
-        self.assertEqual(problems, ["line 4: retires a Rationale entry 'records are kept' that the main "
-                                    'record does not hold; did you mean "Records are kept"?'])
-
-    def test_the_fold_writes_rationale_after_constraints_and_rejected(self):
-        folded, _ = spec_check.fold_record("cap", None, record(rationale=(RATIONALE,)))
-        self.assertLess(folded.index("## Rejected"), folded.index("## Rationale"))
-
+    def test_a_rationale_naming_a_requirement_going_away_is_an_error(self):
+        text = record(constraints=(), rejected=(), rationale=(RATIONALE,))
+        why = "the open change x removes"
+        ((sev, line, message),) = findings(text, requirements={"Records are kept"},
+                                           gone={"Records are kept": why})
+        self.assertEqual((sev, line), ("error", 4))
+        self.assertIn(f'"Records are kept" names a requirement that {why}', message)
+        self.assertIn("delete the entry, or retitle it", message)
+        self.assertEqual(findings(text, requirements={"Records are kept"}, gone={"Other": why}), [])
 
 class RationaleCheckTests(unittest.TestCase):
     """check holds a Rationale entry's title to the requirements in force,
@@ -1671,26 +989,45 @@ class RationaleCheckTests(unittest.TestCase):
         return [line for line in r.stdout.splitlines() if "error [record]" in line]
 
     @unittest.skipUnless(HAS_OPENSPEC, NEEDS)
-    def test_a_change_record_may_name_a_requirement_in_force_or_in_the_change(self):
+    def test_a_record_may_name_a_requirement_in_force_or_in_an_open_change(self):
         self.repo.change("x")
-        why = "- **Rationale: {}.**\n  The reasoning, at more length than one sentence holds.\n"
-        self.repo.write("openspec/changes/x/specs/cap/decisions.md", record(
+        why = "- **Rationale: {}.**\n  The reasoning, at more length than one sentence holds.\n  Evidence: the incident, #9\n"
+        self.repo.write("openspec/specs/cap/decisions.md", record(
             constraints=(), rejected=(), rationale=(why.format("Records are kept"),
                                                     why.format("Records expire"))))
-        self.assertEqual(self.record_errors("x"), [])
-        self.repo.write("openspec/changes/x/specs/cap/decisions.md", record(
+        self.assertEqual(self.record_errors("specs"), [])
+        self.repo.write("openspec/specs/cap/decisions.md", record(
             constraints=(), rejected=(), rationale=(why.format("Records are shredded"),)))
-        (error,) = self.record_errors("x")
+        (error,) = self.record_errors("specs")
         self.assertIn('"Records are shredded" names no requirement of cap', error)
 
     @unittest.skipUnless(HAS_OPENSPEC, NEEDS)
-    def test_a_change_record_may_not_name_a_requirement_the_change_removes(self):
+    def test_a_record_may_name_a_requirement_only_another_open_change_adds(self):
+        self.repo.change("x")
+        self.repo.change("y", delta=GOOD_DELTA.replace("Records expire", "Records are indexed"))
+        why = "- **Rationale: {}.**\n  The reasoning, at more length than one sentence holds.\n  Evidence: the incident, #9\n"
+        self.repo.write("openspec/specs/cap/decisions.md", record(
+            constraints=(), rejected=(), rationale=(why.format("Records are indexed"),)))
+        self.assertEqual(self.record_errors("specs"), [])
+        shutil.rmtree(self.repo.path / "openspec/changes/y")
+        (error,) = self.record_errors("specs")
+        self.assertIn('"Records are indexed" names no requirement of cap', error)
+
+    @unittest.skipUnless(HAS_OPENSPEC, NEEDS)
+    def test_a_record_may_not_name_a_requirement_an_open_change_removes(self):
         self.repo.change("x", delta="## REMOVED Requirements\n\n### Requirement: Records are kept\n\n"
                                     "**Reason**: no longer needed.\n\n**Migration**: none.\n")
-        self.repo.write("openspec/changes/x/specs/cap/decisions.md", record(
+        self.repo.write("openspec/specs/cap/decisions.md", record(
             constraints=(), rejected=(), rationale=(RATIONALE,)))
-        (error,) = self.record_errors("x")
-        self.assertIn('"Records are kept" names no requirement of cap', error)
+        (at_record,) = self.record_errors("specs")
+        self.assertIn('openspec/specs/cap/decisions.md:4: error [record] Rationale: "Records are kept" '
+                      "names a requirement that the open change x removes", at_record)
+        (at_delta,) = self.record_errors("x")
+        self.assertIn('openspec/changes/x/specs/cap/spec.md:3: error [record] removes "Records are '
+                      'kept", which openspec/specs/cap/decisions.md gives a Rationale entry; delete '
+                      "that entry from the record", at_delta)
+        self.repo.write("openspec/specs/cap/decisions.md", record())
+        self.assertEqual(self.record_errors("specs") + self.record_errors("x"), [])
 
     @unittest.skipUnless(HAS_OPENSPEC, NEEDS)
     def test_a_main_record_must_name_a_main_requirement(self):
@@ -1699,21 +1036,6 @@ class RationaleCheckTests(unittest.TestCase):
         (error,) = self.record_errors("specs")
         self.assertIn("openspec/specs/cap/decisions.md:", error)
         self.assertIn('"Records are shredded" names no requirement of cap', error)
-
-    @unittest.skipUnless(HAS_OPENSPEC, NEEDS)
-    def test_archive_folds_a_rationale_entry(self):
-        self.repo.write("openspec/specs/cap/spec.md", MAIN_SPEC.replace(
-            "What cap does.", "What cap does: it keeps the records it is given, and reads them back."))
-        self.repo.git("add", "-A")
-        self.repo.git("commit", "-q", "-m", "purpose")
-        self.repo.change("x", proposal=GOOD_PROPOSAL.replace("Records pile up",
-                                                             "Records pile up, and the disk fills"))
-        self.repo.write("openspec/changes/x/specs/cap/decisions.md", record(
-            constraints=(), rejected=(), rationale=(RATIONALE,)))
-        r = self.repo.run("archive", "x")
-        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-        self.assertEqual((self.repo.path / "openspec/specs/cap/decisions.md").read_text(),
-                         record(constraints=(), rejected=(), rationale=(RATIONALE,)))
 
     def test_records_says_when_a_rationale_covers_a_requirement_the_change_changes(self):
         self.repo.write("openspec/specs/cap/decisions.md", record(rationale=(RATIONALE,)))
@@ -1736,16 +1058,16 @@ class FoundByBugHunterRationaleRunTests(unittest.TestCase):
     def test_a_main_spec_openspec_cannot_read_leaves_rationale_titles_unchecked(self):
         repo = Repo(self)
         repo.write("openspec/specs/cap/spec.md", MAIN_SPEC.replace("## Purpose\n\nWhat cap does.\n\n", ""))
-        repo.change("x")
-        repo.write("openspec/changes/x/specs/cap/decisions.md", record(
+        repo.write("openspec/specs/cap/decisions.md", record(
             constraints=(), rejected=(), rationale=(RATIONALE,)))
+        repo.change("x")
         r = repo.check("x")
         self.assertNotIn("error [record]", r.stdout)
         self.assertIn("openspec-show", r.stdout)
 
     def test_reasoning_may_start_with_a_word_another_kind_uses_as_a_label(self):
         text = record(rationale=("- **Rationale: Records are kept.**\n  Thirty days was chosen over\n"
-                                 "  Instead: of ninety, which the auditors refused.\n",))
+                                 "  Instead: of ninety, which the auditors refused.\n  Evidence: the refusal, #7\n",))
         self.assertEqual(findings(text), [])
         (e,) = [e for e in spec_check.parse_record(text).entries if e.kind == "Rationale"]
         self.assertIn("Instead: of ninety", e.reasoning)
@@ -1759,19 +1081,12 @@ class FoundByBugHunterRationaleRunTests(unittest.TestCase):
         problems = findings(record(constraints=(unlabelled,)))
         self.assertTrue(problems)
         self.assertFalse(any("blank line" in m for _, _, m in problems), problems)
-        retired = record(constraints=(), rejected=(), retired=(
-            "- **Rationale: Records are kept.**\n  old reasoning\n",))
-        problems = findings(retired, change=True)
-        self.assertEqual([m for _, _, m in problems],
-                         ["an entry under `## Retired` is its bold line alone"])
 
-    def test_a_main_records_rationale_error_names_main_requirements_only(self):
+    def test_a_rationale_error_says_which_titles_it_may_name(self):
         text = record(rationale=(RATIONALE.replace("Records are kept", "Records are shredded"),))
         (problem,) = findings(text, requirements={"Records are kept"})
-        self.assertNotIn("this change", problem[2])
-        (problem,) = findings(text, change=True, requirements={"Records are kept"})
-        self.assertIn("this change adds or modifies", problem[2])
-
+        self.assertIn('"Records are shredded" names no requirement of cap', problem[2])
+        self.assertIn("one an open change adds, modifies or renames to", problem[2])
 
 class MutationGapRationaleRunTests(unittest.TestCase):
     """Mutants that survived the mutation testing of bug-hunter's run over
@@ -1796,24 +1111,35 @@ class MutationGapRationaleRunTests(unittest.TestCase):
         (e,) = [e for e in spec_check.parse_record(text).entries if e.kind == "Rationale"]
         self.assertEqual([v for _, v in e.evidence], ["the terms, #4"])
 
-    def test_requirements_that_cannot_be_told_leave_titles_unchecked(self):
-        class FakeCorpus:
-            missing, unread, items = None, {}, {}
-        self.assertIsNone(spec_check.change_requirements("x", FakeCorpus(), None, "cap"))
-        FakeCorpus.missing = "openspec is not installed"
-        self.assertIsNone(spec_check.change_requirements("x", FakeCorpus(), {("cap", "A")}, "cap"))
+    def test_open_titles_are_read_from_the_delta_text(self):
+        repo = Repo(self)
+        repo.change("x", delta=GOOD_DELTA + "\n## REMOVED Requirements\n\n### Requirement: Records are kept\n\n"
+                                            "**Reason**: no longer needed.\n\n**Migration**: none.\n")
+        repo.change("y", cap="other")
+        corpus = spec_check.Corpus(str(repo.path), requirements=False)
+        self.assertEqual(spec_check.open_titles(corpus, "cap"),
+                         ({"Records expire"}, {"Records are kept": "the open change x removes"}))
+        self.assertEqual(spec_check.open_titles(corpus, "third"), (set(), {}))
+        repo.change("x", delta="## RENAMED Requirements\n\n- FROM: `### Requirement: Records are kept`\n"
+                               "- TO: `### Requirement: Records are kept`\n")
+        corpus = spec_check.Corpus(str(repo.path), requirements=False)
+        self.assertEqual(spec_check.open_titles(corpus, "cap"), ({"Records are kept"}, {}))
 
     @unittest.skipUnless(HAS_OPENSPEC, NEEDS)
     def test_a_change_renaming_a_requirement_moves_its_rationale_title(self):
         repo = Repo(self)
         repo.change("x", delta=self.RENAME)
-        why = "- **Rationale: {}.**\n  The reasoning, at more length than one sentence holds.\n"
-        repo.write("openspec/changes/x/specs/cap/decisions.md", record(
+        why = "- **Rationale: {}.**\n  The reasoning, at more length than one sentence holds.\n  Evidence: the incident, #9\n"
+        repo.write("openspec/specs/cap/decisions.md", record(
             constraints=(), rejected=(), rationale=(why.format("Records are retained"),)))
         self.assertNotIn("error [record]", repo.check("x").stdout)
-        repo.write("openspec/changes/x/specs/cap/decisions.md", record(
+        repo.write("openspec/specs/cap/decisions.md", record(
             constraints=(), rejected=(), rationale=(why.format("Records are kept"),)))
-        self.assertIn('"Records are kept" names no requirement of cap', repo.check("x").stdout)
+        self.assertIn('"Records are kept" names a requirement that the open change x renames to '
+                      '"Records are retained"', repo.check("specs").stdout)
+        out = repo.check("x").stdout
+        self.assertIn('renames "Records are kept" to "Records are retained", which '
+                      "openspec/specs/cap/decisions.md gives a Rationale entry", out)
 
     @unittest.skipUnless(HAS_OPENSPEC, NEEDS)
     def test_a_main_spec_openspec_cannot_read_leaves_main_rationale_unchecked(self):
@@ -1841,183 +1167,6 @@ REMOVE_KEPT = ("## REMOVED Requirements\n\n### Requirement: Records are kept\n\n
                "**Reason**: superseded.\n\n**Migration**: none.\n")
 RENAME_KEPT = ("## RENAMED Requirements\n\n- FROM: `### Requirement: Records are kept`\n"
                "- TO: `### Requirement: Records are retained`\n")
-RETIRE_KEPT = record(constraints=(), rejected=(), retired=("- **Rationale: Records are kept.**\n",))
-CARRY_KEPT = record(constraints=(), rejected=(), rationale=(
-    RATIONALE.replace("Records are kept", "Records are retained"),))
-
-
-class RationaleOfAGoneRequirementTests(unittest.TestCase):
-    """A change that removes or renames a requirement with a Rationale entry
-    retires the entry, or for a rename carries it over to the new title."""
-
-    def setUp(self):
-        if not HAS_OPENSPEC:
-            self.skipTest(NEEDS)
-        self.repo = Repo(self)
-        self.repo.write("openspec/specs/cap/spec.md", MAIN_SPEC.replace(
-            "What cap does.", "What cap does: it keeps the records it is given, and reads them back."))
-        self.repo.write("openspec/specs/cap/decisions.md", record(rationale=(RATIONALE,)))
-        self.repo.git("add", "-A")
-        self.repo.git("commit", "-q", "-m", "record")
-        self.repo.git("checkout", "-q", "-b", "spec")
-
-    def errors(self, r):
-        return [line for line in r.stdout.splitlines() if "error [record]" in line]
-
-    def test_removing_a_requirement_with_a_rationale_entry_needs_its_retirement(self):
-        self.repo.change("x", delta=REMOVE_KEPT)
-        (error,) = self.errors(self.repo.check("x"))
-        self.assertTrue(error.startswith("openspec/changes/x/specs/cap/spec.md:3: error [record]"), error)
-        self.assertIn('removes "Records are kept", which openspec/specs/cap/decisions.md gives a '
-                      'Rationale entry; retire that entry under `## Retired` in this change\'s '
-                      'specs/cap/decisions.md', error)
-        self.repo.git("add", "-A")
-        r = self.repo.run("sign", "--read", "deferred", "--base", "main", "--no-validate")
-        self.assertNotEqual(r.returncode, 0, r.stdout + r.stderr)
-        self.assertIn('removes "Records are kept"', r.stdout + r.stderr)
-        self.repo.write("openspec/changes/x/specs/cap/decisions.md", RETIRE_KEPT)
-        self.assertEqual(self.errors(self.repo.check("x")), [])
-
-    def test_check_and_sign_refuse_a_reused_title(self):
-        self.repo.change("x", delta=RENAME_KEPT + "\n## ADDED Requirements\n\n### Requirement: "
-                         "Records are kept\n\nThe store SHALL checksum each record.\n\n"
-                         "#### Scenario: A record is checksummed\n\n- **WHEN** a record is kept\n"
-                         "- **THEN** its checksum is kept\n")
-        self.repo.write("openspec/changes/x/specs/cap/decisions.md", CARRY_KEPT)
-        self.assertIn("error [title-reuse]", self.repo.check("x").stdout)
-        self.repo.git("add", "-A")
-        r = self.repo.run("sign", "--read", "deferred", "--base", "main", "--no-validate")
-        self.assertNotEqual(r.returncode, 0, r.stdout + r.stderr)
-        self.assertIn("reusing a title", r.stdout + r.stderr)
-
-    def test_a_near_miss_removal_leaves_the_entry_and_asks_nothing(self):
-        # `openspec archive` skips a removal of a title main does not hold
-        # exactly, so the requirement and its Rationale entry both stay.
-        self.repo.change("x", delta=REMOVE_KEPT.replace("Records are kept", "Records are kept."))
-        self.assertEqual(self.errors(self.repo.check("x")), [])
-        self.repo.write("openspec/changes/x/specs/cap/decisions.md", RETIRE_KEPT.replace(
-            "Records are kept.", "records are kept"))
-        out = self.repo.check("x").stdout
-        self.assertIn("retires a Rationale entry 'records are kept' that the main record does not "
-                      'hold; did you mean "Records are kept"?', out)
-
-    def test_a_title_near_one_in_main_is_its_own_requirement(self):
-        self.repo.change("x", delta="## ADDED Requirements\n\n### Requirement: Records are kept..\n\n"
-                         "The store SHALL checksum each record.\n\n#### Scenario: A record is "
-                         "checksummed\n\n- **WHEN** a record is kept\n- **THEN** its checksum is kept\n")
-        self.assertNotIn("title-reuse", self.repo.check("x").stdout)
-
-    def test_a_chained_rename_is_refused(self):
-        self.repo.change("x", delta=(
-            "## RENAMED Requirements\n\n- FROM: `### Requirement: Records are kept`\n"
-            "- TO: `### Requirement: Records are held`\n"
-            "- FROM: `### Requirement: Records are held`\n"
-            "- TO: `### Requirement: Records are retained`\n"))
-        self.repo.write("openspec/changes/x/specs/cap/decisions.md", CARRY_KEPT)
-        self.assertIn('error [title-reuse] this change renames or removes "Records are held"',
-                      self.repo.check("x").stdout)
-
-    def test_renaming_a_requirement_with_a_rationale_entry_needs_it_retired_or_carried_over(self):
-        self.repo.change("x", delta=RENAME_KEPT)
-        (error,) = self.errors(self.repo.check("x"))
-        self.assertIn('renames "Records are kept" to "Records are retained", which '
-                      'openspec/specs/cap/decisions.md gives a Rationale entry; retire that entry '
-                      'under `## Retired`, or carry it over as a Rationale entry titled "Records '
-                      'are retained", in this change\'s specs/cap/decisions.md', error)
-        for own in (RETIRE_KEPT, CARRY_KEPT):
-            with self.subTest(own=own):
-                self.repo.write("openspec/changes/x/specs/cap/decisions.md", own)
-                self.assertEqual(self.errors(self.repo.check("x")), [])
-
-    def test_a_carried_over_rationale_replaces_the_old_one_in_place_at_archive(self):
-        self.repo.change("x", delta=RENAME_KEPT, proposal=GOOD_PROPOSAL.replace(
-            "Records pile up", "Records pile up, and the disk fills"))
-        self.repo.write("openspec/changes/x/specs/cap/decisions.md", CARRY_KEPT)
-        r = self.repo.run("archive", "x")
-        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-        self.assertEqual((self.repo.path / "openspec/specs/cap/decisions.md").read_text(),
-                         record(rationale=(RATIONALE.replace("Records are kept", "Records are retained"),)))
-        self.assertEqual(self.errors(self.repo.check("specs")), [])
-
-    def test_a_dependencys_rationale_entry_counts(self):
-        s = StackRepo(self)
-        s.put("openspec/changes/seat-files/specs/cap/decisions.md", record(
-            constraints=(), rejected=(), rationale=(RATIONALE.replace("Records are kept", "Records expire"),)))
-        s.dependency(171, "seat-files", GOOD_DELTA)
-        s.stacked("## REMOVED Requirements\n\n### Requirement: Records expire\n\n"
-                  "**Reason**: superseded.\n\n**Migration**: none.\n", "seat-files (acme/widgets#171)")
-        errors = self.errors(s.check("lore-search"))
-        self.assertEqual(len(errors), 1, errors)
-        self.assertIn('removes "Records expire", which openspec/specs/cap/decisions.md gives a '
-                      'Rationale entry', errors[0])
-
-
-class FoundByBugHunterGoneRationaleRunTests(unittest.TestCase):
-    """Found by bug-hunter in its run over the removed or renamed
-    requirement check: delta_changes reads REMOVED and RENAMED as OpenSpec
-    does, and the messages name what to do."""
-
-    def test_removed_and_renamed_titles_are_read_as_openspec_reads_them(self):
-        text = ("## REMOVED Requirements\n\n- `### Requirement: Bulleted`\n\n"
-                "### Requirement: Closed ###\n\n**Reason**: x.\n\n"
-                "## Notes\n\n### Requirement: Under notes\n\n"
-                "## REMOVED  Requirements\n\n### Requirement: Two spaces\n\n"
-                "## RENAMED Requirements\n\n- FROM: `### Requirement: Old ##`\n"
-                "- TO: `### Requirement: New #`\n")
-        removed, renames = spec_check.delta_changes(text)
-        self.assertEqual([t for _, t in removed], ["Bulleted", "Closed"])
-        self.assertEqual([(o, n) for _, o, n in renames], [("Old", "New")])
-
-    @unittest.skipUnless(HAS_OPENSPEC, NEEDS)
-    def test_a_rename_that_changes_only_case_carries_the_entry_like_any_rename(self):
-        repo = Repo(self)
-        repo.write("openspec/specs/cap/decisions.md", record(rationale=(RATIONALE,)))
-        repo.change("x", delta=RENAME_KEPT.replace("Records are retained", "Records Are Kept"))
-        self.assertIn('renames "Records are kept" to "Records Are Kept"', repo.check("x").stdout)
-        repo.write("openspec/changes/x/specs/cap/decisions.md", record(constraints=(), rejected=(), rationale=(
-            RATIONALE.replace("Records are kept", "Records Are Kept"),)))
-        self.assertNotIn("error [record]", repo.check("x").stdout)
-
-    def test_carrying_over_and_retiring_the_same_entry_says_so(self):
-        main = record(rationale=(RATIONALE,))
-        ours = record(constraints=(), rejected=(), rationale=(
-            RATIONALE.replace("Records are kept", "Records are retained"),),
-            retired=("- **Rationale: Records are kept.**\n",))
-        _, problems = spec_check.fold_record("cap", main, ours,
-                                             [("Records are kept", "Records are retained")])
-        (problem,) = problems
-        self.assertIn('also carries it over to "Records are retained"', problem)
-
-
-class FoundByBugHunterGoneRationaleIteration2Tests(unittest.TestCase):
-    """Iteration 2 of the same run: fences as OpenSpec reads them, the
-    carry-and-retire refusal in either section order, and `records` reading
-    deltas as delta_changes does."""
-
-    def test_fences_are_openspec_fences(self):
-        text = ("## REMOVED Requirements\n\n- note:\n  ```\n### Requirement: Hidden\n```\n"
-                "### Requirement: After\n")
-        self.assertEqual([t for _, t in spec_check.delta_changes(text)[0]], ["After"])
-
-    def test_carrying_over_and_retiring_is_refused_in_either_order(self):
-        main = record(rationale=(RATIONALE,))
-        carry = RATIONALE.replace("Records are kept", "Records are retained")
-        swapped = (record(constraints=(), rejected=(), retired=("- **Rationale: Records are kept.**\n",))
-                   + "\n## Rationale\n" + carry)
-        _, problems = spec_check.fold_record("cap", main, swapped,
-                                             [("Records are kept", "Records are retained")])
-        self.assertEqual(len(problems), 1, problems)
-        self.assertIn("also carries it over", problems[0])
-
-    def test_records_reads_delta_titles_as_openspec_does(self):
-        class FakeCorpus:
-            texts = {"openspec/changes/x/specs/cap/spec.md": (
-                "## REMOVED Requirements\n\n- `### Requirement: Bulleted`\n\n"
-                "## MODIFIED Requirements\n\n### Requirement: Closed ###\n\nThe store SHALL x.\n\n"
-                "## Notes\n\n### Requirement: Under notes\n")}
-            changes = {"x": {"openspec/changes/x/specs/cap/spec.md": []}}
-        self.assertEqual(spec_check.delta_titles(FakeCorpus(), "x", "cap"), {"Bulleted", "Closed"})
-
 
 class TitleReuseTests(unittest.TestCase):
     """A change may not add or rename to a title it also renames or removes
@@ -2133,45 +1282,6 @@ class DeltaLineSeparatorTests(unittest.TestCase):
         self.assertEqual(out, [])
 
 
-class RecordsNotShownCarryTests(unittest.TestCase):
-    def test_a_later_dependency_s_carry_over_need_not_leave_the_old_entry(self):
-        class Dep:
-            def __init__(self, records, deltas):
-                self.records, self.deltas, self.line, self.label = records, deltas, 3, "d (o/r#1)"
-
-        class FakeCorpus:
-            template = spec_check.DEFAULT_RECORD
-            records = {}
-
-        first = Dep({"cap": record(rationale=(RATIONALE,))}, {})
-        second = Dep({"cap": CARRY_KEPT}, {"cap": RENAME_KEPT})
-        corpus = FakeCorpus()
-        base, problems, _ = spec_check.fold_deps(corpus, [first, second], "p.md")
-        self.assertEqual(problems, [])
-        corpus.records = base
-        self.assertEqual(spec_check.records_not_shown(first, corpus, [second]), [])
-        self.assertEqual(spec_check.records_not_shown(first, corpus, []),
-                         ["Rationale 'Records are kept.' in cap's record"])
-
-
-class FoldDepsRenamesTests(unittest.TestCase):
-    def test_a_dependency_s_carried_over_entry_replaces_the_old_one(self):
-        class FakeDep:
-            records = {"cap": CARRY_KEPT}
-            deltas = {"cap": RENAME_KEPT}
-            line, label = 3, "dep (o/r#1)"
-
-        class FakeCorpus:
-            template = spec_check.DEFAULT_RECORD
-            records = {"openspec/specs/cap/decisions.md": record(rationale=(RATIONALE,))}
-
-        corpus, main_rel = FakeCorpus(), "openspec/specs/cap/decisions.md"
-        base, findings, failed = spec_check.fold_deps(corpus, [FakeDep()], "p.md")
-        self.assertEqual((findings, failed), ([], set()))
-        self.assertEqual([e.title for e in spec_check.parse_record(base[main_rel]).entries
-                          if e.kind == "Rationale"], ["Records are retained."])
-
-
 class RationaleInARecordWithNoSpecTests(unittest.TestCase):
     def test_a_main_record_with_no_spec_gets_only_the_no_spec_finding(self):
         if not HAS_OPENSPEC:
@@ -2205,6 +1315,8 @@ class ConsistencyReadChecklistTests(unittest.TestCase):
         for words in ("names a person as its reason", "who decided or amended a decision, or when",
                       "reversed by <name> on <date>", "decided on <date>", "states a preference",
                       "claims a fact without Evidence", "only restates its requirement",
+                      "its requirement's own test as its only Evidence",
+                      "a requirement guards against", "move a rejection",
                       "in this round", "ask the person who decided for the evidence",
                       "reopen the decision", "strike the entry"):
             self.assertIn(words, item)
@@ -2236,6 +1348,311 @@ class MutationGapRun8Tests(unittest.TestCase):
         self.assertFalse(spec_check.path_matches("src/*.py", "src/lib/x.py"))
 
 
+class OpsxRulesTests(unittest.TestCase):
+    """opsx-rules.yaml is merged into openspec/config.yaml by hand; OpenSpec
+    must read it with no warning and show each artifact its rules."""
+
+    RULES = pathlib.Path(spec_check.__file__).parent.parent / "opsx-rules.yaml"
+
+    def rules(self):
+        """{artifact: [rule]} read from the file's plain two-level layout."""
+        out, artifact = {}, None
+        for line in self.RULES.read_text().splitlines():
+            if m := re.match(r"^  (\w+):$", line):
+                artifact = m.group(1)
+                out[artifact] = []
+            elif m := re.match(r"^    - (.+)$", line):
+                out[artifact].append(m.group(1))
+        return out
+
+    def test_the_rules_name_spec_driven_artifacts(self):
+        self.assertTrue(set(self.rules()) <= {"proposal", "specs", "design", "tasks"}, self.rules())
+        self.assertTrue(all(self.rules().values()))
+
+    @unittest.skipUnless(HAS_OPENSPEC, NEEDS)
+    def test_openspec_shows_each_artifact_its_rules(self):
+        repo = Repo(self)
+        repo.write("openspec/config.yaml", "schema: spec-driven\n" + self.RULES.read_text())
+        repo.change("x")
+        for artifact, rules in self.rules().items():
+            with self.subTest(artifact=artifact):
+                r = subprocess.run(["openspec", "instructions", artifact, "--change", "x"],
+                                   cwd=repo.path, capture_output=True, text=True, env=ENV)
+                self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+                self.assertNotIn("Unknown artifact ID", r.stdout + r.stderr)
+                self.assertNotIn("must be an array", r.stdout + r.stderr)
+                for rule in rules:
+                    self.assertIn(rule, r.stdout)
+
+class RecordDiffEvolutionTests(unittest.TestCase):
+    """The evolution check reads the lines a branch changes in a main
+    record, against the merge base, skipping the credit rules."""
+
+    def setUp(self):
+        self.repo = Repo(self)
+
+    def evolution(self):
+        r = self.repo.check("specs")
+        return [line for line in r.stdout.splitlines() if "error [evolution]" in line]
+
+    def test_a_history_line_the_branch_adds_to_a_record_is_an_error(self):
+        self.repo.git("checkout", "-q", "-b", "spec")
+        self.repo.write("openspec/specs/cap/decisions.md", record(constraints=(CONSTRAINT.replace(
+            "a leaked store leaks every seat.", "a leaked store leaks every seat, previously one."),)))
+        (error,) = self.evolution()
+        self.assertTrue(error.startswith("openspec/specs/cap/decisions.md:5: error [evolution]"), error)
+
+    def test_a_history_line_already_on_the_base_is_not_read(self):
+        self.repo.write("openspec/specs/cap/decisions.md", record(constraints=(CONSTRAINT.replace(
+            "a leaked store leaks every seat.", "a leaked store leaks every seat, previously one."),)))
+        self.repo.git("add", "-A")
+        self.repo.git("commit", "-q", "-m", "old record")
+        self.repo.git("checkout", "-q", "-b", "spec")
+        self.assertEqual(self.evolution(), [])
+        text = (self.repo.path / "openspec/specs/cap/decisions.md").read_text()
+        self.repo.write("openspec/specs/cap/decisions.md",
+                        text.replace("Paths: src/app.py", "Paths: src/"))
+        self.assertEqual(self.evolution(), [])
+
+    def test_a_credit_the_branch_adds_to_a_record_is_skipped(self):
+        self.repo.git("checkout", "-q", "-b", "spec")
+        self.repo.write("openspec/specs/cap/decisions.md", record(constraints=(CONSTRAINT.replace(
+            "two seats leaked in one incident, #12", "two seats leaked (Linux, 2024-05-01), #12"),)))
+        self.assertEqual(self.evolution(), [])
+
+    def test_changed_lines_are_those_that_differ_from_the_old_text(self):
+        self.assertEqual(spec_check.changed_lines(None, "a\nb"), {1, 2})
+        self.assertEqual(spec_check.changed_lines("a\nb\nc\n", "a\nB\nc\nd\n"), {2, 4})
+        self.assertEqual(spec_check.changed_lines("a\nb\n", "b\n"), set())
+
+
+from test_spec_check import HandbackBase  # noqa: E402
+
+
+class FoundByBugHunterNoFoldHandbackTests(HandbackBase):
+    def test_a_hand_back_editing_only_a_record_with_no_change_folder_is_blocked(self):
+        self.repo.write("openspec/specs/cap/decisions.md", record())
+        self.repo.git("add", "-A")
+        signed_commit(self, self.repo, read="deferred")
+        self.blocked(self.hook("gh pr ready 7 -R o/r", pr=self.pr()),
+                     "openspec/specs/cap/decisions.md")
+
+    def test_the_judgement_fetches_what_it_reads_with_gh_s_token(self):
+        """read_units reads the decision-records configuration, a file's
+        contents the partial clone lacks, so git fetches it while judging:
+        that fetch carries gh's credential helper and never prompts."""
+        sys.path.insert(0, str(HERE))
+        import handback
+        seen = {}
+
+        def unread_at(repo, head, base_ref):
+            seen.update({k: v for k, v in os.environ.items()
+                         if k.startswith("GIT_CONFIG_") or k == "GIT_TERMINAL_PROMPT"})
+            return []
+        self.repo.write("openspec/specs/cap/decisions.md", record())
+        self.repo.git("add", "-A")
+        self.repo.git("commit", "-q", "-m", "record")
+        with mock.patch.object(handback.sc, "unread_at", unread_at), \
+                mock.patch.object(handback.sc, "GH", str(self.gh)), \
+                mock.patch.dict(os.environ, {"SPEC_CHECK_CACHE": str(self.cache)}):
+            self.assertEqual(handback.unread(self.pr()), "")
+        self.assertEqual(seen.get("GIT_TERMINAL_PROMPT"), "0")
+        helpers = [seen[k.replace("KEY", "VALUE")] for k in seen
+                   if k.startswith("GIT_CONFIG_KEY_") and seen[k] == "credential.helper"]
+        self.assertEqual(helpers[0], "")
+        self.assertIn("auth git-credential", helpers[-1])
+        self.assertNotIn("GIT_TERMINAL_PROMPT", {k for k in os.environ if k == "GIT_TERMINAL_PROMPT"
+                                                  and os.environ[k] == "0" and k not in ENV})
+
+
+class FoundByBugHunterNoFoldRunTests(unittest.TestCase):
+    def test_check_with_ref_reads_the_record_diff_against_the_refs_merge_base(self):
+        repo = Repo(self)
+        old = record(constraints=(CONSTRAINT.replace(
+            "a leaked store leaks every seat.", "a leaked store leaks every seat, previously one."),))
+        repo.write("openspec/specs/cap/decisions.md", old)
+        repo.git("add", "-A")
+        repo.git("commit", "-q", "-m", "record")
+        repo.git("checkout", "-q", "-b", "feat")
+        repo.write("openspec/specs/cap/decisions.md", old.replace("Paths: src/app.py", "Paths: src/"))
+        repo.git("commit", "-qam", "feat edits another line")
+        repo.git("checkout", "-q", "main")
+        repo.write("openspec/specs/cap/decisions.md", record())
+        repo.git("commit", "-qam", "main drops the history line")
+        r = repo.check("--ref", "feat", "specs")
+        self.assertNotIn("error [evolution]", r.stdout)
+        self.assertEqual(r.returncode, 0, r.stdout)
+
+    def test_changed_lines_number_lines_as_the_evolution_check_does(self):
+        old = "a\u2028b\nc\nd\n"
+        self.assertEqual(spec_check.changed_lines(old, "a\u2028b\nc\nD\n"), {3})
+        self.assertEqual(spec_check.changed_lines(None, "a\fb\nc"), {1, 2})
+
+    @unittest.skipUnless(HAS_OPENSPEC, NEEDS)
+    def test_a_record_naming_a_removed_requirement_errors_though_another_change_is_unreadable(self):
+        repo = Repo(self)
+        repo.change("x", delta="## REMOVED Requirements\n\n### Requirement: Records are kept\n\n"
+                               "**Reason**: no longer needed.\n\n**Migration**: none.\n")
+        repo.change("y", cap="other", delta=GOOD_DELTA.replace("Records expire", "Unreadable"))
+        repo.write("openspec/specs/cap/decisions.md", record(
+            constraints=(), rejected=(), rationale=(RATIONALE,)))
+        real_show = spec_check.show
+
+        def show(kind, name, files):
+            if any("Unreadable" in text for text in files.values()):
+                return None, "broken"
+            return real_show(kind, name, files)
+        with mock.patch.object(spec_check, "show", show):
+            corpus = spec_check.Corpus(str(repo.path))
+            self.assertIn("y", corpus.unread)
+            _, _, found, *_ = spec_check.run_checks(str(repo.path), str(repo.path), "main",
+                                                    ["x", "specs"], False)
+        messages = [f.message for f in found if f.severity == "error"]
+        self.assertIn('removes "Records are kept", which openspec/specs/cap/decisions.md gives '
+                      "a Rationale entry; delete that entry from the record", messages)
+        self.assertIn('Rationale: "Records are kept" names a requirement that the open change x '
+                      "removes; delete the entry, or retitle it to the requirement it explains",
+                      messages)
+
+    def test_a_record_naming_a_removed_requirement_errors_without_openspec(self):
+        repo = Repo(self)
+        repo.change("x", delta="## REMOVED Requirements\n\n### Requirement: Records are kept\n\n"
+                               "**Reason**: no longer needed.\n\n**Migration**: none.\n")
+        repo.write("openspec/specs/cap/decisions.md", record(
+            constraints=(), rejected=(), rationale=(RATIONALE,)))
+        env = dict(ENV, PATH=os.pathsep.join(p for p in ENV["PATH"].split(os.pathsep)
+                                             if not (pathlib.Path(p) / "openspec").exists()))
+        r = repo.check("x", "specs", env=env)
+        self.assertIn('"Records are kept" names a requirement that the open change x removes',
+                      r.stdout)
+        self.assertEqual(r.returncode, 1, r.stdout)
+
+    def test_the_opsx_rules_point_rationale_at_the_main_record(self):
+        text = (HERE.parent / "opsx-rules.yaml").read_text()
+        self.assertNotIn("change's decisions.md", text)
+
+
+class RecordKeptFileTests(unittest.TestCase):
+    """A kept file beside a decision record keeps the evolution errors a
+    person chose to keep in that record's lines, whether or not an open
+    change touches the capability."""
+
+    LINE = "Because: a leaked store leaks every seat, previously one."
+
+    def setUp(self):
+        self.repo = Repo(self)
+        self.repo.git("checkout", "-q", "-b", "spec")
+
+    def write(self, where="openspec/specs/cap", asked=True):
+        self.repo.write(f"{where}/decisions.md", record(constraints=(CONSTRAINT.replace(
+            "Because: a leaked store leaks every seat.", self.LINE),)))
+        self.repo.write(f"{where}/.spec-check-kept",
+                        f"decisions.md: «{self.LINE}» kept{' (asked)' if asked else ''}: "
+                        "the line quotes the incident report\n")
+
+    def test_a_kept_record_line_is_not_an_error(self):
+        self.write()
+        r = self.repo.check("specs")
+        self.assertEqual(r.returncode, 0, r.stdout)
+        self.assertIn("openspec/specs/cap/decisions.md:5: kept (asked) [evolution] the line "
+                      "quotes the incident report", r.stdout)
+        self.assertNotIn("error [evolution]", r.stdout)
+
+    def test_an_unasked_entry_keeps_nothing(self):
+        self.write(asked=False)
+        r = self.repo.check("specs")
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("error [kept]", r.stdout)
+        self.assertIn("error [evolution]", r.stdout)
+
+    def test_a_kept_file_covers_its_record_while_a_change_touches_the_capability(self):
+        self.repo.change("good")
+        self.write()
+        r = self.repo.check("specs", "good")
+        self.assertEqual(r.returncode, 0, r.stdout)
+        self.assertIn("kept (asked) [evolution]", r.stdout)
+
+    def test_a_kept_file_beside_a_configured_record(self):
+        self.repo.write("openspec/spec-check.yaml",
+                        "decision-records: openspec/decisions/<capability>/decisions.md\n")
+        self.write("openspec/decisions/cap")
+        r = self.repo.check("specs")
+        self.assertEqual(r.returncode, 0, r.stdout)
+        self.assertIn("openspec/decisions/cap/decisions.md:5: kept (asked)", r.stdout)
+
+    def test_sign_counts_a_kept_record_line_and_a_kept_file_edit_is_due(self):
+        self.write()
+        self.repo.git("add", "-A")
+        value = signed_commit(self, self.repo)
+        self.assertIn("1 evolution kept", value)
+        self.assertIn("read by a fresh subagent: openspec/specs/cap/decisions.md;", value)
+        kept = self.repo.path / "openspec/specs/cap/.spec-check-kept"
+        kept.write_text(kept.read_text().replace("incident report", "incident report, #12"))
+        self.repo.git("add", "-A")
+        r = self.repo.run("sign", "--read", "subagent", "--base", "main", "--no-validate")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("read by a fresh subagent: openspec/specs/cap/decisions.md;",
+                      r.stdout.strip().splitlines()[-1])
+
+
+class FoundByBugHunterNoFoldIteration2Tests(unittest.TestCase):
+    LINE = RecordKeptFileTests.LINE
+
+    def setUp(self):
+        self.repo = Repo(self)
+        self.repo.git("checkout", "-q", "-b", "spec")
+
+    def test_staging_only_a_configured_records_kept_file_checks_the_record(self):
+        self.repo.write("openspec/spec-check.yaml",
+                        "decision-records: openspec/decisions/<capability>/decisions.md\n")
+        self.repo.write("openspec/decisions/cap/decisions.md", record(constraints=(CONSTRAINT.replace(
+            "Because: a leaked store leaks every seat.", self.LINE),)))
+        self.repo.git("add", "-A")
+        self.repo.git("commit", "-q", "-m", "wip", "--trailer", "Spec-check: skipped (wip)")
+        self.repo.write("openspec/decisions/cap/.spec-check-kept",
+                        f"decisions.md: «{self.LINE}» kept: no person asked\n")
+        self.repo.git("add", "-A")
+        r = self.repo.run("sign", "--read", "deferred", "--base", "main", "--no-validate")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("the entry has no `(asked)`", r.stdout)
+
+    def test_a_kept_entry_for_a_record_line_that_merged_is_not_called_gone(self):
+        self.repo.write("openspec/specs/cap/decisions.md", record(constraints=(CONSTRAINT.replace(
+            "Because: a leaked store leaks every seat.", self.LINE),)))
+        self.repo.write("openspec/specs/cap/.spec-check-kept",
+                        f"decisions.md: «{self.LINE}» kept (asked): quotes the report\n")
+        self.repo.git("add", "-A")
+        self.repo.git("commit", "-q", "-m", "record")
+        self.repo.git("checkout", "-q", "main")
+        self.repo.git("merge", "-q", "--ff-only", "spec")
+        self.repo.git("checkout", "-q", "-b", "next")
+        r = self.repo.check("specs")
+        self.assertNotIn("matches no evolution error", r.stdout)
+        self.assertEqual(r.returncode, 0, r.stdout)
+        text = (self.repo.path / "openspec/specs/cap/decisions.md").read_text()
+        self.repo.write("openspec/specs/cap/decisions.md", text.replace(self.LINE, "Because: gone."))
+        self.assertIn("matches no evolution error", self.repo.check("specs").stdout)
+
+    @unittest.skipUnless(HAS_OPENSPEC, NEEDS)
+    def test_a_record_of_a_capability_an_open_change_creates_is_held_to_its_titles(self):
+        self.repo.change("newc", cap="newcap", delta=GOOD_DELTA.replace(
+            "## ADDED Requirements", "## Purpose\n\nWhat newcap does: it keeps the records it is given.\n\n"
+            "## ADDED Requirements"))
+        why = "- **Rationale: {}.**\n  The reasoning, at more length than one sentence holds.\n  Evidence: the incident, #9\n"
+        self.repo.write("openspec/specs/newcap/decisions.md", record(
+            cap="newcap", constraints=(), rejected=(),
+            rationale=(why.format("Records expire"), why.format("Typo title nobody has"))))
+        r = self.repo.check("specs")
+        self.assertIn('"Typo title nobody has" names no requirement of newcap', r.stdout)
+        self.assertNotIn('"Records expire" names', r.stdout)
+        self.assertNotIn("no spec in openspec/specs/ is 'newcap'", r.stdout)
+
+
+    def test_present_lines_reads_a_record_as_markdown_lines_do(self):
+        class FakeCorpus:
+            records = {"r.md": "\ufeffFirst  line\r\nsecond\n"}
+        self.assertEqual(spec_check.present_lines(FakeCorpus(), "r.md"), {"First line", "second", ""})
+        self.assertEqual(spec_check.present_lines(FakeCorpus(), "gone.md"), set())
 
 if __name__ == "__main__":
     unittest.main()

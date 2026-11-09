@@ -120,7 +120,9 @@ def cache_dir():
 
 def store_for(remote):
     """A bare repository fetching from remote, made the first time. It is a
-    partial clone without file contents, which the judgement never reads."""
+    partial clone without file contents. The judgement reads one file's
+    contents, the decision-records configuration, which git then fetches
+    on demand."""
     slug = re.sub(r"[^A-Za-z0-9._-]+", "-", sc.remote_slug(remote) or "repo")
     path = cache_dir() / f"{slug}-{hashlib.sha256(remote.encode()).hexdigest()[:12]}.git"
     if path.is_dir():
@@ -165,12 +167,22 @@ def unread(pr):
     number = m.group("number")
     store = str(store_for(m.group("repo")))
     head_ref, base_ref = f"refs/spec-check/pull/{number}", f"refs/spec-check/base/{number}"
+    # gh's token fetches a private repository, as `gh repo clone` would, and
+    # git never prompts. The same settings reach the fetch git makes on its
+    # own for a file's contents the judgement reads.
+    # Added after any settings the environment already gives git this way.
+    try:
+        n = max(int(os.environ.get("GIT_CONFIG_COUNT", "0")), 0)
+    except ValueError:
+        n = 0
+    git_env = dict(os.environ, GIT_TERMINAL_PROMPT="0", GIT_CONFIG_COUNT=str(n + 2),
+                   **{f"GIT_CONFIG_KEY_{n}": "credential.helper", f"GIT_CONFIG_VALUE_{n}": "",
+                      f"GIT_CONFIG_KEY_{n + 1}": "credential.helper",
+                      f"GIT_CONFIG_VALUE_{n + 1}": f"!{shlex.quote(sc.GH)} auth git-credential"})
+
     def fetch(*refspecs):
-        # gh's token fetches a private repository, as `gh repo clone` would.
-        return sc.git(store, "-c", "credential.helper=",
-                      "-c", f"credential.helper=!{shlex.quote(sc.GH)} auth git-credential",
-                      "fetch", "-q", "--no-tags", "--filter=blob:none", "origin", *refspecs,
-                      check=False, env=dict(os.environ, GIT_TERMINAL_PROMPT="0")).returncode == 0
+        return sc.git(store, "fetch", "-q", "--no-tags", "--filter=blob:none", "origin",
+                      *refspecs, check=False, env=git_env).returncode == 0
 
     if not fetch(f"+refs/heads/{pr['baseRefName']}:{base_ref}"):
         return None
@@ -187,10 +199,16 @@ def unread(pr):
     links = sc.openspec_links(store, head)
     if links:
         return sc.links_problem(links)
-    if not sc.git(store, "ls-tree", "-d", "--name-only", head, "--", "openspec/changes",
+    if not sc.git(store, "ls-tree", "-d", "--name-only", head, "--", "openspec",
                   check=False).stdout.strip():
         return ""
-    changes = sc.unread_at(store, head, base_ref)
+    saved = dict(os.environ)
+    os.environ.update(git_env)
+    try:
+        changes = sc.unread_at(store, head, base_ref)
+    finally:
+        os.environ.clear()
+        os.environ.update(saved)
     return f"{', '.join(changes)} changed after its last consistency read" if changes else ""
 
 

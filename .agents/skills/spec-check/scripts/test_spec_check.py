@@ -2287,7 +2287,7 @@ class TrailerTests(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(self.repo.git("rev-parse", "HEAD^{tree}"), before)
         self.assertEqual(self.hook().returncode, 0)
-        self.assertIn("no change waits for its consistency read",
+        self.assertIn("nothing waits for its consistency read",
                       self.repo.run("sign", "--read", "subagent", "--base", "main",
                                     "--no-validate").stderr)
 
@@ -4876,7 +4876,7 @@ class RoundTests(unittest.TestCase):
         self.repo.git("add", "-A")
         r = self.sign("subagent")
         self.assertEqual(r.returncode, 1)
-        self.assertIn("no change waits for its consistency read", r.stderr)
+        self.assertIn("nothing waits for its consistency read", r.stderr)
 
     def test_a_value_from_before_rounds_read_the_changes_its_commit_touched(self):
         self.repo.change("good")
@@ -6318,7 +6318,7 @@ class PassDueTests(unittest.TestCase):
         self.assertEqual(self.pass_due().stdout, "")
         self.assertEqual(self.hook().returncode, 0)
 
-    def test_an_archive_commit_starts_the_decision_record_fold(self):
+    def test_an_archive_commit_starts_the_decision_record_pass(self):
         self.spec_branch()
         (self.repo.path / "openspec/changes/archive").mkdir()
         self.repo.git("mv", "openspec/changes/good", "openspec/changes/archive/2026-11-06-good")
@@ -6330,15 +6330,20 @@ class PassDueTests(unittest.TestCase):
                       "change good changes (cap). It is archived as "
                       "openspec/changes/archive/2026-11-06-good: move the reasoning in its "
                       "design.md that no requirement or record entry holds into those records, "
-                      "at the location decision records are configured to: a Rationale entry "
-                      "for reasoning about one requirement, a Constraint entry for a rule the "
+                      "editing each main record directly at the location decision records are "
+                      "configured to, under the same rules as any record edit: a Rationale entry "
+                      "for reasoning about one requirement, with its Evidence, a Constraint entry for "
+                      "a rule the "
                       "code must keep that no test can check, with its Evidence (a principle "
-                      "with none becomes Rejected entries for what it rules out), a Rejected "
-                      "entry for an alternative turned down (including the fix not taken behind "
-                      "an accepted limit or trade-off); leave the rest, and anything without "
-                      "Evidence or too slight to decide anything with, in the archived design.md (spec-check's SKILL.md, Decision "
-                      "records). In shared-skills, also fold "
-                      "it into the DECISIONS.md of each skill it affects that keeps one. Then "
+                      "with none goes into the Rationale, beside that entry's Evidence, of each "
+                      "requirement that guards against what it rules out, or is left out), a "
+                      "Rejected entry for an alternative turned down that "
+                      "no requirement guards against, with its evidence (including the fix not "
+                      "taken behind an accepted limit or trade-off); leave the rest, and anything "
+                      "without Evidence or too slight to decide anything with, in the archived "
+                      "design.md (spec-check's SKILL.md, Decision "
+                      "records). In shared-skills, also add "
+                      "it to the DECISIONS.md of each skill it affects that keeps one. Then "
                       "run prose check on each file changed and compact any it reports as due.",
                       r.stderr)
 

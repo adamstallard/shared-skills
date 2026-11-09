@@ -1,0 +1,19 @@
+# Guidance for agents that write OpenSpec changes through the /opsx skills.
+# Merge the `rules:` block below into the repository's openspec/config.yaml
+# by hand, adding these lists to any `rules:` key it already has.
+# `openspec instructions <artifact>` (OpenSpec 1.16.0 and later) shows each
+# list to the agent writing that artifact, so the guidance reaches agents
+# that never load spec-check. It is advice only: spec-check's checks and its
+# consistency read still enforce the rules (spec-check's SKILL.md, Decision
+# records).
+rules:
+  proposal:
+    - Before proposing an approach, read the decision record (decisions.md) of each capability the change touches, and do not bring back an approach it rejects.
+  specs:
+    - A rule or rejection a test can check is a requirement with a scenario, not a decision-record entry.
+    - A requirement holds its SHALL statement and at most one because sentence; longer reasoning goes in a Rationale entry in the capability's decision record (decisions.md beside its main spec, unless openspec/spec-check.yaml puts it elsewhere), edited directly in the same pull request; a change holds no decisions.md of its own.
+  design:
+    - Each decision needs linked evidence - a failure (a regression test for a real bug counts), a measurement (an experiment someone ran counts), or an outside fact. Purely logical reasoning with none of these stays in design.md.
+    - The requirement's own test is not evidence for it, since it shows the rule is enforced, not why it is needed.
+    - A rejection that a requirement guards against (one its scenario would fail) is written as that requirement's Rationale, with evidence. Otherwise it is a Rejected entry whose Lost because links evidence, or it is struck.
+    - Never give who decided, or when, as a reason.

@@ -24,12 +24,12 @@ decision record listed above whole too, from the same place.
 Read, in this order:
 
 1. Every file of the change, listed above, whole: proposal.md, design.md if
-   present, tasks.md, each specs/<capability>/spec.md, and each
-   specs/<capability>/decisions.md, the change's own decision record.
-   Then each decision record listed above. A record entry under a change's
-   `## Retired` section removes that entry from the main record when the
-   change archives, and one whose kind and title match a main entry
-   replaces it.
+   present, tasks.md, and each specs/<capability>/spec.md. Then each
+   decision record listed above. A change holds no record of its own: the
+   branch edits a record directly, so for a record the list says the
+   branch edits, also read its diff, `git diff <base>...<ref> -- <record>`
+   (`git diff <base> -- <record>` for the working tree). What that diff adds,
+   changes or deletes is part of the change.
 2. Every spec under openspec/specs/ on the base branch:
    `git show <base>:openspec/specs/<capability>/spec.md`. Read all of them,
    not only those the change names.
@@ -80,8 +80,8 @@ quotes the change and says what is missing.
 5. A term used before it is defined, or defined nowhere.
 6. Rationale inside requirement text that is not needed to apply the rule.
    A requirement holds its SHALL statement plus at most one *because*
-   sentence; longer rationale moves to a Rationale entry in the change's
-   decision record, specs/<capability>/decisions.md.
+   sentence; longer rationale moves to a Rationale entry in the
+   capability's decision record.
 7. A code citation (file:line) that does not point at what it claims on the
    base branch. Open each one: `git show <base>:<path>`.
 8. An unhandled hazard: credentials reachable by repository code; secrets
@@ -108,33 +108,38 @@ quotes the change and says what is missing.
     condition still holds (a change that adds a lookup tool the worker
     calls, beside a record entry "Rejected: A retrieval tool the worker
     calls"). Quote the record entry as the other side. A change that means
-    to reverse the entry retires or replaces it in its own decision record.
-15. A rejected alternative or constraint named in design.md that neither
-    the change's own decisions.md nor a main record holds. design.md is
+    to reverse the entry edits or deletes it in the record, on its branch.
+15. A rejected alternative or constraint named in design.md that no
+    decision record holds. design.md is
     archived with the change and never read again, so one that must
     outlive the change belongs in the record.
-16. A Constraint or Rejected entry, in the change's own decisions.md or a
-    record listed above, whose rule a requirement or scenario already
+16. A Constraint or Rejected entry, in a record listed above, whose rule a requirement or scenario already
     states (an entry "Constraint: Records are kept for thirty days" beside
     a requirement that keeps them thirty days, with a scenario testing it).
     Quote the requirement or scenario as the other side. Say to cut the
     entry: a reason that fits in one sentence becomes the requirement's
     *because* sentence, and longer reasoning goes in a Rationale entry
     naming the requirement.
-17. Reasoning in design.md, or an entry in the change's own decisions.md or
-    in a record listed above, that does any of these:
+17. Reasoning in design.md, or an entry in a record listed above, that
+    does any of these:
     - names a person as its reason;
     - records who decided or amended a decision, or when ("(<name>,
       <date>)", "reversed by <name> on <date>", "<name> narrowed the
       scope", "decided on <date>");
     - states a preference;
     - claims a fact without Evidence;
+    - gives a Rationale entry its requirement's own test as its only
+      Evidence, which shows the rule is enforced but not why it is needed;
+    - gives a Rejected entry for an alternative that a requirement guards
+      against (one its scenario would fail), which belongs in that
+      requirement's Rationale;
     - only restates its requirement ("Constraint: Keep it simple", or a
       Rationale entry that says only that its requirement is needed).
 
     Say to fix it in this round:
-    ask the person who decided for the evidence and write it, reopen the
-    decision, or strike the entry.
+    ask the person who decided for the evidence and write it, move a
+    rejection a requirement guards against into that requirement's
+    Rationale, reopen the decision, or strike the entry.
 
 Write each finding as:
 
@@ -149,3 +154,34 @@ Write each finding as:
 End with one line per checklist item you found nothing for:
 
   [<checklist number>] nothing found
+
+## A record read on its own
+
+A decision record the branch edits, for a capability no open change
+touches, is read on its own. The brief then names it in place of the
+change:
+
+The record: <path, e.g. openspec/specs/action-log/decisions.md>
+Read it from: <"the working tree", or a git ref>
+Its base branch: <base, e.g. origin/main>
+
+Read the record whole, its diff against the base (`git diff
+<base>...<ref> -- <record>`, or `git diff <base> -- <record>` from the
+working tree), and its capability's spec on the base branch, `git show
+<base>:openspec/specs/<capability>/spec.md`, whole. Skip the reading list
+and items 1 to 13 above, and go through items 14 to 17 with the spec in
+place of the change:
+
+- [14] a requirement of the spec that brings back an approach an entry
+  rejects, or breaks a constraint an entry records while its *Holds
+  while* condition still holds;
+- [15] an entry the diff deletes whose rejection or constraint must still
+  hold, and that no requirement or other entry holds instead;
+- [16] an entry whose rule a requirement or scenario of the spec already
+  states;
+- [17] an entry the diff adds or changes that does any of item 17's
+  things.
+
+Write findings in the form above, with the record's path and line in
+place of the change file, and end with a line for each of items 14 to 17
+you found nothing for.

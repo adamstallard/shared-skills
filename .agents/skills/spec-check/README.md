@@ -28,16 +28,16 @@ When an agent works on anything under `openspec/`, it:
    - a line recording how the change got to its shape, such as "amending
      decision 79" or "(Adam, 2026-10-21)". The agent removes it; when the
      line is not history, the agent asks you, and only your answer keeps
-     it. A kept line is recorded in the change's `.spec-check-kept` file,
-     committed with the change, which quotes the line's text. Anyone who
+     it. A kept line is recorded in a `.spec-check-kept` file, in the
+     change's folder or, for a decision record's line, beside the record,
+     committed with it, which quotes the line's text. Anyone who
      runs `check` on the change sees the line as kept, not as an error;
    - a requirement holding more than its SHALL statement and one *because*
      sentence (a check, never a failure);
    - a decision record (below) that departs from its form, names a path
-     that does not exist, or gives a Rationale entry for a requirement that
-     does not exist, including one the change removes or renames while its
-     record neither retires the entry (lists it under `## Retired`) nor, for
-     a rename, carries it over (writes it again under the new title).
+     that does not exist, or gives a Rationale entry for a requirement
+     neither in force nor added by an open change, or for one an open
+     change removes or renames away.
 
    It also runs `openspec validate --strict` and includes what it reports,
    such as a misspelt section title or a section the archive drops.
@@ -96,20 +96,18 @@ scenario already states. Each entry has a fixed form, with the files or
 areas a constraint or rejection governs under *Paths*; SKILL.md, *Decision
 records*, gives it.
 
-A change writes its new entries in its own `specs/<capability>/decisions.md`.
-OpenSpec ignores that file when it archives the change, so the agent
-archives through spec-check, which folds the entries into the main record
-afterwards:
-
-```bash
-python3 ~/.agents/skills/spec-check/scripts/spec_check.py archive my-change
-```
+A pull request edits the record directly, beside its change, so you
+review the real diff. `check` reads the lines it changes as it reads a
+change, and the fresh subagent reads the edit with the change touching that
+capability, or on its own when none does. OpenSpec never touches the file,
+so `openspec archive` works as usual.
 
 Each commit that changes `openspec/` carries a `Spec-check:` trailer, such as
 `Spec-check: ✓ 4d593e935186 0 errors, 2 checks; validate passed; read by a
 fresh subagent: keep-action-log; 3 amended, 1 open`. The hash is the tree the
 checks ran on, so staging anything afterwards breaks it. The end names the
-changes the round's read covered at that tree; a change is read again only
+changes, and any record read on its own, that the round's read covered at
+that tree; a change is read again only
 once it differs from that tree. A commit inside a round ends `read deferred to the round's end`
 instead. "read by its author, no subagent" means no fresh reader was
 available. When a person kept a flagged line (one recording how the change
@@ -145,6 +143,10 @@ Every file the path matches is read as a record, so a name that varies
 would match ordinary docs too. An older spec-check wrote a
 `decisions-first:` line into the same file; delete it, since nothing reads
 it.
+
+If your agents write changes through OpenSpec's /opsx skills, the agent can
+merge [opsx-rules.yaml](opsx-rules.yaml) into `openspec/config.yaml`, so
+OpenSpec shows them these rules while they write.
 
 ## Examples of what to say
 
@@ -293,15 +295,10 @@ there it fails the check without making a draft.
 - **`check` says a pull request holds no change of that name.** The
   `Builds on:` line names the wrong change or the wrong pull request.
 - **A `record` error says a path in *Paths* matches nothing.** The
-  file or directory moved or is gone. In a main record, fix the path, or
-  retire the entry if it no longer governs anything: list its title under
-  `## Retired` in a change's own `specs/<capability>/decisions.md`. In a
-  change's own record it is only a check, since the implementation may add
+  file or directory moved or is gone. Fix the path, or delete the entry
+  if it no longer governs anything. While an open change touches the
+  capability it is only a check, since the change's implementation may add
   the file.
-- **`spec_check.py archive` says nothing was archived.** A decision record
-  could not be folded: the change's record departs from its form, retires
-  an entry the main record lacks, or the main record itself departs from
-  its form. Fix it and run it again; the change was left in place.
 - **`check` says it cannot read a pull request's full file list.** `gh`
   lists only the first 100 files, and reading the rest from GitHub failed.
   Check that `gh` is signed in and run it again.
