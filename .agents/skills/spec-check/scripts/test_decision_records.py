@@ -57,7 +57,7 @@ RATIONALE = """- **Rationale: Records are kept.**
 
 
 def record(cap="cap", constraints=(CONSTRAINT,), rejected=(REJECTED,), rationale=()):
-    text = f"# {cap}: constraints and rejected alternatives\n"
+    text = f"# {cap}: constraints, rejected alternatives and rationale\n"
     for heading, entries in (("Constraints", constraints), ("Rejected", rejected),
                              ("Rationale", rationale)):
         if entries:
@@ -186,9 +186,23 @@ class RecordFormatTests(unittest.TestCase):
         text = record(constraints=(REJECTED,), rejected=())
         self.assertIn("goes under `## Rejected`", " ".join(m for _, _, m in findings(text)))
 
+    def test_the_title_names_all_three_kinds_of_entry(self):
+        old = record().replace("constraints, rejected alternatives and rationale",
+                               "constraints and rejected alternatives")
+        self.assertIn("`# <capability>: constraints, rejected alternatives and rationale`",
+                      " ".join(m for _, _, m in findings(old)))
+        self.assertEqual(findings(record()), [])
+        title = "# cap: constraints, rejected alternatives and rationale"
+        self.assertEqual(findings(record().replace(
+            title, "# cap: Constraints, Rejected Alternatives And Rationale")), [])
+        for bad in ("# cap:constraints, rejected alternatives and rationale",
+                    "#cap: constraints, rejected alternatives and rationale"):
+            self.assertTrue(any("the first line must be" in m for _, _, m in
+                                findings(record().replace(title, bad))), bad)
+
     def test_the_title_must_name_the_capability_in_the_form(self):
         self.assertIn("the first line must be",
-                      " ".join(m for _, _, m in findings(record().replace("constraints and", "rules and"))))
+                      " ".join(m for _, _, m in findings(record().replace("constraints, rejected", "rules, rejected"))))
         self.assertIn("the title names 'other'",
                       " ".join(m for _, _, m in findings(record(cap="other"))))
 
@@ -304,7 +318,8 @@ class RationaleTests(unittest.TestCase):
         if HAS_OPENSPEC:
             self.assertEqual(kinds(r), ["rationale"])
             self.assertIn("holds 3 sentences beside its SHALL statement", r.stdout)
-            self.assertIn("move the rest to openspec/specs/cap/decisions.md", r.stdout)
+            self.assertIn("move reasoning with evidence to a Rationale entry in "
+                          "openspec/specs/cap/decisions.md, and the rest to design.md", r.stdout)
 
     def test_main_specs_are_not_given_the_rationale_check(self):
         repo = Repo(self)
@@ -605,7 +620,7 @@ LORE = GOOD_DELTA.replace("Records expire", "Records are searched").replace(
 
 
 def rejected_first(cap="cap"):
-    return f"# {cap}: constraints and rejected alternatives\n\n## Rejected\n{REJECTED}\n## Constraints\n{CONSTRAINT}"
+    return f"# {cap}: constraints, rejected alternatives and rationale\n\n## Rejected\n{REJECTED}\n## Constraints\n{CONSTRAINT}"
 
 
 class FoundByBugHunterRun4Tests(unittest.TestCase):
@@ -882,8 +897,10 @@ class FoundByBugHunterGateRunTests(unittest.TestCase):
 
 
 class RationaleFormTests(unittest.TestCase):
-    """`## Rationale` holds reasoning longer than a requirement's one
-    *because* sentence, one entry per requirement, named by its title."""
+    """The form of a `## Rationale` entry: a bold title naming its
+    requirement, the reasoning, then one or more Evidence lines. The script
+    checks the form; whether the linked evidence holds up (a test link
+    alone does not) is the consistency read's to judge."""
 
     def test_a_rationale_entry_in_the_form_passes(self):
         text = record(rationale=(RATIONALE,))
@@ -1338,7 +1355,7 @@ class MutationGapRun9Tests(unittest.TestCase):
 
 class MutationGapRun8Tests(unittest.TestCase):
     def test_a_title_out_of_form_is_one_error(self):
-        problems = findings(record().replace("constraints and", "rules and"))
+        problems = findings(record().replace("constraints, rejected", "rules, rejected"))
         self.assertEqual([m for _, line, m in problems if line == 1],
                          [m for _, line, m in problems if line == 1 and "the first line must be" in m])
         self.assertEqual(len([1 for _, line, _ in problems if line == 1]), 1, problems)

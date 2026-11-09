@@ -80,8 +80,10 @@ quotes the change and says what is missing.
 5. A term used before it is defined, or defined nowhere.
 6. Rationale inside requirement text that is not needed to apply the rule.
    A requirement holds its SHALL statement plus at most one *because*
-   sentence; longer rationale moves to a Rationale entry in the
-   capability's decision record.
+   sentence, a plain reason for orientation that may stay even when a
+   Rationale entry gives the evidence. Further reasoning with evidence
+   moves to a Rationale entry in the capability's decision record, however
+   short; the rest belongs in design.md.
 7. A code citation (file:line) that does not point at what it claims on the
    base branch. Open each one: `git show <base>:<path>`.
 8. An unhandled hazard: credentials reachable by repository code; secrets
@@ -117,9 +119,10 @@ quotes the change and says what is missing.
     states (an entry "Constraint: Records are kept for thirty days" beside
     a requirement that keeps them thirty days, with a scenario testing it).
     Quote the requirement or scenario as the other side. Say to cut the
-    entry: a reason that fits in one sentence becomes the requirement's
-    *because* sentence, and longer reasoning goes in a Rationale entry
-    naming the requirement.
+    entry. If it gives a reason with evidence, that reason goes in a
+    Rationale entry naming the requirement, however short. A reason
+    without evidence becomes the requirement's plain *because* sentence
+    when it has none yet, or goes to design.md.
 17. Reasoning in design.md, or an entry in a record listed above, that
     does any of these:
     - names a person as its reason;

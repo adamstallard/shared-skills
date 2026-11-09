@@ -87,11 +87,16 @@ one was amended is an error.
 
 Each capability can have a **decision record**, by default
 `openspec/specs/<capability>/decisions.md` beside its spec. It holds what no
-requirement can: constraints and rejected alternatives that no test can
-check, such as a cost policy or a choice of tool, and, in a *Rationale*
-entry named after a requirement, reasoning too long for that requirement's
-one *because* sentence. A rejection a test can check is written as a
-requirement instead, and a record never repeats what a requirement or its
+test can express: the evidence for why a rule exists, or why an alternative
+lost. Its entries are constraints no test can check, such as a cost policy
+or a choice of tool; rejected alternatives no test can catch; and, in a
+*Rationale* entry named after a requirement, the reason for that
+requirement. Every entry needs evidence: a failure (the incident itself,
+linked), a measurement or an outside fact, and a Rationale entry without it
+is an error. A short evidenced reason is still a Rationale entry; a
+requirement's one *because* sentence only orients. Whatever a test can
+express, including a rejection a test can check, is written as a
+requirement with a scenario instead, and a record never repeats what a requirement or its
 scenario already states. Each entry has a fixed form, with the files or
 areas a constraint or rejection governs under *Paths*; SKILL.md, *Decision
 records*, gives it.

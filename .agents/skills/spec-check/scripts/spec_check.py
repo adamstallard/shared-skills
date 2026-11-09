@@ -13,7 +13,7 @@
 
 A committed `.spec-check-kept` file, in a change's folder or beside a
 decision record, clears the `evolution` errors a person chose to keep in
-its files, for check and sign alike: one entry per line,
+that change's files or that record, for check and sign alike: one entry per line,
 `<file>: «<line text>» kept (asked): <reason>` (SKILL.md, "Keeping a line
 the evolution check flags").
 
@@ -59,16 +59,16 @@ verify-commit check a `Spec-check:` value against the staged tree or a
 commit: the shared commit library (.agents/lib/commit-trailer) calls the
 first before it commits, and the commit hook the second after.
 
-Each capability's decision record (its constraints and rejected
-alternatives) is at the path openspec/spec-check.yaml gives as
+Each capability's decision record (its constraints, rejected alternatives
+and rationale) is at the path openspec/spec-check.yaml gives as
 `decision-records: <path with <capability>>`, by default
 openspec/specs/<capability>/decisions.md. A pull request edits that main
-record directly; a decisions.md inside a change is refused. check gives
-each record format checks, holds a Rationale entry's title to a requirement
-in force or in an open change, reads the lines a branch changes in a record
-for history, and gives each requirement of a change a `rationale` check
-when its text holds more than its statement and one sentence. records
-prints the records a change's consistency read is given: the main record of
+record directly; a decisions.md inside a change is refused. The check
+command gives each record format checks, holds a Rationale entry's title to
+a requirement in force or in an open change, runs the `evolution` check on
+the lines a branch changes in a record, and gives each requirement of a
+change a `rationale` finding when its text holds more than its statement
+and one sentence. The records command prints the records a change's consistency read is given: the main record of
 each capability the change touches, and each main record whose Paths match
 a file the branch changes.
 
@@ -1515,12 +1515,11 @@ def apply_kept_in(prefix: str, corpus: Corpus, own: list[Finding],
 
 # -- decision records -------------------------------------------------------------
 
-# What a requirement cannot hold lives in a decision record, one per
-# capability: constraints and rejected alternatives that no test can check,
-# and rationale longer than a requirement's one *because* sentence
+# A decision record, one per capability, holds only what a test can't
+# express: the evidence for why a rule exists, or why an alternative lost
 # (DECISIONS.md, "Decision records per capability"). OpenSpec reads none of
-# it: `validate`, `list`, `show` and `archive` all ignore a decisions.md,
-# beside a spec or in a change (OpenSpecIgnoresDecisionRecordsTests pins
+# it: `validate`, `list`, `show` and `archive` all ignore a decision record,
+# wherever the configured location puts it, and a decisions.md in a change (OpenSpecIgnoresDecisionRecordsTests pins
 # that). So spec-check checks a record's form, gives the consistency read
 # the records a change must agree with, and reads a branch's edits to a
 # record as it reads a change. A change holds no record of its own: a pull
@@ -1641,7 +1640,7 @@ def record_cap(template, rel):
     return None
 
 
-RECORD_TITLE = re.compile(r"^#[ \t]+(?P<cap>.+?):[ \t]+constraints and rejected alternatives[ \t]*$",
+RECORD_TITLE = re.compile(r"^#[ \t]+(?P<cap>.+?):[ \t]+constraints, rejected alternatives and rationale[ \t]*$",
                           re.I)
 RECORD_SECTIONS = {"constraints": "Constraint", "rejected": "Rejected", "rationale": "Rationale"}
 SECTION_OF = {"Constraint": "Constraints", "Rejected": "Rejected", "Rationale": "Rationale"}
@@ -1746,7 +1745,7 @@ def parse_record(text):
                 rec.title_raw = raw.rstrip()
             else:
                 rec.problems.append((n, "the first line must be "
-                                        "`# <capability>: constraints and rejected alternatives`"))
+                                        "`# <capability>: constraints, rejected alternatives and rationale`"))
             if m or raw.startswith("# "):
                 continue
         m = RECORD_SECTION.match(raw)
@@ -2208,7 +2207,8 @@ def check_rationale(reqs, corpus, out):
             out.append(Finding(r.path, r.line, "check", "rationale",
                                f'requirement "{r.name}" holds {len(extra)} sentences beside its '
                                f'SHALL statement; keep the rule and at most one *because* '
-                               f'sentence, and move the rest to {where}'))
+                               f'sentence; move reasoning with evidence to a Rationale entry in {where}, '
+                               f'and the rest to design.md'))
 
 
 def changed_files(repo, base_ref, ref=None):

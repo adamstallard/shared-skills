@@ -6437,7 +6437,7 @@ class PassDueTests(unittest.TestCase):
         self.repo.git("mv", "openspec/changes/good", "openspec/changes/archive/2026-11-06-good")
         self.commit("Archive good")
         self.assertIn("the change good changes (cap). It is archived", self.hook().stderr)
-        self.repo.write("openspec/specs/cap/decisions.md", "# cap: constraints and rejected alternatives\n\n"
+        self.repo.write("openspec/specs/cap/decisions.md", "# cap: constraints, rejected alternatives and rationale\n\n"
                         "## Rejected\n\n- **Rejected: A nightly batch.**\n  Facing: records pile up.\n"
                         "  Lost because: it misses the audit window, #12\n  Instead: expire on read.\n"
                         "  Paths: openspec/specs/cap/\n")

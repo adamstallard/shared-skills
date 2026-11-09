@@ -79,7 +79,7 @@ run, and a stacked change gets a `stack` error.
 | `drift` | error, or check | A stacked change disagrees with what its dependencies now say. See [Stacked changes](#stacked-changes) |
 | `evolution` | error | A line in the change's files, or a line the branch changes in a decision record, records history, not what holds now (see [Decisions and open questions](#decisions-and-open-questions)). It quotes the line. Text in a code fence, backticks or double quotes is skipped. A decision record skips the rules for credits to a person or a date; the other history rules still apply to it, so "amended by Adam" still errors there, under the amendment rule |
 | `kept` | error, or check | An entry in a change's `.spec-check-kept` file is malformed, unasked or stale, or the file cannot be read. See [Keeping a line the evolution check flags](#keeping-a-line-the-evolution-check-flags) |
-| `rationale` | check | A requirement in a change holds more than its SHALL statement and one *because* sentence. Move the rest to the capability's decision record (see [Decision records](#decision-records)) |
+| `rationale` | check | A requirement in a change holds more than its SHALL statement and one *because* sentence. Move reasoning with evidence to a Rationale entry in the capability's decision record, and the rest to design.md (see [Decision records](#decision-records)) |
 | `record` | error, or check | Error: a decision record departs from its form (including a Rationale entry with no *Evidence*); a Rationale entry names no requirement in force or in an open change; a record keeps a Rationale entry for a requirement an open change removes or renames away (reported at the record and at the change's delta line); or a change holds a `decisions.md` of its own. A path in *Paths* that the tree lacks is an error, and a check while an open change touches the capability, since its implementation may add it. Check: *Because* or *Lost because* holds more than one sentence, or *Evidence* or *Lost because* links nothing |
 | `config` | error, or check | `openspec/spec-check.yaml` holds a line, key or path spec-check cannot use; spec-check then uses the default location. `decisions-first:`, which no spec-check reads, is a check |
 
@@ -262,19 +262,26 @@ Run the mechanical checks again after amending.
 
 ## Decision records
 
-**What a requirement cannot hold goes in its capability's decision
-record:** constraints and rejected alternatives that no test can check,
-such as a cost policy or a choice of tool, and rationale longer than a
-requirement's one *because* sentence. A rejection or constraint that a test
-can check is a requirement instead, with a scenario the rejected approach
-would fail, under the requirement it would break. Each entry is stated as
-it stands now, with no history.
+**A record holds only what a test can't express: the evidence for why a
+rule exists, or why an alternative lost.** Whatever a test can express is a
+requirement with a scenario, including a rejection or constraint a test can
+check: its scenario is one the rejected approach would fail, under the
+requirement it would break. Each record entry carries evidence a test
+can't: a Constraint for a rule no test can check (a cost policy, a choice
+of tool), a Rejected entry for an alternative no requirement guards
+against, and a Rationale entry for why a requirement exists. Each entry is
+stated as it stands now, with no history.
+
+**Rationale is admitted by evidence, not length.** A reason with evidence
+(a failure, a measurement or an outside fact) is a Rationale entry,
+however short. A requirement's *because* sentence is a plain one-line
+reason for orientation. It has no place for Evidence, so it is never the
+justification, and a requirement may keep it beside a Rationale entry.
 
 **A record never repeats a requirement.** Cut an entry whose rule a
-requirement or scenario already states. If its reason fits in one
-sentence, make that the requirement's *because* sentence; longer reasoning
-goes in a Rationale entry, which names the requirement and never restates
-its rule. The consistency read flags a repeat (item 16).
+requirement or scenario already states; a Rationale entry names its
+requirement and never restates the rule. The consistency read's item 16
+flags a repeat.
 
 **Every entry gives a later reader something to decide with** (DECISIONS.md,
 *Record entries are grounded*):
@@ -283,14 +290,14 @@ its rule. The consistency read flags a repeat (item 16).
   Evidence: a failure, a measurement or an outside fact, never invented. A
   rule a test can check is a requirement with a scenario.
 - A Rationale entry states the consequence: what goes wrong without its
-  requirement. Its Evidence is required: a failure (a regression test for
-  a real bug counts), a measurement (an experiment someone ran counts), or
-  an outside fact. Purely logical reasoning with none of these is not a
-  Rationale entry; it stays in the change's design.md, archived with it. The
-  requirement's own test is not Evidence: it shows the rule is enforced,
-  not why it is needed. Each Evidence line ends in a link: a URL, an
-  issue or pull request, a commit, or a markdown link to a file such as a
-  test.
+  requirement. Its Evidence is required: a failure, which is the bug or
+  incident itself, linked, with its regression test as a further pointer;
+  a measurement (an experiment someone ran); or an outside fact. Purely logical reasoning with none of these is not a
+  Rationale entry; it stays in the change's design.md, archived with it. A
+  test alone, the requirement's own test included, is never Evidence: it
+  shows the rule is enforced, not why it is needed. Each Evidence line ends
+  in a link: a URL, an issue or pull request, a commit, or a markdown link
+  to a file.
 - A rejection that a requirement guards against (one its scenario would
   fail) is written as that requirement's Rationale, with its Evidence. A
   Rejected entry is only for an alternative no requirement guards against,
@@ -307,7 +314,7 @@ its rule. The consistency read flags a repeat (item 16).
   still give the evidence.
 
 ```markdown
-# <capability>: constraints and rejected alternatives
+# <capability>: constraints, rejected alternatives and rationale
 
 ## Constraints
 - **Constraint: <the rule, in the words a proposal would use>.**
@@ -326,7 +333,7 @@ its rule. The consistency read flags a repeat (item 16).
 ## Rationale
 - **Rationale: <the title of the requirement it explains>.**
   <the reasoning, on the lines after the bold line>
-  Evidence: <a failure (a regression test for a real bug counts), a measurement (an experiment someone ran counts) or an outside fact>, <link>
+  Evidence: <a failure (the bug or incident itself, linked; its regression test may follow as a pointer), a measurement (an experiment someone ran) or an outside fact>, <link>
 ```
 
 A Rationale entry's title must name a requirement in force, or one an open
@@ -367,9 +374,11 @@ with no blank line between the part and its continuation.
 A change states each decision once, as it stands now, in design.md's
 *Decisions* section, and each undecided item in its *Open Questions*.
 design.md is archived with the change and never read again, so a
-constraint or rejected alternative that must outlive the change also goes
-in its decision record (see [Decision records](#decision-records)). Both are
-sections OpenSpec's instructions for design.md name; create design.md when the
+constraint, a rejected alternative or an evidenced reason that must
+outlive the change goes in the decision record of the capability it
+concerns as well (see [Decision records](#decision-records)).
+*Decisions* and *Open Questions* are both sections OpenSpec's
+instructions for design.md name; create design.md when the
 change has none. When a decision changes, rewrite its entry: keep no record of
 how it was amended. Git and pull request comments hold the history.
 proposal.md stays OpenSpec's one or two pages of why and what.

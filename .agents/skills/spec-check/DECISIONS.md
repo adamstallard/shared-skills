@@ -1184,12 +1184,12 @@ the specs. A proposal that collects rulings grows without bound: one reached
 **Decision** (issue #56). A behavioural rejection or constraint is an
 ordinary requirement, with a scenario the rejected approach would fail,
 under the requirement that approach would break. A requirement holds its
-rule: its SHALL statement plus at most one *because* sentence, with any
-evidence linked. What a requirement cannot hold goes in a decision record,
-one per capability: constraints and rejected alternatives that no test can
-check, and, in a Rationale entry named after a requirement, reasoning
-longer than that requirement's *because* sentence; each is stated as it
-stands now, in the form SKILL.md, *Decision records*, gives. Decision
+rule: its SHALL statement plus at most one *because* sentence. A decision record, one per capability, holds only what a
+test can't express: the evidence for why a rule exists, or why an
+alternative lost. Each entry carries such evidence: a Constraint for a rule
+no test can check, a Rejected entry for an alternative no requirement
+guards against, and, named after a requirement, a Rationale entry for why
+it exists, however short; each is stated as it stands now, in the form SKILL.md, *Decision records*, gives. Decision
 records work in any repository that uses spec-check.
 
 spec-check:
@@ -1201,8 +1201,9 @@ spec-check:
   of every entry, each path in *Paths*, and that each Rationale entry names
   a requirement in force or in an open change;
 - **flags a requirement with more** than its statement and one sentence
-  (`rationale`, a check), and the consistency read's item 6 asks for the
-  rest to move to the record;
+  (`rationale`, a check), and the consistency read's item 6 asks for
+  reasoning with evidence to move to a Rationale entry, and the rest to
+  design.md;
 - **gives the reader** the record of every capability the change touches
   and every record whose *Paths* match a file the branch changes
   (`spec_check.py records`), and the reader reports a change that brings
@@ -1222,12 +1223,21 @@ belongs where spec-trace, the skill that links tests to scenarios, ties it
 to a test; the rest needs a fixed place
 and form, so a script can check it and a reader can be handed it.
 
+**Rationale is admitted by evidence, not length.** A reason with evidence
+(a failure, a measurement or an outside fact) goes in a `## Rationale`
+entry, however short the reason: `- **Rationale: <requirement title>.**`,
+then the reasoning on its own lines and one or more `Evidence:` lines. A
+requirement's *because* sentence is a plain one-line reason for
+orientation and never the justification; a requirement may keep it beside
+a Rationale entry. Why: the *because* sentence has no place for Evidence.
+Routing reasons by length, one sentence to the requirement and longer
+reasoning to the record, sent every short reason to that sentence, where
+its evidence had nowhere to go. Rejected for that reason: a
+Rationale entry only for reasoning longer than one sentence.
+
 **A record never repeats a requirement.** A Constraint or Rejected entry
-whose rule a requirement or scenario already states is cut. A reason that
-fits in one sentence becomes the requirement's *because* sentence; longer
-reasoning goes in a `## Rationale` entry, `- **Rationale: <requirement
-title>.**`, followed by the reasoning on its own lines and one or more `Evidence:`
-lines. The entry never restates the rule. Why: two statements
+whose rule a requirement or scenario already states is cut, and a
+Rationale entry never restates its requirement's rule. Why: two statements
 of one rule drift apart, and the reader of a later change cannot tell
 which one holds. The requirement and its scenario are the statement a test
 checks, so that one stays. A Rationale entry's title must name a
@@ -1309,11 +1319,13 @@ sign disagreed.
 something to decide with. A Constraint is a rule no test can check, with
 Evidence that is a failure, a measurement or an outside fact; a Rationale
 entry states what goes wrong without its requirement, with at least one
-Evidence line: a failure (a regression test for a real bug counts), a
-measurement (an experiment someone ran counts), or an outside fact.
+Evidence line: a failure, a measurement (an experiment someone ran), or
+an outside fact. A failure Evidence line links the bug or incident
+itself, with its regression test as a further pointer. A test alone, the
+requirement's own test included, is never Evidence: it shows that a rule
+is enforced, never why it is needed (item 17).
 Purely logical reasoning with none of these stays in the change's
-design.md, archived with it. The requirement's own test is not Evidence: it shows the rule is
-enforced, not why it is needed (item 17). `check` reports a Rationale entry with no
+design.md, archived with it. `check` reports a Rationale entry with no
 Evidence as a `record` error. A rejection that a requirement guards
 against, one its scenario would fail, is written as that requirement's
 Rationale, with Evidence. A Rejected entry is only for an alternative no
@@ -1430,8 +1442,10 @@ sentences after an item's first count. A sentence that is only a link, or
 starts `Evidence:` or `See`, links evidence. More than one other sentence
 is a check. It runs on a change's added and modified requirements only. Of
 the 138 requirements in igor's main specs at `7117a88`, 84 hold more than
-one such sentence: the rationale this decision moves out, and too many to
-show on every `check specs`.
+one such sentence: too many to show on every `check specs`. The check
+reaches such reasoning when a change edits its requirement, and the
+change's author moves it out: to a Rationale entry when it has evidence,
+and to the change's design.md when it has none.
 
 **Rounds and the evolution check.** A pull request edits a record
 directly, so the branch's edit is checked as a change is. The `evolution`
