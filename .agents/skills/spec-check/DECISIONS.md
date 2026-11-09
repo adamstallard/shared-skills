@@ -1416,10 +1416,6 @@ rename archives, a Rationale entry for the new A is still an error, since
 an open change renames A away: wait for that archive, or pick another
 title.
 
-igor's `openspec/spec-check.yaml` still holds `decisions-first: enforce`
-from the rejected decisions-first rule (*Decisions live in design.md*), so
-that key is a `config` check asking for its removal, never an error.
-
 **What is an error and what a check.** A departure from the form is an
 error: the record is read by a script. A missing
 Rationale *Evidence* line is a departure from the form. *Evidence* or *Lost

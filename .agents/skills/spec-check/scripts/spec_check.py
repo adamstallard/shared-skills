@@ -1533,8 +1533,6 @@ DEFAULT_RECORD = f"openspec/specs/{CAPABILITY_SLOT}/decisions.md"
 # folder, which check refuses: a pull request edits the main record instead.
 CHANGE_RECORD = "decisions.md"
 CONFIG_LINE = re.compile(r"^(?P<key>[A-Za-z][\w-]*)[ \t]*:(?:[ \t]+(?P<value>.*?))?[ \t]*$")
-# The key the decisions-first rule used, which no spec-check reads any more.
-RETIRED_KEYS = {"decisions-first"}
 
 
 def parse_config(text):
@@ -1563,9 +1561,6 @@ def parse_config(text):
             value = value[1:close]
         else:
             value = re.sub(r"[ \t]+#.*$", "", value).strip()
-        if key in RETIRED_KEYS:
-            problems.append((n, "check", f"spec-check no longer reads {key}; delete the line"))
-            continue
         if key != RECORDS_KEY:
             problems.append((n, "error", f"spec-check reads no key {key!r}; the one key is "
                                          f"{RECORDS_KEY}"))

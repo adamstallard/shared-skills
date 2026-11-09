@@ -94,22 +94,25 @@ class ConfigTests(unittest.TestCase):
                 self.assertEqual(spec_check.parse_config(text),
                                  ("openspec/decisions/<capability>/decisions.md", []))
 
-    def test_the_retired_decisions_first_key_is_a_check(self):
-        template, problems = spec_check.parse_config("decisions-first: enforce\n")
-        self.assertEqual(template, spec_check.DEFAULT_RECORD)
-        self.assertEqual([(n, sev) for n, sev, _ in problems], [(1, "check")])
-        self.assertIn("no longer reads decisions-first", problems[0][2])
-
     def test_an_unknown_key_or_line_is_an_error(self):
-        for text, what in (("decision-record: openspec/x/<capability>/d.md\n", "reads no key"),
-                           ("- a list\n", "not a `key: value` line"),
-                           ("decision-records: 'unclosed\n", "not one quoted string"),
-                           ("decision-records: openspec/a/<capability>/d.md\n"
-                            "decision-records: openspec/b/<capability>/d.md\n", "set twice")):
+        # Each case gives the record location parse_config must return. A
+        # bad line never sets it: neither an unknown key's value, nor a
+        # malformed line, nor a second decision-records line, which leaves
+        # the first in place.
+        default = spec_check.DEFAULT_RECORD
+        for text, what, location in (
+                ("decision-record: openspec/x/<capability>/d.md\n", "reads no key", default),
+                ("decisions-first: enforce\n", "reads no key", default),
+                ("- a list\n", "not a `key: value` line", default),
+                ("decision-records: 'unclosed\n", "not one quoted string", default),
+                ("decision-records: openspec/a/<capability>/d.md\n"
+                 "decision-records: openspec/b/<capability>/d.md\n", "set twice",
+                 "openspec/a/<capability>/d.md")):
             with self.subTest(text=text):
-                _, problems = spec_check.parse_config(text)
+                template, problems = spec_check.parse_config(text)
                 self.assertEqual([sev for _, sev, _ in problems], ["error"])
                 self.assertIn(what, problems[0][2])
+                self.assertEqual(template, location)
 
     def test_an_unusable_template_is_an_error_and_the_default_is_used(self):
         for value in ("", "openspec/decisions.md", "openspec/<capability>/<capability>.md",

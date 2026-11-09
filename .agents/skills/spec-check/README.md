@@ -144,10 +144,11 @@ decision-records: openspec/decisions/<capability>/decisions.md
 
 The path must be under `openspec/` but not under `openspec/changes/`, hold
 `<capability>` as a folder of its own, and end in a fixed `.md` file name.
-Every file the path matches is read as a record, so a name that varies
-would match ordinary docs too. An older spec-check wrote a
-`decisions-first:` line into the same file; delete it, since nothing reads
-it.
+spec-check reads every file the path matches as a record, with
+`<capability>` matching any name. These rules keep ordinary docs out: a
+path that breaks them, such as `openspec/docs/<capability>.md`, would
+match every doc in `openspec/docs/`, and `check` would report `record`
+errors in each one.
 
 If your agents write changes through OpenSpec's /opsx skills, the agent can
 merge [opsx-rules.yaml](opsx-rules.yaml) into `openspec/config.yaml`, so
