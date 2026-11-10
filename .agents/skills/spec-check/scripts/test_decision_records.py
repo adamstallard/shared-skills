@@ -1380,14 +1380,24 @@ class OpsxRulesTests(unittest.TestCase):
     RULES = pathlib.Path(spec_check.__file__).parent.parent / "opsx-rules.yaml"
 
     def rules(self):
-        """{artifact: [rule]} read from the file's plain two-level layout."""
-        out, artifact = {}, None
+        """{artifact: [rule text]}, read line by line with no YAML library.
+        Each artifact key is indented two spaces, and each rule is one
+        unquoted line indented four. For `&name text` the list gets the text
+        without `&name `, and the text is kept as anchor `name`; for `*name`
+        it gets that anchor's text, and an alias with no anchor above it
+        raises KeyError. A rule in any other form, such as quoted or wrapped
+        over several lines, is misread."""
+        out, artifact, anchors = {}, None, {}
         for line in self.RULES.read_text().splitlines():
             if m := re.match(r"^  (\w+):$", line):
                 artifact = m.group(1)
                 out[artifact] = []
-            elif m := re.match(r"^    - (.+)$", line):
-                out[artifact].append(m.group(1))
+            elif m := re.match(r"^    - \*([\w-]+)$", line):
+                out[artifact].append(anchors[m.group(1)])
+            elif m := re.match(r"^    - (?:&([\w-]+) )?(.+)$", line):
+                if m.group(1):
+                    anchors[m.group(1)] = m.group(2)
+                out[artifact].append(m.group(2))
         return out
 
     def test_the_rules_name_spec_driven_artifacts(self):
