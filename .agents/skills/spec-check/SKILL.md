@@ -10,7 +10,10 @@ description: >-
   spec consistent". Runs mechanical checks with a script on every commit,
   has a fresh subagent read the change against every other spec, change and
   open pull request once per review round, and fixes findings in the spec
-  itself. Commits that change openspec/ carry a Spec-check: trailer.
+  itself. Commits that change openspec/ carry a Spec-check: trailer. It
+  ships a GitHub workflow that runs the same checks in CI; also use it when
+  asked to add that workflow to a repository, or to update the commit of
+  this skill's repository that the workflow downloads the checker from.
 ---
 
 # spec-check
