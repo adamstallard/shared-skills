@@ -52,30 +52,25 @@ It reports `file:line: error|check [kind] message`, then the results of
 Exit 0: no errors. Exit 1: errors to fix. Exit 2: it could not run, and says
 why.
 
-Checking a change, by name or as one of every open change, also checks the
-decision records under `openspec/specs/` (see
-[Decision records](#decision-records)) that the change bears on. `sign`,
-which signs a commit (see [Commit](#commit)), checks the same records for
-each change under `openspec/changes/` that the commit stages:
+Checking a change also checks the [decision records](#decision-records)
+it bears on, as `sign` ([Commit](#commit)) does for each change a commit
+stages, so `check` finds every record error that would make `sign` refuse.
+A change bears on:
 
-- the record of each capability the change touches;
-- each record whose *Paths* line, which lists the files the record governs,
-  names a file the branch has changed since it left the base branch;
-- each record the branch edits, or whose kept file the branch edits (the
-  `.spec-check-kept` file beside the record; see
+- the record of each capability it touches;
+- each record whose *Paths* line names a file the branch has changed since
+  it left the base branch;
+- each record the branch edits, or whose `.spec-check-kept` file beside it
+  the branch edits (described under
   [Keeping a line the evolution check flags](#keeping-a-line-the-evolution-check-flags)).
 
-`check` and `sign` cover the same records, so one run of `check` finds every
-record error that would make `sign` refuse the change's commit. A commit
-that stages a record makes `sign` check every record, so before such a
-commit run `check specs` too.
+A commit that stages a record makes `sign` check every record. `check specs`
+checks every record too, so run it before such a commit.
 
-A shallow clone may hold too little history to reach the commit where the
-branch left the base branch. Then no one can tell which lines of a record the
-branch changed. So `check` and `sign` skip the `evolution` check, which flags
-lines that record history, on that record, and report a finding of severity
-`check` saying so. Run `git fetch --unshallow` to fetch the full history so
-the record's changed lines are checked.
+A shallow clone may not reach the commit where the branch left the base
+branch. Then nothing can tell which lines of a record the branch changed, so
+`check` and `sign` skip the `evolution` check on that record, with a `check`
+finding saying so. `git fetch --unshallow` fixes it.
 
 **spec_check.py needs OpenSpec 1.16.1 or later on PATH** (`npm install -g
 @fission-ai/openspec`), and reads specs and deltas only through it:
@@ -83,35 +78,34 @@ the record's changed lines are checked.
 for what a delta drops or misfiles, `openspec archive --json` for whether a
 change applies. Without it, each check that needs a requirement reports
 `not run: install OpenSpec 1.16.1 or later` and why, such as `(this one is
-1.14.3)`. Citations, the check that each `Builds on:` line can be read, and
-the `renamed-block` scan still run, and a stacked change gets a `stack`
-error.
+1.14.3)`; citations, the check that each `Builds on:` line can be read, and
+the `renamed-block` scan still run.
 
 | Kind | Severity | What it means |
 | --- | --- | --- |
 | `no-scenario` | error | A requirement states a SHALL or MUST and has no scenario |
-| `renamed-block` | error | A `###` heading under `## RENAMED Requirements` with anything under it besides FROM and TO lines. `openspec archive` drops the rest without saying so. Restate the requirement under `## MODIFIED Requirements` with its new name |
-| `title-reuse` | error | Within one change, one exact title is both removed or renamed from and added or renamed to, as in a swap, a chain, or a rename plus a new requirement under the old title. spec-check doesn't support reusing a title within one change. Split it into two changes, the second with a `Builds on:` line for the first (both can sit in one pull request), or choose another title. A near-duplicate differing in case or spacing from a requirement that stays is left to `openspec archive`, which refuses a name that differs from an existing one only in case or spacing |
+| `renamed-block` | error | A `###` heading under `## RENAMED Requirements` holds more than FROM and TO lines. `openspec archive` drops the rest silently. Restate the requirement under `## MODIFIED Requirements` with its new name |
+| `title-reuse` | error | Within one change, a title leaves (removed, or renamed away from) and the same exact title arrives (added, or renamed onto), as in a swap, a chain, or a rename plus a new requirement under the old title. spec-check doesn't support this. Choose another title, or split it into two changes, the second with a `Builds on:` line for the first (both can sit in one pull request). Titles compare exactly, so a near-duplicate differing only in case or spacing from a requirement that stays is not a `title-reuse` error; `openspec archive` refuses it, and it shows as an `archive` error |
 | `scenario-incomplete` | error | A scenario has no WHEN or no THEN |
 | `duplicate` | error | A sentence of the rule also appears under another requirement, here or in another spec or change. Two requirements with one name may share sentences only when one is a MODIFIED requirement in the other's capability |
 | `archive` | error | `openspec archive` refuses the change: an ADDED requirement whose name is already there, a RENAMED onto a name already taken, a MODIFIED that drops a scenario, or a requirement modified, removed or renamed that is not there. The error quotes the CLI. See [Archive refusals](#archive-refusals) |
-| `purpose` | error, or check | Error: a delta creates a capability (no spec in main or in what the change builds on), and the Purpose `openspec archive` would give the new spec fails `openspec validate --strict`. A missing or empty `## Purpose`, or one that would leave the new spec unreadable, becomes "TBD - created by archiving change ...", which nobody replaces; a `TBD` or `TODO` placeholder, or a Purpose under 50 characters, is copied as written and fails the same way. Write what the capability is for under `## Purpose` in the delta. Check: a delta's `## Purpose` for an existing capability differs from the spec's; archive ignores it. Runs with the archive, so not without the CLI |
+| `purpose` | error, or check | Error: a delta creates a capability (no spec in main or in what the change builds on), and the Purpose `openspec archive` would give the new spec fails `openspec validate --strict`: a missing, empty or unreadable `## Purpose` becomes "TBD - created by archiving change ...", which nobody replaces, and a `TBD` or `TODO` placeholder, or a Purpose under 50 characters, is copied as written. Write what the capability is for under `## Purpose` in the delta. Check: a delta's `## Purpose` for an existing capability differs from the spec's, which archive ignores. Runs with the archive, so not without the CLI |
 | `citation` | error, or check | A `path:line` with a `/` whose line is in neither the base branch nor the change is an error. Any other citation finding is a check: a bare name such as `config.py:50`, or a line only the change adds. Text in a code fence, and addresses such as `0.0.0.0:8080`, are skipped |
-| `openspec-validate` | error, or check | An ERROR is an error; a WARNING is an error when validation failed, a check when it passed; an INFO note is a check. An issue `openspec validate --strict` reported, at OpenSpec's line and in its words: for example a section or text above the first `##` that the archive drops, a requirement under a misspelt or other section, or (an INFO note) a `###` heading in a delta that is not a requirement header. To that note spec-check adds where the rule goes: under MODIFIED when the specs already have its title, under ADDED when they do not |
+| `openspec-validate` | error, or check | An issue `openspec validate --strict` reported, at its line and in its words, such as a section or text above the first `##` that the archive drops, or a requirement under a misspelt or other section. An ERROR is an error; a WARNING, an error when validation failed and a check when it passed; an INFO note, a check. To the INFO note for a `###` delta heading that is not a requirement header, spec-check adds where the rule goes: under MODIFIED when the specs have its title, else ADDED |
 | `openspec-show` | error, or check | `openspec show` cannot read a change's deltas or a main spec, so no requirement check read it. A main spec is a check when only changes are checked |
 | `stack` | error, or check | A `Builds on:` line or its dependency is wrong or stale. See [Stacked changes](#stacked-changes) for each case |
 | `drift` | error, or check | A stacked change disagrees with what its dependencies now say. See [Stacked changes](#stacked-changes) |
-| `evolution` | error | A line in the change's files, or a line the branch changes in a decision record, records history, not what holds now (see [Decisions and open questions](#decisions-and-open-questions)). It quotes the line. Text in a code fence, backticks or double quotes is skipped. A decision record skips the rules for credits to a person or a date; the other history rules still apply to it, so "amended by Adam" still errors there, under the amendment rule |
-| `kept` | error, or check | An entry in a change's `.spec-check-kept` file is malformed, unasked or stale, or the file cannot be read. See [Keeping a line the evolution check flags](#keeping-a-line-the-evolution-check-flags) |
+| `evolution` | error | A line in the change's files, or a line the branch changes in a decision record, records history, not what holds now (see [Decisions and open questions](#decisions-and-open-questions)). It quotes the line. Text in a code fence, backticks or double quotes is skipped |
+| `kept` | error, or check | An entry in a `.spec-check-kept` file is malformed, unasked or stale, or the file cannot be read, as [Keeping a line the evolution check flags](#keeping-a-line-the-evolution-check-flags) describes |
 | `rationale` | check | A requirement in a change holds more than its SHALL statement and one *because* sentence. Move reasoning with evidence to a Rationale entry in the capability's decision record, and the rest to design.md (see [Decision records](#decision-records)) |
-| `record` | error, or check | Error: a decision record departs from its form (including a Rationale entry with no *Evidence*); a Rationale entry names no requirement in force or in an open change; a record keeps a Rationale entry for a requirement an open change removes or renames away (reported at the record and at the change's delta line); or a change holds a `decisions.md` of its own. A path in *Paths* that the tree lacks is an error, and a check while an open change touches the capability, since its implementation may add it. Check: *Because* or *Lost because* holds more than one sentence, or *Evidence* or *Lost because* links nothing |
-| `config` | error | `openspec/spec-check.yaml`, which sets where decision records live, holds a line that is not `key: value`, a key other than `decision-records`, a second `decision-records` line (the first stays in force), or a record path that breaks the rules in *Decision records*. Each is an error that fails the run, and spec-check reads the rest of the file without that line; with no usable `decision-records` line, records are read at the default `openspec/specs/<capability>/decisions.md` |
+| `record` | error, or check | Error: a decision record departs from its form, such as a Rationale entry with no *Evidence*, or one whose title names no requirement in force or in an open change, or names one an open change removes or renames away (reported at the record and at the change's delta line); or a change holds its own `decisions.md`. A *Paths* entry the tree lacks is an error, or a check while an open change touches the capability, since its implementation may add it. Check: *Because* or *Lost because* runs past one sentence, or *Evidence* or *Lost because* links nothing |
+| `config` | error | `openspec/spec-check.yaml`, which sets where decision records live, holds a line that is not `key: value`, a key other than `decision-records`, a second `decision-records` line (the first stays in force), or a record path that breaks the rules in *Decision records*. The rest of the file is still read; with no usable `decision-records` line, records are at the default `openspec/specs/<capability>/decisions.md` |
 
 A **check** is a heuristic: judge it, and fix it or leave it. An `openspec
-archive` or `openspec validate` result of "not run" means it was not
-checked, never that it passed; say so in your report.
+archive` or `openspec validate` result of "not run" never means it passed;
+say so in your report.
 
-`--no-validate` skips the `openspec validate --strict` run: its result reads
+`--no-validate` skips `openspec validate --strict`: its result reads
 `not run (--no-validate)` and no `openspec-validate` finding appears, not
 even about sections the archive drops. Every other check still runs,
 including the archive, which only a missing or older CLI skips.
@@ -123,16 +117,17 @@ branch.
 ### Archive refusals
 
 `check` copies the tree's specs into a temporary directory and archives the
-checked change, and only that change, into the copy with the real `openspec
-archive`; a stacked change goes on top of its dependencies (see
-[Stacked changes](#stacked-changes)). The tree itself is never touched. Each
+checked change into the copy with the real `openspec archive`; the tree
+itself is never touched. No other open change is archived with it, except
+that a stacked change goes on top of its dependencies (see
+[Stacked changes](#stacked-changes)). Each
 refusal is an `archive` error at the requirement it is about, or at line 0
 of the delta file when it is about the file as a whole. OpenSpec stops at
 its first refusal, so fix it and run `check` again to see the next.
 
-Without OpenSpec 1.16.1 or later on PATH, an unstacked change gets the line
-`openspec archive (<change>): not run`, saying why; a stacked one gets a
-`stack` error.
+Without OpenSpec 1.16.1 or later, an unstacked change gets the line
+`openspec archive (<change>): not run`, saying why; a stacked one, a `stack`
+error.
 
 ## Stacked changes
 
@@ -154,16 +149,15 @@ Builds on: seat-files (adamstallard/igor#171)
 
 The syntax is exactly `Builds on: <change> (<owner>/<repo>#<number>)`, alone
 on its line with no markup: the change's directory name under
-`openspec/changes/`, then its pull request in the same repository. For a
-chain, where this change builds on B and B builds on C, list both in the
-order they apply to main: C's line first, then B's. You may leave out C's
-line only once your tree holds C's result, as it does after C merges and you
-merge main.
+`openspec/changes/`, then its pull request in the same repository. When this
+change builds on B and B on C, list C's line first, then B's, the order they
+apply to main. You may delete C's line only once your tree holds C's result,
+as it does after C merges and you merge main.
 
 `check` and `sign` read each dependency from its pull request's head commit
 (`gh pr view` and `git fetch`; nothing is checked out), so stacked changes
-need `gh`, the network and OpenSpec 1.16.1 or later. Each dependency is
-handled by its pull request's state:
+need `gh`, the network and OpenSpec 1.16.1 or later. By the pull request's
+state:
 
 - **Open, or closed without merging.** In line order, `check` archives each
   into a temporary copy of your tree's specs with one run of the real
@@ -172,18 +166,18 @@ handled by its pull request's state:
   and a delta's renames when, read in order, all are done. An addition
   already in your tree with another text keeps your tree's text, with a
   `drift` check.
-- **Merged.** Its result is in main, so it is never archived again; `check`
-  looks for it in your tree by requirement name. Each requirement it adds
-  or modifies must be there, with any text (main may have reworded it), each
-  it removes absent, and its renames, read in order, done. When a later merged
-  dependency, listed after it or building on it, removes or renames away
-  one of those names, the name need not be there; when the later one adds
-  or renames onto it, it need not be absent. A merged dependency whose
-  change directory is still under `openspec/changes/` in your tree with the
-  same deltas, not yet archived, is handled as an open one.
+- **Merged.** Its result is in main, so `check` never archives it again but
+  looks for it in your tree by requirement name: each requirement it adds
+  or modifies there, with any text (main may have reworded it), each it
+  removes absent, and its renames, read in order, done. `check` allows
+  for a later merged dependency, one listed after it or building on it: a
+  name the later one removes or renames away need not be there, and a name
+  it adds or renames onto need not be absent. A merged dependency
+  whose change directory is still under `openspec/changes/` in your tree
+  with the same deltas, not yet archived, is handled as an open one.
 
-The change itself is archived last, on top of its dependencies, and every
-check runs against the result. A refusal on a line where a `drift` error
+The change itself is archived last, and every check runs against the
+result. A refusal on a line where a `drift` error
 already sits is not reported again.
 
 **`stack` errors.** Each blocks; none is a pass:
@@ -201,8 +195,8 @@ already sits is not reported again.
 - a dependency that builds on a change this one does not list before it,
   whose result your tree lacks.
 
-After any `stack` error, the duplicate and drift checks do not run for the
-change, and the error says so; the other checks still run.
+After any `stack` error, the duplicate and drift checks skip the change,
+and the error says so; the other checks still run.
 
 **`stack` checks:**
 - a dependency whose result your tree already holds: remove its line;
@@ -217,15 +211,15 @@ change, and the error says so; the other checks still run.
 requirement that main plus its dependencies no longer define. A check,
 quoting both texts, when a requirement a dependency adds is already in your
 tree with another text, or when your change keeps a sentence from an earlier
-text of the dependency's requirement. If your change was written against the
-earlier text, restate the requirement from the dependency's current text. If
-you kept the sentence on purpose, leave it.
+text of the dependency's requirement: restate the requirement from the
+dependency's current text, or leave a sentence you kept on purpose.
 
 **The hint.** A `duplicate` error against a main requirement that an open
 pull request removes or renames ends with the line to add, for example:
 ``add `Builds on: seat-files (adamstallard/igor#171)` to its proposal.md``.
-Add it if your change really applies on top of that pull request; if not,
-the duplicate is real: state the rule once. Only the line clears the error.
+Only that line clears the error. Add it if your change really applies on
+top of that pull request; if not, the duplicate is real: state the rule
+once.
 
 ## 2. The consistency read, by a fresh subagent
 
@@ -235,39 +229,44 @@ decision record of a capability it touches, and it differs from its **last
 read**: the newest commit in the branch's history whose `Spec-check:`
 trailer records a read that names it (see [Commit](#commit)). A decision
 record the branch edits, for a capability no open change touches, is due on
-its own the same way, named by its path. To see what is due, run `sign --read subagent` on the staged tree:
-the value it prints names them, or says `no read due`. Nothing commits that
-value, so throw it away; without `--amended` and `--open` it says `0
-amended, 0 open`. After the read, run it again with those counts (see
+its own the same way, named by its path. To see what is due, run `sign
+--read subagent` on the staged tree and throw the value away: it names
+them, or says `no read due`. `--amended` and `--open` default to 0, so this
+value says `0 amended, 0 open`. After the read, run it again with the counts (see
 [Commit](#commit)) to sign the commit.
 
 For each due change, start a general-purpose subagent (not Explore) that
 did not write the change. Don't read [consistency-read.md](consistency-read.md)
 yourself: a main loop that has read it tends to paste it, condensed, into the
-prompt, and the subagent then works from your copy. Write the subagent a prompt that tells it to read that file, by
-its absolute path, as its brief, and to follow the brief exactly. The prompt
-also gives the values of the brief's five placeholders: the change's directory,
-where to read it from (the working tree, or the pull request's branch), its
-base branch, every file under the change's directory (`git ls-files
-openspec/changes/<change>`, or `git ls-tree -r --name-only <ref>
-openspec/changes/<change>`), and the decision records it must agree with,
-as `python3 "$SC/spec_check.py" records <change>` prints them (add `--ref
-<ref>` for a branch): each touched capability's main record, and each record
-whose *Paths* match a file the branch changes; a record the branch edits is
-read with its diff against the merge base. For a record due on its own,
-the prompt names the brief's *A record read on its own* section and gives
-the subagent that section's three values instead: the record's path, where to read
-it from, and its base branch. The brief tells the subagent to read each
-listed file whole. Add nothing else to the prompt: no pasted files, and no
-summary of the change. A summary is your own reading of the change, and the
-subagent is there to read it without yours.
+prompt, and the subagent then works from your copy. Tell the subagent to
+read that file, by its absolute path, as its brief and to follow it exactly,
+and give the values of its five placeholders:
+
+- the change's directory;
+- where to read it from (the working tree, or the pull request's branch);
+- its base branch;
+- every file under the change's directory (`git ls-files
+  openspec/changes/<change>`, or `git ls-tree -r --name-only <ref>
+  openspec/changes/<change>`);
+- the decision records it must agree with, as `python3 "$SC/spec_check.py"
+  records <change>` prints them (add `--ref <ref>` for a branch): each
+  touched capability's main record, and each record whose *Paths* match a
+  file the branch changes; a record the branch edits is read with its diff
+  against the merge base.
+
+For a record due on its own, name the brief's *A record read on its own*
+section and give that section's three values instead: the record's path,
+where to read it from, and its base branch. The brief tells the subagent to
+read each listed file whole. Add nothing else to the prompt: no pasted
+files, and no summary of the change. A summary is your own reading, and the
+subagent is there to read the change without yours.
 
 The subagent reads the change against every spec on the base branch, the
-decision records listed, every open change, every open pull request
-touching the same specs, and the repository's architecture docs, quoting
-both sides of each finding. It reports a change that brings back a rejected
-approach or breaks a recorded constraint. For a
-stacked change, main plus the dependencies is the base.
+listed records, every open change, every open pull request touching the
+same specs, and the repository's architecture docs, quoting both sides of
+each finding, including a rejected approach brought back or a recorded
+constraint broken. For a stacked change, main plus
+the dependencies is the base.
 
 If no subagent can be started in this environment, do the read yourself from
 the same brief, and say in your report and in the trailer (`--read self`)
@@ -293,24 +292,46 @@ Run the mechanical checks again after amending.
 **A record holds only what a test can't express: a rule no test can check,
 and the evidence for why a rule exists or why an alternative lost.**
 Whatever a test can express is a requirement with a scenario, including a
-rejection or constraint a test can check. To turn down an approach a test
-could catch, write a new scenario that fails if the approach is used, under
-the requirement that approach would break. Each kind of record entry holds
-what a test can't, backed by evidence: a Constraint entry for a rule no
-test can check (a cost policy, a choice of tool), a Rejected entry for an
-alternative no test could catch (and so no requirement guards against it),
-and a Rationale entry for why a requirement exists. Each entry is stated as
-it stands now, with no history. Create the record if the capability has
-none. Later changes and their consistency reads read the record.
+rejection or constraint a test can check: to turn down an approach a test
+could catch, add a scenario that fails if the approach is used, under the
+requirement that approach would break. Create the record if the capability
+has none. Later changes and their consistency reads read the record; they
+never read an archived change's design.md, so nothing there binds them.
 
-**A reason is a Rationale entry only when it has evidence.** A reason with
-evidence (a failure, a measurement or an outside fact) is a Rationale
-entry, however short; one without evidence goes in the change's design.md.
+**Every entry needs evidence, never invented:** a failure (the bug or
+incident itself, linked; a link to its regression test may follow), a
+measurement (an experiment someone ran) or an outside fact. A test alone,
+the requirement's own included, is never Evidence: it shows the rule is
+enforced, not why it is needed. Every *Evidence* line
+and every *Lost because* line ends in a link: a URL, an issue or pull
+request, a commit, or a markdown link to a file. Reasoning without evidence,
+however sound, is not an entry: it goes in the change's design.md or a pull
+request description.
+
+Each entry is stated as it stands now, with no history:
+
+- **Constraint:** a rule the code must keep that no test can check, such as
+  a cost policy or a choice of tool. Its *Because* line, required, gives the
+  reason in one sentence. Its *Holds while* line names the condition that
+  keeps it in force, so a later reader can tell when it no longer holds.
+- **Rationale:** a reason for a requirement, in the record of that
+  requirement's capability: what goes wrong without the requirement,
+  including why an alternative its scenario guards against was turned down.
+  A reason with evidence is a Rationale entry however short.
+- **Rejected:** an alternative no test could catch, so no requirement guards
+  against it. A broad class is fine ("Rejected: network calls of any
+  kind"). *Lost because* is a reason a later reader can check, never a
+  person or a preference.
+
+A rejection a requirement guards against (the rejected approach would fail
+that requirement's scenario) is written as that scenario. With evidence, its
+reasoning and Evidence go in the requirement's Rationale entry, created if
+there is none; without, the reasoning goes in the change's design.md or a
+pull request description.
 
 A requirement's optional *because* sentence, one plain line inside or right
-after its SHALL statement, gives its reason to help a reader understand the
-requirement. It has no place for Evidence, so it never stands in for a
-Rationale entry, and a requirement may keep it beside a Rationale entry.
+after its SHALL statement, helps a reader. With no place for Evidence, it
+never stands in for a Rationale entry, and may sit beside one.
 
 **A record never repeats a requirement.** Cut a Constraint or Rejected
 entry whose rule a requirement or scenario already states (any evidence it
@@ -318,60 +339,20 @@ has belongs in that requirement's Rationale entry); a Rationale entry names
 its requirement and never restates the rule. Item 16 of the consistency
 read's checklist (consistency-read.md) flags a repeat.
 
-**What each kind of entry gives a later reader, and what never becomes an
-entry:**
+**Noise is cut:** reasoning that names who decided, states a preference, or
+is a generic principle (keep it simple, and the like). Before cutting it,
+the agent writing the change may ask whoever decided for evidence that would
+make it a proper entry; item 17 of the checklist flags noise in the round
+it appears, while that person can still be asked.
 
-- A Constraint entry states a rule the code must keep that no test can
-  check. Its Evidence is required: a constraint without evidence gets no
-  Constraint entry, and goes in the change's design.md, which later changes
-  do not read, so it does not bind them. It has a *Because* line giving the
-  rule's reason in one sentence (required, unlike a requirement's optional
-  *because* sentence), Evidence (a failure, a measurement or an outside
-  fact, never invented) and a *Holds while* line naming the condition that
-  keeps it in force, so a later reader can tell when it no longer holds. A
-  rule a test can check is a requirement with a scenario.
-- A Rationale entry is a reason for a requirement in the record of that
-  requirement's capability. Its entry states what goes wrong without its
-  requirement, including why an alternative that a requirement guards
-  against in a scenario was turned down.
-  Its Evidence is required: a failure, which is the bug or incident itself,
-  linked (a link to its regression test may follow, but the test is not the
-  Evidence); a measurement (an experiment someone ran); or an outside fact.
-  Purely logical reasoning with none of these is not a Rationale entry;
-  that reasoning stays in the change's design.md, which later changes do
-  not read. A test alone, the requirement's own test included, is never
-  Evidence: it shows the rule is enforced, not why it is needed. Every
-  Evidence line (in a Constraint or a Rationale entry) and every Rejected
-  entry's *Lost because* line ends in a link: a URL, an issue or pull
-  request, a commit, or a markdown link to a file.
-- A rejection that a requirement guards against (the rejected approach would
-  fail that requirement's scenario) is written as such a scenario in the
-  spec. When evidence supports it, the reasoning and Evidence go in that
-  requirement's Rationale entry: add them to the entry, or create one if
-  there is none. Without evidence, the reasoning goes in the change's
-  design.md or a PR description. A Rejected entry is only for an alternative
-  no test could catch (and so no requirement guards against it.) A broad 
-  class is fine ("Rejected: network calls of any kind"). Its *Lost because*
-  is a reason (never a person or a preference) a later reader can check. A
-  Rejected entry must link evidence: a failure, a measurement or an outside
-  fact. Reasoning that names who decided or states a preference is noise. So
-  is a generic principle (keep it simple, and the like). Cut noise from the
-  record. Before cutting it, the agent writing the change may ask the
-  person who made the decision for evidence that would make it a proper
-  entry; item 17 of the consistency read's checklist flags noise in the
-  review round it appears, while that person can still be asked.
-
-Anyone who finds, while working on a pull request, that a piece of an
-entry's evidence has failed (its link no longer resolves, or it is
-disproved) removes that piece in that pull request.
-
-Delete an entry when no sound evidence is left, or when it no longer holds: a
-Constraint entry's *Holds while* condition has ended, a Rejected entry's
-*Lost because* no longer applies, or a Rationale entry's requirement is gone.
-Give the reason for each deletion in the pull request description and the
-commit message, never in the record or design.md, since it is history.
-Rewording an entry is not a deletion: it needs no reason in the pull request,
-and the entry keeps its evidence.
+A pull request that finds a piece of an entry's evidence failed (its link
+no longer resolves, or it is disproved) removes that piece. Delete an entry
+when no sound evidence is left or it no longer holds: its *Holds while*
+condition has ended, its *Lost because* no longer applies, or its
+requirement is gone. Give each deletion's reason in the pull request
+description and the commit message, never in the record or design.md, since
+it is history. Rewording an entry is not a deletion: it needs no reason, and
+the entry keeps its evidence.
 
 ```markdown
 # <capability>: constraints, rejected alternatives and rationale
@@ -396,33 +377,28 @@ and the entry keeps its evidence.
   Evidence: <a failure (the bug or incident itself, linked; its regression test may follow as a pointer), a measurement (an experiment someone ran) or an outside fact>, <link>
 ```
 
-A Rationale entry's title must name one of these: a requirement in force
-(in `openspec/specs/`) that no open change removes and none renames; a
-requirement an open change adds or modifies; or the new title an open
-change gives a requirement by renaming it. The title, less the entry's
-closing period, must equal the requirement's exact title, so an entry for a
-requirement whose title ends in a period writes two periods, the title's
-and the entry's own. An open change is any change folder under
+A Rationale entry's bold title ends in a period of its own. Less that
+period, it equals the exact title of a requirement in force (in
+`openspec/specs/`) that no open change removes or renames, one an open
+change adds or modifies, or the new title an open change renames one to. So for a requirement
+whose title ends in a period, the entry's title ends in two. An open change is any change folder under
 `openspec/changes/` in the pull request branch's tree, including one whose
-own pull request has merged but which is not yet archived. `check` reports
-any other title as an error, suggesting the exact title when one matches
-ignoring case, spacing, backticks and a closing period. An entry naming a
-requirement an open change removes or renames away is an error until the
-record deletes it or retitles it to the new name. A Rationale entry needs
-at least one *Evidence* line; more may follow, and all Evidence lines come
-last, after the reasoning. An indented line right after an Evidence line
-continues that line. The reasoning has no blank line inside it.
+pull request has merged but which is not yet archived. `check` reports any
+other title as an error, suggesting the exact title when one matches
+ignoring case, spacing, backticks and a closing period; so when an open
+change removes or renames away a requirement, delete its entry or retitle
+it. A Rationale entry needs at least one *Evidence* line; all come last,
+after the reasoning, which has no blank line inside it. In every kind of
+entry, any labelled part (*Because*, *Evidence*, *Paths* and the rest) may
+wrap onto indented lines, with no blank line before a continuation.
 
 - **Paths**, required in Constraint and Rejected entries and absent from
   Rationale entries, is a comma-separated list of files, directories
-  (`src/store/`) or globs (`src/**/*.go`). Any labelled part may wrap onto
-  indented lines, with no blank line between the part and its continuation.
-
-  List the files where a change could break the rule, or bring back the
+  (`src/store/`) or globs (`src/**/*.go`).
+  List the files where a change could break the rule or bring back the
   rejected approach: a branch that changes any of them has the entry checked
-  and read with it (sections 1 and 2). Why it's required: an entry without
-  Paths has no trigger, so it would silently guard nothing. Requiring it
-  means every Constraint and Rejected entry has a way to reach a reader.
+  and read with it (sections 1 and 2). Without Paths, an entry has no
+  trigger and silently guards nothing.
 
 - **Where.** The record is at `openspec/specs/<capability>/decisions.md`,
   unless `openspec/spec-check.yaml` says otherwise, in one line such as
@@ -433,55 +409,49 @@ continues that line. The reasoning has no blank line inside it.
   file the pattern matches is a record. spec-check refuses any symlink
   under `openspec/`, because it reads records from git trees, where a
   symlink holds only its target's name; keep the record a real file.
-
-  A Constraint or Rejected entry goes in the record of each capability it 
-  concerns, written out in full in each rather than linked, because a later
-  change reads only the records of the capabilities it touches.
+  A Constraint or Rejected entry is written out in full in the record of
+  each capability it concerns, never linked, because a later change reads
+  only the records of the capabilities it touches.
 
 - **Edit it in the pull request.** A pull request that adds or changes a
-  recorded decision edits the real decision record of each capability the
-  decision concerns, beside its change's deltas; a change holds no copy of
-  its own, and `check` refuses a `decisions.md` inside one. Reviewers see
-  the real diff, and two branches editing one entry conflict as any file
-  does. `check` scans the lines the branch changes for history wording.
-  Editing a record makes each open change that has a delta spec for that
-  capability due for a consistency read, which the agent runs as section 2
-  describes before review; when no open change has a delta spec for that
-  capability, the record itself is due and is read on its own.
-  `openspec archive` never touches a decisions.md, so archive the change as
-  usual; the record stays where it is.
+  recorded decision edits the real record of each capability it concerns, beside the
+  change's deltas; `check` refuses a `decisions.md` inside a change. Reviewers see the real diff, and two branches editing one
+  entry conflict. Editing a record makes each open change
+  with a delta spec for that capability due for a consistency read before
+  review (section 2); with no such change, the record itself is due and is
+  read on its own. `openspec archive` never touches a decisions.md, so
+  archive the change as usual; the record stays where it is.
 
 ## Decisions and open questions
 
-Prefer writing decisions as testable requirements and scenarios. If that's
-not possible, but there's evidence supporting the decision, prefer writing a
-[decision record](#decision-records). If there is no evidence, a decision
-can be recorded in design.md, or a pull request. design.md is archived with
-its change and never read again. design.md does not restate a record entry,
-though it may link to one.
+Write a decision as a testable requirement and scenario. Failing that,
+write it as a [decision record](#decision-records) when evidence supports
+it. Otherwise, write it either in design.md or in a pull request
+description. design.md is archived with its change and never read again. It
+never restates a record entry, though it may link to one.
 
 design.md's *Decisions* section states each of the change's other decisions
 once, as it stands now: design choices that are not record material, and
 reasoning without the evidence a record entry needs. Its *Open Questions*
-section holds each undecided item. OpenSpec's instructions for design.md
-name both sections, *Decisions* and *Open Questions*; create design.md when
-the change has none. When a decision changes, rewrite its *Decisions*
-entry: keep no trace of how it was amended. Git and pull request comments
-hold the history. proposal.md holds no decisions either: it stays
-OpenSpec's one or two pages of Why and What Changes.
+section holds each undecided item. OpenSpec's design.md instructions name
+both sections; create design.md when the change has none. When a
+decision changes, rewrite its *Decisions* entry and keep no trace of how it
+was amended: git and pull request comments hold the history. proposal.md
+holds no decisions either: it stays OpenSpec's one or two pages of Why and
+What Changes.
 
-`check` gives an `evolution` error on each line of a change's files that
-records history: an amendment ("amending decision 79"), a credit ("(Adam,
-2026-10-21)", "Adam decided"), an earlier draft, or a review round ("this
-push", "since review"). It reads the lines a branch changes in a decision
-record the same way. A decision record skips the credit rules, since its
-Evidence names products, standards and dated runs that would read as
-credits; a credit there is the consistency read's job (item 17), and the
-other history rules still apply, so "amended by Adam" still errors, because
-of "amended". Restate the line as what holds now, or delete it. When you
-believe `check` flags a line wrongly, don't reword it to get past the
-check: ask a person whether to fix or keep it, as described in [Keeping a
-line the evolution check flags](#keeping-a-line-the-evolution-check-flags).
+An `evolution` error marks each line of a change's files, and each line a
+branch changes in a decision record, that records history: an amendment
+("amending decision 79"), a credit ("(Adam, 2026-10-21)", "Adam decided"),
+an earlier draft, or a review round ("this push", "since review"). A
+decision record skips the credit rules, since its Evidence names products,
+standards and dated runs that would read as credits; a credit there is the
+consistency read's job (item 17). The other history rules still apply to a
+record, so "amended by Adam" still errors, because of "amended". Restate the
+line as what holds now, or delete it. When you believe `check` flags a line
+wrongly, don't reword it to get past the check: ask a person whether to fix
+or keep it, as described in [Keeping a line the evolution check
+flags](#keeping-a-line-the-evolution-check-flags).
 
 ## When to write a TLA+ model
 
@@ -521,29 +491,28 @@ staged tree, ending with what it records of the consistency read:
   inside a round;
 - `read by a fresh subagent: <change>, <change>; 3 amended, 1 open`, from
   `--read subagent`, on the commit that ends the round. It names every due
-  change, and the path of every record due on its own, and records that the read covered each one at this tree.
-  `--amended` counts the read's amendments; `--open`, the open questions
-  the due changes' design.md files now list, added together.
-  `--read self` writes `read by its author, no subagent: ...`;
+  change and the path of every record due on its own, and records that the
+  read covered each at this tree. `--amended` counts the read's amendments;
+  `--open`, the open questions the due changes' design.md files now list,
+  added together. `--read self` writes `read by its author, no subagent:
+  ...`;
 - `no read due`, whichever `--read` is given, when no change is due.
 
 An older value, `read by a fresh subagent; ...` with no names, counts as a
 last read of every change its commit touched, when deciding which are due.
 
-`evolution` errors a person chose to keep are cleared by the change's
-`.spec-check-kept` file ([below](#keeping-a-line-the-evolution-check-flags)),
-and the value counts them after the checks, `0 errors, 2 checks, 1
-evolution kept; ...`, whatever the `--read`. Editing the kept file makes
-the change due like any other edit.
+`evolution` errors a person chose to keep
+([below](#keeping-a-line-the-evolution-check-flags)) are counted in the
+value whatever the `--read`, and editing the kept file makes the change due
+like any other edit.
 
-Stage the read's amendments with the rest of the round's last commit.
-While a change is due, `sign --read subagent` also signs a commit that
-changes nothing under `openspec/`, such as a code commit, and records the
-read there. When every edit of the round is committed and the last commit
-is not pushed, undo it with `git reset --soft HEAD~1`, do the read, and
-commit again. Never rewrite a pushed commit: commit the read's amendments as a new
-commit signed with `--read subagent`, or, if it amends nothing, record it
-on an empty commit, signed with nothing staged, as below.
+Stage the read's amendments with the rest of the round's last commit,
+which may be a code commit: while a change is due, `sign --read subagent`
+signs a commit that changes nothing under `openspec/` and records the read
+there. If the round's last commit is made but not pushed, undo it with
+`git reset --soft HEAD~1`, do the read, and commit again. Never rewrite a pushed commit: commit the read's amendments as
+a new commit signed with `--read subagent`, or, if it amends nothing, record
+it on an empty commit, signed with nothing staged, as below.
 
 **The hand-back checks.** A hand-back is `gh pr create` (not a draft, unless
 it requests a review), `gh pr ready`, `gh pr edit --add-reviewer`, or the
@@ -559,17 +528,17 @@ GitHub, so push the read before you hand back:
   (`gh pr create`, or `gh pr ready` by branch), only `git push`, `git add`
   and `git commit` with plain options, `cd`, `true` or `sleep`. If a change
   is unread, the hook makes the pull request a draft again, withdraws the
-  review requests the call made, and tells you. Any other form is not
-  checked, and the hook adds a note saying why, without blocking: to have
-  it checked, run `gh pr ...` alone or with only those programs beside it.
+  review requests the call made, and tells you. Any other form gets a
+  note saying why it was not checked, without blocking; to have it checked, run `gh pr ...` alone or with only those programs beside it.
 - Where the repository has spec-check's GitHub workflow, it does the same
   for every hand-back, however it was made.
 
 Either way: do the read, commit with `--read subagent`, push, and hand back
-again. Neither sees a hand-back made in conversation: before telling a person
-the work is ready, run `sign --read subagent` with nothing staged, and check
-that it exits 1 saying `nothing waits for its consistency read` on
-stderr.
+again. Neither sees a hand-back in conversation, so before telling a person the
+work is ready, run `sign --read subagent` with nothing staged. With nothing
+staged and no read due, there is nothing to sign, so it refuses: it exits 1
+saying `nothing waits for its consistency read` on stderr. That refusal is
+the result you want. If it signs instead, a read is due: do it first.
 
 **Setting up a repository.** When it has `.github/workflows/`, offer to add
 spec-check's workflow: `python3 $SC/spec_check.py setup-ci` writes
@@ -579,19 +548,17 @@ base branch's protection rules.
 
 When it has `openspec/config.yaml` and its agents write changes through
 OpenSpec's /opsx skills, offer to merge the `rules:` block of
-[opsx-rules.yaml](opsx-rules.yaml) into that file by hand, adding to any
-`rules:` it already has. OpenSpec shows those rules to the agent writing
-each artifact, even one that never loads this skill; they are advice, and
-the checks and the consistency read still enforce.
+[opsx-rules.yaml](opsx-rules.yaml) into that file's `rules:` by hand.
+OpenSpec shows them to the agent writing each artifact, even one that never
+loads this skill; they advise, and the checks and the read enforce.
 
 Without OpenSpec 1.16.1 or later, `sign` still signs an unstacked change,
 and the value says `show, validate and archive not run (install OpenSpec
-1.16.1 or later)`. A stacked change gets a `stack` error instead, so `sign`
-refuses it.
+1.16.1 or later)`; it refuses a stacked one.
 For work in progress, skip `sign` and write the value yourself: `skipped
 (<reason>)`. A skip note records no read.
 
-Commit once, carrying the trailer of every skill installed that asks for
+Commit once, carrying the trailer of every installed skill that asks for
 one, such as Prose, Bug-hunter and Spec-check. Each trailer goes in as a
 `--verified-value` family: the script that verifies it, its key, and its
 value; for spec-check, the value is the text after `Spec-check: `. The
@@ -645,83 +612,80 @@ wrong. When you believe one is, don't reword the line; a person decides.
    design.md: «The spec narrows the decision.» kept (asked): compares the spec with a decision, not history
    ```
 
-   The quote is the whole line without its indent; copy it from the file,
-   since the error cuts long lines short. Runs of spaces or tabs count as
+   The quote is the whole line without its indent, copied from the file,
+   since the error cuts long lines short; runs of spaces or tabs count as
    one space. The entry keeps every `evolution` error in that file whose
-   line has that text, so it lapses only when the line itself changes.
-   Blank lines between entries are skipped. `(asked)` is your statement
+   line has that text, so it lapses only when the line changes. Blank lines in
+   the kept file are skipped. `(asked)` is your statement
    that a person answered; the script cannot check it.
 3. Sign. The kept errors no longer fail the run, and the value counts them:
    `Spec-check: ✓ <tree> 0 errors, 1 checks, 1 evolution kept; ...`, so
    the override shows in git.
 
-A `kept` error is an entry that is not in that form, gives no reason, or
-quotes the same line as an earlier entry; an entry that matches an
-`evolution` error but lacks `(asked)` (see *When you cannot ask*, below); or
-a kept file that cannot be read. An entry whose line changed or is gone
-keeps nothing and is a `kept` check, with or without `(asked)`: remove it,
-and if the line's new text is still flagged, ask the person about the new
-text. `openspec archive` moves a change's kept file with the rest of the
+A `kept` error is an entry not in that form, with no reason, or quoting
+the same line as an earlier entry; one that matches an `evolution` error but
+lacks `(asked)` (see *When you cannot ask*, below); or a kept file that
+cannot be read. An entry whose line changed or is gone keeps nothing and is
+a `kept` check, with or without `(asked)`: remove it, and if the new text is still flagged, ask about
+it. `openspec archive` moves a change's kept file with the rest of the
 change into `openspec/changes/archive/`, where spec-check does not read it.
 Editing a record's kept file makes the same read due as editing the
 record.
 
 **When you cannot ask** (you are a subagent or a background job, or your
-host has no picker), `sign` will refuse, so don't commit. Write each entry
-you would keep without `(asked)`, as `<file>: «<line text>» kept:
-<reason>`, stage it, and run `sign` anyway: its refusal names each such
-entry with the errors it matches and your reason. Leave the change staged
-and put that refusal, whole, in your result. Whoever receives it asks the
-person, adds `(asked)` to each entry kept, fixes the other lines and
-deletes their entries, and signs again.
+host has no picker), don't commit. Write each entry you would keep without
+`(asked)`, as `<file>: «<line text>» kept: <reason>`, stage it, and run
+`sign`: its refusal names each such entry with the errors it matches and
+your reason. Leave the change staged and put that refusal, whole, in your
+result. Whoever receives it asks the person, adds `(asked)` to each entry
+kept, fixes the other lines and deletes their entries, and signs again.
 
 ## Current-state passes
 
 When docs, or a pull request's body and title, may still describe an
 earlier state, a hook prints `current-state pass due for: ...`, naming what
-to rewrite. Do the pass without asking first: rewrite each named text to
-describe the state as it now is. Ask a person only before dropping a
-conclusion, as `prose compact` does.
+to rewrite. Rewrite each to the state as it now is without asking first;
+ask a person only before dropping a conclusion, as `prose compact` does.
 
-- **The implementation lands on a spec branch.** The commit hook prints it
-  for a commit that adds a file under a `src/` directory while the branch
-  adds or edits an open change; on the base branch itself, every open
-  change counts.
-  Rewrite the change's proposal.md and design.md, and the pull request's
-  body and title, wherever they say "specification only", or "will" for
-  what is now built.
-- **A change is archived.** The commit hook prints it for a commit that
-  moves a change into `openspec/changes/archive/`, as `openspec archive`
-  does. This is a safety net: the consistency read's checklist (item 15
-  in consistency-read.md) already flags record material in design.md.
-  Anything still in the change's design.md that should have been in a
-  decision record moves out of design.md into the record of each
-  capability it concerns, editing each record directly under the same rules as any
-  record edit (see *Decision records*):
+- **The implementation lands on a spec branch:** the commit hook prints it
+  when a commit adds a file under a `src/` directory while the branch adds
+  or edits an open change (on the base branch itself, every open change
+  counts). Rewrite the change's
+  proposal.md and design.md, and the pull request's body and title,
+  wherever they say "specification only", or "will" for what is now built.
+- **A change is archived:** the commit hook prints it when a commit moves
+  the change into `openspec/changes/archive/`, as `openspec archive` does. This is a safety
+  net behind item 15 of consistency-read.md, which already flags record
+  material in design.md. Move anything still in the change's design.md that
+  belongs in a decision record into the record of each capability it
+  concerns, under the rules of any record edit (see *Decision records*):
   - a Rationale entry for reasoning about one requirement, with its
-    Evidence; reasoning with none stays in the archived design.md;
+    Evidence;
   - a Constraint entry for a rule the code must keep that no test can
-    check, with its Evidence, including a principle behind several
-    requirements (don't repeat it as Rationale under each); a principle with
-    no evidence goes into the Rationale, beside that entry's Evidence, of
-    each requirement that guards against what it rules out, or is left
-    out;
-  - a Rejected entry for an alternative that was turned down and that no
-    requirement guards against, linking its evidence, including the
-    fix not taken behind an accepted limit or trade-off (for example
-    "Rejected: preventing duplicate asks across machines", with "Instead:
-    duplicates are accepted").
+    check, with its Evidence. A principle behind several requirements is
+    such a rule: each requirement's test checks only that requirement,
+    never the principle itself. With evidence of its own, it is one
+    Constraint entry, not a Rationale under each requirement. Without
+    evidence of its own, it is not an entry. It may still be added as
+    reasoning to the Rationale entry of each requirement that guards
+    against what it rules out, beside the Evidence that entry already has;
+    otherwise it is left out;
+  - a Rejected entry, linking its evidence, for an alternative turned down
+    that no requirement guards against. This includes a limit or trade-off
+    the design accepts: the entry rejects the fix that would have removed
+    it (for example "Rejected: preventing
+    duplicate asks across machines", with "Instead: duplicates are
+    accepted").
 
-  What fits none of these (how the design was reached, rollout or migration
-  steps, overviews that describe the code, open questions), and anything
-  still without Evidence or too slight for a later reader to decide
-  anything with, stays in the archived design.md. Then run `prose check` on
-  each file you changed, and compact any it reports as due.
-- **A pull request is handed back for review.** prose's hook prints it
+  Everything else stays in the archived design.md, such as how the design
+  was reached, rollout steps, overviews of the code, open questions, and
+  anything without Evidence or too slight for a later reader to act on. Then run `prose check` on each file you
+  changed, and compact any it reports as due.
+- **A pull request is handed back for review:** prose's hook prints it
   after the agent's hand-back, and the GitHub workflow as a notice when a
-  hand-back leaves no change unread. Do the final pass over each doc the
-  pull request changes, and its body and title: fix any that still
-  describes work as unfinished or to come.
+  hand-back leaves no change unread. Fix each doc the pull request changes,
+  and its body and title, wherever it still describes work as unfinished or
+  to come.
 
 ## Report
 
