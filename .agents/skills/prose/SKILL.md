@@ -33,11 +33,18 @@ person or an agent as text. OpenSpec, for one, prints a config's `rules:`
 lists to the agent writing a proposal. `prose check` lists a string for the
 pass and the cold read when it has at least six words, starts with a
 capitalised word that is not all capitals, and holds a sentence end: a word
-or code span followed by `.`, `?` or `!`. Markdown before the first word,
-such as `**`, `- `, `1. ` or `## `, is skipped for this test, and an opening
-code span counts as a capitalised word. Keys, paths, commands, SQL and step
-names fail it. A list holding one such string is listed as one item, from the
-key that owns the list to its last string.
+or code span followed by `.`, `?` or `!`. First, heading lines at the start
+of the string, `# ` to `###### `, are dropped while text follows them, so a
+Markdown title is judged by its body and a script under a `#` comment by its
+commands. Then a marker before the first word, such as `**`, `- `, `1. ` or
+`## `, is skipped, and an opening code span counts as a capitalised word. A
+string that is one `# ` line keeps its `#`, which fails. Keys, paths, SQL,
+step names and most commands fail the test. A script whose first command is
+a capitalised word, such as `Rscript`, can pass it and be listed, with or
+without a comment above it: a known false listing, since telling such a
+script from prose would take more than its first word. A list holding one
+such string is listed as one item, from the key that owns the list to its
+last string.
 
 ## When the pass runs
 

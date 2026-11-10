@@ -753,17 +753,29 @@ def comments_touching(path, source, changed):
 # counts when it is written in sentences: it has at least PROSE_MIN_WORDS
 # words, its first word is capitalised but neither all capitals nor a
 # PowerShell cmdlet, and a sentence ends somewhere in it, as _SENTENCE_END
-# defines. Markdown before the first word is skipped, and an opening code
-# span counts as a capitalised word, as yaml_sentence says. Keys, ids,
-# paths, versions, dates, expressions, step names, SQL and scripts fail that
-# test, so `prose check` lists nothing from an ordinary config file. Measured
-# in November 2026 over 811 YAML files in local clones of about a dozen
-# repositories (CI workflows, OpenSpec configs, app configs, test fixtures),
-# the test listed 29 strings or lists, every one of them sentences someone
-# reads. Seven strings there open with Markdown, and none is prose (a glob, a
-# hostname, "# TODO", shell comments), so none is listed. After changing the
-# test, run it over a comparable set of YAML files and read what it newly
-# lists or drops against these numbers.
+# defines. Heading lines at the start with text below them are dropped, a
+# Markdown marker before the first word is skipped, and an opening code span
+# counts as a capitalised word, as yaml_sentence says. Keys, ids, paths,
+# versions, dates, expressions, step names, SQL and most scripts fail that
+# test, so `prose check` lists nothing from an ordinary config file. The
+# exception is a script whose first command is a capitalised word, such as
+# `Rscript` or `Xvfb`. With enough words and a sentence end somewhere, such as
+# the `.` in `echo "Done."`, it passes and is listed, whether a comment opens
+# it or not. Telling such a script from prose would take more than its first
+# word.
+#
+# Measured in November 2026 over 811 YAML files in local clones of about a
+# dozen repositories (CI workflows, OpenSpec configs, app configs, test
+# fixtures), the test listed 29 strings or lists, every one of them sentences
+# someone reads. A second, different set, 517 tracked YAML files in 38 local
+# clones, compares versions of the test: there, dropping a level-1 `# ` line
+# changed none of the 251 strings or lists listed, which were counted, not
+# each read as prose. None of the 57 strings in that set that open with
+# Markdown is listed: globs, package names opening with `_`, issue-template
+# placeholders such as `1. ...`, and eight shell scripts whose `# ` comment
+# line has a command under it. After changing the test, run it over a
+# comparable set of YAML files and read what it newly lists or drops against
+# the second set's counts.
 #
 # A list holding one such string is listed whole, from the key that owns it,
 # because its entries are read together; a single value is listed from its
@@ -797,25 +809,35 @@ _YAML_TRAILING_COMMENT = re.compile(r"[ \t]+#.*$")
 
 # A Markdown marker that may open a string before its first word: an ATX
 # heading of level 2 to 6, a bullet or a numbered list item. It is not a
-# word of the text. A single `#` is left on: in a `run: |` block it opens a
-# shell comment, and the own-line `#` comment scan above already lists that
-# line. Left on, the `#` is the first word and fails the capitalised-word
-# test, so a script that opens with a comment sentence is not taken for
-# prose. The cost: Markdown that opens with a level-1 `# Title` is not
-# skipped either.
+# word of the text. A single `#` stays on. That matters only for a `#` line
+# that is the string's only line, since yaml_sentence first drops one with
+# text below it. Such a line is more often a shell comment than a title, and
+# the own-line `#` comment scan above lists it as a comment, even inside a
+# block string. Left on, the `#` is the first word and fails the
+# capitalised-word test, so the string `# Run this before every release.`
+# is not listed as a prose string.
 _LEADING_MARKER = re.compile(r"(?:#{2,6}|[-*+]|[0-9]{1,9}[.)])[ \t]+")
-_HEADING = re.compile(r"#{2,6}[ \t]")
+# A heading line of any level, `# ` to `###### `. yaml_sentence drops such
+# lines at the start of the text while text follows them, and tests the text
+# below instead: under a Markdown title it is the body, and under a shell
+# comment it is the commands, tested like any other text, so lowercase ones
+# such as `npm` or `git` fail.
+_HEADING = re.compile(r"#{1,6}[ \t]")
 
 
 def yaml_sentence(text):
-    """Whether a YAML string's text is written in sentences. A leading
-    Markdown marker comes off first, and emphasis around the first word, so
-    `**Never** push …` and `1. Run …` are read from their first real word; a
-    first word that opens an inline code span counts as capitalised. Each
-    heading line that has more lines after it is passed over, and the text
-    below is tested: in a shell block a `## ` line is a comment, and the
-    commands under it are no sentences. A heading that is the only line is
-    tested itself, without its marker."""
+    """Whether a YAML string's text is written in sentences. Heading lines
+    at the start, `# ` to `###### `, are dropped one by one while text
+    follows them, and the text below is tested in its place. Under a
+    Markdown title that text is the body. Under a shell comment in a
+    `run: |` block it is the commands, tested like any other text, so
+    lowercase ones such as `npm` or `git` fail. Then a leading Markdown
+    marker comes off, and emphasis around the first word, so
+    `**Never** push …` and `1. Run …` are read from their first real word;
+    a first word that opens an inline code span counts as capitalised, but
+    a ``` fence does not open one. A heading that is the only line is
+    tested itself: `## ` to `###### ` comes off, and a single `#` stays on
+    as its first word, which fails."""
     text = text.lstrip()
     heading, _, below = text.partition("\n")
     while _HEADING.match(heading) and below.strip():

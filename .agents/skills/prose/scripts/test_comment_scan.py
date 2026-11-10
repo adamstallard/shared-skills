@@ -540,8 +540,43 @@ class YamlProseStrings(unittest.TestCase):
         source = ("steps:\n  - run: |\n      ## Install the dependencies before building.\n"
                   "      npm ci\n      npm test\n")
         self.assertEqual(scanner.yaml_prose(source), [])
-        # A single `#` line is a shell comment, not a heading to pass over.
-        self.assertFalse(scanner.yaml_sentence("# note\nRun the tests before you push the change."))
+
+    def test_a_heading_of_any_level_is_passed_over_for_the_text_below(self):
+        sentence = scanner.yaml_sentence
+        self.assertTrue(sentence("# Deploy guide\nRun the tests before you push the change."))
+        self.assertTrue(sentence("# Title\n\nRun the tests before you push the change."))
+        self.assertTrue(sentence("# Title\n\n## Consequences\n\n"
+                                 "Run the tests before you push the change."))
+        self.assertTrue(sentence("###### build\nRun the tests before every release."))
+        self.assertEqual(scanner.yaml_prose(
+            "description: |\n  # Deploy guide\n  Run the tests before you push the change.\n"),
+            [(1, 3)])
+
+    def test_a_shell_comment_over_a_command_stays_out(self):
+        sentence = scanner.yaml_sentence
+        self.assertFalse(sentence("# Install the deps before the build runs.\nnpm ci"))
+        self.assertFalse(sentence("# Install the deps before the build runs.\n"
+                                  "# Then run the whole test suite once.\nnpm ci"))
+        self.assertFalse(sentence("# install deps\nnpm ci"))
+        self.assertFalse(sentence("# Print a message once the build is done.\nWrite-Host \"Done.\""))
+        self.assertFalse(sentence("# Say hello to whoever reads the log.\n"
+                                  "echo \"Hello there, the build is ready now.\""))
+        self.assertFalse(sentence("# Print the path the script runs from.\n"
+                                  "import os\nprint(\"The script runs from this folder now.\")"))
+
+    def test_known_limit_a_script_opening_with_a_capitalised_command_is_listed(self):
+        # Pins a known limit, not a goal: `Rscript` passes the first-word test,
+        # so this block is listed under a `#` comment, a `##` comment or none.
+        body = ("      Rscript -e 'renv::restore()'\n"
+                "      Rscript -e 'testthat::test_dir(\"tests\")'\n"
+                "      echo \"All tests finished.\"\n")
+        commented = "steps:\n  - run: |\n      # Restore the package library first.\n" + body
+        self.assertEqual(scanner.yaml_prose(commented), [(2, 6)])
+        self.assertEqual(scanner.yaml_prose(commented.replace("# ", "## ")), [(2, 6)])
+        self.assertEqual(scanner.yaml_prose("steps:\n  - run: |\n" + body), [(2, 5)])
+
+    def test_a_lone_hash_comment_line_keeps_its_hash_and_fails(self):
+        self.assertFalse(scanner.yaml_sentence("# Run this before every release so the cache is warm."))
 
     def test_a_code_fence_is_not_an_opening_code_span(self):
         source = ("value: |\n  ```sh\n  # Replace 1.2.3 with your version.\n"
