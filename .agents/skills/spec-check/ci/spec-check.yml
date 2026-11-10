@@ -40,18 +40,31 @@
 # left as it is. The same happens on a pull request from a fork, because
 # GitHub gives the workflow only a read-only token there.
 #
-# Editing this file: in a repository that uses spec-check, this file is
-# .github/workflows/spec-check.yml, written by `spec_check.py setup-ci` from
-# the template .agents/skills/spec-check/ci/spec-check.yml in
-# adamstallard/shared-skills. `setup-ci --force` replaces the whole file,
-# discarding any local edit, and is also the way to update SPEC_CHECK_SHA.
-# The pin is the commit given with `--sha`, or else the newest commit that
-# changed spec_check.py in the shared-skills clone `setup-ci` runs from; that
-# commit must be on one of the clone's remote-tracking branches, so GitHub
-# can serve it. A change every repository should get goes in the template,
-# by a pull request to adamstallard/shared-skills; once it merges, run
-# `setup-ci --force` from an updated clone. A change only this repository
-# needs can be made here, but must be made again after each
+# Where the script comes from: the workflow downloads spec_check.py from
+# adamstallard/shared-skills at the commit named by SPEC_CHECK_SHA, below.
+# That commit is the pin. The pin must be a commit GitHub can serve from
+# adamstallard/shared-skills, such as one on its main branch. For a commit
+# never pushed to GitHub, the download fails, and so does the check.
+#
+# How the pin is set: `spec_check.py setup-ci` writes this workflow into a
+# repository as .github/workflows/spec-check.yml. It copies the template
+# .agents/skills/spec-check/ci/spec-check.yml from the shared-skills clone it
+# runs from, so an out-of-date clone writes an out-of-date workflow. It sets
+# the pin to the commit given with `--sha`, or else to the newest commit in
+# that clone that changed spec_check.py. Without `--sha`, setup-ci refuses
+# that commit unless it is on one of the clone's remote-tracking branches,
+# which shows that some remote has it; that remote may be a fork. With
+# `--sha`, it checks only that the value is a full 40-character SHA. Neither
+# check confirms that GitHub can serve the commit from
+# adamstallard/shared-skills.
+#
+# Editing this workflow: `setup-ci --force` replaces the whole file,
+# discarding any local edit, and is also the way to update the pin. A change
+# every repository should get goes in the template, by a pull request to
+# adamstallard/shared-skills. Once it merges, pull it into a shared-skills
+# clone and run `setup-ci --force` from there. Without `--sha`, that moves
+# the pin only when the merged change touched spec_check.py. A change only
+# this repository needs can be made here, but must be made again after each
 # `setup-ci --force`.
 name: spec-check
 on:
