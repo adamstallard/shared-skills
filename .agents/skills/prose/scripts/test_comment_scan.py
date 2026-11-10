@@ -516,6 +516,56 @@ class YamlProseStrings(unittest.TestCase):
         self.assertTrue(scanner.yaml_sentence("Never skip the tests before a merge, **ever**."))
         self.assertTrue(scanner.yaml_sentence("Ändere nie die Datei ohne Rückfrage beim Team."))
 
+    def test_a_sentence_may_open_with_markdown(self):
+        sentence = scanner.yaml_sentence
+        self.assertTrue(sentence("**Never** push to main before a review."))
+        self.assertTrue(sentence("1. Run the tests before every commit."))
+        self.assertTrue(sentence("`git push` only after the review passes."))
+        self.assertTrue(sentence("## Keep each rule to one plain sentence."))
+        self.assertTrue(sentence("_Always_ say who runs the check first."))
+        self.assertEqual(scanner.yaml_prose(
+            "description: |\n  - Describe the change in one line.\nnext: 1\n"), [(1, 2)])
+
+    def test_markdown_does_not_let_short_text_or_code_in(self):
+        sentence = scanner.yaml_sentence
+        self.assertFalse(sentence("**Never** force-push."))
+        self.assertFalse(sentence("- SELECT id, name FROM users WHERE email = ? LIMIT 1"))
+        self.assertFalse(sentence("**API** keys must be rotated every quarter."))
+        self.assertFalse(sentence("1. IF EXIST build RMDIR /S /Q build ECHO Build folder cleaned."))
+        self.assertFalse(sentence("- Set-Location ./src Invoke-Pester -Path . -CI"))
+        self.assertEqual(scanner.yaml_prose(
+            "run: |\n  # Build the app for every platform we ship.\n  npm ci\n"), [])
+
+    def test_a_double_hash_shell_comment_does_not_make_a_script_prose(self):
+        source = ("steps:\n  - run: |\n      ## Install the dependencies before building.\n"
+                  "      npm ci\n      npm test\n")
+        self.assertEqual(scanner.yaml_prose(source), [])
+        # A single `#` line is a shell comment, not a heading to pass over.
+        self.assertFalse(scanner.yaml_sentence("# note\nRun the tests before you push the change."))
+
+    def test_a_code_fence_is_not_an_opening_code_span(self):
+        source = ("value: |\n  ```sh\n  # Replace 1.2.3 with your version.\n"
+                  "  npx tool@1.2.3 init\n  ```\n")
+        self.assertEqual(scanner.yaml_prose(source), [])
+
+    def test_blanks_and_punctuation_around_markdown_are_passed_over(self):
+        self.assertEqual(scanner.yaml_prose(
+            'description: "  1. Run the tests before every commit."\n'), [(1, 1)])
+        self.assertTrue(scanner.yaml_sentence("**Never**, ever push to main before a review."))
+
+    def test_many_heading_lines_do_not_crash_the_check(self):
+        source = "run: |\n" + "".join(f"  ## step {n}\n" for n in range(1200)) + "  npm ci\n"
+        self.assertEqual(scanner.prose_strings_touching("ci.yml", source, {1}), [])
+
+    def test_a_quoted_script_opening_with_a_double_hash_comment_stays_out(self):
+        source = 'run: "## Install the dependencies first.\\nnpm ci && npm test"\n'
+        self.assertEqual(scanner.yaml_prose(source), [])
+        # In single quotes a backslash is literal, so the value is one line:
+        # only the `## ` marker comes off, and its first word, `Setup\nRun`,
+        # holds a backslash and fails the first-word test.
+        source = "a: '## Setup\\nRun the tests before you push.'\n"
+        self.assertEqual(scanner.yaml_prose(source), [])
+
     def test_the_sentence_test(self):
         sentence = scanner.yaml_sentence
         self.assertTrue(sentence("Great! You should now be able to log in."))

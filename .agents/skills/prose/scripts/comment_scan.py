@@ -753,12 +753,17 @@ def comments_touching(path, source, changed):
 # counts when it is written in sentences: it has at least PROSE_MIN_WORDS
 # words, its first word is capitalised but neither all capitals nor a
 # PowerShell cmdlet, and a sentence ends somewhere in it, as _SENTENCE_END
-# defines. Keys, ids, paths, versions, dates, expressions, step names, SQL
-# and scripts fail that test, so an ordinary config file lists nothing.
-# Measured in November 2026 over 811 YAML files in local clones of about a
-# dozen repositories (CI workflows, OpenSpec configs, app configs, test
-# fixtures), it listed 29 strings or lists, every one of them sentences
-# someone reads. Rerun such a survey after changing the test.
+# defines. Markdown before the first word is skipped, and an opening code
+# span counts as a capitalised word, as yaml_sentence says. Keys, ids,
+# paths, versions, dates, expressions, step names, SQL and scripts fail that
+# test, so `prose check` lists nothing from an ordinary config file. Measured
+# in November 2026 over 811 YAML files in local clones of about a dozen
+# repositories (CI workflows, OpenSpec configs, app configs, test fixtures),
+# the test listed 29 strings or lists, every one of them sentences someone
+# reads. Seven strings there open with Markdown, and none is prose (a glob, a
+# hostname, "# TODO", shell comments), so none is listed. After changing the
+# test, run it over a comparable set of YAML files and read what it newly
+# lists or drops against these numbers.
 #
 # A list holding one such string is listed whole, from the key that owns it,
 # because its entries are read together; a single value is listed from its
@@ -790,12 +795,40 @@ _YAML_PROPERTY = re.compile(r"[&!]\S*[ \t]*")
 _YAML_TRAILING_COMMENT = re.compile(r"[ \t]+#.*$")
 
 
+# A Markdown marker that may open a string before its first word: an ATX
+# heading of level 2 to 6, a bullet or a numbered list item. It is not a
+# word of the text. A single `#` is left on: in a `run: |` block it opens a
+# shell comment, and the own-line `#` comment scan above already lists that
+# line. Left on, the `#` is the first word and fails the capitalised-word
+# test, so a script that opens with a comment sentence is not taken for
+# prose. The cost: Markdown that opens with a level-1 `# Title` is not
+# skipped either.
+_LEADING_MARKER = re.compile(r"(?:#{2,6}|[-*+]|[0-9]{1,9}[.)])[ \t]+")
+_HEADING = re.compile(r"#{2,6}[ \t]")
+
+
 def yaml_sentence(text):
-    """Whether a YAML string's text is written in sentences."""
-    words = text.split()
-    return (len(words) >= PROSE_MIN_WORDS and _first_word(words[0])
-            and not _CMDLET.match(words[0])
-            and bool(_SENTENCE_END.search(" ".join(words))))
+    """Whether a YAML string's text is written in sentences. A leading
+    Markdown marker comes off first, and emphasis around the first word, so
+    `**Never** push …` and `1. Run …` are read from their first real word; a
+    first word that opens an inline code span counts as capitalised. Each
+    heading line that has more lines after it is passed over, and the text
+    below is tested: in a shell block a `## ` line is a comment, and the
+    commands under it are no sentences. A heading that is the only line is
+    tested itself, without its marker."""
+    text = text.lstrip()
+    heading, _, below = text.partition("\n")
+    while _HEADING.match(heading) and below.strip():
+        text = below.lstrip()
+        heading, _, below = text.partition("\n")
+    marker = _LEADING_MARKER.match(text)
+    words = text[marker.end() if marker else 0:].split()
+    if len(words) < PROSE_MIN_WORDS or not _SENTENCE_END.search(" ".join(words)):
+        return False
+    if words[0].startswith("`") and not words[0].startswith("``"):
+        return True
+    first = words[0].lstrip("*_").rstrip(",:;.?!").rstrip("*_")
+    return _first_word(first) and not _CMDLET.match(first)
 
 
 def _first_word(word):
@@ -838,15 +871,19 @@ def _quote_close(lines, index, column, quote):
 
 def _quoted_end(lines, index, column, quote):
     """(last line index, text) of a quoted scalar opening at lines[index][column].
-    A double-quoted string's escapes read as spaces, so a sentence ending
-    before a `\\n` still ends."""
+    A double-quoted string's `\\n` reads as a line break and its other
+    escapes as spaces: _SENTENCE_END needs a space or the end after a `.`,
+    which a raw backslash would block, and yaml_sentence must see the line
+    break after a heading line to pass over it."""
     last, end = _quote_close(lines, index, column, quote)
     if last == index:
         text = lines[index][column + 1:end and end - 1]
     else:
         text = " ".join([lines[index][column + 1:]] + lines[index + 1:last]
                         + [lines[last][:end - 1] if end is not None else lines[last]])
-    return last, re.sub(r"\\.", " ", text) if quote == '"' else text
+    if quote != '"':
+        return last, text
+    return last, re.sub(r"\\.", lambda escape: "\n" if escape.group() == "\\n" else " ", text)
 
 
 def _flow_end(lines, index, column):
@@ -907,7 +944,8 @@ def _yaml_scalar(lines, index, column, parent):
             if line.strip():
                 last = following
                 parts.append(line.strip())
-        return last, " ".join(parts)
+        # Lines kept apart, so yaml_sentence can tell a heading line.
+        return last, "\n".join(parts)
     # A blank line inside a plain value folds into it; the value goes on
     # while the next line that is not blank is indented past parent.
     parts, last = [_YAML_TRAILING_COMMENT.sub("", value)], index

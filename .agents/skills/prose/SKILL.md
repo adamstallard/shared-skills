@@ -30,11 +30,14 @@ comments bloat too.
 
 A YAML string written in sentences is prose too, since a tool may show it to a
 person or an agent as text. OpenSpec, for one, prints a config's `rules:`
-lists to the agent writing a proposal. `prose check` counts a string that has
-at least six words, starts with a capitalised word that is not all capitals,
-and holds a sentence end: a word or code span followed by `.`, `?` or `!`.
-Keys, paths, commands, SQL and step names fail that test. A list holding one
-such string is one item, from the key that owns the list to its last string.
+lists to the agent writing a proposal. `prose check` lists a string for the
+pass and the cold read when it has at least six words, starts with a
+capitalised word that is not all capitals, and holds a sentence end: a word
+or code span followed by `.`, `?` or `!`. Markdown before the first word,
+such as `**`, `- `, `1. ` or `## `, is skipped for this test, and an opening
+code span counts as a capitalised word. Keys, paths, commands, SQL and step
+names fail it. A list holding one such string is listed as one item, from the
+key that owns the list to its last string.
 
 ## When the pass runs
 
