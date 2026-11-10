@@ -53,17 +53,26 @@ Exit 0: no errors. Exit 1: errors to fix. Exit 2: it could not run, and says
 why.
 
 Checking a change, by name or as one of every open change, also checks the
-main decision records (see [Decision records](#decision-records)) that the
-change bears on:
+decision records under `openspec/specs/` (see
+[Decision records](#decision-records)) that the change bears on. `sign`,
+which signs a commit (see [Commit](#commit)), checks the same records for
+each staged change:
 
 - the record of each capability the change touches;
-- each record whose *Paths* line names a file the branch changes, compared
-  with its merge base with the base branch;
+- each record whose *Paths* line names a file the branch changes since it
+  left the base branch;
 - each record the branch edits, or whose kept file it edits.
 
-So one run of `check` finds the record errors the change and its record
-edits bring, which `sign` would refuse. `check specs` checks every record,
-as `sign` does whenever a commit stages a record.
+So one run of `check` finds every error in those records, and `sign` would
+refuse a commit over any one of them. `check specs` checks every record, as
+`sign` does whenever a commit stages a record.
+
+A shallow clone may hold too little history to reach the commit where the
+branch left the base branch. Then no one can tell which lines of a record the
+branch changed, so `check` and `sign` skip the `evolution` check of the
+record's lines and report a finding of severity `check` saying so. A history
+line in the record then goes unflagged. Fetch the full history (`git fetch
+--unshallow`) to have it read.
 
 **It needs OpenSpec 1.16.0 or later on PATH** (`npm install -g
 @fission-ai/openspec`), and reads specs and deltas only through it:

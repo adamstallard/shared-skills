@@ -1773,12 +1773,20 @@ class ChangeChecksItsRecordsTests(unittest.TestCase):
         self.assertEqual(len(self.record_errors("specs")[1]), 1)
 
     def test_a_record_is_reported_once_whatever_the_targets(self):
+        # x reaches cap's record; only y reaches other's. Changes are checked
+        # in sorted order, so code that read only the first change's records
+        # would miss other's.
         self.repo.write("openspec/specs/cap/decisions.md", record(rationale=(self.BARE,)))
+        self.repo.write("openspec/specs/other/decisions.md", record(
+            cap="other", rationale=(self.BARE.replace("Records", "Logs"),)))
         self.repo.change("x")
-        self.repo.change("y", delta=GOOD_DELTA.replace("Records expire", "Records are indexed"))
+        self.repo.change("y", cap="other", delta=GOOD_DELTA.replace("Records", "Logs"))
         for targets in (("x", "y"), (), ("x", "specs")):
             with self.subTest(targets=targets):
-                self.assertEqual(len(self.record_errors(*targets)[1]), 1)
+                errors = self.record_errors(*targets)[1]
+                self.assertEqual(sorted(e.split(":", 1)[0] for e in errors),
+                                 ["openspec/specs/cap/decisions.md",
+                                  "openspec/specs/other/decisions.md"], errors)
 
     def test_a_branch_ref_checks_the_records_it_edits(self):
         self.commit_and_branch()
@@ -1803,25 +1811,65 @@ class ChangeChecksItsRecordsTests(unittest.TestCase):
         (error,) = [l for l in r.stdout.splitlines() if "error [record]" in l]
         self.assertIn("no Evidence", error)
 
-    def test_each_changes_records_are_checked_not_only_the_firsts(self):
-        # Only y, the second change, touches other; nothing is edited on a branch.
-        self.repo.change("x")
-        self.repo.change("y", cap="other", delta=GOOD_DELTA.replace("Records", "Logs"))
-        self.repo.write("openspec/specs/other/decisions.md", record(
-            cap="other", rationale=(self.BARE.replace("Records", "Logs"),)))
-        self.commit_and_branch()
-        _, (error,) = self.record_errors("x", "y")
-        self.assertIn("openspec/specs/other/decisions.md:", error)
-
-    def test_sign_leaves_an_unstaged_record_to_check(self):
+    def test_sign_refuses_over_a_record_the_staged_change_bears_on(self):
         self.repo.write("openspec/specs/cap/decisions.md", record(rationale=(self.BARE,)))
         self.commit_and_branch()
         self.repo.change("x")
         self.repo.git("add", "-A")
         r = self.repo.run("sign", "--read", "deferred", "--base", "main", "--no-validate")
-        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-        self.assertEqual(len(self.record_errors("x")[1]), 1)
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("openspec/specs/cap/decisions.md:", r.stdout)
+        self.assertIn("no Evidence", r.stdout)
 
+    def test_with_no_merge_base_an_unchanged_history_line_is_not_flagged(self):
+        self.repo.write("openspec/specs/cap/decisions.md", record(constraints=(CONSTRAINT.replace(
+            "a leaked store leaks every seat.", "a leaked store leaks every seat, previously one."),)))
+        self.repo.git("add", "-A")
+        self.repo.git("commit", "-q", "-m", "old record")
+        self.repo.git("checkout", "-q", "--orphan", "unrelated")
+        self.repo.git("commit", "-q", "--allow-empty", "-m", "unrelated")
+        self.repo.git("checkout", "-q", "main")
+        self.repo.change("x")
+        for targets in (("x",), ("specs",)):
+            with self.subTest(targets=targets):
+                r = self.repo.run("check", "--base", "unrelated", "--no-validate", *targets)
+                self.assertNotIn("error [evolution]", r.stdout)
+                self.assertIn("openspec/specs/cap/decisions.md: check [evolution] no merge base "
+                              "with unrelated", r.stdout)
+
+
+    def test_with_no_head_commit_every_record_line_is_new(self):
+        # An orphan branch has no commit yet, so nothing is old: a history
+        # line in the staged record is the branch's own.
+        self.repo.git("checkout", "-q", "--orphan", "fresh")
+        self.repo.write("openspec/specs/cap/decisions.md", record(constraints=(CONSTRAINT.replace(
+            "a leaked store leaks every seat.", "a leaked store leaks every seat, previously one."),)))
+        self.repo.git("add", "-A")
+        r = self.repo.run("sign", "--read", "deferred", "--base", "main", "--no-validate")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("openspec/specs/cap/decisions.md:5: error [evolution]", r.stdout)
+        self.assertNotIn("no merge base", r.stdout)
+
+    def test_with_no_head_commit_check_reads_every_record_the_branch_adds(self):
+        # On a branch with no commit yet, every file is the branch's own, as
+        # sign reads it; check must agree.
+        self.repo.git("checkout", "-q", "--orphan", "fresh")
+        self.repo.write("openspec/specs/other/decisions.md", record(cap="other", constraints=(
+            CONSTRAINT.replace("a leaked store leaks every seat.",
+                               "a leaked store leaks every seat, previously one."),)))
+        self.repo.change("x")
+        r = self.repo.check("x")
+        self.assertIn("openspec/specs/other/decisions.md:5: error [evolution]", r.stdout)
+
+    def test_with_no_head_commit_records_says_to_read_the_record_whole(self):
+        self.repo.write("openspec/specs/other/decisions.md", record(cap="other"))
+        self.commit_and_branch()
+        self.repo.git("checkout", "-q", "--orphan", "fresh")
+        self.repo.change("x")
+        r = self.repo.run("records", "--base", "main", "x")
+        self.assertIn("openspec/specs/other/decisions.md", r.stdout)
+        self.assertNotIn("merge base", r.stdout + r.stderr)
+        self.assertIn("read it whole", r.stdout)
 
 if __name__ == "__main__":
     unittest.main()
