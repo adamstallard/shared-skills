@@ -613,14 +613,23 @@ def _combined_touched(scan, root, tree, parents):
     return touched
 
 
+# The label the listing shows beside the item holding a YAML file's prose
+# strings, those comment_scan.yaml_prose finds. cold_items and _goals_source
+# tell such an item by it.
+STRING_NOTE = "prose strings"
+
+
 def prose_in(root, parents, read: Callable[[str], str]):
     """([Item], [flag lines]) for the prose the staged change touches.
 
     A listing for the pass, not what the trailer hashes: the message, each doc
-    or spec file the diff touches, and each code comment it adds to or edits.
-    The flags are history-language warnings on those comments. parents are
-    the commit's parents: none diffs against the empty tree; two or more, a
-    merge, list only what git's combined diff shows the merge changed.
+    or spec file the diff touches, one item per code file for the comments
+    the diff adds to or edits, and one per YAML file for the prose strings it
+    adds to or edits. The flags are history-language warnings on those
+    comments and strings. parents are the commit's parents: with none, the
+    change is diffed against the empty tree; with one, against that parent;
+    with two or more, a merge, only what git's combined diff shows the merge
+    changed is listed.
     """
     scan = scanner()
     items, flags = [Item("commit message", "", None)], []
@@ -666,14 +675,20 @@ def prose_in(root, parents, read: Callable[[str], str]):
         if comments is None:
             items.append(Item(path, "did not parse", path))
             continue
-        if not comments:
-            continue
-        spans = [f"{c.start}" if c.start == c.end else f"{c.start}-{c.end}" for c in comments]
-        items.append(Item(f"{path}:{','.join(spans)}", "comment", path,
-                          spans=tuple((c.start, c.end) for c in comments)))
-        for comment in comments:
-            for note in scan.history_notes(comment, scan.mask_examples(scan.strip_markers(comment))):
-                flags.append(f"{path}:{note.line}  {note.headline}")
+        # A YAML file's prose strings are an item of their own beside its
+        # comments, since their reader is whoever the file's tool shows them
+        # to, not someone changing the file.
+        for found, note in ((comments, "comment"),
+                            (scan.prose_strings_touching(path, source, lines), STRING_NOTE)):
+            if not found:
+                continue
+            spans = [f"{c.start}" if c.start == c.end else f"{c.start}-{c.end}" for c in found]
+            items.append(Item(f"{path}:{','.join(spans)}", note, path,
+                              spans=tuple((c.start, c.end) for c in found)))
+            for comment in found:
+                for flag in scan.history_notes(comment,
+                                               scan.mask_examples(scan.strip_markers(comment))):
+                    flags.append(f"{path}:{flag.line}  {flag.headline}")
     return items, flags
 
 
@@ -1849,7 +1864,12 @@ def cold_items(assigned):
         if item.path is None or item.deleted or not item.spans:
             continue
         _, _, goals = _goals_source(item, rule)
-        if kind_of(item.path) == "comment":
+        if item.note == STRING_NOTE:
+            for span in item.spans:
+                found.append(ColdItem(f"A string in a YAML file, which its reader is shown as "
+                                      f"text: {item.path}, {_lines(span)}, read under the keys "
+                                      "above it.", tuple(goals), item.path, spans=(span,)))
+        elif kind_of(item.path) == "comment":
             for span in item.spans:
                 found.append(ColdItem(f"A code comment: {item.path}, {_lines(span)}, and the "
                                       "code it sits on.", tuple(goals), item.path, spans=(span,)))
@@ -1980,13 +2000,40 @@ def _section(lines, span, path):
 
 
 def _sits_on(lines, span, path=""):
-    """A comment, the BRIEF_CODE_LINES after it for the code it sits on, and
-    BRIEF_CONTEXT_LINES either side. A fixed reach, with no syntax rules,
-    since each such rule misread some language's code. A docstring is a
-    comment here too."""
+    """The line ranges a comment's brief shows: the comment, the
+    BRIEF_CODE_LINES after it for the code it sits on, and
+    BRIEF_CONTEXT_LINES either side. The reach is fixed, with no syntax
+    rules, because a rule for where a block of code ends misreads some
+    language's code. A docstring is a comment here too. In a YAML file, a comment or prose string also gets
+    each key line it is nested under, so the reader sees what it belongs to."""
     first, last = span
-    return [(max(1, first - BRIEF_CONTEXT_LINES),
-             min(len(lines), last + BRIEF_CODE_LINES + BRIEF_CONTEXT_LINES))]
+    ranges = [(max(1, first - BRIEF_CONTEXT_LINES),
+               min(len(lines), last + BRIEF_CODE_LINES + BRIEF_CONTEXT_LINES))]
+    if pathlib.PurePosixPath(path.rstrip()).suffix.lower() in scanner().YAML_SUFFIXES:
+        ranges += [(number, number) for number in _yaml_parents(lines, first)]
+    return ranges
+
+
+def _yaml_parents(lines, first):
+    """The line numbers of the YAML lines above line number `first` that
+    each enclose the one below: the nearest line indented less than it, then
+    the nearest indented less than that, up to the margin. Blank and comment
+    lines are passed over."""
+    found, indent = [], None
+    for number in range(min(first, len(lines)), 0, -1):
+        line = lines[number - 1]
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        width = len(line) - len(line.lstrip(" "))
+        if indent is None:
+            indent = width
+        elif width < indent:
+            found.append(number)
+            indent = width
+        if indent == 0:
+            break
+    return found
 
 
 def _merged(ranges):
@@ -2576,7 +2623,8 @@ def hook_gate(raw):
 
 # The row of rules.md's reader table that gives each kind of listed file its
 # default goals, named by the start of the row's first cell.
-KIND_ROWS = {"comment": "Code comment", "readme": "README", "spec": "Spec", "doc": "Other doc"}
+KIND_ROWS = {"comment": "Code comment", "string": "YAML prose string", "readme": "README",
+             "spec": "Spec", "doc": "Other doc"}
 
 
 def kind_of(path):
@@ -3354,7 +3402,7 @@ def _goals_source(item, rule, message_from="--goals"):
     if item.deleted:
         return ("deleted",), "Deleted, so no reader; nothing to rewrite:", ()
     if rule is None:
-        kind = kind_of(item.path)
+        kind = "string" if item.note == STRING_NOTE else kind_of(item.path)
         label, who, goals = kind_default(kind)
         return (("default", kind),
                 f"Reader goals by default, from the '{label}' row of rules.md's reader "

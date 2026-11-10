@@ -29,9 +29,10 @@ the rules and a one-use pass token, the second takes the token and signs. So
 the rules were on the agent's screen before it signed. Nothing proves the agent
 followed them.
 
-**A cold read.** Before it signs a changed comment, doc passage or post, the
-agent has a fresh agent, one that never saw the conversation, read it and
-report where it stopped, reread or guessed, quoting the words. For every item
+**A cold read.** Before it signs a changed comment, doc passage, YAML string
+written in sentences, or post, the agent has a fresh agent, one that never saw
+the conversation, read it and report where it stopped, reread or guessed,
+quoting the words. For every item
 it also says in one line what it understood: who does each thing, whether it
 always happens, and whose doing it is. That line catches a confident
 misreading, which makes no reader stop. The agent then answers every finding
@@ -66,7 +67,9 @@ A commit's reviewer is not the reader of the docs it changes. So before it
 signs a commit, the agent names the reader goals of each changed doc and spec,
 apart from the reviewer's, and does the pass on each file against its own.
 Prose will not sign while a changed doc or spec has none. A code comment
-without goals gets a default reader: someone about to change the code.
+without goals gets a default reader: someone about to change the code. Prose
+also checks YAML strings written in sentences, and one without goals gets a
+default reader too: whoever a tool shows it to.
 
 The agent passes them as gitignore-style patterns, where the most specific
 match wins: an exact path beats any pattern, and a pattern with more literal

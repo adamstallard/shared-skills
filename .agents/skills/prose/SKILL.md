@@ -28,6 +28,14 @@ docs, specs, commit messages, pull request descriptions, and posts to GitHub,
 Linear and Discord. **Short kinds are not exempt.** Commit subjects and ticket
 comments bloat too.
 
+A YAML string written in sentences is prose too, since a tool may show it to a
+person or an agent as text. OpenSpec, for one, prints a config's `rules:`
+lists to the agent writing a proposal. `prose check` counts a string that has
+at least six words, starts with a capitalised word that is not all capitals,
+and holds a sentence end: a word or code span followed by `.`, `?` or `!`.
+Keys, paths, commands, SQL and step names fail that test. A list holding one
+such string is one item, from the key that owns the list to its last string.
+
 ## When the pass runs
 
 - **Before every commit that contains prose**, on the staged change and the
@@ -147,9 +155,10 @@ because a reader who misreads with confidence never stops. The line says:
 - whether the code does it, or someone else could make it happen.
 
 **What gets one:** every comment block the change adds to or edits, read
-whole even when one line changed; every doc or spec passage it adds to; and
-every post, whatever its length, except a pull request body posted inside a
-review round, whose cold read comes at the hand-back (see
+whole even when one line changed; every YAML prose string or list of them it
+adds to or edits, read whole with the key lines it is nested under; every doc
+or spec passage it adds to; and every post, whatever its length, except a pull request body
+posted inside a review round, whose cold read comes at the hand-back (see
 [Posting](#posting)). The commit message gets none, so a commit that
 changes no comment or doc signs without one. A doc that git diffs as
 binary is skipped, since prose cannot read it.
