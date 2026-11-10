@@ -1523,6 +1523,14 @@ to a relay file's pattern first, and run no code from the head.
   permissions are `contents: read` and `pull-requests: write` and nothing
   else
 
+#### Scenario: The workflow checks out nothing and runs no code from the head
+
+- **WHEN** `relay-notice.yml` runs on a pull request whose head adds a
+  script and changes `relays/alice.yaml`
+- **THEN** it checks out nothing, reads no file's contents from the head,
+  runs no code from the head, and takes from the head only the changed
+  path names that match a relay file's pattern
+
 #### Scenario: A push compares the heads before and after it
 
 - **WHEN** `bob` pushes a commit changing only `README.md` to a pull request
@@ -1724,9 +1732,9 @@ run the two calls on it again.
 ### Requirement: A question round ends at a hand-back or at the end of the agent's turn
 
 A **question round** SHALL end at a hand-back to a person, as spec-check's
-skill defines one (`.agents/skills/spec-check/DECISIONS.md`,
-*One consistency read per round*), such as opening a pull request for
-review. With a person in the session, it SHALL also end at every end of
+skill defines one (`.agents/skills/spec-check/SKILL.md`): a pull request
+opened or marked ready, a review requested, or telling a person the work
+is ready. With a person in the session, it SHALL also end at every end of
 the agent's turn, on work with a pull request too; with no person in the
 session, it SHALL end when the agent's run ends, a subagent's run
 excepted.
@@ -3414,6 +3422,13 @@ scenarios, and search nothing off the machine for it; the calls SHALL
 record only its hash, verdict, time and category. The post hook SHALL block
 a post with a question whose latest record has one.
 
+#### Scenario: A question with a category given in a file is refused
+
+- **WHEN** the first call is given, in a questions file, a question with
+  the category `secret`
+- **THEN** it refuses, issues no token, and says to pass that question,
+  and every other question of the same picker call, on standard input
+
 #### Scenario: A question holding a secret is recorded by hash only
 
 - **WHEN** the second call records the verdict `ask` for a question that
@@ -3465,11 +3480,8 @@ a post with a question whose latest record has one.
 
 The filters SHALL run on a question with a category. The agent SHALL ask it
 only through the picker or, if `vulnerability`, the repository's private
-security advisory, recording the answer there and in the fix; lacking
-advisory access, it SHALL record the question nowhere and the answer only
-in the fix, and report only that it blocks. It SHALL list one in no post or
-issue, and defer one under filter 2 only as not done in its report to the
-person or, if `vulnerability`, the advisory.
+security advisory, recording the answer there and using it in the fix. It SHALL list one in no post or issue, and defer one under filter 2 only as not done in its report or, if
+`vulnerability`, the advisory.
 
 #### Scenario: A deferred vulnerability goes to the advisory
 
@@ -3482,8 +3494,15 @@ person or, if `vulnerability`, the advisory.
 
 - **WHEN** a person answers whether a path traversal in the repository can
   be exploited
-- **THEN** the agent records the answer in the fix and in the repository's
+- **THEN** the agent uses the answer in the fix, records it in the repository's
   private security advisory, and writes no log file
+
+### Requirement: Without advisory access, a vulnerability question is recorded nowhere
+
+An agent that cannot open, or write in, the repository's private security
+advisory SHALL ask a `vulnerability` question only through the picker,
+record neither the question nor its answer, use the answer only in the
+fix's code, and tell the person only that the question blocks.
 
 #### Scenario: With no access to the advisory, a vulnerability stays in the fix
 

@@ -1792,9 +1792,6 @@ opener, so a pull request cannot make it mention anyone it likes, which is
 also why igor's workflow reads the owner from the default branch. No reader
 depends on the notice, so setup carries on when GitHub refuses to add it.
 
-*Recorded:* `openspec/specs/inquisitor/decisions.md`, *Rejected: igor's
-seat-notice workflow covering relay files too*.
-
 #### github-app refuses `token`, `run`, `credential get` and `wire` for a relay identity
 
 **github-app's `token`, `run`, `credential get` and `wire` commands are to
@@ -2797,9 +2794,11 @@ queried, and task 0.22 checks how one reads.
   script skips the tagging order's third candidate.
 - **Can the agent open, and write in, a repository's private security
   advisory?** (task 0.10) That needs private vulnerability reporting enabled,
-  or an admin or security-manager role. If not, the agent records a
-  vulnerability's question and answer only in the fix, and reports only that a
-  vulnerability question is blocking, with no text.
+  or an admin or security-manager role. If not, an agent asking a
+  vulnerability question records the question and its answer nowhere. It
+  uses the answer only in the code of the fix that repairs the
+  vulnerability, and tells the person only that a vulnerability question
+  is blocking, without the question's text.
 - **Can the private fork's pull request be merged before the advisory is
   published?** (task 0.13) The spec's weakness requirements give what each
   result means. Until it is measured, a fork commit's message describes the
@@ -2815,9 +2814,13 @@ queried, and task 0.22 checks how one reads.
 
 ### Facts the answer session relies on
 
-**Tasks 0.15 to 0.24 measure facts the answer session relies on. Each says
-what the spec does if the measurement goes against it, except tasks 0.18 and
-0.19, which stop the work until Adam decides.** They cover GitHub's
+**Tasks 0.15 to 0.24 measure facts the answer session relies on. Each task,
+in tasks.md, says what the spec does if its measurement goes against it.
+Tasks 0.18 and 0.19, which check that a command the mod runs reaches no tool
+hook and that a mod keeps polling while idle, instead stop building until
+Adam, the repository's owner, decides. If task 0.21 finds GitHub does not
+report which App wrote a comment, its fallback stays for good, and building
+also stops until Adam decides.** The tasks cover GitHub's
 notifications endpoint; how Linear and Discord show mentions and replies;
 how the Linear relay posts a comment; that a command the mod runs reaches no
 tool hook; that a mod keeps polling while idle or in the background; how

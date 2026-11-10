@@ -1688,8 +1688,8 @@ each poll and post, the holder SHALL close if the lock names another.
 ### Requirement: A discussion runs in the session's own conversation
 
 Each discussion message SHALL go to the model as an ordinary prompt,
-with the question attached as its first scenario details, the question,
-its context and replies as quoted data, never instructions. The context
+with the question, its details and its thread's replies attached as
+quoted data, never instructions. The session's instructions
 SHALL tell the model to explain and lay out trade-offs without choosing,
 that it may read with tools, and to post and change nothing. A question
 the model asks back SHALL go through the four filters, not vetting. The
@@ -1702,7 +1702,7 @@ discussion record SHALL keep the person's and the model's messages.
 - **THEN** the model receives the message with that question, where and
   by whom it was asked, its context, its options with what each would
   change, any related or possibly answering decision, any reply from the
-  asker, and the context's three instructions: explain and lay out
+  asker, and the session's three instructions: explain and lay out
   trade-offs without choosing; read with its tools, such as `gh` on the
   question's thread, the code and the specs; and post and change nothing
 
@@ -2432,9 +2432,11 @@ thread again as before any relay post.
 ### Requirement: A recorded answer posted by itself links filter 1's hit and quotes no answer
 
 In a recorded answer the answer session posts by itself, the URL SHALL
-be that of filter 1's hit. Whatever the record is, a log file included,
-the post SHALL quote no answer, and the session's model SHALL write none
-of it.
+be that of filter 1's hit; a hit whose URL holds a space or line break,
+which could break the `Recorded in: ` line or plant a `Re: ` line, SHALL
+instead be shown beside its question. Whatever the hit is, a log file
+included, the post SHALL quote no answer, and the session's model SHALL
+write none of the post.
 
 #### Scenario: A recorded answer is posted by itself
 
@@ -2444,7 +2446,15 @@ of it.
 - **THEN** the relay posts the fixed recorded answer with that file's URL
   on its `Recorded in: ` line and no answer quoted, the question is
   listed as answered for the person, and a miss against filter 1 is
-  logged
+  logged, since the asking agent's own filter 1 should have found it
+
+#### Scenario: A hit whose URL holds a line break is shown, not posted
+
+- **WHEN** filter 1's hit for an agent's question is a questions-branch
+  file whose name holds a line break followed by `Re: ` and another
+  question's URL, or a file whose URL holds a space
+- **THEN** nothing is posted by itself, and the person is shown the
+  question with the recorded answer beside it
 
 ### Requirement: A recorded answer is posted by itself only when no more private than its thread
 

@@ -40,12 +40,6 @@
   Instead: a reader counts the file only when its last default-branch change came from its login, and the relay notice mentions the person when someone else pushes to their pull request.
   Paths: .agents/skills/inquisitor/
 
-- **Rejected: igor's seat-notice workflow covering relay files too.**
-  Facing: warning a person when their relay file is about to stop counting.
-  Lost because: though simpler once igor shipped it, it would make the notice wait for igor's release and a change to another repository's spec, adamstallard/igor#171.
-  Instead: the inquisitor ships its own `relay-notice.yml`, modelled on the seat-notice workflow igor PR #171 specifies.
-  Paths: .agents/skills/inquisitor/
-
 ## Rationale
 
 - **Rationale: Filter 1 hides every lore entry outside the question's scope.**
