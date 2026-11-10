@@ -52,7 +52,32 @@ It reports `file:line: error|check [kind] message`, then the results of
 Exit 0: no errors. Exit 1: errors to fix. Exit 2: it could not run, and says
 why.
 
-**It needs OpenSpec 1.16.1 or later on PATH** (`npm install -g
+Checking a change, by name or as one of every open change, also checks the
+decision records under `openspec/specs/` (see
+[Decision records](#decision-records)) that the change bears on. `sign`,
+which signs a commit (see [Commit](#commit)), checks the same records for
+each change under `openspec/changes/` that the commit stages:
+
+- the record of each capability the change touches;
+- each record whose *Paths* line, which lists the files the record governs,
+  names a file the branch has changed since it left the base branch;
+- each record the branch edits, or whose kept file the branch edits (the
+  `.spec-check-kept` file beside the record; see
+  [Keeping a line the evolution check flags](#keeping-a-line-the-evolution-check-flags)).
+
+`check` and `sign` cover the same records, so one run of `check` finds every
+record error that would make `sign` refuse the change's commit. A commit
+that stages a record makes `sign` check every record, so before such a
+commit run `check specs` too.
+
+A shallow clone may hold too little history to reach the commit where the
+branch left the base branch. Then no one can tell which lines of a record the
+branch changed. So `check` and `sign` skip the `evolution` check, which flags
+lines that record history, on that record, and report a finding of severity
+`check` saying so. Run `git fetch --unshallow` to fetch the full history so
+the record's changed lines are checked.
+
+**spec_check.py needs OpenSpec 1.16.1 or later on PATH** (`npm install -g
 @fission-ai/openspec`), and reads specs and deltas only through it:
 `openspec show --json` for requirements, `openspec validate --strict --json`
 for what a delta drops or misfiles, `openspec archive --json` for whether a
@@ -217,8 +242,11 @@ amended, 0 open`. After the read, run it again with those counts (see
 [Commit](#commit)) to sign the commit.
 
 For each due change, start a general-purpose subagent (not Explore) that
-did not write the change, with [consistency-read.md](consistency-read.md)
-as its brief and its five placeholders filled in: the change's directory,
+did not write the change. Don't read [consistency-read.md](consistency-read.md)
+yourself: a main loop that has read it tends to paste it, condensed, into the
+prompt, and the subagent then works from your copy. Write the subagent a prompt that tells it to read that file, by
+its absolute path, as its brief, and to follow the brief exactly. The prompt
+also gives the values of the brief's five placeholders: the change's directory,
 where to read it from (the working tree, or the pull request's branch), its
 base branch, every file under the change's directory (`git ls-files
 openspec/changes/<change>`, or `git ls-tree -r --name-only <ref>
@@ -226,12 +254,13 @@ openspec/changes/<change>`), and the decision records it must agree with,
 as `python3 "$SC/spec_check.py" records <change>` prints them (add `--ref
 <ref>` for a branch): each touched capability's main record, and each record
 whose *Paths* match a file the branch changes; a record the branch edits is
-read with its diff against the merge base. For a record due on its own, use
-the brief's *A record read on its own* section instead. Keep the brief's instruction to read each
-listed file whole, paging long files, never skimming, grepping or sampling:
-a problem may sit anywhere in a long delta spec. Don't paste the files or
-add your own summary of the change: what you would say is what the read
-checks.
+read with its diff against the merge base. For a record due on its own,
+the prompt names the brief's *A record read on its own* section and gives
+the subagent that section's three values instead: the record's path, where to read
+it from, and its base branch. The brief tells the subagent to read each
+listed file whole. Add nothing else to the prompt: no pasted files, and no
+summary of the change. A summary is your own reading of the change, and the
+subagent is there to read it without yours.
 
 The subagent reads the change against every spec on the base branch, the
 decision records listed, every open change, every open pull request
