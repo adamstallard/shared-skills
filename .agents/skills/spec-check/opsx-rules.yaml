@@ -1,20 +1,23 @@
-# Guidance for agents that write OpenSpec changes through the /opsx skills.
+# Guidance for agents that write OpenSpec changes through OpenSpec's /opsx
+# slash commands.
 # Merge the `rules:` block below into the repository's openspec/config.yaml
 # by hand. If config.yaml already has a `rules:` key, add these lists to it,
 # and where it already has a list for an artifact, such as `proposal`,
 # append these rules to that list.
 # Rules that several lists share are written once, in `proposal`, each
 # marked with a YAML anchor (`&name`). The other lists repeat them by alias
-# (`*name`). YAML resolves an alias only to an anchor above it, so the
-# `proposal` list must stay above `specs` and `design` in the merged file.
-# If config.yaml already uses an anchor's name, rename that anchor and its
+# (`*name`). YAML resolves an alias only to an anchor above it, so in the
+# merged file `proposal` must come before `specs` and `design`: move it up
+# if config.yaml lists either of them first. If config.yaml already uses
+# one of these anchor names, rename the clashing anchor here, and its
 # aliases.
-# `openspec instructions <artifact>` shows each list to the agent writing
-# that artifact (checked on OpenSpec 1.0.0 to 1.16.1), so the rules reach
-# agents that never load spec-check. To those agents the rules are advice.
-# spec-check enforces them, through its checks and its consistency read (a
-# subagent's read of a change against every other spec). SKILL.md's section
-# Decision records defines the entry kinds and formats the rules refer to.
+# `openspec instructions <artifact>` (OpenSpec 1.0.0 and later) shows each
+# list to the agent writing that artifact, so the rules reach agents that
+# never load spec-check. To those agents the rules are advice. spec-check
+# enforces them on every change it checks, whoever wrote the change,
+# through its checks and its consistency read (a subagent's read of a
+# change against every other spec). spec-check's SKILL.md, section Decision
+# records, defines the entry kinds and formats the rules refer to.
 rules:
   proposal:
     - &record-kinds The kinds of decision-record entry (Constraint, Rejected, Rationale), their formats and what counts as evidence are defined in spec-check's SKILL.md, section Decision records. A decision record is a capability's decisions.md, and you write entries in it as the rules below say; the next two rules give the evidence definition and the record format for when SKILL.md is unavailable.
