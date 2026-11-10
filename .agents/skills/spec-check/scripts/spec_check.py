@@ -5,7 +5,7 @@
                         [--no-validate] [--json]
     spec_check.py sign --read subagent|self|deferred [--amended N] [--open N]
                        [--base REF] [--no-validate]
-    spec_check.py verify-staged "Spec-check: <value>"   (ignores the commit message the commit library pipes to stdin)
+    spec_check.py verify-staged "Spec-check: <value>"   (ignores the commit message .agents/lib/commit-trailer pipes to stdin)
     spec_check.py verify-commit <sha> <value>
     spec_check.py ci [--event FILE] [--repo DIR]
     spec_check.py setup-ci [--repo DIR] [--sha SHA] [--force]
@@ -27,8 +27,9 @@ lines is checked against a scratch copy of the tree's specs, into which
 `openspec archive` has archived each open dependency. A merged dependency is
 never archived: its result must already show in the tree. Each dependency is
 read from its pull request with gh and git, which needs the network, and
-OpenSpec 1.16.1 or later must be on PATH. A dependency that cannot be
-read, judged merged or open, or archived is an error, never skipped.
+OpenSpec 1.16.1 or later must be on PATH. It is an error, never skipped,
+when a dependency cannot be read, cannot be found to be merged or open,
+or cannot be archived.
 
 With the OpenSpec CLI on PATH, every checked change is also archived into
 a scratch copy of the specs by `openspec archive`: alone, or for a stacked
@@ -40,13 +41,16 @@ Specs and deltas are read only through the OpenSpec CLI, 1.16.1 or later:
 change applies. Without it, every check that needs a requirement is
 reported as not run, and a stacked change gets an error.
 
-check exits 0 with no errors, 1 with errors, 2 when it cannot run. Findings
-marked `check` are heuristics for a person or agent to judge; they never fail.
+check exits 0 with no errors, 1 with errors, 2 when it cannot run. Each
+finding has a level, `error` or `check`. A `check`-level finding is a
+heuristic for a person or agent to judge, and never fails.
 
 A hand-back puts a pull request in front of a reviewer: it is opened or
 reopened ready for review, marked ready, or has a review requested. A
-review round is the commits between two hand-backs, and the consistency
-read runs once per round, before the hand-back that ends it.
+review round is the commits between two hand-backs. Once per round,
+before the hand-back that ends it, a fresh subagent (or the author) reads
+each change against every other spec, change and open pull request: the
+consistency read. It happens outside this script; sign records it.
 
 sign runs check on the staged tree and, when no error remains, prints the
 `Spec-check:` trailer value bound to that tree. `--read` says what the value
@@ -58,19 +62,28 @@ are due, and ends the value with `no read due` when none is.
 ci is the GitHub workflow's check of a pull request event ($GITHUB_EVENT_PATH):
 it fails when a change is unread at the pull request's head and, when the
 event is a hand-back, makes it a draft again and withdraws the review
-request. setup-ci writes that workflow into a
-repository, pinned to the newest commit on shared-skills' main that
-changed this file or the workflow template. It reads the pin and the
-template from GitHub, so gh must be installed and signed in. verify-staged and verify-commit
-check a `Spec-check:` value against the staged tree or a commit: the
-shared commit library (.agents/lib/commit-trailer) calls the first before
-it commits, and the commit hook the second after.
+request. setup-ci writes that workflow into a repository, from the
+workflow template (ci/spec-check.yml) as it stands at the commit it pins,
+so the workflow's steps match the spec_check.py each run downloads. The
+pin is the later of the newest commits on shared-skills' main that changed
+this file and the template, when one is in the other's history. When the
+two came from branches merged separately, neither holds the other's
+change, and the pin is the first commit on main's first-parent line whose
+history holds both. setup-ci reads the pin and the template from GitHub,
+so gh must be installed and signed in.
+
+verify-staged and verify-commit check a `Spec-check:` value against the
+staged tree or a commit. The shared commit library
+(.agents/lib/commit-trailer) calls verify-staged before it commits,
+passing the whole trailer line; the commit hook calls verify-commit after,
+passing the value alone.
 
 Each capability's decision record (its constraints, rejected alternatives
 and rationale) is at the path openspec/spec-check.yaml gives as
 `decision-records: <path with <capability>>`, by default
 openspec/specs/<capability>/decisions.md. A pull request edits that main
-record directly; a decisions.md inside a change is refused. The check
+record directly; a decisions.md inside a change is refused. A record holds Rationale, Constraint and Rejected
+entries, in the form SKILL.md's "Decision records" gives. The check
 command gives each record format checks, reports a Rationale entry whose
 title names no requirement in force or in an open change, and runs the
 `evolution` check on the lines a branch changes in a record. It gives each
@@ -4713,9 +4726,12 @@ def first_with_both(a, b, head):
 
 
 def default_pin(head):
-    """The newest commit in head's history, where head is main's head, that
-    changed the script or the template; for two such commits on branches merged separately, the
-    first commit on head's first-parent line holding both."""
+    """The commit to pin, given main's head. Of the newest commit in head's
+    history that changed the script and the newest that changed the
+    template, the later, when one is in the other's history. When neither
+    is (GitHub's compare says they diverged), the first commit on head's
+    first-parent line whose history holds both. Raises StackError when no
+    commit holds both."""
     a, b = newest_commit(head, CI_SCRIPT), newest_commit(head, CI_TEMPLATE)
     if a == b:
         return a
@@ -4902,7 +4918,9 @@ def main(argv=None):
     su.add_argument("--repo")
     su.add_argument("--sha", help="the commit on shared-skills' main to pin (default: the "
                                    "newest commit on main that changed spec_check.py or "
-                                   "the workflow template)")
+                                   "the workflow template, or, when the two were merged "
+                                   "separately, the first commit on main's first-parent "
+                                   "line holding both)")
     su.add_argument("--force", action="store_true")
     su.set_defaults(fn=cmd_setup_ci)
 

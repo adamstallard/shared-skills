@@ -229,10 +229,17 @@ python3 ~/.agents/skills/spec-check/scripts/spec_check.py setup-ci
 ```
 
 writes `.github/workflows/spec-check.yml`. Each run of that workflow
-downloads `spec_check.py` from GitHub at the commit the file pins: the
-newest commit on shared-skills' main that changed `spec_check.py` or the
-workflow template, `ci/spec-check.yml`, which setup-ci copies into the
-file. setup-ci reads the pin and the template from GitHub with gh, so it
+downloads `spec_check.py` from GitHub at the commit the file pins.
+setup-ci finds the newest commit on shared-skills' main that changed
+`spec_check.py` and the newest that changed the workflow template,
+`ci/spec-check.yml`, which setup-ci copies into the file. The pin must
+hold both changes, because setup-ci copies the template as it stands at
+the pin, and the workflow's steps must match the script each run
+downloads. When one of the two commits is in the other's history, the
+later one holds both and is the pin. Otherwise the two commits came from
+branches merged separately, and neither holds the other's change. The
+pin is then the first commit on main's first-parent line whose history
+holds both commits, usually the second merge. setup-ci reads the pin and the template from GitHub with gh, so it
 needs gh installed and signed in, but no clone of shared-skills.
 `--sha <commit>` pins another commit on main instead, and `--force`
 replaces an existing workflow. Commit it, then make `spec-check` a

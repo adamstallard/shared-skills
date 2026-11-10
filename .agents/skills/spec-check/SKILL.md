@@ -576,8 +576,14 @@ stderr.
 
 **Setting up a repository.** When it has `.github/workflows/`, offer to add
 spec-check's workflow: `python3 $SC/spec_check.py setup-ci` writes
-`.github/workflows/spec-check.yml`, pinned to the newest commit on
-shared-skills' main that changed this script or the workflow template.
+`.github/workflows/spec-check.yml`, pinned to a commit on
+shared-skills' main that holds the newest change to both this script and
+the workflow template (`ci/spec-check.yml`), so that the workflow's steps
+match the script each run downloads. When one of the two newest commits
+that changed them is in the other's history, the pin is the later one.
+When they came from branches merged separately, neither holds the other's
+change, and the pin is the first commit on main's first-parent line whose
+history holds both, usually the second merge.
 setup-ci reads the pin and the template from GitHub, so gh must be
 installed and signed in. Commit it, and suggest making the `spec-check` check required
 in the base branch's protection rules.
