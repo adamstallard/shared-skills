@@ -52,7 +52,32 @@ It reports `file:line: error|check [kind] message`, then the results of
 Exit 0: no errors. Exit 1: errors to fix. Exit 2: it could not run, and says
 why.
 
-**It needs OpenSpec 1.16.1 or later on PATH** (`npm install -g
+Checking a change, by name or as one of every open change, also checks the
+decision records under `openspec/specs/` (see
+[Decision records](#decision-records)) that the change bears on. `sign`,
+which signs a commit (see [Commit](#commit)), checks the same records for
+each change under `openspec/changes/` that the commit stages:
+
+- the record of each capability the change touches;
+- each record whose *Paths* line, which lists the files the record governs,
+  names a file the branch has changed since it left the base branch;
+- each record the branch edits, or whose kept file the branch edits (the
+  `.spec-check-kept` file beside the record; see
+  [Keeping a line the evolution check flags](#keeping-a-line-the-evolution-check-flags)).
+
+`check` and `sign` cover the same records, so one run of `check` finds every
+record error that would make `sign` refuse the change's commit. A commit
+that stages a record makes `sign` check every record, so before such a
+commit run `check specs` too.
+
+A shallow clone may hold too little history to reach the commit where the
+branch left the base branch. Then no one can tell which lines of a record the
+branch changed. So `check` and `sign` skip the `evolution` check, which flags
+lines that record history, on that record, and report a finding of severity
+`check` saying so. Run `git fetch --unshallow` to fetch the full history so
+the record's changed lines are checked.
+
+**spec_check.py needs OpenSpec 1.16.1 or later on PATH** (`npm install -g
 @fission-ai/openspec`), and reads specs and deltas only through it:
 `openspec show --json` for requirements, `openspec validate --strict --json`
 for what a delta drops or misfiles, `openspec archive --json` for whether a

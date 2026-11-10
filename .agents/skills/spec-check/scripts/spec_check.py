@@ -1076,18 +1076,52 @@ class Base:
         return self._lines[path]
 
     def merge_base_text(self, path):
-        """path's text at the merge base of the base ref and the commit the
-        change is read from (HEAD for the working tree or the staged tree),
-        or None when it is not there or there is no merge base."""
-        head = "HEAD"
-        if self.change is not None and git(self.repo, "rev-parse", "-q", "--verify",
-                                           f"{self.change}^{{commit}}",
-                                           check=False).returncode == 0:
-            head = self.change
-        out = git(self.repo, "merge-base", self.ref, head, check=False)
-        if out.returncode != 0 or not out.stdout.strip():
+        """path's text at the merge base of the base ref and the head commit
+        (merge_head; the function merge_base finds the merge base). None
+        when path is not there, or when there is no head commit yet (HEAD
+        on a branch with no commit), since then every line is new.
+        NO_MERGE_BASE when the head commit exists but git finds no merge
+        base with the base ref. A base ref that does not resolve never gets
+        here: check_main_records skips the diff when base.ok is false."""
+        head = merge_head(self.repo, self.change)
+        if head is None:
             return None
-        return show_text(self.repo, out.stdout.split()[0], path)
+        mb = merge_base(self.repo, self.ref, self.change)
+        if mb is None:
+            return NO_MERGE_BASE
+        return show_text(self.repo, mb, path)
+
+
+# What Base.merge_base_text returns when the base ref and the head commit
+# share no commit, as in a shallow clone. Which lines the branch changed is
+# then unknown, so check_record_diff skips the record with a note. None means
+# the merge base lacks the file, so every line is new and each is read;
+# folding the two together would flag lines the branch never changed.
+NO_MERGE_BASE = object()
+
+
+def merge_head(repo, ref=None):
+    """The head commit, the one the change is read from: ref when it names a
+    commit, else HEAD. HEAD covers the working tree (ref None), and the tree
+    id sign passes as ref, which names no commit. None when HEAD has no
+    commit yet."""
+    for head in ([ref] if ref is not None else []) + ["HEAD"]:
+        if git(repo, "rev-parse", "-q", "--verify", f"{head}^{{commit}}",
+               check=False).returncode == 0:
+            return head
+    return None
+
+
+def merge_base(repo, base_ref, ref=None):
+    """The merge base of base_ref and merge_head. None when there is none,
+    or when there is no head commit."""
+    head = merge_head(repo, ref)
+    if head is None:
+        return None
+    out = git(repo, "merge-base", base_ref, head, check=False)
+    if out.returncode != 0 or not out.stdout.strip():
+        return None
+    return out.stdout.split()[0]
 
 
 def check_citations(paths, corpus, base, out):
@@ -2087,6 +2121,11 @@ def check_record_diff(rel, text, base, out):
     (EVOLUTION_CREDITS). Lines the branch leaves alone are not read. The
     record's kept file (record_kept) clears the ones a person kept."""
     old = base.merge_base_text(rel)
+    if old is NO_MERGE_BASE:
+        out.append(Finding(rel, 0, "check", "evolution",
+                           f"no merge base with {base.ref}, so the lines the branch changes in "
+                           "this record are unknown and were not read for history"))
+        return
     changed = changed_lines(old, text)
     for n, phrase, why, line in evolution_hits(text, EVOLUTION_CREDITS):
         if n in changed:
@@ -2099,13 +2138,14 @@ def check_record_diff(rel, text, base, out):
             out.append(f)
 
 
-def check_main_records(corpus, base, out):
-    """Checks on every main record; returns the report lines of the
-    evolution errors the records' kept files clear (apply_kept_in)."""
+def check_main_records(corpus, base, out, only=None):
+    """Checks every main record, or only the records in the set `only`,
+    appending findings to out. Returns the report lines of the evolution
+    errors that a record's kept file waives (apply_kept_in)."""
     kept = []
     caps = {spec_cap(p) for p in corpus.specs}
     pending_caps = {cap for c in corpus.changes for cap in change_deltas(corpus, c)}
-    for rel in sorted(corpus.records):
+    for rel in sorted(corpus.records if only is None else only):
         cap = record_cap(corpus.template, rel)
         spec = f"openspec/specs/{cap}/spec.md"
         # A Rationale entry's title is checked against its capability's
@@ -2216,14 +2256,19 @@ def check_rationale(reqs, corpus, out):
 
 
 def changed_files(repo, base_ref, ref=None):
-    """The files the branch changes against its merge base with base_ref:
-    of ref, or of the working tree (staged, unstaged and untracked) with
-    none. None when there is no merge base."""
-    head = ref or "HEAD"
-    out = git(repo, "merge-base", base_ref, head, check=False)
-    if out.returncode != 0 or not out.stdout.strip():
+    """The files the branch changes against its merge base with base_ref
+    (merge_base). When ref is given, a commit or the staged tree, they are
+    ref's; when ref is None, the working tree's, staged, unstaged and
+    untracked. With no head commit (merge_head is None), every file in the
+    tree is listed, matching Base.merge_base_text, which then counts every
+    line as new. None when there is no merge base."""
+    if merge_head(repo, ref) is None:
+        names = git(repo, *(("ls-tree", "-r", "--name-only", ref) if ref else
+                            ("ls-files", "--cached", "--others", "--exclude-standard"))).stdout
+        return sorted(set(n for n in names.splitlines() if n))
+    mb = merge_base(repo, base_ref, ref)
+    if mb is None:
         return None
-    mb = out.stdout.split()[0]
     if ref:
         names = git(repo, "diff", "--name-only", "--no-renames", mb, ref).stdout.splitlines()
     else:
@@ -2243,17 +2288,20 @@ def delta_titles(corpus, change, cap):
     return delta_requirements(corpus.texts[rel])[0] if rel else set()
 
 
-def records_for(change, corpus, changed):
+def records_for(change, corpus, changed, no_head=False):
     """[(record, why)]: the main record of each capability the change
     touches, then each main record one of whose Paths matches a changed
-    file. A record the branch edits is marked, so the reader reads its diff
-    with the change."""
+    file. A listed record the branch edits is marked, so the consistency
+    reader reads its diff with the change. no_head: the branch has no commit
+    yet, so every file is the branch's own, there is no merge base to diff
+    against, and the mark says to read the record whole."""
     out, seen = [], set()
     edited = set(changed or [])
+    note = ("; the branch adds it: read it whole" if no_head
+            else "; the branch edits it: read its diff against the merge base")
 
     def why(rel, text):
-        return text + ("; the branch edits it: read its diff against the merge base"
-                       if rel in edited else "")
+        return text + (note if rel in edited else "")
 
     for cap in sorted(change_deltas(corpus, change)):
         rel = record_path(corpus.template, cap)
@@ -2276,6 +2324,19 @@ def records_for(change, corpus, changed):
         if hit:
             out.append((rel, why(rel, f"its Paths {hit[0]} matches {hit[1]}")))
     return out
+
+
+def records_checked_with(change, corpus, changed):
+    """The main records a change's check (`check <change>`, and `sign` for a
+    staged change) covers: those records_for lists for
+    the consistency read (the records of the capabilities the change
+    touches, and each record whose Paths match a changed file), plus each
+    record the branch edits or whose kept file it edits. changed: the files
+    the branch changes, or None when there is no merge base to diff
+    against; then only records_for's capability records are found."""
+    edited = set(changed or [])
+    return {rel for rel, _ in records_for(change, corpus, changed)} | \
+        {rel for rel in corpus.records if rel in edited or record_kept(rel) in edited}
 
 
 # -- stacked changes -------------------------------------------------------------
@@ -3733,6 +3794,11 @@ def run_checks(root, repo, base_ref, targets, validate, base_required=False, cha
     base = Base(repo, base_ref, change)
     if not base.ok and base_required:
         raise Fatal(f"the base {base_ref!r} does not resolve to a commit")
+    # change is the tree-ish read from (None for the working tree). Compute
+    # the branch's changed files now: the loop below rebinds the name change
+    # to each change's name. With "specs" a target, every record is checked,
+    # so no list is needed.
+    changed = changed_files(repo, base_ref, change) if not specs else None
     findings, statuses, archives = list(corpus.config_findings), [], []
     stacks, declared, kept = [], {}, []
     main_names = {(spec_cap(p), r.name) for p, rs in corpus.specs.items() for r in rs}
@@ -3803,6 +3869,9 @@ def run_checks(root, repo, base_ref, targets, validate, base_required=False, cha
             v, status = run_validate(root, change, known)
             findings += v
             statuses.append((change, status))
+    if changes and not specs:
+        kept += check_main_records(corpus, base, findings, only=set().union(
+            *(records_checked_with(c, corpus, changed) for c in changes)))
     if specs:
         reqs = [r for rs in corpus.specs.values() for r in rs]
         check_scenarios(reqs, findings)
@@ -4587,7 +4656,7 @@ def cmd_records(args):
             raise Fatal("records takes a change's name")
         (change,) = changes
         changed = changed_files(repo, base_ref, args.ref)
-        found = records_for(change, corpus, changed)
+        found = records_for(change, corpus, changed, merge_head(repo, args.ref) is None)
         for rel, why in found:
             print(f"{rel}  ({why})")
         if not found:
