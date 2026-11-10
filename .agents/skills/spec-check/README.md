@@ -134,10 +134,10 @@ prove it.
 Install it by asking your agent: "Install the spec-check skill". Installing
 turns on its hooks (see below).
 
-spec-check needs OpenSpec 1.16.0 or later on `PATH` (`npm install -g
-@fission-ai/openspec`). It reads the requirements of every spec and change
-through the OpenSpec CLI only. Without that version, the checks on
-requirements are reported as not run.
+spec-check reads the requirements of every spec and change through the
+OpenSpec CLI only, so it needs OpenSpec 1.16.1 or later on `PATH` (`npm
+install -g @fission-ai/openspec`). With no `openspec` on `PATH`, or one
+older than 1.16.1, the checks on requirements are reported as not run.
 
 Nothing needs setting up per repository. To keep decision records somewhere
 other than beside each spec, write `openspec/spec-check.yaml` with one line:
@@ -240,8 +240,8 @@ there it fails the check without making a draft.
 
 ## Troubleshooting
 
-- **`not run: install OpenSpec 1.16.0 or later`.** The `openspec` CLI is
-  not on `PATH`, or is older than 1.16.0. The requirement checks, validation
+- **`not run: install OpenSpec 1.16.1 or later`.** The `openspec` CLI is
+  not on `PATH`, or is older than 1.16.1. The requirement checks, validation
   and the archive did not run; citations and the `renamed-block` scan did.
   A stacked change also gets a `stack` error, since its dependencies are read
   and archived with the same CLI. Install or update OpenSpec (`npm install -g

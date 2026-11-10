@@ -52,14 +52,15 @@ It reports `file:line: error|check [kind] message`, then the results of
 Exit 0: no errors. Exit 1: errors to fix. Exit 2: it could not run, and says
 why.
 
-**It needs OpenSpec 1.16.0 or later on PATH** (`npm install -g
+**It needs OpenSpec 1.16.1 or later on PATH** (`npm install -g
 @fission-ai/openspec`), and reads specs and deltas only through it:
 `openspec show --json` for requirements, `openspec validate --strict --json`
 for what a delta drops or misfiles, `openspec archive --json` for whether a
 change applies. Without it, each check that needs a requirement reports
-`not run: install OpenSpec 1.16.0 or later` and why, such as `(this one is
-1.14.3)`; citations, `Builds on:` lines and the `renamed-block` scan still
-run, and a stacked change gets a `stack` error.
+`not run: install OpenSpec 1.16.1 or later` and why, such as `(this one is
+1.14.3)`. Citations, the check that each `Builds on:` line can be read, and
+the `renamed-block` scan still run, and a stacked change gets a `stack`
+error.
 
 | Kind | Severity | What it means |
 | --- | --- | --- |
@@ -104,7 +105,7 @@ refusal is an `archive` error at the requirement it is about, or at line 0
 of the delta file when it is about the file as a whole. OpenSpec stops at
 its first refusal, so fix it and run `check` again to see the next.
 
-Without OpenSpec 1.16.0 or later on PATH, an unstacked change gets the line
+Without OpenSpec 1.16.1 or later on PATH, an unstacked change gets the line
 `openspec archive (<change>): not run`, saying why; a stacked one gets a
 `stack` error.
 
@@ -136,7 +137,7 @@ merge main.
 
 `check` and `sign` read each dependency from its pull request's head commit
 (`gh pr view` and `git fetch`; nothing is checked out), so stacked changes
-need `gh`, the network and OpenSpec 1.16.0 or later. Each dependency is
+need `gh`, the network and OpenSpec 1.16.1 or later. Each dependency is
 handled by its pull request's state:
 
 - **Open, or closed without merging.** In line order, `check` archives each
@@ -163,7 +164,7 @@ already sits is not reported again.
 **`stack` errors.** Each blocks; none is a pass:
 - a `Builds on:` line that cannot be read or is listed twice, or a change
   that names itself;
-- the OpenSpec CLI missing from PATH, or older than 1.16.0;
+- the OpenSpec CLI missing from PATH, or older than 1.16.1;
 - a dependency that cannot be read, or a delta in it where `openspec show`
   reads nothing;
 - a pull request that holds no change of the name on the line: the line
@@ -501,8 +502,10 @@ OpenSpec's /opsx skills, offer to merge the `rules:` block of
 each artifact, even one that never loads this skill; they are advice, and
 the checks and the consistency read still enforce.
 
-Without OpenSpec 1.16.0 or later, `sign` still signs, and the value says
-`show, validate and archive not run (install OpenSpec 1.16.0 or later)`.
+Without OpenSpec 1.16.1 or later, `sign` still signs an unstacked change,
+and the value says `show, validate and archive not run (install OpenSpec
+1.16.1 or later)`. A stacked change gets a `stack` error instead, so `sign`
+refuses it.
 For work in progress, skip `sign` and write the value yourself: `skipped
 (<reason>)`. A skip note records no read.
 
