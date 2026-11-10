@@ -73,7 +73,3 @@
 - **Rationale: A session with no person in it asks in a post, a handback or nowhere.**
   An Igor worker asks only in its handback comment because igor gives it no credential that can post: its environment holds only its seat's token, a credential for its model provider.
   Evidence: igor's requirement *The worker is given an explicit environment holding no credential but its seat's*, https://github.com/adamstallard/igor/blob/main/openspec/specs/task-execution/spec.md
-
-- **Rationale: A relay App is one its person's counted relay file lists.**
-  A person may own other Apps, such as their own Igor's, whose code posts text no hook sees, so only the Apps their counted relay file lists may speak for them. A reader never counts an App whose slug starts `igor-` as a relay App, even where a relay file lists it, so a person's own Igor cannot speak for them. That every Igor's App carries the prefix rests on igor PR #216, still open, which specifies that an Igor whose App's slug lacks it refuses to start.
-  Evidence: igor PR #216's decision 62, https://github.com/adamstallard/igor/pull/216

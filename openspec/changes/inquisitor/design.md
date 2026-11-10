@@ -802,10 +802,10 @@ means an option with a value, such as `-W ignore`, cannot hide it. A list of
 commands that run text as code is never complete, as prose's `DECISIONS.md`
 says, and git alone has many (`git config alias.p '!…' && git p`, `git
 difftool -x`, `git filter-branch --tree-filter`); a list of git subcommands
-that never take code is complete. prose's hook calls the same reader, so it
-blocks these forms too; task 1.3 removes prose's `DECISIONS.md` claim that a
-script handed to another interpreter (`python3 - <<'EOF'`, `node -e`) and git
-aliases are outside its hook's reach.
+that never take code is complete. prose's hook calls the same reader, so on a line
+that mentions a gh post verb it blocks these forms too, including a script
+handed to an interpreter other than the shell (`python3 - <<'EOF'`, `node
+-e`) and git aliases.
 
 *Recorded:* `openspec/specs/gh-post/decisions.md`, *Constraint: `git commit`
 and `git push` run the repository's git hooks, which can run anything, and
@@ -889,9 +889,9 @@ inquisitor's hook vets a question in it, and prose's hook checks only that it
 is readable,** since a one-line title can't carry a footer; a call with a title
 and no body passes prose's hook. A title built by the shell, such as `--title
 "$(git log -1 --format=%s)"`, or a title edit chained to another command, such
-as `cd x && gh pr edit 3 --title 'Rename?'`, is unreadable. prose's
-`DECISIONS.md` lets the chained edit pass (its paragraph "Titles are not
-checked"); task 1.3 updates that paragraph.
+as `cd x && gh pr edit 3 --title 'Rename?'`, is unreadable, since the reader
+reads a `gh pr` or `gh issue` post only as a whole command line (gh-post spec:
+*The reader reads a gh pr or gh issue post only as a whole command line*).
 
 #### The post hook blocks a reserved prefix on GitHub
 
@@ -975,9 +975,10 @@ so it would apply one person's way of working to everyone.
 
 #### prose's pass skips `.inquisitor/`
 
-**prose's pass skips files under `.inquisitor/`** (task 5.6). A log or miss
-file quotes a question as asked, and what a person said, word for word;
-prose's rewrite would change it.
+**prose's pass skips files under `.inquisitor/`** (task 5.6; inquisitor
+spec: *prose's pass skips files under .inquisitor/*). A log or miss file
+quotes a question as asked, and what a person said, word for word; prose's
+rewrite would change it.
 
 #### Nothing goes somewhere more visible than its source
 
@@ -1269,8 +1270,11 @@ Igor's run holds no run id*, which gives a citation's only keys, `entry` and
 
 #### Questions-branch commits are machine records
 
-That branch is never checked out, so prose's and bug-hunter's checks never
-see these commits; at archive, their `DECISIONS.md` files say so. igor
+A lore repository's questions branch is never checked out, so prose's and
+bug-hunter's checks never
+see these commits, which carry no trailer (inquisitor spec: *An
+organization's question is pushed to its lore repository's questions
+branch*). igor
 PR #153, igor's signed-publishing change, should exempt an Igor's citation
 commits from the trailers it requires on an Igor's commits; that is #153's
 to settle.
@@ -1712,9 +1716,7 @@ or its signature*, scenario *A relayed answer proves its writer*).
 
 **A reader recognises an Igor's App by the `igor-` prefix of its slug, and
 never counts it as a relay App, even where a relay file lists it (igor
-PR #216's decision 45).** The inquisitor's decision record, *Rationale: A
-relay App is one its person's counted relay file lists*, gives why the
-prefix can be relied on.
+PR #216's decision 45).**
 
 *Ruled out by a scenario* (same scenario as above): recognising an Igor's App
 from the lore repository's Igor configuration, since igor's role-config spec
@@ -1984,7 +1986,9 @@ Task 6.1's rules, which apply *The answer session*'s rule that the spec wins:
 
 #### Some answer-session details are decided at implementation
 
-**These are decided at implementation, with no requirement added; task 6.11
+**These are decided at implementation. When each choice is made, it becomes
+a requirement with a scenario if a test can check it, and otherwise a
+decision-record entry with evidence; this section links to it, and task 6.11
 lists them:**
 
 - how a question's options are parsed from its thread;
@@ -3043,8 +3047,9 @@ to its 149.
 
 ### Left to implementation
 
-- **Task 6.11's details are chosen at implementation, with no requirement
-  added,** and recorded in design.md while the change is open. *Some
+- **Task 6.11's details are chosen at implementation,** and each becomes a
+  requirement with a scenario, or a decision-record entry with evidence,
+  when it is made. *Some
   answer-session details are decided at implementation* lists them and what is
   decided around them.
 - **Where a machine keeps when it first fetched a questions-branch commit,**

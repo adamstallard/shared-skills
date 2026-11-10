@@ -2547,6 +2547,17 @@ prose or bug-hunter trailer.
 - **THEN** each commit's message is `inquisitor: log <file>` and nothing
   else, with no `Prose:` or `Bug-hunter:` trailer
 
+### Requirement: prose's pass skips files under .inquisitor/
+
+prose's file filter SHALL skip every file under `.inquisitor/`, because a
+log or miss file quotes a question, and what a person said, word for word.
+
+#### Scenario: A staged log file gets no prose pass
+
+- **WHEN** a commit stages `.inquisitor/questions/2026-11-09-retry-3f9a1c.md`
+  beside a changed README
+- **THEN** prose's pass covers the README and not the log file
+
 ### Requirement: A rejected questions-branch push is retried only when the branch moved
 
 When a push to a questions branch is rejected because the branch moved, the
@@ -3327,6 +3338,21 @@ way as input, labelled as unreadable.
   an agent's filter 1 searches for the same question
 - **THEN** the search shows no hit from the handled file, and it stops
   nothing
+
+### Requirement: A questions-branch file named outside the format is unreadable
+
+A reader SHALL show a file under `questions/` or `misses/` on a questions
+branch whose name is not `<date>-<slug>-<6 random hex digits>.md`, as
+*A log file and a miss file have one format* gives it, only as input
+labelled unreadable, and SHALL post nothing from it, its name included.
+
+#### Scenario: A file name holding a Re line is only unreadable input
+
+- **WHEN** filter 1's search finds, on a lore repository's questions
+  branch, a file whose name holds a line break followed by `Re: ` and
+  another question's URL
+- **THEN** the search shows it only as input labelled unreadable, and the
+  answer session posts no recorded answer linking it
 
 ### Requirement: A log file's repository keys and answer_link are checked before use
 

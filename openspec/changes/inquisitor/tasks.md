@@ -222,9 +222,7 @@ contradicts what design.md assumed.
         an issue or pull request, and a GitHub MCP `title` key. A title it
         can't read, one built by the shell, and a title edit chained to
         another command are unreadable (design.md: *A post's title is read
-        and vetted*). Rewrite the paragraph "Titles are not checked" in
-        prose's `DECISIONS.md`, under *The posting hook reads an
-        allow-list*, to say a title is read
+        and vetted*).
       - It reads `python3 <github-app script> gh pr|issue|api …` posts,
         including `python3 $G …` only when the same command assigns `G`,
         and judges a `gh api` call through the script exactly as the same
@@ -239,8 +237,7 @@ contradicts what design.md assumed.
         builds, each with a test, and a read piped into `python3 -c`
         passing. Check each case against `gh api --help` and gh's
         behaviour, not only this list (design.md: *A gh api call counts
-        only when it can write*). Say in prose's `DECISIONS.md` that its
-        hook now counts such a call
+        only when it can write*).
       - It reads an unquoted `--body` or `-b` of one word holding no `$`,
         backtick, `*`, `?`, `[`, `{`, `~` or `\`, such as `--body hi`,
         `-bhi` or `--body=hi`, as that word, as prose's reader does
@@ -261,20 +258,16 @@ contradicts what design.md assumed.
         and a review whose comments it can't read.
       - It applies the closed list of gh post verbs, and blocks as
         unreadable, as prose's reader does today, a command that names
-        `gh` in another command's arguments, such as `sh -c`, or that
+        `gh`, followed by another word, in another command's arguments,
+        such as `sh -c`, unless that command is a data command given no
+        code (gh-post spec: *The reader reads only gh's own top-level
+        commands*), or that
         pipes into a command other than a data command.
       - On a line that mentions a gh post verb, it blocks as unreadable
         an interpreter with a code flag anywhere among its words, such as
         `python3 -W ignore -c`, `node -pe` or `perl -e`, and input from a
         pipe or heredoc reaching `python`, `python3` or `node` (design.md:
         *Code given on the command line beside a gh post verb*).
-      - Once the reader has moved, prose's `DECISIONS.md` section on the
-        allow-list points at the library's list instead of restating it.
-        Its section *A command that runs no gh post is not a post* keeps
-        its reasons, points at the `gh-post` spec for the rules of reading
-        a line, and drops the claims that a script handed to another
-        interpreter (`python3 - <<'EOF'`, `node -e`) and git aliases are
-        outside the hook's reach and that `rebase -x` is out of scope
 
 ## 2. The script
 
@@ -507,9 +500,10 @@ contradicts what design.md assumed.
 - [ ] 5.5 github-app's `SKILL.md`: every example that runs `python3 $G`
       sets `G` in the same command, or writes the script's full path, so
       the post hooks don't block it (design.md: *Posts sent through the github-app skill's script*)
-- [ ] 5.6 prose's file filter skips files under `.inquisitor/` (design.md:
-      *prose's pass skips `.inquisitor/`*), shipping with the skill,
-      because the skill writes `.inquisitor/` files from gate two on
+- [ ] 5.6 prose's file filter skips files under `.inquisitor/` (inquisitor
+      spec: *prose's pass skips files under .inquisitor/*), shipping with the skill,
+      because the skill writes `.inquisitor/` files from gate two, this
+      change's implementation, on
 - [ ] 5.7 Change bug-hunter's SKILL.md so that Step 9 runs each
       recommendation in its report through the inquisitor skill's four
       filters before asking about it: a root cause, a finding too large
@@ -647,7 +641,7 @@ contradicts what design.md assumed.
       decline), and the rephrased answer's post. SKILL.md tells an agent
       that records an answer from a relay post to log its rephrasing and
       summary
-- [ ] 6.7 prose's SKILL.md and `DECISIONS.md` say that a relay post gets
+- [ ] 6.7 prose's SKILL.md says that a relay post gets
       no prose pass, because it is the person's words, and an automatic
       post none, because its text is fixed (design.md: *A relay post gets no
       prose pass and no vetting*; *What the answer session posts by
@@ -792,9 +786,11 @@ contradicts what design.md assumed.
           no one on an unassigned item and never to this person on an
           item assigned to someone else (design.md: *A handback that
           mentions no one reaches the assignee*).
-- [ ] 6.11 Decide at implementation, with no requirement added, and
-      record each choice in design.md while the change is open (design.md:
-      *Some answer-session details are decided at implementation*): how a
+- [ ] 6.11 Decide at implementation, and when each choice is made, add
+      it to the spec as a requirement with a scenario or, if no test can
+      check it, to the answer-session decision record as an entry with
+      evidence; design.md only links to it (design.md: *Some answer-session
+      details are decided at implementation*): how a
       question's options are parsed from its thread; a draft's privacy,
       beyond its being written at the privacy of what the question
       concerns; an asker's reply revising the options; and the UI of the
@@ -841,12 +837,7 @@ contradicts what design.md assumed.
       `openspec/specs/lore-firing/spec.md` on main, and its link to
       *Transcripts and outcomes are captured to the state branch* at
       igor's `openspec/specs/task-execution/spec.md` on main
-- [ ] 7.1 Say in prose's and bug-hunter's `DECISIONS.md` that the
-      inquisitor's commits to a lore `questions` branch are machine records,
-      exempt from their trailers, and say in prose's `DECISIONS.md` that
-      its file filter skips files under `.inquisitor/` (task 5.6) because
-      they are records quoted word for word
-- [ ] 7.2 Archive with plain `openspec archive`. This pull request already
+- [ ] 7.1 Archive with `openspec archive` and no flags. This pull request already
       edits the decision records, `openspec/specs/inquisitor/decisions.md`,
       `openspec/specs/answer-session/decisions.md` and
       `openspec/specs/gh-post/decisions.md`, and archiving leaves them as

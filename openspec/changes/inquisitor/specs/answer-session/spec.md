@@ -2100,11 +2100,11 @@ is pushed once its close takes effect* says of a handled file.
 ### Requirement: Four reserved prefixes mark the answer session's posts
 
 The answer session SHALL start a post with `User says: ` or
-`User asks: ` only once the person confirms all of it, and make an
-automatic post only as *An automatic post's text is fixed by the answer
-session* says. No other post SHALL use a reserved prefix, as
-the skill's instructions SHALL say; outside the holder, the session
-holding the lock, only the inquisitor's GitHub post hook blocks one. An
+`User asks: ` only once the person confirms it whole, and an automatic
+post only as *An automatic post's text is fixed by the answer session*
+says. No other post SHALL start with any of the four reserved prefixes.
+Outside the holder only the GitHub post hook blocks one; in
+it, Linear and Discord posts go only through the answer session. An
 automatic post SHALL be posted as a relay post is, and never shown as the
 person's words.
 
@@ -2450,11 +2450,15 @@ write none of the post.
 
 #### Scenario: A hit whose URL holds a line break is shown, not posted
 
-- **WHEN** filter 1's hit for an agent's question is a questions-branch
-  file whose name holds a line break followed by `Re: ` and another
-  question's URL, or a file whose URL holds a space
+- **WHEN** filter 1's hit for an agent's question is a decision document
+  whose path holds a line break followed by `Re: ` and another question's
+  URL, or one whose URL holds a space
 - **THEN** nothing is posted by itself, and the person is shown the
   question with the recorded answer beside it
+- **AND** a questions-branch file whose name holds a line break or a space
+  is not shown as a recorded answer at all, only as unreadable input, as
+  the inquisitor's *A questions-branch file named outside the format is
+  unreadable* says
 
 ### Requirement: A recorded answer is posted by itself only when no more private than its thread
 

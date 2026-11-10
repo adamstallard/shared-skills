@@ -86,18 +86,38 @@ post verb SHALL send no post.
 ### Requirement: The reader reads only gh's own top-level commands
 
 A `gh` command whose first word after `gh` is not one of gh's top-level
-commands, fixed in the reader, such as an alias or extension, SHALL be
-unreadable wherever it appears, even where another requirement says no
-post, bar a line that only runs prose's script. Both a simple command
-whose command is `gh` and the word `gh`, quoted or not, in another's text
-count as `gh` commands, unless that other is a data command (*A line
-whose simple commands send no text is no post*) given no code.
+commands, such as an alias or extension, SHALL be unreadable wherever it
+appears, even where another requirement says no post, bar a line that
+only runs prose's script. A simple command whose command is `gh` is a
+`gh` command, as is the word `gh`, quoted or not, followed by another
+word in another command's text, unless that command is a data command
+(*A line whose simple commands send no text is no post*) given no code.
+
+#### Scenario: gh's top-level commands are a closed list
+
+- **WHEN** a hook asks about a `gh` command
+- **THEN** the reader takes as gh's top-level commands, as gh 2.103.2
+  lists them, `agent-task`, `alias`, `api`, `attestation`, `auth`,
+  `browse`, `cache`, `codespace`, `completion`, `config`, `copilot`,
+  `discussion`, `extension`, `gist`, `gpg-key`, `help`, `issue`, `label`,
+  `licenses`, `org`, `pr`, `preview`, `project`, `release`, `repo`,
+  `ruleset`, `run`, `search`, `secret`, `skill`, `ssh-key`, `status`,
+  `variable` and `workflow`
+- **AND** gh's default alias `co` is not among them
 
 #### Scenario: A gh alias or extension is unreadable
 
 - **WHEN** a hook asks about `gh c 5 -b 'User says: yes'`, where `c` is
-  not one of gh's own commands
+  aliased to `pr comment`, a line that mentions no gh post verb
 - **THEN** the reader reports the command as unreadable
+
+#### Scenario: A bare gh in another command's text is no gh command
+
+- **WHEN** a hook asks about `brew upgrade gh`, or about `which gh`
+- **THEN** the reader reports that each command sends no post
+- **AND** `ls ~/.config/gh hosts.yml` is unreadable: the path ending in
+  `/gh` names `gh`, another word follows it, and that path keeps `ls`
+  from counting as a data command
 
 #### Scenario: A gh alias run by another command is unreadable
 
@@ -547,13 +567,21 @@ verb.
   python3 -c 'print(1)'`, and about `gh api search/issues?q=x`
 - **THEN** the reader reports that each line sends no post
 
-#### Scenario: A gh api call the reader cannot see whole mentions a post verb
+### Requirement: A gh api call holding a word the shell builds is unreadable
+
+A `gh api` call holding a word that is not literal SHALL be unreadable,
+except an endpoint holding `?` or gh's `{owner}`, `{repo}` and
+`{branch}` placeholders, which the shell cannot turn into a flag or a
+field, and the github-app form's `$G`.
+
+#### Scenario: A gh api call the reader cannot see whole is unreadable
 
 - **WHEN** a hook asks about `gh api repos/o/r/issues/5/comments $F`,
   `gh api -X "$M" repos/o/r/issues/5`, `cat a | xargs gh api
   repos/o/r/issues/5/comments`, or `sh -c 'gh api
   repos/o/r/issues/5/comments "$@"' _ -f body=x`
-- **THEN** none is a read, and each line mentions a gh post verb
+- **THEN** none is a read, each line mentions a gh post verb, and the
+  reader reports each as unreadable, though `$F` could hold no field
 
 ### Requirement: A gh api call writes by its method, fields, input or a mutation
 

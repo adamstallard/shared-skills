@@ -108,8 +108,8 @@ None.
   `relays/<login>.yaml` on its default branch, and a `relay-notice.yml`
   workflow that mentions a relay file's person on a pull request changing
   it.
-- prose: its pass skips files under `.inquisitor/`, and its `DECISIONS.md`
-  says why.
+- prose: its pass skips files under `.inquisitor/`, because a log or miss
+  file quotes a question, and what a person said, word for word.
 - github-app: its SKILL.md's examples hold the skill's script path in the
   shell variable `G`. They set `G` in the same command as each use, or write
   the script's full path, since the shared post reader reads `$G` only when
