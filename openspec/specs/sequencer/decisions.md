@@ -1,14 +1,12 @@
 # sequencer: constraints, rejected alternatives and rationale
 
-## Constraints
-
-- **Constraint: A `publish` run in a session can race the workflow's run, and the later write wins until the next run.**
-  Because: only the workflow's runs share a concurrency group, so nothing serialises a session's publish with them.
-  Evidence: a GitHub Actions `concurrency` group serialises only that workflow's runs, https://docs.github.com/en/actions/using-jobs/using-concurrency
-  Holds while: sessions and the workflow publish to the same bodies with no lock between them.
-  Paths: .agents/skills/sequencer/scripts/sequencer.py
-
 ## Rejected
+
+- **Rejected: Locking publishes so that only one runs at a time.**
+  Facing: a session, an Igor and the CI workflow can each run `publish` against the same bodies at once.
+  Lost because: GitHub offers no lock shared by a workflow and processes outside it, since a `concurrency` group serialises only that workflow's runs, https://docs.github.com/en/actions/using-jobs/using-concurrency.
+  Instead: the later write wins until the next run, which recomputes the whole order from the current inputs.
+  Paths: .agents/skills/sequencer/scripts/sequencer.py
 
 - **Rejected: Running the workflow on `pull_request`.**
   Facing: a trigger for the workflow's runs on pull request events.
@@ -30,3 +28,8 @@
 - **Rationale: The workflow runs no code from a pull request.**
   The template triggers on `pull_request_target`, whose runs hold a token that can write to the repository, and the repository's secrets. Code from a pull request's head, run in such a run, would get both, so anyone who opens a pull request, from a fork included, could write to the repository or read its secrets.
   Evidence: GitHub Security Lab shows that a `pull_request_target` workflow has write permission and secrets, and that checking out and building an untrusted pull request in one lets its author run code with them, https://securitylab.github.com/resources/github-actions-preventing-pwn-requests/
+
+- **Rationale: The whole order lives in one issue's body.**
+  A reader who opens an issue with `gh issue view`, the default, sees its title and body and none of its comments, and an agent's piped `gh issue view --comments` prints the comments without the body. An order kept in comments would be missing from the default read, and one kept in the body is missing only from the comments-only read.
+  Evidence: gh's manual says `gh issue view` displays "the title, body, and other information about an issue", and that "When output is piped or redirected, only the comments are printed" with `--comments`, https://cli.github.com/manual/gh_issue_view
+  Evidence: measured on 2026-11-10 UTC with gh 2.103.2, on an issue whose body is 2521 bytes and which has one comment. `gh issue view 168 --repo adamstallard/igor | wc -c` printed 2803 bytes: the title, metadata and body. `gh issue view 168 --repo adamstallard/igor --comments | wc -c` printed 164: the one comment with its author header, and no title or body, https://github.com/adamstallard/igor/issues/168

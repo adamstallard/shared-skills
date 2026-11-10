@@ -52,8 +52,9 @@ including a result that contradicts what design.md assumed.
       markers, editing a body only when that text changes, and removing
       the block of an item that leaves the order
 - [ ] 3.3 Name each item whose body could not be edited
-- [ ] 3.4 Each reviewer's next review, with reviewers from the caller,
-      GitHub's requests or CODEOWNERS
+- [ ] 3.4 Each reviewer's next review, with reviewers from
+      `.github/sequencer.json`, GitHub's requests or CODEOWNERS, and
+      `order --reviewers` for a dry run
 - [ ] 3.5 A test that no command calls a merge, approve, close or reopen
       API
 - [ ] 3.6 `order --json`, which edits nothing

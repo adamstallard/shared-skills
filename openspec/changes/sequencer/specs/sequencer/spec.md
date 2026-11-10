@@ -389,14 +389,28 @@ link to the order's issue.
 
 The order's issue body and each block SHALL lie between the lines
 `<!-- sequencer:begin -->` and `<!-- sequencer:end -->`, and the script
-SHALL change nothing in a body outside them, adding a new block at the
-body's end.
+SHALL change nothing in a body outside them. It SHALL add a new block
+just before the body's last line when that line starts with `prose ✓`,
+so that the signed footer the prose skill puts at the end of posted text
+stays last, and at the body's end otherwise.
 
 #### Scenario: A person's text around a block is untouched
 
 - **WHEN** #90's body holds a person's text before and after its block, and
   the order changes
 - **THEN** only the text between the markers changes
+
+#### Scenario: A new block goes above a prose footer
+
+- **WHEN** #90 enters the order, and its body ends with the line
+  `prose ✓ 3f2a91`
+- **THEN** its new block sits just before that line, which stays the
+  body's last line
+
+#### Scenario: A new block goes at the end of a body with no prose footer
+
+- **WHEN** #91 enters the order, and its body's last line is a person's text
+- **THEN** its new block is added after that line, at the body's end
 
 ### Requirement: A block is rewritten only when the order or its reasons change
 
@@ -451,26 +465,40 @@ order.
 - **WHEN** #93 is a draft requesting review from a reviewer
 - **THEN** #93 is not that reviewer's next review
 
-### Requirement: Reviewers come from the caller, else from GitHub's requests, else CODEOWNERS
+### Requirement: Reviewers come from the repository's config, else from GitHub's requests, else CODEOWNERS
 
-A pull request's reviewers SHALL be the list that the caller running the
-script passes with `--reviewers`, such as an Igor's configured `reviewers`,
-each of whom a non-draft pull request they did not author then awaits; with
-none passed, its requested reviewers on
-GitHub; and when it requests no one, the owners the repository's CODEOWNERS
-file gives its changed files.
+A non-draft pull request SHALL await every login in the `reviewers` list
+of the repository's `.github/sequencer.json` except its author. With no
+such list (no file, no key or an empty list), it SHALL await its
+requested reviewers on GitHub, and when it requests no one, the owners
+CODEOWNERS gives its changed files. Every caller SHALL take reviewers
+this way. `order --reviewers <login>,...` SHALL use that list in place of
+the whole chain, and `publish` SHALL take no reviewer list.
 
-#### Scenario: A passed list makes each pull request await each reviewer
+#### Scenario: A configured list makes each pull request await each reviewer
 
-- **WHEN** a caller passes `--reviewers maya,li`, and `li` authored #97
+- **WHEN** `.github/sequencer.json` lists the reviewers `maya` and `li`,
+  and `li` authored #97
 - **THEN** #97 awaits `maya`'s review, and every other non-draft open pull
   request awaits both
 
 #### Scenario: A pull request requesting no one falls back to CODEOWNERS
 
-- **WHEN** no caller passes reviewers, #96 requests no reviewer, and
-  CODEOWNERS gives `@maya` the files it changes
+- **WHEN** `.github/sequencer.json` does not exist, #96 requests no
+  reviewer, and CODEOWNERS gives `@maya` the files it changes
 - **THEN** #96 is awaiting `@maya`'s review
+
+#### Scenario: A dry run's reviewer list publishes nothing
+
+- **WHEN** a caller runs `order --reviewers maya`
+- **THEN** it prints `maya`'s next review, and no body in the repository
+  changes
+
+#### Scenario: Publish refuses a reviewer list
+
+- **WHEN** a caller runs `publish --reviewers maya`
+- **THEN** the script exits non-zero, saying reviewers come from
+  `.github/sequencer.json`, and edits nothing
 
 ### Requirement: The sequencer recommends a merge order and never merges
 
@@ -662,16 +690,15 @@ worker wrote, while the inputs are unchanged.
 
 ### Requirement: Igor's Sequencer role calls the script as any caller does
 
-An Igor's Sequencer role SHALL run the same commands as any caller and get
-the same order for the same inputs; the reviewers it passes with
-`--reviewers` SHALL be the only input it adds.
+An Igor's Sequencer role SHALL run the same commands as any caller,
+passing no reviewer list or other data that another caller does not
+pass, and publish the same order's issue body for the same inputs.
 
 #### Scenario: The Sequencer role and CI agree
 
-- **WHEN** a Sequencer Igor runs `publish --reviewers maya,li` and the CI
-  workflow runs `publish`, against the same inputs and recorded code edges
-- **THEN** both give the same order, and differ only in the reviewers'
-  next reviews
+- **WHEN** a Sequencer Igor and the CI workflow each run `publish` against
+  the same inputs and recorded code edges
+- **THEN** both give the same text for the order's issue and every block
 
 ### Requirement: The script prints the order for callers without editing anything
 

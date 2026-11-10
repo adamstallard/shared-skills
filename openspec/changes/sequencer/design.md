@@ -55,17 +55,16 @@ spec-checker.
 The script is `.agents/skills/sequencer/scripts/sequencer.py`. It has three
 commands:
 
-- `order [--json]` computes the order and prints it, with a hash of its
-  inputs and, for each pair of open changes, the names written in
-  backticks in both changes' `tasks.md` files, to help the model step. It
-  edits nothing.
-- `publish [--code-edges FILE] [--decide '#<n> first' --by <login>]
-  [--reviewers <login>,...]`
+- `order [--json] [--reviewers <login>,...]` computes the order and
+  prints it, with a hash of its inputs and, for each pair of open changes,
+  the backticked names that appear in both changes' `tasks.md` files, to
+  help the model step. `--reviewers` tries a reviewer list in place of the
+  configured one. It edits nothing.
+- `publish [--code-edges FILE] [--decide '#<n> first' --by <login>]`
   computes the order and edits the order's issue and the items' bodies. It
   takes the model step's edges from `FILE`, which carries the inputs hash
   `order` printed, and records a person's choice in a cycle given with
-  `--decide`. A caller with its own reviewer list passes it with
-  `--reviewers`.
+  `--decide`, naming that person with `--by`.
 - `setup-ci [--model-step none|api-key|igor] [--force]` writes the workflow
   template.
 
@@ -167,9 +166,8 @@ code that edits.
 
 **The whole order is in one issue's body, and each item's body holds a block
 giving its place, between markers the script owns, never in a comment**
-(igor#231, decision 1). `gh issue view` and `gh pr view` print the body
-without comments, so an order kept in comments is invisible to the default
-read. A block is rewritten only when the order or its reasons change
+(igor#231, decision 1). The decision record's Rationale for *The whole
+order lives in one issue's body* says why not a comment. A block is rewritten only when the order or its reasons change
 (igor#231, decision 2), so a watcher is notified only of a real move. The
 script touches nothing outside its markers, so a person may keep their own
 text in the same body.
@@ -194,10 +192,12 @@ tiebreak give, and never changes it.
 
 **The order's issue names each reviewer's next review, ranking first the
 pull request that the most items come after,** because review time usually
-limits how fast a team ships (igor#231, decision 4). Reviewers are the list
-the caller passes, such as an Igor's `reviewers`; with none, each pull
-request's requested reviewers; and when it requests no one, the CODEOWNERS
-file (#43). A draft is not offered for review, since its author has not
+limits how fast a team ships (igor#231, decision 4). Reviewers are the
+`reviewers` list in the repository's `.github/sequencer.json`; with none,
+each pull request's requested reviewers; and when it requests no one, the
+CODEOWNERS file (#43). Every caller takes reviewers through this chain,
+and `publish` accepts no reviewer list of its own, so an Igor and CI
+publish the same issue body for the same inputs. A draft is not offered for review, since its author has not
 handed it over yet.
 
 ### Which issues the order holds
@@ -254,8 +254,9 @@ what it expects of any caller:**
   question in its handback comment, the comment in which its Igor hands
   the item back to a person, as the inquisitor's *A session with no person
   in it asks in a post, a handback or nowhere* says.
-- Igor's Sequencer role calls the script, passing the reviewers its
-  configuration lists. Igor's work triage, the step where an Igor chooses
+- Igor's Sequencer role calls the script, which takes reviewers through
+  the same chain as for any caller: the repository's config, else each
+  pull request's requested reviewers, else CODEOWNERS. Igor's work triage, the step where an Igor chooses
   which items to take, reads positions from `order --json`.
 - Where a repository hands the model step to an Igor, `publish`, run by
   the workflow, labels the order's issue `sequencer: check code`. A
