@@ -839,8 +839,7 @@ states the forms. Task 5.5 makes each example in the github-app skill's
 `SKILL.md` set `G` in the same command or write the script's path.
 
 **Why:** under prose's rules alone the script's form is unreadable, so every
-post sent as a GitHub App would be refused. A `gh api` call through the script is judged exactly as the same
-call made directly, so an agent acting as a GitHub App can read the API as any
+post sent as a GitHub App would be refused. A `gh api` call through the script, in a line the form above allows, is judged exactly as the same call made directly, so an agent acting as a GitHub App can read the API as any
 agent can. The reader cannot know what any other script posts. An unset
 `$G` posts nothing in Claude Code, where each command starts a fresh shell,
 but could in a host whose shell keeps variables, such as Cursor; blocking it
@@ -1248,8 +1247,8 @@ contains the recorded answer does not hold it*).
 
 #### An answer typed on another surface counts only through a decision document
 
-A linked answer is only a github.com comment or review, since only GitHub
-tells a reader who wrote a comment, so an answer typed directly on Linear or
+A linked answer is only a github.com comment or review, since only there is
+a comment's author a GitHub login a reader can check, so an answer typed directly on Linear or
 Discord can't be one. An answer the person typed in the answer session, which
 the session then relayed to Linear or Discord, is not typed there: it counts
 through its commit's signature (*Questions-branch answers relayed on Linear
@@ -1447,9 +1446,9 @@ ban on offering a worker a search tool, which rested only on a worker not
 needing one, is lifted, and a run's search applies firing's scope rule and
 labels an in-scope non-`active` entry as not lore.
 
-**Why** a worker searches at all: igor injects active in-scope entries only
-while they fit the worker's token budget, so one holding a person's answer
-can be missing from its context.
+**Why** a worker searches at all: igor injects the active entries in scope
+only when all of them fit a 4,000-token budget, and none when they do not,
+so an entry holding a person's answer can be missing from the worker's context.
 
 **Why** only the lore repository the Igor injects from: the Igor checks a
 cited entry, reported by id alone, against that lore repository; another
@@ -1583,8 +1582,7 @@ counts regardless (#216's decision 78).
 
 #### A later run names the answered file from the Igor's record
 
-The Igor keeps one record of each handback, #216's decision 59's hashed
-record of handback questions. For each question it posted, the record holds
+The Igor keeps one record of each handback, the hashed record of handback questions that igor PR #216, still open, is asked to keep in its decision 59; a builder relies on it only once #216 merges with it. For each question it posted, the record holds
 the 6-hex-digit suffix and date from the name of the log file it pushed, and
 the question's hash, but no question text. The run finds the file by the
 suffix and date.
@@ -1761,7 +1759,8 @@ PR #171), where each lender's own pull request adds `seats/<id>.yaml`. The file
 is YAML, matching the lore repository's other configuration, under `relays/`
 in the lore repository holding the entries (igor PR #216's decision 66). It
 lists the person's relay identities, one list per surface; only the `github`
-list proves anything, since only GitHub tells a reader who wrote a comment.
+list proves anything, since only there is a comment's author a GitHub login
+a reader can check.
 
 *Ruled out by a scenario* (inquisitor spec: *A relay file names the bots that
 post for its person*, scenario *A person's relay file lists their relay
@@ -2203,24 +2202,24 @@ other surface has no such proof.
 **Why:** the URL would point the readers of a more visible lore repository into
 a more private thread. A Discord URL holds the server's and channel's ids, a
 Linear URL the workspace, issue and title, and a github.com link into a more
-private repository leaks the same way. A Linear or Discord thread's
-visibility is taken as whichever leaks less, which differs by direction. For
-what leaves the thread, it counts as private, so a lore repository that is not
-private counts as more visible than the thread, and a miss about a question
-asked there needs a private lore repository. For what goes into the thread,
-it counts as possibly public, so a recorded answer is posted there by itself
-only when the record's repository is public.
+private repository leaks the same way. A Linear or Discord thread ranks as
+a private repository's, both as a source of text and as a place text is
+posted to, so all three surfaces follow one policy. A question asked there
+is logged only in a private lore repository, a miss about such a question
+needs a private lore repository too, and an answer given there gets no answer file in
+a lore repository that is not private. A recorded answer is posted into
+such a thread by itself under the rule for a private GitHub repository's
+thread: when the record is no more private than the thread.
+
+An answer's text leaks as its link does, so where the lore repository is
+more visible than the thread an answer was given in, no answer file is
+written at all, and a handled file closes the questions-branch file instead
+(answer-session spec: *No answer file goes to a more visible lore
+repository*).
 
 *Ruled out by a scenario:* always writing the URL, accepting the leak
 (inquisitor spec: *The log command withholds a link where it would leak*,
-scenario *A Discord link is left out of a lore repository that is not
-private*); and writing no log file in a lore repository that is not private,
-though the file without the link still records the answer (scenario *A
-Linear link is left out of a lore repository that is not private*). The
-exception is an answer given in a GitHub thread more private than the lore
-repository. Its text would leak, so no answer file is written, and a
-handled file closes the questions-branch file instead (answer-session spec:
-*No answer file goes to a more visible lore repository*).
+scenario *A GitHub link into a more private repository is left out*).
 
 #### An answer that cannot reach its thread is kept pending
 
@@ -2602,9 +2601,8 @@ lost miss back.
 
 *Ruled out by a scenario:* writing the miss where the asker's log file went,
 which the session cannot know and which would take a pull request per miss
-(inquisitor spec: *A question that should not have been asked is logged as a
-miss*, scenario *An answer session logs its misses without the asker's log
-file*); keeping misses in the state folder, a personal question log
+(inquisitor spec: *A miss file goes where its question's file went*,
+scenario *An answer session logs its misses without the asker's log file*); keeping misses in the state folder, which would make it a personal question log
 (answer-session spec: *The answer session logs its misses on the team's lore
 repository's questions branch*, scenario *A miss goes to the questions
 branch*); and pushing a miss only when no matching one is on the branch,
@@ -2649,8 +2647,8 @@ so that a decline or an answer lands on that asker's question.
 *Ruled out by a scenario:* merging a log file and a thread message that ask
 the same question, with any set of guards: each guard left a case that closed
 or answered the wrong asker's question, and matching gives two machines
-different answers (same requirement, scenario *A log file whose Discord link
-was withheld is shown on its own*).
+different answers (answer-session spec: *A log file with no followed link is judged on its own*, scenario *A log file whose link was
+withheld is shown on its own*).
 
 #### A bot's question reaches only the first person it mentions
 

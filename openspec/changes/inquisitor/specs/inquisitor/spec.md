@@ -110,10 +110,10 @@ project, and as its **worker** the agent that Igor starts to do an item.
 ### Requirement: Every question passes four filters before a person sees it
 
 Before an agent puts a question to a person, in any task, it SHALL run four
-filters in order, and ask only if none stops it. Filter 1, already
-answered, stops a question when an earlier answer exists: the agent cites
-and acts on it. Filter 2, deferrable, stops one the work can go on without:
-the agent lists it as not done, filing an issue if it outlives the work.
+filters in order, and ask only if none stops it. Filter 1, already answered, SHALL stop a question when an earlier answer
+exists, the agent citing and acting on it. Filter 2, deferrable, SHALL
+stop one the work can go on without, the agent listing it as not done and
+filing an issue if it outlives the work.
 
 #### Scenario: An answered question is not asked
 
@@ -424,9 +424,8 @@ more visible than its source*).
 A question about an organization or project SHALL be bounded by the
 visibility of **the repository it was asked from**: the one holding the
 current work, or, for a logged question, the one its file's `asked_from`
-names. Such a question concerns no one repository (design.md: *A
-question's audience is no wider than its subject*). An agent working in no
-git repository SHALL ask such a question only through the picker. A
+names; a question asked in a Linear or Discord thread counts as asked from
+a private repository. An agent working in no git repository SHALL ask such a question only through the picker, and with no picker nowhere. A
 question about one person's way of working SHALL never be posted.
 
 #### Scenario: An organization's question in private work stays private
@@ -448,10 +447,10 @@ question about one person's way of working SHALL never be posted.
 Wherever this spec or the `answer-session` spec compares a log file's or
 miss file's visibility, it SHALL be that of the more private of the
 repositories named by whichever of its `repository` and `asked_from` keys
-it holds. A value that fails the
+it holds; a file whose `asked_in` shows its question was asked in a
+Linear or Discord thread SHALL count as private. A value that fails the
 syntax check *A log file's repository keys and answer_link are checked
-before use* sets SHALL count as a private repository, and also makes the
-file input, labelled unreadable, as that requirement says.
+before use* sets SHALL count as a private repository.
 
 #### Scenario: A file asked from a private repository is private
 
@@ -464,6 +463,15 @@ file input, labelled unreadable, as that requirement says.
   private, and is input labelled unreadable
 - **AND** a questions-branch file about the organization, holding no
   `repository` and `asked_from` the private `o/api`, is private
+
+#### Scenario: A question asked on Discord is logged only in a private lore repository
+
+- **WHEN** an agent working in the public `o/web` asks a question about
+  the organization `o` in a Discord message, and the team's lore
+  repository is internal or public
+- **THEN** the question counts as asked from a private repository, so
+  the script refuses to push its log file, and the agent tells the person
+  why
 
 ### Requirement: An Igor's handback comment is no post, but the post hook vets what it sees
 
@@ -1137,13 +1145,11 @@ SHALL count as no write access.
 
 ### Requirement: A questions-branch file's writer is proven by its comment or its signature
 
-A questions-branch file's writer SHALL be proven only in one of two ways.
-First: its `answer_link` is the github.com URL of a comment or review on
+A questions-branch file's writer SHALL be proven only in one of two ways:
+its `answer_link` is the github.com URL of a comment or review on
 an issue or pull request of the repository its `repository` or
-`asked_from` names, or of the file's lore repository, that holds the
-answer the file records and was written by `answered_by`, as GitHub gives
-its author, or is a relayed answer of `answered_by`'s. Second: the commit
-adding the file carries a signature GitHub verifies for `answered_by`.
+`asked_from` names, or of the file's lore repository, that holds the answer the file records and either was written by `answered_by`, as GitHub gives its author, or is `answered_by`'s relayed answer; or the commit adding the file
+carries a signature GitHub verifies for `answered_by`.
 
 #### Scenario: A questions-branch decision linking its comment is an answer
 
@@ -1927,10 +1933,9 @@ report SHALL ask nothing about one it lists as deferred.
 
 ### Requirement: Two calls prove the filters ran
 
-The skill's script SHALL take questions in two calls. The **first call**
-takes them as the person would see them, prints the four filters and
-filter 1's search results for each, and issues a token, recording no
-verdict. The **second call** takes the token and a verdict per question,
+The skill's script SHALL take questions in two calls. The **first call** SHALL take them as the person would see them, print the
+four filters and filter 1's search results for each, and issue a token,
+recording no verdict. The **second call** SHALL take the token and a verdict per question,
 `answered`, `deferred`, `decided` or `ask`, with its field and, for an
 `ask`, any related earlier decision.
 
@@ -2177,11 +2182,11 @@ credential patterns (design.md: *The secret scan is only a backstop*).
 
 The first call and post hook SHALL find a post's questions alike: each list
 item in an **open-questions section**, and each other sentence ending in
-`?` in its body or title. A section starts at a heading, a **bold label**
+`?` in its body or title. A section SHALL start at a heading, a **bold label**
 (a line all bold but for a final colon) or a plain line ending in `:`,
 any of which begins with a question or deferral label the scenarios list,
-and runs to the next heading or bold label. Code, `>` lines and prose's
-footer hold no question.
+and run to the next heading or bold label. No question SHALL be found in
+code, `>` lines or prose's footer.
 
 #### Scenario: A plain line ending in a colon begins an open-questions section
 
@@ -2274,8 +2279,7 @@ A posted question SHALL tag the first of these with write access to what it
 concerns: the approver of the pull request adding the related earlier
 decision; a login in `.inquisitor/reviewers` of the repository it concerns,
 or the lore repository's for an organization or project; its files' last
-committer. A `deferred` question is not tagged. A subagent of a session
-with a person in it hands it back, as *Where the host has a picker, an
+committer. A `deferred` question SHALL NOT be tagged. A subagent's question goes back to the agent that started it, as *Where the host has a picker, an
 agent asks through it, never in its reply* says.
 
 #### Scenario: The approver of the earlier decision is tagged
@@ -2916,7 +2920,7 @@ refusing one, it SHALL write nothing.
 
 ### Requirement: The log command records a linked GitHub comment's own text
 
-Outside Igor-worker mode (`IGOR_RUN=worker`), for a github.com
+Outside Igor-worker mode, for a github.com
 `answer_link`, the `log` command SHALL read the linked comment through
 GitHub with the credentials of the person running the session and record it as *An answer logged from a comment is the
 comment's whole text* says, and SHALL write nothing and say why when it
@@ -3007,12 +3011,6 @@ leak*; *A log file without `asked_in` is never merged*).
   the questions branch of a public lore repository serving `o`
 - **THEN** the log file holds no `asked_in`
 
-#### Scenario: A Discord link is left out of a lore repository that is not private
-
-- **WHEN** an agent asks a question in a Discord message and logs it on the
-  questions branch of a lore repository that is not private
-- **THEN** the log file holds no `asked_in`
-
 ### Requirement: A questions-branch log file links where its question was asked
 
 A questions-branch log file for a question also asked in a post SHALL hold
@@ -3045,9 +3043,9 @@ answers*).
 
 ### Requirement: A later Igor run names the answered file only from the Igor's record
 
-A later Igor run knows the answered file only from the Igor's handback
-record, one per handback, never from the comment. That record, which igor
-PR #216 is asked to keep (#216's decision 59), holds each posted question's
+A later Igor run SHALL know the answered file only from the Igor's
+handback record, one per handback, never from the comment. That record
+SHALL hold each posted question's
 hash and its file name's 6-hex-digit suffix and date, and no question text.
 If no record holds them, or not exactly one file on the branch matches, the
 Igor SHALL write no `answers` for that run (design.md: *A later run names
@@ -3674,11 +3672,11 @@ stopped the worker, and nothing else.
 
 Until the agent can read that a weakness's security advisory is published,
 it SHALL NOT describe the weakness, whatever found it, or how to exploit it
-in text readable by anyone who cannot read the advisory: commit messages
-and code comments on a public branch, and pull request text and comments.
-The fix's code is exempt. A public branch is any branch such a person can
-read, other than the advisory's private fork (design.md: *Weaknesses stay
-out of public text until disclosure*).
+in text readable by anyone who cannot read the advisory, the fix's code
+excepted: commit messages and code comments on a public branch, any branch
+such a person can read other than the advisory's private fork, and pull
+request text and comments (design.md: *Weaknesses stay out of public text
+until disclosure*).
 
 #### Scenario: A fix on a public branch before publication doesn't describe the weakness
 
@@ -3747,12 +3745,11 @@ the advisory has said it will merge at that moment (design.md:
 
 ### Requirement: A commit in an advisory's private fork is described as task 0.13 allows
 
-An advisory's private fork is GitHub's temporary fork for it, whose commits
-become public with it. A commit there SHALL describe neither the weakness
+A commit in an advisory's private fork, GitHub's temporary fork for it,
+SHALL describe neither the weakness
 nor its exploit unless, as for the regression test, task 0.13 shows GitHub
 merges the fork's pull request only at publication, or the person who will
-publish the advisory has said it will merge at that moment. The
-publisher's word holds even if task 0.13 shows otherwise. Else the agent
+publish the advisory has said it will merge at that moment. The publisher's word SHALL hold even if task 0.13 shows the fork's pull request can merge before publication. Else the agent
 SHALL put the full
 description in the advisory's text.
 
@@ -4007,10 +4004,7 @@ question. Otherwise it is input.
 When a person says, in any words, a question did not need asking, the agent
 SHALL log a **miss** in the format *A log file and a miss file have one
 format* states: the question, the filter that should have stopped it and
-what the person said, at the question's privacy. It goes where and as the
-question's file went, in `misses/` for `questions/`; on a questions branch
-it is pushed directly, by its Igor when an Igor worker logs it. An answer
-session's misses go as the `answer-session` spec says.
+what the person said, at the question's privacy.
 
 #### Scenario: "That was obvious" is logged against a filter
 
@@ -4029,18 +4023,25 @@ session's misses go as the `answer-session` spec says.
   elsewhere, generalising private context or leaving it out, and names
   neither the private repository nor its file
 
+#### Scenario: A question with no log file gets no miss file
+
+- **WHEN** a person says a question about their own way of working, or one
+  recorded with the category `personal`, did not need asking
+- **THEN** no miss file is written
+
+### Requirement: A miss file goes where its question's file went
+
+A miss file SHALL go where and as the question's file went, in `misses/`
+for `questions/`, and on a questions branch SHALL be pushed directly, by
+its Igor when an Igor worker logs it. An answer session's misses go as the
+`answer-session` spec says.
+
 #### Scenario: A miss on an organization's question goes to the questions branch
 
 - **WHEN** a person says a question logged on the lore repository's
   questions branch did not need asking
 - **THEN** the agent pushes the miss file to `misses/` on that branch
   directly, and opens no pull request
-
-#### Scenario: A question with no log file gets no miss file
-
-- **WHEN** a person says a question about their own way of working, or one
-  recorded with the category `personal`, did not need asking
-- **THEN** no miss file is written
 
 #### Scenario: An answer session logs its misses without the asker's log file
 

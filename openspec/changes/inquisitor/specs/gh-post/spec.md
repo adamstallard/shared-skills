@@ -49,13 +49,12 @@ unreadable call.
 
 ### Requirement: A command that mentions no gh post verb sends no post
 
-A **gh post verb** is one of the closed list that *The gh post verbs are
-a closed list* gives. A command
-**mentions** one when its text, quoted or not, holds `gh` followed
+A command SHALL send no post when it **mentions** no **gh post verb**, one
+of the closed list that *The gh post verbs are a closed list* gives. A
+command mentions one when its text, quoted or not, holds `gh` followed
 later by `pr` or `issue` and later by one of their verbs, or `gh`
 followed by `api`, unless that `gh api` is a call *A gh api call is a
-read only as a plain gh command* counts as a read. A command that mentions no gh
-post verb SHALL send no post.
+read only as a plain gh command* counts as a read.
 
 #### Scenario: The gh post verbs are a closed list
 
@@ -315,9 +314,9 @@ its scenarios list as unreadable SHALL be unreadable.
 A line mentioning a gh post verb SHALL send no post when its input obeys
 *Input to a no-post line reaches only data commands* and each simple
 command in it names no `gh`, is a `gh` command sending no text, or is one
-of prose's **data commands**, which its scenarios list. A data command
-counts only when none of its words is `gh` or a path ending in `/gh`. The
-github-app skill's form counts as the `gh` command it runs.
+of prose's **data commands**, which its scenarios list. A data command SHALL count only when none of its words is `gh` or a path
+ending in `/gh`, and the github-app skill's form, in a line its own requirement allows,
+SHALL count as the `gh` command it runs.
 
 #### Scenario: A command that sends no body is no post
 

@@ -128,10 +128,10 @@ channel or thread holding it.
 
 The answer session SHALL treat as a **relayed question** any message
 starting `User says: ` or `User asks: ` that any bot account posted on
-any surface, and SHALL count it as a person's question. When a relay App,
-as the inquisitor's spec defines it, posted it on GitHub, it is the
-question of the person whose relay file lists that App. Otherwise it is
-the question of a person the session cannot name.
+any surface, and SHALL count it as a person's question: when a relay App, as the
+inquisitor's spec defines it, posted it on GitHub, the question of the
+person whose relay file lists that App, and otherwise the question of a
+person the session cannot name.
 
 #### Scenario: A relayed question from a listed relay App is that person's
 
@@ -701,10 +701,10 @@ only the asker's next comment after the relay post SHALL count.
 
 The answer session SHALL ignore a message of the first two sources that
 its model judges clearly not a question: it is not shown, nothing is
-posted on it, and nothing is closed. An unclear one is shown (design.md:
-*Messages that are not questions are ignored*). The asker's reply to a
-`User asks: ` post is never ignored: whatever it says, it puts the
-question that post asked about back in the queue.
+posted on it, and nothing is closed. An unclear one SHALL be shown (design.md: *Messages that are not questions
+are ignored*). The asker's reply to a `User asks: ` post SHALL never be
+ignored: whatever it says, it puts the question that post asked about back
+in the queue.
 
 #### Scenario: A message that is clearly not a question is ignored
 
@@ -868,13 +868,12 @@ session SHALL NOT pair a file with a message by matching text (design.md:
 - **THEN** the log file is shown on its own, as a question of the fourth
   source
 
-#### Scenario: A log file whose Discord link was withheld is shown on its own
+#### Scenario: A log file whose link was withheld is shown on its own
 
-- **WHEN** a lore repository that is not private holds a log file whose
-  `asked_in` the `log` command withheld, whose question tags
-  `@adamstallard`, and a Discord message this machine polled, mentioning
-  the person's Discord user, asks the same question in the same words once
-  mentions are removed
+- **WHEN** a public lore repository holds a log file whose question tags
+  `@adamstallard`, this session's person, and whose `asked_in`, into an
+  issue of the private `o/api`, the `log` command withheld, and a comment in that issue, which this
+  machine polled, asks the same question in the same words
 - **THEN** the log file and the message are shown as two questions, and
   neither is paired with the other
 
@@ -1159,8 +1158,8 @@ post none that matches.
 
 When a surface refuses a relay post or its command fails, the answer
 session SHALL tell the person why nothing was posted, as the surface or
-skill says. A failed answer stays pending; a failed question to the
-asker leaves its question as it was; a failed automatic post leaves its
+skill says. A failed answer SHALL stay pending, a failed question to the asker SHALL
+leave its question as it was, and a failed automatic post SHALL leave its
 question shown as unanswered. A refused post can also turn its channel
 off, as *Setup checks each relay identity before its channels are used*
 says.
@@ -1227,6 +1226,15 @@ check SHALL still show as not checked.
   then passes
 - **THEN** the question goes back into the queue with the answer kept,
   and is posted once the person approves it again
+
+#### Scenario: Where no check reads posting rights, the identity's own check returns the answer
+
+- **WHEN** a pending answer's channel was off, no check can read posting
+  rights there, and at the next opening setup reruns the relay identity's
+  own check and it passes
+- **THEN** the answer returns to the queue, kept, and setup still shows
+  the posting check as not checked
+
 
 ### Requirement: A pending answer no check returns waits for the person
 
@@ -1890,12 +1898,19 @@ Rephrased question: <the question as rephrased>
 Discussion: <the discussion in one sentence>
 ```
 
-with its `Re: ` line on GitHub and Linear. The model drafts both added
-lines fit for whichever is more public, the thread's audience or the
-subject's.
+with its `Re: ` line on GitHub and Linear. The model SHALL draft both added lines fit for whichever is more public, the thread's audience or that of the repository the question concerns.
 The asking agent, logging the answer, SHALL record both in its log file.
 
+#### Scenario: A rephrasing is drafted for the more public audience
+
+- **WHEN** the person answers, in a public repository's thread, a
+  rephrased question about a private repository
+- **THEN** the model drafts the `Rephrased question: ` and `Discussion: `
+  lines naming nothing of the private repository that the thread's
+  readers cannot read
+
 #### Scenario: An unconfirmed rephrasing is not posted
+
 
 - **WHEN** the model has drafted a rephrasing the person has not confirmed
 - **THEN** the answer session posts nothing
@@ -1953,21 +1968,12 @@ edit.
 - **THEN** the answer is relayed in the thread, and a log file naming the
   closed file in `answers` is pushed
 
-#### Scenario: A Linear link is left out of a lore repository that is not private
-
-- **WHEN** the person answers, from its Linear thread, a thread copy that
-  an unanswered log file holds, in a lore repository made internal since
-  that file was pushed
-- **THEN** the new log file has no `answer_link`, which the `log` command
-  withholds, as the inquisitor's *The log command withholds a link where
-  it would leak* says
-
 ### Requirement: No answer file goes to a more visible lore repository
 
-When the lore repository is more visible than the repository whose GitHub
-thread the answer was given in, the answer session SHALL push no answer
-file; the answer
-stays in the thread where it was given. It SHALL instead push, through
+When the lore repository is more visible than the repository whose
+thread the answer was given in, a Linear or Discord thread counting as a
+private repository's, the answer session SHALL push no answer file; the
+answer stays in the thread where it was given. It SHALL instead push, through
 the `log` command's handled option, a handled file naming the
 questions-branch file, when *A handled file is pushed once its close takes
 effect* says.
@@ -1982,6 +1988,15 @@ effect* says.
   questions-branch file is pushed, closing it on every machine
 - **AND** the handled file names only the file it closes and holds no
   question or answer text
+
+#### Scenario: An answer typed in a Linear thread stays out of a lore repository that is not private
+
+- **WHEN** the person answers, from its Linear thread, a thread copy that
+    an unanswered log file holds, in a lore repository that was private
+  when that file was pushed and is internal now
+- **THEN** the relay posts the answer in the thread, no answer file is
+  pushed, since the lore repository's visibility now is what counts, and
+  a handled file naming the log file is pushed
 
 ### Requirement: A questions-branch answer file records the answer as given
 
@@ -1999,9 +2014,9 @@ sent to the relay's skill, and the command fetches nothing.
   relayed
 - **THEN** the file's `recorded_in` is the relay post's URL, the same URL
   as its `answer_link`
-- **AND** where *The log command withholds a link where it would leak*
-  leaves out the `answer_link`, `recorded_in` does not hold that URL
-  either
+- **AND** for an answer with no relay post, or whose relay post's URL the
+  `log` command withholds because it would leak, `recorded_in` is the answer file's own path on the
+  questions branch, `questions/<name>`
 
 #### Scenario: An answer records the question the person saw
 
@@ -2191,8 +2206,7 @@ On any open question, the person SHALL be able to decline to answer,
 giving one of two reasons:
 
 1. **Nothing to answer:** the conversation is over, or it isn't a
-   question. Nothing is posted and no miss is logged. This question
-   closes; other questions in its thread stay as they are.
+   question. Nothing SHALL be posted and no miss logged; this question SHALL close, and other questions in its thread SHALL stay as they are.
 2. **The inquisitor should have handled it.**
 
 #### Scenario: Declining with nothing to answer posts nothing
@@ -2520,9 +2534,9 @@ write none of the post.
 ### Requirement: A recorded answer is posted by itself only when no more private than its thread
 
 The answer session SHALL post a recorded answer by itself only when the
-record is no more private than the question's thread: on GitHub, when
-the record's repository is at least as visible as the thread's; on Linear
-and Discord, only when the record's repository is public. A log or miss
+record's repository is at least as visible as the question's thread's,
+on every surface, a Linear or Discord thread ranking as a private
+repository's. A log or miss
 file's own visibility, as the inquisitor's *A log or miss file is as
 private as its more private repository* defines it, stands in for its
 repository's.
@@ -2533,6 +2547,13 @@ repository's.
   document in a private repository
 - **THEN** nothing is posted by itself, and the person is shown the
   question with the recorded answer beside it
+
+#### Scenario: A private record is posted by itself into a Linear thread
+
+- **WHEN** a question asked in a Linear thread is answered by a decision
+  document in a private repository
+- **THEN** the answer session posts the recorded answer by itself, as it
+  would into a private repository's GitHub thread
 
 ### Requirement: A recorded answer not posted by itself is shown beside its question
 
