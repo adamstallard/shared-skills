@@ -83,6 +83,18 @@ class ColdRead(unittest.TestCase):
         self.repo.commit("FEAT(x): a\n", block_trailer(signed.stdout))
         self.assertEqual(self.repo.verify().stdout, "checked\n")
 
+    def test_a_changed_yaml_prose_string_brings_its_whole_list(self):
+        rules = ("rules:\n  proposal:\n    - Read the decision record before proposing.\n"
+                 "    - Keep the proposal to one or two pages of why and what.\n")
+        self.repo.write("rules.yaml", rules)
+        self.repo.commit("base 2\n")
+        self.repo.write("rules.yaml", rules.replace("one or two", "two"))
+        token = self.first("FEAT(x): a\n", file_goals=False)
+        brief = self.brief(self.signing(token, "FEAT(x): a\n").stdout)
+        self.assertIn("1. A string in a YAML file, which its reader is shown as text: "
+                      "rules.yaml, lines 2-4, read under the keys above it.", brief)
+        self.assertIn("   - what to do", brief)
+
     def test_a_one_line_comment_is_read_cold_too(self):
         self.repo.write("a.py", "x = 1  # One.\n")
         token = self.first("FEAT(x): a\n")
@@ -853,6 +865,15 @@ class FixedItemChanged(unittest.TestCase):
         self.assertEqual(self.signed_after_fix({"a.py": self.TWO}, {"a.py": fixed}, item=2,
                                                items=2).returncode, 0)
 
+    def test_a_reworded_entry_of_a_yaml_list_counts_for_the_whole_list(self):
+        rules = ("rules:\n  proposal:\n    - Read the decision record before proposing.\n"
+                 "    - Keep the proposal to one or two pages of why and what.\n")
+        files = {"rules.yaml": rules}
+        unchanged = self.signed_after_fix(files, {"rules.yaml": rules})
+        self.assert_refused(unchanged, 1)
+        reworded = rules.replace("Read the", "Read each")
+        self.assertEqual(self.signed_after_fix(files, {"rules.yaml": reworded}).returncode, 0)
+
     def test_lines_moved_by_an_edit_above_are_not_a_change(self):
         moved = "import os\nimport re\n\n" + self.TWO
         self.assert_refused(self.signed_after_fix({"a.py": self.TWO}, {"a.py": moved}, item=2,
@@ -1052,6 +1073,18 @@ class BriefFilesText(unittest.TestCase):
             out = prose.brief_files([self.doc(((60, 60),), path)], {path: text})
             self.assertIn("(lines 1-11 left out)\n 12  ## Install\n", out, path)
             self.assertIn("(lines 113-173 left out)", out, path)
+
+    def test_a_yaml_item_gets_each_key_it_is_nested_under(self):
+        text = "rules:\n" + "".join(f"  k{n}: v\n" for n in range(20)) + \
+               "  proposal:\n    - Read the record first.\n"
+        item = prose.ColdItem("A string.", ("g",), "r.yaml", spans=((22, 23),))
+        out = prose.brief_files([item], {"r.yaml": text})
+        self.assertIn("--- r.yaml ---\n 1  rules:\n(lines 2-16 left out)\n17    k15: v\n", out)
+        self.assertIn("23      - Read the record first.\n--- end r.yaml ---", out)
+
+    def test_a_blank_or_comment_line_is_no_yaml_parent(self):
+        text = "rules:\n  proposal:\n\n# aside\n    - Read the record first.\n" + fill("x", 60)
+        self.assertEqual(prose._yaml_parents(text.split("\n"), 5), [2, 1])
 
     def test_a_setext_underline_is_not_taken_for_a_heading(self):
         text = "Usage\n===\n" + "".join(f"para {n}\n" for n in range(3, 200))

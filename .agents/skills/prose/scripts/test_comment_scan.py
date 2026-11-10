@@ -366,6 +366,260 @@ class HashComments(unittest.TestCase):
         self.assertTrue(scanner.scannable("sub/Makefile"))
 
 
+class YamlProseStrings(unittest.TestCase):
+    """Which YAML string values are prose: those written in sentences. A
+    list holding one is listed whole, from its key; a single value from its
+    key line. An ordinary config file lists nothing."""
+
+    RULES = (
+        "# How to merge this.\n"
+        "rules:\n"
+        "  proposal:\n"
+        "    - Read the decision record before proposing an approach. Do not bring it back.\n"
+        "    - proposal.md stays one or two pages of why and what.\n"
+        "  specs:\n"
+        "    - A rule a test can check is written in the spec as a requirement.\n"
+        "  short:\n"
+        "    - a\n"
+        "    - b\n"
+    )
+
+    def test_each_list_holding_a_sentence_is_one_span_from_its_key(self):
+        self.assertEqual(scanner.yaml_prose(self.RULES), [(3, 5), (6, 7)])
+
+    def test_an_ordinary_workflow_lists_nothing(self):
+        source = (
+            "name: CI\n"
+            "on:\n  push:\n    branches: [main]\n"
+            "jobs:\n  test:\n    runs-on: ubuntu-latest\n"
+            "    if: github.event_name == 'pull_request' && github.actor != 'bot'\n"
+            "    steps:\n"
+            "      - uses: actions/checkout@v4\n"
+            "      - name: Decide whether the needed jobs succeeded or failed\n"
+            "        run: |\n"
+            "          npm ci --silent\n"
+            "          git push origin ${{ github.ref_name }}\n"
+            "      - run: echo \"Done. All tests passed on every platform we run.\"\n"
+            "        env:\n          DATE: Tue, 13 Jan 2026 10:29:08 UTC\n"
+        )
+        self.assertEqual(scanner.yaml_prose(source), [])
+
+    def test_a_single_sentence_value_is_its_own_span(self):
+        source = "id: x\ndescription: Verify the agent routes a billing update cheaply.\nk: v\n"
+        self.assertEqual(scanner.yaml_prose(source), [(2, 2)])
+
+    def test_a_block_scalar_runs_to_its_last_indented_line(self):
+        source = ("a:\n  description: >-\n    Provide the private key of an account.\n"
+                  "    Make sure it holds enough balance.\n\n  next: 1\n")
+        self.assertEqual(scanner.yaml_prose(source), [(2, 4)])
+
+    def test_a_quoted_value_may_span_lines(self):
+        source = ('summary: "Learn ownership,\n  lifetimes and traits\\" while building it."\n'
+                  "next: 1\n")
+        self.assertEqual(scanner.yaml_prose(source), [(1, 2)])
+
+    def test_a_plain_value_may_go_on_over_indented_lines(self):
+        source = "note: This value is long enough\n  to wrap onto a second line.\nnext: 1\n"
+        self.assertEqual(scanner.yaml_prose(source), [(1, 2)])
+
+    def test_a_sentence_in_a_flow_collection_is_data(self):
+        source = "tags: [This is not a sentence anyone reads., x,\n  y]\nnext: 1\n"
+        self.assertEqual(scanner.yaml_prose(source), [])
+
+    def test_a_list_at_the_keys_own_indent_is_found(self):
+        source = "rules:\n- Read the record first, before anything else.\n- b\nother: 1\n"
+        self.assertEqual(scanner.yaml_prose(source), [(1, 3)])
+
+    def test_a_list_of_mappings_lists_only_their_sentence_values(self):
+        source = ("steps:\n  - name: build\n    note: Builds every package before the tests run.\n"
+                  "  - name: test\n")
+        self.assertEqual(scanner.yaml_prose(source), [(3, 3)])
+
+    def test_a_quote_inside_a_plain_flow_item_opens_nothing(self):
+        # A quote is special only at the start of a flow item, so `don't`
+        # must not run the collection on to the end of the file.
+        source = "labels: [wip, don't-merge]\nnote: Runs the suite on every push to main.\n"
+        self.assertEqual(scanner.yaml_prose(source), [(2, 2)])
+        source = 'a: ["a\\"b", x]\nb: Write the thing in short sentences. Keep it plain.\n'
+        self.assertEqual(scanner.yaml_prose(source), [(2, 2)])
+
+    def test_code_and_queries_are_not_sentences(self):
+        source = ("queries:\n  find_user: SELECT id, name FROM users WHERE email = ? LIMIT 1\n"
+                  "steps:\n  - shell: pwsh\n    run: |\n      Set-Location ./src\n"
+                  "      Invoke-Pester -Path . -CI\n"
+                  "  - script: |\n      IF EXIST build RMDIR /S /Q build\n"
+                  "      ECHO Build folder cleaned.\n")
+        self.assertEqual(scanner.yaml_prose(source), [])
+
+    def test_a_sentence_value_inside_a_listed_list_is_not_listed_twice(self):
+        source = ("r:\n  - note: Builds every package before the tests run.\n"
+                  "  - Runs the tests on every push to main.\ny: 1\n")
+        self.assertEqual(scanner.yaml_prose(source), [(1, 3)])
+
+    def test_six_words_is_enough(self):
+        self.assertTrue(scanner.yaml_sentence("Read the record before you start."))
+        self.assertFalse(scanner.yaml_sentence("Read the record before starting."))
+
+    def test_a_single_quoted_value_keeps_its_doubled_quotes(self):
+        source = ("a: 'It''s the record you read first,\n  before anything else.'\n"
+                  "b: 'x'\nc: Read the record before you start today.\n")
+        self.assertEqual(scanner.yaml_prose(source), [(1, 2), (4, 4)])
+
+    def test_an_escaped_quote_right_before_the_close_does_not_close_it(self):
+        source = 'a: "say \\""\nb: Read the record before you start today.\n'
+        self.assertEqual(scanner.yaml_prose(source), [(2, 2)])
+
+    def test_a_sentence_after_a_flow_collection_is_found(self):
+        source = 'tags: [a, {b: "c"}]\nm: {a: 1,\n  b: Read the record before you start. Then go. }\n' \
+                 "note: Read the record before you start today.\n"
+        self.assertEqual(scanner.yaml_prose(source), [(4, 4)])
+
+    def test_a_comment_inside_a_flow_collection_is_skipped(self):
+        source = ("tags: [a, # a [ here\n  b]\n"
+                  "note: Read the record before you start today.\n")
+        self.assertEqual(scanner.yaml_prose(source), [(3, 3)])
+
+    def test_blank_and_comment_lines_between_entries_keep_one_list(self):
+        source = ("l:\n  - Read the record before you start today.\n\n  # aside\n  - b\nz: 1\n")
+        self.assertEqual(scanner.yaml_prose(source), [(1, 5)])
+
+    def test_an_alias_or_nested_entry_does_not_stretch_a_list(self):
+        source = "r:\n  - Read the record before you start today.\n  - *x\n  -\n    k: v\ny: 1\n"
+        self.assertEqual(scanner.yaml_prose(source), [(1, 2)])
+
+    def test_spans_come_out_in_file_order(self):
+        source = ("r:\n  - Read the record before you start today.\n"
+                  "  - k: Read the record before you start today.\na: 1\n")
+        self.assertEqual(scanner.yaml_prose(source), [(1, 2), (3, 3)])
+        source = ("r:\n  - k: Read the record before you start today.\n"
+                  "  - l:\n    - Read the record before you start today.\n")
+        self.assertEqual(scanner.yaml_prose(source), [(2, 2), (3, 4)])
+
+    def test_a_byte_order_mark_does_not_hide_the_first_line(self):
+        found = scanner.prose_strings_touching(
+            "r.yaml", "\ufeff- Read the record before you start today.\n", {1})
+        self.assertEqual([(c.start, c.lines) for c in found],
+                         [(1, ["- Read the record before you start today."])])
+
+    def test_a_plain_value_runs_on_past_a_blank_line(self):
+        source = ("note: First paragraph is long enough to count.\n\n"
+                  "  Second paragraph continues here, and it was edited today.\nnext: 1\n")
+        self.assertEqual(scanner.yaml_prose(source), [(1, 3)])
+
+    def test_a_sentence_before_an_escape_still_ends(self):
+        source = 'note: "Prints the help text for every command we ship.\\n"\n'
+        self.assertEqual(scanner.yaml_prose(source), [(1, 1)])
+
+    def test_a_sentence_may_end_in_code_or_emphasis_or_start_with_any_capital(self):
+        self.assertTrue(scanner.yaml_sentence("Before committing, always run the tests "
+                                              "with `make test`."))
+        self.assertTrue(scanner.yaml_sentence("Never skip the tests before a merge, **ever**."))
+        self.assertTrue(scanner.yaml_sentence("Ändere nie die Datei ohne Rückfrage beim Team."))
+
+    def test_a_sentence_may_open_with_markdown(self):
+        sentence = scanner.yaml_sentence
+        self.assertTrue(sentence("**Never** push to main before a review."))
+        self.assertTrue(sentence("1. Run the tests before every commit."))
+        self.assertTrue(sentence("`git push` only after the review passes."))
+        self.assertTrue(sentence("## Keep each rule to one plain sentence."))
+        self.assertTrue(sentence("_Always_ say who runs the check first."))
+        self.assertEqual(scanner.yaml_prose(
+            "description: |\n  - Describe the change in one line.\nnext: 1\n"), [(1, 2)])
+
+    def test_markdown_does_not_let_short_text_or_code_in(self):
+        sentence = scanner.yaml_sentence
+        self.assertFalse(sentence("**Never** force-push."))
+        self.assertFalse(sentence("- SELECT id, name FROM users WHERE email = ? LIMIT 1"))
+        self.assertFalse(sentence("**API** keys must be rotated every quarter."))
+        self.assertFalse(sentence("1. IF EXIST build RMDIR /S /Q build ECHO Build folder cleaned."))
+        self.assertFalse(sentence("- Set-Location ./src Invoke-Pester -Path . -CI"))
+        self.assertEqual(scanner.yaml_prose(
+            "run: |\n  # Build the app for every platform we ship.\n  npm ci\n"), [])
+
+    def test_a_double_hash_shell_comment_does_not_make_a_script_prose(self):
+        source = ("steps:\n  - run: |\n      ## Install the dependencies before building.\n"
+                  "      npm ci\n      npm test\n")
+        self.assertEqual(scanner.yaml_prose(source), [])
+
+    def test_a_heading_of_any_level_is_passed_over_for_the_text_below(self):
+        sentence = scanner.yaml_sentence
+        self.assertTrue(sentence("# Deploy guide\nRun the tests before you push the change."))
+        self.assertTrue(sentence("# Title\n\nRun the tests before you push the change."))
+        self.assertTrue(sentence("# Title\n\n## Consequences\n\n"
+                                 "Run the tests before you push the change."))
+        self.assertTrue(sentence("###### build\nRun the tests before every release."))
+        self.assertEqual(scanner.yaml_prose(
+            "description: |\n  # Deploy guide\n  Run the tests before you push the change.\n"),
+            [(1, 3)])
+
+    def test_a_shell_comment_over_a_command_stays_out(self):
+        sentence = scanner.yaml_sentence
+        self.assertFalse(sentence("# Install the deps before the build runs.\nnpm ci"))
+        self.assertFalse(sentence("# Install the deps before the build runs.\n"
+                                  "# Then run the whole test suite once.\nnpm ci"))
+        self.assertFalse(sentence("# install deps\nnpm ci"))
+        self.assertFalse(sentence("# Print a message once the build is done.\nWrite-Host \"Done.\""))
+        self.assertFalse(sentence("# Say hello to whoever reads the log.\n"
+                                  "echo \"Hello there, the build is ready now.\""))
+        self.assertFalse(sentence("# Print the path the script runs from.\n"
+                                  "import os\nprint(\"The script runs from this folder now.\")"))
+
+    def test_known_limit_a_script_opening_with_a_capitalised_command_is_listed(self):
+        # Pins a known limit, not a goal: `Rscript` passes the first-word test,
+        # so this block is listed under a `#` comment, a `##` comment or none.
+        body = ("      Rscript -e 'renv::restore()'\n"
+                "      Rscript -e 'testthat::test_dir(\"tests\")'\n"
+                "      echo \"All tests finished.\"\n")
+        commented = "steps:\n  - run: |\n      # Restore the package library first.\n" + body
+        self.assertEqual(scanner.yaml_prose(commented), [(2, 6)])
+        self.assertEqual(scanner.yaml_prose(commented.replace("# ", "## ")), [(2, 6)])
+        self.assertEqual(scanner.yaml_prose("steps:\n  - run: |\n" + body), [(2, 5)])
+
+    def test_a_lone_hash_comment_line_keeps_its_hash_and_fails(self):
+        self.assertFalse(scanner.yaml_sentence("# Run this before every release so the cache is warm."))
+
+    def test_a_code_fence_is_not_an_opening_code_span(self):
+        source = ("value: |\n  ```sh\n  # Replace 1.2.3 with your version.\n"
+                  "  npx tool@1.2.3 init\n  ```\n")
+        self.assertEqual(scanner.yaml_prose(source), [])
+
+    def test_blanks_and_punctuation_around_markdown_are_passed_over(self):
+        self.assertEqual(scanner.yaml_prose(
+            'description: "  1. Run the tests before every commit."\n'), [(1, 1)])
+        self.assertTrue(scanner.yaml_sentence("**Never**, ever push to main before a review."))
+
+    def test_many_heading_lines_do_not_crash_the_check(self):
+        source = "run: |\n" + "".join(f"  ## step {n}\n" for n in range(1200)) + "  npm ci\n"
+        self.assertEqual(scanner.prose_strings_touching("ci.yml", source, {1}), [])
+
+    def test_a_quoted_script_opening_with_a_double_hash_comment_stays_out(self):
+        source = 'run: "## Install the dependencies first.\\nnpm ci && npm test"\n'
+        self.assertEqual(scanner.yaml_prose(source), [])
+        # In single quotes a backslash is literal, so the value is one line:
+        # only the `## ` marker comes off, and its first word, `Setup\nRun`,
+        # holds a backslash and fails the first-word test.
+        source = "a: '## Setup\\nRun the tests before you push.'\n"
+        self.assertEqual(scanner.yaml_prose(source), [])
+
+    def test_the_sentence_test(self):
+        sentence = scanner.yaml_sentence
+        self.assertTrue(sentence("Great! You should now be able to log in."))
+        self.assertTrue(sentence("Provide a list of nodes. Examples: - `ws://x`"))
+        self.assertFalse(sentence("Every OpenSpec change was read since it last changed"))
+        self.assertFalse(sentence("Read it."))
+        self.assertFalse(sentence("npm run test -- --concurrency 1. Then exit."))
+        self.assertFalse(sentence("RUN_ID=`gh run list` and then. some more words"))
+
+    def test_only_strings_a_change_touches_are_returned(self):
+        found = scanner.prose_strings_touching("r.yaml", self.RULES, {5})
+        self.assertEqual([(c.start, c.end, c.style) for c in found], [(3, 5, "string")])
+        self.assertEqual(scanner.prose_strings_touching("r.yaml", self.RULES, {9}), [])
+        self.assertEqual(scanner.prose_strings_touching("r.json", self.RULES, {5}), [])
+        crlf = self.RULES.replace("\n", "\r\n")
+        self.assertEqual([c.start for c in scanner.prose_strings_touching("r.yml", crlf, {7})],
+                         [6])
+
+
 class DiffModes(unittest.TestCase):
     """The comments each diff mode added, read from the right side."""
 

@@ -14,13 +14,14 @@ Rewrite only text you wrote or changed in this change: comments, docs, specs, th
 
 ## The pass
 
-**1. Name the reader's goals**, most probable first: `--goals` for the commit message or the post, and `--goals-for` for each changed doc and spec. Start from this table and adjust it to the text. A row is also the default: `prose check` suggests it for a doc you gave no goals, and gives it to a code comment you gave none.
+**1. Name the reader's goals**, most probable first: `--goals` for the commit message or the post, and `--goals-for` for each changed doc and spec. Start from this table and adjust it to the text. A row is also the default: `prose check` suggests it for a doc you gave no goals, and gives it to a code comment or YAML prose string you gave none.
 
 | Text | Who reads it | Why, most likely first |
 |---|---|---|
 | Commit message | a reviewer; later, someone running `git blame` | what changed and whether to approve it; why a line is the way it is |
 | PR description | the reviewer | what to look at, what's risky, whether it's done |
 | Code comment | someone about to change this code | what it does that the code doesn't show; what breaks if they change it |
+| YAML prose string | whoever a tool shows the string to, often an agent | what to do; when it applies |
 | README | someone new to the thing | what it's for; how to start; what to do when it fails |
 | Spec | an implementer; a reviewer approving the design | what must be true; what's decided vs. open |
 | Other doc (architecture, guide) | someone learning what it describes | how it works now; why it is that way |
