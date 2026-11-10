@@ -1854,6 +1854,7 @@ class KeptEvolutionTests(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertRegex(r.stdout.strip().splitlines()[-1], r" 0 errors, 1 checks, 1 evolution kept; ")
 
+    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.16.1 or later")
     def test_an_entry_quoting_a_line_of_another_kind_of_error_is_stale(self):
         self.repo.change("x", delta=GOOD_DELTA.split("#### Scenario")[0])
         self.repo.git("add", "-A")
@@ -2271,6 +2272,7 @@ class TrailerTests(unittest.TestCase):
         self.assertEqual(r.returncode, 1)
         self.assertIn("needs no Spec-check trailer", r.stderr)
 
+    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.16.1 or later")
     def test_sign_records_a_self_review(self):
         self.stage_change()
         r = self.repo.run("sign", "--read", "self", "--base", "main", "--no-validate")
@@ -4947,6 +4949,7 @@ class KeptInRoundsTests(unittest.TestCase):
         self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
         self.assertIn("error [evolution]", r.stdout)
 
+    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.16.1 or later")
     def test_a_deferred_commit_counts_kept_lines_and_records_no_read(self):
         self.keep()
         value = signed_commit(self, self.repo, read="deferred")
@@ -4954,6 +4957,7 @@ class KeptInRoundsTests(unittest.TestCase):
                                 r"validate not run; read deferred to the round's end$")
         self.assertEqual(spec_check.unread_at(str(self.repo.path), "HEAD", "main"), ["x"])
 
+    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.16.1 or later")
     def test_a_read_carrying_kept_counts_is_the_changes_last_read(self):
         self.keep()
         value = signed_commit(self, self.repo)
