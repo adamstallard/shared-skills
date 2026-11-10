@@ -1,8 +1,7 @@
 The sequencer is a skill that recommends the order in which a repository's
 open work is specified, implemented, reviewed and merged. Shared-skills
 issue #43 decides what it does. adamstallard/igor#231 decides how the order
-is kept and published, and the skill follows those decisions. Adam
-(adamstallard) owns this repository and decides this change.
+is kept and published, and the skill follows those decisions.
 
 Terms used throughout, as the spec defines them:
 
@@ -80,50 +79,37 @@ edges through the same script.
 
 ## Decisions
 
-Each entry states the decision and its reasons, and labels each
-alternative not taken or cost taken on:
-
-- ***Ruled out by a scenario:*** an alternative a test can check. The spec
-  holds the rule as a requirement with a scenario the alternative would
-  fail; the entry names that requirement.
-- ***Recorded:*** an entry in `specs/sequencer/decisions.md`, in the form
-  shared-skills issue #56 sets: a rejected alternative under its
-  *Rejected*, a cost or untestable constraint under its *Constraints*.
+Each entry states the decision and its reasons. An alternative not taken
+that a test can check is marked ***Ruled out by a scenario***, naming the
+requirement whose scenario it would fail. The capability's decision record,
+`openspec/specs/sequencer/decisions.md`, holds three kinds of entry: a
+constraint no test can check, an alternative no requirement guards against,
+and a requirement's reason that rests on evidence (a failure, a measurement
+or an outside fact). A reason with no such evidence stays here, in
+design.md.
 
 ### A skill, with Igor's role as one caller
 
 **The rules and the script live in a shared-skills skill; Igor's Sequencer
 role is one caller of it,** as Igor's inquisitor role calls the inquisitor
-skill (igor#231, decision 9). The order is needed wherever several changes
-are open at once: in a person's own session, as CI in a repository with no
-Igor, and in this repository, whose open OpenSpec changes, such as this one
-and the inquisitor change, cite each other's requirements. Igor adds what
-needs its loop: builders claiming work in the order, and gate two waiting
-on the changes before it.
-
-- *Recorded:* Rejected, *Building the order only as an Igor role*.
-- *Recorded:* Rejected, *Naming it stacker*.
+skill (igor#231, decision 9). Igor adds what only a running Igor can do:
+builders claiming work in the order, and gate two waiting on the changes
+before it.
 
 ### The script is Python
 
 **The script is Python, checked by `pyright --strict`,** since it is glue
 over `gh`, `git` and the OpenSpec CLI, and data work on what they return.
 
-- *Recorded:* Rejected, *Writing the script in shell or TypeScript*.
-
 ### The rules are read from the changes' files, with no model
 
 **Modifies, cites, copy duties and cycles come from the open changes' files,
 read through the OpenSpec CLI, and the same inputs give the same text.** A
 deterministic order means any two callers agree, and a reviewer can check
-a reason against the files it names. spec-check and spec-trace read
-OpenSpec through the same CLI, so an OpenSpec release that changes its
-format makes all three fail their tests, rather than leaving one of them
-silently wrong.
+a reason against the files it names.
 
 - *Ruled out by a scenario:* a model choosing the rule-decided places
   (*The same inputs give the same order whoever runs the script*).
-- *Recorded:* Rejected, *Parsing OpenSpec's markdown directly*.
 
 A citation is a requirement's full title appearing verbatim in another
 change's files. Titles in this repository's specs are whole sentences, so
@@ -167,20 +153,15 @@ in CI only where the repository opts in.** The deterministic part always
 runs and needs no secret. The order says plainly which pairs of changes
 the model step did not check, and never treats them as checked. The names
 both changes' `tasks.md` files hold point the model at the pairs worth
-reading.
-
-The script accepts from the model step only edges between items, each with
-a reason. A model misled by a pull request's text can then at most add a
-wrong recommendation, which a person reverses after reading its reason. In
-CI, the model step runs with read-only access, and only the script, at the
-commit the workflow pins, writes.
+reading. In CI, the model step runs with read-only access. Only the
+script edits the order's issue and the items' bodies, and the workflow runs
+it from the shared-skills commit it pins, so no pull request can change the
+code that edits.
 
 - *Ruled out by a scenario:* requiring a model for every run (*The
   workflow's deterministic part needs no secret*).
 - *Ruled out by a scenario:* presenting unchecked code dependencies as
   checked (*The order says plainly what it did not check*).
-- *Recorded:* Constraint, *A model step misled by a pull request's text can
-  add a wrong code edge to the order*.
 
 ### One issue holds the order; each item holds its own block
 
@@ -309,10 +290,6 @@ session's *A question asked of the person comes from one of four
 sources*). Until it is answered, the order shows the question and leaves
 that place unchosen.
 
-- *Recorded:* Constraint, *An answer to a judgement question, or an edit to
-  a body's `Depends on` line, waits for the next run to change the order,
-  up to a day*.
-
 ### The CI workflow
 
 **`setup-ci` writes the workflow template and never overwrites a copy
@@ -322,10 +299,10 @@ to an open pull request's branch, merges, and a daily run (igor#231,
 decision 6), in one `concurrency` group so two runs never edit the same
 body at once.
 
-The template uses `pull_request_target`, because a `pull_request` run for a
-fork's pull request gets a read-only token, which cannot edit that pull
-request's body. A `pull_request_target` run holds a write token, so it
-reads each pull request's change files as data, through `git fetch` of its
+The template uses `pull_request_target` (the decision record's *Rejected:
+Running the workflow on `pull_request`* says why). A `pull_request_target`
+run holds a write token, which a pull request's code could misuse, so the
+run reads each pull request's change files as data, through `git fetch` of its
 head and the OpenSpec CLI, and never checks out or runs its code. The
 repository's choice of model step is written into the template by
 `setup-ci --model-step`, so changing it is a reviewed change to the
@@ -335,8 +312,6 @@ workflow file.
   command writes the CI workflow and never overwrites it*).
 - *Ruled out by a scenario:* checking out a pull request's head with a write
   token (*The workflow runs no code from a pull request*).
-- *Recorded:* Constraint, *A `publish` run in a session can race the
-  workflow's run, and the later write wins until the next run*.
 
 ## Risks / Trade-offs
 

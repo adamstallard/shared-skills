@@ -88,8 +88,10 @@ including a result that contradicts what design.md assumed.
 
 ## 7. Archive
 
-- [ ] 7.1 At archive, spec-check merges this change's decision
-      record, `specs/sequencer/decisions.md`, into
-      `openspec/specs/sequencer/decisions.md`. Move by hand any other
-      lasting reasoning in design.md into that record, as `AGENTS.md` says.
-      Write no `.agents/skills/sequencer/DECISIONS.md`
+- [ ] 7.1 At archive, move out of design.md, into
+      `openspec/specs/sequencer/decisions.md`, anything still there that
+      the record holds: a constraint no test can check, an alternative no
+      requirement guards against, or a requirement's reason with evidence
+      (spec-check's SKILL.md, *Current-state passes*). That record is the
+      capability's only decision file, so write no
+      `.agents/skills/sequencer/DECISIONS.md`

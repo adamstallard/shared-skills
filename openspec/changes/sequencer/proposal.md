@@ -41,8 +41,10 @@ Igor's Sequencer role (adamstallard/igor#231).
 
 design.md's *Decisions* gives the reason for each rule, and its *Open
 Questions* lists three facts to measure before building.
-`specs/sequencer/decisions.md` holds the constraints and rejected
-alternatives no test can check.
+The capability's decision record, `openspec/specs/sequencer/decisions.md`,
+holds what no test can express, each entry with its evidence: constraints
+no test can check, alternatives no requirement guards against, and reasons
+for requirements.
 
 An Igor uses the skill in three ways, each through the same commands as
 any other caller: its worker, the agent an Igor starts to do one item, runs
