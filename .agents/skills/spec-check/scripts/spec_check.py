@@ -5,13 +5,15 @@
                         [--no-validate] [--json]
     spec_check.py sign --read subagent|self|deferred [--amended N] [--open N]
                        [--base REF] [--no-validate]
-    spec_check.py verify-staged "Spec-check: <value>"   (message on stdin)
+    spec_check.py verify-staged "Spec-check: <value>"   (reads and ignores the commit message on stdin)
     spec_check.py verify-commit <sha> <value>
     spec_check.py ci [--event FILE] [--repo DIR]
     spec_check.py setup-ci [--repo DIR] [--sha SHA] [--force]
+    spec_check.py records <change> [--repo DIR] [--ref REF] [--base REF]
 
-A change's committed `.spec-check-kept` file clears the `evolution` errors a
-person chose to keep, for check and sign alike: one entry per line,
+A committed `.spec-check-kept` file, in a change's folder or beside a
+decision record, clears the `evolution` errors a person chose to keep in
+that change's files or that record, for check and sign alike: one entry per line,
 `<file>: «<line text>» kept (asked): <reason>` (SKILL.md, "Keeping a line
 the evolution check flags").
 
@@ -32,7 +34,7 @@ Every checked change is also archived into a scratch copy of the specs by
 `openspec archive`: alone, or for a stacked change, on top of its
 dependencies. Each refusal is an error.
 
-Specs and deltas are read only through the OpenSpec CLI, 1.15.0 or later:
+Specs and deltas are read only through the OpenSpec CLI, 1.16.0 or later:
 `openspec show --json` for their requirements, `openspec validate --strict
 --json` for what a delta drops, `openspec archive --json` for whether a
 change applies. Without it, every check that needs a requirement is
@@ -54,16 +56,30 @@ event handed the pull request back for review, makes it a draft again and
 withdraws the review request. setup-ci writes that workflow into a
 repository, pinned to a commit of this file. verify-staged and
 verify-commit check a `Spec-check:` value against the staged tree or a
-commit: the commit library calls the first before it commits, and the commit
-hook the second after.
+commit: the shared commit library (.agents/lib/commit-trailer) calls the
+first before it commits, and the commit hook the second after.
 
-Standard library only. Read DECISIONS.md next to SKILL.md before changing this.
+Each capability's decision record (its constraints, rejected alternatives
+and rationale) is at the path openspec/spec-check.yaml gives as
+`decision-records: <path with <capability>>`, by default
+openspec/specs/<capability>/decisions.md. A pull request edits that main
+record directly; a decisions.md inside a change is refused. The check
+command gives each record format checks, holds a Rationale entry's title to
+a requirement in force or in an open change, runs the `evolution` check on
+the lines a branch changes in a record, and gives each requirement of a
+change a `rationale` finding when its text holds more than its statement
+and one sentence. The records command prints the records a change's consistency read is given: the main record of
+each capability the change touches, and each main record whose Paths match
+a file the branch changes.
+
+Standard library only.
 """
 
 from __future__ import annotations
 
 import argparse
 import bisect
+import difflib
 import io
 import json
 import os
@@ -103,8 +119,12 @@ class Fatal(Exception):
 
 def git(repo, *args, check=True, binary=False, stdin=None, env=None):
     result = subprocess.run(
-        ["git", "-C", repo, "-c", "log.showSignature=false", *args],
+        # core.quotePath=false: paths are printed as they are, not escaped,
+        # so a path with non-ASCII letters matches its own name.
+        ["git", "-C", repo, "-c", "log.showSignature=false", "-c", "core.quotePath=false", *args],
         capture_output=True, input=stdin, text=not binary, env=env,
+        # A file name that is not UTF-8 comes through raw: kept, never a crash.
+        errors=None if binary else "surrogateescape",
     )
     if check and result.returncode != 0:
         err = result.stderr if not binary else result.stderr.decode("utf-8", "replace")
@@ -117,6 +137,7 @@ def git(repo, *args, check=True, binary=False, stdin=None, env=None):
 def materialize(repo, treeish, dest, allow_empty=False):
     """Writes treeish's openspec/ under dest. With allow_empty, a tree that has
     none gets an empty one: sign must sign a commit that deletes openspec/."""
+    refuse_links(openspec_links(repo, treeish))
     has = git(repo, "ls-tree", "--name-only", treeish, "--", "openspec", check=False)
     if allow_empty and has.returncode == 0 and not has.stdout.strip():
         os.makedirs(os.path.join(dest, "openspec"))
@@ -128,11 +149,18 @@ def materialize(repo, treeish, dest, allow_empty=False):
     if out.returncode != 0:
         raise Fatal(f"cannot read openspec/ from {treeish}: "
                     f"{out.stderr.decode('utf-8', 'replace').strip()}")
-    with tarfile.open(fileobj=io.BytesIO(out.stdout)) as tar:
+    extract(out.stdout, dest, treeish)
+
+
+def extract(data, dest, treeish):
+    """Extracts a tar from git archive under dest."""
+    with tarfile.open(fileobj=io.BytesIO(data)) as tar:
         try:
             tar.extractall(dest, filter="data")
         except TypeError:  # Python before 3.12 has no filter argument
             tar.extractall(dest)
+        except tarfile.TarError as e:  # such as a link to an absolute path
+            raise Fatal(f"cannot extract openspec/ from {treeish}: {e}") from e
 
 
 FENCE = re.compile(r"(`{3,}|~{3,})")
@@ -309,16 +337,19 @@ class Scenario:
 # -- the OpenSpec CLI ----------------------------------------------------------
 #
 # spec-check reads specs and deltas only through the OpenSpec CLI's public
-# commands (DECISIONS.md, "spec-check reads OpenSpec only through its CLI"):
+# commands:
 # `openspec show --json` for the requirements a spec or delta holds,
 # `openspec validate --strict --json` for what a delta drops or misfiles,
 # and `openspec archive --json` for whether a change applies. `show --json`
-# names requirements and scenarios from 1.14.0, and from 1.15.0 `validate`
-# reports the text the archive drops, so 1.15.0 is the minimum. Without it,
+# names requirements and scenarios from 1.14.0, from 1.15.0 `validate`
+# reports the text the archive drops, and from 1.16.0 a backtick fence's
+# info string may not hold a backtick. openspec_fence_mask reads fences by
+# that 1.16.0 rule, so an older CLI would disagree with it about which
+# lines are fenced, and 1.16.0 is the minimum. Without it,
 # every check that needs a requirement is reported as not run.
 
-OPENSPEC_SINCE = (1, 15, 0)
-NEEDS_OPENSPEC = "install OpenSpec 1.15.0 or later"
+OPENSPEC_SINCE = (1, 16, 0)
+NEEDS_OPENSPEC = "install OpenSpec 1.16.0 or later"
 CLI_TIMEOUT = 120
 # `openspec show` refuses a change whose proposal.md lacks "Why" or "What
 # Changes", so a change's deltas are read beside this one instead of its own.
@@ -411,8 +442,7 @@ def show(kind, name, files):
 #
 # `openspec show --json` gives no line numbers. A finding's line is found by
 # searching the file's text for the names the CLI gives: a plain, tolerant
-# text search with no header grammar of its own (DECISIONS.md, "A finding's
-# line is a text search"). A wrong guess only misplaces a finding, and a
+# text search with no header grammar of its own. A wrong guess only misplaces a finding, and a
 # name it cannot find gives line 0, so the finding names the file only.
 
 
@@ -647,12 +677,30 @@ class Corpus:
     """Everything under openspec/ at one root: main specs and open changes,
     their requirements read with `openspec show` when the CLI is usable."""
 
-    def __init__(self, root):
+    def __init__(self, root, requirements=True):
+        # requirements: whether to read requirements with `openspec show`;
+        # without, every spec and change has none and only texts are read.
         self.root = root
         base = os.path.join(root, "openspec")
+        refuse_links(openspec_links(root))
         if not os.path.isdir(base):
             raise Fatal(f"no openspec/ directory in {root}")
-        self.missing = openspec_missing()  # why the CLI cannot be used, or None
+        self.missing = openspec_missing() if requirements else NEEDS_OPENSPEC
+        # Where each capability's main decision record is, as
+        # openspec/spec-check.yaml says, and what is wrong with that file.
+        self.template, self.config_findings = read_config(root)
+        self.records = {}       # main record rel path -> text
+        for dirpath, dirnames, filenames in os.walk(base):
+            rel_dir = os.path.relpath(dirpath, root).replace(os.sep, "/")
+            if rel_dir == "openspec":
+                dirnames[:] = [d for d in dirnames if d != "changes"]
+            dirnames.sort()
+            for f in sorted(filenames):
+                rel = f"{rel_dir}/{f}"
+                if record_cap(self.template, rel) is None or not os.path.isfile(os.path.join(dirpath, f)):
+                    continue  # not a record, or not a regular file, such as a FIFO
+                with open(os.path.join(dirpath, f), encoding="utf-8", errors="replace") as fh:
+                    self.records[rel] = fh.read()
         self.specs = {}     # rel path -> [Req]
         self.changes = {}   # change name -> {rel path -> [Req]}
         self.items = {}     # change name -> {capability -> [Item]}
@@ -694,6 +742,8 @@ class Corpus:
                 if f.endswith(".md"):
                     full = os.path.join(dirpath, f)
                     rel = os.path.relpath(full, self.root).replace(os.sep, "/")
+                    if not os.path.isfile(full):
+                        continue  # such as a FIFO, which open would wait on
                     with open(full, encoding="utf-8", errors="replace") as fh:
                         self.texts[rel] = fh.read()
                     found.append(rel)
@@ -806,8 +856,7 @@ def check_renamed_blocks(rel, text, out):
     """A line scan, not a reading of the delta. Under "## RENAMED
     Requirements" OpenSpec reads only FROM and TO lines, so `openspec
     archive` drops a requirement written out there, and neither `openspec
-    show` nor `openspec validate` says so (DECISIONS.md, "spec-check reads
-    OpenSpec only through its CLI").
+    show` nor `openspec validate` says so.
     Each `### ` heading in that section with anything under it but FROM and
     TO lines is an error."""
     inside, head, under = False, None, False
@@ -1013,6 +1062,20 @@ class Base:
             self._lines[path] = tree_line_count(self.repo, self.ref, path)
         return self._lines[path]
 
+    def merge_base_text(self, path):
+        """path's text at the merge base of the base ref and the commit the
+        change is read from (HEAD for the working tree or the staged tree),
+        or None when it is not there or there is no merge base."""
+        head = "HEAD"
+        if self.change is not None and git(self.repo, "rev-parse", "-q", "--verify",
+                                           f"{self.change}^{{commit}}",
+                                           check=False).returncode == 0:
+            head = self.change
+        out = git(self.repo, "merge-base", self.ref, head, check=False)
+        if out.returncode != 0 or not out.stdout.strip():
+            return None
+        return show_text(self.repo, out.stdout.split()[0], path)
+
 
 def check_citations(paths, corpus, base, out):
     """Each `path:line` in the files, checked against the base and the change.
@@ -1020,8 +1083,7 @@ def check_citations(paths, corpus, base, out):
     The one rule: a citation is an error only when it has a `/` and its line is
     in neither the base nor the change's own copy. That is the only case the
     script can be sure of. Every other finding, such as a bare name that
-    matches no file or several, is a check (DECISIONS.md, "A citation fails only
-    where it cannot be wrong").
+    matches no file or several, is a check.
     """
     for path in paths:
         for n, raw, fenced in markdown_lines(corpus.texts[path]):
@@ -1085,21 +1147,21 @@ def judge_citation(m, base):
 # -- document-evolution text -----------------------------------------------------
 
 # A change states what is true now; git and pull request comments hold how
-# it got there (DECISIONS.md, "Decisions live in design.md"). Each entry is
+# it got there. Each entry is
 # (name, pattern, what the phrase does, veto). A veto is matched against the
 # text left of the hit and suppresses it, as the vetoes in the prose skill's
 # scripts/comment_scan.py do for code comments. EVOLUTION_DETERMINER is the
 # one veto: a determiner
 # directly before the hit, as in `a previously rejected rule` (behaviour);
 # in `the rule previously said` (history) nothing vetoes it. Behaviour text
-# uses `supersedes`, `reversible` and `no longer` freely, so a verb here
-# fires only beside a decision ("amends decision 4"), a person, a date, or a
+# uses `supersedes`, `reversible` and `no longer` freely, so a verb in
+# EVOLUTION_PATTERNS fires only beside a decision ("amends decision 4"), a person, a date, or a
 # word naming the document's own drafts or rounds ("an earlier draft", "this
 # push"). Three kinds of hit need no such word: `amendment`, `amended
 # by/on/in`, and the bare adverbs `previously` and `originally`. Behaviour
-# text in the measured changes did not use the first two; the adverbs are
-# held back by the veto and by EVOLUTION_PARTICIPLE. DECISIONS.md, "Document-evolution text
-# is an error", has what the patterns were measured on.
+# text in the real changes these patterns were tuned on did not use the
+# first two; the adverbs are
+# held back by the veto and by EVOLUTION_PARTICIPLE.
 
 EVOLUTION_DETERMINER = re.compile(
     r"(?:\b(?:a|an|the|any|all|some|its|their|every|each|no|one)|'s|’s)[\s-]+$", re.I)
@@ -1264,11 +1326,20 @@ def evolution_mask(line: str) -> str:
     return EVOLUTION_QUOTED.sub(lambda m: EVOLUTION_MASK * len(m.group(0)), masked)
 
 
-def evolution_match(line: str) -> tuple[int, int, str] | None:
-    """(start, end, what it does) of the first pattern that fires on one
-    line of prose, quotes already masked, or None."""
+# The patterns that credit a decision to a person or a date. The evolution check
+# skips them on a decision record a branch edits:
+# its Evidence names products, standards and dated runs, and attribution in a
+# record is the consistency read's item 17.
+EVOLUTION_CREDITS = frozenset({"attribution", "person-decided"})
+
+
+def evolution_match(line: str, skip: frozenset[str] = frozenset()) -> tuple[int, int, str] | None:
+    """(start, end, what it does) of the first pattern not in skip that
+    fires on one line of prose, quotes already masked, or None."""
     heading = EVOLUTION_HEADING.match(line) if line.lstrip().startswith("#") else None
     for name, pattern, why, veto in EVOLUTION_PATTERNS:
+        if name in skip:
+            continue
         for m in pattern.finditer(line):
             before = line[max(0, m.start() - EVOLUTION_LOOKBACK):m.start()]
             if veto is not None and veto.search(before):
@@ -1281,7 +1352,7 @@ def evolution_match(line: str) -> tuple[int, int, str] | None:
     return None
 
 
-def evolution_hits(text: str) -> list[tuple[int, str, str, str]]:
+def evolution_hits(text: str, skip: frozenset[str] = frozenset()) -> list[tuple[int, str, str, str]]:
     """(line number, phrase, what it does, line) for each line of the
     markdown text that records how the document changed, outside code fences
     and quotes. One hit per line: the first pattern that fires."""
@@ -1291,7 +1362,7 @@ def evolution_hits(text: str) -> list[tuple[int, str, str, str]]:
             continue
         # The mask keeps positions, so the phrase is read from the line as
         # written, quotes included.
-        hit = evolution_match(evolution_mask(raw))
+        hit = evolution_match(evolution_mask(raw), skip)
         if hit:
             hits.append((n, raw[hit[0]:hit[1]].strip(), hit[2], raw.strip()))
     return hits
@@ -1300,7 +1371,8 @@ def evolution_hits(text: str) -> list[tuple[int, str, str, str]]:
 def check_evolution(paths: list[str], corpus: Corpus, out: list[Finding]) -> None:
     """An error on each line of the change's files that records how the
     document got to its shape rather than what is true now. A person can
-    keep a false one through the change's kept file (apply_kept)."""
+    keep a false one through the change's kept file (apply_kept). A change's
+    own decision record is read for history wording only, not for credits."""
     for path in paths:
         text: str = corpus.texts[path]
         for n, phrase, why, line in evolution_hits(text):
@@ -1315,8 +1387,8 @@ def check_evolution(paths: list[str], corpus: Corpus, out: list[Finding]) -> Non
 
 # -- kept evolution errors ---------------------------------------------------------
 
-# A change's kept file, committed with it, holds the evolution errors a person
-# chose to keep. Each entry quotes the flagged line's text rather than its
+# A kept file, committed in a change's folder or beside a decision record,
+# holds the evolution errors a person chose to keep. Each entry quotes the flagged line's text rather than its
 # number, so it survives edits elsewhere in the file and lapses only when the
 # line itself changes. The quote ends at the first `» kept`, so a line whose
 # text holds `» kept:` or `» kept (asked):` cannot be quoted.
@@ -1333,8 +1405,32 @@ def kept_text(text: str) -> str:
 
 
 def apply_kept(change: str, corpus: Corpus, own: list[Finding]) -> list[str]:
-    """Read the change's kept file, if it has one, against own, the change's
-    findings. Each entry clears every evolution error in its file whose line
+    """The change's kept file, read against own, the change's findings
+    (apply_kept_in)."""
+    return apply_kept_in(f"openspec/changes/{change}/", corpus, own)
+
+
+def present_lines(corpus: Corpus, rel: str) -> set[str]:
+    """The lines of the decision record at rel, each through kept_text;
+    none when corpus holds no record there."""
+    text = corpus.records.get(rel)
+    if text is None:
+        return set()
+    return {kept_text(line) for line in
+            normalize_line_endings(text.removeprefix("\ufeff")).split("\n")}
+
+
+def record_kept(rel: str) -> str:
+    """The kept file of the decision record at rel: beside it."""
+    return rel.rpartition("/")[0] + "/" + KEPT_FILE
+
+
+def apply_kept_in(prefix: str, corpus: Corpus, own: list[Finding],
+                  read_all: bool = True) -> list[str]:
+    """Read the kept file in the folder prefix (a change's folder, or the
+    folder holding a decision record), if it has one, against own, the
+    findings for files under that folder; an entry names its file relative
+    to the folder. Each entry clears every evolution error in its file whose line
     text equals its quote, after whitespace is normalised (kept_text); the
     cleared findings leave own. These add a `kept` finding and clear
     nothing:
@@ -1347,8 +1443,11 @@ def apply_kept(change: str, corpus: Corpus, own: list[Finding]) -> list[str]:
     Returns one report line per cleared finding,
     `<path>:<line>: kept (asked) [evolution] <reason>`, which check and
     sign print and count. `(asked)` is the agent's statement that a person
-    approved the entry; nothing here can check it."""
-    prefix = f"openspec/changes/{change}/"
+    approved the entry; nothing here can check it.
+
+    read_all is False for a decision record, whose lines the evolution
+    check reads only where the branch changes them: an entry whose line
+    is still in its file, unchanged, matches no error and is not stale."""
     rel = prefix + KEPT_FILE
     full = os.path.join(corpus.root, *rel.split("/"))
     if not os.path.lexists(full):
@@ -1388,6 +1487,8 @@ def apply_kept(change: str, corpus: Corpus, own: list[Finding]) -> list[str]:
         seen[key] = n
         if not reason:
             own.append(Finding(rel, n, "error", "kept", "the entry gives no reason"))
+        elif not matched and not read_all and text in present_lines(corpus, prefix + name):
+            continue
         elif not matched:
             # Checked before `(asked)`: an entry that keeps nothing is not
             # handed to a person to approve.
@@ -1409,6 +1510,761 @@ def apply_kept(change: str, corpus: Corpus, own: list[Finding]) -> list[str]:
             for e, reason in sorted(cleared, key=lambda c: (c[0].path, c[0].line))]
 
 
+# -- decision records -------------------------------------------------------------
+
+# A decision record, one per capability, holds only what a test can't
+# express: the evidence for why a rule exists, or why an alternative lost.
+# OpenSpec reads none of
+# it: `validate`, `list`, `show` and `archive` all ignore a decision record
+# wherever the configured location puts it, and they ignore a decisions.md
+# in a change too (OpenSpecIgnoresDecisionRecordsTests pins that). So spec-check checks a record's form, gives the consistency read
+# the records a change must agree with, and reads a branch's edits to a
+# record as it reads a change. A change holds no record of its own: a pull
+# request edits the main record directly.
+
+CONFIG_FILE = "openspec/spec-check.yaml"
+RECORDS_KEY = "decision-records"
+CAPABILITY_SLOT = "<capability>"
+DEFAULT_RECORD = f"openspec/specs/{CAPABILITY_SLOT}/decisions.md"
+# The file name of a decision record inside a change's specs/<capability>/
+# folder, which check refuses: a pull request edits the main record instead.
+CHANGE_RECORD = "decisions.md"
+CONFIG_LINE = re.compile(r"^(?P<key>[A-Za-z][\w-]*)[ \t]*:(?:[ \t]+(?P<value>.*?))?[ \t]*$")
+
+
+def parse_config(text):
+    """(record template, [(line, severity, message)]) from the text of
+    openspec/spec-check.yaml. The file is a small subset of YAML: one
+    `key: value` per line, `#` comments and blank lines. A template that is
+    missing or unusable falls back to DEFAULT_RECORD, with an error for an
+    unusable one."""
+    template, problems, seen = DEFAULT_RECORD, [], set()
+    for n, raw in enumerate(normalize_line_endings(text).removeprefix("\ufeff").split("\n"), 1):
+        line = raw.rstrip()
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        m = CONFIG_LINE.match(line)
+        if not m:
+            problems.append((n, "error", f"not a `key: value` line spec-check reads: {line.strip()}"))
+            continue
+        key, value = m.group("key"), (m.group("value") or "")
+        # A comment after the value, outside quotes.
+        if value[:1] in ("'", '"'):
+            close = value.find(value[0], 1)
+            rest = value[close + 1:].strip() if close > 0 else "x"
+            if close < 0 or (rest and not rest.startswith("#")):
+                problems.append((n, "error", f"the value of {key} is not one quoted string"))
+                continue
+            value = value[1:close]
+        else:
+            value = re.sub(r"[ \t]+#.*$", "", value).strip()
+        if key != RECORDS_KEY:
+            problems.append((n, "error", f"spec-check reads no key {key!r}; delete this line "
+                                         f"(the only key is {RECORDS_KEY})"))
+            continue
+        if key in seen:
+            problems.append((n, "error", f"{key} is set twice"))
+            continue
+        seen.add(key)
+        why = template_problem(value)
+        if why:
+            problems.append((n, "error", f"{key}: {why}; using {DEFAULT_RECORD}"))
+        else:
+            template = value
+    return template, problems
+
+
+def template_problem(value):
+    """Why a decision-record template cannot be used, or None."""
+    if not value:
+        return "no path given"
+    if value.count(CAPABILITY_SLOT) != 1:
+        return f"the path must hold {CAPABILITY_SLOT} once: {value}"
+    parts = value.split("/")
+    if "\\" in value or value.startswith("/") or any(p in ("", ".", "..") for p in parts):
+        return f"not a plain path relative to the repository: {value}"
+    # Compared ignoring case, since a filesystem that ignores case (macOS's
+    # default) treats Spec.md as spec.md and Changes/ as changes/.
+    if parts[0] != "openspec" or len(parts) < 2 or parts[1].casefold() == "changes":
+        return f"the path must be under openspec/, and not under openspec/changes/: {value}"
+    if not value.endswith(".md") or parts[-1].casefold() == "spec.md":
+        return f"the path must name a .md file other than spec.md: {value}"
+    head, tail = value.split(CAPABILITY_SLOT)
+    if not head.endswith("/") or not tail.startswith("/"):
+        return (f"{CAPABILITY_SLOT} must be a folder of its own, with a fixed file name after it, "
+                f"such as openspec/decisions/{CAPABILITY_SLOT}/decisions.md: {value}")
+    return None
+
+
+def read_config(root):
+    """(record template, [Finding]) from the root's openspec/spec-check.yaml.
+    No file means the default."""
+    full = os.path.join(root, *CONFIG_FILE.split("/"))
+    if not os.path.lexists(full):
+        return DEFAULT_RECORD, []
+    try:
+        if os.path.islink(full) or not os.path.isfile(full):
+            raise OSError("not a plain file")
+        with open(full, encoding="utf-8") as fh:
+            text = fh.read()
+    except (OSError, UnicodeDecodeError) as e:
+        return DEFAULT_RECORD, [Finding(CONFIG_FILE, 0, "error", "config",
+                                        f"cannot read it ({e}); using {DEFAULT_RECORD}")]
+    template, problems = parse_config(text)
+    return template, [Finding(CONFIG_FILE, n, sev, "config", msg) for n, sev, msg in problems]
+
+
+def record_path(template, cap):
+    return template.replace(CAPABILITY_SLOT, cap)
+
+
+def record_cap(template, rel):
+    """The capability whose main record rel is under template, or None."""
+    head, tail = template.split(CAPABILITY_SLOT)
+    # A change's files are never main records, though a template such as
+    # openspec/<capability>/decisions.md would otherwise match one.
+    if rel.casefold().startswith("openspec/changes/"):
+        return None
+    if rel.startswith(head) and rel.endswith(tail) and len(rel) > len(head) + len(tail):
+        cap = rel[len(head):len(rel) - len(tail)]
+        if all(p not in ("", ".", "..") for p in cap.split("/")):
+            return cap
+    return None
+
+
+RECORD_TITLE = re.compile(r"^#[ \t]+(?P<cap>.+?):[ \t]+constraints, rejected alternatives and rationale[ \t]*$",
+                          re.I)
+RECORD_SECTIONS = {"constraints": "Constraint", "rejected": "Rejected", "rationale": "Rationale"}
+SECTION_OF = {"Constraint": "Constraints", "Rejected": "Rejected", "Rationale": "Rationale"}
+RECORD_SECTION = re.compile(r"^##[ \t]+(?P<name>.*?)[ \t]*$")
+RECORD_ENTRY = re.compile(r"^[-*][ \t]+\*\*(?P<kind>Constraint|Rejected|Rationale):[ \t]*(?P<title>.+?)\*\*[ \t]*$")
+RECORD_PART = re.compile(r"^[ \t]+(?P<label>[A-Z][a-z]*(?: [a-z]+)?):(?:[ \t]+(?P<value>.*?))?[ \t]*$")
+RECORD_PARTS = {
+    "Constraint": ("Because", "Evidence", "Holds while", "Paths"),
+    "Rejected": ("Facing", "Lost because", "Instead", "Paths"),
+    # A Rationale entry's reasoning is the lines after its bold line, with
+    # no label; one or more Evidence lines follow it.
+    "Rationale": ("Evidence",),
+}
+# Parts that end with a link: a URL, a markdown link, an issue or pull
+# request (#12, owner/repo#12) or a commit.
+LINKED_PARTS = ("Evidence", "Lost because")
+LINK = re.compile(r"https?://\S+|\[[^\]\n]*\]\([^)\n]*\)|(?<![\w&])(?:[\w.-]+/[\w.-]+)?#\d+\b"
+                  r"|\b(?=[0-9a-f]*\d)(?=[0-9a-f]*[a-f])[0-9a-f]{7,40}\b")
+ONE_SENTENCE_PARTS = ("Because", "Lost because")
+PATH_GLOB = re.compile(r"[*?\[]")
+
+
+class RecordEntry:
+    def __init__(self, line, kind, title, section):
+        self.line, self.kind, self.title, self.section = line, kind, title, section
+        self.parts = {}     # label -> [line, value]
+        self.lines = []     # the entry's lines as the file writes them
+        self.reasoning = ""  # a Rationale entry's reasoning
+        self.evidence = []  # a Rationale entry's Evidence lines, as [line, value]
+
+    @property
+    def key(self):
+        return (self.kind, entry_title(self.title))
+
+    def paths(self):
+        return [p for p in (split_paths(self.parts["Paths"][1]) if "Paths" in self.parts else [])]
+
+
+def entry_title(title):
+    """The requirement title an entry's bold title names, as entries and
+    requirements are matched:
+    the title as written, less the entry's closing period, with surrounding
+    space trimmed as `openspec archive` trims a requirement's name. A
+    requirement whose title ends in a period is written with two."""
+    title = title.strip(JS_SPACE)
+    return (title[:-1] if title.endswith(".") else title).strip(JS_SPACE)
+
+
+def loose_key(title):
+    """A title with case, spacing, backticks and a closing period ignored,
+    used only to suggest the exact title on a miss; nothing matches by it."""
+    return " ".join(title.replace("`", "").split()).rstrip(".").casefold()
+
+
+def as_written(name):
+    """The bold title an entry for a requirement named name is written with:
+    the name, with a second period when it ends in one (entry_title)."""
+    return name + "." if name.endswith(".") else name
+
+
+def did_you_mean(title, names):
+    """ '; did you mean "<name>"?' when exactly one of names matches title
+    loosely, else '', with the name as an entry writes it. Called only for
+    a title not among names."""
+    near = sorted({n for n in names if loose_key(n) == loose_key(title)})
+    return f'; did you mean "{as_written(near[0])}"?' if len(near) == 1 else ""
+
+
+def split_paths(value):
+    return [p.strip().strip("`").strip() for p in value.split(",") if p.strip().strip("`").strip()]
+
+
+class Record:
+    """A decision record as spec-check reads it: its title's capability, its
+    entries in order, and every way it departs from the form."""
+
+    def __init__(self):
+        self.cap = None
+        self.title_line = 0
+        self.title_raw = None
+        self.entries = []   # RecordEntry, in file order
+        self.problems = []  # (line, message): each an error
+
+
+def parse_record(text):
+    """A Record from a record's text."""
+    rec = Record()
+    section, entry, part, seen_sections, after_blank = None, None, None, set(), False
+    for n, raw, fenced in markdown_lines(text):
+        if not raw.strip():
+            part, after_blank = None, True
+            continue
+        blank_before, after_blank = after_blank, False
+        if fenced:
+            rec.problems.append((n, "a code fence is not part of a decision record"))
+            continue
+        if rec.title_line == 0:
+            m = RECORD_TITLE.match(raw)
+            rec.title_line = n
+            if m:
+                rec.cap = m.group("cap").strip().strip("`")
+                rec.title_raw = raw.rstrip()
+            else:
+                rec.problems.append((n, "the first line must be "
+                                        "`# <capability>: constraints, rejected alternatives and rationale`"))
+            if m or raw.startswith("# "):
+                continue
+        m = RECORD_SECTION.match(raw)
+        if m:
+            name = m.group("name").casefold()
+            entry = part = None
+            if name not in RECORD_SECTIONS:
+                rec.problems.append((n, f"a decision record has no section {raw.strip()!r}; "
+                                        "its sections are `## Constraints`, `## Rejected`, "
+                                        "`## Rationale`"))
+                section = "?"
+                continue
+            if name in seen_sections:
+                rec.problems.append((n, f"`{raw.strip()}` appears twice"))
+            seen_sections.add(name)
+            section = name
+            continue
+        m = RECORD_ENTRY.match(raw)
+        if m:
+            part = None
+            kind, title = m.group("kind"), m.group("title").strip(JS_SPACE)
+            entry = RecordEntry(n, kind, title, section)
+            entry.lines.append(raw.rstrip())
+            if section is None:
+                rec.problems.append((n, "an entry above `## Constraints`, `## Rejected` or "
+                                        "`## Rationale`"))
+            elif section != "?" and RECORD_SECTIONS[section] != kind:
+                rec.problems.append((n, f"a {kind} entry under `## {section.title()}`; "
+                                        f"it goes under `## {SECTION_OF[kind]}`"))
+            if not entry_title(title):
+                rec.problems.append((n, "the entry names nothing after its label"))
+            rec.entries.append(entry)
+            if kind == "Rationale":
+                part = "reasoning"
+            continue
+        m = RECORD_PART.match(raw)
+        if m and entry is not None and entry.kind == "Rationale" and part == "reasoning" \
+                and m.group("label") != "Evidence":
+            m = None  # a reasoning line that starts with a word and a colon
+        if entry is not None and m and m.group("label") in RECORD_PARTS["Constraint"] + \
+                RECORD_PARTS["Rejected"]:
+            label = m.group("label")
+            entry.lines.append(raw.rstrip())
+            if label not in RECORD_PARTS[entry.kind]:
+                rec.problems.append((n, f"a {entry.kind} entry has no part {label!r}; its parts "
+                                        f"are " + ", ".join(RECORD_PARTS[entry.kind])))
+            elif entry.kind == "Rationale":
+                entry.evidence.append([n, m.group("value") or ""])
+            elif label in entry.parts:
+                rec.problems.append((n, f"{label} appears twice in this entry"))
+            else:
+                entry.parts[label] = [n, m.group("value") or ""]
+            part = label
+            continue
+        if entry is not None and part == "reasoning" and raw[:1] in (" ", "\t"):
+            entry.lines.append(raw.rstrip())
+            entry.reasoning = (entry.reasoning + " " + raw.strip()).strip()
+            continue
+        if entry is not None and part is not None and raw[:1] in (" ", "\t"):
+            entry.lines.append(raw.rstrip())  # a part's value, wrapped
+            if entry.kind == "Rationale" and part == "Evidence" and entry.evidence:
+                entry.evidence[-1][1] = (entry.evidence[-1][1] + " " + raw.strip()).strip()
+            elif part in entry.parts:
+                entry.parts[part][1] = (entry.parts[part][1] + " " + raw.strip()).strip()
+            continue
+        indented = entry is not None and raw[:1] in (" ", "\t")
+        rec.problems.append((n, "not part of an entry: a decision record holds only its title, "
+                                "its sections and their entries" +
+                                ("; a blank line ends the text before it, so this line belongs "
+                                 "to nothing" if indented and blank_before else "")))
+    if rec.title_line == 0:
+        rec.problems.append((0, "the record is empty"))
+    for e in rec.entries:
+        if e.kind == "Rationale":
+            if not e.reasoning:
+                rec.problems.append((e.line, "the Rationale entry has no reasoning: write it on "
+                                             "the lines after its bold line"))
+            if not e.evidence:
+                rec.problems.append((e.line, "the Rationale entry has no Evidence: add an Evidence "
+                                             "line linking a failure, a measurement or an outside "
+                                             "fact"))
+            for n, value in e.evidence:
+                if not value.strip():
+                    rec.problems.append((n, "Evidence: is empty"))
+            continue
+        for label in RECORD_PARTS[e.kind]:
+            if label not in e.parts:
+                rec.problems.append((e.line, f"the {e.kind} entry has no {label}: line"))
+            elif not e.parts[label][1].strip():
+                rec.problems.append((e.parts[label][0], f"{label}: is empty"))
+    seen = {}
+    for e in rec.entries:
+        if e.key in seen:
+            rec.problems.append((e.line, f"the same {e.kind} entry as line {seen[e.key]}"))
+        else:
+            seen[e.key] = e.line
+    return rec
+
+
+def path_matches(pattern, path):
+    """Whether a Paths item names path: the file itself, a directory above
+    it, or a glob that matches it (`*` within a name, `**` across names)."""
+    pattern = pattern.strip("/") if not PATH_GLOB.search(pattern) else pattern.rstrip("/")
+    if not PATH_GLOB.search(pattern):
+        return path == pattern or path.startswith(pattern + "/")
+    rx = ""
+    i = 0
+    while i < len(pattern):
+        if pattern.startswith("**/", i):
+            rx, i = rx + "(?:.*/)?", i + 3
+        elif pattern.startswith("**", i):
+            rx, i = rx + ".*", i + 2
+        elif pattern[i] == "*":
+            rx, i = rx + "[^/]*", i + 1
+        elif pattern[i] == "?":
+            rx, i = rx + "[^/]", i + 1
+        else:
+            rx, i = rx + re.escape(pattern[i]), i + 1
+    rx += "(?:/.*)?"  # a glob naming directories names what is under them
+    return re.fullmatch(rx, path) is not None
+
+
+def sentence_count(text):
+    return len(sentences(text))
+
+
+SENTENCE_END = re.compile(r"(?<=[.!?])[\"'’”)\]*_]*\s+(?=[A-Z0-9`*\"“(\[_])")
+ABBREVIATION = re.compile(r"(?:\b(?:e\.g|i\.e|etc|vs|cf|approx|incl|resp|Fig|No))\.$", re.I)
+
+
+def sentences(text):
+    """The sentences of a run of text, split after `.`, `!` or `?` before a
+    capital, a digit or opening markup; never after an abbreviation such as
+    `e.g.`."""
+    out = []
+    for piece in SENTENCE_END.split(" ".join(text.split())):
+        if out and ABBREVIATION.search(out[-1]):
+            out[-1] += " " + piece
+        elif piece:
+            out.append(piece)
+    return out
+
+
+def unlinked(rec):
+    """[(line, message)] for each Evidence or Lost because in rec that links
+    nothing. These are checks, not errors: the script can tell only whether
+    the text holds something shaped like a link, not whether the link backs
+    the claim."""
+    out = []
+    for e in rec.entries:
+        linked = [(label, e.parts[label]) for label in LINKED_PARTS if label in e.parts] + \
+            [("Evidence", ev) for ev in e.evidence]
+        for label, (n, value) in linked:
+            if value.strip() and not LINK.search(value):
+                out.append((n, f"{label}: links nothing; end it with a link to the "
+                               "failure, measurement or outside fact (a URL, #<issue>, a "
+                               "commit or a markdown link to a file)"))
+    return out
+
+
+def check_record(rel, text, base, out, cap=None, requirements=None, gone=None, pending=False):
+    """Format checks on one main record. requirements: the titles a
+    Rationale entry may name, or None when they cannot be told. gone: {title:
+    why} of the requirements an open change removes or renames away, which
+    no entry may name. pending: an open change touches the capability, so a
+    path in Paths that the tree lacks is a check, since the change's
+    implementation may add it, rather than an error. Returns the Record."""
+    rec = parse_record(text)
+    for n, msg in rec.problems:
+        out.append(Finding(rel, n, "error", "record", msg))
+    for n, msg in unlinked(rec):
+        out.append(Finding(rel, n, "check", "record", msg))
+    if cap is not None and rec.cap is not None and rec.cap != cap:
+        out.append(Finding(rel, rec.title_line, "error", "record",
+                           f"the title names {rec.cap!r}, and the record is {cap!r}'s"))
+    names = None
+    allowed = None if requirements is None else set(requirements)
+    for e in rec.entries:
+        if e.kind == "Rationale" and gone and e.key[1] in gone:
+            out.append(Finding(rel, e.line, "error", "record",
+                               f'Rationale: "{e.key[1]}" names a requirement that {gone[e.key[1]]}; '
+                               "delete the entry, or retitle it to the requirement it explains"))
+        elif e.kind == "Rationale" and allowed is not None and e.key[1] and e.key[1] not in allowed:
+            out.append(Finding(rel, e.line, "error", "record",
+                               f'Rationale: "{e.key[1]}" names no requirement of '
+                               f"{cap or rec.cap}; name a requirement in force, or one an open "
+                               "change adds, modifies or renames to, by its exact title" +
+                               did_you_mean(e.key[1], allowed)))
+        for label in ONE_SENTENCE_PARTS:
+            if label in e.parts and sentence_count(e.parts[label][1]) > 1:
+                out.append(Finding(rel, e.parts[label][0], "check", "record",
+                                   f"{label}: holds {sentence_count(e.parts[label][1])} sentences; "
+                                   "the form gives it one"))
+        for p in e.paths():
+            if names is None:
+                names = tree_paths(base)
+            if not any(path_matches(p, f) for f in names):
+                sev = "check" if pending else "error"
+                why = ("an open change's implementation may add it" if pending
+                       else "fix the path, or delete the entry")
+                out.append(Finding(rel, e.parts["Paths"][0], sev, "record",
+                                   f"Paths: {p} matches nothing in the tree; {why}"))
+    return rec
+
+
+def tree_paths(base):
+    """Every file in the tree being checked: the working tree, a ref or the
+    staged tree, as Base reads it. Directories are found from these."""
+    if getattr(base, "_tree_paths", None) is None:
+        base._tree_paths = [p for p in base.change_names() if p]
+    return base._tree_paths
+
+
+CLOSING_HASHES = re.compile(r"[ \t]+#+[ \t]*$")
+
+
+def requirement_name(title):
+    """A requirement's name in a delta line, as OpenSpec's
+    normalizeRequirementName reads it: a closing run of `#` is not part of
+    it."""
+    return CLOSING_HASHES.sub("", title).strip(JS_SPACE)
+
+
+def delta_requirements(text):
+    """({title} of every requirement a delta's text names in a
+    requirements section, [(line, title)] of each it removes, [(line, old
+    title, new title)] of each it renames, [(line, title)] of each it
+    adds), read from the text as OpenSpec reads it: a fenced line is never a
+    title. The title-reuse check, the record title checks and `records`
+    call this, so they need no `openspec show`. As
+    OpenSpec does, it drops a leading byte-order mark and reads `\r` and
+    `\r\n` as line ends."""
+    named, removed, renames, added, section, pending = set(), [], [], [], None, None
+    lines = normalize_line_endings(text.removeprefix("\ufeff")).split("\n")
+    for n, (raw, fenced) in enumerate(zip(lines, openspec_fence_mask(lines)), 1):
+        if fenced:
+            continue
+        m = H2.match(raw)
+        if m:
+            section, pending = m.group(1).strip(JS_SPACE).lower(), None
+            continue
+        if section in ("added requirements", "modified requirements"):
+            m = DELTA_TITLE.match(raw)
+            if m:
+                named.add(requirement_name(m.group(1)))
+                if section == "added requirements":
+                    added.append((n, requirement_name(m.group(1))))
+        elif section == "removed requirements":
+            m = DELTA_TITLE.match(raw) or REMOVED_BULLET.match(raw)
+            if m:
+                removed.append((n, requirement_name(m.group(1))))
+        elif section == "renamed requirements":
+            m = DELTA_FROM.match(raw)
+            if m:
+                pending = (n, requirement_name(m.group(1)))
+                continue
+            m = DELTA_TO.match(raw)
+            if m and pending is not None:
+                renames.append((pending[0], pending[1], requirement_name(m.group(1))))
+                pending = None
+    named |= {t for _, t in removed}
+    named |= {t for _, old, new in renames for t in (old, new)}
+    return named, removed, renames, added
+
+
+def delta_changes(text):
+    """([(line, title)] of each requirement a delta's text removes,
+    [(line, old title, new title)] of each it renames)."""
+    return delta_requirements(text)[1:3]
+
+
+def check_title_reuse(rel, text, out):
+    """An error for each title a delta both takes away (removes or renames
+    from) and brings in (adds or renames to). Titles compare exactly, as `openspec archive`
+    compares names; near-duplicates differing in case or spacing are the
+    archive's to refuse."""
+    _, removed, renames, added = delta_requirements(text)
+    away = {}
+    for n, title in sorted([(n, t) for n, t in removed] + [(n, old) for n, old, _ in renames]):
+        away.setdefault(title, n)
+    come = sorted(added + [(n, new) for n, _, new in renames])
+    reported = set()
+    for n, title in come:
+        if title in away and title not in reported:
+            reported.add(title)
+            out.append(Finding(rel, max(n, away[title]), "error", "title-reuse",
+                               f'this change renames or removes "{title}" and also adds or renames '
+                               f'to "{title}"; spec-check doesn\'t support reusing a title within one '
+                               "change. Split it into two changes, the second with a `Builds on:` "
+                               "line for the first (both can sit in one pull request), or choose "
+                               "another title"))
+
+
+def open_titles(corpus, cap):
+    """({title} an open change adds, modifies or renames to in cap, {title:
+    why} of each one an open change removes or renames away), over every
+    open change in the tree: on a repository that merges before it
+    archives, a merged change stays open until it is archived. Read from
+    the delta text as OpenSpec reads it (delta_requirements), so it needs no
+    CLI and holds when `openspec show` cannot read a change."""
+    come, away = set(), {}
+    for change in sorted(corpus.changes):
+        rel = change_deltas(corpus, change).get(cap)
+        if rel is None:
+            continue
+        named, removed, renames, _ = delta_requirements(corpus.texts[rel])
+        come |= named - {t for _, t in removed} - {old for _, old, new in renames if old != new}
+        come |= {new for _, _, new in renames}
+        for _, title in removed:
+            away.setdefault(title, f"the open change {change} removes")
+        for _, old, new in renames:
+            if old != new:
+                away.setdefault(old, f'the open change {change} renames to "{new}"')
+    return come, away
+
+
+def changed_lines(old, new):
+    """The line numbers, from 1, of the lines of new that differ from old:
+    every line when old is None."""
+    def split(text):
+        # As markdown_lines numbers them, which evolution_hits reports.
+        return normalize_line_endings(text.removeprefix("\ufeff")).split("\n")
+    lines = split(new)
+    if old is None:
+        return set(range(1, len(lines) + 1))
+    matcher = difflib.SequenceMatcher(None, split(old), lines, autojunk=False)
+    return {j + 1 for tag, _, _, j1, j2 in matcher.get_opcodes() if tag != "equal"
+            for j in range(j1, j2)}
+
+
+def check_record_diff(rel, text, base, out):
+    """An evolution error on each line the branch changes in a main record
+    that records history; the credit rules are skipped, as in any record
+    (EVOLUTION_CREDITS). Lines the branch leaves alone are not read. The
+    record's kept file (record_kept) clears the ones a person kept."""
+    old = base.merge_base_text(rel)
+    changed = changed_lines(old, text)
+    for n, phrase, why, line in evolution_hits(text, EVOLUTION_CREDITS):
+        if n in changed:
+            quote = line if len(line) <= EVOLUTION_QUOTE_MAX \
+                else line[:EVOLUTION_QUOTE_MAX - 1] + "…"
+            f = Finding(rel, n, "error", "evolution",
+                        f'"{phrase}" {why}; state what holds now and leave the history '
+                        f"to git: {quote}")
+            f.quote = line
+            out.append(f)
+
+
+def check_main_records(corpus, base, out):
+    """Checks on every main record; returns the report lines of the
+    evolution errors the records' kept files clear (apply_kept_in)."""
+    kept = []
+    caps = {spec_cap(p) for p in corpus.specs}
+    pending_caps = {cap for c in corpus.changes for cap in change_deltas(corpus, c)}
+    for rel in sorted(corpus.records):
+        cap = record_cap(corpus.template, rel)
+        spec = f"openspec/specs/{cap}/spec.md"
+        # A Rationale entry's title is checked against its capability's
+        # main spec and the open changes' deltas, unless OpenSpec is
+        # unavailable or cannot read that spec, or there is no spec and no
+        # open change creates one, which the finding below reports instead. An entry naming a requirement
+        # an open change takes away is read from the delta text, so it is an
+        # error whatever OpenSpec can read.
+        come, gone = open_titles(corpus, cap)
+        names = None
+        if not corpus.missing and spec not in corpus.unread and cap in caps:
+            names = {r.name for r in corpus.specs.get(spec, [])} | come
+        elif cap not in caps and cap in pending_caps:
+            # An open change creates the capability: its titles are all.
+            names = come
+        check_record(rel, corpus.records[rel], base, out, cap=cap, requirements=names,
+                     gone=gone, pending=cap in pending_caps)
+        own = []
+        if base.ok:
+            check_record_diff(rel, corpus.records[rel], base, own)
+        kept += apply_kept_in(record_kept(rel).removesuffix(KEPT_FILE), corpus, own,
+                              read_all=False)
+        out += own
+        if cap not in caps and cap not in pending_caps:
+            out.append(Finding(rel, 0, "check", "record",
+                               f"no spec in openspec/specs/ is {cap!r}, the capability this "
+                               "record belongs to"))
+    return kept
+
+
+def check_records_of_change(change, corpus, out):
+    """An error at the delta line of each requirement the change removes or
+    renames away that its capability's main record still gives a Rationale
+    entry, so the change's own check reports what check_main_records reports
+    at the record."""
+    for cap, rel in sorted(change_deltas(corpus, change).items()):
+        main_rel = record_path(corpus.template, cap)
+        if main_rel not in corpus.records:
+            continue
+        held = {e.key[1] for e in parse_record(corpus.records[main_rel]).entries
+                if e.kind == "Rationale"}
+        removed, renames = delta_changes(corpus.texts[rel])
+        for n, title in removed:
+            if title in held:
+                out.append(Finding(rel, n, "error", "record",
+                                   f'removes "{title}", which {main_rel} gives a Rationale entry; '
+                                   "delete that entry from the record"))
+        for n, old, new in renames:
+            if old != new and old in held:
+                out.append(Finding(rel, n, "error", "record",
+                                   f'renames "{old}" to "{new}", which {main_rel} gives a Rationale '
+                                   f'entry; retitle that entry "{as_written(new)}", or delete it'))
+
+
+# -- rationale in a requirement ---------------------------------------------------
+
+# A requirement holds its rule: its SHALL statement plus at most one
+# *because* sentence. A
+# sentence with no RFC 2119 keyword is not the statement, and only one may
+# stand beside it. A list item continues the statement it hangs from, so
+# only the sentences after an item's first count. A sentence that is only
+# a link, or begins `Evidence:` or `See`, links evidence and is not counted.
+RULE_WORD = re.compile(r"\b(SHALL|MUST|MAY|SHOULD|REQUIRED|RECOMMENDED|OPTIONAL)\b")
+LIST_ITEM = re.compile(r"^\s*(?:[-*+]|\d{1,9}[.)])\s+")
+EVIDENCE = re.compile(r"^(?:Evidence:|See\b)", re.I)
+
+
+def rationale_sentences(body):
+    """The sentences of a requirement's text that are neither its statement
+    nor linked evidence."""
+    units = []  # (is a list item, text)
+    for para in re.split(r"\n[ \t]*\n", body):
+        cur, item = "", False
+        for line in para.split("\n"):
+            if LIST_ITEM.match(line):
+                if cur:
+                    units.append((item, cur))
+                cur, item = LIST_ITEM.sub("", line, count=1), True
+                continue
+            cur = (cur + " " + line.strip()).strip()
+        if cur:
+            units.append((item, cur))
+    out = []
+    for item, text in units:
+        ss = sentences(text)
+        for s in ss[1:] if item else ss:
+            if RULE_WORD.search(s):
+                continue
+            if EVIDENCE.match(s) or not LINK.sub("", s).strip(" .,;:()"):
+                continue
+            out.append(s)
+    return out
+
+
+def check_rationale(reqs, corpus, out):
+    """A check on each requirement whose text holds more than one sentence
+    beside its statement."""
+    for r in reqs:
+        extra = rationale_sentences(r.body)
+        if len(extra) > 1:
+            cap = delta_rel(r.path) or spec_cap(r.path) or "<capability>"
+            where = record_path(corpus.template, cap)
+            out.append(Finding(r.path, r.line, "check", "rationale",
+                               f'requirement "{r.name}" holds {len(extra)} sentences beside its '
+                               f'SHALL statement; keep the rule and at most one *because* '
+                               f'sentence; move reasoning with evidence to a Rationale entry in {where}, '
+                               f'and the rest to design.md'))
+
+
+def changed_files(repo, base_ref, ref=None):
+    """The files the branch changes against its merge base with base_ref:
+    of ref, or of the working tree (staged, unstaged and untracked) with
+    none. None when there is no merge base."""
+    head = ref or "HEAD"
+    out = git(repo, "merge-base", base_ref, head, check=False)
+    if out.returncode != 0 or not out.stdout.strip():
+        return None
+    mb = out.stdout.split()[0]
+    if ref:
+        names = git(repo, "diff", "--name-only", "--no-renames", mb, ref).stdout.splitlines()
+    else:
+        names = git(repo, "diff", "--name-only", "--no-renames", mb).stdout.splitlines()
+        names += git(repo, "ls-files", "--others", "--exclude-standard").stdout.splitlines()
+    return sorted(set(n for n in names if n))
+
+
+REQUIREMENT_TITLE = re.compile(r"^###\s*Requirement:\s*(.+?)\s*$", re.I)
+
+
+def delta_titles(corpus, change, cap):
+    """The record keys of the requirement titles change's delta for cap
+    names, read from its text: `records` reads no requirements with
+    `openspec show`."""
+    rel = change_deltas(corpus, change).get(cap)
+    return delta_requirements(corpus.texts[rel])[0] if rel else set()
+
+
+def records_for(change, corpus, changed):
+    """[(record, why)]: the main record of each capability the change
+    touches, then each main record one of whose Paths matches a changed
+    file. A record the branch edits is marked, so the reader reads its diff
+    with the change."""
+    out, seen = [], set()
+    edited = set(changed or [])
+
+    def why(rel, text):
+        return text + ("; the branch edits it: read its diff against the merge base"
+                       if rel in edited else "")
+
+    for cap in sorted(change_deltas(corpus, change)):
+        rel = record_path(corpus.template, cap)
+        if rel in corpus.records:
+            # A Rationale entry for a requirement the change rewrites is
+            # named, so the reader checks the reasoning still holds.
+            touched = delta_titles(corpus, change, cap)
+            covered = [e.key[1] for e in parse_record(corpus.records[rel]).entries
+                       if e.kind == "Rationale" and e.key[1] in touched]
+            out.append((rel, why(rel, f"the change touches {cap}" + "".join(
+                f'; its Rationale for "{t}" covers a requirement the change changes'
+                for t in covered))))
+            seen.add(rel)
+    for rel in sorted(corpus.records):
+        if rel in seen:
+            continue
+        rec = parse_record(corpus.records[rel])
+        hit = next(((p, f) for e in rec.entries for p in e.paths() for f in changed or []
+                    if path_matches(p, f)), None)
+        if hit:
+            out.append((rel, why(rel, f"its Paths {hit[0]} matches {hit[1]}")))
+    return out
+
+
 # -- stacked changes -------------------------------------------------------------
 
 # A change that applies on top of another open change says so in its
@@ -1418,8 +2274,7 @@ def apply_kept(change: str, corpus: Corpus, own: list[Finding]) -> list[str]:
 #
 # It is then checked against the specs of the tree being checked, with each
 # open dependency's delta archived into a copy of them and each merged one
-# looked for in them (DECISIONS.md, "A stacked change declares what it builds
-# on").
+# looked for in them.
 BUILDS_ON = re.compile(
     r"^Builds on:[ \t]+([A-Za-z0-9][A-Za-z0-9._-]*)[ \t]+"
     r"\(([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)#([0-9]+)\)[ \t]*$")
@@ -1704,10 +2559,10 @@ def plain(r):
     return " ".join(t.strip() for _, t in r.text if t.strip())
 
 
-# A stacked change's base is built by archiving its open dependencies with
-# the OpenSpec CLI in a scratch copy of the specs (DECISIONS.md, "Why the real
-# `openspec archive`, and only for open dependencies"), so the CLI is
-# required for one.
+# The tasks.md written into an open dependency's scratch copy, with every
+# task done, so that `openspec archive` accepts it. A stacked change's base
+# is built by archiving its open dependencies this way in a scratch copy of
+# the specs, so a stacked change needs the OpenSpec CLI.
 TASKS_DONE = "## 1. Tasks\n\n- [x] 1.1 Done\n"
 
 
@@ -1910,14 +2765,14 @@ class Decision:
 
 def decide(dep, caps):
     """Splits an open dependency's items by whether caps ({capability:
-    [Req]}, the specs so far) already shows them, by content (DECISIONS.md,
-    "Whether the specs hold an open dependency is read from its content"):
+    [Req]}, the specs so far) already shows them, by content:
     an addition is there when the requirement is, with the same text, and
-    is the specs' own version when it is there with another text; a removal
+    goes in d.third when the specs hold that name with another text; a removal
     is there when the requirement is absent; a modification when the text
     is the same; one delta's renames when renames_done says so. Names match
-    exactly, as OpenSpec matches them. The renames kept move their names
-    before the other items are read, as the archive applies them first."""
+    exactly, as OpenSpec matches them. Renames the specs don't show yet (in
+    d.kept, still to be applied) move their names before the other items
+    are read, as the archive applies renames first."""
     d = Decision()
     for cap, items in items_of(dep).items():
         names = {r.name: r for r in caps.get(cap, [])}
@@ -1947,10 +2802,9 @@ def decide(dep, caps):
 
 
 def not_shown(dep, caps, later):
-    """What of a merged dependency's result caps (the tree being checked)
-    does not show, as [what it lacks], judged by content and never by
-    replaying it (DECISIONS.md, "A merged dependency is judged, never
-    replayed"): each requirement it adds or modifies is there by name,
+    """The parts of a merged dependency's result that caps (the tree being
+    checked) does not show, as [what it lacks], judged by content and never by
+    replaying it: each requirement it adds or modifies is there by name,
     with any text, since main may have reworded it since; each it removes
     is absent; and for its renames, read in order, the names they end on
     are there and the names they move away from are absent (rename_ends).
@@ -1987,12 +2841,18 @@ def not_shown(dep, caps, later):
     return missing
 
 
+def merge_main(merged, missing):
+    """The error for a merged dependency whose result the branch lacks;
+    merged is the words naming it, ending in "has merged"."""
+    return (f"{merged}, but this branch does not hold its result "
+            f"({'; '.join(missing)}). Merge main into your branch")
+
+
 class Stack:
     """The base a stacked change is checked against: the specs of the tree
     being checked, with each open dependency's change archived into a
     scratch copy of them by `openspec archive`, after dropping what they
-    already show (DECISIONS.md, "Why the real `openspec archive`, and only
-    for open dependencies")."""
+    already show."""
 
     def __init__(self, corpus):
         self.caps = {}       # capability -> [Req]
@@ -2088,9 +2948,8 @@ def check_own(dep, listed, scratch, tree, unread, later):
         if in_tree(own):
             missing = not_shown(own, tree, later(own))
             if missing:
-                raise StackError(
-                    f"{dep.label} builds on {own.label}, which has merged, but this branch does not "
-                    f"hold its result ({'; '.join(missing)}). Merge main into your branch")
+                raise StackError(merge_main(f"{dep.label} builds on {own.label}, which has merged",
+                                            missing))
         elif decide(own, scratch.caps()).kept:
             raise StackError(f"{dep.label} builds on {own.label}, which this change does not list "
                              f"before it, whose result the tree does not hold yet; add its `Builds on:` "
@@ -2158,7 +3017,7 @@ def build_stack(change, corpus, repo, base):
     return stack, findings, complete
 
 
-# The refusals `openspec archive` gives for one delta spec (OpenSpec 1.15.0,
+# The refusals `openspec archive` gives for one delta spec (OpenSpec 1.16.0,
 # dist/core/specs-apply.js, buildUpdatedSpec). Each names the capability;
 # only REFUSAL also names one requirement of the delta.
 REFUSAL = re.compile(r'^(\S+) (RENAMED|REMOVED|MODIFIED|ADDED) failed for header '
@@ -2201,8 +3060,7 @@ def refusal_place(said, items):
 
 def archive_own(change, corpus, copy, stacked):
     """[Finding] for the change itself, archived verbatim with `openspec
-    archive` into copy (DECISIONS.md, "Every change is archived into a
-    scratch copy"). For a stacked change, copy is a copy of the scratch
+    archive` into copy. For a stacked change, copy is a copy of the scratch
     specs with its open dependencies archived; otherwise it is a copy of the
     tree's specs. Each refusal is an archive error in the delta file of the
     capability it names, at the requirement it is about or at line 0
@@ -2232,7 +3090,7 @@ def archive_own(change, corpus, copy, stacked):
     return out + purposes
 
 
-# `openspec archive` (OpenSpec 1.15.0 and 1.16.0, dist/core/specs-apply.js,
+# `openspec archive` (OpenSpec 1.16.0, dist/core/specs-apply.js,
 # buildUpdatedSpec) uses a delta's `## Purpose` only when the delta creates
 # the spec, and ignores it for a spec that exists. When a new spec's delta
 # has no Purpose, an empty one, or one that would leave the spec unreadable,
@@ -2241,8 +3099,8 @@ def archive_own(change, corpus, copy, stacked):
 # sentence from PURPOSE_PLACEHOLDER_PREFIX and PURPOSE_PLACEHOLDER_SUFFIX in
 # dist/core/validation/constants.js.
 #
-# The three strings after MIN_PURPOSE_LENGTH are the starts of the archive
-# warning and validate messages that check_purposes matches, as OpenSpec
+# The three strings after MIN_PURPOSE_LENGTH are the fixed parts of the
+# archive warning and validate messages that check_purposes matches, as OpenSpec
 # 1.16.0 prints them. If OpenSpec rewords one, check_purposes stops
 # reporting that case, with no error of its own.
 #
@@ -2289,6 +3147,17 @@ def mask_html_comments(text):
 JS_SPACE = ("\t\n\v\f\r \u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006"
             "\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff")
 _S = f"[{JS_SPACE}]"
+# A delta read as OpenSpec's parseDeltaSpec reads it (delta_requirements): a
+# section runs from its `## ` heading, whose trimmed title it compares
+# ignoring case, to the next one; a removed requirement is a heading or a
+# bullet holding one.
+_DOT = "[^\n\r\u2028\u2029]"  # JavaScript's `.`
+H2 = re.compile(rf"^##{_S}+({_DOT}+)$")
+_REQUIREMENT = "[Rr][Ee][Qq][Uu][Ii][Rr][Ee][Mm][Ee][Nn][Tt]"
+DELTA_TITLE = re.compile(rf"^###{_S}*{_REQUIREMENT}:{_S}*({_DOT}+){_S}*$")
+REMOVED_BULLET = re.compile(rf"^{_S}*[-*+]{_S}*`?###{_S}*Requirement:{_S}*({_DOT}+?)`?{_S}*$")
+DELTA_FROM = re.compile(rf"^{_S}*[-*+]?{_S}*FROM:{_S}*`?###{_S}*Requirement:{_S}*({_DOT}+?)`?{_S}*$")
+DELTA_TO = re.compile(rf"^{_S}*[-*+]?{_S}*TO:{_S}*`?###{_S}*Requirement:{_S}*({_DOT}+?)`?{_S}*$")
 OPENSPEC_FENCE = re.compile(rf"^{_S}*(`{{3,}}|~{{3,}})([^\n\r\u2028\u2029]*)")
 OPENSPEC_FENCE_CLOSE = re.compile(rf"^{_S}*(`{{3,}}|~{{3,}}){_S}*$")
 OPENSPEC_PURPOSE = re.compile(rf"^##{_S}+[Pp][Uu][Rr][Pp][Oo][Ss][Ee]{_S}*$")
@@ -2349,8 +3218,7 @@ def existing_purpose(path):
 
 def check_purposes(change, corpus, rels, copy):
     """[Finding] of kind `purpose` for change's delta specs ({capability:
-    rel path}), judged against copy before the change is archived into it
-    (DECISIONS.md, "A new capability's Purpose is checked in its delta").
+    rel path}), judged against copy before the change is archived into it.
 
     A capability is created by the change when copy has no spec for it. Its
     delta is an error unless `openspec archive` would carry its `## Purpose`
@@ -2535,8 +3403,7 @@ def stack_onto(change, corpus, repo, deps, findings, stack, complete, blocker, s
             if in_tree(dep):
                 missing = not_shown(dep, tree, later(dep))
                 if missing:
-                    raise StackError(f"#{dep.number} has merged, but this branch does not hold its "
-                                     f"result ({'; '.join(missing)}). Merge main into your branch")
+                    raise StackError(merge_main(f"#{dep.number} has merged", missing))
             else:
                 d = decide(dep, scratch.caps())
                 refused = scratch.archive(dep.change, d.kept, dep.proposal)
@@ -2564,8 +3431,8 @@ def stack_onto(change, corpus, repo, deps, findings, stack, complete, blocker, s
                     stack.gone[(cap, i.name)] = (dep, "removes")
         listed.append(dep.change)
         if d is None:
-            stop(dep, f"#{dep.number} has merged, and its result is already in the tree checked "
-                      f"here: remove the `{dep.declaration}` line", "check")
+            stop(dep, f"#{dep.number} has merged, and its result is already in the tree "
+                      f"checked here: remove the `{dep.declaration}` line", "check")
             continue
         if d.kept:
             stack.deps.append(dep)
@@ -2851,7 +3718,7 @@ def run_checks(root, repo, base_ref, targets, validate, base_required=False, cha
     base = Base(repo, base_ref, change)
     if not base.ok and base_required:
         raise Fatal(f"the base {base_ref!r} does not resolve to a commit")
-    findings, statuses, archives = [], [], []
+    findings, statuses, archives = list(corpus.config_findings), [], []
     stacks, declared, kept = [], {}, []
     main_names = {(spec_cap(p), r.name) for p, rs in corpus.specs.items() for r in rs}
     for change in changes:
@@ -2859,25 +3726,42 @@ def run_checks(root, repo, base_ref, targets, validate, base_required=False, cha
         own = []
         for cap, rel in change_deltas(corpus, change).items():
             check_renamed_blocks(rel, corpus.texts[rel], own)
+            check_title_reuse(rel, corpus.texts[rel], own)
         if change in corpus.unread:
             rel = next(iter(change_deltas(corpus, change).values()), f"openspec/changes/{change}")
             own.append(Finding(rel, 0, "error", "openspec-show",
                                f"`openspec show` cannot read this change's deltas: "
                                f"{corpus.unread[change]}"))
         check_scenarios(reqs, own)
+        check_rationale(reqs, corpus, own)
+        for rel in corpus.files_of(change):
+            if rel.startswith(f"openspec/changes/{change}/specs/") and rel.endswith("/" + CHANGE_RECORD):
+                main_rel = record_path(corpus.template, rel[len(f"openspec/changes/{change}/specs/"):
+                                                            -len("/" + CHANGE_RECORD)])
+                # A valid template such as openspec/<capability>/decisions.md
+                # puts the record of a capability named `changes` under
+                # openspec/changes/, where no main record can be; then none
+                # is named.
+                at = f", at {main_rel}" if record_cap(corpus.template, main_rel) else ""
+                own.append(Finding(rel, 0, "error", "record",
+                                   "a change holds no decision record of its own: edit the main "
+                                   "record directly" + at))
         check_evolution(corpus.files_of(change), corpus, own)
         kept += apply_kept(change, corpus, own)
         stack, problems, complete = build_stack(change, corpus, repo, base)
         findings += own + problems
-        # The specs the change is checked against, for the advice on a stray
-        # heading: main's, or main plus the dependencies once the stack is
-        # built; unknown when it could not be.
+        # The specs the change is checked against, which run_validate uses
+        # to advise on a heading it does not recognize, and which give the
+        # requirements a Rationale entry may name: main's, or
+        # main plus the dependencies once the stack is built; unknown when it
+        # could not be.
         if stack is None:
             known = main_names
         elif complete:
             known = {(cap, r.name) for cap, rs in stack.caps.items() for r in rs}
         else:
             known = None
+        check_records_of_change(change, corpus, findings)
         if stack is None:
             check_duplicates(reqs, corpus, findings)
             refusals, archived = archive_alone(change, corpus)
@@ -2910,6 +3794,7 @@ def run_checks(root, repo, base_ref, targets, validate, base_required=False, cha
         check_duplicates(reqs, corpus, findings)
         check_citations(sorted(p for p in corpus.texts if p.startswith("openspec/specs/")),
                         corpus, base, findings)
+        kept += check_main_records(corpus, base, findings)
         if validate:
             v, status = run_validate(root, None)
             findings += v
@@ -3016,7 +3901,7 @@ def staged_targets(repo):
 # -- rounds: where the last consistency read was ---------------------------
 #
 # A consistency read runs once per review round, before the hand-back to a
-# person that ends it (DECISIONS.md, "One consistency read per round"); a push
+# person that ends it; a push
 # ends nothing. handback.py, the hand-back hook, judges a hand-back with
 # unread_at: it blocks one that names its pull request, and takes back an
 # allowlisted one after the call, while a change is unread. The read's
@@ -3024,7 +3909,7 @@ def staged_targets(repo):
 # Spec-check: trailer of the round's last commit:
 # `read by a fresh subagent: <change>, <change>; ...` names the changes it
 # read, at that commit's tree. A commit inside a round says `read deferred to
-# the round's end`. A value written before this rule existed, `read by a
+# the round's end`. A value written before reads named their changes, `read by a
 # fresh subagent; ...` with no names, read every change its commit touched.
 
 READ_FIELD = re.compile(r"; read by (?:a fresh subagent|its author, no subagent)(?:: ([^;]*))?;")
@@ -3105,22 +3990,91 @@ def merge_base_tree(repo, head, base_ref):
     return git(repo, "rev-parse", f"{out.stdout.split()[0]}^{{tree}}").stdout.strip()
 
 
-def due_reads(repo, head, base_ref, names, files_now):
-    """[(change, last read or None)] for each change in names that the branch
-    adds or edits and that differs from its last read. A change the branch
-    leaves as it was at the merge base of head and base_ref is not due; with
-    no merge base (or base_ref HEAD), every change counts as the branch's.
-    files_now(prefix) gives {path: blob id} of the state being judged."""
-    reads = last_reads(repo, head, names)
+def openspec_links(where, treeish=None):
+    """Every symlink in the tree being judged that is openspec or under it,
+    sorted. With treeish, from
+    git's modes in that tree of the repository at where; without, from the
+    files at where, as a checkout or a tree written out from git."""
+    if treeish is not None:
+        out = git(where, "ls-tree", "-r", "-z", treeish, "--", "openspec", check=False).stdout
+        return sorted(e.split("\t", 1)[1] for e in out.split("\0") if e.startswith("120000 "))
+    base = os.path.join(where, "openspec")
+    if os.path.islink(base):
+        return ["openspec"]
+    found = []
+    for dirpath, dirnames, filenames in os.walk(base):  # never follows a link
+        for name in dirnames + filenames:
+            if os.path.islink(os.path.join(dirpath, name)):
+                found.append(os.path.relpath(os.path.join(dirpath, name), where).replace(os.sep, "/"))
+    return sorted(found)
+
+
+def links_problem(links):
+    return (f"spec-check doesn't support symlinks under openspec/: {', '.join(links)}; "
+            "replace each with a real folder or file")
+
+
+def refuse_links(links):
+    """Raises Fatal naming each symlink under openspec/ in links."""
+    if links:
+        raise Fatal(links_problem(links))
+
+
+def read_units(repo, tree, start):
+    """{name: [path or folder prefix]} of what a consistency read covers at a
+    git tree: each open change, with the main decision record of each
+    capability it touches, so an edit to that record makes the change due;
+    and, keyed by its path, each main record the branch edits (it differs
+    from start, the merge base's tree) whose capability no open change
+    touches. With no start, on the base branch, no record stands alone."""
+    config = show_text(repo, tree, CONFIG_FILE)
+    template = parse_config(config)[0] if config is not None else DEFAULT_RECORD
+    files = blob_ids(repo, tree, "openspec/")
+    caps_of = {}
+    for p in files:
+        cap = delta_rel(p)
+        if cap is not None:
+            caps_of.setdefault(p.split("/")[2], set()).add(cap)
+    def with_kept(rel):
+        return [rel, record_kept(rel)]
+    units = {c: [f"openspec/changes/{c}/"] + [p for cap in sorted(caps_of.get(c, ()))
+                                             for p in with_kept(record_path(template, cap))]
+             for c in open_changes(repo, tree)}
+    if start is None:
+        return units
+    touched = {cap for c in units for cap in caps_of.get(c, ())}
+    before = blob_ids(repo, start, "openspec/")
+    for rel in sorted(set(files) | set(before)):
+        cap = record_cap(template, rel)
+        if cap is not None and cap not in touched and any(
+                files.get(p) != before.get(p) for p in with_kept(rel)):
+            units[rel] = with_kept(rel)
+    return units
+
+
+def due_reads(repo, head, base_ref, units, files_now):
+    """[(name, last read or None)] for each read unit (read_units) that the
+    branch adds or edits and that differs from its last read. A unit the
+    branch leaves as it was at the merge base of head and base_ref is not
+    due; with no merge base (or base_ref HEAD), every unit counts as the
+    branch's. files_now(prefix) gives {path: blob id} of the state being
+    judged."""
+    reads = last_reads(repo, head, units)
     start = None if base_ref == "HEAD" else merge_base_tree(repo, head, base_ref)
+
+    def ids(treeish, paths):
+        out = {}
+        for p in paths:
+            out.update(files_now(p) if treeish is None else blob_ids(repo, treeish, p))
+        return out
+
     due = []
-    for c in sorted(names):
-        prefix = f"openspec/changes/{c}/"
-        now = files_now(prefix)
-        if start is not None and blob_ids(repo, start, prefix) == now:
+    for c in sorted(units):
+        now = ids(None, units[c])
+        if start is not None and ids(start, units[c]) == now:
             continue
         since = reads.get(c)
-        if since is None or blob_ids(repo, since[1], prefix) != now:
+        if since is None or ids(since[1], units[c]) != now:
             due.append((c, since))
     return due
 
@@ -3132,12 +4086,15 @@ def open_changes(repo, treeish):
 
 
 def unread_at(repo, commit, base_ref):
-    """The due changes at a commit: what handing it back would leave unread.
-    Each is an open change there that the branch adds or edits, against its
-    merge base with base_ref, and that differs from its last read in the
-    commit's own history."""
+    """The due read units at a commit (read_units): what handing it back
+    would leave unread. Each is an open change there, or a main record read
+    on its own, that the branch adds or edits, against its merge base with
+    base_ref, and that differs from its last read in the commit's own
+    history."""
     tree = git(repo, "rev-parse", f"{commit}^{{tree}}").stdout.strip()
-    return [c for c, _ in due_reads(repo, commit, base_ref, open_changes(repo, tree),
+    refuse_links(openspec_links(repo, tree))
+    start = None if base_ref == "HEAD" else merge_base_tree(repo, commit, base_ref)
+    return [c for c, _ in due_reads(repo, commit, base_ref, read_units(repo, tree, start),
                                     lambda prefix: blob_ids(repo, tree, prefix))]
 
 
@@ -3176,6 +4133,7 @@ def cmd_sign(args):
         return 1
     paths, changes, specs = staged_targets(repo)
     tree = git(repo, "write-tree").stdout.strip()
+    refuse_links(openspec_links(repo, tree))
     base_ref = args.base or default_base(repo)
     # On the base branch itself the merge base would be HEAD, leaving nothing
     # due. Base "HEAD" turns that filter off, so every open change counts as
@@ -3183,12 +4141,13 @@ def cmd_sign(args):
     due_base = "HEAD" if on_base_branch(repo, base_ref) else base_ref
     head = "HEAD" if git(repo, "rev-parse", "-q", "--verify", "HEAD", check=False).returncode == 0 \
         else None
-    open_now = open_changes(repo, tree)
-    due = due_reads(repo, head, due_base, open_now, lambda prefix: blob_ids(repo, tree, prefix)) \
-        if head else [(c, None) for c in sorted(open_now)]
+    start = None if due_base == "HEAD" or not head else merge_base_tree(repo, head, due_base)
+    units = read_units(repo, tree, start)
+    due = due_reads(repo, head, due_base, units, lambda prefix: blob_ids(repo, tree, prefix)) \
+        if head else [(c, None) for c in sorted(units)]
     reading = args.read in ("subagent", "self")
     if not paths and not (reading and due):
-        print("spec-check sign: nothing staged under openspec/, and no change waits for its "
+        print("spec-check sign: nothing staged under openspec/, and nothing waits for its "
               "consistency read, so this commit needs no Spec-check trailer", file=sys.stderr)
         return 1
     with tempfile.TemporaryDirectory(prefix="spec-check-") as tmp:
@@ -3197,8 +4156,29 @@ def cmd_sign(args):
         targets = [c for c in changes if c in staged.changes]
         if reading:
             targets += [c for c, _ in due if c in staged.changes and c not in targets]
-        targets += ["specs"] if specs and staged.specs else []
+            # A main record read on its own is checked with the specs.
+            specs = specs or any(c not in staged.changes for c, _ in due)
+        # A main decision record, the file that says where they are, or a
+        # record's kept file (part of the record's edit) is checked with the
+        # specs. A staged deletion is not in the staged tree, so it is
+        # judged by its path alone.
+        record_name = staged.template.split(CAPABILITY_SLOT)[1]
+        specs = specs or any(
+            p == CONFIG_FILE or p in staged.records
+            or (record_cap(staged.template, p) is not None
+                and not os.path.lexists(os.path.join(tmp, *p.split("/"))))
+            or (p.endswith("/" + KEPT_FILE) and record_cap(
+                staged.template, p.removesuffix("/" + KEPT_FILE) + record_name) is not None)
+            for p in paths)
+        targets += ["specs"] if specs and (staged.specs or staged.records) else []
         if not targets:
+            bad = [f for f in staged.config_findings if f.severity == "error"]
+            if bad and CONFIG_FILE in paths:
+                for f in bad:
+                    print(f.text())
+                print("\nspec-check sign: not signed. Fix the errors and sign again.",
+                      file=sys.stderr)
+                return 1
             # Only deletions or archive moves: nothing open is left to check.
             print(f"{KEY}: \u2713 {tree[:12]} no open change or spec staged")
             return 0
@@ -3293,9 +4273,10 @@ def cmd_verify_commit(args):
 
 # -- current-state passes ------------------------------------------------
 
-# How every line starts that a hook prints when an event may leave docs
-# describing an earlier state. The agent does the pass without asking (SKILL.md, *Current-state
-# passes*); DECISIONS.md, "Events start a current-state pass".
+# The start of every line a hook prints when an event may leave docs
+# describing an earlier state. The line asks for a current-state pass, which
+# brings those docs up to date; the agent does it without asking (SKILL.md,
+# *Current-state passes*).
 PASS_DUE = "current-state pass due for:"
 # A path under a src/ directory, at the top or deeper, as in packages/x/src/.
 SRC_PATH = re.compile(r"(?:^|/)src/")
@@ -3389,11 +4370,29 @@ def commit_passes(repo, sha, base_ref):
         name = folder if folder in removed else ARCHIVE_DATE.sub("", folder)
         if name not in removed:
             continue
+        prefix = f"openspec/changes/archive/{folder}/specs/"
+        caps = sorted({p[len(prefix):].rpartition("/")[0] for p in added
+                       if p.startswith(prefix) and p.rpartition("/")[2] in ("spec.md", "decisions.md")
+                       and p.count("/") > prefix.count("/")})
         passes.append((("archive", folder), set(), (
-            f"{PASS_DUE} the DECISIONS.md of each skill the change {name} affects. "
-            f"It is archived as openspec/changes/archive/{folder}: fold its reasoning "
-            "into those files, rewriting older reasoning rather than appending to it, "
-            "then run prose check on each and compact any it reports as due.")))
+            f"{PASS_DUE} the decision record of each capability the change {name} changes"
+            + (f" ({', '.join(caps)})" if caps else "") + ". "
+            f"It is archived as openspec/changes/archive/{folder}: move anything "
+            "still in its design.md that should have been in a decision record out of "
+            "design.md into those records, "
+            "editing each main record directly at the location decision records are "
+            "configured to, under the same rules as any record edit: a Rationale entry for "
+            "reasoning about one requirement, with its Evidence, a Constraint entry for a "
+            "rule the code must "
+            "keep that no test can check, with its Evidence (a principle with none goes "
+            "into the Rationale, beside that entry's Evidence, of each requirement that "
+            "guards against what it rules out, or is left out), a "
+            "Rejected entry for an alternative turned down that no requirement guards "
+            "against, with its evidence (including the fix not taken behind an accepted "
+            "limit or trade-off); leave the rest, and anything without Evidence or too "
+            "slight to decide anything with, in the archived "
+            "design.md (spec-check's SKILL.md, Decision records). Then run prose check "
+            "on each file changed and compact any it reports as due.")))
     src = [p for p in added if SRC_PATH.search(p)]
     if not src:
         return passes
@@ -3481,15 +4480,24 @@ def cmd_ci(args):
     if base_ref is None:
         raise Fatal(f"the base branch {base} is not in this clone: check it out with "
                     "fetch-depth: 0")
-    unread = unread_at(repo, head, base_ref)
-    if not unread:
-        print(f"spec-check: no OpenSpec change is unread at {head[:12]}.")
-        if action in CI_HANDBACKS:
-            print(f"::notice::{HANDBACK_PASS}")
-        return 0
-    print(f"::error::spec-check: {', '.join(unread)} changed after its last consistency read "
-          f"(head {head[:12]}). Do the read (spec-check's SKILL.md, section 2), commit with "
-          "`spec_check.py sign --read subagent`, push, and hand back again.")
+    links = openspec_links(repo, head)
+    if links:
+        # spec-check refuses to judge a tree with a symlink under openspec/,
+        # so no change there can be judged read, and the hand-back
+        # (marking the pull request ready, or requesting a reviewer) is undone
+        # in the block below, as for an unread change; without that, the pull
+        # request would reach review while the link stays.
+        print(f"::error::{links_problem(links)} (head {head[:12]}); push, and hand back again.")
+    else:
+        unread = unread_at(repo, head, base_ref)
+        if not unread:
+            print(f"spec-check: no OpenSpec change is unread at {head[:12]}.")
+            if action in CI_HANDBACKS:
+                print(f"::notice::{HANDBACK_PASS}")
+            return 0
+        print(f"::error::spec-check: {', '.join(unread)} changed after its last consistency read "
+              f"(head {head[:12]}). Do the read (spec-check's SKILL.md, section 2), commit with "
+              "`spec_check.py sign --read subagent`, push, and hand back again.")
     if action in CI_HANDBACKS:
         undo = []
         if not draft:
@@ -3549,7 +4557,46 @@ def cmd_setup_ci(args):
     return 0
 
 
+# -- decision records: the reader's list ------------------------------------------
+
+def cmd_records(args):
+    """Print the main decision records the consistency read of a change is
+    given: one path per line with why, or `none`."""
+    repo = repo_root(args.repo)
+    base_ref = args.base or default_base(repo)
+
+    def run(root):
+        corpus = Corpus(root, requirements=False)
+        changes, _ = resolve_targets(corpus, [args.change])
+        if not changes:
+            raise Fatal("records takes a change's name")
+        (change,) = changes
+        changed = changed_files(repo, base_ref, args.ref)
+        found = records_for(change, corpus, changed)
+        for rel, why in found:
+            print(f"{rel}  ({why})")
+        if not found:
+            print("none")
+        if changed is None:
+            print(f"spec-check records: no merge base with {base_ref}, so no record was matched "
+                  "by its Paths", file=sys.stderr)
+        return 0
+
+    if args.ref:
+        with tempfile.TemporaryDirectory(prefix="spec-check-") as tmp:
+            materialize(repo, args.ref, tmp)
+            return run(tmp)
+    return run(repo)
+
+
 def main(argv=None):
+    # A file name that is not UTF-8 reaches messages as git() reads it, with
+    # its bytes escaped. A stream whose error handler already writes them
+    # back as bytes, such as surrogateescape, keeps doing so; a strict one
+    # shows them escaped, never a crash.
+    for stream in (sys.stdout, sys.stderr):
+        if getattr(stream, "errors", None) == "strict" and hasattr(stream, "reconfigure"):
+            stream.reconfigure(errors="backslashreplace")
     p = argparse.ArgumentParser(prog="spec_check.py", description=__doc__.split("\n\n")[0])
     sub = p.add_subparsers(dest="cmd", required=True)
 
@@ -3600,7 +4647,14 @@ def main(argv=None):
     su.add_argument("--force", action="store_true")
     su.set_defaults(fn=cmd_setup_ci)
 
-    args = p.parse_args(argv)
+    r = sub.add_parser("records", help="the decision records a change's consistency read is given")
+    r.add_argument("change")
+    r.add_argument("--repo")
+    r.add_argument("--ref", help="read openspec/ from this git ref, not the working tree")
+    r.add_argument("--base", help="the branch the change targets (default: origin/HEAD, origin/main, main)")
+    r.set_defaults(fn=cmd_records)
+
+    args = p.parse_args(sys.argv[1:] if argv is None else argv)
     try:
         return args.fn(args)
     except Fatal as e:

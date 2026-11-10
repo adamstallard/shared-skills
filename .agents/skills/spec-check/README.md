@@ -5,8 +5,7 @@ code exists. The slow part of reviewing a spec is holding every other spec in
 mind. spec-check does that part, so you only judge whether the rules are the
 right ones.
 
-> Agent instructions: [SKILL.md](SKILL.md). Why it works this way:
-> [DECISIONS.md](DECISIONS.md).
+> Agent instructions: [SKILL.md](SKILL.md).
 
 ## What you get
 
@@ -28,9 +27,16 @@ When an agent works on anything under `openspec/`, it:
    - a line recording how the change got to its shape, such as "amending
      decision 79" or "(Adam, 2026-10-21)". The agent removes it; when the
      line is not history, the agent asks you, and only your answer keeps
-     it. A kept line is recorded in the change's `.spec-check-kept` file,
-     committed with the change, which quotes the line's text. Anyone who
-     runs `check` on the change sees the line as kept, not as an error.
+     it. A kept line is recorded in a `.spec-check-kept` file, in the
+     change's folder or, for a decision record's line, beside the record,
+     committed with it, which quotes the line's text. Anyone who
+     runs `check` on the change sees the line as kept, not as an error;
+   - a requirement holding more than its SHALL statement and one *because*
+     sentence (a check, never a failure);
+   - a decision record (below) that departs from its form, names a path
+     that does not exist, or gives a Rationale entry for a requirement
+     neither in force nor added by an open change, or for one an open
+     change removes or renames away.
 
    It also runs `openspec validate --strict` and includes what it reports,
    such as a misspelt section title or a section the archive drops.
@@ -55,9 +61,14 @@ When an agent works on anything under `openspec/`, it:
    with a `stack` error. When a duplicate matches a main requirement that
    an open pull request removes or renames, the error suggests the
    `Builds on:` line to add.
-2. **Has a fresh subagent read the change** against every spec, every other
-   open change, every open pull request touching the same specs, and your
-   architecture docs. Findings come with quotes from both sides. The read
+2. **Has a fresh subagent read the change** against every spec, the
+   decision records of the capabilities it touches, the records whose
+   *Paths* name a file it changes,
+   every other open change, every open pull request touching the same
+   specs, and your architecture docs. It reports a change that brings back
+   an approach a record rejects, or breaks a constraint one records, and a
+   record entry that repeats a requirement. Findings come with quotes from
+   both sides. The read
    runs once per review round: the agent's work between two hand-backs to
    you for review. A push does not end a round. The read runs before the
    hand-back that ends it. When a pull request is handed back without
@@ -66,16 +77,46 @@ When an agent works on anything under `openspec/`, it:
 3. **Fixes the spec itself.** A question only you can answer goes into
    design.md's *Open Questions*, not into a pull request comment.
 
-Decisions go in design.md: a change states each one once, as it stands now,
-in design.md's *Decisions*, and keeps proposal.md to OpenSpec's short why and
-what. `check` does not test where a decision sits, but a line recording how
-one was amended is an error.
+Decisions go in design.md, stated once each, as they stand now, in its
+*Decisions*, and proposal.md stays OpenSpec's short why and what. The one
+exception is material for a capability's decision record, described in
+the next section: a constraint no test can check, an alternative turned down, or a reason
+for a requirement, when it has evidence. That goes only in the record of each
+capability it concerns, never also in design.md. `check` does not test
+where a decision sits; the fresh subagent's read flags record material
+left in design.md. A line recording how a decision was amended is an
+error.
+
+### Decision records
+
+Each capability can have a **decision record**, by default
+`openspec/specs/<capability>/decisions.md` beside its spec. It holds what no
+test can express: the evidence for why a rule exists, or why an alternative
+lost. Its entries are constraints no test can check, such as a cost policy
+or a choice of tool; rejected alternatives no test can catch; and, in a
+*Rationale* entry named after a requirement, the reason for that
+requirement. Every entry needs evidence: a failure (the incident itself,
+linked), a measurement or an outside fact, and a Rationale entry without it
+is an error. A short evidenced reason is still a Rationale entry; a
+requirement's one *because* sentence only orients. Whatever a test can
+express, including a rejection a test can check, is written as a
+requirement with a scenario instead, and a record never repeats what a requirement or its
+scenario already states. Each entry has a fixed form, with the files or
+areas a constraint or rejection governs under *Paths*; SKILL.md, *Decision
+records*, gives it.
+
+A pull request edits the record directly, beside its change, so you
+review the real diff. `check` reads the lines it changes as it reads a
+change, and the fresh subagent reads the edit with the change touching that
+capability, or on its own when none does. OpenSpec never touches the file,
+so `openspec archive` works as usual.
 
 Each commit that changes `openspec/` carries a `Spec-check:` trailer, such as
 `Spec-check: ✓ 4d593e935186 0 errors, 2 checks; validate passed; read by a
 fresh subagent: keep-action-log; 3 amended, 1 open`. The hash is the tree the
 checks ran on, so staging anything afterwards breaks it. The end names the
-changes the round's read covered at that tree; a change is read again only
+changes, and any record read on its own, that the round's read covered at
+that tree; a change is read again only
 once it differs from that tree. A commit inside a round ends `read deferred to the round's end`
 instead. "read by its author, no subagent" means no fresh reader was
 available. When a person kept a flagged line (one recording how the change
@@ -93,14 +134,29 @@ prove it.
 Install it by asking your agent: "Install the spec-check skill". Installing
 turns on its hooks (see below).
 
-spec-check needs OpenSpec 1.15.0 or later on `PATH` (`npm install -g
+spec-check needs OpenSpec 1.16.0 or later on `PATH` (`npm install -g
 @fission-ai/openspec`). It reads the requirements of every spec and change
 through the OpenSpec CLI only. Without that version, the checks on
 requirements are reported as not run.
 
-Nothing needs setting up per repository. spec-check reads no
-`openspec/spec-check.yaml`, a file earlier versions wrote; if your repository
-has one, delete it.
+Nothing needs setting up per repository. To keep decision records somewhere
+other than beside each spec, write `openspec/spec-check.yaml` with one line:
+
+```yaml
+decision-records: openspec/decisions/<capability>/decisions.md
+```
+
+The path must be under `openspec/` but not under `openspec/changes/`, hold
+`<capability>` as a folder of its own, and end in a fixed `.md` file name.
+spec-check reads every file the path matches as a record, with
+`<capability>` matching any name. These rules keep ordinary docs out: a
+path that breaks them, such as `openspec/docs/<capability>.md`, would
+match every doc in `openspec/docs/`, and `check` would report `record`
+errors in each one.
+
+If your agents write changes through OpenSpec's /opsx skills, the agent can
+merge [opsx-rules.yaml](opsx-rules.yaml) into `openspec/config.yaml`, so
+OpenSpec shows them these rules while they write.
 
 ## Examples of what to say
 
@@ -184,8 +240,8 @@ there it fails the check without making a draft.
 
 ## Troubleshooting
 
-- **`not run: install OpenSpec 1.15.0 or later`.** The `openspec` CLI is
-  not on `PATH`, or is older than 1.15.0. The requirement checks, validation
+- **`not run: install OpenSpec 1.16.0 or later`.** The `openspec` CLI is
+  not on `PATH`, or is older than 1.16.0. The requirement checks, validation
   and the archive did not run; citations and the `renamed-block` scan did.
   A stacked change also gets a `stack` error, since its dependencies are read
   and archived with the same CLI. Install or update OpenSpec (`npm install -g
@@ -248,6 +304,11 @@ there it fails the check without making a draft.
   your change needs, or ask its author to stack it on the earlier one.
 - **`check` says a pull request holds no change of that name.** The
   `Builds on:` line names the wrong change or the wrong pull request.
+- **A `record` error says a path in *Paths* matches nothing.** The
+  file or directory moved or is gone. Fix the path, or delete the entry
+  if it no longer governs anything. While an open change touches the
+  capability it is only a check, since the change's implementation may add
+  the file.
 - **`check` says it cannot read a pull request's full file list.** `gh`
   lists only the first 100 files, and reading the rest from GitHub failed.
   Check that `gh` is signed in and run it again.

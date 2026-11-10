@@ -7,9 +7,8 @@ Whether it runs before or after the call comes from the payload's
 hook_event_name, or else from whether the payload holds the call's output.
 
 A review round ends at a hand-back to a person, and its consistency read must
-be recorded by then (DECISIONS.md, "One consistency read per round"). What
-is a hand-back, and which pull request it names, is read by the shared
-.agents/lib/gh-shell/handbacks.py.
+be recorded by then. The shared .agents/lib/gh-shell/handbacks.py decides
+what is a hand-back and which pull request it names.
 
 The hook judges the pull request, never a directory: it asks GitHub for the
 pull request's head, fetches it into a cache, and finds the changes unread
@@ -21,15 +20,15 @@ commits.
   and number is judged, and blocked while a change is unread.
 - After the call (post), one GitHub MCP call that hands back is judged, and
   so is a shell command on an allowlist:
-  - the shared command reader parses all of it, refusing no part;
+  - the shared command reader parses every word of the command;
   - it holds exactly one gh call, and that call is a hand-back;
   - no word in it expands, and no variable is assigned, except GH_REPO
     before the gh;
   - every other command in it is git, cd, echo, printf, true or sleep. When
     the hand-back names no pull request by number or URL (a create, or a
     ready or edit by branch), only git push, git add and git commit with
-    plain options, cd, true and sleep. gh may print nothing there, and
-    another command's output would then be the only pull request printed.
+    plain options, cd, true and sleep: gh may print nothing there, so echo
+    or printf could print the only pull request the hook would see.
   The one pull request the call printed (its URL, gh's "Pull request
   owner/repo#N is" line, or the MCP result's html_url) is then the
   hand-back's. If a change is unread there, the pull request is made a draft
@@ -43,7 +42,7 @@ the check that holds, where a repository has one. In Claude Code, exit 2
 with the reason on stderr blocks before the call and tells the agent after
 it. Cursor gets a JSON permission before, and additional_context after.
 
-Standard library only. Read DECISIONS.md next to SKILL.md before changing this.
+Standard library only.
 """
 
 import hashlib
@@ -120,7 +119,9 @@ def cache_dir():
 
 def store_for(remote):
     """A bare repository fetching from remote, made the first time. It is a
-    partial clone without file contents, which the judgement never reads."""
+    partial clone without file contents. The judgement reads one file's
+    contents, the decision-records configuration, which git then fetches
+    on demand."""
     slug = re.sub(r"[^A-Za-z0-9._-]+", "-", sc.remote_slug(remote) or "repo")
     path = cache_dir() / f"{slug}-{hashlib.sha256(remote.encode()).hexdigest()[:12]}.git"
     if path.is_dir():
@@ -156,18 +157,31 @@ def view(selector, repo, cwd):
 
 
 def unread(pr):
-    """The changes unread at a pull request's head, from its own commits; None
-    when its commits cannot be fetched."""
+    """Why handing back a pull request would leave its head unread, judged
+    from the pull request's own commits as fetched from GitHub: the changes
+    unread there, or the symlinks under openspec/
+    there, which spec-check does not support; "" when nothing is unread;
+    None when its commits cannot be fetched."""
     m = PR_URL.match(pr["url"])
     number = m.group("number")
     store = str(store_for(m.group("repo")))
     head_ref, base_ref = f"refs/spec-check/pull/{number}", f"refs/spec-check/base/{number}"
+    # gh's token fetches a private repository, as `gh repo clone` would, and
+    # git never prompts. The same settings reach the fetch git makes on its
+    # own for a file's contents the judgement reads.
+    # Added after any settings the environment already gives git this way.
+    try:
+        n = max(int(os.environ.get("GIT_CONFIG_COUNT", "0")), 0)
+    except ValueError:
+        n = 0
+    git_env = dict(os.environ, GIT_TERMINAL_PROMPT="0", GIT_CONFIG_COUNT=str(n + 2),
+                   **{f"GIT_CONFIG_KEY_{n}": "credential.helper", f"GIT_CONFIG_VALUE_{n}": "",
+                      f"GIT_CONFIG_KEY_{n + 1}": "credential.helper",
+                      f"GIT_CONFIG_VALUE_{n + 1}": f"!{shlex.quote(sc.GH)} auth git-credential"})
+
     def fetch(*refspecs):
-        # gh's token fetches a private repository, as `gh repo clone` would.
-        return sc.git(store, "-c", "credential.helper=",
-                      "-c", f"credential.helper=!{shlex.quote(sc.GH)} auth git-credential",
-                      "fetch", "-q", "--no-tags", "--filter=blob:none", "origin", *refspecs,
-                      check=False, env=dict(os.environ, GIT_TERMINAL_PROMPT="0")).returncode == 0
+        return sc.git(store, "fetch", "-q", "--no-tags", "--filter=blob:none", "origin",
+                      *refspecs, check=False, env=git_env).returncode == 0
 
     if not fetch(f"+refs/heads/{pr['baseRefName']}:{base_ref}"):
         return None
@@ -181,20 +195,30 @@ def unread(pr):
         # The viewed head could not be fetched by its id, as when the head moved
         # since gh looked: judge the pull request's ref, what is there now.
         head = head_ref
-    if not sc.git(store, "ls-tree", "-d", "--name-only", head, "--", "openspec/changes",
+    links = sc.openspec_links(store, head)
+    if links:
+        return sc.links_problem(links)
+    if not sc.git(store, "ls-tree", "-d", "--name-only", head, "--", "openspec",
                   check=False).stdout.strip():
-        return []
-    return sc.unread_at(store, head, base_ref)
+        return ""
+    saved = dict(os.environ)
+    os.environ.update(git_env)
+    try:
+        changes = sc.unread_at(store, head, base_ref)
+    finally:
+        os.environ.clear()
+        os.environ.update(saved)
+    return f"{', '.join(changes)} changed after its last consistency read" if changes else ""
 
 
 def judge(selector, repo, cwd):
-    """(pull request, [unread change]) for a pull request, or None when it
-    cannot be judged."""
+    """(pull request, why it is unread, or "") for a pull request, or None
+    when it cannot be judged."""
     pr = view(selector, repo, cwd)
     if pr is None:
         return None
-    changes = unread(pr)
-    return None if changes is None else (pr, changes)
+    why = unread(pr)
+    return None if why is None else (pr, why)
 
 
 # -- before the call ----------------------------------------------------------
@@ -209,10 +233,9 @@ def before(reader, payload, host):
             continue
         judged = judge(handback.selector, handback.repo, where(payload))
         if judged and judged[1]:
-            pr, changes = judged
-            lines.append(f"{handback.what}: {', '.join(changes)} in {pr['url']} "
-                         f"(head {pr['headRefOid'][:12]}) changed after its last "
-                         "consistency read.")
+            pr, why = judged
+            lines.append(f"{handback.what}: in {pr['url']} (head {pr['headRefOid'][:12]}), "
+                         f"{why}.")
     return lines
 
 
@@ -354,14 +377,13 @@ def after(reader, payload, host):
             own = view(handback.selector, handback.repo, cwd)
             if own is None or own["url"] != pr["url"]:
                 return []
-    changes = unread(pr)
-    if not changes:
+    why = unread(pr)
+    if not why:
         return []
     if pr.get("isDraft") and not handback.reviewers:
         return []  # a draft that requested nobody was not handed back
     done = undo(pr, handback, cwd)
-    return [f"{pr['url']} was handed back while {', '.join(changes)} changed after its "
-            f"last consistency read (head {pr['headRefOid'][:12]}); "
+    return [f"{pr['url']} (head {pr['headRefOid'][:12]}) was handed back, but {why}; "
             + "; ".join(done or ["nothing could be undone"]) + "."]
 
 

@@ -7,7 +7,7 @@ Standard library only:
 
 Each test builds a throwaway git repository in a temp directory, so nothing
 here touches a real repository. Tests that need the OpenSpec CLI skip
-unless OpenSpec 1.15.0 or later is on PATH.
+unless OpenSpec 1.16.0 or later is on PATH.
 """
 
 import json
@@ -54,9 +54,9 @@ def openspec_version():
     return tuple(map(int, m.groups())) if m else None
 
 
-# spec-check reads requirements only through OpenSpec 1.15.0 or later.
+# spec-check reads requirements only through OpenSpec 1.16.0 or later.
 OPENSPEC_VERSION = openspec_version()
-HAS_OPENSPEC = OPENSPEC_VERSION is not None and OPENSPEC_VERSION >= (1, 15, 0)
+HAS_OPENSPEC = OPENSPEC_VERSION is not None and OPENSPEC_VERSION >= (1, 16, 0)
 
 MAIN_SPEC = """# cap Specification
 
@@ -163,7 +163,7 @@ class CheckTests(unittest.TestCase):
         self.assertEqual(kinds(r), [])
         self.assertIn("0 error(s), 0 check(s) in good", r.stdout)
 
-    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.15.0 or later")
+    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.16.0 or later")
     def test_a_requirement_without_a_scenario_fails(self):
         self.repo.change("x", delta="## ADDED Requirements\n\n### Requirement: Bare\n\n"
                                     "The store SHALL do a thing.\n")
@@ -172,7 +172,7 @@ class CheckTests(unittest.TestCase):
         self.assertEqual(kinds(r), ["no-scenario"])
         self.assertIn("openspec/changes/x/specs/cap/spec.md:3: error [no-scenario]", r.stdout)
 
-    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.15.0 or later")
+    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.16.0 or later")
     def test_a_scenario_without_then_fails(self):
         self.repo.change("x", delta=GOOD_DELTA.replace("- **THEN** it is deleted\n", ""))
         r = self.repo.check("x")
@@ -180,7 +180,7 @@ class CheckTests(unittest.TestCase):
         self.assertEqual(kinds(r), ["scenario-incomplete"])
         self.assertIn("has no THEN", r.stdout)
 
-    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.15.0 or later")
+    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.16.0 or later")
     def test_a_scenario_without_when_or_then_names_both(self):
         self.repo.change("x", delta=GOOD_DELTA.replace("- **WHEN** a record has not been read for ninety days\n", "")
                          .replace("- **THEN** it is deleted\n", "- it goes\n"))
@@ -192,7 +192,7 @@ class CheckTests(unittest.TestCase):
                                                  "**Reason**: gone. The store MUST NOT do it.\n")
         self.assertEqual(kinds(self.repo.check("x")), [])
 
-    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.15.0 or later")
+    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.16.0 or later")
     def test_a_rule_stated_in_two_places_fails(self):
         dup = ("The store SHALL keep every record it is given for at least thirty days "
                "after the last read.")
@@ -204,7 +204,7 @@ class CheckTests(unittest.TestCase):
         self.assertEqual(kinds(r), ["duplicate"])
         self.assertIn('also stated in "Records are kept" at openspec/specs/cap/spec.md:11', r.stdout)
 
-    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.15.0 or later")
+    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.16.0 or later")
     def test_a_rule_copied_into_two_changes_is_reported_in_each(self):
         rule = ("Every command SHALL be redacted of each credential the process knows "
                 "before it is written anywhere.")
@@ -282,10 +282,10 @@ class CheckTests(unittest.TestCase):
         env = dict(ENV, PATH=str(bin_dir))
         r = subprocess.run([sys.executable, str(SCRIPT), "check", "--base", "main", "good"],
                            cwd=self.repo.path, capture_output=True, text=True, env=env)
-        self.assertIn("openspec validate --strict (good): not run: install OpenSpec 1.15.0 or later "
+        self.assertIn("openspec validate --strict (good): not run: install OpenSpec 1.16.0 or later "
                       "(the openspec CLI is not on PATH)", r.stdout, r.stderr)
 
-    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.15.0 or later")
+    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.16.0 or later")
     def test_validate_runs_and_its_issues_are_findings(self):
         self.repo.change("good")
         self.repo.change("bad", delta=GOOD_DELTA.replace("SHALL", "will"))
@@ -313,7 +313,7 @@ class ArchiveRefusalTests(unittest.TestCase):
 
     def setUp(self):
         if not HAS_OPENSPEC:
-            self.skipTest("needs OpenSpec 1.15.0 or later")
+            self.skipTest("needs OpenSpec 1.16.0 or later")
         self.repo = Repo(self)
 
     def refused(self, r, name, quote):
@@ -392,7 +392,7 @@ class NewCapabilityPurposeTests(unittest.TestCase):
 
     def setUp(self):
         if not HAS_OPENSPEC:
-            self.skipTest("needs OpenSpec 1.15.0 or later")
+            self.skipTest("needs OpenSpec 1.16.0 or later")
         self.repo = Repo(self)
 
     def purpose(self, delta, cap="audit"):
@@ -606,7 +606,7 @@ class SameNameDuplicateTests(unittest.TestCase):
     def setUp(self):
         self.repo = Repo(self)
 
-    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.15.0 or later")
+    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.16.0 or later")
     def test_an_added_requirement_repeating_main_under_its_name_is_a_duplicate(self):
         self.repo.change("x", delta=added_req("Records are kept", MAIN_RULE))
         r = self.repo.check("x")
@@ -614,14 +614,14 @@ class SameNameDuplicateTests(unittest.TestCase):
         self.assertIn("duplicate", kinds(r))
         self.assertIn('also stated in "Records are kept" at openspec/specs/cap/spec.md:11', r.stdout)
 
-    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.15.0 or later")
+    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.16.0 or later")
     def test_the_same_name_in_another_capability_is_a_duplicate(self):
         self.repo.change("x", delta=purposed(PURPOSE, added_req("Records are kept", MAIN_RULE)),
                          cap="archive-store")
         r = self.repo.check("x")
         self.assertEqual(kinds(r), ["duplicate"], r.stdout)
 
-    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.15.0 or later")
+    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.16.0 or later")
     def test_a_modification_in_another_capability_is_a_duplicate(self):
         self.repo.change("x", delta=MAIN_SPEC.split("## Requirements\n", 1)[1]
                          .join(["## MODIFIED Requirements\n", ""]), cap="archive-store")
@@ -652,7 +652,7 @@ class FoundByBugHunterGapTests(unittest.TestCase):
                         added_req("Records are kept", MAIN_RULE))
         self.assertNotIn("duplicate", kinds(self.repo.check("x")))
 
-    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.15.0 or later")
+    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.16.0 or later")
     def test_lines_after_a_stray_heading_are_read_as_openspec_show_reads_them(self):
         # `openspec show` ends the scenario at the stray heading, so the THEN
         # line under it is in no scenario.
@@ -693,11 +693,11 @@ NO_SCENARIO = ("## ADDED Requirements\n\n### Requirement: Invoices are kept\n\n"
 
 
 class CliMinimumTests(unittest.TestCase):
-    """spec-check reads requirements only through OpenSpec 1.15.0 or later.
-    Without it, every check that needs a requirement is reported as not run
-    (Adam, 2026-10-31)."""
+    """spec-check reads requirements only through OpenSpec 1.16.0 or later.
+    Without it, every check that needs a requirement is reported as not run,
+    since an older CLI reads fences differently from spec-check."""
 
-    NEEDS = "not run: install OpenSpec 1.15.0 or later"
+    NEEDS = "not run: install OpenSpec 1.16.0 or later"
 
     def setUp(self):
         self.repo = Repo(self)
@@ -730,12 +730,18 @@ class CliMinimumTests(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertIn("`openspec --version` printed no version", r.stdout)
 
-    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.15.0 or later")
-    def test_a_cli_at_exactly_1_15_0_is_used(self):
-        r = self.repo.check("x", env=dict(ENV, PATH=str(fake_openspec(self, "1.15.0", delegate=True))))
+    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.16.0 or later")
+    def test_a_cli_at_exactly_1_16_0_is_used(self):
+        r = self.repo.check("x", env=dict(ENV, PATH=str(fake_openspec(self, "1.16.0", delegate=True))))
         self.assertIn("[no-scenario]", r.stdout, r.stdout + r.stderr)
         self.assertIn("openspec archive (x): passed", r.stdout)
         self.assertNotIn("requirement checks", r.stdout)
+
+    def test_a_cli_at_1_15_0_is_not_used(self):
+        r = self.repo.check("x", env=dict(ENV, PATH=str(fake_openspec(self, "1.15.0", delegate=True))))
+        self.assertIn("not run: install OpenSpec 1.16.0 or later (this one is 1.15.0)", r.stdout,
+                      r.stdout + r.stderr)
+        self.assertNotIn("[no-scenario]", r.stdout)
 
     def stacked(self):
         s = Stack(self, openspec=False)
@@ -786,7 +792,7 @@ class RelayedFromValidateTests(unittest.TestCase):
 
     def setUp(self):
         if not HAS_OPENSPEC:
-            self.skipTest("needs OpenSpec 1.15.0 or later")
+            self.skipTest("needs OpenSpec 1.16.0 or later")
         self.repo = Repo(self)
 
     def validated(self, delta):
@@ -883,7 +889,7 @@ class OpenSpecReadingTests(unittest.TestCase):
 
     def setUp(self):
         if not HAS_OPENSPEC:
-            self.skipTest("needs OpenSpec 1.15.0 or later")
+            self.skipTest("needs OpenSpec 1.16.0 or later")
         self.repo = Repo(self)
 
     def check_delta(self, delta, *args):
@@ -970,7 +976,7 @@ class RenamedBlockTests(unittest.TestCase):
         self.assertIn("spec.md:10: error [renamed-block] \"### Notes\"",
                       self.check_delta(self.RENAME_WITH_BLOCK).stdout)
 
-    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.15.0 or later")
+    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.16.0 or later")
     def test_a_requirement_under_renamed_gets_no_requirement_findings(self):
         r = self.check_delta(self.RENAME_WITH_BLOCK)
         for kind in ("no-scenario", "scenario-incomplete", "duplicate"):
@@ -1004,7 +1010,7 @@ class FoundByBugHunterRun7Tests(unittest.TestCase):
 
     def setUp(self):
         if not HAS_OPENSPEC:
-            self.skipTest("needs OpenSpec 1.15.0 or later")
+            self.skipTest("needs OpenSpec 1.16.0 or later")
         self.repo = Repo(self)
 
     def check_delta(self, delta, *args):
@@ -1042,7 +1048,7 @@ class FoundByBugHunterRun7Iteration2Tests(unittest.TestCase):
 
     def setUp(self):
         if not HAS_OPENSPEC:
-            self.skipTest("needs OpenSpec 1.15.0 or later")
+            self.skipTest("needs OpenSpec 1.16.0 or later")
         self.repo = Repo(self)
 
     def check_delta(self, delta, validate=False):
@@ -1078,7 +1084,7 @@ class FoundByBugHunterRun7Iteration3Tests(unittest.TestCase):
 
     def setUp(self):
         if not HAS_OPENSPEC:
-            self.skipTest("needs OpenSpec 1.15.0 or later")
+            self.skipTest("needs OpenSpec 1.16.0 or later")
         self.repo = Repo(self)
 
     WIDGET = ("## ADDED Requirements\n\n### Requirement: Intro\n\nThe tool SHALL format a header like this:\n\n"
@@ -1112,7 +1118,7 @@ class FoundByBugHunterRun8Tests(unittest.TestCase):
 
     def setUp(self):
         if not HAS_OPENSPEC:
-            self.skipTest("needs OpenSpec 1.15.0 or later")
+            self.skipTest("needs OpenSpec 1.16.0 or later")
         self.repo = Repo(self)
 
     def relayed(self, r):
@@ -1218,7 +1224,7 @@ class FoundByBugHunterRun8Tests(unittest.TestCase):
         self.assertIn('openspec/changes/x/specs/cap2/spec.md:14: error [archive] "B" in cap2', self.repo.check("x").stdout)
 
     def test_a_cli_that_fails_to_read_the_deltas_is_an_error_not_a_crash(self):
-        bin_dir = fake_openspec(self, "1.15.0", delegate=True)
+        bin_dir = fake_openspec(self, "1.16.0", delegate=True)
         f = bin_dir / "openspec"
         f.write_text(f.read_text().replace("exec ", 'case "$*" in *"--type change"*) echo "boom" >&2; exit 1;; esac\nexec ', 1))
         self.repo.change("x")
@@ -1267,14 +1273,14 @@ class FoundByBugHunterTests(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertIn("Spec-check: \u2713", r.stdout)
 
-    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.15.0 or later")
+    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.16.0 or later")
     def test_a_failed_strict_validation_is_an_error(self):
         self.repo.write("openspec/specs/cap/spec.md", MAIN_SPEC.replace("What cap does.", "Short."))
         r = self.repo.run("check", "--base", "main", "specs")
         self.assertIn("failed", r.stdout)
         self.assertEqual(r.returncode, 1, r.stdout)
 
-    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.15.0 or later")
+    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.16.0 or later")
     def test_a_spec_validation_finding_names_the_spec_file(self):
         self.repo.write("openspec/specs/cap/spec.md", MAIN_SPEC.replace("SHALL", "will"))
         r = self.repo.run("check", "--base", "main", "specs")
@@ -1325,7 +1331,7 @@ class FoundByBugHunterIteration2Tests(unittest.TestCase):
         self.repo.change("x", proposal=GOOD_PROPOSAL + "\nIt calls api.example.com:443 and example.com:80.\n")
         self.assertEqual(kinds(self.repo.check("x")), [])
 
-    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.15.0 or later")
+    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.16.0 or later")
     def test_an_info_note_stays_a_check_and_keeps_its_line(self):
         self.repo.change("x", delta="## ADDED Requirements\n\n### Documentation Requirements\n\n"
                                     "### Requirement: Plain\n\nThe store keeps things.\n\n"
@@ -1348,7 +1354,7 @@ class FoundByBugHunterIteration3Tests(unittest.TestCase):
         r = self.repo.check("x")
         self.assertEqual(r.returncode, 0, r.stdout)
 
-    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.15.0 or later")
+    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.16.0 or later")
     def test_sign_a_commit_that_deletes_openspec_runs_no_validation(self):
         self.repo.git("rm", "-rq", "openspec")
         r = self.repo.run("sign", "--read", "self", "--base", "main")
@@ -1479,8 +1485,7 @@ class CitationRuleTests(unittest.TestCase):
 class EvolutionTextTests(unittest.TestCase):
     """Text recording how a change got to its shape is an error, which only
     a person's override through the change's kept file clears. The examples are
-    taken from real changes the patterns were measured on (DECISIONS.md,
-    "Document-evolution text is an error")."""
+    taken from real changes the patterns were measured on."""
 
     HISTORY = [
         "Amended by Adam's decision 298: no decline can be reopened.",
@@ -1864,7 +1869,7 @@ class KeptEvolutionTests(unittest.TestCase):
         self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
         self.assertIn(f"{self.KEPT}: error [kept] cannot read the kept file", r.stdout)
 
-    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.15.0 or later")
+    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.16.0 or later")
     def test_the_file_passes_validate_and_archives_with_its_change(self):
         self.kept(self.both())
         exe = shutil.which("openspec")
@@ -2256,7 +2261,7 @@ class TrailerTests(unittest.TestCase):
                                   env=dict(ENV, PATH=str(path)))
                 self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
                 line = next(l for l in r.stdout.splitlines() if l.startswith("Spec-check:"))
-                self.assertIn("; show, validate and archive not run (install OpenSpec 1.15.0 or "
+                self.assertIn("; show, validate and archive not run (install OpenSpec 1.16.0 or "
                               "later); read by", line)
                 self.assertNotIn("; validate not run;", line)
 
@@ -2281,7 +2286,7 @@ class TrailerTests(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(self.repo.git("rev-parse", "HEAD^{tree}"), before)
         self.assertEqual(self.hook().returncode, 0)
-        self.assertIn("no change waits for its consistency read",
+        self.assertIn("nothing waits for its consistency read",
                       self.repo.run("sign", "--read", "subagent", "--base", "main",
                                     "--no-validate").stderr)
 
@@ -2431,7 +2436,7 @@ class Stack:
         # A stacked change is checked by archiving its dependencies with the
         # OpenSpec CLI, so a test that gets that far needs it.
         if openspec and not HAS_OPENSPEC:
-            test.skipTest("needs OpenSpec 1.15.0 or later")
+            test.skipTest("needs OpenSpec 1.16.0 or later")
         self.test = test
         self.repo = Repo(test)
         tmp = pathlib.Path(tempfile.mkdtemp(prefix="spec-check-stack-")).resolve()
@@ -3543,9 +3548,8 @@ class ContentCheckTests(unittest.TestCase):
         self.s.repo.git("commit", "-q", "-m", "a later change")
         self.s.stacked(modified("Records are kept", KEPT, AUDIT, SEARCH), "seat-files (acme/widgets#171)")
         out = self.s.check("lore-search")
-        # The dependency's pull request is open, so its text is used quietly
-        # (DECISIONS.md, "A modified requirement is decided by its pull
-        # request's state").
+        # The dependency's pull request is open, so its text is applied
+        # with no stack error, drift check or hint to drop its Builds on: line.
         self.assertNotIn("error [stack]", out.stdout)
         self.assertNotIn("check [drift]", out.stdout)
         self.assertNotIn("remove the `Builds on:", out.stdout)
@@ -3652,9 +3656,8 @@ class FoundByBugHunterRun4Tests(unittest.TestCase):
         s.repo.git("commit", "-qam", "another change on main")
         s.stacked(GOOD_DELTA.replace("Records expire", "Lore"), "seat-files (acme/widgets#171)")
         out = s.check("lore-search")
-        # The dependency's pull request is open, so its text is used quietly
-        # (DECISIONS.md, "A modified requirement is decided by its pull
-        # request's state").
+        # The dependency's pull request is open, so its text is applied
+        # with no stack error, drift check or hint to drop its Builds on: line.
         self.assertNotIn("error [stack]", out.stdout)
         self.assertNotIn("check [drift]", out.stdout)
         self.assertNotIn("remove the `Builds on:", out.stdout)
@@ -3678,9 +3681,8 @@ class FoundByBugHunterRun4Iteration2Tests(unittest.TestCase):
         r.git("commit", "-q", "-m", "archive X")
         s.stacked(ADDED_SEAT, "audit-log (acme/widgets#172)")
         out = s.check("lore-search")
-        # The dependency's pull request is open, so its text is used quietly
-        # (DECISIONS.md, "A modified requirement is decided by its pull
-        # request's state").
+        # The dependency's pull request is open, so its text is applied
+        # with no stack error, drift check or hint to drop its Builds on: line.
         self.assertNotIn("error [stack]", out.stdout)
         self.assertNotIn("check [drift]", out.stdout)
         self.assertNotIn("remove the `Builds on:", out.stdout)
@@ -3765,9 +3767,8 @@ class FoundByBugHunterRun4Iteration3Tests(unittest.TestCase):
         s.repo.git("commit", "-q", "-m", "A in tree")
         s.stacked(modified("Records are kept", KEPT, SEAT_REWORDED, AUDIT, SEARCH), "b-change (acme/widgets#172)")
         out = s.check("lore-search")
-        # The dependency's pull request is open, so its text is used quietly
-        # (DECISIONS.md, "A modified requirement is decided by its pull
-        # request's state").
+        # The dependency's pull request is open, so its text is applied
+        # with no stack error, drift check or hint to drop its Builds on: line.
         self.assertNotIn("error [stack]", out.stdout)
         self.assertNotIn("check [drift]", out.stdout)
         self.assertNotIn("remove the `Builds on:", out.stdout)
@@ -4673,9 +4674,8 @@ class ExactComparisonTests(unittest.TestCase):
 
 class StackedChangeArchiveTests(unittest.TestCase):
     """The stacked change itself is archived by `openspec archive`, after its
-    open dependencies, into a copy of the scratch specs (DECISIONS.md,
-    "The stacked change itself is archived too"). Each refusal is a drift error naming its delta file
-    and requirement and quoting the CLI."""
+    open dependencies, into a copy of the scratch specs. Each refusal is an `archive` error naming its delta
+    file and requirement and quoting the CLI."""
 
     A = "a-change (acme/widgets#171)"
     DELTA = "openspec/changes/lore-search/specs/cap/spec.md"
@@ -4797,8 +4797,7 @@ def signed_commit(test, repo, read="subagent", message="Change the spec", extra=
 
 
 class RoundTests(unittest.TestCase):
-    """One consistency read per round: the trailer records where it ran
-    (DECISIONS.md, "One consistency read per round")."""
+    """One consistency read per round: the trailer records where it ran."""
 
     def setUp(self):
         self.repo = Repo(self)
@@ -4870,7 +4869,7 @@ class RoundTests(unittest.TestCase):
         self.repo.git("add", "-A")
         r = self.sign("subagent")
         self.assertEqual(r.returncode, 1)
-        self.assertIn("no change waits for its consistency read", r.stderr)
+        self.assertIn("nothing waits for its consistency read", r.stderr)
 
     def test_a_value_from_before_rounds_read_the_changes_its_commit_touched(self):
         self.repo.change("good")
@@ -4964,7 +4963,7 @@ class KeptInRoundsTests(unittest.TestCase):
 
 class RoundStartTests(unittest.TestCase):
     """Which commit a never-read change's edits are counted from (the merge
-    base, or HEAD on the base branch), and which changes count as open (DECISIONS.md, "One consistency read per round")."""
+    base, or HEAD on the base branch), and which changes count as open."""
 
     def setUp(self):
         self.repo = Repo(self)
@@ -5017,7 +5016,7 @@ class RoundStartTests(unittest.TestCase):
         self.assertTrue(self.value("--read", "subagent", "--base", "main", "--no-validate")
                         .endswith("; no read due"))
 
-    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.15.0 or later")
+    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.16.0 or later")
     def test_a_change_that_validates_says_validate_passed(self):
         self.repo.git("checkout", "-q", "-b", "spec")
         self.repo.change("good")
@@ -5247,8 +5246,7 @@ class HandbackBase(unittest.TestCase):
 
 class HandbackBeforeTests(HandbackBase):
     """Before the call: a hand-back whose pull request can be found without
-    knowing the directory gh runs in (DECISIONS.md, "One consistency read per
-    round")."""
+    knowing the directory gh runs in."""
 
     def test_a_named_hand_back_with_an_unread_change_is_blocked(self):
         self.deferred()
@@ -6312,7 +6310,7 @@ class PassDueTests(unittest.TestCase):
         self.assertEqual(self.pass_due().stdout, "")
         self.assertEqual(self.hook().returncode, 0)
 
-    def test_an_archive_commit_starts_the_decisions_fold(self):
+    def test_an_archive_commit_starts_the_decision_record_pass(self):
         self.spec_branch()
         (self.repo.path / "openspec/changes/archive").mkdir()
         self.repo.git("mv", "openspec/changes/good", "openspec/changes/archive/2026-11-06-good")
@@ -6320,11 +6318,26 @@ class PassDueTests(unittest.TestCase):
                       "Spec-check: skipped (test)")
         r = self.hook()
         self.assertEqual(r.returncode, 2, r.stderr)
-        self.assertIn("current-state pass due for: the DECISIONS.md of each skill the change "
-                      "good affects. It is archived as openspec/changes/archive/2026-11-06-good: "
-                      "fold its reasoning into those files, rewriting older reasoning rather "
-                      "than appending to it, then run prose check on each and compact any it "
-                      "reports as due.", r.stderr)
+        self.assertIn("current-state pass due for: the decision record of each capability the "
+                      "change good changes (cap). It is archived as "
+                      "openspec/changes/archive/2026-11-06-good: move anything still in its "
+                      "design.md that should have been in a decision record out of design.md into "
+                      "those records, "
+                      "editing each main record directly at the location decision records are "
+                      "configured to, under the same rules as any record edit: a Rationale entry "
+                      "for reasoning about one requirement, with its Evidence, a Constraint entry for "
+                      "a rule the "
+                      "code must keep that no test can check, with its Evidence (a principle "
+                      "with none goes into the Rationale, beside that entry's Evidence, of each "
+                      "requirement that guards against what it rules out, or is left out), a "
+                      "Rejected entry for an alternative turned down that "
+                      "no requirement guards against, with its evidence (including the fix not "
+                      "taken behind an accepted limit or trade-off); leave the rest, and anything "
+                      "without Evidence or too slight to decide anything with, in the archived "
+                      "design.md (spec-check's SKILL.md, Decision "
+                      "records). Then "
+                      "run prose check on each file changed and compact any it reports as due.",
+                      r.stderr)
 
     def test_an_amended_commit_says_its_pass_once(self):
         self.spec_branch()
@@ -6369,7 +6382,31 @@ class PassDueTests(unittest.TestCase):
         (self.repo.path / "openspec/changes/archive").mkdir()
         self.repo.git("mv", "openspec/changes/lone", "openspec/changes/archive/2026-11-06-lone")
         self.commit("Archive lone")
-        self.assertIn("the change lone affects", self.pass_due().stdout)
+        self.assertIn("the change lone changes. It is archived", self.pass_due().stdout)
+
+    def test_an_archive_names_each_capability_of_its_own_change_only(self):
+        self.repo.git("checkout", "-q", "-b", "spec")
+        self.commit("Two changes", "openspec/changes/wide/specs/beta/spec.md",
+                    "openspec/changes/wide/specs/alpha/spec.md", "openspec/changes/wide/specs/notes.md",
+                    "openspec/changes/other/specs/gamma/spec.md")
+        (self.repo.path / "openspec/changes/archive").mkdir()
+        self.repo.git("mv", "openspec/changes/wide", "openspec/changes/archive/2026-11-06-wide")
+        self.repo.git("mv", "openspec/changes/other", "openspec/changes/archive/2026-11-06-other")
+        self.commit("Archive both")
+        out = self.pass_due().stdout
+        self.assertIn("the change wide changes (alpha, beta). It is archived", out)
+        self.assertIn("the change other changes (gamma). It is archived", out)
+
+    def test_found_by_bug_hunter_an_archive_names_a_nested_capability_whole(self):
+        # Found by bug-hunter: only the first path segment was named.
+        self.repo.git("checkout", "-q", "-b", "spec")
+        self.commit("Nested", "openspec/changes/x/specs/area/cap/spec.md",
+                    "openspec/changes/x/specs/flat/spec.md", "openspec/changes/x/specs/README.md",
+                    "openspec/changes/x/specs/spec.md")
+        (self.repo.path / "openspec/changes/archive").mkdir()
+        self.repo.git("mv", "openspec/changes/x", "openspec/changes/archive/2026-11-08-x")
+        self.commit("Archive x")
+        self.assertIn("the change x changes (area/cap, flat). It is archived", self.pass_due().stdout)
 
     def test_a_deep_src_path_is_not_read_as_an_archive(self):
         self.spec_branch()
@@ -6385,14 +6422,17 @@ class PassDueTests(unittest.TestCase):
         self.commit("Build four", "src/d.py", "src/e.py", "src/f.py", "src/g.py")
         self.assertIn("(src/d.py, src/e.py, src/f.py and 1 more added)", self.pass_due().stdout)
 
-    def test_amending_the_decisions_fold_into_an_archive_asks_no_more(self):
+    def test_amending_the_decision_record_fold_into_an_archive_asks_no_more(self):
         # Found by bug-hunter: the amend still adds the archive folder.
         self.spec_branch()
         (self.repo.path / "openspec/changes/archive").mkdir()
         self.repo.git("mv", "openspec/changes/good", "openspec/changes/archive/2026-11-06-good")
         self.commit("Archive good")
-        self.assertIn("the change good affects", self.hook().stderr)
-        self.repo.write("DECISIONS.md", "Folded.\n")
+        self.assertIn("the change good changes (cap). It is archived", self.hook().stderr)
+        self.repo.write("openspec/specs/cap/decisions.md", "# cap: constraints, rejected alternatives and rationale\n\n"
+                        "## Rejected\n\n- **Rejected: A nightly batch.**\n  Facing: records pile up.\n"
+                        "  Lost because: it misses the audit window, #12\n  Instead: expire on read.\n"
+                        "  Paths: openspec/specs/cap/\n")
         self.repo.git("add", "-A")
         self.repo.git("commit", "-q", "--amend", "--no-edit")
         self.assertNotIn("current-state pass due for:", self.hook().stderr)
@@ -6518,7 +6558,7 @@ class PassDueTests(unittest.TestCase):
         self.repo.git("mv", "openspec/changes/2026-01-01-dated",
                       "openspec/changes/archive/2026-01-01-dated")
         self.commit("Archive it")
-        self.assertIn("the change 2026-01-01-dated affects. It is archived as "
+        self.assertIn("the change 2026-01-01-dated changes (cap). It is archived as "
                       "openspec/changes/archive/2026-01-01-dated:", self.hook().stderr)
 
     def test_deleting_a_change_archives_nothing_outside_the_archive(self):

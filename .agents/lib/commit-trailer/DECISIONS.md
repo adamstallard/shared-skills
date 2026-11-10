@@ -1402,9 +1402,11 @@ verified. A skill's `commit_trailer_notice` callback, which the hook calls
 for every new commit, still sees it (*A skill may print notices about a
 commit*). When the variable is unset, every commit is judged. spec-check
 sets `:(top)openspec`, with no trailing slash: with one, git matches only
-paths inside a folder named `openspec`, so a commit changing only an
-`openspec` symlink would be skipped. spec-check's DECISIONS.md says why that
-symlink matters.
+paths inside a folder named `openspec`, so a commit that replaces that
+folder with a symlink, or changes only such a symlink, would be skipped.
+A skipped commit never reaches spec-check, which refuses a symlink at
+`openspec` or anywhere under it (its DECISIONS.md, "No symlink under
+openspec/").
 
 **Why.** A skill whose trailer means something only for some files, such as
 spec-check's for specs, would otherwise report every code-only commit, and a

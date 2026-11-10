@@ -11,8 +11,8 @@
 # --host names the agent host that runs the hook, claude or cursor, and sets
 # how a report is delivered; the library lists the hosts in its header.
 #
-# The check itself is shared: ../../../lib/commit-trailer/check-commit-trailer.sh,
-# with its own DECISIONS.md. This file configures it for spec-check and sources
+# The check itself is shared: ../../../lib/commit-trailer/check-commit-trailer.sh.
+# This file configures it for spec-check and sources
 # it, rather than running it. Sourcing keeps $0 pointing at this file, so when
 # the library re-runs the check in each submodule, it runs this file again,
 # with spec-check's settings. Run directly, the library would check each

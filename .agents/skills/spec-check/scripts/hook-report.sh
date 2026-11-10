@@ -5,8 +5,8 @@
 # be unset are read with a default, because the library runs under set -u.
 #
 # The report says which commits and what is wrong with them, then names
-# SKILL.md's *Commit* section instead of restating it, and names none of the
-# skill's files (the library's DECISIONS.md, "Each report names its skill's section").
+# SKILL.md's *Commit* section instead of restating it, and names no other
+# file of the skill.
 #
 # The function bodies are not indented: the strings below are multi-line
 # report text, and indenting them would indent what the user reads.
