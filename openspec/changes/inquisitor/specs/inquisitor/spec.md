@@ -286,7 +286,7 @@ the item's.
   the Igor pushes for it holds `repository` `o/api` and `asked_from`
   `o/web`
 
-### Requirement: Only five kinds of document are decision documents
+### Requirement: Only four kinds of document are decision documents
 
 A **decision document** SHALL be an OpenSpec document (a spec, a change or
 a capability decision record, `openspec/specs/<capability>/decisions.md`),
@@ -447,8 +447,8 @@ question about one person's way of working SHALL never be posted.
 Wherever this spec or the `answer-session` spec compares a log file's or
 miss file's visibility, it SHALL be that of the more private of the
 repositories named by whichever of its `repository` and `asked_from` keys
-it holds; a file whose `asked_in` shows its question was asked in a
-Linear or Discord thread SHALL count as private. A value that fails the
+it holds; a file whose `asked_in` is a Linear or Discord URL SHALL count
+as private. A value that fails the
 syntax check *A log file's repository keys and answer_link are checked
 before use* sets SHALL count as a private repository.
 
@@ -727,9 +727,12 @@ third of 27 or more).
 #### Scenario: The credential patterns
 
 - **WHEN** a string holds a GitHub refresh token starting `ghr_`, an
-  Anthropic API key starting `sk-ant-`, or a Linear OAuth token starting
-  `lin_oauth_`
+  Anthropic API key starting `sk-ant-`, a Linear OAuth token starting
+  `lin_oauth_`, an AWS access key ID starting `AKIA` or a Slack token
+  starting `xox`
 - **THEN** it matches the credential patterns
+- **AND** a token of another service, such as a Stripe key starting
+  `sk_live_`, does not
 
 #### Scenario: Dotted ordinary text is no Discord bot token
 
@@ -868,8 +871,8 @@ configuration or service.
 
 #### Scenario: Only the exact name and value of IGOR_RUN mark a run
 
-- **WHEN** a session's environment holds `IGOR_RUN_TOKEN`, igor's seat
-  token, or another name
+- **WHEN** a session's environment holds `IGOR_RUN_TOKEN`, the token of the
+  model account, or seat, an Igor runs on, or another name
   that starts with `IGOR_RUN`, and no `IGOR_RUN`, or holds `IGOR_RUN=yes`
 - **THEN** the script counts the session as outside any Igor's run
 
@@ -3013,13 +3016,13 @@ leak*; *A log file without `asked_in` is never merged*).
 
 ### Requirement: A questions-branch log file links where its question was asked
 
-A questions-branch log file for a question also asked in a post SHALL hold
-the post's URL as `asked_in`, so the agent SHALL post the question first
+A questions-branch log file for a question also asked in a post or a
+Linear or Discord message SHALL hold its URL as `asked_in`, so the agent SHALL post the question first
 (design.md: *A log file follows its thread message by exact link*).
 An Igor worker's file holds its handback comment's URL, which the Igor
 writes after posting it, before pushing the file, applying the `asked_in`
 rule itself (design.md: *Each Igor log file follows its own handback
-comment*; *Only an item's newest handback is open*).
+comment*).
 
 #### Scenario: A question logged and asked in a post links the post
 
@@ -3247,7 +3250,9 @@ questions-branch log and miss file but a handled one SHALL hold
   link*; *Each Igor log file follows its own handback comment*; *Only an
   item's newest handback is open*; *A log file without `asked_in` is never
   merged*)
-- **AND** no other file holds `asked_in`
+- **AND** no other file holds `asked_in`, except a miss file on a
+  questions branch for a question asked in a Linear or Discord thread,
+  which holds that thread's URL, read only for the file's visibility
 - **AND** an answer to an organization's question, given in a private
   repository's issue, for a question a public lore repository's
   questions-branch file holds, is logged in no answer file there, as the answer-session spec's
@@ -3313,6 +3318,11 @@ questions-branch log and miss file but a handled one SHALL hold
   `asked_from` follows the rules for a log file's, or, for a miss an
   answer session logs, that requirement's; and the body is the question under
   `## Question`
+- **AND** a miss file on a questions branch for a question asked in a
+  Linear or Discord thread also holds that thread's URL as `asked_in`,
+  copied from the question's log file or, for a miss an answer session
+  logs, the thread the question was asked in, so the file counts as
+  private
 
 #### Scenario: What a log file's body holds
 

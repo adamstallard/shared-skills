@@ -1387,9 +1387,10 @@ never a GitHub App's.
 ### Requirement: An answer whose thread is unreachable here is logged at once
 
 For a question a questions-branch file holds, an answer whose channel is
-off or not subscribed here, when confirmed or once a refused post turned
-it off, SHALL have its file pushed at once, without fetching its thread
-first, with no `answer_link`, holding the answer as confirmed. Any other
+off or not subscribed here SHALL have its answer file pushed at once, when
+it is confirmed or once a refused post turned the channel off, without
+fetching its thread first, unless *No answer file goes to a more visible
+lore repository* withholds the file, with no `answer_link`, holding the answer as confirmed. Any other
 pending answer SHALL push no file before its post.
 
 #### Scenario: An answer to a questions-branch question is logged at once
@@ -2474,8 +2475,9 @@ private* keeps the two calls' files.
 ### Requirement: Filter 1 posts a recorded answer by itself in the question's thread
 
 When an answer with authority is recorded and the question has a
-thread, the answer session SHALL answer by itself, whoever asked, a
-relayed question included, posting through the relay
+thread, the answer session SHALL answer by itself, whoever asked, a relayed
+question included, except where *A recorded answer is posted by itself only
+when no more private than its thread* or a question's category forbids it, posting through the relay
 
 ```
 Recorded answer: see the record below.
@@ -2534,9 +2536,10 @@ write none of the post.
 ### Requirement: A recorded answer is posted by itself only when no more private than its thread
 
 The answer session SHALL post a recorded answer by itself only when the
-record's repository is at least as visible as the question's thread's,
-on every surface, a Linear or Discord thread ranking as a private
-repository's. A log or miss
+record is no more private than the question's thread: on GitHub, when the
+record's repository is at least as visible as the thread's; on Linear and
+Discord, whose readers it cannot check, only when the record's repository
+is public. A log or miss
 file's own visibility, as the inquisitor's *A log or miss file is as
 private as its more private repository* defines it, stands in for its
 repository's.
@@ -2548,12 +2551,20 @@ repository's.
 - **THEN** nothing is posted by itself, and the person is shown the
   question with the recorded answer beside it
 
-#### Scenario: A private record is posted by itself into a Linear thread
+#### Scenario: A private record is shown, not posted, in a Linear thread
 
 - **WHEN** a question asked in a Linear thread is answered by a decision
   document in a private repository
-- **THEN** the answer session posts the recorded answer by itself, as it
-  would into a private repository's GitHub thread
+- **THEN** nothing is posted by itself, and the person is shown the
+  question with the recorded answer beside it, posted only if they agree
+  after the warning that posting shows the record exists, as *Agreeing to
+  a shown recorded answer is a filter 1 decline* says
+
+#### Scenario: A public record is posted by itself in a Discord thread
+
+- **WHEN** a question asked in a Discord thread is answered by a decision
+  document in a public repository
+- **THEN** the answer session posts the recorded answer by itself
 
 ### Requirement: A recorded answer not posted by itself is shown beside its question
 
@@ -2913,6 +2924,15 @@ answer session logs*).
 - **AND** an organization's question on Linear or Discord that no
   questions-branch file holds gets no miss file, having no repository to
   name in `asked_from`
+
+#### Scenario: A miss on a Linear question holds the thread's URL
+
+- **WHEN** the person declines for the inquisitor a question about `o/api`
+  asked in a Linear thread, and a private lore repository serves `o`
+- **THEN** the miss file holds `repository: "o/api"`, `asked_from:
+  "o/api"` and the Linear thread's URL as `asked_in`, as the inquisitor's
+  *A log file and a miss file have one format* gives, so it counts as
+  private
 
 ### Requirement: The answer session writes no miss it cannot place privately
 

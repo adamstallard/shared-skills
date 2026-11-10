@@ -347,8 +347,9 @@ A **code-giving word** SHALL be an interpreter's code flag, as *An
 interpreter given a code flag makes a post-verb line unreadable* lists
 them, or one of the git options *git outside its allowlist is unreadable
 on a post-verb line* lists as giving code. A simple command with one
-among its words, wherever it sits, is **given code**, on any line, so
-`git log -c` is given code too.
+among its words, wherever it sits, is **given code**, on any line: an
+interpreter's flag in that interpreter's command, a git option in a git
+command, so `git log -c` is given code too, and `wc -c` is not.
 
 #### Scenario: git's -c gives code on a line with no post verb
 

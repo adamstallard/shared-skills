@@ -26,10 +26,9 @@ verdict, not that the agent judged well. A hook allows a question when its
 latest record is a fresh `ask` (spec: *Two calls prove the filters ran*;
 details under *Hooks and verdict records*).
 
-The records live in `${XDG_STATE_HOME:-$HOME/.local/state}/inquisitor/`,
-where prose keeps its session marks, for the same reason: a session spans
-repositories, and a hook's working directory can differ from `vet`'s. They
-are the hooks' state, not a question log, and every session and process run
+The records live in the user's state folder (*Verdict records live in the
+user's state folder*), since a session spans repositories and a hook's
+working directory can differ from `vet`'s, and every session and process running
 under one HOME shares them (*Verdict records are shared under one HOME*). How long a
 record lasts is under *Every verdict record expires after 2 hours*, below.
 Apart from the verdict records, the hooks keep no record
@@ -295,11 +294,9 @@ Linear, or on GitHub outside a review thread, names its question with a last
 `Re: <URL>` line, so a thread holding several questions keeps a state for
 each; on Discord a relay post replies to its question.
 
-The skill's instructions reserve `User says: ` for the answer session, and
-on GitHub the post hook blocks any tool-call post starting with it (*Polling
-while open, with the person's credentials*, above). That is why a relay
-App's `User says: ` comment is trusted as its person's, whatever other work
-the relay identity does. The trust is sound only while nothing but the
+A relay App's `User says: ` comment is trusted as its person's, whatever
+other work the relay identity does, for the reason *Polling while open,
+with the person's credentials* gives above. The trust is sound only while nothing but the
 answer session posts through the App where no post hook sees it. Until
 github-app refuses to hand out a relay's token, any agent on the machine can,
 and the answer-session decision record accepts that gap: *Constraint: Until
@@ -402,7 +399,7 @@ Terms used throughout, as the specs define them:
   `relays/<login>.yaml` in the team's lore repository, lists. A **relayed
   answer** is a GitHub comment starting `User says: ` whose author is a
   person's relay App.
-- **Gate one** is Adam's approval of this change's spec, in a pull request
+- **Gate one** is the repository's owner's approval of this change's spec, in a pull request
   holding only the spec. **Gate two** is the implementation, built on the
   same branch after that approval.
 
@@ -919,10 +916,7 @@ whitespace is joined), then drops leading whitespace, so ` User says: ` and
 credentials* gives why the prefixes are reserved.
 
 **Why:** the answer session posts through a host command no tool hook sees,
-so a tool-call post with a reserved prefix is never its. A `User says: `
-comment from the person's relay App proves their answer, and that App may do
-other work, so the block stops an agent holding it from forging an answer
-through `gh`.
+so a tool-call post with a reserved prefix is never the answer session's.
 
 *Ruled out by a scenario:* reducing the body for this check as a comment is
 reduced for comparison with a recorded answer, since that reduction drops a
@@ -1920,7 +1914,8 @@ person is asked for nothing more.
 **What counts as posting** is every way the two skills let a tool call reach
 the surfaces as an identity: discord-bot's writing commands; linear-app's
 `token` and `headers`, since linear-app has no post command and the token
-they print can post; and a Linear MCP server's writing tools. A command line
+they print can post, and its `wire`, which points Claude Code's Linear MCP server at
+an identity, so that later sessions' MCP posts go out as it; and a Linear MCP server's writing tools. A command line
 the shared splitter in `.agents/lib/gh-shell/` cannot split exactly is
 blocked when it names either script, or runs a script whose path it cannot
 tell, such as `python3 "$D"`, as the post hooks block an unreadable `gh`
@@ -1970,7 +1965,7 @@ plant text the person then sends without seeing where it came from.
 
 **The mod is built from prototype build v0.1-33 alone, approved by use,**
 tagged `answer-session-ui-approved-v0.1-33` on shared-skills (commit fc3c35f;
-`ui-approved-v0.1-33` in Adam's prototype repository). It contains all of
+`ui-approved-v0.1-33` in the repository's owner's prototype repository). It contains all of
 v0.1-30, the whole UI approved by use, declining and the list of questions
 answered or handled for the person included (tag
 `answer-session-ui-approved-v0.1-30`, commit c9c6eb5; `ui-approved-v0.1-30`),
@@ -1993,7 +1988,7 @@ lacks the declining screens and is not a base.
 
 Task 6.1's rules, which apply *The answer session*'s rule that the spec wins:
 
-- (a) The mod keeps the approved screens' layout and interaction: the band,
+- (a) The mod keeps the approved screens' layout and interaction: the band, which is the mod's panel above the prompt box,
   the keys, the prompt-box flow and the declining screens. It may change them
   to wire real data, not restyle or reorganise them.
 - (b) Wherever the prototype disagrees with the spec, the spec wins; task 6.1
@@ -2202,14 +2197,17 @@ other surface has no such proof.
 **Why:** the URL would point the readers of a more visible lore repository into
 a more private thread. A Discord URL holds the server's and channel's ids, a
 Linear URL the workspace, issue and title, and a github.com link into a more
-private repository leaks the same way. A Linear or Discord thread ranks as
-a private repository's, both as a source of text and as a place text is
-posted to, so all three surfaces follow one policy. A question asked there
-is logged only in a private lore repository, a miss about such a question
-needs a private lore repository too, and an answer given there gets no answer file in
-a lore repository that is not private. A recorded answer is posted into
-such a thread by itself under the rule for a private GitHub repository's
-thread: when the record is no more private than the thread.
+private repository leaks the same way. For text leaving a Linear or Discord thread
+for a lore repository, the thread ranks as a private repository's thread, so all three surfaces follow one
+policy there. A question asked in such a thread is logged only in a private
+lore repository, and its file, miss files included, holds the thread's URL
+as `asked_in`, which marks it private; a miss about it needs a private lore
+repository too; and an answer given there gets no answer file in a lore
+repository that is not private. For text posted into such a thread, whose
+readers the session cannot check, a recorded answer is posted by itself
+only when the record's repository is public. A more private one is shown
+and posted only once the person agrees after a warning, as for a record
+more private than a GitHub thread.
 
 An answer's text leaks as its link does, so where the lore repository is
 more visible than the thread an answer was given in, no answer file is
@@ -2728,11 +2726,7 @@ follows its handback comment*).
 
 **New work in shared-skills goes through OpenSpec, except UI, which is
 prototyped and then built directly; this change adopts OpenSpec, spec-check
-and spec-trace for the repository.** `AGENTS.md` states the arrangement: a
-rejected alternative or constraint a test can check is a requirement with a
-scenario, and a capability's decision record,
-`openspec/specs/<capability>/decisions.md`, holds what no test can check,
-each entry with its evidence, as current reasoning, not a log. An existing
+and spec-trace for the repository.** `AGENTS.md` states the arrangement, decision records included. An existing
 skill gets its spec in a change of its own, skill by skill, as
 shared-skills issue #57 plans; a change that edits a skill with no spec, as
 this one edits github-app and bug-hunter (tasks 5.5 and 5.7), lists the edit
@@ -2759,15 +2753,9 @@ rule boundaries.
 
 #### UI is prototyped and approved by use, not specified
 
-**Once the repository's owner has used a UI's prototype and approved it, the
-UI goes straight to an implementation pull request; the feature's other
-parts, such as its data flow, integrations, setup and rules, still go spec
-first,** because whether a UI works is easier to see by using it than by
-reading a spec. A spec names a UI only as an interface the other parts use. A
-screen that a spec's task says is designed at implementation, from the
-patterns of the feature's approved prototype, needs no prototype of its own,
-and the task only names it; task 6.1's rule (c) is such a task. `AGENTS.md`
-states the rule and this exception.
+`AGENTS.md` states the rule: a UI is prototyped and approved by use, and
+a screen a spec's task says is designed at implementation needs no
+prototype of its own. Task 6.1 says so in its rule (c).
 
 #### Igor-worker scenarios stay untagged until igor builds what they need
 
@@ -2845,9 +2833,9 @@ queried, and task 0.22 checks how one reads.
 in tasks.md, says what the spec does if its measurement goes against it.
 Tasks 0.18 and 0.19, which check that a command the mod runs reaches no tool
 hook and that a mod keeps polling while idle, instead stop building until
-Adam, the repository's owner, decides. If task 0.21 finds GitHub does not
+the repository's owner decides. If task 0.21 finds GitHub does not
 report which App wrote a comment, its fallback stays for good, and building
-also stops until Adam decides.** The tasks cover GitHub's
+also stops until the repository's owner decides.** The tasks cover GitHub's
 notifications endpoint; how Linear and Discord show mentions and replies;
 how the Linear relay posts a comment; that a command the mod runs reaches no
 tool hook; that a mod keeps polling while idle or in the background; how

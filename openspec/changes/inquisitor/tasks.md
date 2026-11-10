@@ -1,11 +1,11 @@
 ## Before gate one is approved
 
-- [x] G.1 Adam approves the prototype build covering thread replies and
+- [x] G.1 The repository's owner approves the prototype build covering thread replies and
       the recorded answer shown beside the question, and task 6.1's rule
       (d) names its tag. Done: build v0.1-33, tagged
       `answer-session-ui-approved-v0.1-33`
 
-Gate two: the tasks below follow on this branch once Adam approves the
+Gate two: the tasks below follow on this branch once the repository's owner approves the
 spec.
 
 ## 0. Measure before building
@@ -104,12 +104,12 @@ contradicts what design.md assumed.
       `PreToolUse` hook, so no post hook, on GitHub, Linear or Discord,
       sees a relay post (design.md:
       *A relay post gets no prose pass and no vetting*). If a hook does
-      see it, record it and stop for Adam
+      see it, record it and stop for the repository's owner
 - [ ] 0.19 That a mod's timers keep polling every 60 seconds and
       refreshing the lock every 30 seconds while its session is idle or
       runs as a Claude Code background session, and how a session tells
       that it is one, so the lock can record it. If they stop, record it
-      and stop for Adam: a live holder's lock would go stale and another
+      and stop for the repository's owner: a live holder's lock would go stale and another
       session would take it without asking
 - [ ] 0.20 How setup checks, on each surface, that a relay identity can
       post in a given channel. On GitHub, setup reads the App
@@ -130,7 +130,7 @@ contradicts what design.md assumed.
       id its own state folder holds, so another machine may show the
       question again (design.md: *Which cross-machine cases are
       accepted*). If GitHub does not, these three rules stay for good:
-      record it and stop for Adam
+      record it and stop for the repository's owner
 - [ ] 0.22 What a reader needs to tie a relay file to its person
       (design.md: *Who last changed a relay file ties it to its person*):
       that GitHub's API gives, for the newest commit that changed
@@ -541,7 +541,7 @@ contradicts what design.md assumed.
       that ping*)
 - [ ] 6.1 The mod, built into the inquisitor skill from the tag
       `answer-session-ui-approved-v0.1-33` on shared-skills (build v0.1-33,
-      commit fc3c35f; `ui-approved-v0.1-33` in Adam's local prototype
+      commit fc3c35f; `ui-approved-v0.1-33` in the repository's owner's local prototype
       repository, `~/answer-session-prototype`), the only build the mod
       starts from. It descends
       from v0.1-30 (`answer-session-ui-approved-v0.1-30`, commit c9c6eb5)
@@ -551,7 +551,7 @@ contradicts what design.md assumed.
       ones. Four rules decide what is built (design.md: *How the approved
       prototype meets the spec*; *The UI is built from prototype build
       v0.1-33*):
-      - (a) Keep the approved screens' layout and interaction: the band,
+      - (a) Keep the approved screens' layout and interaction: the band, which is the mod's panel above the prompt box,
         the keys, the prompt-box flow and the declining screens. Changes
         needed to wire them to real data are fine; restyling or
         reorganising them is not.
@@ -657,7 +657,7 @@ contradicts what design.md assumed.
       and the README's section on the answer session: setup, the `answer`
       command, what to do when a relay check fails, and that no post but
       the answer session's starts with a reserved prefix
-- [x] 6.9 Adam's approval, by use, of the screens prototyped after the
+- [x] 6.9 The repository's owner's approval, by use, of the screens prototyped after the
       first approved build: declining a question, the choice of filter
       under "the inquisitor should have handled it" (reason 2) and the
       exact post shown before it goes out (design.md: *Misses the answer
