@@ -23,13 +23,16 @@
 #   request.
 # - synchronize (a push to the branch): the check fails, but the pull
 #   request stays ready. An agent often pushes several times before doing
-#   the read, and a draft on each push would flip the pull request back and
-#   forth.
+#   the read. If each push made the pull request a draft, the agent or a
+#   person would mark it ready again, and the next push would make it a
+#   draft again.
 #
-# A draft pull request passes even with a change unread, because no one is
-# yet asked to review it; the check runs again when it is marked ready. The
-# exception is review_requested: the check fails and the script withdraws
-# the review request. The script makes no other change to a draft.
+# A draft pull request:
+# - review_requested: the check fails, and the script withdraws that review
+#   request. The pull request stays a draft.
+# - opened, reopened, synchronize: the check passes even with a change
+#   unread, because no one is yet asked to review it. The check runs again
+#   when the pull request is marked ready.
 #
 # When the base branch's protection rules require `spec-check`, a failed
 # check blocks the merge.
@@ -70,8 +73,13 @@
 # 1. Update a clone of adamstallard/shared-skills that has main checked out:
 #      git -C <clone> pull --ff-only
 #    If shared-skills' manage-skills installed spec-check, then
-#    ~/.agents/skills/spec-check is a link into a clone, and this prints it:
+#    ~/.agents/skills/spec-check is a link into a clone, and this prints the
+#    clone's path:
 #      git -C ~/.agents/skills/spec-check rev-parse --show-toplevel
+#    Then this prints the branch the clone has checked out, which must be main:
+#      git -C <clone> branch --show-current
+#    Otherwise, make a clone, which has main checked out:
+#      git clone https://github.com/adamstallard/shared-skills <clone>
 # 2. From inside the repository that holds this workflow, run:
 #      python3 <clone>/.agents/skills/spec-check/scripts/spec_check.py setup-ci --force
 #    Add `--sha <commit>` to pin a commit on main other than the default.
@@ -80,15 +88,20 @@
 # changes nothing. With it, setup-ci replaces the whole file, discarding any
 # local edit. Without `--sha`, the pin is the newest commit that changed
 # spec_check.py, so after pulling a shared-skills merge that left
-# spec_check.py alone, the pin stays where it was: the workflow gets the
-# template's new steps and runs the same spec_check.py as before.
+# spec_check.py alone, the pin stays where it was: the workflow gets any new
+# steps of the template it is copied from
+# (.agents/skills/spec-check/ci/spec-check.yml in the clone) and runs the
+# same spec_check.py as before. Any commit that changes spec_check.py moves
+# the pin. So contributors to shared-skills must add a template step that
+# needs new script behaviour together with the spec_check.py change that
+# provides it. This is a rule for contributors, and no check enforces it.
 #
 # Editing this file by hand works, SPEC_CHECK_SHA included, as long as the
 # pin stays a full 40-character SHA of a commit on main. The next
 # `setup-ci --force` discards the edit, so setup-ci is the supported way to
 # change the pin. An edit every repository should get goes in the template,
-# .agents/skills/spec-check/ci/spec-check.yml in adamstallard/shared-skills,
-# by a pull request; once it merges, update as above.
+# by a pull request to adamstallard/shared-skills; once it merges, update as
+# above.
 name: spec-check
 on:
   pull_request:
