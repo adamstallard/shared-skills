@@ -131,6 +131,7 @@ jobs:
       - name: Every scenario in openspec/specs is tagged by a test
         env:
           # A full commit SHA of adamstallard/shared-skills, never a branch.
+          # To update it: https://github.com/adamstallard/shared-skills/tree/main/.agents/skills/spec-trace#ci
           SPEC_TRACE_SHA: <40-character commit SHA>
         run: |
           curl -fsSL "https://raw.githubusercontent.com/adamstallard/shared-skills/$SPEC_TRACE_SHA/.agents/skills/spec-trace/scripts/spec_trace.py" -o "$RUNNER_TEMP/spec_trace.py"
@@ -146,11 +147,29 @@ The SHA pins the exact checker your CI runs. A branch name would let a
 change to shared-skills fail your CI, or pass it, without any change in your
 repository.
 
-**To update the pin**, take the newest commit that touches the checker,
-`git -C <shared-skills clone> log -1 --format=%H -- .agents/skills/spec-trace/scripts/spec_trace.py`,
-put it in `SPEC_TRACE_SHA`, and run the new checker locally with `check`
-before pushing. The OpenSpec version is pinned for the same reason: update
-it on purpose, to the version you run locally.
+**To choose or update the pin**, ask GitHub for the newest commit on main
+that changed the checker. A later commit would hold the same checker, so
+this pin moves only when the checker does. The command needs the [GitHub
+CLI](https://cli.github.com), signed in, and no clone of shared-skills:
+
+```bash
+gh api 'repos/adamstallard/shared-skills/commits?sha=main&path=.agents/skills/spec-trace/scripts/spec_trace.py&per_page=1' --jq '.[0].sha'
+```
+
+Put the SHA it prints in `SPEC_TRACE_SHA`. Before pushing, run the checker
+at that commit from your repository's root, putting the SHA in the URL:
+
+```bash
+curl -fsSL "https://raw.githubusercontent.com/adamstallard/shared-skills/<SHA>/.agents/skills/spec-trace/scripts/spec_trace.py" -o /tmp/spec_trace.py
+python3 /tmp/spec_trace.py check
+```
+
+The workflow pins the OpenSpec version too, so that a new OpenSpec release
+can't change your CI's result either. Update it on purpose, to the version
+you run locally.
+
+You can also ask your agent to do it: *"set up spec-trace's CI step"* or
+*"update the spec-trace pin in CI"*.
 
 ## Day to day
 
