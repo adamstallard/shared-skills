@@ -74,10 +74,18 @@ python3 -I $B/summarize.py $S/results/iteration-1
   keeping an evolution line, current-state passes and the TLA+ note. A run
   reads them there when it commits, hands back a pull request, or checks a
   stacked change. It is dropped (see *Only the review task is measured*,
-  below). To reproduce its rows in the table below, build it from the
-  798a4fd copy: `python3 -I $B/build_variants.py
-  $S/baseline/.agents/skills/spec-check <out-dir>` writes it to
-  `<out-dir>/slim`; pass that directory to `run_bench.py --skill`.
+  below). Its builder, `build_variants.py`, is not in the tree; commit
+  0c94681 has it. To reproduce slim's rows in the table below, run these
+  after the block above, which makes `$S/baseline`. The first two save the
+  builder in the scratch directory and build slim from that 798a4fd copy;
+  the third runs slim as one more version:
+
+  ```sh
+  git show 0c94681:$B/build_variants.py > $S/build_variants.py
+  python3 -I $S/build_variants.py $S/baseline/.agents/skills/spec-check $S/variants
+  python3 -I $B/run_bench.py --cases $S/cases --work $S/runs \
+      --iteration $S/results/iteration-1 --version slim --skill $S/variants/slim
+  ```
 - **To browse the outputs**, run `python3 -I $B/prep_viewer.py
   <iteration-dir>`. Then, from the skill-creator plugin's directory (under
   `~/.claude/plugins/` once it is installed), run `python3
