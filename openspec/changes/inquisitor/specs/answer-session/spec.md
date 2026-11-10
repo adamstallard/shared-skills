@@ -364,6 +364,13 @@ Discord channel with its threads) and, on Discord only, the person's user
 id. The file SHALL hold no token or key, the Linear key staying in the
 keychain, and a save SHALL keep keys it does not write.
 
+#### Scenario: The answer session reads only its keys of the configuration
+
+- **WHEN** `inquisitor.json` holds, beside `login`, `lore` and
+  `answer_session`, another top-level key
+- **THEN** the answer session reads nothing from that key, and a save
+  keeps it unchanged
+
 #### Scenario: Each surface's object names its relay identity and channels
 
 - **WHEN** `~/.config/shared-skills/inquisitor.json` holds `login`, `lore`
@@ -824,7 +831,10 @@ set by its mentions* says (igor #229).
 
 A log file whose `asked_in` links a thread message this machine reads
 SHALL follow that message by exact link, taking whatever the answer
-session decides about it, and is never shown on its own.
+session decides about it, and is never shown on its own, except after an
+automatic filter 3 or 4 reply the answer session posts on that message,
+which closes no questions-branch file (*A handled file closes a
+questions-branch question*).
 
 #### Scenario: A questions-branch file follows the message it links
 
@@ -1093,6 +1103,12 @@ SHALL name its question by replying to it.
   and an Igor's handback
 - **THEN** the relay posts end with `Re: ` and, in turn, that comment's
   URL, the Linear issue's, the pull request's, and the handback comment's
+
+#### Scenario: A question in a description is named by its item
+
+- **WHEN** the person answers a question in a GitHub pull request's
+  description
+- **THEN** the relay post ends with `Re: ` and the pull request's URL
 
 ### Requirement: A relay post is posted by a host command, unvetted
 

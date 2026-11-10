@@ -10,9 +10,10 @@ spec.
 
 ## 0. Measure before building
 
-Record each result in design.md: *What the hook relies on, not yet
-measured* for 0.1 to 0.3, *Configuration* and *Facts measured before
-building* for 0.4, *Facts measured
+Record each result that a requirement rests on as Evidence in its
+capability's decision record, and the rest in design.md: *What the hook
+relies on, not yet measured* for 0.1 to 0.3, both *Configuration* and *Facts measured
+before building* for 0.4, *Facts measured
 before building* for 0.5 to 0.14, and *Facts the answer session relies on*
 for 0.15 to 0.28, including a result that
 contradicts what design.md assumed.
@@ -181,11 +182,12 @@ contradicts what design.md assumed.
       takes a call without one as the main conversation's (answer-session
       spec: *Claude's draft goes to the prompt box, never to a post*). If
       any arrives without one, record it in design.md's *Claude drafts a
-      reply only into the prompt box*; the rule stands. If a subagent's
-      call arrives without one, the scenario *A subagent cannot call
-      propose_reply* cannot hold, and design.md's *Claude drafts a reply
-      only into the prompt box* already accepts that case at the same
-      bound as a fork's
+      reply only into the prompt box*; the rule stands. A subagent's call
+      that arrives without one is taken as the main conversation's, as
+      the scenario *A subagent cannot call propose_reply* already says,
+      and design.md's *Claude drafts a reply only into the prompt box*
+      accepts that case as it accepts a fork's: the draft reaches only the
+      prompt box, where the person sees it before anything is sent
 - [ ] 0.27 List the tools of the Linear MCP servers an agent may have
       wired, such as Linear's own, and check that every tool named `get_…`,
       `list_…` or `search_…` only reads. If one writes, linear-app's post

@@ -10,10 +10,9 @@ calls, a verdict and the answer session.
 ## Proving the filters ran
 
 A hook can't judge whether a question has merit; only the agent can. So the
-design makes skipping the filters fail, and leaves the verdicts to review. It
-copies the two script calls prose uses to prove its pass ran
-(`.agents/skills/prose/DECISIONS.md`, *The rules are on screen before a
-signature*):
+design makes skipping the filters fail, and leaves the verdicts to review.
+Like prose, which proves its pass ran with a first call that prints its rules
+and a second that signs the result, the inquisitor makes two script calls:
 
 1. `inquisitor.py vet --questions q.json`, given the picker's `questions`
    array, or `vet --post body.md`, given a post's body, prints the four
@@ -29,8 +28,7 @@ details under *Hooks and verdict records*).
 
 The records live in `${XDG_STATE_HOME:-$HOME/.local/state}/inquisitor/`,
 where prose keeps its session marks, for the same reason: a session spans
-repositories, and a hook's working directory can differ from `vet`'s
-(prose's DECISIONS.md, *The gate blocks a session's first file write*). They
+repositories, and a hook's working directory can differ from `vet`'s. They
 are the hooks' state, not a question log, and every session and process run
 under one HOME shares them (*Verdict records are shared under one HOME*). How long a
 record lasts is under *Every verdict record expires after 2 hours*, below.
@@ -87,13 +85,13 @@ searches through `igor lore-search`*), and the script knows it is in a run by
 ## Questions in posts
 
 prose's posting hook reads a `gh` post's body from an allow-list of command
-forms (`.agents/skills/prose/DECISIONS.md`, *The posting hook reads an
-allow-list*), and the body fields of GitHub MCP tools (`body_fields` in
-`.agents/skills/prose/scripts/prose.py`). The command splitter and gh's flag tables are in
-`.agents/lib/gh-shell/`, which spec-check's hand-back hook also reads
-(prose's *The command reader is shared, in `.agents/lib/gh-shell/`*). This
-change moves the rest of the reader, which finds a post's body, into that
-library for both post hooks; the `gh-post` spec states its rules. prose's
+forms, and the body fields of GitHub MCP tools (`body_fields` in
+`.agents/skills/prose/scripts/prose.py`). A command
+splitter and gh's flag tables are already in the library
+`.agents/lib/gh-shell/` (shared-skills PR #55), which spec-check's
+hand-back hook also reads. This
+change moves the rest of prose's reader, the part that finds a post's body,
+into that library for both post hooks; the `gh-post` spec states its rules. prose's
 tests change only where the reader does: it reads posts sent through the
 github-app skill's script and `gh api` writes, makes code given on a line
 that mentions a gh post verb unreadable, reads titles, and blocks `gh`
@@ -464,8 +462,8 @@ lasts 2 hours and an answer may have been recorded since.
 *Ruled out by a scenario:* asking every surviving question as it arises,
 interrupting once per question (inquisitor spec: *A round's questions are
 asked together at its end*, scenario *A blocking question is asked at once,
-and the others wait*); and ending a round at each push, as spec-check also
-rejects (its `DECISIONS.md`, *One consistency read per round*), since agents
+and the others wait*); and ending a round at each push, as spec-check's SKILL.md
+also rejects for its review rounds, since agents
 push after almost every commit (*A question round ends at a hand-back or at
 the end of the agent's turn*, scenario *A push ends no round*).
 
@@ -744,8 +742,8 @@ in a Linear or Discord message is covered by the skill's instructions alone.
 rule the reader gains applies to prose's hook too.** spec-check's hand-back
 hook splits command lines with the same library's splitter and reads its flag
 tables (shared-skills PR #55), but applies none of the post reader's rules. The `gh-post`
-spec states the rules, taking the finer points of reading a line, such as
-heredocs, comments and line continuations, from prose's `DECISIONS.md`.
+spec states the rules, including the finer points of reading a line, such
+as heredocs, comments and line continuations.
 *Questions in posts* lists which prose tests change. The gh-post decision
 record's *Rationale: The shared post reader reads a post's body from an
 allow-list* gives the evidence against a second copy of prose's reader.
@@ -802,17 +800,23 @@ heredoc, *Input to a no-post line reaches only data commands*.
 script runs would mean reading the interpreter's options, so any input
 reaching one makes the line unreadable. Looking for the code flag anywhere
 means an option with a value, such as `-W ignore`, cannot hide it. A list of
-commands that run text as code is never complete, as prose's `DECISIONS.md`
-says, and git alone has many (`git config alias.p '!…' && git p`, `git
-difftool -x`, `git filter-branch --tree-filter`); a list of git subcommands
-that never take code is complete. prose's hook calls the same reader, so on a line
+commands that run text as code is never complete, and git alone has many
+(`git config alias.p '!…' && git p`, `git difftool -x`, `git filter-branch
+--tree-filter`); a list of git subcommands that take no code on the command
+line is complete, since git has a fixed set of subcommands and each one's
+options can be checked by hand. That list covers only code given on the
+command line: a repository's configuration can still make an allowlisted
+subcommand run a program, which could post past both hooks. The constraint
+recorded below accepts that, since blocking those subcommands beside every
+post would block ordinary work, and the hooks stop accidents, not a
+determined forger. prose's hook calls the same reader, so on a line
 that mentions a gh post verb it blocks these forms too, including a script
 handed to an interpreter other than the shell (`python3 - <<'EOF'`, `node
 -e`) and git aliases.
 
-*Recorded:* `openspec/specs/gh-post/decisions.md`, *Constraint: `git commit`
-and `git push` run the repository's git hooks, which can run anything, and
-the reader does not read them*.
+*Recorded:* `openspec/specs/gh-post/decisions.md`, *Constraint: An
+allowlisted git subcommand can run any program the repository's
+configuration names, and the reader does not read that configuration*.
 
 #### Posts sent through the github-app skill's script
 
@@ -853,10 +857,10 @@ unreadable.
 
 **Why:** otherwise a `gh api` comment would skip both hooks, while reads and
 writes that send no text, such as label edits, pass. A GraphQL mutation is a
-write like a REST one. An earlier command, such as
-`printf 'unsigned' > c.md`, can rewrite a file the write reads, as prose's
-`DECISIONS.md` says of `--body-file`; a field given in the command cannot
-be rewritten.
+write like a REST one. The hook reads a file before the line runs,
+so an earlier command on the line, such as `printf 'unsigned' > c.md`, can
+replace a signed body with one the hook never saw, as it can a
+`--body-file`; a field given in the command cannot be rewritten.
 
 *Ruled out by a scenario:* reporting every GraphQL mutation as unreadable,
 which blocks writes that send no text (scenario *A GraphQL mutation with no
@@ -1599,8 +1603,12 @@ entries in the role's scope. The channel a worker reports them through,
 output or outbox, is igor PR #175's, which runs a worker as a separate Unix
 user.
 
-igor's review count of an entry's citations is a lower bound, and says so,
-because no citation goes to a more visible lore repository. When every Igor
+The count of an entry's citations that igor's review shows, when it prunes
+and promotes lore entries, is not exact. It misses a use when the question
+is more private than the lore repository holding the entry, since no
+citation is pushed to a more visible repository. And it counts one use
+twice when two machines each decline the same question under filter 1, and
+each pushes a citation (*Which cross-machine cases are accepted*). When every Igor
 push of its workers' citations failed, it shows "not checked" instead, since
 a count would show none for every entry only Igors cited (#216's decision
 32).

@@ -2,9 +2,9 @@
 
 ## Constraints
 
-- **Constraint: `git commit` and `git push` run the repository's git hooks, which can run anything, and the reader does not read them.**
-  Because: blocking `git commit` and `git push` beside every gh post would block ordinary work, and a repository's git hooks are outside what a reader of the command line can see.
-  Evidence: git runs a repository's `pre-commit`, `commit-msg` and `pre-push` hooks on those commands, https://git-scm.com/docs/githooks
+- **Constraint: An allowlisted git subcommand can run any program the repository's configuration names, and the reader does not read that configuration.**
+  Because: blocking the allowlisted subcommands beside every gh post would block ordinary work, and what a repository's configuration makes git run is outside what a reader of the command line can see. That covers its hooks, such as `pre-commit`, `pre-push`, `post-checkout` and `reference-transaction`, which any ref update runs, and programs such as `core.fsmonitor` and an external diff driver, which `status` and `diff` can run. On a line that mentions a gh post verb, `git config` and `-c` make the line unreadable, but an agent can set that configuration in an earlier command, so any agent, not only a hostile repository, can open this gap; the hooks stop accidents, not a determined forger.
+  Evidence: git runs a repository's hooks on these commands, https://git-scm.com/docs/githooks; `core.fsmonitor` names a command git runs to find changed files, https://git-scm.com/docs/git-config#Documentation/git-config.txt-corefsmonitor; and git calls an external diff driver's configured `command` when it shows a diff, https://git-scm.com/docs/gitattributes#_defining_an_external_diff_driver
   Holds while: the reader judges only the command line.
   Paths: .agents/lib/gh-shell/
 
