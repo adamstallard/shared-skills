@@ -114,17 +114,18 @@ first rule in [AGENTS.md](AGENTS.md) gives the steps.
    - If a skill ships scripts, put tests beside them as `scripts/test_*.py` —
      standard library only, runnable with plain `python3`, no fixtures to
      install. `bug-hunter` and `manage-skills` both have some.
-   - If those scripts accumulate non-obvious decisions, add a `DECISIONS.md`
-     next to `SKILL.md`: decision, why, and **what was tried and rejected**.
-     Point at it from the top of the script. It is read before choosing an
-     approach, which is where a comment at the relevant line arrives too late —
-     see [bug-hunter](.agents/skills/bug-hunter/DECISIONS.md).
+   - Don't add a free-form `DECISIONS.md` or an ADR for agents: they never
+     read or write one. What an agent needs in order to uphold a decision
+     goes in the skill's OpenSpec spec as a requirement, and evidence a test can't express (a
+     failure, a measurement, an outside fact) goes in that capability's
+     decision record, `openspec/specs/<capability>/decisions.md`. A warning
+     about one line goes in a comment at that line.
    - A skill can also ship a `hook.json` to run one or more scripts around
      agent events, wired up on install. See the Hooks section of
      [manage-skills/SKILL.md](.agents/skills/manage-skills/SKILL.md).
    - Code shared by several skills lives in `.agents/lib/<name>/`, and each
      skill calls it from a thin script of its own. A skill enforcing a commit
-     trailer uses [`commit-trailer`](.agents/lib/commit-trailer/DECISIONS.md),
+     trailer uses [`commit-trailer`](.agents/lib/commit-trailer/),
      the way `bug-hunter` does. Skills reach it through their symlink into the
      clone, so a skill folder copied on its own loses it and says so.
 4. **Add a row to the table above** with a one-line description and links to

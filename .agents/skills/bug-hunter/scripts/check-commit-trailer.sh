@@ -4,8 +4,8 @@
 #
 # Usage: check-commit-trailer.sh [--host <platform>]
 #
-# The check itself is shared — ../../../lib/commit-trailer/check-commit-trailer.sh,
-# with its own DECISIONS.md. This file configures it for bug-hunter and sources
+# The check itself is shared — ../../../lib/commit-trailer/check-commit-trailer.sh.
+# This file configures it for bug-hunter and sources
 # it, so $0 stays this file and the submodule walk comes back through here.
 # The report's wording is in hook-report.sh.
 

@@ -18,13 +18,13 @@ would buy. Without one there is nothing to install, keep alive, restart or
 point at a moved folder, and the same script works on a laptop, on a server,
 and as a subprocess of another program.
 
-**Rejected: a local HTTP service holding a gateway connection.** This skill
-replaces one: a Node service using discord.js, run by launchd, that agents
-reached with `curl` on port 3000. Its connection listened for nothing, so it
-only served as a channel cache. It needed Node and npm, its dependencies could
-not live inside a skill folder (skill loaders scan those recursively), and its
-launchd file held an absolute path, so moving the repository broke it at the
-next restart. That happened.
+**Rejected: a local HTTP service holding a gateway connection,** such as a
+Node service using discord.js, run by launchd, that agents reach with `curl`
+on port 3000. Its connection listens for nothing, so it serves only as a
+channel cache. It needs Node and npm, its dependencies can't live inside a
+skill folder (skill loaders scan those recursively), and its launchd file
+holds an absolute path, so moving the repository breaks it at the next
+restart. That happened to such a service.
 
 **If a future need is event-driven,** such as replying when someone mentions
 the bot, that needs a service. Build it separately; don't turn this script into
@@ -43,12 +43,10 @@ never holds the token itself.
 file, and that file is its identity; a laptop has a keychain and no such
 file. Naming entries by identity lets one machine hold several bots.
 
-**Rejected: one fixed keychain entry per machine.** That was the old service's
-design, and it can't hold a second bot.
+**Rejected: one fixed keychain entry per machine.** It can't hold a second
+bot.
 
 ## The environment's token belongs to one identity
-
-Decided by Adam, 2026-10-05.
 
 **Decision.** As in `github-app`: `DISCORD_BOT_TOKEN` and
 `DISCORD_BOT_TOKEN_FILE` apply only to the identity named by
@@ -57,10 +55,10 @@ Decided by Adam, 2026-10-05.
 says whose token the environment holds. `store-token` warns when the
 environment's token would override the one it stores.
 
-**Why.** A server's environment file holds one role's token. Before this
-decision, a token inherited from another identity's environment silently acted
-as that bot: `--identity reviewer`, run in a process holding another bot's
-token, posted as the other bot.
+**Why.** A server's environment file holds one role's token. Without this
+rule, a token inherited from another identity's environment silently acts as
+that bot: `--identity reviewer`, run in a process holding another bot's token,
+posted as the other bot.
 
 **`DISCORD_BOT_TOKEN_FILE`** lets that environment file point to the token
 instead of holding it. The file's content is stripped of surrounding
@@ -84,24 +82,24 @@ visibly with Discord's 401.
 **Decision.** A message longer than Discord's limit, header included, is an
 error, and nothing is posted.
 
-**Why.** The old service cut messages at 2,000 characters and reported
-success, so the end of a long report vanished without anyone knowing.
+**Why.** A message cut at the limit loses its end without anyone knowing.
+
+**Rejected: cutting at 2,000 characters and reporting success,** which the
+HTTP service above did. The end of a long report vanished unnoticed.
 
 **Rejected: splitting into several posts.** Where to split is a judgment about
 the text, which the caller is better placed to make.
 
-**Considered again and skipped, Adam, 2026-10-05: splitting at paragraph
-breaks**, as Claude's Discord plugin does. It isn't worth the complexity. A
-split must not cut a code block, mention or link, which means parsing Discord's
-Markdown. A first version used regular expressions, and its first review found
-three bugs of that kind: a masked link `[text](url)` cut in half, a long word
-after a code fence taken as its language and repeated in every part (or a
-crash), and a stray backtick that turned paragraphs into one uncuttable span.
-The mention rules above took the same path, one patch per pass.
+**Rejected: splitting at paragraph breaks**, as Claude's Discord plugin does.
+It isn't worth the complexity. A split must not cut a code block, mention or
+link, which means parsing Discord's Markdown. A trial version using regular
+expressions had three bugs of that kind in its first review: a masked link
+`[text](url)` cut in half, a long word after a code fence taken as its
+language and repeated in every part (or a crash), and a stray backtick that
+turned paragraphs into one uncuttable span. Prefix matching of mentions
+(below) went the same way, one patch per pass.
 
 ## Replies stay in their channel and don't ping the author
-
-Decided by Adam, 2026-10-05.
 
 **Decision.** `post --reply-to <id>` first fetches that message from the
 channel or thread being posted to. If it isn't there, because it's in another
@@ -125,8 +123,6 @@ already grants. A reply to a message in another channel is a forward in
 Discord's terms, which this skill doesn't do.
 
 ## No allowlist: Discord's permissions decide who takes part
-
-Decided by Adam, 2026-10-05.
 
 **Decision.** Who may send in a channel, and so whose messages the bot reads,
 is left to the server's moderators and admins through Discord's own roles and
@@ -195,15 +191,14 @@ nobody, so it isn't cut down to a shorter member's name. `\@name` and
 **Why.** Pinging the wrong person is the failure that matters; missing a ping
 is visible in the warnings and fixed by retrying with the right name.
 
-**Rejected: matching by prefix, shortest name first.** The old service did
-this, and it was ported first. Over three review passes it pinged the wrong
-member for `@acme-reviewer` (cut at the hyphen), `@José` (cut at the `é`) and
+**Rejected: matching by prefix, shortest name first.** Over three review
+passes, a version of this script that matched by prefix pinged the wrong member for `@acme-reviewer` (cut at the hyphen), `@José` (cut at the `é`) and
 `_@adam_` (which matched `adam_smith` first). Each was patched, and the next
 pass found another. Exact matching, with the longer-name check above, removes
 the class.
 
 **Where it stops applying.** A nickname typed partially (`@ada` for `adam`)
-no longer resolves. That is deliberate. So does a name followed directly by Chinese or Japanese
+doesn't resolve, deliberately. Nor does a name followed directly by Chinese or Japanese
 text with no space (`请@adam看看` reads as the name `adam看看`); it gets a warning
 rather than a ping. The longer-name check only knows members whose names
 start with the shorter one, which are the ones search returns. In a server
@@ -240,9 +235,10 @@ N backticks opens it and the next run of exactly N closes it. A run with no
 closer is ordinary text, so mentions after a stray backtick still work. An
 unclosed ```` ``` ```` fence is ordinary text too, matching how Discord displays it.
 
-**Rejected: a single-backtick regex, then masking to the end of the text
-after an unmatched backtick.** The first missed ``` ``@adam`` ```; the second
-silently dropped every mention after a backtick in prose ("press the ` key").
+**Rejected: a single-backtick regex,** which misses ``` ``@adam`` ```.
+**Rejected: masking to the end of the text after an unmatched backtick,**
+which silently drops every mention after a backtick in prose
+("press the ` key").
 
 ## Member search needs no privileged intent
 
@@ -262,8 +258,6 @@ rejected: the search is capped at 100 and unordered, so in a server where 100
 names start with the bot's, the bot can be missing while search works.
 
 ## Message Content is on; Server Members and Presence stay off
-
-Decided by Adam, 2026-10-20.
 
 **Decision.** Setup turns on the Message Content intent and leaves Server
 Members and Presence, the other two privileged intents, off. `check` reports `messageContent` from the bot's
@@ -311,10 +305,52 @@ guess reads up to 100 messages in the default channel and judges whether
 Discord emptied them, as it does when the intent is off. It needs a list of
 ordinary message fields, and exclusions for messages that might mention the
 bot, which Discord leaves whole. For a warning in `read` it also needs the
-bot's id, to tell which messages mention the bot. Adam
-chose the exact flags over guessing, on 2026-10-21. The guess gives `null` in
+bot's id, to tell which messages mention the bot. The guess gives `null` in
 a quiet channel, and each review of it found another kind of message that is
 empty with the intent on.
+
+## `invite-url` builds the link from the application
+
+**Decision.** `invite-url` calls `GET /applications/@me` and builds
+`https://discord.com/oauth2/authorize?client_id=<id>&scope=bot&permissions=<n>`,
+where `n` is the sum of `PERMISSIONS`, the same bits `check` reports. It
+reports `bot_public`, and warns about each application setting that stops the
+link working: Public Bot off, Requires OAuth2 Code Grant on, or Guild Install
+left out of the installation contexts.
+
+**Why.** People often send the link to a server admin, who can't tell a wrong
+link from a right one. A hand-built link can carry the wrong permission number
+or scope. The developer portal's Installation tab offers a link that carries
+only `client_id`. Discord then uses
+the app's default install settings, which may hold only
+`applications.commands`: the admin authorizes, and the bot never joins.
+`scope=bot` asks for a server install whatever those defaults say.
+
+Three settings still stop the link working, and the warnings catch each before
+the link is sent:
+
+- With Public Bot off, only the app's owner can add the bot.
+- With Requires OAuth2 Code Grant on, the bot joins only through the full code
+  grant, which needs a `redirect_uri` this link doesn't carry.
+- With Guild Install left out of the installation contexts,
+  `integration_types_config` has no `"0"` key and Discord refuses a server
+  install.
+
+A missing or non-boolean `bot_public` gives `null` and a warning, never a
+guess. A missing, null or empty `integration_types_config` gives no warning: it
+doesn't show that Guild Install is off, and a wrong warning would send the user
+to change a setting that is already right. The call needs no server, so it
+works before the bot is in one.
+
+**Rejected: reading the Application ID from the token.** A token's first part
+is the bot's user id in base64. It usually equals the Application ID, but
+Discord doesn't document the two as equal, and `bot_public` needs the API call
+anyway.
+
+**Rejected: the portal's Installation tab as the setup path.** It takes a
+scope and five permissions ticked out of about 40. Those settings also decide
+what anyone pressing the app's public "Add App" button gets, so changing them
+to fix the link changes that too.
 
 ## Permissions are computed in `check`, not before every post
 
@@ -327,8 +363,6 @@ session to name the missing permission up front, because Discord's own error
 for a missing thread permission is a bare code that names none.
 
 ## `store-token` gives `security` the token on standard input, twice, and reads it back
-
-Decided by Adam, 2026-10-21.
 
 **Decision.** On macOS, `store-token` runs `security add-generic-password` with
 `-w` as its last option and no value. It writes the token to `security`'s
@@ -361,6 +395,73 @@ On Linux, `secret-tool` asks once and stores all of its standard input as
 the secret, so the one-copy case can't arise there, and `store-token`
 doesn't read the token back.
 
+## `store-token` checks the token with Discord before storing it
+
+**Decision.** `store-token` calls `GET /users/@me` with the token entered
+before writing anything. If Discord answers 401, it stores nothing and says
+the value isn't a bot token, naming the Client Secret and Public Key, which
+the developer portal shows on other tabs. Any other failure, such as no
+network, also stores nothing and says the token could not be checked. So
+does an answer that names no bot. On success, the output's `bot` field holds
+the bot's username. A token that is not printable ASCII without spaces is
+refused before the request: Python's HTTP library would reject it with an
+error that quotes the token. On macOS, the read-back in the entry above still
+runs after the token is stored.
+
+**Why.** A wrong value stored without a check fails later, in whichever
+command runs next, as a bare 401 far from where it was pasted. A valid token
+pasted under the wrong identity passes any check of the token alone; printing
+the bot's name lets the user see that it is the wrong bot.
+
+**Rejected: storing anyway when Discord can't be reached.** The user is at the
+prompt with the token in hand now; a later failure finds them without it.
+Running `store-token` again once online costs one paste.
+
+**Rejected: checking only the token's format.** Discord doesn't document the
+format, and a Client Secret is printable ASCII too.
+
+## `store-token` refuses to run without a terminal
+
+**Decision.** `store-token` checks that standard input is a terminal before
+it prompts. If it isn't, the command stores nothing and says to run it in a
+terminal window, not through a tool or Claude Code's `!` prefix. On a
+terminal where `getpass` can't turn echo off, the script stops before
+`getpass` reads anything. End of input at the prompt reports "no token
+entered". None of these three cases prints a traceback.
+
+**Why.** When `getpass` can't turn echo off, which is always the case without
+a terminal, it warns that the input may be echoed and falls back to reading
+standard input with echo on. That read would show the token. Claude Code's
+`!` prefix runs the command with no terminal. In a run through `!` before
+this check existed, `getpass` printed its warning, then hit end of input, and
+the script printed a traceback and `unexpected error: EOFError()`. So the
+skill tells the user to run `store-token` in a separate terminal window.
+
+**Rejected: letting `getpass` fall back to its echoing read.** The token would
+appear on screen as the user typed it.
+
+## `forget-token` deletes the identity's entry
+
+**Decision.** `forget-token` deletes the entry `keychain_entry()` names, with
+the config's `keychain` override applied: `security delete-generic-password`
+on macOS, `secret-tool clear` on Linux. `"removed": false` and a warning say
+when nothing was stored. After a deletion it reads the entry again and warns
+if another keychain still holds a match, because `security` deletes only the
+first. It also warns when the environment's token belongs to this identity,
+since that token keeps working.
+
+**Why.** Without it, removing a token means knowing the service and account
+names and the platform's tool. A user rotating a leaked token, or retiring a
+bot, needs it gone in one step.
+
+`secret-tool clear` exits 0 whether or not anything matched, so on Linux
+`forget-token` runs `secret-tool lookup` first to tell the two apart. On macOS
+no lookup is needed: `security delete-generic-password` exits 44 when nothing
+matches.
+
+**Rejected: deleting every matching entry in a loop.** A match in another
+keychain may belong to something else; the warning lets the user decide.
+
 ## Output is JSON with fixed exit codes
 
 **Decision.** One JSON object on standard output, with `ok`; exit status 0
@@ -386,3 +487,14 @@ below the two-character minimum, so the regex never matches. Nobody is pinged
 wrongly, but the rule of one warning per unresolved name is broken. Python's
 `re` has no `\p{M}`. Fixing this means listing the mark ranges in the
 pattern, or checking `unicodedata.category` after a match. Undecided.
+
+### A channel given by id gets no invite hint (2026-11-07)
+
+A command given a channel id, by `--channel` or `defaultChannel`, fetches the
+channel directly and never lists the bot's servers. So a bot in no server gets
+Discord's raw `Missing Access` (403, code 50001) instead of the `invite-url`
+hint that a channel given by name gets. The README's 403 entry then points at
+role permissions, which can't help a bot that isn't in the server. Mapping
+50001 to the hint is not enough on its own: 50001 also means the bot can't see
+a private channel in a server it is in. A fix would list the servers after a
+50001 and give the hint only when that list is empty. Undecided.

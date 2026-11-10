@@ -27,12 +27,17 @@ Both calls of `check` run the repository's pre-commit hook first, if it has one.
         A report with findings needs --dispositions, answering each one.
     prose.py sign --goals <goals> | --goals-file <file>
         Before posting, first call. Prints the rules and a token; reads no stdin.
-        start's and sign's goals file holds the goals --goals would, one or
-        more per line. Unlike check's --goals-file, its lines have no
+        For start and sign, the goals file holds the same goals --goals
+        takes, one or more per line. Unlike check's --goals-file, its lines have no
         'pattern:' prefix, since neither command lists files.
     prose.py sign --pass <token> [--cold-read <report> [--dispositions <file>]] < text > signed
         Second call. Prints stdin's text with a signed footer, or, as check
         does, a cold-read brief on stderr, exiting 5.
+    prose.py sign --pass <token> --defer-cold-read < text > signed
+        For a pull request body posted between two hand-backs for review
+        (see hook-handback): signs with no
+        cold read, in a footer that says the cold read is due at the
+        hand-back.
     prose.py compact <file> [--paths-from <file|-> [-0]] [-- <path>...]
     prose.py compact <file> --verify [--answers <file>] [--paths-from <file|-> [-0]] [-- <path>...]
     prose.py compact <file> --review
@@ -54,11 +59,16 @@ Both calls of `check` run the repository's pre-commit hook first, if it has one.
     prose.py verify-commit <sha>              after a commit (the commit hook)
     prose.py verify-post                      stdin: posted text
     prose.py hook-post --host <platform>      the posting hook
+    prose.py hook-handback --host <platform>  the hook after each tool call: when the
+                                              call handed a pull request back, prints
+                                              the current-state pass, a reminder to
+                                              fix any doc, body or title that still
+                                              describes work as unfinished
     prose.py hook-gate                        the first-write gate
 
-Standard library only. Read ../DECISIONS.md before changing what is hashed
-into a trailer or footer (the staged tree, the message, a post's text): a
-change there invalidates every signature already minted.
+Standard library only. Changing what is hashed into a trailer or footer (the
+staged tree, the message, a post's text) invalidates every signature already
+minted.
 """
 
 import argparse
@@ -70,12 +80,60 @@ import pathlib
 import re
 import secrets
 import shlex
+import shutil
 import subprocess
 import sys
 import time
 from typing import Callable, NamedTuple, Optional
 
 HERE = pathlib.Path(__file__).resolve().parent
+# How the hooks read a shell command and gh's flags: the reader shared with
+# spec-check's hand-back hook, in .agents/lib/gh-shell/ of the clone.
+# Only the posting hooks need it: without it, prose's other commands still
+# run, a command that may run gh is blocked with a message saying how to
+# restore the reader (use a full clone), and GitHub MCP posts are checked as
+# usual.
+GH_SHELL = HERE.parent.parent.parent / "lib" / "gh-shell"
+sys.path.insert(0, str(GH_SHELL))
+try:
+    from gh_shell import (  # noqa: E402
+        GITHUB_MCP,
+        BODY_FLAGS,
+        GH_VERBS,
+        SHORT_VALUES,
+        LONG_FLAGS,
+        COMMON_LONG,
+        BODY_SOURCES,
+        NO_SOURCES,
+        SOURCE,
+        NO_TEXT_VERBS,
+        _words,
+        DATA_COMMANDS,
+        GH_TEXT,
+        RESERVED,
+        CLOSERS,
+        _commands,
+        _gh_args,
+    )
+    import gh_shell as READER  # noqa: E402
+    GH_SHELL_MISSING = False
+except ImportError:
+    READER = None
+    GH_SHELL_MISSING = True
+    # Copies of gh_shell.py's GITHUB_MCP and GH_TEXT, so MCP posts are still
+    # checked and a command naming gh is still caught. Change them with
+    # gh_shell.py's.
+    GITHUB_MCP = re.compile(r"^mcp__(?:plugin_.+_)?github__")
+    GH_TEXT = re.compile(r"\bgh(?![\w-])")
+# What counts as a hand-back for review, shared with spec-check's hand-back
+# hook. Without it, no call is read as a hand-back: a deferred footer is
+# accepted on any pull request body post, a hand-back's included, no
+# hand-back is blocked for a deferred body, and no current-state pass (the
+# reminder to rewrite what still describes work as unfinished) is printed.
+try:
+    import handbacks  # noqa: E402
+except ImportError:
+    handbacks = None
 # The path this file was run by, with any link in it kept. The commands prose
 # prints for its caller to run next name this, not HERE: a caller granted
 # permission by path, or told where the skill is, needs the same path back,
@@ -96,10 +154,9 @@ MARK = "\u2713"
 # Each half of the trailer, `✓ <tree>:<message>`, is this many hex digits.
 HALF = 12
 # The trailer's value. After a cold read it ends with counts, such as `; cold
-# read: 5 findings, 3 fixed, 2 kept; understood: 4 items, 1 fixed, 0 kept`
-# (DECISIONS: Every cold-read finding is answered before signing, and The cold
-# reader says what it understood). This pattern only splits the counts out;
-# counts_valid accepts them only in the forms cold_counts and understood_counts
+# read: 5 findings, 3 fixed, 2 kept; understood: 4 items, 1 fixed, 0 kept`.
+# This pattern only splits the counts out; counts_valid accepts them only in
+# the forms cold_counts and understood_counts
 # print. A value without the understood part is accepted too: commits signed
 # before cold readers wrote understood lines carry none.
 TRAILER = re.compile(r"✓ (?P<tree>[0-9a-f]{%d}):(?P<message>[0-9a-f]{%d})"
@@ -107,6 +164,13 @@ TRAILER = re.compile(r"✓ (?P<tree>[0-9a-f]{%d}):(?P<message>[0-9a-f]{%d})"
                      r"(?:; compacted: (?P<compacted>[^;\n]+))?" % (HALF, HALF))
 FOOTER_LENGTH = 6
 FOOTER = re.compile(r"^prose ✓ ([0-9a-f]{%d})$" % FOOTER_LENGTH)
+# A pull request body signed inside a review round, with its cold read
+# deferred to the hand-back. Its hash covers DEFERRED_SALT before the body, so
+# cutting the note off by hand leaves a footer that does not match.
+DEFERRED_NOTE = "(cold read deferred to the hand-back)"
+DEFERRED_FOOTER = re.compile(r"^prose ✓ ([0-9a-f]{%d}) %s$"
+                             % (FOOTER_LENGTH, re.escape(DEFERRED_NOTE)))
+DEFERRED_SALT = "cold read deferred\n"
 
 # Directories holding other people's docs. Build and output directories are
 # left off: a doc in one may have been written in this repository.
@@ -140,12 +204,22 @@ def scanner():
     return comment_scan
 
 
+def git_env():
+    """This process's environment without the variables that change what a
+    diff reads, and with GIT_ATTR_NOSYSTEM set, as comment_scan.git_env
+    says (its UNSET_ENV is this tuple)."""
+    env = {key: value for key, value in os.environ.items()
+           if key not in ("GIT_ATTR_SOURCE", "GIT_NO_REPLACE_OBJECTS", "GIT_REPLACE_REF_BASE")}
+    env["GIT_ATTR_NOSYSTEM"] = "1"
+    return env
+
+
 def git(args, cwd=None):
     """git with the reads pinned the way the commit-trailer library pins them."""
     result = subprocess.run(
         ["git", "-c", "log.showSignature=false", "-c", "trailer.separators=:",
          "-c", "core.quotePath=false", "-c", "i18n.logOutputEncoding=UTF-8"] + args,
-        cwd=cwd, capture_output=True, check=False,
+        cwd=cwd, capture_output=True, check=False, env=git_env(),
     )
     # Read as bytes and decoded here. Text mode would turn a bare CR into a
     # newline, and line numbers would then drift from git's. surrogateescape
@@ -398,8 +472,9 @@ def _changed_docs(root, base):
     # --ignore-submodules=none as in prose_in's diff: under a config that
     # ignores submodules, a bumped submodule would be missing here and read
     # as a doc.
-    raw = git(["diff", "--cached", "--raw", "-z", "--no-abbrev", "-M", "--no-relative",
-               "--no-color", "--ignore-submodules=none", base], root)
+    raw = git(scanner().DIFF_CONFIG + [
+        "diff", "--cached", "--raw", "-z", "--no-abbrev", "-M", "-l1000", "--no-relative",
+        "--no-color", "--ignore-submodules=none", base], root)
     fields = raw.split("\0")
     found, index = {}, 0
     while index < len(fields) and fields[index].startswith(":"):
@@ -439,26 +514,129 @@ def _runs(numbers):
     return tuple(runs)
 
 
-def prose_in(root, base, read: Callable[[str], str]):
+def _combined_entries(root, tree, parents):
+    """{path: (deleted, link)} for each path whose staged entry differs from
+    every parent's, read from git's combined `--raw`. link: what is staged
+    there is a symlink or a submodule. Each record there is one mode per
+    parent and then the result's, the blobs in the same order, one status
+    letter per parent, and the path; it starts with one colon per parent."""
+    # -M and -l1000 as in _combined_touched, so both pair the same files.
+    raw = git(scanner().DIFF_CONFIG + [
+        "diff", "--cc", "--raw", "-z", "--no-abbrev", "-M", "-l1000", "--no-relative",
+        "--no-color", "--ignore-submodules=none", tree] + parents, root)
+    fields, found, count = raw.split("\0"), {}, len(parents) + 1
+    for index in range(0, len(fields) - 1, 2):
+        if not fields[index].startswith("::"):
+            break
+        meta, path = fields[index].lstrip(":").split(" "), fields[index + 1]
+        modes, blobs = meta[:count], meta[count:2 * count]
+        # As in _changed_docs: a parent with the same blob and the same kind
+        # of entry means the merge took that parent's content unchanged.
+        if any(blobs[n] == blobs[-1] and modes[n][:2] == modes[-1][:2]
+               for n in range(len(parents))):
+            continue
+        found[path] = (modes[-1] == "000000", modes[-1] in ("120000", "160000"))
+    return found
+
+
+def merge_changes(scan, root, parents):
+    """(touched, entries) for a merge: what _combined_touched maps, and, from
+    _combined_entries, each path the merge itself changed. A path both sides
+    changed and git merged cleanly differs from every parent, yet `--cc`
+    keeps no hunk of it, so a path counts only with a hunk, or when it is
+    binary, deleted, a symlink or a submodule. The listing and the
+    compaction trigger both read a merge from here."""
+    # write-tree fails on an unmerged index; the pre-commit run before this
+    # already writes the tree and refuses one, so none reaches here.
+    tree = git(["write-tree"], root).strip()
+    touched = _combined_touched(scan, root, tree, parents)
+    entries = {path: kind for path, kind in _combined_entries(root, tree, list(parents)).items()
+               if path in touched or any(kind)}
+    for path in touched:
+        entries.setdefault(path, (False, False))
+    return touched, entries
+
+
+def merge_paths(root, parents):
+    """The paths a merge itself changed, as merge_changes finds them,
+    deletions left out: the compaction trigger's input for a merge."""
+    _, entries = merge_changes(scanner(), root, parents)
+    return sorted(path for path, (deleted, _) in entries.items() if not deleted)
+
+
+def _combined_touched(scan, root, tree, parents):
+    """_touched for a merge: each file git's combined diff (`--cc`) shows a
+    hunk of, or calls binary, mapped to the staged lines it shows as added:
+    those missing from at least one parent, in the hunks `--cc` keeps. `--cc`
+    drops each hunk where the result takes one parent's version unchanged,
+    so what is left is the text the merge resolved or wrote.
+
+    Read with git's default 3 lines of context, as `git show` prints a
+    merge, so the listing matches it. Context joins nearby changes into one
+    hunk, which is how a resolution taking one side's line and the other
+    side's line a few lines on counts as the merge's own. With context,
+    every line of a kept hunk is printed, so counting from the hunk's start
+    numbers each one."""
+    # scan.DIFF pins git's defaults, so the hunks match `git show` on a
+    # machine with no config; the later --unified=3 replaces its 0. -M pairs
+    # a rename a branch made with the other branch's edits to the old path,
+    # as the merge did.
+    diff = git(scan.DIFF + ["--unified=3", "--cc", "--submodule=short", "-M", tree]
+               + list(parents), root)
+    width = len(parents)
+    header = re.compile(r"^@{%d} (?:-[0-9,]+ ){%d}\+([0-9]+)" % (width + 1, width))
+    touched, path, in_header, line_number = {}, None, False, 0
+    for line in diff.split("\n"):
+        if line.startswith("diff --cc "):
+            # The combined header names the path once, with no a/ or b/.
+            path, in_header = scan.unquote_path(line[len("diff --cc "):]), True
+            continue
+        found = header.match(line)
+        if in_header and not found:
+            if line.startswith("Binary files "):
+                touched.setdefault(path, set())
+            continue
+        if found:
+            in_header, line_number = False, int(found.group(1))
+            touched.setdefault(path, set())
+            continue
+        # A result line is its prefix, one column per parent, then its text;
+        # a `+` in the prefix means some parent lacks it. Three kinds of line
+        # are skipped without counting: a line lost from some parent (a `-`
+        # in the prefix), which is not in the result; a `\ No newline`
+        # marker; and the empty string after the diff's last newline.
+        if len(line) < width or line.startswith("\\") or "-" in line[:width]:
+            continue
+        if "+" in line[:width]:
+            touched[path].add(line_number)
+        line_number += 1
+    return touched
+
+
+def prose_in(root, parents, read: Callable[[str], str]):
     """([Item], [flag lines]) for the prose the staged change touches.
 
     A listing for the pass, not what the trailer hashes: the message, each doc
     or spec file the diff touches, and each code comment it adds to or edits.
-    The flags are history-language warnings on those comments. base is the
-    revision the diff is against, or None for the empty tree.
+    The flags are history-language warnings on those comments. parents are
+    the commit's parents: none diffs against the empty tree; two or more, a
+    merge, list only what git's combined diff shows the merge changed.
     """
     scan = scanner()
     items, flags = [Item("commit message", "", None)], []
-    # This module's git(), not the scanner's: its surrogateescape decoding
-    # keeps a path that is not UTF-8 usable by `read`. -M finds renames
-    # whatever the user's config, so a pure rename lists nothing.
-    # --submodule=short shows a submodule as one line; at a code-looking path
-    # it is listed as "could not be read".
-    base = base or _empty_tree(root)
-    diff = git(scan.DIFF + ["-M", "--submodule=short", "--ignore-submodules=none",
-                            "--cached", base], root)
-    touched = _touched(scan, diff)
-    docs = _changed_docs(root, base)
+    if len(parents) > 1:
+        touched, entries = merge_changes(scan, root, parents)
+        docs = {path: kind for path, kind in entries.items() if is_doc(path)}
+    else:
+        # This module's git(), not the scanner's: its surrogateescape decoding
+        # keeps a path that is not UTF-8 usable by `read`. -M finds renames
+        # whatever the user's config, so a pure rename lists nothing.
+        # --submodule=short shows a submodule as one line; at a code-looking
+        # path it is listed as "could not be read".
+        base = parents[0] if parents else _empty_tree(root)
+        diff = git(scan.DIFF + ["-M", "--submodule=short", "--cached", base], root)
+        touched = _touched(scan, diff)
+        docs = _changed_docs(root, base)
     for path in docs:
         touched.setdefault(path, set())
     for path, lines in sorted(touched.items()):
@@ -721,8 +899,7 @@ def run_pre_commit(root, signing):
 
     The library records a pass, so the commit script that follows does not
     run the hook again on the same state. With no hook, nothing runs and
-    nothing is printed. See DECISIONS.md, *`prose check` runs the pre-commit
-    hook first*.
+    nothing is printed.
     """
     if not RUN_PRE_COMMIT.is_file():
         raise Refused(
@@ -745,13 +922,44 @@ def run_pre_commit(root, signing):
         print(f"prose: the pre-commit hook changed the staged files; {what}", file=sys.stderr)
 
 
+def merge_heads(root):
+    """The commits a merge in progress brings in, one per line of MERGE_HEAD
+    (several for an octopus); [] when no merge is in progress."""
+    path = os.path.join(root, git(["rev-parse", "--git-path", "MERGE_HEAD"], root).rstrip("\n"))
+    try:
+        with open(path, encoding="utf-8", errors="replace") as handle:
+            names = handle.read().split()
+    except FileNotFoundError:
+        return []
+    heads = [_revision(name, root) for name in names]
+    if None in heads:
+        raise Refused(f"MERGE_HEAD names a commit git cannot find ({path}); finish or abort "
+                      f"the merge, then run this call again")
+    return heads
+
+
+def commit_parents(root, amend=False):
+    """The parents the commit will have: HEAD and any merge in progress's
+    heads, or with amend HEAD's own parents, since `git commit --amend`
+    replaces HEAD. [] before the first commit, or to amend a root commit."""
+    if amend:
+        if _revision("HEAD", root) is None:
+            raise Refused("--amend, but there is no commit to amend")
+        if merge_heads(root):
+            raise Refused("--amend, but a merge is in progress, and `git commit --amend` "
+                          "refuses one; finish or abort the merge first")
+        return git(["rev-parse", "HEAD^@"], root).split()
+    head = _revision("HEAD", root)
+    return ([head] if head else []) + merge_heads(root)
+
+
 def check(message, root, amend=False, signing=False):
     """(items, flags, trailer line) for the staged change and this message.
 
-    The listing's diff is against the commit's eventual first parent: HEAD,
-    or with amend HEAD's first parent, since `git commit --amend` replaces
-    HEAD. The trailer does not depend on it. The pre-commit hook runs after
-    the message is accepted and before anything is listed or hashed.
+    The listing's diff is against the commit's parents (commit_parents): one
+    parent, or none, is a plain diff; a merge lists only what it changed. The
+    trailer does not depend on it. The pre-commit hook runs after the message
+    is accepted and before anything is listed or hashed.
     """
     refuse_non_utf8_commit_encoding(root)
     refuse_non_utf8_message(message)
@@ -760,14 +968,9 @@ def check(message, root, amend=False, signing=False):
     refuse_comment_lines(message, root)
     if not message_body(message):
         raise Refused("the commit message is empty; write it first, then run the check on it")
-    if amend:
-        if _revision("HEAD", root) is None:
-            raise Refused("--amend, but there is no commit to amend")
-        base = _revision("HEAD^", root)
-    else:
-        base = _revision("HEAD", root)
+    parents = commit_parents(root, amend)
     run_pre_commit(root, signing)
-    items, flags = prose_in(root, base, lambda path: git(["show", f":0:{path}"], root))
+    items, flags = prose_in(root, parents, lambda path: read_staged(path, root))
     return items, flags, snapshot(message, root)
 
 
@@ -918,121 +1121,59 @@ def _post_lines(text):
     return lines
 
 
-def split_footer(text):
-    """(body, footer hash or None). The body is normalised for hashing:
-    line endings to LF, trailing blanks off each line and off the end."""
+def _footer(text):
+    """(body, footer hash or None, whether the footer defers the cold read).
+    The body is normalised for hashing: line endings to LF, trailing blanks
+    off each line and off the end."""
     lines = _post_lines(text)
     found = FOOTER.match(lines[-1]) if lines else None
-    if found:
+    deferred = DEFERRED_FOOTER.match(lines[-1]) if lines and not found else None
+    if found or deferred:
         lines = lines[:-1]
         while lines and not lines[-1]:
             lines.pop()
-    return "\n".join(lines), (found.group(1) if found else None)
+    hit = found or deferred
+    return "\n".join(lines), (hit.group(1) if hit else None), bool(deferred)
 
 
-def footer_hash(body):
-    return hashlib.sha256(body.encode("utf-8", TEXT_ERRORS)).hexdigest()[:FOOTER_LENGTH]
+def split_footer(text):
+    """(body, footer hash or None), as _footer reads them."""
+    body, found, _ = _footer(text)
+    return body, found
 
 
-def sign(text):
+def deferred_footer(text):
+    """Whether the text ends with a footer that defers its cold read."""
+    return _footer(text)[2]
+
+
+def footer_hash(body, deferred=False):
+    salted = (DEFERRED_SALT if deferred else "") + body
+    return hashlib.sha256(salted.encode("utf-8", TEXT_ERRORS)).hexdigest()[:FOOTER_LENGTH]
+
+
+def sign(text, deferred=False):
     body, _ = split_footer(text)
     if not body.strip():
         raise Refused("nothing to sign: the text is empty")
-    return f"{body}\n\nprose ✓ {footer_hash(body)}\n"
+    note = f" {DEFERRED_NOTE}" if deferred else ""
+    return f"{body}\n\nprose ✓ {footer_hash(body, deferred)}{note}\n"
 
 
 def verify_post(text):
-    body, found = split_footer(text)
+    body, found, deferred = _footer(text)
     if found is None:
         return False, "no `prose ✓ <hash>` footer on the last line"
-    if found != footer_hash(body):
+    if found != footer_hash(body, deferred):
         return False, "the footer does not match the text above it (edited after signing?)"
-    return True, "signed"
+    return True, f"signed, {DEFERRED_NOTE[1:-1]}" if deferred else "signed"
 
 
 # ---------------------------------------------------------------------------
 # The posting hook
 # ---------------------------------------------------------------------------
 
-# Matches every tool of the GitHub MCP server, including a copy of the server
-# bundled in a plugin, whose tools are named mcp__plugin_<plugin>_github__<tool>.
-GITHUB_MCP = re.compile(r"^mcp__(?:plugin_.+_)?github__")
 BODY_KEYS = {"body", "comment"}
-# The gh verbs that post text, each with the flags that carry it: close and
-# reopen post their comment with --comment, the rest with --body.
-BODY_FLAGS = ("--body", "-b", "--body-file", "-F")
-COMMENT_FLAGS = ("--comment", "-c")
-_BODY_VERBS = {verb: BODY_FLAGS for verb in ("create", "new", "edit", "comment", "review")}
-GH_VERBS = {"pr": {**_BODY_VERBS, "revert": BODY_FLAGS, "close": COMMENT_FLAGS, "reopen": COMMENT_FLAGS},
-            "issue": {**_BODY_VERBS, "close": COMMENT_FLAGS, "reopen": COMMENT_FLAGS}}
-# Each verb's short flags that take a value and do not carry the text, from
-# `gh <noun> <verb> --help`. gh's flag parser, pflag, reads a group such as
-# `-dc x` letter by letter. The first letter that takes a value swallows the
-# rest of the group as that value, or the next argument if nothing is left:
-# in `-tb x`, `b` is the title's text.
-_REPO = "R"
-SHORT_VALUES = {
-    "pr": {"create": "aBHlmprTt" + _REPO, "new": "aBHlmprTt" + _REPO, "edit": "Bmt" + _REPO,
-           "comment": _REPO, "review": _REPO, "close": _REPO, "reopen": _REPO,
-           "revert": "t" + _REPO},
-    "issue": {"create": "almpTt" + _REPO, "new": "almpTt" + _REPO, "edit": "mt" + _REPO,
-              "comment": _REPO, "review": _REPO, "close": "r" + _REPO, "reopen": _REPO},
-}
-# Each verb's long flags other than the body flags, from the same help, as
-# (flags that take a value, boolean flags). pflag gives a value-taking long
-# flag the next argument whatever it looks like: in `--title -t`, `-t` is the
-# title. A long flag in neither set is refused, because the hook cannot tell
-# whether it takes the next argument.
-_COMMENT_BOOLS = {"create-if-none", "delete-last", "edit-last", "yes"}
-_PR_CREATE = ({"assignee", "base", "head", "label", "milestone", "project", "reviewer", "title"},
-              {"draft", "dry-run", "no-maintainer-edit"})
-_ISSUE_CREATE = ({"assignee", "blocked-by", "blocking", "label", "milestone", "parent",
-                  "project", "title", "type"},
-                 set())
-LONG_FLAGS = {
-    "pr": {"create": _PR_CREATE, "new": _PR_CREATE,
-           "edit": ({"add-assignee", "add-label", "add-project", "add-reviewer", "base",
-                     "milestone", "remove-assignee", "remove-label", "remove-project",
-                     "remove-reviewer", "title"}, {"remove-milestone"}),
-           "comment": (set(), _COMMENT_BOOLS),
-           "review": (set(), {"approve", "comment", "request-changes"}),
-           "close": (set(), {"delete-branch"}), "reopen": (set(), set()),
-           "revert": ({"title"}, {"draft"})},
-    "issue": {"create": _ISSUE_CREATE, "new": _ISSUE_CREATE,
-              "edit": ({"add-assignee", "add-blocked-by", "add-blocking", "add-label",
-                        "add-project", "add-sub-issue", "milestone", "parent",
-                        "remove-assignee", "remove-blocked-by", "remove-blocking",
-                        "remove-label", "remove-project", "remove-sub-issue", "title", "type"},
-                       {"remove-milestone", "remove-parent", "remove-type"}),
-              "comment": (set(), _COMMENT_BOOLS), "review": (set(), set()),
-              "close": ({"duplicate-of", "reason"}, set()), "reopen": (set(), set())},
-}
-COMMON_LONG = ({"repo"}, {"help"})
-# Each verb's flags that make gh take the text from somewhere the hook cannot
-# read: commits, a saved run, a template, an editor or the browser. Each entry
-# is (long names, short letters), and any of them is refused.
-_CREATE_SOURCES = ({"editor", "recover", "template", "web"}, "eTw")
-_PR_CREATE_SOURCES = (_CREATE_SOURCES[0] | {"fill", "fill-first", "fill-verbose"}, "efTw")
-_COMMENT_SOURCES = ({"editor", "web"}, "ew")
-BODY_SOURCES = {
-    "pr": {"create": _PR_CREATE_SOURCES, "new": _PR_CREATE_SOURCES,
-           "comment": _COMMENT_SOURCES},
-    "issue": {"create": _CREATE_SOURCES, "new": _CREATE_SOURCES,
-              "comment": _COMMENT_SOURCES},
-}
-NO_SOURCES = (set(), "")
-SOURCE = "source"
-# gh subcommands that send no text, from `gh <noun> --help`: a gh read such
-# as `gh pr list --search 'review-requested:@me'` is no post, though it names
-# a post verb. A closed list, so merge (a known gap) and a verb gh adds later
-# stay unread. cobra takes the first word after the noun as the subcommand,
-# exactly as written.
-NO_TEXT_VERBS = {
-    "pr": {"list", "ls", "status", "checkout", "co", "checks", "diff", "view", "ready",
-           "lock", "unlock", "update-branch"},
-    "issue": {"list", "ls", "status", "delete", "develop", "lock", "unlock", "pin",
-              "unpin", "transfer", "view"},
-}
 
 
 class Unreadable:
@@ -1071,7 +1212,7 @@ def body_fields(value, path=""):
     return found
 
 
-def _body_flag(args, i, flags=BODY_FLAGS, values="", sources=""):
+def _body_flag(args, i, flags, values="", sources=""):
     """(flag, (text, kind) or None, index of the next arg) for args[i].
 
     flag is None when args[i] is not a body flag, and SOURCE when it holds a
@@ -1109,47 +1250,9 @@ def _body_flag(args, i, flags=BODY_FLAGS, values="", sources=""):
 # A command that mentions a gh post verb is read as a post unless
 # _posts_nothing shows that the shell runs no gh post in it. A false match only
 # blocks the command; a missed post lets text out unchecked.
-POST_WORDS = re.compile(
+POST_WORDS = GH_TEXT if GH_SHELL_MISSING else re.compile(
     r"\bgh\b[\s\S]*\b(?:pr|issue)\b[\s\S]*\b(?:"
     + "|".join(sorted({verb for verbs in GH_VERBS.values() for verb in verbs})) + r")\b")
-PLAIN = re.compile(r"[A-Za-z0-9_./:=@%+,#^-]")
-
-
-def _words(command):
-    """[(text, quoted)] for a command made only of plain words, or None.
-
-    None when the shell would do more than join quoted parts. For bash that
-    is an operator, a newline, an expansion, a glob, a backslash, or a
-    double-quoted string holding $, a backtick or a backslash. For zsh it is
-    also a word starting with an unquoted `=`, even after empty quotes
-    (`''=x`), which zsh replaces with a command's path. Such a command is not
-    one of the accepted forms, so the hook does not try to read it.
-    """
-    words, text, quoted, started, i = [], "", False, False, 0
-    while i < len(command):
-        char = command[i]
-        if char in " \t":
-            if started:
-                words.append((text, quoted))
-            text, quoted, started = "", False, False
-            i += 1
-        elif char == "'":
-            close = command.find("'", i + 1)
-            if close == -1:
-                return None
-            text, quoted, started, i = text + command[i + 1:close], True, True, close + 1
-        elif char == '"':
-            close = command.find('"', i + 1)
-            if close == -1 or re.search(r"[$`\\]", command[i + 1:close]):
-                return None
-            text, quoted, started, i = text + command[i + 1:close], True, True, close + 1
-        elif PLAIN.match(char) and not (char == "#" and not started) and not (char == "=" and not text):
-            text, started, i = text + char, True, i + 1
-        else:
-            return None
-    if started:
-        words.append((text, quoted))
-    return words
 
 
 def runs_only_prose(command):
@@ -1177,256 +1280,10 @@ def runs_only_prose(command):
     return program == "prose.py" or program.endswith("/prose.py")
 
 
-# Commands that treat their arguments and stdin as data, never as shell code,
-# so a gh post named in them only mentions one. The list is closed on purpose:
-# any other command may run the text it is given (sh -c, eval, trap, env -S,
-# ssh, xargs), and a list of those is never complete.
-#
-# python3, node and git are listed although they can run gh: what they run is
-# code handed to them on purpose (a script, -e, a git alias or rebase -x),
-# which the hook does not read, as it does not read a script file. Leaving them
-# out blocked ordinary scripts that only mention gh, the case this list is for.
-# printf, test and [ are left out: their arguments look like data, yet bash 4+
-# evaluates the array subscript in `printf -v 'a[$(…)]'` and
-# `test -v 'a[$(…)]'`, so text that reads as data can run.
-DATA_COMMANDS = {"echo", "cat", "tee", "grep", "egrep", "fgrep", "rg", "git",
-                 "python", "python3", "node", "jq", "head", "tail", "wc", "sort", "uniq",
-                 "cut", "tr", "ls", "cd", "true", "false"}
-# Text names gh when gh is not followed by a word character or `-`: `gh-pages`
-# and `gh_x` are other names. Nothing is excluded in front, since `${GH:-gh}`
-# and `/usr/bin/gh` run gh.
-GH_TEXT = re.compile(r"\bgh(?![\w-])")
-# Reserved words that may come before a simple command and are not commands
-# themselves, so the word after them is the command, checked like any other:
-# in `if grep …` and `then gh …` the command is grep or gh. Not for,
-# case, select, coproc, function, [[ or zsh's repeat, foreach, nocorrect and
-# noglob, whose words are not a command or are run another way.
-RESERVED = {"if", "then", "elif", "else", "do", "while", "until", "!", "{", "time"}
-# Reserved words that end a compound command and run nothing, so `fi` beside
-# a pipe is no command. Only a command made of nothing else: in `done sh`,
-# sh runs. Not esac, whose case patterns are not read.
-CLOSERS = {"fi", "done", "}"}
-EXPANSION = re.compile(r"\$(?:[A-Za-z_][A-Za-z0-9_]*|[0-9#?$!@*-]|\{[A-Za-z_][A-Za-z0-9_]*\})")
-REDIRECT = re.compile(r"&>>?|<<<|<<-|<<|<>|<&|<|>>|>&|>\||>")
-METACHARS = " \t\n;&|()<>"
 
 
-def _word(command, i):
-    """(text, end, source) for the shell word starting at command[i], or None.
-
-    text is the word after quote removal, with simple expansions ($NAME,
-    ${NAME}, $1, $?) left out, since only literal text can name gh. source
-    is the word as written, minus each backslash-newline outside single
-    quotes, which both shells remove before reading the word: `i\\<newline>f`
-    is `if`, and a lone `\\<newline>` is no word. None when the word holds
-    anything that could run a command or that bash and zsh read differently:
-    a command substitution, $'…', $"…", ${…} beyond a name, an unterminated
-    quote, a leading `#`, or a `[` left open after the first character
-    (`a[1<<EOF]=5` is not a heredoc to bash).
-    """
-    text, source, n, bracket = [], [], len(command), False
-    while i < n and command[i] not in METACHARS:
-        char, start = command[i], i
-        if char == "'":
-            close = command.find("'", i + 1)
-            if close == -1:
-                return None
-            text.append(command[i + 1:close])
-            i = close + 1
-        elif char == '"':
-            i += 1
-            while True:
-                if i >= n or command[i] == "`":
-                    return None
-                if command[i] == '"':
-                    i += 1
-                    break
-                if command[i] == "\\":
-                    if i + 1 >= n:
-                        return None
-                    if command[i + 1] == "\n":
-                        source.append(command[start:i])
-                        i += 2
-                        start = i
-                        continue
-                    # In double quotes a backslash stays unless it escapes
-                    # one of these: `<<"E\OF"` ends at a line `E\OF`.
-                    if command[i + 1] not in '$`"\\':
-                        text.append("\\")
-                    text.append(command[i + 1])
-                    i += 2
-                elif command[i] == "$" and command[i + 1:i + 2] != '"':
-                    found = EXPANSION.match(command, i)
-                    if not found:
-                        return None
-                    i = found.end()
-                else:
-                    text.append(command[i])
-                    i += 1
-        elif char == "\\":
-            if i + 1 >= n:
-                return None
-            if command[i + 1] == "\n":
-                i += 2
-                continue
-            text.append(command[i + 1])
-            i += 2
-        elif char == "`":
-            return None
-        elif char == "$" and i + 1 < n and command[i + 1] not in METACHARS:
-            found = EXPANSION.match(command, i)
-            if not found:
-                return None
-            i = found.end()
-        else:
-            if char == "[" and set("".join(source)) - {"["}:
-                bracket = True
-            elif char == "]":
-                bracket = False
-            text.append(char)
-            i += 1
-        source.append(command[start:i])
-    source = "".join(source)
-    if bracket or source.startswith("#"):
-        return None
-    return "".join(text), i, source
 
 
-def _heredoc_end(command, i, delimiter, quoted, strip_tabs):
-    """The index just past a heredoc body starting at command[i], or None
-    when it has no terminating line, or is unquoted and could run a command
-    (a substitution) or join lines (a backslash)."""
-    while i < len(command):
-        end = command.find("\n", i)
-        line = command[i:] if end == -1 else command[i:end]
-        if (line.lstrip("\t") if strip_tabs else line) == delimiter:
-            return len(command) if end == -1 else end + 1
-        if end == -1 or (not quoted and re.search(r"\$\(|`|\\", line)):
-            return None
-        i = end + 1
-    return None
-
-
-def _commands(command):
-    """(simple commands, grouped) for a shell command, or None when any part
-    of it is beyond what this reads exactly.
-
-    Each simple command is ([(text, source)], fed): each word's text and
-    source as _word gives them, and whether the command reads a pipe or an
-    input redirection (`<`, `<>`, `<&`, a heredoc, `<<<`). A pipe feeds the
-    next command that has a word, across line breaks and comments, as both
-    shells do. A word that is only line continuations is no word. Other
-    redirections are left out. grouped is True when input may reach more
-    than one simple command: a pipe into a subshell, a `$(`, or a reserved
-    word that opens a compound command; an input redirection on a `(`…`)`,
-    or on a command holding `}`, `done` or `fi`; or a `(` in a fed command.
-    Heredoc bodies and comments are skipped, since the shell runs neither.
-    None for anything whose reading differs between shells or could hide a
-    command: what _word refuses, process substitution, a heredoc inside
-    parentheses (bash 3.2 reads those its own way) or whose body would start
-    inside an open `(`, an unquoted heredoc body that could run or join
-    lines, a heredoc with no end, a number before a redirection other than
-    one ASCII digit, a comment holding quotes or operators, unbalanced
-    parentheses.
-    """
-    commands, fed, pending, depth, i, n = [[]], [False], [], 0, 0, len(command)
-    piped = grouped = False
-
-    def start():
-        commands.append([])
-        fed.append(False)
-
-    while i < n:
-        char = command[i]
-        if char in " \t":
-            i += 1
-        elif char == "\n":
-            if pending and depth:
-                # A `(` still open: bash and zsh read the heredoc body only
-                # after it closes, so the lines below are code.
-                return None
-            i += 1
-            for heredoc in pending:
-                i = _heredoc_end(command, i, *heredoc)
-                if i is None:
-                    return None
-            pending = []
-            start()
-        elif char == "#":
-            end = command.find("\n", i)
-            end = n if end == -1 else end
-            if re.search(r"[;&|()<>`$\\'\"]", command[i:end]):
-                return None
-            i = end
-        elif char in "<>" or command.startswith("&>", i):
-            op = REDIRECT.match(command, i).group()
-            i += len(op)
-            if command.startswith("(", i):
-                return None
-            while i < n and command[i] in " \t":
-                i += 1
-            word = _word(command, i)
-            if word is None or not word[2]:
-                return None
-            if op in ("<<", "<<-"):
-                source = word[2]
-                if depth or "$" in source:
-                    return None
-                pending.append((word[0], any(q in source for q in "'\"\\"), op == "<<-"))
-            if op.startswith("<"):
-                fed[-1] = True
-            i = word[1]
-        elif char in ";&|":
-            end = i
-            while end < n and command[end] in ";&|":
-                end += 1
-            piped = piped or ("|" in command[i:end] and command[i:end] != "||")
-            start()
-            i = end
-        elif char in "()":
-            if char == "(" and (piped or fed[-1]):
-                grouped = True
-            depth += 1 if char == "(" else -1
-            if depth < 0:
-                return None
-            start()
-            i += 1
-        else:
-            word = _word(command, i)
-            if word is None:
-                return None
-            text, end, source = word
-            if command[end:end + 1] in ("<", ">") and source.isdigit():
-                # Both shells read one ASCII digit as a descriptor. zsh reads
-                # `12>` as the word 12, bash as descriptor 12, and neither
-                # reads a non-ASCII digit as one.
-                if not re.fullmatch("[0-9]", source):
-                    return None
-            elif text or source:
-                if piped:
-                    # `!` and `time` lead a pipeline's command; any other
-                    # reserved word opens a compound command, all of it fed.
-                    fed[-1] = True
-                    if source in RESERVED - {"!", "time"}:
-                        grouped = True
-                    piped = source in ("!", "time")
-                commands[-1].append((text, source))
-            i = end
-    if pending or depth:
-        return None
-    for words, reads in zip(commands, fed):
-        if reads and (not words or any(source in CLOSERS for _, source in words)):
-            grouped = True
-    return [(words, reads) for words, reads in zip(commands, fed) if words], grouped
-
-
-def _gh_args(words):
-    """words[1:] for a gh command given as plain words, without a leading
-    -R/--repo and its value."""
-    args = list(words[1:])
-    while args and (args[0][0] in ("-R", "--repo") or args[0][0].startswith(("--repo=", "-R"))):
-        args = args[2:] if args[0][0] in ("-R", "--repo") else args[1:]
-    return args
 
 
 def _fed_blocker(name):
@@ -1509,6 +1366,12 @@ def gh_bodies(command, cwd):
     """
     if not POST_WORDS.search(command) or runs_only_prose(command):
         return []
+    if GH_SHELL_MISSING:
+        return [("gh", Unreadable(
+            f"the shared command reader is missing (expected at {GH_SHELL}), so no gh "
+            "command can be read. prose must be installed as a symlink into a full "
+            "shared-skills clone; run: python3 ~/.agents/skills/manage-skills/scripts/"
+            "skills.py doctor"))]
     words = _words(command.strip())
     if words and words[0] == ("gh", False):
         return _read_gh(words, cwd)
@@ -1593,6 +1456,66 @@ def posts_in(payload, host):
     return []
 
 
+# gh, for reading a pull request's body before a hand-back.
+GH = shutil.which("gh") or "gh"
+GH_TIMEOUT = 30
+PR_BODY_VERBS = {"create", "new", "edit"}
+PR_BODY_TOOLS = {"create_pull_request", "update_pull_request"}
+HANDBACK_PASS = ("current-state pass due for: each doc the pull request changes, and its body "
+                 "and title. It was handed back for review ({what}): flag and fix any that "
+                 "still describes work as unfinished or to come. Sign a body you change now "
+                 "with its cold read, since a person reads it.")
+
+
+def handbacks_of(payload, host):
+    """[Handback] the call makes, read by the shared handbacks.py."""
+    if handbacks is None or not isinstance(payload, dict):
+        return []
+    try:
+        found, _, _ = handbacks.handbacks_in(READER, payload, host)
+    except Exception:  # noqa: BLE001 - a reader bug must not block a post
+        return []
+    return found
+
+
+def pr_body_post(where, payload, host):
+    """Whether a post is a pull request's body. The where argument names the
+    post in posts_in's form, such as `gh pr edit`. A body is posted by gh pr
+    create, new or edit, or as the body of the GitHub MCP's
+    create_pull_request or update_pull_request."""
+    if where.startswith("gh pr "):
+        return where.split()[2] in PR_BODY_VERBS
+    tool = payload.get("tool_name") if isinstance(payload.get("tool_name"), str) else ""
+    return where == "body" and GITHUB_MCP.sub("", tool) in PR_BODY_TOOLS
+
+
+def pr_body(handback, payload, host):
+    """The body of the pull request a hand-back names, from GitHub; None when
+    it cannot be found without guessing the directory gh runs in, or gh
+    cannot show it. A shell command that is the gh call alone runs gh in the
+    payload's directory, so a ready or edit by branch is found there too."""
+    if handback.kind == "create":
+        return None  # the pull request does not exist yet
+    if not handback.named():
+        command = (payload.get("command") if host == "cursor" and "command" in payload
+                   else (payload.get("tool_input") or {}).get("command")
+                   if isinstance(payload.get("tool_input"), dict) else None)
+        words = _words(command.strip()) if isinstance(command, str) and not GH_SHELL_MISSING \
+            else None
+        if not words or words[0] != ("gh", False):
+            return None
+    args = ["pr", "view", *([handback.selector] if handback.selector else []),
+            "--json", "body", "--jq", ".body"]
+    if handback.repo:
+        args += ["-R", handback.repo]
+    try:
+        out = subprocess.run([GH, *args], cwd=handbacks.where(payload), capture_output=True,
+                             text=True, timeout=GH_TIMEOUT, check=False)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return out.stdout if out.returncode == 0 else None
+
+
 def hook_post(raw, host):
     """(exit code, stdout, stderr) for one posting-hook call."""
     allow = (0, '{"permission":"allow"}\n' if host == "cursor" else "", "")
@@ -1602,14 +1525,26 @@ def hook_post(raw, host):
         return allow
     if not isinstance(payload, dict):
         return allow
-    problems = []
-    for where, text in posts_in(payload, host):
+    problems, posts = [], posts_in(payload, host)
+    found = handbacks_of(payload, host)
+    for where, text in posts:
         if isinstance(text, Unreadable):
             problems.append(f"{where}: {text.why}")
             continue
         ok, reason = verify_post(text)
         if not ok:
             problems.append(f"{where}: {reason}")
+        elif deferred_footer(text) and (found or not pr_body_post(where, payload, host)):
+            problems.append(
+                f"{where}: signed with its cold read deferred to the hand-back, and this post "
+                + ("hands the pull request back for review" if found
+                   else "is not a pull request body")
+                + ", so it needs its cold read: sign it without --defer-cold-read")
+    if not problems and not any(pr_body_post(w, payload, host) for w, _ in posts):
+        for handback in found:
+            body = pr_body(handback, payload, host)
+            if body is not None and deferred_footer(body):
+                return _block_handback(handback, host)
     if not problems:
         return allow
     message = (
@@ -1624,6 +1559,55 @@ def hook_post(raw, host):
         flat = message.replace("\n", " ").strip()
         return 0, json.dumps({"permission": "deny", "user_message": flat, "agent_message": flat}) + "\n", ""
     return 2, "", message
+
+
+def _block_handback(handback, host):
+    """The block for a hand-back whose pull request's body still defers its
+    cold read."""
+    target = handback.selector or "<pull request>"
+    message = (
+        f"prose: blocked this hand-back for review ({handback.what}), because the pull "
+        "request's body was signed with its cold read deferred to the hand-back. Do the "
+        "body's cold read now: run the first call, do the pass, sign the body without "
+        "--defer-cold-read (the signing call prints the cold-read brief), post it, and "
+        "hand back again:\n"
+        f"  {_prose_command()} sign --goals '<reader goals>'\n"
+        f"  {_prose_command()} sign --pass <token> < body.md > signed.md\n"
+        f"  gh pr edit {target} --body-file signed.md\n")
+    if host == "cursor":
+        flat = message.replace("\n", " ").strip()
+        return 0, json.dumps({"permission": "deny", "user_message": flat,
+                              "agent_message": flat}) + "\n", ""
+    return 2, "", message
+
+
+# Claude Code runs a PostToolUse hook only after a call that succeeded; a
+# failed call gets PostToolUseFailure. A failed hand-back most likely did not
+# happen, so no pass is asked for: a missed one costs only the pass the next
+# hand-back asks for. spec-check's hook does run on a failure, since a
+# hand-back that did go through must still be taken back.
+FAILED_EVENTS = {"PostToolUseFailure"}
+
+
+def hook_handback(raw, host):
+    """(exit code, stdout, stderr) for the hook after a tool call: the
+    current-state pass a hand-back starts, as context for the agent."""
+    try:
+        payload = json.loads(raw)
+    except ValueError:
+        return 0, "", ""
+    if not isinstance(payload, dict) or payload.get("hook_event_name") in FAILED_EVENTS:
+        return 0, "", ""
+    found = handbacks_of(payload, host)
+    if not found:
+        return 0, "", ""
+    note = "prose: " + HANDBACK_PASS.format(what=", ".join(h.what for h in found))
+    if host == "cursor":
+        return 0, json.dumps({"additional_context": note}) + "\n", ""
+    name = payload.get("hook_event_name")
+    return 0, json.dumps({"hookSpecificOutput": {
+        "hookEventName": name if isinstance(name, str) and name else "PostToolUse",
+        "additionalContext": note}}) + "\n", ""
 
 
 # ---------------------------------------------------------------------------
@@ -1655,8 +1639,7 @@ def user_state_dir():
 def pass_dir(root=None):
     """Where the pass tokens live: prose/passes in the repository's git
     directory, which is never committed and goes with the clone; outside a
-    repository, in the user's state home (DECISIONS: The rules are on screen
-    before a signature)."""
+    repository, in the user's state home."""
     try:
         found = subprocess.run(["git", "rev-parse", "--git-common-dir"], cwd=root or ".",
                                capture_output=True, text=True, check=False)
@@ -1822,8 +1805,7 @@ def next_sign(token, report="", dispositions=""):
 # The cold read
 # ---------------------------------------------------------------------------
 
-# The brief a cold reader gets: its only copy (DECISIONS: A cold read before
-# signing).
+# The brief a cold reader gets. cold-read.md is the only copy of its text.
 COLD_READ = HERE.parent / "cold-read.md"
 # The exit status of a signing call that printed a cold-read brief and signed
 # nothing. The token stays unspent.
@@ -1894,9 +1876,9 @@ def dispositions_header(token):
     return f"dispositions {token}"
 
 
-# How much of a file the saved cold-read brief copies for each item
-# (DECISIONS: The cold reader runs on the brief alone). Lines shown before a
-# comment, and after the code it sits on:
+# How much of a file the saved cold-read brief copies for each item, so the
+# cold reader needs nothing but the brief. Lines shown before a comment, and
+# after the code it sits on:
 BRIEF_CONTEXT_LINES = 5
 # The lines after a comment that stand for the code it sits on:
 BRIEF_CODE_LINES = 40
@@ -2020,10 +2002,9 @@ def _merged(ranges):
 def brief_files(items, texts):
     """The part of a saved cold-read brief after the items: for each file an
     item names, once, in the order first named, the staged lines its items
-    need, with their numbers, so the reader needs nothing but the brief
-    (DECISIONS: The cold reader runs on the brief alone). A doc passage gets
-    its section, a comment the code it sits on; the lines between are said
-    to be left out. Bytes that are not UTF-8 show as U+FFFD."""
+    need, with their numbers, so the reader needs nothing but the brief. A
+    doc passage gets its section, a comment the code it sits on; the lines
+    between are said to be left out. Bytes that are not UTF-8 show as U+FFFD."""
     paths = list(dict.fromkeys(item.path for item in items if item.path))
     if not paths:
         return ""
@@ -2147,8 +2128,7 @@ def item_changed(old, new, spans):
     """Whether an item differs in new from old, the text when its brief was
     printed: a line of it changed or removed, or a line added inside it or
     directly above or below it. spans are its (first, last) line pairs in
-    old; with none, the whole text is the item, as for a post (DECISIONS:
-    Every cold-read finding is answered before signing)."""
+    old; with none, the whole text is the item, as for a post."""
     if not spans:
         return old != new
     # Lines as git counts them, so the spans' numbers hold. No autojunk: it
@@ -2384,8 +2364,7 @@ class ColdResult(NamedTuple):
 def unasked_refusal(token, unasked, paths, answers, report, dispositions, items=()):
     """The refusal of findings and understood lines kept without a person
     being asked: each one, what to ask, and, for an agent that cannot ask,
-    what to hand back (DECISIONS: Every cold-read finding is answered before
-    signing). items holds (item number, understood line, Kept) for each
+    what to hand back. items holds (item number, understood line, Kept) for each
     understood line kept without a person asked."""
     kinds = [f"{count} {kind}(s)" for count, kind in ((len(unasked), "finding"),
                                                       (len(items), "understood line")) if count]
@@ -2428,10 +2407,17 @@ def record_brief(token, items, texts, root=None):
     os.replace(draft, path)
 
 
+def read_staged(path, root):
+    """The staged text of the file at path. The path is matched as the index
+    spells it, whatever core.precomposeUnicode says: on, git would rewrite a
+    decomposed name the diff printed, and find no such entry."""
+    return git(["-c", "core.precomposeUnicode=false", "show", f":0:{path}"], root)
+
+
 def staged_text(path, root):
     """The staged text of the file at path, or "" when none is staged."""
     try:
-        return git(["show", f":0:{path}"], root)
+        return read_staged(path, root)
     except Refused:
         return ""
 
@@ -2464,10 +2450,9 @@ def pass_record(token, root=None):
 
 # A signing call that checks a cold read and signs records the result for the
 # staged tree, so that a later token's signing call on the same tree, as when
-# only the message changed, reuses it instead of reading the files cold again
-# (DECISIONS: A re-sign of the same tree reuses its cold read). Results older
-# than this are deleted to keep the directory small; a result's age never
-# decides whether it is reused.
+# only the message changed, reuses it instead of reading the files cold again.
+# Results older than this are deleted to keep the directory small; a result's
+# age never decides whether it is reused.
 COLD_RESULT_LIFETIME = 7 * 24 * 60 * 60
 TREE = re.compile(r"[0-9a-f]{40}|[0-9a-f]{64}")
 
@@ -2931,8 +2916,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description="List, sign and verify prose.")
     sub = parser.add_subparsers(dest="command", required=True)
     # The first call passes --goals, and gets the rules and a pass token; the
-    # signing call passes --pass <token> (DECISIONS: The rules are on screen
-    # before a signature).
+    # signing call passes --pass <token>.
     # start, check and sign all take goals and mark the session; only check
     # and sign redeem a token, so start refuses --pass.
     goal_args = argparse.ArgumentParser(add_help=False)
@@ -2964,7 +2948,7 @@ def main(argv=None):
     p_check.add_argument("-F", "--message-file", required=True,
                          help="the final commit message; - reads stdin")
     p_check.add_argument("--amend", action="store_true",
-                         help="list against HEAD's parent, for git commit --amend")
+                         help="list against HEAD's parents, for git commit --amend")
     p_check.add_argument("--repo", default=".")
     p_check.add_argument("--goals-for", nargs=2, action="append", default=[],
                          metavar=("PATTERN", "GOALS"),
@@ -2984,11 +2968,19 @@ def main(argv=None):
     p_verify = sub.add_parser("verify-commit", help="recompute a landed commit's Prose trailer")
     p_verify.add_argument("sha")
     p_verify.add_argument("--repo", default=".")
-    sub.add_parser("sign", parents=[passing, text_goals_file],
-                   help="first call: the rules and a pass token; with --pass: stdin with a signed footer")
+    p_sign = sub.add_parser("sign", parents=[passing, text_goals_file],
+                            help="first call: the rules and a pass token; with --pass: stdin "
+                                 "with a signed footer")
+    p_sign.add_argument("--defer-cold-read", action="store_true",
+                        help="with --pass, for a pull request body posted inside a review "
+                             "round: sign after the rules pass alone; its cold read is due "
+                             "at the hand-back")
     sub.add_parser("verify-post", help="exit 0 when stdin's footer matches its text")
     p_hook = sub.add_parser("hook-post", help="the posting hook: payload on stdin")
     p_hook.add_argument("--host", default="")
+    p_handback = sub.add_parser("hook-handback", help="after a call: the current-state pass "
+                                                       "a hand-back starts; payload on stdin")
+    p_handback.add_argument("--host", default="")
     sub.add_parser("hook-gate", help="the first-write gate: payload on stdin")
     # allow_abbrev=False: an abbreviation such as --paths would make the
     # split at `--` below misread the option's value as the file.
@@ -3021,6 +3013,10 @@ def main(argv=None):
     p_compact.add_argument("-0", dest="nul", action="store_true",
                            help="with --paths-from: the paths are separated by NUL, as "
                                 "rg -l0 and find -print0 write them")
+    p_cost = sub.add_parser("cost", help="rank what agents load before work: each skill's "
+                                         "description, and each section of a doc loaded before "
+                                         "work that could move to a linked file")
+    p_cost.add_argument("--repo", default=".")
     # Paths after `--` are split off before parsing and are the referrers:
     # argparse before Python 3.12 cannot give a positional list the paths
     # after `--` once an option such as --verify follows the file.
@@ -3084,8 +3080,7 @@ def main(argv=None):
             compact = compactor()
             root = git(["rev-parse", "--show-toplevel"], args.repo).rstrip("\n")
             # A compaction is signed only when the bytes staged both passed
-            # --verify and had their review completed with --reviewed
-            # (DECISIONS: Compaction).
+            # --verify and had their review completed with --reviewed.
             pending = compact.unverified(root, args.amend, pass_dir(args.repo))
 
             if args.token:
@@ -3136,7 +3131,7 @@ def main(argv=None):
                     return COLD_READ_NEEDED
                 # Each staged file compacted with `prose compact` is named in
                 # the trailer, so every clone's trigger sees the compaction,
-                # however little it cut (DECISIONS: Compaction).
+                # however little it cut.
                 compacted = compact.compacted_paths(root, args.amend, pass_dir(args.repo))
                 if compacted:
                     trailer += "; compacted: " + ", ".join(compacted)
@@ -3158,14 +3153,18 @@ def main(argv=None):
             print_check(assigned, flags, unused,
                         "--message-goals-file" if args.message_goals_file else "--goals")
             # Every staged path, doc or not: a declaration in .gitattributes
-            # makes any file current-state (DECISIONS: Compaction). The
+            # makes any file current-state. The
             # triggers only advise, so a listing that fails skips them.
             try:
-                staged_paths = compact.changed_paths(root, args.amend)
-            except ValueError:
+                # A merge is advised only on the paths it changed itself, the
+                # ones its listing reads.
+                parents = commit_parents(args.repo, args.amend)
+                staged_paths = merge_paths(root, parents) if len(parents) > 1 \
+                    else compact.changed_paths(root, args.amend)
+            except (ValueError, Refused):
                 staged_paths = []
-            # The pass directory holds the completed-review records that mark
-            # a compaction which cut little (DECISIONS: Compaction).
+            # The trigger needs the pass directory: a compaction that cut
+            # little is found only through the completed-review records there.
             # The trigger only advises: an error in it warns, and the first
             # call goes on without the advice. The commit gate is separate.
             try:
@@ -3175,6 +3174,14 @@ def main(argv=None):
                 print(f"prose: warning: the compaction trigger failed, so no compaction advice "
                       f"is given this time: {type(error).__name__}: {error}", file=sys.stderr)
             compact.print_due(due, _prose_command())
+            # Measuring descriptions only advises, as the trigger does.
+            try:
+                described = compact.changed_descriptions(staged_paths, root, args.amend)
+            except Exception as error:  # noqa: BLE001 - a bug here only advises
+                described = ([], [])
+                print(f"prose: warning: the skill descriptions could not be measured this time: "
+                      f"{type(error).__name__}: {error}", file=sys.stderr)
+            compact.print_descriptions(*described)
 
             if pending:
                 # With nothing in the commit to read cold, as when a compaction
@@ -3223,6 +3230,14 @@ def main(argv=None):
                 return compact.brief(args.file, user_state_dir(), _prose_command(), given, stdin)
             except (ValueError, UnicodeDecodeError) as error:
                 raise Refused(str(error))
+        if args.command == "cost":
+            # Refused, with git's reason, outside a repository: the cost
+            # reads the index and the history.
+            root = git(["rev-parse", "--show-toplevel"], args.repo).rstrip("\n")
+            try:
+                return compactor().cost_report(root)
+            except ValueError as error:
+                raise Refused(str(error))
         if args.command == "verify-staged":
             ok, reason = verify_staged(args.line, _read_stdin(), args.repo)
             print(reason)
@@ -3236,6 +3251,8 @@ def main(argv=None):
             # signs nothing, prints to stderr and leaves stdout empty.
             goals = text_goals(args.goals, args.goals_file)
             if not args.token:
+                if args.defer_cold_read:
+                    raise Refused("--defer-cold-read goes with --pass, on the signing call")
                 require_goals(goals, "pass token")
                 read_rules()
                 print_goals(goals, sys.stderr)
@@ -3243,11 +3260,16 @@ def main(argv=None):
                 token = issue_pass(goals, "sign", _session(args))
                 print_pass(token, [next_sign(token)], sys.stderr)
                 return PASS_ISSUED
+            if args.defer_cold_read and args.report:
+                raise Refused("--defer-cold-read signs without a cold read, so it takes no "
+                              "--cold-read")
             goals, _ = redeem_pass(args.token, goals, "sign")
             text = _read_stdin()
             # Signed first, so an empty text is refused before any brief.
-            signed = sign(text)
-            if args.report:
+            signed = sign(text, args.defer_cold_read)
+            if args.defer_cold_read:
+                pass  # the posting hook accepts this footer only inside a round
+            elif args.report:
                 check_cold_read(args.token, pass_record(args.token), args.report,
                                 args.dispositions, lambda _: split_footer(text)[0])
             else:
@@ -3266,6 +3288,11 @@ def main(argv=None):
             return 0 if ok else 1
         if args.command == "hook-post":
             code, out, err = hook_post(_read_stdin(), args.host)
+            sys.stdout.write(out)
+            sys.stderr.write(err)
+            return code
+        if args.command == "hook-handback":
+            code, out, err = hook_handback(_read_stdin(), args.host)
             sys.stdout.write(out)
             sys.stderr.write(err)
             return code

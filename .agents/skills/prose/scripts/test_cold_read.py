@@ -482,8 +482,9 @@ class ColdReadFindings(unittest.TestCase):
         self.repo.commit(self.MESSAGE, block_trailer(signed.stdout))
 
     def test_an_edit_to_another_part_of_the_item_counts(self):
-        # The accepted cost of comparing items, not quotes (DECISIONS: Every
-        # cold-read finding is answered before signing).
+        # An edit anywhere in the item counts as fixing its finding, even with
+        # the quoted words unchanged: the accepted cost of comparing items,
+        # not quotes.
         report = self.report((1, "It runs there."))
         self.fix(self.COMMENT.replace("worker", "builder"))
         signed = self.signing("--cold-read", report, "--dispositions", self.answers("1. fixed"))
@@ -930,8 +931,7 @@ class ItemChanged(unittest.TestCase):
 class ColdReadBriefFiles(unittest.TestCase):
     """The saved cold-read brief goes on with the staged lines its items
     need, so the reader needs nothing but the brief; the printed brief ends
-    with a note instead (DECISIONS: The cold reader runs on the brief
-    alone)."""
+    with a note instead."""
 
     def setUp(self):
         self.repo = Repo()

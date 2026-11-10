@@ -4,8 +4,6 @@
 The long-lived credential is the OAuth application's client secret. Tokens are
 minted from it on demand, cached per identity, and replaced before they expire.
 Standard library only.
-
-Why it is built this way, and what was tried and rejected: ../DECISIONS.md.
 """
 
 import argparse
@@ -136,7 +134,6 @@ def store_in_macos_keychain(service, account, value, run=subprocess.run):
     so it runs in a new session, which leaves it no controlling terminal.
     Given one copy instead of two, it stores an empty password and still
     exits 0, so the entry is read back to check it.
-    See DECISIONS.md.
     """
     where = f"(service {service!r}, account {account!r})"
     cmd = ["security", "add-generic-password", "-U", "-s", service, "-a", account, "-w"]
@@ -151,7 +148,7 @@ def store_in_macos_keychain(service, account, value, run=subprocess.run):
     # passes only when later commands would get this value; store-credentials
     # strips both values before storing them. A wrong entry is left in place:
     # find-generic-password searches every keychain in the search list, so the
-    # entry it found may be another keychain's. DECISIONS.md says more.
+    # entry it found may be another keychain's.
     if result.stdout.strip() != value:
         raise Failure(f"the keychain entry {where} does not hold the value entered; "
                       "run store-credentials again, or add the entry with Keychain Access")
@@ -188,7 +185,8 @@ def delete_keychain(service, account, run=subprocess.run, which=shutil.which, lo
             return True
         # Any other exit can't tell "nothing matched" from "no secret service"
         # or a locked collection, so the entry counts as gone when a lookup
-        # can't find it either. See DECISIONS.md for the gap this leaves.
+        # can't find it either. An entry a locked collection still holds would
+        # then wrongly count as gone.
         return lookup(service, account, run, which) is None
     return True  # no keychain tool, so nothing can be stored
 

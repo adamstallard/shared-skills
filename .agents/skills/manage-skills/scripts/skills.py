@@ -8,8 +8,6 @@ it manages are broken, and so it can never delete itself mid-operation.
 
 Skills are installed into *every* target directory listed in TARGETS, so one
 clone serves several agent platforms at the same time.
-
-Before changing how hooks are wired, read ../DECISIONS.md.
 """
 
 import argparse

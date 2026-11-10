@@ -4,52 +4,59 @@
 #
 #   COMMIT_TRAILER_SKILL   the skill's name, e.g. bug-hunter — names its state
 #                          files, its environment prefix and its reports
-#   COMMIT_TRAILER_KEY     the trailer key, e.g. Bug-hunter; its binding is
-#                          <key>-Tree, minted by mint-trailer.sh
+#   COMMIT_TRAILER_KEY     the trailer key, e.g. Bug-hunter. A non-skip
+#                          trailer is bound to the tree it was made for by a
+#                          second trailer, `<key>-Tree: <tree hash>`, which
+#                          mint-trailer.sh prints
 #   COMMIT_TRAILER_REPORT  a file defining commit_trailer_report, which builds
 #                          the skill's own report text. It may also define
 #                          commit_trailer_verify <sha> <value>, which replaces
 #                          question 3 below for that skill: returns 0 valid, 1
 #                          invalid with the reason on stdout, anything else
-#                          "could not verify", reported as such. A callback
-#                          that exits instead of returning has not answered.
-#                          So does a callback returning non-zero under the
-#                          file's own `set -e`, because sh cannot tell that
-#                          return from an aborted command: such a file can
-#                          never report "invalid". The file runs without this
-#                          hook's `set -u`, so it may read unset variables
+#                          "could not verify", reported as such. Two kinds
+#                          of callback never give a verdict, and the hook
+#                          reports "could not verify" for both: one that
+#                          exits instead of returning, and one in a file
+#                          that sets `set -e`. Under `set -e` a non-zero
+#                          return looks the same to sh as an aborted
+#                          command, so such a file can never report
+#                          "invalid". The file runs without this
+#                          hook's `set -u`, so it may read unset variables.
+#                          It may also define commit_trailer_notice <sha>,
+#                          which prints notices about each new commit;
+#                          commit_notice, below, calls it
 #   COMMIT_TRAILER_PATHSPEC  optional: git pathspecs, separated by spaces. When
 #                          set, only a commit that changes a path they match
 #                          needs the trailer; every other commit is not
-#                          judged at all. Unset, every commit needs it
+#                          checked for one, though commit_trailer_notice
+#                          still sees it. Unset, every commit needs it
 #
 # Sourced, not executed, so $0 stays the wrapper: the submodule walk re-invokes
 # $0 and has to come back through the wrapper's configuration.
 #
 # Usage (through the wrapper): <skill>/scripts/check-commit-trailer.sh [--host <platform>]
 #
-# BEFORE CHANGING ANY OF THIS, READ DECISIONS.md next to this file. Most of what
-# looks like an obvious improvement here has been tried; the reason it was
-# reverted is usually not visible from the line you would be editing.
-#
 # Runs AFTER a shell command and asks git what happened, rather than reading the
 # command that ran. Three questions, all with exact answers:
 #
-#   1. Which commits were authored here since we last looked? The reflog is an
-#      append-only record of everything that moved HEAD, so the answer is "the
-#      entries added since last time, whose action authored a commit".
+#   1. Which commits were authored here since the hook last ran? The reflog
+#      is an append-only record of everything that moved HEAD. The hook saves
+#      how many entries it had read (the cursor, a position in the reflog), so
+#      the answer is "the entries added since the cursor, whose action
+#      authored a commit".
 #   2. Does each carry the skill's trailer? git's own trailer parser
 #      answers that, which is not the same as the message containing the text.
 #   3. If that trailer is not a skip note, does its `<key>-Tree:` trailer
 #      match the tree that actually landed? A trailer can be present and
-#      still be a sentence someone recalled rather than one mint-trailer.sh
-#      produced — see DECISIONS.md#the-trailer-is-minted-from-the-tree-not-recalled-by-the-agent.
+#      still have been typed from memory of the docs rather than printed by
+#      mint-trailer.sh.
 #
+#   option          host, hook event / matcher                  report goes to
 #   --host claude   Claude Code, PostToolUse / matcher "Bash"   stderr
 #   --host cursor   Cursor, postToolUse / matcher "Shell"       additional_context
 #   (anything else) unknown host                                stderr
 #
-# KNOWN LIMITS, each deliberate and each explained in DECISIONS.md:
+# KNOWN LIMITS, each deliberate:
 #
 #   - Reflogs must be enabled. With `core.logAllRefUpdates=false` there is
 #     nothing to read and this stays silent, unwarned.
@@ -60,8 +67,10 @@
 #     initialised submodules. `git -C /other/repo commit` moves a HEAD this
 #     never examines.
 #
-# Fails open and fails quiet, with one exception — a git too old to read
-# trailers, which would make every commit look checked forever.
+# Fails open and fails quiet, with one exception: on a git too old to read
+# trailers, it says so and exits 2. Such a git prints the trailer placeholder
+# back instead of failing, so every commit would look checked and the hook
+# would stay silent forever.
 
 set -u
 
@@ -367,19 +376,20 @@ authored=$(
 #
 # A trailer that IS present is not automatically trusted, either. Any trailer
 # that is not itself a skip note has to carry a <key>-Tree trailer bound
-# to the tree that actually landed — see
-# DECISIONS.md#the-trailer-is-minted-from-the-tree-not-recalled-by-the-agent
-# for why a hand-typed trailer that merely matches the expected shape cannot
-# produce this, why every non-skip shape needs it and not only "N bugs
-# fixed" (an earlier draft scoped it that way and left "0 bugs found" as a
-# one-word bypass), and why the check is scoped to plain commits only.
+# to the tree that actually landed, which a hand-typed trailer that merely
+# matches the expected shape cannot produce. Every non-skip shape needs it,
+# not only "N bugs fixed": otherwise "0 bugs found" would be a one-word
+# bypass. The tree check covers plain commits only, as the loop below
+# decides.
+
 # Checks whether some reflog entry recorded a replay action landing on the
 # given tree — used below to recognise a message-only amend of a cherry-pick
 # or rebase replay. A message-only amend rewrites the reflog action to
-# `commit (amend):` — the same laundering the merge-parent check two
-# paragraphs down exists for, on the cherry-pick/rebase side instead of the
-# merge side — so the action string alone cannot tell "amended a fresh
-# commit" from "amended only the message of a replay". Amending a message
+# `commit (amend):`, hiding that the commit came from a replay. The merge
+# check in the loop below (which counts parents rather than trusting the
+# action) handles the same disguise for merges. So the action string alone
+# cannot tell "amended a fresh commit" from "amended only the message of a
+# replay". Amending a message
 # never changes the tree (a tree is file content and mode, the message is
 # not part of it), so a replay's tree reappearing unchanged under a later
 # `commit (amend):` is exactly that case, confirmed against real cherry-pick
@@ -388,13 +398,15 @@ authored=$(
 # Deliberately NOT limited to `$window`: by the time an agent amends a
 # replayed commit's message, the hook has typically already run once on the
 # replay itself (that run reported nothing, correctly, and advanced the
-# cursor past it) — so the replay's own reflog entry is gone from every
+# cursor, its saved reflog position, past it) — so the replay's own reflog
+# entry is gone from every
 # future window, by the cursor's own design. The one thing this check needs
 # is exactly the one thing the cursor is built to stop re-reading. Reading
 # the whole reflog here, not just the window, is what a window-scoped
 # version got wrong when this was tried against a real rebase repro: it
 # still reported an honest, unaltered replay as fabricated.
-# Deliberately not `$REPLAY`: that list is the answer to a different
+# Deliberately not `$REPLAY`, the list near the top of this file of reflog
+# actions that author nothing: that list is the answer to a different
 # question ("did this action author anything, at all") and specifically
 # excludes checkout/reset/merge/etc — content that already existed. It does
 # NOT exclude `cherry-pick:` or `rebase (pick):`, because those DO need a
@@ -497,10 +509,28 @@ touches_pathspec() {   # touches_pathspec <sha>
   [ -n "$changed" ]
 }
 
+# A skill may print notices about a commit, whatever its trailer, by defining
+# commit_trailer_notice <sha> in its report file. The file is sourced in a subshell with
+# stderr closed and set -u off, as for commit_trailer_verify, so it cannot
+# break the hook. A notice only advises, so a file or callback that fails
+# prints nothing, and unlike commit_trailer_verify no status marker records
+# how it ended.
+commit_notice() {   # commit_notice <sha>
+  [ -n "$report_file" ] && [ -r "$report_file" ] || return 0
+  (
+    exec 2>/dev/null
+    set +u
+    . "$report_file" >/dev/null || exit 0
+    command -v commit_trailer_notice >/dev/null 2>&1 || exit 0
+    commit_trailer_notice "$1"
+  ) || true
+}
+
 unchecked=""
 unminted=""
 rejected=""
 misplaced=""
+notices=""
 for sha in $authored; do
   # A merge is never reported — `git reset --soft HEAD~1` on one drops the
   # second parent, so the remedy would be actively destructive. Excluding the
@@ -510,6 +540,11 @@ for sha in $authored; do
   case "$(g log -1 --format='%P' "$sha" 2>/dev/null)" in
     *' '*) continue ;;
   esac
+  # Before the pathspec filter: a notice may be about a commit the skill's
+  # trailer does not cover. $() drops the notice's trailing newlines.
+  notice=$(commit_notice "$sha")
+  [ -n "$notice" ] && notices="${notices}${notice}
+"
   if [ -n "$PATHSPEC" ] && ! touches_pathspec "$sha"; then
     continue
   fi
@@ -544,24 +579,28 @@ for sha in $authored; do
     case "$raw_value" in
       [Ss]kipped*) : ;;
       *)
-        # Scoped to a plain commit or a message-only amend of one — never to
-        # a cherry-pick or rebase replay, which legitimately carries an
-        # older trailer (older tree binding and all) forward onto new
-        # content. Confirmed against a real repro, not inferred: a clean
+        # The tree check applies to a plain commit or a message-only amend of
+        # one — never to a cherry-pick or rebase replay, which legitimately
+        # carries an older trailer (older tree binding and all) forward onto
+        # new content. Confirmed against a real repro, not inferred: a clean
         # cherry-pick writes `cherry-pick:`, a conflicted one
         # `commit (cherry-pick):`, a clean rebase replay `rebase (pick):`,
-        # a conflicted one `rebase (continue):` — none of those match.
+        # a conflicted one `rebase (continue):` — none of those match the
+        # pattern below.
         #
         # A sha can appear in the reflog more than once — the same content
         # gets a fresh entry every time HEAD lands on it again, including via
         # `checkout:` or a fast-forward `merge:` that never re-authors
         # anything. `git commit && git checkout main && git merge --ff-only
         # fix` gives the fix commit a `merge:` entry newer than the `commit:`
-        # entry that actually created it — the case the cursor design exists
-        # for (DECISIONS.md#the-cursor-is-a-position-in-the-reflog-not-a-sha).
+        # entry that actually created it. That is why the cursor, which marks
+        # how far the reflog has been read, is a position in the reflog and
+        # not a sha: the commit is found by its `commit:` entry wherever later
+        # entries for the same sha sit.
         # Taking only the newest entry would read `merge:`, never match, and
-        # silently skip the check on exactly the commit chain this file calls
-        # "the most common agent chain there is" — so this scans every entry
+        # silently skip the check on `commit`, `checkout main`, then a
+        # fast-forward merge, the commonest chain an agent runs — so this
+        # scans every entry
         # for this sha in the window and asks whether ANY of them is a plain
         # commit or amend, not what the latest one happened to say.
         # `commit (initial):` is a root commit's reflog action — confirmed
@@ -599,7 +638,14 @@ for sha in $authored; do
   fi
 done
 
-[ -n "$unchecked" ] || [ -n "$unminted" ] || [ -n "$rejected" ] || return 0
+notice_status=0
+if [ -n "$notices" ]; then
+  # A line said for two commits, such as a commit and its amend, is said once.
+  say "$(printf '%s' "$notices" | awk '!seen[$0]++')"
+  notice_status=2
+fi
+
+[ -n "$unchecked" ] || [ -n "$unminted" ] || [ -n "$rejected" ] || return $notice_status
 
 count_unchecked=$(printf '%s' "$unchecked" | grep -c . || true)
 
@@ -620,9 +666,8 @@ count_unchecked=$(printf '%s' "$unchecked" | grep -c . || true)
 # part it cannot cheaply work out for itself; the rest was us guessing.
 #
 # Beyond the facts, a skill's report says to ask before rewriting a pushed
-# commit, and names the SKILL.md section that fixes it. A report may hold only
-# what is true wherever the reader stands, and both of these are (DECISIONS.md,
-# "Each report names its skill's section").
+# commit, and names the SKILL.md section that fixes such a commit. A report may hold only
+# what is true wherever the reader stands, and both of these are.
 #
 # For naming only — never for a command. check_repo runs cd'd into each
 # submodule, so this resolves in a frame the reader is not standing in.

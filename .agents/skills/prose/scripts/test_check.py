@@ -446,7 +446,7 @@ class SignatureThroughGit(unittest.TestCase):
 
     def test_a_skip_value_is_unrecognised(self):
         # Every commit has a message, so every commit gets the pass: the only
-        # value is the snapshot (DECISIONS: the skip is dropped).
+        # valid value is the `✓ <tree>:<message>` snapshot.
         self.stage()
         self.repo.commit("FEAT(x): a\n", "Prose: skipped (no prose)")
         result = self.repo.verify()
@@ -510,7 +510,7 @@ class SignatureThroughGit(unittest.TestCase):
         self.assertEqual(result.returncode, 2, result.stdout)
 
     def test_a_doc_under_a_build_directory_is_prose(self):
-        # Only vendored directories exempt docs (DECISIONS: docs are exempt only where vendored).
+        # Only vendored directories exempt docs.
         self.repo.write("docs/build/README.md", "Run make.\n")
         out = self.repo.prose("check", "-F", "-", "--goals", "g", stdin="DOCS(x): a\n").stdout
         self.assertIn("docs/build/README.md", out)
@@ -1544,7 +1544,7 @@ class PreCommitHook(unittest.TestCase):
 
 class PassToken(unittest.TestCase):
     """The first call prints the rules and a pass token; the signing call
-    spends the token (DECISIONS: The rules are on screen before a signature)."""
+    spends the token."""
 
     def setUp(self):
         self.repo = Repo()
@@ -1645,7 +1645,6 @@ class PassToken(unittest.TestCase):
         return str(path)
 
     def test_sign_takes_its_goals_from_a_file(self):
-        # DECISIONS: start and sign take their goals from a file too.
         goals = self.goals_file("# the reviewer\n\napprove it; check it's safe\n  see what's left\n")
         first = self.repo.prose("sign", "--goals-file", goals)
         self.assertEqual((first.returncode, first.stdout), (4, ""), first.stderr)
@@ -1705,7 +1704,6 @@ class PassToken(unittest.TestCase):
                 self.assertIn("given twice", result.stderr)
 
     def test_check_takes_the_message_goals_from_a_file(self):
-        # DECISIONS: check takes the message's goals from a file too.
         goals = self.goals_file("# the reviewer\n\nreview it; merge it\n  see what's left\n")
         first = self.repo.prose("check", "-F", "-", "--message-goals-file", goals,
                                 stdin="DOCS(x): add a readme\n")
@@ -1881,6 +1879,24 @@ class ResultBlock(unittest.TestCase):
                               *extra], cwd=repo.path, stdin="Title\n")
                 self.assertEqual((result.returncode, result.stdout), (2, ""))
                 self.assertIn("commit-trailer library is missing", result.stderr)
+    def test_without_the_shared_reader_a_gh_post_is_blocked_with_the_fix(self):
+        root = pathlib.Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, root, True)
+        scripts = root / "skills" / "prose" / "scripts"
+        scripts.mkdir(parents=True)
+        for name in ("prose.py", "comment_scan.py"):
+            shutil.copy(HERE / name, scripts / name)
+        payload = json.dumps({"tool_name": "Bash", "cwd": str(root),
+                              "tool_input": {"command": "gh pr comment 5 --body 'hi'"}})
+        result = run([sys.executable, str(scripts / "prose.py"), "hook-post", "--host", "claude"],
+                     cwd=root, stdin=payload)
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn("shared command reader is missing", result.stderr)
+        quiet = json.dumps({"tool_name": "Bash", "cwd": str(root),
+                            "tool_input": {"command": "ls"}})
+        self.assertEqual(run([sys.executable, str(scripts / "prose.py"), "hook-post", "--host",
+                              "claude"], cwd=root, stdin=quiet).returncode, 0)
+
     def test_a_failing_result_block_leaves_the_token_unspent(self):
         # Only a printed trailer spends the token: if the result block cannot
         # be printed, the same signing call can run again.
@@ -1888,7 +1904,7 @@ class ResultBlock(unittest.TestCase):
         self.addCleanup(shutil.rmtree, root, True)
         scripts = root / "skills" / "prose" / "scripts"
         scripts.mkdir(parents=True)
-        for name in ("prose.py", "comment_scan.py", "compact.py"):
+        for name in ("prose.py", "comment_scan.py", "compact.py", "reading_cost.py"):
             shutil.copy(HERE / name, scripts / name)
         shutil.copy(HERE.parent / "rules.md", scripts.parent / "rules.md")
         lib = root / "lib" / "commit-trailer"

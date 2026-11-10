@@ -6,8 +6,9 @@
 # through the script.").
 #
 # This script is a thin wrapper. The commit itself is made by the shared
-# library ../../../lib/commit-trailer/commit-with-trailers.sh (relative to
-# this file's real directory; see the comment above `here=` below), which
+# library ../../../lib/commit-trailer/commit-with-trailers.sh, relative to
+# this file's real directory: the one it is in once symlinks are resolved, as
+# the comment above `here=` below explains. The library
 # takes generic "families". A family is an option such as --minted-by or
 # --verified-value plus the words that option takes. Each family adds one
 # skill's trailer; a --minted-by family also adds its `<Key>-Tree` binding
@@ -20,13 +21,9 @@
 # the trailer to the staged tree. It passes that family to the library, with
 # any --verified-value families given here.
 #
-# BEFORE CHANGING THIS SCRIPT OR THE LIBRARY, READ the library's decision
-# record, ../../../lib/commit-trailer/DECISIONS.md, and this skill's
-# ../DECISIONS.md, "The commit is assembled by a script, not by hand".
-#
 # Usage:
-#   commit-with-trailer.sh -F <message-file> <bug-hunter-value> [co-authored-by]
-#   commit-with-trailer.sh --verified-value <verifier> <Key> <value> \
+#   commit-with-trailer.sh [--allow-empty] -F <message-file> <bug-hunter-value> [co-authored-by]
+#   commit-with-trailer.sh [--allow-empty] --verified-value <verifier> <Key> <value> \
 #       [--verified-value <verifier> <Key> <value>]... -- \
 #       -F <message-file> <bug-hunter-value> [co-authored-by]
 #   (each family is exactly four words; repeat the whole family for each
@@ -34,6 +31,11 @@
 #
 #   The same, with the message as two shell arguments instead of a file:
 #   commit-with-trailer.sh [--verified-value ... --] <subject> <body> <bug-hunter-value> [co-authored-by]
+#
+#   --allow-empty    Commit even when the staged tree is the parent's, so the
+#                    commit carries trailers for work that changed no file,
+#                    such as a spec-check read that amended nothing. First, or
+#                    not at all. Passed to the library as its --allow-empty.
 #
 #   -F <message-file> The commit message: its first line is the subject, the
 #                    next line must be blank, and the rest is the body. A file
@@ -52,9 +54,7 @@
 #                    the library runs <verifier> on the staged files and the
 #                    message, and refuses the whole commit if the verifier
 #                    says the value no longer matches them. Every installed
-#                    skill's trailer goes on one commit: the library's
-#                    DECISIONS.md, "Every installed skill's trailer, on one
-#                    commit", says why.
+#                    skill's trailer goes on one commit.
 #   --               Ends the families. The brackets in usage()'s [--] mark
 #                    it optional, but it may be left out only when no family
 #                    is given. It is required after a family so that a family
@@ -98,7 +98,8 @@
 # - after --verified-value families, the next word must be `--` or another
 #   family;
 # - the first word after the families, which is `-F` or the subject, must not
-#   be `--` or one of the library's option names: --minted-by,
+#   be --allow-empty, which is refused with a message saying it goes first;
+# - nor `--` or one of the library's option names: --minted-by,
 #   --verified-value, --co-authored-by, or --minted (a library family this
 #   script never passes). A `--` lands here when a caller writes `-- --`: the
 #   first ends the families, and the second is this word. This check only
@@ -126,7 +127,7 @@
 #   inside any trailer value (why a line break: below the list);
 # - where an option's argument should be, it refuses `--` or an option name
 #   (--minted, --minted-by, --verified-value, --co-authored-by,
-#   --message-file). Through this script, the Bug-hunter value, the
+#   --message-file, --allow-empty). Through this script, the Bug-hunter value, the
 #   co-authored-by value and the -F path each become an option's argument on
 #   the library's command line, so a caller who passes one of them as exactly
 #   `--` or an option name is refused. That is intended: no real value or path
@@ -160,16 +161,17 @@
 # and the state the hook ran in: HEAD, the hook file, git config and unstaged
 # changes. A pass matches when all of these are the same now. The record is
 # written by run-pre-commit.sh, a second script in the library's directory that
-# commit-with-trailers.sh uses to run the hook; prose's calls run the hook
-# through it too, so a commit made right after them finds the pass recorded and
-# does not run the hook twice. After binding, the library runs commit-msg
+# commit-with-trailers.sh uses to run the hook. prose check takes two calls:
+# the first prints the rules and a pass token, and the second signs. Both run
+# the hook through run-pre-commit.sh too, so a commit made right after them
+# finds the pass recorded and does not run the hook twice. After binding, the library runs commit-msg
 # itself, on the final message with the trailers in it. If that hook changes
 # the message, the library runs the verifiers again on the changed message, and
 # refuses if the hook removed or changed a trailer line the library added. It
 # then commits with `git commit --no-verify`, so that git runs neither hook a
 # second time. With nothing to bind, git runs the hooks during `git commit` as
-# usual. Why: the library's DECISIONS.md, "The pre-commit hook runs before
-# anything is bound".
+# usual. Running pre-commit first means a formatter rewrites the staged files
+# before anything is bound to them.
 #
 # When it takes over, the library first writes the staged tree
 # (`git write-tree`) as a baseline, then runs the pre-commit hook (if there is
@@ -246,8 +248,8 @@ set -eu
 
 me=commit-with-trailer.sh
 usage() {
-  echo "usage: commit-with-trailer.sh [--verified-value <verifier> <Key> <value>]... [--] -F <message-file> <bug-hunter-value> [co-authored-by]" >&2
-  echo "       commit-with-trailer.sh [--verified-value <verifier> <Key> <value>]... [--] <subject> <body> <bug-hunter-value> [co-authored-by]" >&2
+  echo "usage: commit-with-trailer.sh [--allow-empty] [--verified-value <verifier> <Key> <value>]... [--] -F <message-file> <bug-hunter-value> [co-authored-by]" >&2
+  echo "       commit-with-trailer.sh [--allow-empty] [--verified-value <verifier> <Key> <value>]... [--] <subject> <body> <bug-hunter-value> [co-authored-by]" >&2
   exit 2
 }
 refuse() { echo "$me: $*; nothing committed" >&2; exit 2; }
@@ -265,6 +267,8 @@ q() {
   printf "'%s%s'" "$r" "$s"
 }
 
+allow_empty=''
+if [ "${1-}" = --allow-empty ]; then allow_empty=' --allow-empty'; shift; fi
 families=''
 while [ "$#" -gt 0 ]; do
   case $1 in
@@ -279,6 +283,9 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 
+case ${1-} in --allow-empty)
+  refuse "'--allow-empty' goes first, before any --verified-value family" ;;
+esac
 case ${1-} in --minted|--minted-by|--co-authored-by|--verified-value|--)
   refuse "'$1' in place of the subject: this script takes only --verified-value families, and adds the Bug-hunter and Co-Authored-By trailers itself" ;;
 esac
@@ -320,6 +327,7 @@ fi
 subject=$1 body=$2 value=$3 co=${4-}
 args="--minted-by $(q "$here/mint-trailer.sh") Bug-hunter $(q "$value")$families"
 [ -n "$co" ] && args="$args --co-authored-by $(q "$co")"
+args="$args$allow_empty"
 if [ "$from_file" = y ]; then
   # $body holds the file's path here; the library reads and checks the file.
   eval "set -- $args"

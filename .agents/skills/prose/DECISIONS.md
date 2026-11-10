@@ -111,6 +111,27 @@ passage that labelled its past ("the argument once made … does not apply")
 passed the pass, because rule 5 only asks that the past be labelled. Rule 8
 says whether the past belongs in the text at all.
 
+**Rule 8 splits the past into why a decision holds and how the text
+evolved,** and says where each goes. The reasons, measurements and rejected
+alternatives stay true while the decision stands, so a decision record keeps
+them, stated as the decision stands now. Amendments, reversals, credits and
+review rounds help only someone following the change as it happens, so they
+go in commit messages and pull requests. The test, whether a piece would
+still help someone changing the decision a year from now, follows from
+that: a reason does, an amendment doesn't.
+
+This matches spec-check's *Decisions and open questions*: an OpenSpec change
+states each decision once, in its design.md, and keeps no record of how the
+decision was amended. An implementer, and the subagent spec-check starts to
+read a change against every other spec, take design.md as the current
+design; an amendment chain there would make them replay it.
+
+Rule 8 covers what an author writes, not text a file already holds.
+Compaction, which rewrites a whole doc (*Compaction keeps docs read before
+work compact*, below), keeps existing "who decided" credits unless the file
+sets `prose-compact-attribution=drop`, because removing credits from a
+team's docs is the team's choice.
+
 **Rule 9, spend words where they save reading time,** has *one claim per
 sentence* as its point. Its sentence "a longer sentence that reads once beats a
 shorter one read twice" allows words that serve the sentence's one claim, not
@@ -128,6 +149,10 @@ headings without their reasons or examples.
   different questions: whether the past belongs in the text, and how to mark
   it when it does. Kept apart, rule 5 can say outright that labelling the past
   does not justify keeping it.
+- **A decision record that logs how each decision changed.** It is read to
+  learn which decision is in force and why; a log makes every reader find
+  the last entry and check whether each earlier reason still applies. `git
+  log` and the pull requests already keep that log, in order.
 - **Merging rule 6 into rule 11 (*One topic per block*).** Rule 11 is about
   how text is divided; rule 6 is about whether one sentence leads to the next.
 - **A mechanical lint for passives** such as "is searched" with no "by". It
@@ -413,20 +438,25 @@ compaction repays its 300k to 500k tokens; size does not.
   - by place: every `CLAUDE.md`, `AGENTS.md` and `SKILL.md`; a file a
     `SKILL.md` or `AGENTS.md` links in a paragraph asking to read it first or
     before something; and an open change's `proposal.md`, `design.md` and
-    delta specs, since spec-check's consistency read, run for every commit
-    that changes `openspec/`, opens each of them in every open change. A link asking to read its file before changing the skill does not
-    count, and no commit counts a read of that file either, since a commit
+    delta specs, since spec-check's consistency read opens each of them
+    in every open change. It runs once per review round: an agent's work
+    between two hand-backs of a pull request to a person. A link asking to read
+    its file before changing the skill does not count, and no commit counts a read of that file either, since a commit
     in a skill reads only its `SKILL.md` and read-first files;
   - by `prose-compact` in `.gitattributes`;
   - or by the commits since the doc's last compaction, each counting as one
     read of the docs a fixed map gives it. A commit changing a file in a
     skill's directory counts as a read of its `SKILL.md` and read-first
     files. A `Bug-hunter:`, `Prose:` or `Spec-check:` trailer counts as a
-    read of that skill's `SKILL.md`, and `Spec-check:` also of the main
-    specs and open changes. The log is capped at 300 commits. So in practice
-    this path makes a main spec read often; a `DECISIONS.md` or
-    architecture doc not linked to be read first gains no reads, and is read
-    often only when declared.
+    read of that skill's `SKILL.md`, whatever its value. A `Spec-check:`
+    trailer also counts as a read of the main specs and open changes,
+    unless its value says no consistency read ran: `read deferred to the
+    round's end`, on a commit before the end of a spec-check review round,
+    or `no read due`. Each round's last commit still carries a read, so
+    in a repository with regular spec work this path makes a main spec
+    read often. The log is capped at 300 commits. A
+    `DECISIONS.md` or architecture doc not linked to be read first gains no
+    reads, and is read often only when declared.
 - **The last compaction** is the newest commit behind HEAD, merged
   branches included, whose `Prose:` trailer lists the file after
   `compacted:`, or that shrank it by 10% or more, or that committed a copy
@@ -893,6 +923,167 @@ file before or after #31; the other three docs lost no referenced heading.
 
 ---
 
+## Compaction aims at reading cost
+
+Compaction weighs text by what agents pay to read it, not by its size
+(#36). Three parts serve that:
+- `prose compact`'s brief lists the sections of a doc that a condition heads
+  or opens, as candidates to move into a linked file, and the compactor
+  proposes or declines each move. A person decides every move.
+- Each candidate is ranked by its bytes times the doc's estimated reads.
+- `prose check`'s first call measures each skill description the change
+  sets, since a host loads every installed skill's description in every
+  session.
+
+`prose cost` prints the ranking and the descriptions for a whole
+repository. The detector and the measures live in `scripts/reading_cost.py`,
+which reads no git; `compact.py` feeds it the index and the history.
+
+**Moving text out helps only under four conditions.** The doc is loaded
+whatever the task; part of it is needed only in situations that can be
+identified; in each of them a reliable signal reaches the reader and names
+the file the part moved to; and the part is large next to the pointer that
+replaces it. A section needed on every pass costs more behind a pointer,
+since the reader reads the pointer and then the file. For that reason the
+writing rules stay in what `prose check` prints (*Rejected: rules behind a
+pointer*). The script checks two conditions: that the doc is loaded before
+work, and that the section is large. It sees a condition's words, but not
+whether the condition really splits readers, nor whether a signal sends
+them to the file; the compactor judges both and names the signal in the
+pointer line.
+- **Only docs loaded before work get candidates:** those read often by
+  their name or path (a `SKILL.md`, `AGENTS.md` or `CLAUDE.md`, or a file
+  one of them links to be read first) or by a `prose-compact` declaration.
+  A `DECISIONS.md` gets none unless declared, since it is read only before
+  changing its skill. An OpenSpec doc never gets candidates, since
+  spec-check's consistency read needs every requirement in it.
+- **A condition opens the section:** its heading, the first sentence of its
+  first paragraph, or the bold words leading a paragraph or list item.
+  The words are "When", "Whenever", "If", "Unless", "Only when", "Without"
+  or "In case", another skill installed ("With bug-hunter installed"), a
+  caller ("Called by"), setup, installation, troubleshooting, an upgrade, a
+  migration, or an operating system.
+- **At least 1,000 bytes.** A pointer line costs about 200 bytes, so a
+  smaller move saves under 800 bytes a read, about 200 tokens.
+- **A candidate that shares a line with an earlier, wider one is
+  dropped,** so each line is proposed once.
+- **The compactor answers every candidate** with a `Move` line, naming the
+  new file, the pointer line and the signal, or a `Stay` line naming the
+  condition that fails. The pointer names the signal, so a reader who meets
+  it knows to open the file. The detector cannot tell "When the pass runs",
+  which every reader needs, from "When the caller commits", which only some
+  do: the words have the same shape.
+- **A move is made after the compaction's commit, in a commit of its own.**
+  The compaction's diff stays a rewrite a reviewer reads alone, and the
+  gate's `--verify` and review records cover only the compaction. The
+  person decides at compaction.md's step 9, beside the `Would drop:` lines.
+- **Candidates never make a doc due.** A declined move leaves no record, so
+  a trigger counting candidates would bring the same doc due on every edit
+  and spend a compaction, 300k to 500k tokens, re-proposing moves a person
+  turned down.
+- **False hits removed from the detector,** found by running it on this
+  repository's ten `SKILL.md` files, their read-first files and
+  `compaction.md`:
+  - "Before", "After", "Once" and "While": they order the steps every
+    reader runs. With them, spec-check's *Commit* ("After the last fix
+    ...", 1,985 bytes) and prose's "Before a commit" were flagged.
+  - "When" alone and "When to ...": a section saying when a skill applies
+    is read to decide whether it does, such as spec-check's *When* and
+    *When to write a TLA+ model*.
+  - A condition every reader meets, "If you are an agent": bug-hunter's
+    *If you are an agent about to commit*, 8,947 bytes, was flagged by
+    its heading, then by its first sentence. Such a heading rules out the
+    whole section.
+  - A section opening on a code span, such as manage-skills'
+    "`uninstall` removes the skill's hook too".
+  - A first paragraph that is a bold lead-in counts as a lead-in, with
+    its own extent. Read as a first sentence, it flagged all of
+    manage-skills' *Workflows*, a 3,278-byte menu of requests opened by
+    "**"Install the X skill"**".
+- **The hits, by cost,** in this repository on 2026-11-04 (`prose cost`):
+
+  | Section | Bytes | Reads | Cost |
+  |---|---|---|---|
+  | bug-hunter `SKILL.md`, *Then ask, one recommendation at a time* | 3,965 | 129 | 511,485 |
+  | bug-hunter `SKILL.md`, *When the caller commits* | 3,138 | 129 | 404,802 |
+  | bug-hunter `SKILL.md`, *The abort is an ending, ...* | 2,026 | 129 | 261,354 |
+  | bug-hunter `SKILL.md`, "If prose asks for a cold read" | 1,166 | 129 | 150,414 |
+  | bug-hunter `reference.md`, *When the run aborts* | 4,034 | 25 | 100,850 |
+  | bug-hunter `reference.md`, "When mutants ran" | 2,365 | 25 | 59,125 |
+  | github-app `SKILL.md`, *When something fails* | 1,053 | 17 | 17,901 |
+  | prose `compaction.md`, "When it is due." | 1,497 | 8 | 11,976 |
+  | linear-app `SKILL.md`, *When Linear tools fail* | 1,166 | 10 | 11,660 |
+
+  Six more, in prose's `reference.md`, bug-hunter's `mutation.md` and
+  worktrees' `SKILL.md`, cost under 7,000 each. "When it is due." is the
+  kind the compactor declines: its words name a condition, but it is the
+  reference a reader opens compaction.md for.
+- **Known gaps, recorded rather than fixed.** A wrong candidate costs one
+  `Stay` line, a missed one a move nobody proposes:
+  - setext headings (text underlined with `===` or `---`) are not seen,
+    a gap `--verify` has too;
+  - a lead-in's extent is guessed: a paragraph's takes the lists, tables
+    and code after it, up to the next plain paragraph at its indent or a
+    line that leaves its list item; a list item's, its own continuation
+    lines. A candidate that shares a line with an earlier, wider one is
+    dropped, so a misjudged extent never proposes a line twice;
+  - a condition stated later in a section's first paragraph, not at its
+    start, is missed;
+  - a lead-in on the line straight after a `---` rule or an HTML comment is
+    missed: only a blank line, a heading or code ends the block before it.
+
+**Cost is bytes times reads.** A section only some readers need is paid for
+by every reader of the doc, so a 1,000-byte section of a doc read 129 times
+outranks a 4,000-byte one read 25 times. The reads are the trigger's
+estimate (*Compaction keeps docs read before work compact*): the commits
+among the last 300 behind HEAD that imply a read of the doc. The trigger
+counts from the doc's last compaction, since it asks how much was read
+since. The cost counts from the commit that added the doc, since a move
+saves bytes on every read, before a compaction and after it.
+- **The map also counts each commit as a read of every `AGENTS.md` and
+  `CLAUDE.md` above the files it changes,** the root's for every commit, and
+  of the files an `AGENTS.md` links as read first. Without that, those
+  files, the docs loaded most, ranked last with no reads. It changes no
+  trigger: they are read often by place, so their reads were never counted.
+- **Known gaps:** a file read first before some task counts a read for every
+  commit in its skill, so `compaction.md` gets one for each commit changing
+  prose, compacting or not. A doc added recently has had fewer commits to
+  count. Both only reorder the ranking a person reads.
+
+**Skill descriptions are measured when a change sets one.** `prose check`'s
+first call prints, for each `SKILL.md` the change adds or whose
+`description:` it changes, the description's bytes and characters as a YAML
+reader loads them, what it was, and the total over every staged `SKILL.md`.
+A commit that leaves descriptions alone prints nothing, so the line appears
+only where the author can act on it.
+- **Flagged above 1,024 characters,** the most the Agent Skills
+  specification allows, which Anthropic's API enforces for uploaded skills;
+  a host may refuse or cut a longer one. On 2026-11-04 the ten descriptions
+  here took 5,535 bytes, from 310 (manage-skills) to 1,027 (bug-hunter,
+  1,021 characters).
+- **Rejected: a lower limit.** A description's words decide when a host
+  loads the skill, so cutting one trades triggering for bytes, and only
+  reading it can judge that trade. The size and the total, printed on every
+  change, show the author the cost.
+- **Bytes are the cost and characters the limit:** context holds bytes, at
+  about 4 a token, and the specification counts characters.
+- **The value is read without a YAML library,** since prose uses the
+  standard library only. It matched PyYAML on all 268 `SKILL.md` files
+  installed on the machine it was built on. **Known gaps, recorded rather
+  than fixed,** since a wrong reading misstates one advisory size:
+  - a folded (`>`) block's more-indented lines are folded like the rest,
+    where YAML keeps their line breaks;
+  - a block indicator (`>` or `|`) on the line after the key is read as
+    plain text;
+  - a skill whose directory the change renames is reported as a new skill.
+- **Neither the brief's reads nor the description measure download a
+  missing blob,** as the trigger never does: in a partial clone, git would
+  otherwise fetch each one from the remote. Both run with
+  `GIT_NO_LAZY_FETCH=1`, and a SKILL.md whose blob the clone lacks is left
+  out of the total.
+
+---
+
 ## The rules are on screen before a signature
 
 A trailer or footer takes two calls. The first, `check` or `sign` without
@@ -1016,7 +1207,9 @@ dispositions, next section), it checks both, then signs.
 **What it reads, and what it skips.**
 - **Every comment block the change touches, whole,** since a reader meets it
   whole, including a comment on a changed line whose own text did not change.
-  Every doc or spec passage the change adds to. Every post.
+  Every doc or spec passage the change adds to. Every post, except a pull
+  request body posted between two hand-backs for review, which is read cold
+  at the next one (*A pull request body is cold-read at a hand-back*).
 - **No length threshold.** A version reading only texts of three or more
   lines had every one of its bugs in that counting (comment syntax,
   binary-diffed docs, BOMs, UTF-16), and a character count has the same hard
@@ -1053,6 +1246,153 @@ its own report is forgery, which the cheat list names.
 **Where this stops applying.** If cold readers report nothing on text human
 reviewers still find hard, change the brief. If authors dismiss what readers
 report, the next step is a second cold read of the fixed text.
+
+---
+
+## A merge commit is judged by what the merge changed
+
+For a merge, `prose check` lists only the passages where the staged result
+differs from every parent, by git's combined diff (`git diff --cc`): the text
+the merge resolved or wrote, such as a conflict resolution or an edit neither
+branch made (an evil merge). Text the result takes unchanged from a parent is
+not listed. So it gets no cold read, needs no goals, raises no
+history-language flag and draws no compaction advice. A commit with one
+parent, or none, lists as it always has.
+
+The parents are HEAD and each commit in `MERGE_HEAD` (several for an octopus)
+while a merge is in progress, and with `--amend` the amended commit's own
+parents. `--amend` refuses during a merge, as `git commit --amend` does.
+
+**Why.** Merging main into a pull request is the usual way to make it
+mergeable again, and the listing used to diff against the first parent alone.
+On 2026-11-06 one such merge listed 160 passages that main had gained, 4 of
+them the merge's own. The other 156 had passed their own cold reads when they
+merged, and keeping them unchanged meant a person answering 205
+cold-read findings and understood lines one at a time (issue #59).
+
+**Why git's rule.** `--cc` also drops each hunk where the result takes one
+parent's version unchanged, though it differs from the others. So a conflict
+resolved by taking one side lists nothing, and a resolution mixing lines from
+both sides is listed, though each line is some parent's. The listing is
+exactly what `git show` prints for the merge commit, so a reviewer can check
+it there.
+
+**With git's default context, 3 lines.** Context joins changes up to a few
+lines apart into one hunk, as `git show` prints them. Without it, a
+resolution taking one side's line 2 and the other side's line 4 splits into
+two hunks, each matching one parent, and lists nothing.
+- **The cost:** a line the merged-in branch changed cleanly, within the
+  context of the merge's own edit, falls in the same hunk and is listed and
+  read cold again.
+- **Rejected: no context.** It lists less, but it misses such resolutions,
+  and the listing no longer matches `git show`.
+
+**Rejected: diffing against the first parent and skipping what matches the
+merged-in branch.** In a passage both branches edited, the first-parent diff
+gives one hunk that matches neither branch, so all of it is listed, including
+the lines the merge took unchanged from the merged-in branch. `--cc` compares
+with every parent at once and keeps only the hunks the merge resolved.
+
+**How the lines are found.** With context, `--cc` prints every line of a
+kept hunk, so prose counts the staged lines from the hunk's start and lists
+those whose prefix has a `+`, which marks a line some parent lacks. The
+diff finds renames (`-M`) and reads with git's defaults (*Diffs are read
+with git's defaults*, below). A doc one branch renamed and the other edited is
+then paired with the old path and lists nothing, unless it differs so much
+from HEAD's copy that git no longer counts it a rename; then it lists whole,
+as `git show` prints it. The compaction trigger takes a merge's paths from
+the same diffs, so it advises only on what the listing reads.
+
+**A doc git diffs as binary is listed whenever `--cc` names it,** which
+includes a doc marked `-diff` that git merged cleanly: `--cc` prints "Binary
+files differ" for it, as `git show` does, and the merge then needs reader
+goals for it, with nothing to read cold. That cost is accepted: prose
+lists the doc as `git show` names it, with no case of its own.
+
+**What merges leave unchanged.**
+- The trailer, `verify-staged` and the reuse of a cold read on a re-sign are
+  keyed on the staged tree, not on a diff. When a re-sign reuses a cold read,
+  the items it compares with the earlier read's come from the merge's listing.
+- The compaction gate and the `compacted:` list still compare with the first
+  parent. They cover only docs a compaction was started on in this work tree,
+  and a compaction starts from HEAD's copy, so HEAD is the copy to compare
+  with. Neither reads the merge's diff.
+- `verify-commit` still answers `merge commit, not checked`, so the commit
+  hook does not verify a signed merge: the shared library never reports a
+  merge ([its reason](../../lib/commit-trailer/DECISIONS.md#commit-merge-is-excluded-rebase-continue-is-not)).
+
+---
+
+## Diffs are read with git's defaults
+
+Every diff `prose check` lists from, for a plain commit or a merge, starts
+from `comment_scan.DIFF`, which pins each setting a user's config or
+environment can use to change what the diff says. So the listing is the
+one git gives with no config, and for a merge it is what `git show` prints.
+The repository's own `.gitattributes` still applies, as it does for anyone.
+
+**Why.** Each unpinned setting was a way for the listing to differ between
+machines, or from what was staged. Three were found one at a time in
+review: the indent heuristic, a textconv driver and the rename limit. So
+every setting that can change a diff was swept at once, and a table-driven
+test (`test_diff_config.py`) sets each one away from its default and checks
+that neither listing changes.
+
+**Plain commits change only where they were wrong.** Before this, a plain
+commit's listing followed the user's diff algorithm, rename limit, textconv
+drivers, personal attributes and large-file threshold. Under any of them it
+could name other lines, the wrong lines (textconv numbers the lines of its
+output, not of the file), or call a doc binary. With no such setting, the
+listing is what it was.
+
+**Pinned, on every diff:**
+- `--no-ext-diff` (`diff.external`, `diff.<driver>.command`,
+  `GIT_EXTERNAL_DIFF`), `--no-textconv` (`diff.<driver>.textconv`),
+  `--no-color` (`color.diff`, `color.ui`, `diff.colorMoved`,
+  `diff.wsErrorHighlight`, `core.whitespace`), `--no-relative`
+  (`diff.relative`).
+- `--diff-algorithm=myers` (`diff.algorithm`, `diff.<driver>.algorithm`),
+  `--indent-heuristic` (`diff.indentHeuristic`), `--inter-hunk-context=0`
+  (`diff.interHunkContext`), `-l1000` (`diff.renameLimit`), `-M`
+  (`diff.renames`), `--unified=0`, or 3 for a merge (`diff.context`,
+  `GIT_DIFF_OPTS`), `--src-prefix=a/ --dst-prefix=b/` (`diff.noprefix`,
+  `diff.mnemonicPrefix`, `diff.srcPrefix`, `diff.dstPrefix`),
+  `--ignore-submodules=none` (`diff.ignoreSubmodules`).
+- Config given with `-c`: `core.attributesFile=/dev/null`, so a personal
+  attributes file cannot mark a doc `-diff` or bind it to a driver;
+  `attr.tree=` empty, so attributes come from the work tree and index;
+  `core.bigFileThreshold=512m`, git's default, below which a file is not
+  treated as binary for its size; `core.useReplaceRefs=true`, git's
+  default, so a replace ref swaps an object as it does by default;
+  `core.precomposeUnicode=false`, its default, on the diffs and on the read
+  of each staged file, so a path given to git matches the index as the
+  index spells it. On, which is `git init`'s value on macOS, git cannot
+  read a staged file whose accented name is decomposed. Every git call
+  also sets `core.quotePath=false`, so paths print unquoted.
+- Environment: `GIT_ATTR_SOURCE`, `GIT_NO_REPLACE_OBJECTS` and
+  `GIT_REPLACE_REF_BASE` removed, and `GIT_ATTR_NOSYSTEM=1`, so system-wide
+  attributes do not apply. That last is the only pin not tested, since a
+  test cannot write the system attributes file.
+
+**Shown by the test not to matter:** `diff.orderFile` and
+`diff.suppressBlankEmpty` (order and context lines only),
+`diff.dirstat` and `diff.statNameWidth` (stat output only),
+`diff.<driver>.xfuncname` (text after a hunk header), `core.autocrlf`,
+`core.eol`, `core.safecrlf` and an `eol` attribute (the diffs compare blobs
+already in the index and commits, converted when staged),
+`GIT_CONFIG_PARAMETERS` and `GIT_CONFIG_COUNT` (config, which the flags
+override).
+
+**Rejected: running git with `GIT_CONFIG_GLOBAL=/dev/null` and
+`GIT_CONFIG_NOSYSTEM=1`.** The repository's own config can set every one of
+these too, so the flags are needed anyway. And global and system config
+hold `safe.directory`, without which git refuses a repository another user
+owns.
+
+**Known gaps.** Two repository-local settings are not pinned:
+`.git/info/attributes`, which no flag turns off; and `diff.<driver>.binary`
+for a driver the tracked `.gitattributes` names, which only `--text` would
+override, and `--text` would read real binary files as text.
 
 ---
 
@@ -1313,6 +1653,52 @@ again adds nothing unread.
 
 **Known gap.** The record is a file in the git directory, which anyone with
 access can forge, as with tokens.
+
+---
+
+## A pull request body is cold-read at a hand-back
+
+**Decision.** A pull request body gets its cold read when the pull request
+is handed back for review, the moment spec-check also reads a change. It
+gets none at each edit before that, since no person reads those. A
+hand-back is what spec-check's *One consistency read per round* names:
+`gh pr create` unless a draft with no reviewer, `gh pr ready` unless
+`--undo`, `gh pr edit --add-reviewer`, and the GitHub MCP's equivalents. An
+edit in between still gets the rules pass.
+
+- `sign --pass <token> --defer-cold-read` signs without a cold read. Its
+  footer is `prose ✓ <6 hex> (cold read deferred to the hand-back)`, and
+  the hash covers a fixed prefix before the body, so cutting the note off by
+  hand leaves a footer that does not match.
+- The posting hook accepts that footer only on a pull request body posted
+  by a call that is not a hand-back: `gh pr create --draft` with no
+  reviewer, `gh pr edit` without `--add-reviewer`, or the MCP's
+  `create_pull_request` or `update_pull_request` doing the same. On any
+  other post it blocks, saying a cold read is due.
+- A hand-back that posts no body (`gh pr ready`, `--add-reviewer` alone, an
+  MCP update to ready) is checked before the call: the hook reads the pull
+  request's body with `gh pr view` and blocks while it still defers its cold
+  read. It looks only where it can find the pull request without guessing
+  the directory gh runs in: a call naming it by URL, by `-R` or `GH_REPO`,
+  or by the MCP's owner, repo and number, or a command that is the gh call
+  alone, run in the hook's directory. A lookup that fails lets the call
+  through.
+- After a hand-back, prose's session hook (`prose.py hook-handback`) prints
+  `current-state pass due for: ...`, the
+  single-pass rule's final pass (spec-check's DECISIONS.md, *Events start a
+  current-state pass*). A body changed then is signed with its cold read,
+  since a person reads it.
+
+**Why.** A body is edited many times inside a round, and each cold read
+cost a subagent's read of text no person would see until the hand-back.
+Who reads it is what makes a cold read worth its cost.
+
+**The detection is shared.** What a hand-back is, and which pull request
+it names, is read by `.agents/lib/gh-shell/handbacks.py`, which spec-check's
+hand-back hook also imports, so the two skills agree on every form. Only
+the session hooks use it here: prose has no workflow (*Rejected: a GitHub
+Action*), so a hand-back made outside the agent's session, such as on the
+web page, is not checked by prose.
 
 ---
 
@@ -1609,6 +1995,29 @@ comments holding quotes or operators. The rules for each simple command:
 evaluates twice (`(( ))`, `let`, zsh `${(e)…}`, git aliases, `rebase -x`) is a
 disguise, out of scope. Revisit if `gh` gains a way to read a body from stdin
 without `-F -`.
+
+---
+
+## The command reader is shared, in `.agents/lib/gh-shell/`
+
+**Decision.** The code that reads a shell command and gh's flags
+(`_commands`, `_words`, `_gh_args`, `DATA_COMMANDS`, `RESERVED`, `GH_TEXT`,
+`GITHUB_MCP` and the tables of gh's verbs and flags) lives in
+`.agents/lib/gh-shell/gh_shell.py`. prose.py imports it from there,
+finding the directory from prose.py's own real path in the clone, as the
+skills' commit scripts find `.agents/lib/commit-trailer/`. What is a post,
+and which bodies are read, stays in prose.py. What is a hand-back for
+review is read by `handbacks.py` in the same directory.
+
+**Why.** spec-check's hand-back hook reads the same commands, and must
+agree with this hook on what a command runs. A copy would drift; loading
+prose.py by path tied spec-check to private names in prose's script.
+
+**Where this stops applying.** prose needs a full clone, as for the
+commit-trailer library. A prose directory copied out alone cannot import
+the reader; its posting hooks then block every command that may run gh,
+with a message saying how to restore the reader, and still check GitHub MCP
+posts.
 
 ---
 

@@ -7,9 +7,9 @@
 # names a SKILL.md section rather than copying that section's steps: a copy
 # here drifts from SKILL.md. It names none of the skill's files: SKILL.md
 # gives each path from the skill's base directory, which the agent knows, and a
-# path printed here would need quoting for a shell, which Cursor's channel
-# cannot carry. See that library's DECISIONS.md, "The report states facts and
-# stops" and "Each report names its skill's section".
+# path printed here would need quoting for a shell. Cursor's channel cannot
+# carry that quoting: the wrapper turns every quote and backslash into a space
+# to keep the JSON it prints valid.
 #
 # Body left unindented on purpose: the strings below are multi-line report text,
 # and indenting them would indent what the user reads.
@@ -18,8 +18,7 @@ REPORT=""
 
 if [ -n "$unchecked" ]; then
 # No condition such as "containing code" on the first line: a docs-only commit
-# needs the trailer too, and a condition here reads as exempting it
-# (../DECISIONS.md#a-skip-is-a-value-for-the-trailer-not-an-exemption-from-it).
+# needs the trailer too, and a condition here reads as exempting it.
 REPORT="bug-hunter: $count_unchecked new commit(s) landed without a Bug-hunter: trailer${repo_label:+ in $repo_label}.
 
 $(printf '%s' "$unchecked")

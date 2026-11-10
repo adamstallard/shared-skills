@@ -9,26 +9,34 @@ only to the lines a change touched. `$S` is prose's scripts directory, as
 
 **When it is due.** `prose check`'s first call prints
 `compaction due for <file>: <why>` for each changed doc that agents read often
-and that is due. A doc is read often when it is:
+and that is due; in a merge, each doc the merge itself changed. A doc is read
+often when it is:
 - a `CLAUDE.md`, `AGENTS.md` or `SKILL.md`;
 - a file a `SKILL.md` or `AGENTS.md` links in a paragraph that asks for it to
   be read first, or read before some task. A link to be read only before
-  changing the skill does not count, as with SKILL.md's link to DECISIONS.md:
-  that file is read only when the skill changes;
+  changing the skill does not count: that file is read only when the skill
+  changes;
 - an open OpenSpec change's `proposal.md`, `design.md` or delta specs
   (`openspec/changes/<change>/specs/<capability>/spec.md`): spec-check's
-  consistency read, run for every commit that changes `openspec/`, opens each of
-  them in every open change;
+  consistency read opens each of them in every open change, once per
+  review round (an agent's work between two hand-backs to a person);
 - declared with `prose-compact` in `.gitattributes`;
-- or a `DECISIONS.md`, `architecture*.md` or OpenSpec `spec.md` that none of
-  the above covers, read at least 20 times since its last compaction,
+- or an `architecture*.md` or OpenSpec `spec.md` that none of the above covers, read at least 20 times since its last compaction,
   counting only the last 300 commits behind HEAD. Each such commit counts as
   one read of the docs it implies: a change in a skill's directory implies its `SKILL.md` and
   read-first files; a `Bug-hunter:`, `Prose:` or `Spec-check:` trailer
   implies that skill's `SKILL.md`, and `Spec-check:` also the main specs
-  (`openspec/specs/**/spec.md`) and open OpenSpec changes. Commits imply a
-  `DECISIONS.md` or architecture doc only as a read-first file, which the
-  second bullet already covers, so only a main spec is read often this way.
+  (`openspec/specs/**/spec.md`) and open OpenSpec changes. No commit implies
+  a read of an architecture doc unless a `SKILL.md` or `AGENTS.md` links it
+  to be read first, and the second bullet already makes such a doc read
+  often. So counted reads make only a main spec read often.
+
+A `DECISIONS.md` outside `openspec/`, or an ADR (a numbered file such as
+`0001-use-postgres.md` directly in a directory named `adr`, `adrs` or
+`decisions`), is never read often, even when declared or linked: it is
+written for people, and agents never read or write it. A capability's
+`decisions.md` under `openspec/` is an agent's decision record, not one of
+these.
 
 A doc read often is due when either holds:
 - **Flagged text:** the text the detectors (below) flag holds at least 1,000
@@ -88,13 +96,15 @@ the working file.
    read* says.
    The brief is [compact.md](compact.md), then the doc's path, the headings
    other files link to or name, whether to keep "who decided" credits, the
-   answers file, and every flagged passage with its lines, kind and text.
+   answers file, every flagged passage with its lines, kind and text, and
+   the sections to consider moving out (*Moving a section out*).
    The answers file is in a folder of the system's temporary directory that
    only your operating-system account can use, so the subagent never writes
    inside `.git`. The subagent rewrites the file in place, answers each
    passage in the answers file (`removed`, `rewritten`, or `kept: <reason>`),
    and replies `Would drop: none` or one `Would drop:` line per conclusion it
-   left in place but believes is no longer true. If it could not write the
+   left in place but believes is no longer true, then a `Move <n>:` or
+   `Stay <n>:` line for each section listed. If it could not write the
    answers file, it adds `Answers: <file>`, naming where it wrote them.
 3. Stage the file (`git add <file>`) and run
    `python3 $S/prose.py compact <file> --verify [--answers <file>] [--paths-from <file|-> [-0]] [-- <path>...]`,
@@ -186,8 +196,8 @@ the working file.
    dispositions file. It exits 0, recording the review for the commit gate,
    or 2 with what is missing.
 9. Ask the person, through your host's picker, about each reviewer line
-   whose text starts `ask:` and each `Would drop:` line from the compactor,
-   and act on the answer. When you cannot ask, leave the conclusion in and
+   whose text starts `ask:`, each `Would drop:` line from the compactor and
+   each of its `Move` lines, and act on the answer. When you cannot ask, leave the conclusion in and
    put the line in your result for your caller. An answer that changes the
    file means staging it and running step 3 and steps 5 to 8 again, even
    after two reviews, because the commit gate needs a review of the file as
@@ -234,7 +244,36 @@ would inherit it and its gate.
 
 **Name every compaction** in your report and in the pull request body, with
 the file's size before and after, as `--verify` prints it: for example,
-"Compacted DECISIONS.md: 107,341 -> 61,020 bytes (-43%)".
+"Compacted docs/architecture.md: 107,341 -> 61,020 bytes (-43%)".
+
+**Moving a section out.** In a doc agents load whatever their task, read
+often because of its name or path, or declared `prose-compact` (*When it is
+due* lists both), step
+1 lists each section of 1,000 bytes or more that a condition heads or opens:
+a heading such as "When the caller commits" or "If you are a subagent", a
+first paragraph that starts "When", "If", "Unless" or "Without", or a bold
+lead-in such as "**Called by another skill.**". Setup, installation,
+troubleshooting, a caller and another skill being installed count as
+conditions. "Before", "After" and "Once" do not, since they order the steps
+every reader runs. An OpenSpec doc gets no list, since spec-check's
+consistency read needs all of it.
+
+The list is ranked by cost: each section's bytes times the doc's estimated
+reads. The reads are the commits among the last 300 that imply a read of the
+doc, by the rules *When it is due* gives for the reads each commit implies.
+Each commit also counts as a read of every `AGENTS.md` and `CLAUDE.md` above
+the files it changes.
+
+The compactor answers each section with a `Move` line, naming the new file,
+the line that will replace the section and the signal that sends a reader
+there, or a `Stay` line, which needs no action. A person decides each
+`Move` at step 9, since a move changes the doc's structure. Approving one
+does not change the compacted file, so it reruns no step: make each
+approved move after the compaction's commit, in a commit of its own: create the file, replace the
+section with the pointer line, and update every link to a heading that
+moved. When you cannot ask, put each `Move` line in your result.
+`python3 $S/prose.py cost` prints the same ranking for every such doc in
+the repository, after the size of each skill's description.
 
 **A person's request works on any file.** `prose compact <file>` runs on a
 file whether or not it is due, read often or a doc at all. The detectors
@@ -252,7 +291,7 @@ docs/runbook.md prose-compact
 CHANGELOG.md -prose-compact
 docs/architecture.md prose-compact-growth=30 prose-compact-flagged=2000
 openspec/specs/**/spec.md prose-compact-reads=10
-.agents/skills/*/DECISIONS.md prose-compact-attribution=drop
+.agents/skills/*/SKILL.md prose-compact-attribution=drop
 ```
 
 - `prose-compact` declares a file read often, of any type; a file git treats
@@ -327,7 +366,7 @@ costs nothing. `rg` skips hidden, gitignored and binary files; add
 `--hidden --no-ignore -a` unless you know no referrer is one.
 
 ```sh
-rg -l -i -F -e 'DECISIONS.md' -e '#snapshot-lifetime-policy' -e 'lifetime' ~/notes ~/other-repo
+rg -l -i -F -e 'architecture.md' -e '#snapshot-lifetime-policy' -e 'lifetime' ~/notes ~/other-repo
 ```
 
 Give step 1 and every `--verify` the same files: save the search's list once
@@ -342,7 +381,7 @@ path as `git ls-files` lists it.
 whatever its type or size.
 
 ```sh
-python3 $S/prose.py compact DECISIONS.md --verify -- ../README.md ../notes/plan.md
+python3 $S/prose.py compact docs/architecture.md --verify -- ../README.md ../notes/plan.md
 ```
 
 **Many files, or files a search found: `--paths-from`.** It reads one path
@@ -354,9 +393,9 @@ file. Below, the first two lines are step 1 and step 3, fed the same search;
 the third reads every Markdown file in a folder.
 
 ```sh
-rg -l0 -i -F -e 'DECISIONS.md' -e 'lifetime' ~/notes | python3 $S/prose.py compact DECISIONS.md --paths-from - -0
-rg -l0 -i -F -e 'DECISIONS.md' -e 'lifetime' ~/notes | python3 $S/prose.py compact DECISIONS.md --verify --paths-from - -0
-find ~/notes -name '*.md' -print0 | python3 $S/prose.py compact DECISIONS.md --verify --paths-from - -0
+rg -l0 -i -F -e 'architecture.md' -e 'lifetime' ~/notes | python3 $S/prose.py compact docs/architecture.md --paths-from - -0
+rg -l0 -i -F -e 'architecture.md' -e 'lifetime' ~/notes | python3 $S/prose.py compact docs/architecture.md --verify --paths-from - -0
+find ~/notes -name '*.md' -print0 | python3 $S/prose.py compact docs/architecture.md --verify --paths-from - -0
 ```
 
 The two forms combine: `--paths-from list.txt -- ../README.md`. In a

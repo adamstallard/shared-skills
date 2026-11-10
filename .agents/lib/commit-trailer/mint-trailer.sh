@@ -7,9 +7,6 @@
 # Shared: each skill that enforces a trailer calls this through a wrapper of
 # its own that supplies the key (bug-hunter's passes Bug-hunter).
 #
-# BEFORE CHANGING ANY OF THIS, READ DECISIONS.md next to this file — in
-# particular "The trailer is minted from the tree, not recalled by the agent".
-#
 # Run this AFTER the final `git add` and BEFORE `git commit` — the value is
 # only good for the tree it was minted against. Never type the value by hand,
 # and never copy one from another commit or another run — it has to be this
