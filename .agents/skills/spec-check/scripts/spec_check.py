@@ -2086,13 +2086,14 @@ def check_record_diff(rel, text, base, out):
             out.append(f)
 
 
-def check_main_records(corpus, base, out):
-    """Checks on every main record; returns the report lines of the
-    evolution errors the records' kept files clear (apply_kept_in)."""
+def check_main_records(corpus, base, out, only=None):
+    """Checks every main record, or only the records in the set `only`,
+    appending findings to out. Returns the report lines of the evolution
+    errors that a record's kept file waives (apply_kept_in)."""
     kept = []
     caps = {spec_cap(p) for p in corpus.specs}
     pending_caps = {cap for c in corpus.changes for cap in change_deltas(corpus, c)}
-    for rel in sorted(corpus.records):
+    for rel in sorted(corpus.records if only is None else only):
         cap = record_cap(corpus.template, rel)
         spec = f"openspec/specs/{cap}/spec.md"
         # A Rationale entry's title is checked against its capability's
@@ -2263,6 +2264,18 @@ def records_for(change, corpus, changed):
         if hit:
             out.append((rel, why(rel, f"its Paths {hit[0]} matches {hit[1]}")))
     return out
+
+
+def records_checked_with(change, corpus, changed):
+    """The main records `check <change>` checks: those records_for lists for
+    the consistency read (the records of the capabilities the change
+    touches, and each record whose Paths match a changed file), plus each
+    record the branch edits or whose kept file it edits. changed: the files
+    the branch changes, or None when there is no merge base to diff
+    against; then only records_for's capability records are found."""
+    edited = set(changed or [])
+    return {rel for rel, _ in records_for(change, corpus, changed)} | \
+        {rel for rel in corpus.records if rel in edited or record_kept(rel) in edited}
 
 
 # -- stacked changes -------------------------------------------------------------
@@ -3712,12 +3725,22 @@ def resolve_targets(corpus, targets):
     return changes, specs
 
 
-def run_checks(root, repo, base_ref, targets, validate, base_required=False, change=None):
+def run_checks(root, repo, base_ref, targets, validate, base_required=False, change=None,
+               records=False):
+    # records: when true, also check the main records each checked change
+    # bears on (records_checked_with). cmd_check passes true; cmd_sign
+    # leaves it false, so sign checks records only when "specs" is a
+    # target.
     corpus = Corpus(root)
     changes, specs = resolve_targets(corpus, targets)
     base = Base(repo, base_ref, change)
     if not base.ok and base_required:
         raise Fatal(f"the base {base_ref!r} does not resolve to a commit")
+    # change is the tree-ish read from (None for the working tree). Compute
+    # the branch's changed files now: the loop below rebinds the name change
+    # to each change's name. With "specs" a target, every record is checked,
+    # so no list is needed.
+    changed = changed_files(repo, base_ref, change) if records and not specs else None
     findings, statuses, archives = list(corpus.config_findings), [], []
     stacks, declared, kept = [], {}, []
     main_names = {(spec_cap(p), r.name) for p, rs in corpus.specs.items() for r in rs}
@@ -3788,6 +3811,9 @@ def run_checks(root, repo, base_ref, targets, validate, base_required=False, cha
             v, status = run_validate(root, change, known)
             findings += v
             statuses.append((change, status))
+    if records and changes and not specs:
+        kept += check_main_records(corpus, base, findings, only=set().union(
+            *(records_checked_with(c, corpus, changed) for c in changes)))
     if specs:
         reqs = [r for rs in corpus.specs.values() for r in rs]
         check_scenarios(reqs, findings)
@@ -3860,10 +3886,10 @@ def cmd_check(args):
         with tempfile.TemporaryDirectory(prefix="spec-check-") as tmp:
             materialize(repo, args.ref, tmp)
             res = run_checks(tmp, repo, base_ref, args.targets, not args.no_validate,
-                             bool(args.base), args.ref)
+                             bool(args.base), args.ref, records=True)
     else:
         res = run_checks(repo, repo, base_ref, args.targets, not args.no_validate,
-                         bool(args.base))
+                         bool(args.base), records=True)
     source = args.ref or "the working tree"
     errors = print_report(*res, base_ref, source, args.json)
     return 1 if errors else 0
