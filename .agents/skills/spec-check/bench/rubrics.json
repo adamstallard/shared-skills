@@ -1,0 +1,82 @@
+{
+  "prompt": "Check the OpenSpec change staged in this repository before I review it. Fix what you can in the spec files, don't commit, and report what you found.",
+  "common_must_not": [
+    "The agent made no git commit (the diff section shows the HEAD commit is still 'Base specs')."
+  ],
+  "cases": {
+    "contradiction": {
+      "change": "account-deletion",
+      "what": "The new requirement 'Account deletion removes audit entries' deletes a user's audit entries at once, contradicting audit-log's 'Audit retention' (entries kept 90 days) and undercutting 'Audit entry for each deletion'.",
+      "must": [
+        "Reports that 'Account deletion removes audit entries' contradicts audit-log's 'Audit retention' requirement (audit entries kept for 90 days), naming both sides."
+      ],
+      "must_not": [
+        "Does not report a missing scenario, a decision-record form error, or any other defect in the change besides the audit-entry deletion conflict and its direct consequences (a minor note such as an undefined term may be judged by whether it is a real defect, but must not be presented as an error the mechanical check found).",
+        "Does not resolve the conflict by silently rewriting the main audit-log spec under openspec/specs/ (editing the change's own delta, or recording an open question, is fine)."
+      ]
+    },
+    "no-scenario": {
+      "change": "digest-opt-out",
+      "what": "Requirement 'Opt-out takes effect within an hour' has a SHALL and no scenario.",
+      "must": [
+        "Reports that requirement 'Opt-out takes effect within an hour' has no scenario, and either adds one with WHEN and THEN to the delta or says it must be added."
+      ],
+      "must_not": [
+        "Does not report a contradiction with another spec or any other defect in the change that is not real (for example, claiming the opt-out conflicts with 'Daily digest')."
+      ]
+    },
+    "record-no-evidence": {
+      "change": "session-region-pinning",
+      "what": "The branch adds a Rationale entry 'Session pinned to its region.' to openspec/specs/session-store/decisions.md with no Evidence line.",
+      "must": [
+        "Reports that the new Rationale entry for 'Session pinned to its region' in session-store's decisions.md has no Evidence line (a record error), and either adds real evidence only if it is given, moves the reasoning to design.md, removes the entry, or leaves it as a question for a person. Inventing an Evidence link fails this."
+      ],
+      "must_not": [
+        "Does not report a contradiction between region pinning and 'Session storage' (Redis, keyed by session id) as a hard conflict; noting compatibility is fine.",
+        "Does not invent an Evidence link or measurement that appears nowhere in the repository."
+      ]
+    },
+    "design-duplicates-record": {
+      "change": "digest-send-hour",
+      "what": "design.md's second Decision restates the notifications decision record's 'Rejected: Sending the digest through a hosted newsletter service.' entry (same review, same link).",
+      "must": [
+        "Reports that design.md repeats the decision record's rejected alternative 'Sending the digest through a hosted newsletter service' (record material in design.md), and deletes the design.md copy or says to delete it (linking to the record is fine)."
+      ],
+      "must_not": [
+        "Does not report other defects in the change that are not real (for example, claiming the MODIFIED 'Daily digest' drops a scenario, or that 07:00 conflicts with 'No note bodies in email')."
+      ]
+    },
+    "rationale-title-mismatch": {
+      "change": "concurrent-session-limit",
+      "what": "session-store's decisions.md gains 'Rationale: Limit on concurrent sessions.', which names no requirement; the requirement is titled 'Concurrent session limit'.",
+      "must": [
+        "Reports that the Rationale entry 'Limit on concurrent sessions' does not name the requirement by its exact title, and retitles it 'Concurrent session limit.' or says to."
+      ],
+      "must_not": [
+        "Does not report other defects in the change that are not real (for example, that the session limit contradicts 'Session expiry')."
+      ]
+    },
+    "clean": {
+      "change": "audit-export",
+      "what": "A clean change. Nothing should be flagged as a defect.",
+      "must": [
+        "Concludes that the change has no errors to fix, or reports only minor observations it explicitly treats as optional or not defects."
+      ],
+      "must_not": [
+        "Does not report a contradiction, a missing scenario, a decision-record problem, or record material in design.md as a defect of this change.",
+        "Does not make substantive edits to the change's requirements or scenarios (typo-level or no edits are fine)."
+      ],
+      "clean": true
+    },
+    "record-restates-requirement": {
+      "change": "deletion-reason",
+      "what": "The branch adds 'Constraint: Audit entries are kept for 90 days and then deleted.' to audit-log's decisions.md, which restates the requirement 'Audit retention' that a scenario already tests (consistency read item 16).",
+      "must": [
+        "Reports that the new Constraint 'Audit entries are kept for 90 days and then deleted' restates the 'Audit retention' requirement and should be cut (its reason already sits in the Rationale entry), and removes it or says to."
+      ],
+      "must_not": [
+        "Does not report other defects in the 'Deletion reason in the audit entry' requirement or its scenarios that are not real."
+      ]
+    }
+  }
+}
