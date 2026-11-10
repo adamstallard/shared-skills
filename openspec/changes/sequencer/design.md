@@ -299,11 +299,11 @@ to an open pull request's branch, merges, and a daily run (igor#231,
 decision 6), in one `concurrency` group so two runs never edit the same
 body at once.
 
-The template uses `pull_request_target` (the decision record's *Rejected:
-Running the workflow on `pull_request`* says why). A `pull_request_target`
-run holds a write token, which a pull request's code could misuse, so the
-run reads each pull request's change files as data, through `git fetch` of its
-head and the OpenSpec CLI, and never checks out or runs its code. The
+The template uses `pull_request_target`, and reads each pull request's
+change files through `git fetch` of its head and the OpenSpec CLI, never
+running them. `openspec/specs/sequencer/decisions.md` gives the reasons
+for both choices: *Rejected: Running the workflow on `pull_request`*, and
+the Rationale for *The workflow runs no code from a pull request*. The
 repository's choice of model step is written into the template by
 `setup-ci --model-step`, so changing it is a reviewed change to the
 workflow file.
