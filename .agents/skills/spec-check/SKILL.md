@@ -440,8 +440,9 @@ section holds each undecided item. OpenSpec's design.md instructions name
 both sections; create design.md when the change has none. When a
 decision changes, rewrite its *Decisions* entry and keep no trace of how it
 was amended: git and pull request comments hold the history. proposal.md
-holds no decisions either: it stays OpenSpec's one or two pages of Why and
-What Changes.
+is not a place for decisions, nor for reasoning beyond its one-line reasons
+for the change: it keeps to the sections of OpenSpec's proposal template,
+and to the one or two pages OpenSpec's instructions ask for.
 
 An `evolution` error marks each line of a change's files, and each line a
 branch changes in a decision record, that records history: an amendment
