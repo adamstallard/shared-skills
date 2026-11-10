@@ -230,8 +230,10 @@ python3 ~/.agents/skills/spec-check/scripts/spec_check.py setup-ci
 
 writes `.github/workflows/spec-check.yml`. Each run of that workflow
 downloads `spec_check.py` from GitHub at the commit the file pins: the
-newest commit that changed `spec_check.py` or the workflow template in your
-clone of shared-skills. setup-ci refuses when that commit is not pushed.
+newest commit on shared-skills' main that changed `spec_check.py` or the
+workflow template, `ci/spec-check.yml`, which setup-ci copies into the
+file. setup-ci reads the pin and the template from GitHub with gh, so it
+needs gh installed and signed in, but no clone of shared-skills.
 `--sha <commit>` pins another commit on main instead, and `--force`
 replaces an existing workflow. Commit it, then make `spec-check` a
 required check in the base branch's protection rules, so a pull request
@@ -239,7 +241,9 @@ with an unread change cannot merge. The workflow needs `pull-requests:
 write`, which it declares; a fork's pull request gets a read-only token, so
 there it fails the check without making a draft.
 
-**To update the pin**, run `setup-ci --force` from an updated clone.
+**To update the pin** after shared-skills changes the script or the
+template, run `setup-ci --force` and commit the result. `--force` replaces
+the whole file, discarding any local edit.
 
 ## Troubleshooting
 

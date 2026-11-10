@@ -573,9 +573,10 @@ stderr.
 
 **Setting up a repository.** When it has `.github/workflows/`, offer to add
 spec-check's workflow: `python3 $SC/spec_check.py setup-ci` writes
-`.github/workflows/spec-check.yml`, pinned to the newest commit that
-changed this script or the workflow template; setup-ci refuses one that is
-not pushed. Commit it, and suggest making the `spec-check` check required
+`.github/workflows/spec-check.yml`, pinned to the newest commit on
+shared-skills' main that changed this script or the workflow template.
+setup-ci reads the pin and the template from GitHub, so gh must be
+installed and signed in. Commit it, and suggest making the `spec-check` check required
 in the base branch's protection rules.
 
 When it has `openspec/config.yaml` and its agents write changes through
