@@ -312,3 +312,7 @@ there it fails the check without making a draft.
 - **`check` says it cannot read a pull request's full file list.** `gh`
   lists only the first 100 files, and reading the rest from GitHub failed.
   Check that `gh` is signed in and run it again.
+
+## Benchmark
+
+[bench/](bench/README.md) measures what a run costs and what it catches. Rerun it before and after changing SKILL.md or consistency-read.md.
