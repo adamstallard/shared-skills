@@ -58,6 +58,15 @@ including a result that contradicts what design.md assumed.
 - [ ] 3.5 A test that no command calls a merge, approve, close or reopen
       API
 - [ ] 3.6 `order --json`, which edits nothing
+- [ ] 3.7 Rank a spec pull request ahead of the pull requests that come
+      after it, and stop a pull request awaiting a reviewer once their
+      review's `commit_id` is its head commit
+- [ ] 3.8 A prerequisite in the prose skill, built before the sequencer
+      relies on it: change prose's footer hash, in signing and in
+      checking, as *A prose footer stays valid whatever the script writes
+      between its markers* says. prose has no OpenSpec spec in this
+      repository, so that requirement and this task are the change's
+      only record
 
 ## 4. Judgement questions
 

@@ -412,6 +412,20 @@ stays last, and at the body's end otherwise.
 - **WHEN** #91 enters the order, and its body's last line is a person's text
 - **THEN** its new block is added after that line, at the body's end
 
+### Requirement: A prose footer stays valid whatever the script writes between its markers
+
+The prose skill, changed for the sequencer, SHALL leave out of its
+footer hash each span from a `<!-- sequencer:begin -->` line through its
+`<!-- sequencer:end -->` line, with the blank lines just above that span,
+in both signing and checking, so that a body that prose signed stays
+signed whatever the script adds, rewrites or removes between the markers.
+
+#### Scenario: A signed body stays signed after its block changes
+
+- **WHEN** #90's body ends with a prose footer that was valid when signed,
+  and the script adds #90's block above it, and later rewrites that block
+- **THEN** prose still finds #90's footer valid after each edit
+
 ### Requirement: A block is rewritten only when the order or its reasons change
 
 The script SHALL edit a body only when the text between its markers would
@@ -465,15 +479,50 @@ order.
 - **WHEN** #93 is a draft requesting review from a reviewer
 - **THEN** #93 is not that reviewer's next review
 
+### Requirement: A spec pull request is reviewed before the implementations that build on it
+
+A spec pull request is one whose diff against its base changes only files
+under `openspec/`. Where a reviewer awaits both a spec pull request and a
+pull request that comes after it through edges, the spec pull request
+SHALL rank ahead of it for that reviewer's next review.
+
+#### Scenario: A spec is offered before the code that waits on it
+
+- **WHEN** a reviewer awaits #82, which changes only files under
+  `openspec/`, and #95, a code pull request whose body says
+  `Depends on #82`
+- **THEN** the order's issue names #82, not #95, as that reviewer's next
+  review
+
+### Requirement: A pull request awaits a reviewer until they review its current head
+
+A pull request SHALL stop awaiting a reviewer once that reviewer submits
+a review of any kind on its current head commit, as the review's
+`commit_id` in GitHub's pull request reviews API shows. When a push
+changes its head, it SHALL await that reviewer again.
+
+#### Scenario: A review of the current head takes a pull request off the queue
+
+- **WHEN** `maya` submits a review of #97 whose `commit_id` is #97's head
+  commit
+- **THEN** #97 no longer awaits `maya`, and is not her next review
+
+#### Scenario: A push after a review puts the pull request back on the queue
+
+- **WHEN** `maya` reviewed #97 at its head commit, and a later push gives
+  #97 a new head commit
+- **THEN** #97 awaits `maya` again
+
 ### Requirement: Reviewers come from the repository's config, else from GitHub's requests, else CODEOWNERS
 
 A non-draft pull request SHALL await every login in the `reviewers` list
 of the repository's `.github/sequencer.json` except its author. With no
-such list (no file, no key or an empty list), it SHALL await its
-requested reviewers on GitHub, and when it requests no one, the owners
-CODEOWNERS gives its changed files. Every caller SHALL take reviewers
-this way. `order --reviewers <login>,...` SHALL use that list in place of
-the whole chain, and `publish` SHALL take no reviewer list.
+such list (no file, no key or an empty list), it SHALL await each
+reviewer it has requested on GitHub, including one GitHub dropped from
+the list on their review. Having requested no one, it SHALL await the
+owners CODEOWNERS gives its changed files. Every caller SHALL take
+reviewers this way, except as *Only a dry run takes a reviewer list*
+allows.
 
 #### Scenario: A configured list makes each pull request await each reviewer
 
@@ -487,6 +536,18 @@ the whole chain, and `publish` SHALL take no reviewer list.
 - **WHEN** `.github/sequencer.json` does not exist, #96 requests no
   reviewer, and CODEOWNERS gives `@maya` the files it changes
 - **THEN** #96 is awaiting `@maya`'s review
+
+#### Scenario: A requested reviewer who has reviewed stays a reviewer
+
+- **WHEN** `.github/sequencer.json` does not exist, #98 requested `li`,
+  `li` reviewed it, and a push then gave #98 a new head commit
+- **THEN** #98 awaits `li` again, and CODEOWNERS is not consulted
+
+### Requirement: Only a dry run takes a reviewer list
+
+`order --reviewers <login>,...` SHALL use that list in place of the
+configured reviewers, requested reviewers and CODEOWNERS, and `publish`
+SHALL accept no reviewer list.
 
 #### Scenario: A dry run's reviewer list publishes nothing
 

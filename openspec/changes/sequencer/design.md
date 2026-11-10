@@ -170,7 +170,10 @@ giving its place, between markers the script owns, never in a comment**
 order lives in one issue's body* says why not a comment. A block is rewritten only when the order or its reasons change
 (igor#231, decision 2), so a watcher is notified only of a real move. The
 script touches nothing outside its markers, so a person may keep their own
-text in the same body.
+text in the same body. prose hashes the text above its footer, so a block
+added above a prose footer would make the footer stop matching. Task 3.8
+changes prose to leave the sequencer's marked span out of that hash, so
+the footer stays valid.
 
 - *Ruled out by a scenario:* keeping the order in comments (*The whole
   order lives in one issue's body*).
@@ -194,11 +197,23 @@ tiebreak give, and never changes it.
 pull request that the most items come after,** because review time usually
 limits how fast a team ships (igor#231, decision 4). Reviewers are the
 `reviewers` list in the repository's `.github/sequencer.json`; with none,
-each pull request's requested reviewers; and when it requests no one, the
-CODEOWNERS file (#43). Every caller takes reviewers through this chain,
-and `publish` accepts no reviewer list of its own, so an Igor and CI
-publish the same issue body for the same inputs. A draft is not offered for review, since its author has not
-handed it over yet.
+everyone each pull request has requested on GitHub, including anyone
+GitHub dropped from its request list when they submitted a review; and
+when it has requested no one, the CODEOWNERS file. Every caller takes reviewers through this chain,
+and `publish` accepts no reviewer list of its own, so an Igor's Sequencer
+role and the CI workflow publish the same issue body for the same inputs. A draft is not offered
+for review, since its author has not handed it over yet.
+
+A spec pull request ranks ahead of the pull requests that come after it.
+Ranking by how many items come after each pull request already gives
+that order: every item after a later pull request is also after the
+spec, and the spec has that pull request after it too, so the spec's
+count is always higher. *A spec pull request is reviewed before the
+implementations that build on it* states the order outright, so that a
+later change to the ranking keeps it. A pull request leaves a reviewer's
+queue once they review its current head, which each review's
+`commit_id`, the commit it was made on, shows, and returns when a push
+moves the head.
 
 ### Which issues the order holds
 
