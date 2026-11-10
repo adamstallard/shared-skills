@@ -42,30 +42,45 @@
 #
 # Where the script comes from: the workflow downloads spec_check.py from
 # adamstallard/shared-skills at the commit named by SPEC_CHECK_SHA, below.
-# That commit is the pin. The pin must be a commit GitHub can serve from
-# adamstallard/shared-skills, such as one on its main branch. For a commit
-# never pushed to GitHub, the download fails, and so does the check.
+# That commit is the pin. In this template SPEC_CHECK_SHA holds a
+# placeholder, which setup-ci replaces with the pin when it installs the
+# workflow. The pin must be a commit GitHub can serve from
+# adamstallard/shared-skills. A commit on its main branch always works. A
+# commit never pushed to GitHub fails the download, and so the check. For
+# any other commit, such as one pushed only to a fork, nothing here
+# confirms that GitHub serves it.
 #
 # How the pin is set: `spec_check.py setup-ci` writes this workflow into a
 # repository as .github/workflows/spec-check.yml. It copies the template
 # .agents/skills/spec-check/ci/spec-check.yml from the shared-skills clone it
 # runs from, so an out-of-date clone writes an out-of-date workflow. It sets
-# the pin to the commit given with `--sha`, or else to the newest commit in
-# that clone that changed spec_check.py. Without `--sha`, setup-ci refuses
-# that commit unless it is on one of the clone's remote-tracking branches,
-# which shows that some remote has it; that remote may be a fork. With
-# `--sha`, it checks only that the value is a full 40-character SHA. Neither
-# check confirms that GitHub can serve the commit from
-# adamstallard/shared-skills.
+# the pin to the commit given with `--sha`, or else to the newest commit that
+# changed spec_check.py in the history of the clone's checked-out branch.
+# Without `--sha`, setup-ci writes the workflow only if that commit is on one
+# of the clone's remote-tracking branches; otherwise it exits with an error
+# and writes nothing. A remote-tracking branch shows that some remote has the
+# commit, but that remote may be a fork, and the branch need not be main.
+# With `--sha`, setup-ci checks only that the value is a full 40-character
+# SHA. So neither check confirms the commit is on main. To confirm it, run
+# this, with <sha> the SPEC_CHECK_SHA value in the installed workflow:
+#   gh api repos/adamstallard/shared-skills/compare/main...<sha> --jq .status
+# It prints `behind` (the commit is an ancestor of main) or `identical` (it
+# is main's head) when the commit is on main. Any other output, or an error,
+# means the commit is not on main and is not confirmed to work: run setup-ci
+# again with `--sha` and a commit on main.
 #
-# Editing this workflow: `setup-ci --force` replaces the whole file,
-# discarding any local edit, and is also the way to update the pin. A change
-# every repository should get goes in the template, by a pull request to
-# adamstallard/shared-skills. Once it merges, pull it into a shared-skills
-# clone and run `setup-ci --force` from there. Without `--sha`, that moves
-# the pin only when the merged change touched spec_check.py. A change only
-# this repository needs can be made here, but must be made again after each
-# `setup-ci --force`.
+# Editing the installed workflow: `setup-ci --force` replaces the whole of a
+# repository's .github/workflows/spec-check.yml, discarding any local edit,
+# a hand edit of SPEC_CHECK_SHA included. It is also how to update the pin.
+# An edit every repository should get goes in the template, by a pull
+# request to adamstallard/shared-skills. Once it merges, pull it into a
+# shared-skills clone and run `setup-ci --force` from there. That writes the
+# new template, but without `--sha` the pin is still the newest commit that
+# changed spec_check.py. So after a merge that left spec_check.py alone, the
+# pin stays where it was: the workflow runs the new template's steps with
+# the same spec_check.py as before. To pin a different commit, pass it with
+# `--sha`. An edit only one repository needs can be made in its installed
+# copy, but must be made again after each `setup-ci --force`.
 name: spec-check
 on:
   pull_request:
