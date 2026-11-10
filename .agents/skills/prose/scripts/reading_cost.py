@@ -9,9 +9,6 @@ compact.py and prose.py feed them what they read:
   loads. A person decides each move; nothing here moves text.
 - `skill_description()`: the `description:` of a SKILL.md's front matter,
   which a host loads in every session for every installed skill.
-
-Read ../DECISIONS.md (*Compaction aims at reading cost*) before changing a
-pattern or a limit here.
 """
 
 from __future__ import annotations

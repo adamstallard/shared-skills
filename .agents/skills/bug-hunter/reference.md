@@ -310,8 +310,7 @@ git commit --amend --no-edit --trailer "Bug-hunter: skipped at triage (docs only
 That is the whole class of placement mistakes gone — blank lines, wrapping, and
 ordering against other trailers all become git's problem instead of yours, and a
 long value stays on one line and still parses. The rules below are what you are
-up against if you hand-write the block anyway — and why the script exists
-([DECISIONS.md](DECISIONS.md#the-commit-is-assembled-by-a-script-not-by-hand)).
+up against if you hand-write the block anyway — and why the script exists.
 
 **Commit and push as separate steps.** The companion hook runs after a tool call
 finishes, so `git commit && git push` in a single call means the report arrives
@@ -395,8 +394,7 @@ because `scripts/` resolves relative to this skill's own directory, not to
 whatever project you are sitting in. It is the directory the skill was loaded
 from, not a home-directory install path, because the skill can be loaded from
 anywhere: a plugin directory, or a pinned copy on a server, where
-`~/.claude/skills` is missing or holds a different copy
-([DECISIONS.md](DECISIONS.md#scripts-are-found-from-the-skills-base-directory)).
+`~/.claude/skills` is missing or holds a different copy.
 
 `git write-tree` runs with no `-C`, so it reads the *project's* index from
 wherever you already are — only the path to the script needs to be absolute,
@@ -434,13 +432,12 @@ mechanism exists for — not a later, deliberate reconstruction of the correct
 hash from the commit itself. It does not prove Step 1's triage, Step 3's
 find pass, or Step 5's refute pass happened, and it does not verify the
 counts in the `Bug-hunter:` trailer are honest — an agent that runs the mint
-script once and writes whatever counts it likes still passes. See
-[the shared library's DECISIONS.md](../../lib/commit-trailer/DECISIONS.md#the-trailer-is-minted-from-the-tree-not-recalled-by-the-agent)
-for why a stronger, delegation-verifying check was considered and set aside,
-and for the reasoning behind scoping this to plain commits only — never
-cherry-picks or rebase replays, which legitimately carry an older trailer
-(and its now-stale binding) forward onto different content, tree unchanged,
-even across a later amend of the message alone.
+script once and writes whatever counts it likes still passes.
+
+The binding is checked on plain commits only, never on cherry-picks or
+rebase replays. A replay legitimately carries an older trailer, with its
+now-stale binding, onto different content. A later amend that changes only
+the replayed commit's message keeps that trailer too.
 
 **Ordering is what breaks this.** Stage everything the commit will contain,
 *then* mint, *then* commit, with nothing staged or unstaged in between, no
@@ -538,17 +535,19 @@ picker, in its next reply.
 ## Where a record goes
 
 A run writes two kinds of thing down. Both are knowledge about the code under
-review, so neither goes in this skill's own files — those are about the skill.
-The homes for each are listed in `SKILL.md` at Step 9 — the codebase's stated
-convention, then a home it already has, a new file only when there is none.
-What follows is why the two lists differ, and the shape of each entry.
+review, so neither goes in this skill's own files — those are about the skill
+— and neither goes in a `DECISIONS.md` or an ADR, which agents don't read.
+The homes for each are listed in `SKILL.md` at Step 9. What follows is why
+the two lists differ, and the shape of each entry.
 
 **A rejected approach is a decision**, read by someone about to make the
-opposite one — which is why it can live at the site, and an open question
-cannot: nobody is standing anywhere in particular when a gap comes due. The
-entry is the decision, why, what was tried and rejected, and where the lesson
-stops applying — the shape this skill's own [DECISIONS.md](DECISIONS.md) uses
-throughout. At a site it compresses to a sentence in the codebase's own comment
+opposite one. That reader is editing the code it is about, so a code comment
+there reaches them. An open question cannot go in a comment: whoever picks
+up a known gap later is not editing any particular line. The
+entry is what was tried and rejected, the evidence against it, and where the
+lesson stops applying. In a capability's decision record the evidence is
+what a test can't express: a failure, a measurement or an outside fact. At a
+site it compresses to a sentence in the codebase's own comment
 idiom: present tense, the alternative and what breaks when it is taken, no
 narration of what changed.
 
@@ -646,8 +645,7 @@ trailer. An abort is report-only, so this run may not commit at all (see
 ## Step 3 — Searching with a property
 
 A way for the finder to produce candidates, used only where the code under
-review maintains an invariant that something states. Why each limit:
-[DECISIONS.md](DECISIONS.md#a-property-finds-the-candidate-an-example-proves-it).
+review maintains an invariant that something states.
 
 **1. Choose the invariant and quote where it is stated.** A MUST or SHALL in a
 spec, a comment, or a name that promises it: a cursor never moves past an item

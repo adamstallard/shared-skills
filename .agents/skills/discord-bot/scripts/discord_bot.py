@@ -3,8 +3,6 @@
 
 Each command makes its Discord API calls, prints one JSON object, and exits;
 nothing keeps running between calls. Standard library only.
-
-Why it is built this way, and what was tried and rejected: ../DECISIONS.md.
 """
 
 import argparse
@@ -40,8 +38,7 @@ THREAD_TYPES = {10, 11, 12}  # announcement thread, public thread, private threa
 READABLE_MESSAGE_TYPES = {0, 19, 21}  # default, reply, thread starter
 # Application flags meaning the Message Content intent is on: GATEWAY_MESSAGE_CONTENT
 # (a bot in 100 or more servers) and GATEWAY_MESSAGE_CONTENT_LIMITED (under 100).
-# Either one counts. See DECISIONS.md, "Message Content is on; Server Members
-# and Presence stay off".
+# Either one counts.
 MESSAGE_CONTENT_FLAGS = (1 << 18) | (1 << 19)
 
 PERMISSIONS = {
@@ -166,7 +163,7 @@ def env_identity(env):
     """The one identity that DISCORD_BOT_TOKEN or DISCORD_BOT_TOKEN_FILE belongs to.
 
     Another identity never borrows it: a process holding one bot's token would
-    otherwise act as that bot whatever --identity says. See DECISIONS.md.
+    otherwise act as that bot whatever --identity says.
     """
     return env.get("DISCORD_BOT_IDENTITY") or "default"
 
@@ -723,7 +720,7 @@ def invite_url(application_id):
     CHANNEL_BITS is the sum of their bits.
 
     scope=bot makes it a server install whatever the application's default
-    install settings say. See DECISIONS.md.
+    install settings say.
     """
     query = {"client_id": application_id, "scope": "bot", "permissions": CHANNEL_BITS}
     return f"{AUTHORIZE}?{urllib.parse.urlencode(query)}"
@@ -830,7 +827,6 @@ def store_in_macos_keychain(service, account, token, run=subprocess.run):
     It reads the answers from standard input only when it has no terminal,
     so it runs in a new session. Given one copy instead of two, it stores an
     empty password and still exits 0, so the entry is read back to check it.
-    See DECISIONS.md.
     """
     where = f"(service {service!r}, account {account!r})"
     cmd = ["security", "add-generic-password", "-U", "-s", service, "-a", account, "-w"]
@@ -843,7 +839,8 @@ def store_in_macos_keychain(service, account, token, run=subprocess.run):
         raise Failure(f"could not read back the keychain entry {where} to check it: {result.stderr.strip()}")
     # Stripped as read_keychain strips the token it reads, so this passes only
     # when later commands would get this token. A wrong entry is left in place,
-    # because it may be another keychain's; DECISIONS.md says why.
+    # because it may be another keychain's: `security` searches every keychain
+    # in the search list.
     if result.stdout.strip() != token:
         raise Failure(f"the keychain entry {where} does not hold the token entered; "
                       "run store-token again, or add the entry with Keychain Access")
@@ -856,7 +853,7 @@ def bot_for_token(token, make_api=Api):
     rejects it or can't be reached, or Discord's answer names no bot.
 
     Checking first stops a wrong value, such as the Client Secret, from being
-    stored and failing later in some other command. See DECISIONS.md.
+    stored and failing later in some other command.
     """
     if not token_shaped(token):
         raise Failure("the token entered is not a bot token: it must be one line of printable ASCII, "

@@ -22,8 +22,9 @@ Four parts, all standard library only:
   `prose cost` lists both for a whole repository, the descriptions by size
   and the sections by cost.
 
-Read ../DECISIONS.md (*Compaction keeps docs read before work compact* and
-*Compaction aims at reading cost*) before changing a default here.
+A DECISIONS.md or an ADR is written for people, and agents never read or
+write one, so no trigger makes it due, even when .gitattributes declares it
+(see human_only).
 """
 
 import bisect
@@ -108,16 +109,39 @@ FAILED = 1
 
 # Names that are current-state docs agents read before working, wherever they
 # sit. Compared without case.
-DEFAULT_NAMES = {"decisions.md", "skill.md", "agents.md", "claude.md"}
+DEFAULT_NAMES = {"skill.md", "agents.md", "claude.md"}
+
+# Directories that hold architecture decision records (ADRs), compared
+# without case, and the numbered name an ADR has in one, such as
+# 0001-use-postgres.md. Only a numbered file counts, so in a skill named
+# `adr`, its SKILL.md and the files it links to be read first still count as
+# read often.
+ADR_DIRS = {"adr", "adrs", "decisions"}
+ADR_NAME = re.compile(r"[0-9]{3,}-.*\.md", re.I)
+
+
+def human_only(path):
+    """True when path is a doc written for people that agents never read or
+    write: a free-form DECISIONS.md, or an ADR, a numbered file directly in
+    an ADR directory. Under the repository's root openspec/, nothing is: a
+    decisions.md there is a capability's decision record, which agents read."""
+    pure = pathlib.PurePosixPath(path)
+    if pure.parts[:1] == ("openspec",):
+        return False
+    return pure.name.lower() == "decisions.md" or (
+        pure.parent.name.lower() in ADR_DIRS and ADR_NAME.fullmatch(pure.name) is not None)
 
 
 def default_current(path):
     """True when, with no `prose-compact` attribute, path is a current-state
-    doc agents read before working: a DECISIONS.md, SKILL.md, AGENTS.md or
-    CLAUDE.md; an architecture doc; or an OpenSpec spec, or an open change's
-    proposal, design or delta spec."""
+    doc agents read before working: a SKILL.md, AGENTS.md or CLAUDE.md; an
+    architecture doc; or, under openspec/, a spec, a capability's decision
+    record, or an open change's proposal, design or delta spec. A
+    human_only doc never is."""
     pure = pathlib.PurePosixPath(path)
     name = pure.name.lower()
+    if human_only(path):
+        return False
     if name in DEFAULT_NAMES:
         return True
     if name.startswith("architecture") and name.endswith(".md"):
@@ -125,6 +149,8 @@ def default_current(path):
     parts = pure.parts
     if "openspec" not in parts:
         return False
+    if name == "decisions.md" and parts[:1] == ("openspec",):
+        return True
     rest = parts[parts.index("openspec") + 1:]
     if rest[:1] == ("specs",):
         return name == "spec.md"
@@ -213,7 +239,7 @@ def settings(paths, root):
 DATE = r"(?:19|20)[0-9]{2}-[01][0-9]-[0-3][0-9]"
 
 # Each is (name, pattern). Measured on 26 docs from this repository and
-# igor, listed in ../DECISIONS.md (*Compaction*): these fire on narrative a
+# igor, another repository: these fire on narrative a
 # compaction removes, and not on a decision's attribution ("(Adam,
 # 2026-10-24)"), a measurement's date, or a rejected alternative stated on
 # its own.
@@ -1279,8 +1305,11 @@ def implied_reads(root, index, links, stops):
 
 
 def _often(path, setting, links):
-    """Why path is read often by its place or a declaration, or None."""
+    """Why path is read often by its place or a declaration, or None. A
+    human_only doc never is, even when declared."""
     name = pathlib.PurePosixPath(path).name.lower()
+    if human_only(path):
+        return None
     if setting.declared:
         return "declared prose-compact in .gitattributes"
     if name in ALWAYS_READ:
@@ -1381,7 +1410,8 @@ def _due(paths, root, passes):
     pending = []
     for path in paths:
         setting = found[path]
-        if setting.exempt or setting.binary or not (setting.current or path in links):
+        if setting.exempt or setting.binary or human_only(path) \
+                or not (setting.current or path in links):
             continue
         entries = index.get(path, [])
         if len(entries) != 1 or entries[0].stage != "0" or entries[0].mode not in REGULAR:

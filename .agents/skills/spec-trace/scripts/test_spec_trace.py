@@ -370,7 +370,6 @@ class Search(Repo):
         self.assertEqual(code, 0, out)
 
     def test_a_tracked_file_that_gitignore_matches_is_not_searched(self):
-        # Deliberately unsupported: DECISIONS.md, "A test whose path .gitignore matches is not supported".
         self.tag_both()
         self.write(".gitignore", "build/\n*.log\n")
         self.write("build/x.test.js", f"// {AT} work-claiming: Nope\n")

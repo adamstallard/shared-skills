@@ -1,12 +1,10 @@
 #!/bin/sh
 # Makes one commit that carries the trailers of one or more skills, so no
 # skill's trailer is ever typed by hand. Each skill passes a family: a
-# `<Key>: <value>` trailer, plus what ties the value to this commit — a binding
-# line minted here, or for --verified-value the value itself.
-#
-# BEFORE CHANGING ANY OF THIS, READ DECISIONS.md next to this file — in
-# particular "One commit, several families" and "The trailer is minted from the
-# tree, not recalled by the agent".
+# `<Key>: <value>` trailer, plus a binding: what ties the value to this
+# commit's staged tree. A --minted family's binding is a separate
+# `<Key>-Tree: <hash>` line made here; a --verified-value family's value
+# carries its own binding, which a verifier checks.
 #
 # Usage:
 #   commit-with-trailers.sh <family>... [--co-authored-by <value>]... [--allow-empty] --message-file <path> --
@@ -14,14 +12,14 @@
 #
 # --allow-empty commits even when the staged tree is the parent's, so a
 # commit can carry trailers that record work which changed no file, such as
-# a spec-check consistency read that amended nothing (DECISIONS.md, "An
-# empty commit, only when asked"). Without it, git refuses such a commit.
+# a spec-check consistency read that amended nothing. Without it, git
+# refuses such a commit.
 #
 # --message-file <path> reads the message from a file instead of from
 # <subject> <body>: the first line is the subject, the line after it must be
 # blank, and everything after that is the body. It is the form to use: the
-# message never has to be quoted on a command line (DECISIONS.md, "The message
-# comes from a file"). Give it before the `--`, with nothing after the `--`.
+# message never has to be quoted on a command line. Give it before the `--`,
+# with nothing after the `--`.
 #
 # A family is one of:
 #   --minted <Key> <value>
@@ -35,17 +33,18 @@
 #       Bound by the value itself, e.g. `Prose: ✓ 0123abcd4567:89abcdef0123`,
 #       with no binding line. The value is accepted only if <verifier>
 #       confirms it still matches. The verifier runs from the caller's
-#       directory, so it sees the index about to be committed. Its only
+#       directory, where git finds the same repository and index this script
+#       commits, so it checks the index about to be committed. Its only
 #       argument is the trailer line `<Key>: <value>`; its stdin is the
 #       message: the subject, then, if the body is not empty, a blank line and
 #       the body. The message is exactly as passed here, with no trailers and
 #       no trailing newline. Exit 0 means it still matches; anything else
 #       refuses the whole commit. When a value is bound and the repository
 #       has a pre-commit or commit-msg hook, this script runs pre-commit
-#       before the verifiers (step 3 below), so a hook that changes the
-#       staged files makes the value stale. The skill that makes the value
-#       should therefore run run-pre-commit.sh (next to this file) before it
-#       signs. If the commit-msg hook changes
+#       before the verifiers (step 3 below). A value signed before that
+#       would go stale if the hook changed the staged files, and its verifier
+#       would refuse. So the skill that makes the value runs run-pre-commit.sh
+#       (next to this file) before it signs. If the commit-msg hook changes
 #       the message, the verifier runs again on the changed message, minus
 #       the trailer lines this script added.
 #
@@ -58,8 +57,9 @@
 #   subject is checked for emptiness after trimming, but passed to git as
 #   given.
 # - Keys hold letters, digits and dashes, and start with a letter.
-# - No key may be a prefix of another, ignoring case: git treats such keys as
-#   one (`Pro` and `Prose`). The one exception is `<Key>-Tree`, a family's
+# - No key may be a prefix of another, ignoring case: git matches trailer keys
+#   by prefix, so it treats such keys as one (`Pro` and `Prose`). The one
+#   exception is `<Key>-Tree`, a family's
 #   own binding line, which is never passed as a key.
 # - A <minter> or <verifier> is a path containing a slash (`./verify`, not
 #   `verify`).
@@ -76,8 +76,9 @@
 # 1. validate every argument (exit 2)
 # 2. check that every minter and verifier exists (exit 1)
 # 3. only if a value is bound and the repository has a pre-commit or
-#    commit-msg hook: take the hook path, through commit-with-hooks.sh, which
-#    runs pre-commit now if there is one. Exit 1 if pre-commit fails or
+#    commit-msg hook: take the hook code path, commit-with-hooks.sh, which
+#    runs pre-commit now if there is one. The other code path, the plain
+#    path, commits with a plain `git commit`. Exit 1 if pre-commit fails or
 #    cannot be run first (an unmerged index, or git older than 2.36). With
 #    only a commit-msg hook on git older than 2.36, the plain path commits
 #    instead, and git runs commit-msg.

@@ -59,14 +59,16 @@ Both calls of `check` run the repository's pre-commit hook first, if it has one.
     prose.py verify-commit <sha>              after a commit (the commit hook)
     prose.py verify-post                      stdin: posted text
     prose.py hook-post --host <platform>      the posting hook
-    prose.py hook-handback --host <platform>  the hook after each tool call: prints
-                                              the current-state pass when the call
-                                              handed a pull request back
+    prose.py hook-handback --host <platform>  the hook after each tool call: when the
+                                              call handed a pull request back, prints
+                                              the current-state pass, a reminder to
+                                              fix any doc, body or title that still
+                                              describes work as unfinished
     prose.py hook-gate                        the first-write gate
 
-Standard library only. Read ../DECISIONS.md before changing what is hashed
-into a trailer or footer (the staged tree, the message, a post's text): a
-change there invalidates every signature already minted.
+Standard library only. Changing what is hashed into a trailer or footer (the
+staged tree, the message, a post's text) invalidates every signature already
+minted.
 """
 
 import argparse
@@ -124,10 +126,10 @@ except ImportError:
     GITHUB_MCP = re.compile(r"^mcp__(?:plugin_.+_)?github__")
     GH_TEXT = re.compile(r"\bgh(?![\w-])")
 # What counts as a hand-back for review, shared with spec-check's hand-back
-# hook (DECISIONS: A pull request body is cold-read at a hand-back). Without
-# it, no call is read as a hand-back: a deferred footer is accepted on any
-# pull request body post, a hand-back's included, no hand-back is blocked for
-# a deferred body, and no current-state pass is printed.
+# hook. Without it, no call is read as a hand-back: a deferred footer is
+# accepted on any pull request body post, a hand-back's included, no
+# hand-back is blocked for a deferred body, and no current-state pass (the
+# reminder to rewrite what still describes work as unfinished) is printed.
 try:
     import handbacks  # noqa: E402
 except ImportError:
@@ -152,10 +154,9 @@ MARK = "\u2713"
 # Each half of the trailer, `✓ <tree>:<message>`, is this many hex digits.
 HALF = 12
 # The trailer's value. After a cold read it ends with counts, such as `; cold
-# read: 5 findings, 3 fixed, 2 kept; understood: 4 items, 1 fixed, 0 kept`
-# (DECISIONS: Every cold-read finding is answered before signing, and The cold
-# reader says what it understood). This pattern only splits the counts out;
-# counts_valid accepts them only in the forms cold_counts and understood_counts
+# read: 5 findings, 3 fixed, 2 kept; understood: 4 items, 1 fixed, 0 kept`.
+# This pattern only splits the counts out; counts_valid accepts them only in
+# the forms cold_counts and understood_counts
 # print. A value without the understood part is accepted too: commits signed
 # before cold readers wrote understood lines carry none.
 TRAILER = re.compile(r"✓ (?P<tree>[0-9a-f]{%d}):(?P<message>[0-9a-f]{%d})"
@@ -164,9 +165,8 @@ TRAILER = re.compile(r"✓ (?P<tree>[0-9a-f]{%d}):(?P<message>[0-9a-f]{%d})"
 FOOTER_LENGTH = 6
 FOOTER = re.compile(r"^prose ✓ ([0-9a-f]{%d})$" % FOOTER_LENGTH)
 # A pull request body signed inside a review round, with its cold read
-# deferred to the hand-back (DECISIONS: A pull request body is cold-read at a
-# hand-back). Its hash covers DEFERRED_SALT before the body, so cutting the
-# note off by hand leaves a footer that does not match.
+# deferred to the hand-back. Its hash covers DEFERRED_SALT before the body, so
+# cutting the note off by hand leaves a footer that does not match.
 DEFERRED_NOTE = "(cold read deferred to the hand-back)"
 DEFERRED_FOOTER = re.compile(r"^prose ✓ ([0-9a-f]{%d}) %s$"
                              % (FOOTER_LENGTH, re.escape(DEFERRED_NOTE)))
@@ -620,8 +620,7 @@ def prose_in(root, parents, read: Callable[[str], str]):
     or spec file the diff touches, and each code comment it adds to or edits.
     The flags are history-language warnings on those comments. parents are
     the commit's parents: none diffs against the empty tree; two or more, a
-    merge, list only what git's combined diff shows the merge changed
-    (DECISIONS.md, *A merge commit is judged by what the merge changed*).
+    merge, list only what git's combined diff shows the merge changed.
     """
     scan = scanner()
     items, flags = [Item("commit message", "", None)], []
@@ -900,8 +899,7 @@ def run_pre_commit(root, signing):
 
     The library records a pass, so the commit script that follows does not
     run the hook again on the same state. With no hook, nothing runs and
-    nothing is printed. See DECISIONS.md, *`prose check` runs the pre-commit
-    hook first*.
+    nothing is printed.
     """
     if not RUN_PRE_COMMIT.is_file():
         raise Refused(
@@ -1641,8 +1639,7 @@ def user_state_dir():
 def pass_dir(root=None):
     """Where the pass tokens live: prose/passes in the repository's git
     directory, which is never committed and goes with the clone; outside a
-    repository, in the user's state home (DECISIONS: The rules are on screen
-    before a signature)."""
+    repository, in the user's state home."""
     try:
         found = subprocess.run(["git", "rev-parse", "--git-common-dir"], cwd=root or ".",
                                capture_output=True, text=True, check=False)
@@ -1808,8 +1805,7 @@ def next_sign(token, report="", dispositions=""):
 # The cold read
 # ---------------------------------------------------------------------------
 
-# The brief a cold reader gets: its only copy (DECISIONS: A cold read before
-# signing).
+# The brief a cold reader gets. cold-read.md is the only copy of its text.
 COLD_READ = HERE.parent / "cold-read.md"
 # The exit status of a signing call that printed a cold-read brief and signed
 # nothing. The token stays unspent.
@@ -1880,9 +1876,9 @@ def dispositions_header(token):
     return f"dispositions {token}"
 
 
-# How much of a file the saved cold-read brief copies for each item
-# (DECISIONS: The cold reader runs on the brief alone). Lines shown before a
-# comment, and after the code it sits on:
+# How much of a file the saved cold-read brief copies for each item, so the
+# cold reader needs nothing but the brief. Lines shown before a comment, and
+# after the code it sits on:
 BRIEF_CONTEXT_LINES = 5
 # The lines after a comment that stand for the code it sits on:
 BRIEF_CODE_LINES = 40
@@ -2006,10 +2002,9 @@ def _merged(ranges):
 def brief_files(items, texts):
     """The part of a saved cold-read brief after the items: for each file an
     item names, once, in the order first named, the staged lines its items
-    need, with their numbers, so the reader needs nothing but the brief
-    (DECISIONS: The cold reader runs on the brief alone). A doc passage gets
-    its section, a comment the code it sits on; the lines between are said
-    to be left out. Bytes that are not UTF-8 show as U+FFFD."""
+    need, with their numbers, so the reader needs nothing but the brief. A
+    doc passage gets its section, a comment the code it sits on; the lines
+    between are said to be left out. Bytes that are not UTF-8 show as U+FFFD."""
     paths = list(dict.fromkeys(item.path for item in items if item.path))
     if not paths:
         return ""
@@ -2133,8 +2128,7 @@ def item_changed(old, new, spans):
     """Whether an item differs in new from old, the text when its brief was
     printed: a line of it changed or removed, or a line added inside it or
     directly above or below it. spans are its (first, last) line pairs in
-    old; with none, the whole text is the item, as for a post (DECISIONS:
-    Every cold-read finding is answered before signing)."""
+    old; with none, the whole text is the item, as for a post."""
     if not spans:
         return old != new
     # Lines as git counts them, so the spans' numbers hold. No autojunk: it
@@ -2370,8 +2364,7 @@ class ColdResult(NamedTuple):
 def unasked_refusal(token, unasked, paths, answers, report, dispositions, items=()):
     """The refusal of findings and understood lines kept without a person
     being asked: each one, what to ask, and, for an agent that cannot ask,
-    what to hand back (DECISIONS: Every cold-read finding is answered before
-    signing). items holds (item number, understood line, Kept) for each
+    what to hand back. items holds (item number, understood line, Kept) for each
     understood line kept without a person asked."""
     kinds = [f"{count} {kind}(s)" for count, kind in ((len(unasked), "finding"),
                                                       (len(items), "understood line")) if count]
@@ -2457,10 +2450,9 @@ def pass_record(token, root=None):
 
 # A signing call that checks a cold read and signs records the result for the
 # staged tree, so that a later token's signing call on the same tree, as when
-# only the message changed, reuses it instead of reading the files cold again
-# (DECISIONS: A re-sign of the same tree reuses its cold read). Results older
-# than this are deleted to keep the directory small; a result's age never
-# decides whether it is reused.
+# only the message changed, reuses it instead of reading the files cold again.
+# Results older than this are deleted to keep the directory small; a result's
+# age never decides whether it is reused.
 COLD_RESULT_LIFETIME = 7 * 24 * 60 * 60
 TREE = re.compile(r"[0-9a-f]{40}|[0-9a-f]{64}")
 
@@ -2924,8 +2916,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description="List, sign and verify prose.")
     sub = parser.add_subparsers(dest="command", required=True)
     # The first call passes --goals, and gets the rules and a pass token; the
-    # signing call passes --pass <token> (DECISIONS: The rules are on screen
-    # before a signature).
+    # signing call passes --pass <token>.
     # start, check and sign all take goals and mark the session; only check
     # and sign redeem a token, so start refuses --pass.
     goal_args = argparse.ArgumentParser(add_help=False)
@@ -3089,8 +3080,7 @@ def main(argv=None):
             compact = compactor()
             root = git(["rev-parse", "--show-toplevel"], args.repo).rstrip("\n")
             # A compaction is signed only when the bytes staged both passed
-            # --verify and had their review completed with --reviewed
-            # (DECISIONS: Compaction).
+            # --verify and had their review completed with --reviewed.
             pending = compact.unverified(root, args.amend, pass_dir(args.repo))
 
             if args.token:
@@ -3141,7 +3131,7 @@ def main(argv=None):
                     return COLD_READ_NEEDED
                 # Each staged file compacted with `prose compact` is named in
                 # the trailer, so every clone's trigger sees the compaction,
-                # however little it cut (DECISIONS: Compaction).
+                # however little it cut.
                 compacted = compact.compacted_paths(root, args.amend, pass_dir(args.repo))
                 if compacted:
                     trailer += "; compacted: " + ", ".join(compacted)
@@ -3163,7 +3153,7 @@ def main(argv=None):
             print_check(assigned, flags, unused,
                         "--message-goals-file" if args.message_goals_file else "--goals")
             # Every staged path, doc or not: a declaration in .gitattributes
-            # makes any file current-state (DECISIONS: Compaction). The
+            # makes any file current-state. The
             # triggers only advise, so a listing that fails skips them.
             try:
                 # A merge is advised only on the paths it changed itself, the
@@ -3173,8 +3163,8 @@ def main(argv=None):
                     else compact.changed_paths(root, args.amend)
             except (ValueError, Refused):
                 staged_paths = []
-            # The pass directory holds the completed-review records that mark
-            # a compaction which cut little (DECISIONS: Compaction).
+            # The trigger needs the pass directory: a compaction that cut
+            # little is found only through the completed-review records there.
             # The trigger only advises: an error in it warns, and the first
             # call goes on without the advice. The commit gate is separate.
             try:

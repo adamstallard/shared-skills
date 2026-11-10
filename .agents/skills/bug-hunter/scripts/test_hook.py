@@ -230,7 +230,7 @@ class CommitTrailerTests(unittest.TestCase):
         # and the command that turns the check off. It restates nothing from
         # that section, because a restated copy drifted from SKILL.md. It
         # prescribes no remedy such as --amend, which may land on the wrong
-        # commit (../../../lib/commit-trailer/DECISIONS.md#each-report-names-its-skills-section).
+        # commit.
         self.settle()
         self.commit("FEAT: x", filename="g.txt")
         stderr = self.run_hook("--host", "claude").stderr
@@ -1900,11 +1900,11 @@ class CommitTrailerTests(unittest.TestCase):
     # The gap this closes: an honest fix, with a real red-then-green test,
     # made entirely outside this skill, then given a trailer that pattern-
     # matches the shape this file documents. The trailer parses; the words
-    # are right; nothing was ever delegated. Scoped to every trailer except
+    # are right; none of the skill's passes (finder, refuter) ever ran.
+    # Scoped to every trailer except
     # a skip — not only ones claiming a fix — because the first draft of
     # this scoped to "N bugs fixed" and left a one-word bypass: write
-    # "0 bugs found" instead and the same fabrication sails through. See
-    # ../../../lib/commit-trailer/DECISIONS.md#the-trailer-is-minted-from-the-tree-not-recalled-by-the-agent.
+    # "0 bugs found" instead and the same fabrication sails through.
 
     def test_the_mint_script_is_executable(self):
         self.assertTrue(MINT.stat().st_mode & 0o111, f"{MINT} lost its exec bit")
@@ -2202,8 +2202,7 @@ class CommitTrailerTests(unittest.TestCase):
     # docs make for it: every trailer is a real git trailer, a skip is never
     # minted, anything else is minted against the tree that lands, the
     # Co-Authored-By footer cannot fall out of the trailer block, and the
-    # hook is quiet on what it produces. See
-    # ../DECISIONS.md#the-commit-is-assembled-by-a-script-not-by-hand.
+    # hook is quiet on what it produces.
 
     def wrapper_commit(self, *args):
         """Stage nothing; run the wrapper with `args` in the test repo, as an
@@ -2584,7 +2583,6 @@ class CommitFamiliesTests(unittest.TestCase):
     family (Bug-hunter, Bug-hunter-Tree) with a stand-in for prose's family:
     one `Prose` line whose value is a signature minted beforehand and checked
     by its own verifier (--verified-value).
-    See ../../../lib/commit-trailer/DECISIONS.md#one-commit-several-families.
     """
 
     LIB = HOOK.parent.parent.parent.parent / "lib" / "commit-trailer" / "commit-with-trailers.sh"
@@ -3018,9 +3016,6 @@ class CommitFamiliesTests(unittest.TestCase):
                 self.assertFalse(self.commit_marker.exists(), "git commit was invoked")
 
     # -- the repository's pre-commit hook runs before anything is bound ------
-    #
-    # See ../../../lib/commit-trailer/DECISIONS.md
-    # #the-pre-commit-hook-runs-before-anything-is-bound.
 
     # A lint-staged-style formatter: rewrites each staged .py file (drops its
     # spaces) and stages the result. Idempotent, so git commit's own run of it
@@ -3238,9 +3233,6 @@ class CommitFamiliesTests(unittest.TestCase):
 
 
     # -- each hook runs once per commit ---------------------------------------
-    #
-    # See ../../../lib/commit-trailer/DECISIONS.md
-    # #the-pre-commit-hook-runs-once-per-commit.
 
     def counting_hook(self, name, extra="", where=None):
         """A hook that logs its name to $HOOK_RUNS, then runs <extra>."""
@@ -3580,8 +3572,7 @@ class CommitFamiliesTests(unittest.TestCase):
 
     # -- bug-hunter's commit script forwards other skills' families ---------
     #
-    # Its commit step carries every installed skill's trailer on one commit
-    # (../../../lib/commit-trailer/DECISIONS.md#every-installed-skills-trailer-on-one-commit),
+    # Its commit step carries every installed skill's trailer on one commit,
     # so it passes --verified-value families through to the library and
     # refuses every other option.
 
@@ -3716,7 +3707,6 @@ class CommitFamiliesTests(unittest.TestCase):
                 self.assertFalse(self.commit_marker.exists(), "git commit was invoked")
 
     # --message-file: the message from a file, never quoted on a command line.
-    # See ../../../lib/commit-trailer/DECISIONS.md#the-message-comes-from-a-file.
 
     def message_file(self, text, name="msg.txt"):
         path = self.tmp / name
@@ -3843,8 +3833,7 @@ class CommitFamiliesTests(unittest.TestCase):
 class SkillVerifyTests(unittest.TestCase):
     """A skill's report file may define commit_trailer_verify, which the hook
     calls instead of the <Key>-Tree check. A demo skill, `demo` / `Demo:`,
-    whose valid value is `ok <12 hex tree of the commit>`. See
-    ../../../lib/commit-trailer/DECISIONS.md#a-skill-may-verify-its-own-trailer.
+    whose valid value is `ok <12 hex tree of the commit>`.
     """
 
     GIT = ["git", "-c", "user.name=T", "-c", "user.email=t@e.com",
@@ -4140,8 +4129,8 @@ class HookReportTextTests(unittest.TestCase):
 
 class SkillNoticeTests(unittest.TestCase):
     """A skill's report file may define commit_trailer_notice, whose output
-    the hook says for each new commit, whatever its trailer and its
-    pathspec. See ../../../lib/commit-trailer/DECISIONS.md#a-skill-may-print-notices-about-a-commit.
+    the hook says for each new commit, whatever its trailer and whether or
+    not it touches the skill's COMMIT_TRAILER_PATHSPEC.
     """
 
     # The demo skill of SkillVerifyTests, without rerunning its tests.

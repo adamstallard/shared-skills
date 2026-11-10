@@ -3,9 +3,6 @@
 # the trailer lines to pass through, then the open decisions, numbered and
 # counted. This file is the format's one definition; no skill types the block.
 #
-# BEFORE CHANGING ANY OF THIS, READ DECISIONS.md next to this file — in
-# particular "The result block is printed by a script".
-#
 # Usage:
 #   result-block.sh <skill> [--decisions <file>] -- <trailer line>...
 #

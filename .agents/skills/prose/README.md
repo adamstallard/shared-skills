@@ -5,8 +5,7 @@ commit messages, pull request descriptions, ticket comments) so you can review
 it in one read, and makes every commit and post carry proof that the rewrite
 ran.
 
-> Agent instructions: [SKILL.md](SKILL.md). Why it works this way:
-> [DECISIONS.md](DECISIONS.md).
+> Agent instructions: [SKILL.md](SKILL.md).
 
 ## What you get
 
@@ -137,15 +136,14 @@ it proposes the line, and once you confirm, the agent makes the edit.
 | GitHub posts, through `gh` | The same hook, for a few exact command forms (see [Posting through `gh`](#posting-through-gh)) |
 | A Claude Code session's first file write or GitHub post | A hook blocks it until prose's first call has printed the rules in that session |
 | A changed comment or doc passage, or a post | The signing call signs it only with a cold reader's report for that pass, and an answer to each finding and to each line saying what the reader understood. A pull request body posted between two hand-backs for review (`gh pr create`, `gh pr ready`, `gh pr edit --add-reviewer`) may defer its cold read to the next one |
-| A pull request handed back for review | Before the call, the posting hook blocks it while the body still defers its cold read; after it, a hook prints the current-state pass that is due |
+| A pull request handed back for review | Before the call, the posting hook blocks it while the body still defers its cold read; after it, a hook reminds the agent to do the current-state pass: rewrite any doc, body or title the pull request changes that still describes work as unfinished or to come |
 
 To turn the hooks off, run
 `python3 ~/.agents/skills/manage-skills/scripts/skills.py disable-hook prose`;
 `enable-hook prose` turns them back on. While they are off, nothing is checked.
 
 There is no GitHub Action: installing the skill installs these hooks, so every
-agent that uses it is checked where it works. See
-[DECISIONS.md](DECISIONS.md#rejected-a-github-action).
+agent that uses it is checked where it works.
 
 ## Using it in Cursor: unverified
 
@@ -154,8 +152,7 @@ The posting hook is wired for Cursor as a best guess, on
 hook contract but has not been run in a real Cursor, so it may need fixing. If
 it blocks every shell command, or never blocks an unsigned post, turn it off
 with `python3 ~/.agents/skills/manage-skills/scripts/skills.py disable-hook
-prose` and report it. See
-[DECISIONS.md](DECISIONS.md#cursors-posting-hook-is-wired-as-a-best-guess).
+prose` and report it as an issue on this repository.
 
 ## Posting through `gh`
 

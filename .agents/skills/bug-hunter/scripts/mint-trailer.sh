@@ -3,10 +3,11 @@
 # of whatever is staged right now, as a ready-to-pass Bug-hunter-Tree trailer.
 #
 # Run this AFTER the final `git add` and BEFORE `git commit` — the value is
-# only good for the tree it was minted against:
+# only good for the tree it was minted against. A normal commit never calls
+# it directly: commit-with-trailer.sh runs it just before committing. The one
+# hand-typed use is SKILL.md's amend that adds a missing trailer:
 #
-#   git add fix.py test_fix.py
-#   git commit -m "Handle empty input in the parser" -m "Body text here." \
+#   git commit --amend --no-edit --no-verify \
 #     --trailer "Bug-hunter: 1 iteration, 1 bug fixed" \
 #     --trailer "$(scripts/mint-trailer.sh)"
 #
@@ -15,9 +16,7 @@
 # fixed" does — only "skipped ..." means triage stopped before any loop ran,
 # with nothing for a tree to attest to.
 #
-# The minting is shared — ../../../lib/commit-trailer/mint-trailer.sh, whose
-# DECISIONS.md explains "The trailer is minted from the tree, not recalled by
-# the agent". Read that before changing either file.
+# The minting is shared — ../../../lib/commit-trailer/mint-trailer.sh.
 
 # -P so the paths below, and any error naming them, are the clone's rather
 # than an install symlink's.

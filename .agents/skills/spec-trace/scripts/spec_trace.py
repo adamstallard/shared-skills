@@ -19,7 +19,6 @@ the names `show` gives.
 
 Standard library only. check, report and baseline need git and the OpenSpec CLI; state and
 decline need neither.
-Why it is built this way, and what was rejected: ../DECISIONS.md.
 """
 
 import argparse
@@ -100,8 +99,7 @@ class Scenario:
 
 # -- the OpenSpec CLI ----------------------------------------------------------
 #
-# spec-trace reads specs and deltas only through the OpenSpec CLI's public commands
-# (DECISIONS.md, "Scenarios are read only through the OpenSpec CLI"): `openspec show
+# spec-trace reads specs and deltas only through the OpenSpec CLI's public commands: `openspec show
 # --json`, `--type spec` for a main spec and `--deltas-only` for a change. 1.15.0 is the
 # minimum, as for spec-check. Without it, check, report and baseline refuse.
 
@@ -203,7 +201,7 @@ def show_all(requests):
 #
 # `openspec show --json` gives no line numbers. A scenario's line is found by searching
 # the file's text for the names `show` gives: a plain text search with no grammar of
-# OpenSpec's headers (DECISIONS.md, "A scenario's line is a text search"). A wrong guess
+# OpenSpec's headers. A wrong guess
 # only puts a message on the wrong line. A scenario the search cannot find gets its
 # requirement's line; when neither is found, the line is 0 and the message names the file only.
 

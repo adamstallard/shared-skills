@@ -120,7 +120,7 @@ asks.
 ## Committing with other skills' trailers, and amending
 
 **When bug-hunter is installed,** the same commit carries bug-hunter's trailer
-too ([the rule](../../lib/commit-trailer/DECISIONS.md#every-installed-skills-trailer-on-one-commit)).
+too.
 While bug-hunter is running, its commit step runs prose's two calls (SKILL.md's *Two calls*) and
 passes the `Prose:` value to its script: let it commit, once, with both
 trailers. When you commit yourself, pass both in one command to the commit

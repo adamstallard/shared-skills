@@ -919,9 +919,7 @@ def git(args, cwd=None):
 # Every diff prose reads starts from DIFF_CONFIG and the DIFF flags
 # below, so no setting outside the
 # repository's tracked files changes what a diff says: each one a user's
-# config or environment can reshape is pinned to git's default here
-# (prose's DECISIONS.md, *Diffs are read with git's defaults*, has the full
-# list).
+# config or environment can reshape is pinned to git's default here.
 # - `added_lines` reads the default shape of a unified diff. Unpinned,
 #   `diff.external` replaces the text, `color.ui=always` threads escape
 #   codes through it, `diff.relative` names paths from the caller's
@@ -929,8 +927,9 @@ def git(args, cwd=None):
 #   `diff.srcPrefix` move the `b/` the header parse strips: each empties
 #   the listing or drops files from it.
 # - The algorithm, the indent heuristic, the inter-hunk context and the
-#   rename limit decide which lines count as added; a textconv driver
-#   numbers lines of its output rather than of the file read afterwards.
+#   rename limit decide which lines count as added. A textconv driver would
+#   number the lines of its converted output, so the line numbers would not
+#   point into the file prose reads afterwards.
 # - A personal attributes file can mark a doc `-diff` or bind it to a
 #   driver, and `core.bigFileThreshold` makes a large file binary. The
 #   repository's own `.gitattributes` still applies, as it does for anyone.

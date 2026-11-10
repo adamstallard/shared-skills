@@ -5,8 +5,8 @@
 #
 # Usage: check-commit-trailer.sh [--host <platform>]
 #
-# The check itself is shared — ../../../lib/commit-trailer/check-commit-trailer.sh,
-# with its own DECISIONS.md. This file configures it for prose and sources it.
+# The check itself is shared — ../../../lib/commit-trailer/check-commit-trailer.sh.
+# This file configures it for prose and sources it.
 # Sourcing keeps $0 pointing at this file, so when the library re-runs the
 # check in each submodule, it runs this file again. The report's wording, and
 # the verification the library calls back into, are in hook-report.sh.

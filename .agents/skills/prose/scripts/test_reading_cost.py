@@ -437,6 +437,13 @@ class Moves(unittest.TestCase):
         self.repo.commit("add\n")
         self.assertIn("Sections to consider moving out (1)", self.brief("docs/runbook.md"))
 
+    def test_a_declared_decisions_md_lists_none(self):
+        self.repo.write(".gitattributes", "*.md prose-compact\n")
+        self.repo.write("skills/a/DECISIONS.md", f"# D\n\n{self.CONDITIONAL}")
+        self.repo.commit("add\n")
+        self.assertIn("Sections to consider moving out: none; agents do not load this "
+                      "doc before every task.", self.brief("skills/a/DECISIONS.md"))
+
     def test_a_skill_with_no_section_lists_none(self):
         self.repo.write("skills/a/SKILL.md", "# A\n\nAll of it, always.\n")
         self.repo.commit("add\n")

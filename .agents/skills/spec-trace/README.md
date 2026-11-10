@@ -266,5 +266,3 @@ tagged test.
 ```bash
 python3 .agents/skills/spec-trace/scripts/test_spec_trace.py
 ```
-
-Why it works this way: [DECISIONS.md](DECISIONS.md).

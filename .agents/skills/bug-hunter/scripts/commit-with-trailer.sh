@@ -21,10 +21,6 @@
 # the trailer to the staged tree. It passes that family to the library, with
 # any --verified-value families given here.
 #
-# BEFORE CHANGING THIS SCRIPT OR THE LIBRARY, READ the library's decision
-# record, ../../../lib/commit-trailer/DECISIONS.md, and this skill's
-# ../DECISIONS.md, "The commit is assembled by a script, not by hand".
-#
 # Usage:
 #   commit-with-trailer.sh [--allow-empty] -F <message-file> <bug-hunter-value> [co-authored-by]
 #   commit-with-trailer.sh [--allow-empty] --verified-value <verifier> <Key> <value> \
@@ -58,9 +54,7 @@
 #                    the library runs <verifier> on the staged files and the
 #                    message, and refuses the whole commit if the verifier
 #                    says the value no longer matches them. Every installed
-#                    skill's trailer goes on one commit: the library's
-#                    DECISIONS.md, "Every installed skill's trailer, on one
-#                    commit", says why.
+#                    skill's trailer goes on one commit.
 #   --               Ends the families. The brackets in usage()'s [--] mark
 #                    it optional, but it may be left out only when no family
 #                    is given. It is required after a family so that a family
@@ -167,17 +161,17 @@
 # and the state the hook ran in: HEAD, the hook file, git config and unstaged
 # changes. A pass matches when all of these are the same now. The record is
 # written by run-pre-commit.sh, a second script in the library's directory that
-# commit-with-trailers.sh uses to run the hook. prose check's two calls (the
-# first call and the signing call) run the hook through it too, so a commit
-# made right after them finds the pass recorded and
-# does not run the hook twice. After binding, the library runs commit-msg
+# commit-with-trailers.sh uses to run the hook. prose check takes two calls:
+# the first prints the rules and a pass token, and the second signs. Both run
+# the hook through run-pre-commit.sh too, so a commit made right after them
+# finds the pass recorded and does not run the hook twice. After binding, the library runs commit-msg
 # itself, on the final message with the trailers in it. If that hook changes
 # the message, the library runs the verifiers again on the changed message, and
 # refuses if the hook removed or changed a trailer line the library added. It
 # then commits with `git commit --no-verify`, so that git runs neither hook a
 # second time. With nothing to bind, git runs the hooks during `git commit` as
-# usual. Why: the library's DECISIONS.md, "The pre-commit hook runs before
-# anything is bound".
+# usual. Running pre-commit first means a formatter rewrites the staged files
+# before anything is bound to them.
 #
 # When it takes over, the library first writes the staged tree
 # (`git write-tree`) as a baseline, then runs the pre-commit hook (if there is

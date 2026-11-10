@@ -3,8 +3,7 @@
 The mutation procedure, from Step 3 to Step 9. [SKILL.md](SKILL.md) says
 when it runs and sends you here; read this file before starting any
 mutant, and follow it. The subagents' own brief is
-[mutation-brief.md](mutation-brief.md). Why each part:
-[DECISIONS.md](DECISIONS.md#mutants-are-made-by-agents-in-a-throwaway-copy).
+[mutation-brief.md](mutation-brief.md).
 
 A mutant is one small deliberate change to the code, such as a `<` made
 `<=` or a statement deleted. The tests kill it by failing; one they pass
@@ -59,8 +58,7 @@ When no test mentions the function, select the tests that mention the
 functions in its own source file that call it. Use the whole test file only when the runner
 cannot select within it, and say so in the report. Where the project
 offers no obvious selection, choose by hand and name the command in the
-report; a general rule for it is an open question
-([DECISIONS.md](DECISIONS.md#mutants-are-made-by-agents-in-a-throwaway-copy)).
+report; there is no general rule for it.
 A selection that runs no test is not a focused command: widen it, or
 leave the function out and say so.
 
@@ -92,9 +90,7 @@ For `pkg/conditions.py`, the same search is
 `git grep -l -F -e conditions.py -e pkg.conditions -e 'import conditions' -- 'test_*.py'`,
 where the last pattern catches `from pkg import conditions`. A search
 that matches too many files costs only test time. One that misses a file
-leaves its tests out of the recheck, which
-[DECISIONS.md](DECISIONS.md#a-survivor-is-rechecked-against-the-tests-near-its-function)
-accepts. When the search finds no test file, the recheck command is
+leaves its tests out of the recheck, an accepted cost. When the search finds no test file, the recheck command is
 `none`.
 
 Then find the function's callers in its own source file. Run
@@ -118,8 +114,7 @@ within them. Compare what it collects with what the focused command
 collects: when every test is already in the focused command, the recheck
 command is `none`, and a mutant that survives the focused command is a
 survivor. The time budget above applies to the recheck as to the
-focused command. Why this narrow, and what it can miss:
-[DECISIONS.md](DECISIONS.md#a-survivor-is-rechecked-against-the-tests-near-its-function).
+focused command.
 
 **2. Split the work.** Group the target functions by file, and give each
 mutation subagent one group or more, at most three subagents at once,
