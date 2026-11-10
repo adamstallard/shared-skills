@@ -40,6 +40,10 @@ inquisitor's, or that spec's, *Title*:
 - discord-bot's **header options** are `--agent`, `--session` and
   `--project`.
 - **The picker** is Claude Code's question tool, `AskUserQuestion`.
+- A **capability decision record** is a repository's
+  `openspec/specs/<capability>/decisions.md`, one per capability.
+- **The session's model** is the model of the Claude Code session the
+  answer session runs in, which judges questions and drafts replies.
 - **Task 0.N** is that task in this change's tasks.md.
 
 Any other term is defined in the requirement that sets the term's rule.
@@ -1952,6 +1956,21 @@ edit.
   withholds, as the inquisitor's *The log command withholds a link where
   it would leak* says
 
+### Requirement: No answer file goes to a more visible lore repository
+
+When the lore repository is more visible than the repository the question
+was asked from, the answer session SHALL push no answer file; the answer
+stays in the thread where it was given.
+
+#### Scenario: An answer typed in a private thread stays there
+
+- **WHEN** the person answers a question asked in a private repository's
+  thread, which a questions-branch file on a public lore repository holds
+- **THEN** the relay posts the answer in the thread, no answer file is
+  pushed to the lore repository, where it would show the answer to readers
+  the private repository does not have, and the questions-branch file stays
+  unanswered there
+
 ### Requirement: A questions-branch answer file records the answer as given
 
 The answer file SHALL hold the question the person saw; the `authority`
@@ -2258,7 +2277,7 @@ the warning and the post.
 
 - **WHEN** the person picks filter 1 for a question in a public
   repository, and the place it is decided is a private repository's
-  `DECISIONS.md`
+  capability decision record
 - **THEN** the person is warned that posting the reply shows the record
   exists, and it is posted only once they confirm
 
@@ -2318,7 +2337,7 @@ or citation file's push is owed and retried as a handled file's is*.
 #### Scenario: A note more private than the question is reworded before the miss
 
 - **WHEN** the person declines with filter 1 a question about a public
-  repository, with the note "decided in o/private's DECISIONS.md", a
+  repository, with the note "decided in o/private's decision record", a
   private repository
 - **THEN** the session's model rewords the note at the question's
   privacy, naming neither the private repository nor its file, the person
@@ -2433,8 +2452,8 @@ thread again as before any relay post.
 #### Scenario: A relayed question gets a recorded answer by itself
 
 - **WHEN** a GitHub comment starting `User asks: ` from the relay App of
-  Maya, another person, tags the person, and the repository's
-  `DECISIONS.md` on its default branch decides it
+  Maya, another person, tags the person, and a capability decision record
+  on the repository's default branch decides it
 - **THEN** the relay posts a recorded answer naming the question, which
   is listed as answered for the person, and no miss is logged
 
@@ -2457,8 +2476,8 @@ write none of the post.
 #### Scenario: A recorded answer is posted by itself
 
 - **WHEN** an agent's question in a public repository asks whether retries
-  back off, and that repository's `DECISIONS.md` on its default branch
-  decides it
+  back off, and a capability decision record on that repository's default
+  branch decides it
 - **THEN** the relay posts the fixed recorded answer with that file's URL
   on its `Recorded in: ` line and no answer quoted, the question is
   listed as answered for the person, and a miss against filter 1 is
@@ -2644,8 +2663,8 @@ post.
 #### Scenario: A reply to an automatic post is judged again
 
 - **WHEN** an agent replies to a relay post holding filter 4's fixed text
-  with a new question the repository's `DECISIONS.md` on its default
-  branch decides
+  with a new question a capability decision record on the repository's
+  default branch decides
 - **THEN** the relay posts, naming the reply, a recorded answer
 
 ### Requirement: No automatic post repeats one in its chain of replies

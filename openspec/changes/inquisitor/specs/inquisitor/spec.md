@@ -118,7 +118,7 @@ the agent lists it as not done, filing an issue if it outlives the work.
 #### Scenario: An answered question is not asked
 
 - **WHEN** an agent is about to ask whether a skill's hooks are enabled by
-  default, and a `DECISIONS.md` in the repository already decides it
+  default, and a capability decision record in the repository already decides it
 - **THEN** the agent cites that file and section, follows the decision, and
   asks nobody
 
@@ -145,6 +145,20 @@ switching between them later is cheap, and the agent chooses one.
   verdict `decided` naming the post as where the choice is recorded, the
   statement in the post being the whole of the choice
 
+#### Scenario: A question with one option of merit is decided by filter 3
+
+- **WHEN** the agent would ask whether to keep a test that checks nothing
+  or to delete it, and only deleting it has merit
+- **THEN** filter 3 stops the question, the agent deletes the test, and
+  asks nobody
+
+#### Scenario: A cheap-to-reverse question is decided by filter 4
+
+- **WHEN** the agent would ask which of two log formats a new script
+  should print, both have merit, and changing the format later is cheap
+- **THEN** filter 4 stops the question, the agent chooses one, and asks
+  nobody
+
 ### Requirement: A rhetorical question outside a post is rewritten with nothing recorded
 
 A rhetorical question outside a post, one the agent would have put to the
@@ -161,6 +175,13 @@ in a post only (design.md: *Questions in posts*).
   is rhetorical
 - **THEN** it states it as a statement instead, records no verdict and no
   log file for it, and opens no picker for it
+
+#### Scenario: A rhetorical question the first call took is dropped by running it again
+
+- **WHEN** the first call took two questions, and the agent then finds one
+  of them rhetorical
+- **THEN** it runs the first call again with only the other question, and
+  records a verdict for that one alone
 
 ### Requirement: An agent records its own choice where the question's answer is recorded
 
@@ -267,17 +288,18 @@ the item's.
 
 ### Requirement: Only five kinds of document are decision documents
 
-A **decision document** SHALL be a `DECISIONS.md` file, an OpenSpec spec or
-change, a decision record igor's scribe writes at the path igor PR #202 sets
-(design.md's *Open Questions* track it), the decision block of an issue, or
-a lore entry, and nothing else. The **decision block** of an issue, which
+A **decision document** SHALL be an OpenSpec document (a spec, a change or
+a capability decision record, `openspec/specs/<capability>/decisions.md`),
+a decision
+record igor's scribe writes at the path igor PR #202 sets, the decision
+block of an issue, or a lore entry, and nothing else. The **decision block** of an issue, which
 states what is decided, SHALL be the start of its body, before its first
 heading, or the first of its sections whose heading starts with "Decision".
 
 #### Scenario: A file outside the list is no decision document
 
-- **WHEN** a repository's `NOTES.md` states a choice that answers a
-  question, and no file of the list does
+- **WHEN** a repository's `NOTES.md` or `DECISIONS.md` states a choice that
+  answers a question, and no file of the list does
 - **THEN** filter 1 does not search it as a decision document, and the agent
   records no choice in it
 
@@ -517,7 +539,7 @@ other two lists, which record who posts for the person there.
 ### Requirement: A person changes their own relay file, listing only Apps a post hook sees
 
 A person SHALL add or change their relay file with their own pull request,
-which the answer session's setup proposes, never pushing the file, or with
+which the answer session's setup proposes without pushing the file itself, or with
 a commit of theirs that GitHub verifies as signed by them; no review is
 required. In their relay file, the person SHALL list as a relay App only
 an App whose every post, other than the answer session's, a post hook can
@@ -881,8 +903,8 @@ through `igor lore-search`*).
 During an Igor's run, igor's search SHALL cover only the lore repository the
 Igor injects lore from, its checkout and questions branch, identifying the
 run and role by a request's channel, which only that run's worker can
-reach; how it identifies the Igor's own run is open
-(design.md: *What igor must provide*). It SHALL match terms as plain text
+reach, or, for the Igor's own run, as igor specifies (design.md: *What
+igor must provide*). It SHALL match terms as plain text
 and rank hits by terms matched, as filter 1 does, under #216's rules for a
 run's search, which keep to the role's scope and the item's visibility.
 
@@ -996,7 +1018,7 @@ repository.
 #### Scenario: A decision on the work's branch does not answer a question about another repository
 
 - **WHEN** the agent working on a change in `o/api` has a question about
-  `o/web`, and only a `DECISIONS.md` on the change's own branch in `o/api`
+  `o/web`, and only a capability decision record on the change's own branch in `o/api`
   answers it
 - **THEN** the search shows that file as input, and the question is not
   treated as answered
@@ -1004,7 +1026,7 @@ repository.
 #### Scenario: A decision on a fork's branch is input
 
 - **WHEN** the current work is a pull request from a fork, and its branch
-  holds a `DECISIONS.md` that answers the question
+  holds a capability decision record that answers the question
 - **THEN** the search shows it as input, and the question is not treated as
   answered
 
@@ -1570,7 +1592,7 @@ is written at the privacy of what it concerns* says.
 #### Scenario: A decision the question's readers can't see is not linked
 
 - **WHEN** the related earlier decision is in a private repository's
-  `DECISIONS.md`, and the question, about a public repository, is to be
+  capability decision record, and the question, about a public repository, is to be
   asked in that public repository's pull request
 - **THEN** the question has no related-decision line linking that decision
 
@@ -1864,10 +1886,10 @@ question is igor PR #216's.
 With no person in the session, *A session with no person in it holds back
 a question with a category* governs one with a category, an Igor
 worker's included. A
-way-of-working question SHALL NOT be asked in such a session: the session stops only
-if the work needs the answer,
-and reports it waits for the person. In any session, filter 2 SHALL defer
-such a question only into the agent's report, never a post or issue; a
+way-of-working question SHALL NOT be asked there: the session reports the
+question waits for the person, and stops only if the work needs the
+answer. In any session, filter 2 SHALL defer
+a way-of-working question only into the agent's report, never a post or issue; a
 report SHALL ask nothing about one it lists as deferred.
 
 #### Scenario: A headless session doesn't ask a way-of-working question
@@ -2083,6 +2105,13 @@ shared post reader reports it; anywhere else it needs an `ask` verdict.
   asks a question that no second call recorded as `ask`
 - **THEN** the hook blocks the command and names the question
 
+#### Scenario: A post is blocked when the verdict records cannot be read
+
+- **WHEN** an agent runs `gh issue comment 7 --body-file body.md`, the body
+  holds a question, and the post hook cannot read its verdict records
+- **THEN** the hook blocks the command, since a published post cannot be
+  taken back
+
 #### Scenario: A deferred question asked outside an open-questions section is blocked
 
 - **WHEN** a post, such as a comment `gh issue comment 7 --body-file
@@ -2190,6 +2219,11 @@ reader reports as unreadable. It SHALL block a post when any body the
 reader returns for it starts with one of the four reserved prefixes the
 `answer-session` spec defines, once reduced as a question in a post is for
 its hash, with leading whitespace dropped.
+
+#### Scenario: A hook payload that is not JSON passes the post hook
+
+- **WHEN** the post hook's input is not JSON
+- **THEN** it lets the call through
 
 #### Scenario: A question in a post's title is vetted
 
@@ -3862,7 +3896,7 @@ else as input, and push no citation for a lore entry it names (design.md:
 #### Scenario: A recorded answer is checked, not logged as the person's
 
 - **WHEN** an agent's question gets a reply starting `Recorded answer: `
-  whose `Recorded in: ` line names a `DECISIONS.md` on the repository's
+  whose `Recorded in: ` line names a capability decision record on the repository's
   default branch
 - **THEN** the agent reads that file through filter 1, acts on the decision
   it holds, and logs no answer from the person
@@ -3964,7 +3998,7 @@ session's misses go as the `answer-session` spec says.
 #### Scenario: A miss's record of what was said is written at the question's privacy
 
 - **WHEN** a person says a question about a public repository did not need
-  asking, because a private repository's `DECISIONS.md` already decides it
+  asking, because a private repository's capability decision record already decides it
 - **THEN** the miss file's `said` gives the reason as an earlier decision
   elsewhere, generalising private context or leaving it out, and names
   neither the private repository nor its file

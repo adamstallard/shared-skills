@@ -268,9 +268,16 @@ state, one writer per machine*).
 
 ### Local state, one writer per machine
 
-There is no TLA+ model. spec-check's SKILL.md asks for one when a
-requirement is about several processes sharing state, and the lock is the
-only place that happens here. One person uses the answer session, the lock
+There is no TLA+ model. spec-check's SKILL.md says: "Write one when a
+requirement is about concurrency, ordering, a crash between two writes, or a
+protocol between processes." The answer session has such requirements. When
+it owes a push after a post, of a log, handled, miss or citation file, the
+debt survives a crash and is retried. And a crash while it writes its lock
+leaves either the old lock or the new one whole. No model is written. The
+worst outcome of a crash before an owed push is a repeated post or question,
+which costs the person only a second look; *Which cross-machine cases are
+accepted* accepts the same outcome between machines for that reason. The
+lock's crash case needs no model, since it leaves a whole lock either way. One person uses the answer session, the lock
 makes one session per machine the only writer of that machine's state, and
 the state shared across machines is the threads, which each write appends to
 and each read re-fetches. The interleavings left are two sessions racing for
@@ -805,11 +812,9 @@ commands that run text as code is never complete, and git alone has many
 --tree-filter`); a list of git subcommands that take no code on the command
 line is complete, since git has a fixed set of subcommands and each one's
 options can be checked by hand. That list covers only code given on the
-command line: a repository's configuration can still make an allowlisted
-subcommand run a program, which could post past both hooks. The constraint
-recorded below accepts that, since blocking those subcommands beside every
-post would block ordinary work, and the hooks stop accidents, not a
-determined forger. prose's hook calls the same reader, so on a line
+command line; the constraint recorded below records, as an accepted gap
+that nothing blocks, what a repository's configuration makes an allowlisted
+subcommand run. prose's hook calls the same reader, so on a line
 that mentions a gh post verb it blocks these forms too, including a script
 handed to an interpreter other than the shell (`python3 - <<'EOF'`, `node
 -e`) and git aliases.
@@ -2801,7 +2806,7 @@ queried, and task 0.22 checks how one reads.
   not part of this fact: it reads `IGOR_RUN`. Task 0.9 checks that igor sets
   `IGOR_RUN` as igor PR #216 specifies, once igor builds it.
 - **Can the script find the approver of the pull request that added a
-  decision?** (task 0.8) A `DECISIONS.md` section leads through blame and a
+  decision?** (task 0.8) A spec or decision record file leads through blame and a
   commit to a pull request and its reviews. If not, the script skips the
   tagging order's first candidate.
 - **Can the script find the GitHub login of the last person to commit to a
@@ -2999,8 +3004,7 @@ to its 149.
 - **igor must say how `igor lore-search` identifies the Igor's own
   inquisitor run.** #216 takes the run and role from the channel a request
   arrives on, which only that run's worker can reach (its lore-firing spec),
-  and the Igor's own run has no worker. Until igor settles it, that run's
-  search fails, and the script searches no lore and says so.
+  and the Igor's own run has no worker.
 - **igor's specs must state the order in which each Igor mentions people,**
   set in igor issue [#229](https://github.com/adamstallard/igor/issues/229),
   which is open. No igor spec states it, yet *A bot's question reaches only

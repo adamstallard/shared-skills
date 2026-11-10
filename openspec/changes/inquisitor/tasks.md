@@ -38,7 +38,7 @@ contradicts what design.md assumed.
 - [ ] 0.7 How the script can learn which login a post goes out as, when the
       agent posts through the github-app skill's script
 - [ ] 0.8 Whether the script can find the approver of the pull request that
-      added a decision, from a `DECISIONS.md` section through blame, the
+      added a decision, from a spec or decision record file through blame, the
       commit and its pull request's reviews
 - [ ] 0.9 How the script tells a session with a person in it from a
       headless run, such as an Igor worker or `claude -p`, and whether a
@@ -498,7 +498,8 @@ contradicts what design.md assumed.
       as a relay, any agent on the person's machine can print a relay
       App's token and post `User says: ` unseen by the post hook
       (design.md: *github-app refuses `token`, `run`, `credential get` and
-      `wire` for a relay identity*)
+      `wire` for a relay identity*). It says too that uninstalling a
+      compromised relay App, or revoking its key, stops it
 - [ ] 5.3 A row in the README's skills table, and `inquisitor` in its list of
       skills that turn on a hook
 - [ ] 5.4 `manage-skills` installs it and wires its hooks: check with

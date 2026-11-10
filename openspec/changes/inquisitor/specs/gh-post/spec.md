@@ -91,7 +91,7 @@ appears, even where another requirement says no post, bar a line that
 only runs prose's script. A simple command whose command is `gh` is a
 `gh` command, as is the word `gh`, quoted or not, followed by another
 word in another command's text, unless that command is a data command
-(*A line whose simple commands send no text is no post*) given no code.
+given no code (*Code-giving words are defined once, for every line*).
 
 #### Scenario: gh's top-level commands are a closed list
 
@@ -342,6 +342,24 @@ github-app skill's form counts as the `gh` command it runs.
   `echo gh pr create` with `gh` as a word of its own
 - **THEN** the reader reports each command as unreadable
 
+### Requirement: Code-giving words are defined once, for every line
+
+A **code-giving word** SHALL be an interpreter's code flag, as *An
+interpreter given a code flag makes a post-verb line unreadable* lists
+them, or one of the git options *git outside its allowlist is unreadable
+on a post-verb line* lists as giving code. A simple command with one
+among its words, wherever it sits, is **given code**, on any line, so
+`git log -c` is given code too.
+
+#### Scenario: git's -c gives code on a line with no post verb
+
+- **WHEN** a hook asks about `git -c 'alias.x=!gh c 5 -b x' x`, a line that
+  mentions no gh post verb
+- **THEN** `-c` is a code-giving word, so `git` is given code and is no
+  data command; the `gh c` in its text is then a `gh` command whose
+  subcommand is not one of gh's own, and the reader reports the line as
+  unreadable
+
 ### Requirement: An interpreter given a code flag makes a post-verb line unreadable
 
 On a line that mentions a gh post verb, a word naming an interpreter its
@@ -392,8 +410,8 @@ prose's script SHALL be read by their own requirements.
 On a line that mentions a gh post verb, `git` SHALL count as a data
 command only when the first word after `git` is a subcommand on the
 allowlist that *git outside its allowlist is unreadable on a post-verb
-line* gives, so `git -C . status` is not one, and none of its words is an
-option that scenario lists as giving code to run.
+line* gives, and it is given no code (*Code-giving words are defined
+once, for every line*). So `git -C . status` is not one.
 Any other `git` use SHALL make the line unreadable, even where another
 requirement of this spec says the line sends no post.
 
