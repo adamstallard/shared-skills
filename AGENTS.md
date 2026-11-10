@@ -13,8 +13,8 @@
   The spec still does not describe the screen; its task only names it. The rest of the same feature (data flow, integrations,
   setup, rules) still goes through its own specification pull request
   first.
-- **A capability's decision record, or a skill's `DECISIONS.md`, is its
-  current reasoning in one place, not a log.** A capability is what one
+- **A capability's decision record holds the capability's current
+  reasoning in one place, not a log.** A capability is what one
   spec, `openspec/specs/<capability>/spec.md`, specifies, such as a skill
   or part of one. A rejected alternative that a test can check becomes a
   requirement in that spec, with a scenario the alternative would fail,
@@ -24,8 +24,9 @@
   check, each entry with its evidence, in the form spec-check's `SKILL.md`
   sets. A pull request edits that record directly, beside the spec files
   its change adds or edits under `openspec/changes/<change>/specs/`; a
-  change holds no record of its own. A skill with no spec keeps
-  its reasoning in its `DECISIONS.md`. Where new reasoning replaces older
+  change holds no record of its own. A skill with no spec keeps in
+  its `SKILL.md` everything an agent needs to act on it, the reasons
+  included. Where new reasoning replaces older
   reasoning in a record, rewrite the older reasoning rather than
   appending.
 - **Tests tag the OpenSpec scenario they check** with

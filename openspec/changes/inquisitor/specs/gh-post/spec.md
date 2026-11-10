@@ -633,8 +633,9 @@ A `gh api` call writes as *A gh api call writes by its method, fields,
 input or a mutation* says. For a write under
 `repos/<owner>/<repo>/issues` or `.../pulls`, the reader SHALL read each
 `body` field or `--input` key as a body, a `title` one as the title, and,
-for a review, each comment's `body`. Each field SHALL be a literal word;
-the endpoint need not be. It SHALL say that a `POST` to `.../issues`
+for a review under `.../pulls/<n>/reviews`, each `body` in its
+`comments`. A field that is not a literal word SHALL make the write
+unreadable. It SHALL say that a `POST` to `.../issues`
 creates an issue, as an MCP `create_issue` does.
 
 #### Scenario: Each gh api body form is read

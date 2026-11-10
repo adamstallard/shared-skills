@@ -341,10 +341,14 @@ contradicts what design.md assumed.
         and date (design.md: *A later run names the answered file from
         the Igor's record*).
       - On a questions branch, `repository` only on a file about one
-        repository, and `asked_from` on every log and miss file but a
-        handled one: the repository holding the current work outside an
-        Igor's run, and no `asked_from` during one (design.md: *Every
-        questions-branch file names where it was asked from*).
+        repository, and `asked_from` on every log and miss file except a
+        handled file and a file written during an Igor's run. Outside a
+        run it is the repository holding the current work; on a log or
+        miss file the answer session writes, it is the `asked_from` the
+        answer session passes to the `log` command (design.md: *Every
+        questions-branch file names where it was asked from*;
+        answer-session spec: *A miss records who judged it and where it
+        was asked from*).
       - A handled file holds only `handled` and `closes`, the closed
         file's name, with no body (design.md: *The answer session writes
         a handled file on every close of a questions-branch file*). It is
@@ -841,9 +845,8 @@ contradicts what design.md assumed.
       edits the decision records, `openspec/specs/inquisitor/decisions.md`,
       `openspec/specs/answer-session/decisions.md` and
       `openspec/specs/gh-post/decisions.md`, and archiving leaves them as
-      they are. Write no `.agents/skills/inquisitor/DECISIONS.md`. Point
-      each requirement's citation of a task 0.N or of design.md at its
-      measured result or its decision record entry. prose has no spec, so
-      its reasoning lives in its `DECISIONS.md`: write there why prose's
-      post reader moved into `.agents/lib/gh-shell/` (task 1.1; design.md:
-      *OpenSpec for new work in shared-skills*)
+      they are. Write no `.agents/skills/inquisitor/DECISIONS.md`. Since
+      design.md and tasks.md are archived with the change and not read
+      again, point each requirement's citation of a measurement task 0.N
+      at its measured result, and each citation of design.md at its
+      decision record entry

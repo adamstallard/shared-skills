@@ -2062,9 +2062,9 @@ hook does when it can't read*).
 #### Scenario: A verdict recorded in another repository counts
 
 - **WHEN** the second call recorded `ask` for a question while the agent
-  worked in one repository, and that agent, another session or an Igor
-  worker running under the same HOME then asks the question through the
-  picker from another repository, or from another clone of the same one
+  worked in one repository, and that agent or another session running
+  under the same HOME then asks the question through the picker from
+  another repository, or from another clone of the same one
 - **THEN** the hook finds the record and lets the call through
 
 ### Requirement: Questions in posts pass the same filters
@@ -2855,10 +2855,11 @@ refusing one, it SHALL write nothing.
 
 ### Requirement: The log command records a linked GitHub comment's own text
 
-Outside Igor-worker mode, for a github.com `answer_link`, the `log` command
-SHALL record the linked comment's text, read through GitHub with the
-person's credentials, word for word as the answer, whatever answer it was
-passed, and SHALL write nothing and say why when it cannot read it.
+Outside Igor-worker mode (`IGOR_RUN=worker`), for a github.com
+`answer_link`, the `log` command SHALL read the linked comment through
+GitHub with the credentials of the person running the session and record it as *An answer logged from a comment is the
+comment's whole text* says, and SHALL write nothing and say why when it
+cannot read it.
 
 #### Scenario: A linked comment the script cannot read is not logged
 

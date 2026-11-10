@@ -670,9 +670,12 @@ show later whether they took the recommendation: a cost the rule accepts.
 
 #### Verdict records are shared under one HOME
 
-**Everything that runs with the same HOME shares one set of verdict records,
-Igor workers included,** so one worker's verdict on a text lets another
-worker ask that text, since a verdict is about the text, not the worker.
+**Every session, hook and script call run under the same HOME shares one set
+of verdict records,** so one session's verdict on a text lets another session
+ask that text, through the picker or in a post, without vetting it again. The
+hooks check only that the filters ran on that text, not where. So a verdict
+reached in one repository lets the question through in another, whose
+decisions that run's filter 1 did not search.
 
 #### Records hash a question with plain SHA-256
 
