@@ -39,17 +39,21 @@ docs/api.md: call the API correctly; see what each error means
 Every changed doc and spec must get goals, except a deleted one. In a merge, a
 changed doc is one the merge itself changed (SKILL.md's *The cold read*).
 Without them the call refuses, naming each file and its kind's default from the
-reader table in [rules.md](rules.md) for you to adjust. A code comment may go
-without, and then gets the table's code-comment row, labelled as a default.
+reader table in [rules.md](rules.md) for you to adjust. A code comment or a
+YAML prose string may go without, and then gets its row of the table, labelled
+as a default.
 
-The first call prints the message's goals; the prose in the change (the
-message, each doc and spec, and the comments the diff touches), each under the
-goals it gets and where they came from (`--goals`, its exact path, the pattern that
-matched, or its kind's default); a warning for any pattern that matches no
-listed file, usually a typo; history-language flags in those comments, as
-warnings; the rules (the pass, rules 1 to 9 in full, the rest as a
-checklist, and how agents cheat on the pass); and the pass token with the
-command to run next.
+The first call prints, in order:
+- the message's goals;
+- the prose in the change: the message, each doc and spec, and the comments
+  and YAML prose strings the diff touches. Each comes under its goals and
+  where they came from: `--goals`, a `--goals-for` naming its exact path,
+  the pattern that matched, or its kind's default;
+- a warning for any pattern that matches no listed file, usually a typo;
+- history-language flags in those comments, as warnings;
+- the rules: the pass, rules 1 to 9 in full, the rest as a checklist, and
+  how agents cheat on the pass;
+- the pass token, with the command to run next.
 
 Each `check` call first runs the repository's pre-commit hook, if any, so a
 formatter rewrites the staged files before you read them and before they are
