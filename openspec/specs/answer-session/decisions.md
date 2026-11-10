@@ -26,12 +26,6 @@
   Holds while: the session's model runs with the person's tools.
   Paths: .agents/skills/inquisitor/
 
-- **Constraint: Outside the Claude Code session running the answer session, nothing checks a reserved prefix on Linear or Discord, so a forged `User says: ` there marks its question answered in every answer session, and the skill's instructions are the only guard.**
-  Because: filter 1 never counts a relayed answer on those surfaces as the person's, since it proves nothing there, so a forgery only takes the question out of the person's queue and never becomes an answer an agent acts on.
-  Evidence: neither surface can vouch for a message's author to a GitHub login without a mapping no change provides (inquisitor spec: *An answer typed on another surface counts only through a decision document*), adamstallard/shared-skills#25
-  Holds while: a relayed answer on Linear or Discord proves nothing to filter 1.
-  Paths: .agents/skills/inquisitor/SKILL.md, .agents/skills/linear-app/, .agents/skills/discord-bot/
-
 - **Constraint: A case between two machines of the same person whose worst outcome is a question shown twice or asked again gets no rule of its own.**
   Because: such a case costs the person only a second look, while a case that could record a wrong answer, close a question wrongly, leak private content or lose an answer is raised for a decision.
   Evidence: rules that matched a question's words, judgements or clocks across machines kept giving two machines different answers, and each fix raised another case, adamstallard/shared-skills#25
@@ -54,18 +48,6 @@
   Because: `answer` opens it fullscreen, the layout it is designed for.
   Evidence: the approved prototype build v0.1-33 is a fullscreen layout, fc3c35f
   Holds while: the approved layout is the fullscreen one.
-  Paths: .agents/skills/inquisitor/
-
-- **Constraint: A copy of another of the person's answers, carrying their proof, a linked comment or verified signature, and pushed alone in its own commit, becomes a named file's answer.**
-  Because: such a copy carries the person's proof as their own answer does, and the commit test guards only against a copy bundled with other files.
-  Evidence: answer-session spec: *The person's answer to a named file is their own, added alone*, adamstallard/shared-skills#25
-  Holds while: a named file's answer is proven by its writer's proof, not by its question.
-  Paths: .agents/skills/inquisitor/
-
-- **Constraint: An answer file pushed at once, because its channel is off or not read on this machine, gives up the comment link that would prove it on GitHub and counts only through its signature, and a dropped pending answer of that kind leaves its file on the branch, still answering the file it names.**
-  Because: pushing at once keeps the answer when its thread cannot be reached, and a questions-branch file never changes once pushed.
-  Evidence: answer-session spec: *An answer whose thread is unreachable here is logged at once*, adamstallard/shared-skills#25
-  Holds while: an answer whose thread is unreachable here is logged at once.
   Paths: .agents/skills/inquisitor/
 
 ## Rejected
@@ -111,3 +93,7 @@
 - **Rationale: The answer session polls GitHub's notifications and comments.**
   Notifications are what the answer session polls first, and polling them costs little while nothing changes: a conditional request that finds nothing new does not count against the rate limit, and GitHub's `X-Poll-Interval` header sets how long to wait. Task 0.15 checks that the endpoint behaves as documented.
   Evidence: GitHub's notifications API documents conditional requests and `X-Poll-Interval`, https://docs.github.com/en/rest/activity/notifications
+
+- **Rationale: An answer is relayed as the person's words.**
+  A relay post carries the person's words with no agent header, and discord-bot already posts that way: its `post` adds a header only when `--agent`, `--session` or `--project` is given, so the relay passes none of them and needs no new option.
+  Evidence: `header()` in discord-bot's script, https://github.com/adamstallard/shared-skills/blob/90a0237/.agents/skills/discord-bot/scripts/discord_bot.py

@@ -8,17 +8,11 @@
   Holds while: the skill runs nothing between its calls and hooks.
   Paths: .agents/skills/inquisitor/scripts/inquisitor.py, .agents/skills/inquisitor/scripts/check-ask.sh, .agents/skills/inquisitor/scripts/check-post.sh
 
-- **Constraint: An agent's `Related: ` line links only a decision that everyone who can read the question can read, and no hook checks that.**
-  Because: the agent names the decision at the second call and adds the line after it, so no vetting sees the line, and the hooks only block a credential pattern in it.
+- **Constraint: No hook checks that the decision an agent's `Related: ` line links is one that everyone who can read the question can also read.**
+  Because: the agent adds the line after the second call, so the filters never vet it; the hooks see it, but can check only that it holds no credential pattern, not who can read the decision it links.
   Evidence: the hooks match a question's text without that line (inquisitor spec: *A related-decision line is one URL on a line of its own*), adamstallard/shared-skills#25
   Holds while: the related-decision line is left out of the question's hash.
   Paths: .agents/skills/inquisitor/SKILL.md, .agents/skills/inquisitor/scripts/check-post.sh
-
-- **Constraint: The host's transcripts, such as Claude Code's under `~/.claude/projects/`, hold a question asked through the picker in full.**
-  Because: the skill's hash-only and 2-hour rules cover only its own records, and the host's transcripts are outside its control.
-  Evidence: Claude Code writes each session's transcript, its tool calls included, under `~/.claude/projects/`, adamstallard/shared-skills#25
-  Holds while: the host keeps transcripts the skill does not write.
-  Paths: .agents/skills/inquisitor/
 
 - **Constraint: Until its work merges, a repository's log file is invisible to parallel work, so an agent on another branch may ask the same question again.**
   Because: a change's questions belong in its history and merge with it.
@@ -138,8 +132,24 @@
   Evidence: igor PR #171 adds `IGOR_RUN_TOKEN`, https://github.com/adamstallard/igor/pull/171
 
 - **Rationale: In an Igor's run, filter 1 searches through igor.**
-  An Igor worker cannot run the skill, so its filter 1 asks igor. A worker's Bash permission is only its role's `commands`, the list of commands the role lets its worker run; Read is refused outside its working tree, and its HOME holds no `inquisitor.json` or `gh` login unless a developer set one up; igor's deployment guide says not to log `gh` in as the service user. Under igor PRs #174 and #175, skills load only from `/opt/igor/skills`, the lore checkout is mode 0750, which the worker cannot read, the worker loads no hooks, and the run is headless, with no picker. igor passes the worker no lore repository, and injects only the active entries that fit its token budget, so injected lore alone is not enough for filter 1.
+  An Igor worker cannot run the skill's script, so the filter 1 search it runs, by the skill's instructions, goes through `igor lore-search`, a command its role's `commands` must list. A worker's Bash permission is only its role's `commands`, the list of commands the role lets its worker run; Read is refused outside its working tree, and its HOME holds no `inquisitor.json` or `gh` login unless a developer set one up; igor's deployment guide says not to log `gh` in as the service user. Under igor PRs #174 and #175, by their specs, unchecked since neither is built, skills load only from `/opt/igor/skills`, the lore checkout is mode 0750, which the worker cannot read, the worker loads no hooks, and the run is headless, with no picker. igor passes the worker no lore repository, and injects only the active entries that fit its token budget, so injected lore alone is not enough for filter 1.
   Evidence: task 0.12, measured 2026-10-20: the worker's `allowedTools` are its role's `commands`, https://github.com/adamstallard/igor/blob/8478aec/src/execute.ts#L1607
   Evidence: its system prompt, `workerSystemPrompt`, https://github.com/adamstallard/igor/blob/8478aec/src/execute.ts#L161
   Evidence: the deployment guide on the service user's `gh` login, https://github.com/adamstallard/igor/blob/8478aec/docs/deployment.md#L112-L115
   Evidence: #175's design, the row for "the Igor's home, lore checkout, `/etc/igor`", https://github.com/adamstallard/igor/blob/908c149/openspec/changes/worker-user/design.md
+
+- **Rationale: A logged decision needs write access to what its question concerns.**
+  Authority to instruct never exceeds authority over the artifact the instruction is about, which igor states for who may instruct an Igor, so a lore repository's writer may have no say over another repository.
+  Evidence: igor PR #202's decision 11 states it, https://github.com/adamstallard/igor/pull/202
+
+- **Rationale: A lore decision record counts.**
+  igor's scribe puts a decision record in the repository the decision concerns, or in the team's lore repository when it spans repositories, so filter 1 reads both.
+  Evidence: igor PR #202's decision 5, https://github.com/adamstallard/igor/pull/202
+
+- **Rationale: A session with no person in it asks in a post, a handback or nowhere.**
+  An Igor worker asks only in its handback comment because igor gives it no credential that can post: its environment holds only its seat's token, a credential for its model provider.
+  Evidence: igor's requirement *The worker is given an explicit environment holding no credential but its seat's*, https://github.com/adamstallard/igor/blob/main/openspec/specs/task-execution/spec.md
+
+- **Rationale: A relay App is one its person's counted relay file lists.**
+  A person may own other Apps, such as their own Igor's, whose code posts text no hook sees, so only the Apps their counted relay file lists may speak for them. A reader can tell an Igor's App by its `igor-` slug prefix because igor enforces the prefix: an Igor whose App's slug lacks it refuses to start.
+  Evidence: igor PR #216's decision 62, https://github.com/adamstallard/igor/pull/216

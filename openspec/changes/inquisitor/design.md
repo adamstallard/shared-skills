@@ -5,8 +5,7 @@ deferrable; filter 3, not a real question; filter 4, cheap to reverse (*Four
 filters stop questions before a person*). Hooks on Claude Code's question
 picker and on GitHub posts block a question that has not been through them.
 *Terms used throughout*, under *Decisions*, defines Igor, the picker, the two
-calls, a verdict and the answer session. Adam (adamstallard) owns this
-repository and decides this change.
+calls, a verdict and the answer session.
 
 ## Proving the filters ran
 
@@ -34,9 +33,13 @@ repositories, and a hook's working directory can differ from `vet`'s
 (prose's DECISIONS.md, *The gate blocks a session's first file write*). They
 are the hooks' state, not a question log, and everything under one HOME
 shares them (*Verdict records are shared under one HOME*). Every record
-expires after 2 hours, so the hooks keep no lasting record of any question, a
-vulnerability included. The log files are the lasting records; a
-vulnerability's is the repository's private security advisory.
+expires after 2 hours and is deleted by the next call or hook to read the
+records. On a machine where nothing runs, an expired record can stay on
+disk for days, until that next read (the decision entry *Records hash a
+question with plain SHA-256*, below). Beyond that, the hooks keep no record
+of any question, a vulnerability included. The question log files, under
+*Where the logs live*, are the lasting records; a vulnerability's is the
+repository's private security advisory.
 
 When a hook can't read the records, the picker hook lets the question through
 and the post hook blocks a post that holds one. An unfiltered picker question
@@ -477,7 +480,7 @@ a time, go through the four filters like any other question, so fewer reach a
 person.** Task 5.7 changes bug-hunter's SKILL.md so that Step 9 runs each
 recommendation through the filters before asking. The task's table of
 starting rules is input to its design, not decided behaviour: its implementer
-sets the final rules, and Adam reviews them with the implementation. The spec
+sets the final rules, which are reviewed with the implementation. The spec
 fixes only that each recommendation passes the four filters. Nothing in
 bug-hunter changes before the inquisitor skill exists.
 
@@ -1181,10 +1184,10 @@ compares the two keys, so a file whose keys are equal, such as an Igor's
 question about its own item's repository, counts by write access to that
 repository.
 
-Authority to instruct never exceeds authority over the artifact the
-instruction is about, as igor states it (igor PR #202's decision 11, and
-igor's rule for directed interaction). A writer of the lore repository may
-have no say over `o/api`, so their answer about `o/api` is input, wherever
+The inquisitor's decision record gives igor's rule behind this, under
+*Rationale: A logged decision needs write access to what its question
+concerns*. A writer of the lore repository may have no say over another
+repository, such as `o/api`, so their answer about it is input, wherever
 the file sits. A permission that cannot be read counts as no authority, as
 every write-access check here fails closed.
 
@@ -1368,10 +1371,11 @@ both in the repository the question concerns and in the lore repository.**
 such as a MADR, counts as an answer only when its status is `accepted`; any
 other status is shown as input, wherever filter 1 reads decision records.
 
-**Why:** #202's decision 5 puts a record in the repository the decision
-concerns, or in the team's lore repository when it spans repositories. The
-spec names no fixed path, only the one #202 sets (*igor-dependent rules state
-the end state*).
+*Rationale: A lore decision record counts*, in the inquisitor's decision
+record, gives why filter 1 reads both places. The spec writes down no path
+of its own; it refers to whichever path #202 sets, since a rule that
+depends on igor states its end state (the decision entry *igor-dependent
+rules state the end state*, below).
 
 #### A general answer is proposed as a provisional lore entry
 
@@ -1436,9 +1440,10 @@ cannot run this skill. *What task 0.12 measured* gives the evidence.
 The Igor posts the handback comment (igor #211). The worker opens no post and
 calls no picker, even if task 0.14 finds a `gh` login in its reach.
 
-**Why:** a worker holds no credential that can post: igor's requirement *The
-worker is given an explicit environment holding no credential but its
-seat's* gives it only its seat's token.
+**Why:** igor gives a worker no credential that can post (the inquisitor's
+decision record, *Rationale: A session with no person in it asks in a post,
+a handback or nowhere*). A `gh` login a worker can still reach would breach
+igor's rule, so the worker does not use it, and task 0.14 reports it.
 
 **Why** a handback with no artifact logs no repository question: the Igor
 publishes a log file about the item's repository only with an artifact, such
@@ -1740,8 +1745,9 @@ or its signature*, scenario *A relayed answer proves its writer*).
 
 **A reader recognises an Igor's App by the `igor-` prefix of its slug, and
 never counts it as a relay App, even where a relay file lists it (igor
-PR #216's decision 45).** igor enforces the prefix: an Igor whose App's slug
-lacks it refuses to start (#216's decision 62).
+PR #216's decision 45).** The inquisitor's decision record, *Rationale: A
+relay App is one its person's counted relay file lists*, gives why the
+prefix can be relied on.
 
 *Ruled out by a scenario* (same scenario as above): recognising an Igor's App
 from the lore repository's Igor configuration, since igor's role-config spec
@@ -2051,13 +2057,12 @@ agent's questions, not the person's own words.
 The answer session posts with discord-bot's mention rewriting on, which makes
 an `@name` in the answer ping that member, as in a comment of the person's
 own. After each relay post or edit, which can drop a ping, the person sees
-discord-bot's warnings, such as for an `@name` that pinged no one. A
-`Recorded answer: ` post quotes nothing, so no relay post repeats a record's
-@-mentions. discord-bot's `post` adds a header only when `--agent`,
-`--session` or `--project` is given (shared-skills PR #1, merged; `header()`
-in `.agents/skills/discord-bot/scripts/discord_bot.py` on main at 90a0237).
-A relay post carries no header, so the Discord relay needs no new
-discord-bot option.
+discord-bot's warnings, such as for an `@name` that pinged no one. The
+answer session's automatic post of a recorded answer, starting `Recorded
+answer: `, links the record and quotes none of it, so no relay post repeats
+a record's @-mentions. discord-bot already posts without a header unless
+asked for one, so the relay needs no new option (the answer-session
+decision record, *Rationale: An answer is relayed as the person's words*).
 
 *Ruled out by a scenario* (answer-session spec: *An answer is relayed as the
 person's words*): mention rewriting off, which only stopped a quoted record's
@@ -2881,6 +2886,16 @@ queried, and task 0.22 checks how one reads.
   its working tree. If a worker can post, it still asks only in its handback
   comment, and the credential in its reach is reported to igor as a breach of
   that requirement.
+
+- **Does the answer session's filter 1 search delete expired verdict
+  records?** No task measures it; the implementation of the answer session
+  settles it. Two entries in the inquisitor's decision record assume that
+  nothing touches the records between the skill's own calls and hooks: the
+  *Holds while* of *Constraint: An idle machine keeps its verdict records,
+  …*, and *Rejected: Deleting expired verdict records on a timer or at
+  session end*. If the open answer session deletes expired records, it
+  shortens the exposure that constraint accepts, and both entries are
+  rewritten; if it only reads them, or never touches them, both stand.
 
 ### Facts the answer session relies on
 

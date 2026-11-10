@@ -517,7 +517,7 @@ contradicts what design.md assumed.
       a property from the hunt (Step 3) worth keeping as a permanent
       guard (design.md: *bug-hunter's Step 9 recommendations go through
       the filters*). These starting rules are input, not decided
-      behaviour: the builder sets the final rules, and Adam reviews them
+      behaviour: the builder sets the final rules, which are reviewed
       with the implementation.
 
       | Step 9 recommendation | Settle it without asking when | What to do then | Filter |
