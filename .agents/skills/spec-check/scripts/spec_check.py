@@ -27,8 +27,8 @@ lines is checked against a scratch copy of the tree's specs, into which
 `openspec archive` has archived each open dependency. A merged dependency is
 never archived: its result must already show in the tree. Each dependency is
 read from its pull request with gh and git, which needs the network, and
-OpenSpec 1.16.1 or later must be on PATH. A dependency that cannot be read, judged or
-archived is an error, never skipped.
+OpenSpec 1.16.1 or later must be on PATH. A dependency that cannot be
+read, judged merged or open, or archived is an error, never skipped.
 
 With the OpenSpec CLI on PATH, every checked change is also archived into
 a scratch copy of the specs by `openspec archive`: alone, or for a stacked
@@ -43,6 +43,11 @@ reported as not run, and a stacked change gets an error.
 check exits 0 with no errors, 1 with errors, 2 when it cannot run. Findings
 marked `check` are heuristics for a person or agent to judge; they never fail.
 
+A hand-back puts a pull request in front of a reviewer: it is opened or
+reopened ready for review, marked ready, or has a review requested. A
+review round is the commits between two hand-backs, and the consistency
+read runs once per round, before the hand-back that ends it.
+
 sign runs check on the staged tree and, when no error remains, prints the
 `Spec-check:` trailer value bound to that tree. `--read` says what the value
 records of the consistency read: `subagent` or `self` for a read done this
@@ -52,25 +57,30 @@ are due, and ends the value with `no read due` when none is.
 
 ci is the GitHub workflow's check of a pull request event ($GITHUB_EVENT_PATH):
 it fails when a change is unread at the pull request's head and, when the
-event handed the pull request back for review, makes it a draft again and
-withdraws the review request. setup-ci writes that workflow into a
-repository, pinned to a commit of this file. verify-staged and
-verify-commit check a `Spec-check:` value against the staged tree or a
-commit: the shared commit library (.agents/lib/commit-trailer) calls the
-first before it commits, and the commit hook the second after.
+event is a hand-back, makes it a draft again and withdraws the review
+request. setup-ci writes that workflow into a
+repository, pinned to the newest commit that changed this file or the
+workflow template, which must be pushed. verify-staged and verify-commit
+check a `Spec-check:` value against the staged tree or a commit: the
+shared commit library (.agents/lib/commit-trailer) calls the first before
+it commits, and the commit hook the second after.
 
 Each capability's decision record (its constraints, rejected alternatives
 and rationale) is at the path openspec/spec-check.yaml gives as
 `decision-records: <path with <capability>>`, by default
 openspec/specs/<capability>/decisions.md. A pull request edits that main
 record directly; a decisions.md inside a change is refused. The check
-command gives each record format checks, holds a Rationale entry's title to
-a requirement in force or in an open change, runs the `evolution` check on
-the lines a branch changes in a record, and gives each requirement of a
-change a `rationale` finding when its text holds more than its statement
-and one sentence. The records command prints the records a change's consistency read is given: the main record of
-each capability the change touches, and each main record whose Paths match
-a file the branch changes.
+command gives each record format checks, reports a Rationale entry whose
+title names no requirement in force or in an open change, and runs the
+`evolution` check on the lines a branch changes in a record. It gives each
+requirement of a change a `rationale` finding when its text holds more
+than its SHALL statement and one *because* sentence: reasoning with
+evidence belongs in a Rationale entry of the decision record, and the
+rest in design.md. The records command prints the records a change's
+consistency read is given: the main record of each capability the change
+touches, and each main record with a Constraint or Rejected entry whose
+Paths line, the files that entry governs, names a file the branch
+changes.
 
 Standard library only.
 """
@@ -4618,14 +4628,21 @@ def cmd_setup_ci(args):
         # The clone holding this file, through any install symlink.
         clone = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
             os.path.dirname(os.path.realpath(__file__))))))
+        # The newest commit, in the checked-out history, that changed the
+        # script or the template. In a clean clone it holds both files as
+        # they are on disk, so the steps copied from the template never run
+        # against an older script. A commit that changes neither file leaves
+        # the pin where it is.
         sha = git(clone, "log", "-1", "--format=%H", "--",
                   ".agents/skills/spec-check/scripts/spec_check.py",
+                  ".agents/skills/spec-check/ci/spec-check.yml",
                   check=False).stdout.strip()
         if not sha or not git(clone, "branch", "-r", "--contains", sha,
                               check=False).stdout.strip():
-            print("spec-check setup-ci: the newest commit of spec_check.py in this clone "
-                  "is not pushed, so GitHub cannot serve it; pass --sha with a pushed "
-                  "commit of adamstallard/shared-skills", file=sys.stderr)
+            print("spec-check setup-ci: the newest commit of spec_check.py or the workflow "
+                  "template in this clone is not pushed, so GitHub cannot serve it; pass "
+                  "--sha with a pushed commit of adamstallard/shared-skills",
+                  file=sys.stderr)
             return 1
     if not re.fullmatch(r"[0-9a-f]{40}", sha):
         print("spec-check setup-ci: --sha takes a full 40-character commit SHA, never a "
@@ -4727,7 +4744,8 @@ def main(argv=None):
     su = sub.add_parser("setup-ci", help="write the GitHub workflow into a repository")
     su.add_argument("--repo")
     su.add_argument("--sha", help="the shared-skills commit to pin (default: this clone's "
-                                   "newest pushed commit of spec_check.py)")
+                                   "newest commit of spec_check.py or the "
+                                   "workflow template, which must be pushed)")
     su.add_argument("--force", action="store_true")
     su.set_defaults(fn=cmd_setup_ci)
 

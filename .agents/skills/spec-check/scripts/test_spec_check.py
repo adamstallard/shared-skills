@@ -140,7 +140,10 @@ class Repo:
         self.write(f"openspec/changes/{name}/tasks.md", TASKS)
 
     def run(self, *args, cwd=None, stdin=None, env=None):
-        return subprocess.run([sys.executable, str(SCRIPT), *args], cwd=cwd or self.path,
+        return self.run_script(SCRIPT, *args, cwd=cwd, stdin=stdin, env=env)
+
+    def run_script(self, script, *args, cwd=None, stdin=None, env=None):
+        return subprocess.run([sys.executable, str(script), *args], cwd=cwd or self.path,
                               capture_output=True, text=True, env=env or ENV, input=stdin)
 
     def check(self, *args, env=None):
@@ -5683,6 +5686,72 @@ class CiTests(unittest.TestCase):
     def test_setup_ci_refuses_a_short_sha(self):
         r = self.repo.run("setup-ci", "--sha", "abc1234")
         self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertFalse((self.repo.path / ".github").exists())
+
+    def clone(self):
+        """A shared-skills clone holding copies of the script and the template,
+        with origin a bare repository it pushes to."""
+        clone = self.tmp / "clone"
+        skill = clone / ".agents/skills/spec-check"
+        (skill / "scripts").mkdir(parents=True)
+        (skill / "ci").mkdir()
+        shutil.copy(SCRIPT, skill / "scripts/spec_check.py")
+        shutil.copy(HERE.parent / "ci/spec-check.yml", skill / "ci/spec-check.yml")
+        bare = self.tmp / "origin.git"
+
+        def git(*args, cwd=clone):
+            r = subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, env=ENV)
+            self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+            return r.stdout.strip()
+
+        git("init", "-q", "--bare", "-b", "main", str(bare), cwd=self.tmp)
+        git("init", "-q", "-b", "main")
+        git("config", "commit.gpgsign", "false")
+        git("remote", "add", "origin", str(bare))
+        git("add", "-A")
+        git("commit", "-q", "-m", "script and template")
+        return clone, skill, git
+
+    def default_pin(self, skill):
+        """Run the clone's setup-ci with no --sha, and return the pin it wrote."""
+        r = self.repo.run_script(skill / "scripts/spec_check.py", "setup-ci", "--force")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        text = (self.repo.path / ".github/workflows/spec-check.yml").read_text()
+        return re.search(r"SPEC_CHECK_SHA: (\S+)\n", text).group(1)
+
+    def test_setup_ci_pins_the_newest_commit_of_the_script_or_the_template(self):
+        clone, skill, git = self.clone()
+        first = git("rev-parse", "HEAD")
+        (clone / "unrelated.md").write_text("not used by the workflow\n")
+        git("add", "unrelated.md")
+        git("commit", "-q", "-m", "unrelated")
+        git("push", "-q", "origin", "main")
+        self.assertEqual(self.default_pin(skill), first)
+
+        with open(skill / "ci/spec-check.yml", "a") as fh:
+            fh.write("# a new template line\n")
+        git("commit", "-q", "-am", "template only")
+        git("push", "-q", "origin", "main")
+        template = git("rev-parse", "HEAD")
+        self.assertEqual(self.default_pin(skill), template)
+        text = (self.repo.path / ".github/workflows/spec-check.yml").read_text()
+        self.assertIn("# a new template line", text)
+
+        with open(skill / "scripts/spec_check.py", "a") as fh:
+            fh.write("# a new script line\n")
+        git("commit", "-q", "-am", "script only")
+        git("push", "-q", "origin", "main")
+        self.assertEqual(self.default_pin(skill), git("rev-parse", "HEAD"))
+
+    def test_setup_ci_refuses_an_unpushed_newest_commit(self):
+        clone, skill, git = self.clone()
+        git("push", "-q", "origin", "main")
+        with open(skill / "ci/spec-check.yml", "a") as fh:
+            fh.write("# not pushed\n")
+        git("commit", "-q", "-am", "template change, not pushed")
+        r = self.repo.run_script(skill / "scripts/spec_check.py", "setup-ci")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("is not pushed", r.stderr)
         self.assertFalse((self.repo.path / ".github").exists())
 
 

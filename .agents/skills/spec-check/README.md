@@ -228,9 +228,12 @@ check.
 python3 ~/.agents/skills/spec-check/scripts/spec_check.py setup-ci
 ```
 
-writes `.github/workflows/spec-check.yml`, pinned to the newest pushed
-commit of `spec_check.py` in your clone (`--sha` picks another; `--force`
-replaces an existing workflow). Commit it, then make `spec-check` a
+writes `.github/workflows/spec-check.yml`. Each run of that workflow
+downloads `spec_check.py` from GitHub at the commit the file pins: the
+newest commit that changed `spec_check.py` or the workflow template in your
+clone of shared-skills. setup-ci refuses when that commit is not pushed.
+`--sha <commit>` pins another commit on main instead, and `--force`
+replaces an existing workflow. Commit it, then make `spec-check` a
 required check in the base branch's protection rules, so a pull request
 with an unread change cannot merge. The workflow needs `pull-requests:
 write`, which it declares; a fork's pull request gets a read-only token, so

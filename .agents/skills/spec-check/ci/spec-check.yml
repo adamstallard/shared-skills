@@ -50,8 +50,9 @@
 # adamstallard/shared-skills at the commit SPEC_CHECK_SHA names, below. That
 # commit is the pin. A commit on main always downloads. A commit never
 # pushed to GitHub never does, so the check fails. A commit on another
-# branch can stop downloading once that branch is deleted, and whether a
-# commit pushed only to a fork downloads is untested. So pin a commit on
+# branch can stop downloading once that branch is deleted, because GitHub
+# may stop serving a commit that no branch reaches. Whether a commit
+# pushed only to a fork downloads is untested. So pin a commit on
 # main; step 3 below shows how to confirm that it is.
 #
 # To update the pin, or this workflow:
@@ -72,15 +73,17 @@
 #    `--force` replaces the whole file, discarding any local edit; without
 #    it, setup-ci refuses to replace an existing workflow and changes
 #    nothing. Add `--sha <commit>` to pin a commit on main other than the
-#    default, the newest commit that changed spec_check.py in the history
-#    of the clone's main.
+#    default, the newest commit that changed spec_check.py or the
+#    template in the history of the clone's main.
 # 3. Confirm that the new pin is on main, with <sha> the new SPEC_CHECK_SHA
 #    value:
 #      gh api repos/adamstallard/shared-skills/compare/main...<sha> --jq .status
 #    It prints `behind` (the commit is an ancestor of main's head) or
 #    `identical` (it is main's head) when the commit is on main. Any other
-#    output, or an error, means it is not: redo step 1 with a fresh clone,
-#    or pass a commit on main with `--sha`, and repeat step 2.
+#    output, or an error, means it is not. A reused clone may be stale, or
+#    its main may track a fork, while a fresh clone of
+#    adamstallard/shared-skills has the real main. So redo step 1 with a
+#    fresh clone, or pass a commit on main with `--sha`, and repeat step 2.
 # 4. Commit .github/workflows/spec-check.yml.
 #
 # How the pin is set: `spec_check.py setup-ci` writes this workflow as
@@ -88,32 +91,22 @@
 # `--repo <dir>`, or else the one holding the current directory. It copies
 # the workflow from the clone of adamstallard/shared-skills it runs from,
 # so an out-of-date clone writes an out-of-date workflow. The pin is the
-# newest commit that changed spec_check.py in the history of the clone's
-# checked-out branch, so with main checked out and up to date (step 1) it
-# is on main. After a shared-skills merge that changed spec_check.py, the
-# next setup-ci run from a clone updated as in step 1 moves the pin forward
-# to that newest commit. After a merge that left spec_check.py alone, the
-# pin stays where it was. The workflow still gets any new steps of the
-# template it is copied from (.agents/skills/spec-check/ci/spec-check.yml
-# in the clone), but those steps run against the same pinned spec_check.py
-# as before. setup-ci writes nothing if the pin it picks is on none of the
-# clone's remote-tracking branches. Passing that check shows only that the
-# commit was pushed somewhere, perhaps to a fork or to a branch other than
-# main. With `--sha <commit>` the pin is that commit instead, and setup-ci
-# checks only that it is a full 40-character SHA. Either way, setup-ci does
-# not confirm the pin is on main, which is why step 3 checks it.
-#
-# A rule for contributors to shared-skills explains one failure you may
-# meet. Because a merge that changes only the template leaves the pin where
-# it was, they must not merge a template step that needs new script
-# behaviour before the spec_check.py change that provides it; the simplest
-# way is to merge both in one pull request. No check enforces this rule. If
-# a contributor breaks it, `setup-ci --force` in your repository copies the
-# new step but keeps the old pin, so the new step runs against the old
-# script and fails, and the `spec-check` check fails on every pull request.
-# If that happens, revert the commit you made in step 4; your repository
-# then runs the previous workflow and pin again. Steps 1 to 4 work again
-# once the script change is on main, because setup-ci then pins it.
+# newest commit that changed spec_check.py or that template
+# (.agents/skills/spec-check/ci/spec-check.yml in the clone) in the history
+# of the clone's checked-out branch, so with main checked out and up to
+# date (step 1) it is on main. Step 1 also leaves the clone clean, so that
+# commit holds both files exactly as setup-ci reads them: the workflow's
+# steps, copied from the template, never run against an older
+# spec_check.py. After a shared-skills merge that changed either
+# file, the next setup-ci run from a clone updated as in step 1 moves the
+# pin forward to that newest commit. After a merge that left both alone,
+# the pin stays where it was. setup-ci writes nothing if the pin it picks
+# is on none of the clone's remote-tracking branches. Passing that check
+# shows only that the commit was pushed somewhere, perhaps to a fork or to
+# a branch other than main. With `--sha <commit>` the pin is that commit
+# instead, and setup-ci checks only that it is a full 40-character SHA.
+# Either way, setup-ci does not confirm the pin is on main, which is why
+# step 3 checks it.
 #
 # Editing this file by hand works, SPEC_CHECK_SHA included, as long as the
 # pin stays a full 40-character SHA of a commit on main, but the edit lasts
