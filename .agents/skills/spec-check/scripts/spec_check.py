@@ -26,15 +26,15 @@ A change whose proposal.md has `Builds on: <change> (<owner>/<repo>#<number>)`
 lines is checked against a scratch copy of the tree's specs, into which
 `openspec archive` has archived each open dependency. A merged dependency is
 never archived: its result must already show in the tree. Each dependency is
-read from its pull request with gh and git, which needs the network, and the
-OpenSpec CLI must be on PATH. A dependency that cannot be read, judged or
+read from its pull request with gh and git, which needs the network, and
+OpenSpec 1.16.1 or later must be on PATH. A dependency that cannot be read, judged or
 archived is an error, never skipped.
 
-Every checked change is also archived into a scratch copy of the specs by
-`openspec archive`: alone, or for a stacked change, on top of its
-dependencies. Each refusal is an error.
+With the OpenSpec CLI on PATH, every checked change is also archived into
+a scratch copy of the specs by `openspec archive`: alone, or for a stacked
+change, on top of its dependencies. Each refusal is an error.
 
-Specs and deltas are read only through the OpenSpec CLI, 1.16.0 or later:
+Specs and deltas are read only through the OpenSpec CLI, 1.16.1 or later:
 `openspec show --json` for their requirements, `openspec validate --strict
 --json` for what a delta drops, `openspec archive --json` for whether a
 change applies. Without it, every check that needs a requirement is
@@ -340,16 +340,29 @@ class Scenario:
 # commands:
 # `openspec show --json` for the requirements a spec or delta holds,
 # `openspec validate --strict --json` for what a delta drops or misfiles,
-# and `openspec archive --json` for whether a change applies. `show --json`
-# names requirements and scenarios from 1.14.0, from 1.15.0 `validate`
-# reports the text the archive drops, and from 1.16.0 a backtick fence's
-# info string may not hold a backtick. openspec_fence_mask reads fences by
-# that 1.16.0 rule, so an older CLI would disagree with it about which
-# lines are fenced, and 1.16.0 is the minimum. Without it,
-# every check that needs a requirement is reported as not run.
+# and `openspec archive --json` for whether a change applies.
+#
+# Each release up to 1.16.0 added something spec-check needs:
+# - from 1.14.0, `show --json` names requirements and scenarios;
+# - from 1.15.0, `validate` reports the text the archive drops;
+# - from 1.16.0, a backtick fence's info string may not hold a backtick.
+#   openspec_fence_mask reads fences by that rule, so an older CLI would
+#   disagree with it about which lines are fenced.
+#
+# The minimum is 1.16.1. On 1.16.0, `openspec archive` applies a change that
+# puts a requirement under an unrecognized `## ... Requirements` section,
+# such as `## DEPRECATED Requirements`, and silently drops that requirement.
+# spec-check's archive line then reads "passed", and `check --no-validate`
+# or `sign --no-validate` lets the change through. The default check still
+# catches it, since `validate --strict` fails on the warning 1.16.0 gives.
+# From 1.16.1 the archive refuses it (Fission-AI/OpenSpec#2207, in
+# https://github.com/Fission-AI/OpenSpec/blob/main/CHANGELOG.md).
+#
+# With no CLI at OPENSPEC_SINCE or later on PATH, every check that needs a
+# requirement is reported as not run.
 
-OPENSPEC_SINCE = (1, 16, 0)
-NEEDS_OPENSPEC = "install OpenSpec 1.16.0 or later"
+OPENSPEC_SINCE = (1, 16, 1)
+NEEDS_OPENSPEC = "install OpenSpec 1.16.1 or later"
 CLI_TIMEOUT = 120
 # `openspec show` refuses a change whose proposal.md lacks "Why" or "What
 # Changes", so a change's deltas are read beside this one instead of its own.
@@ -3017,9 +3030,11 @@ def build_stack(change, corpus, repo, base):
     return stack, findings, complete
 
 
-# The refusals `openspec archive` gives for one delta spec (OpenSpec 1.16.0,
+# The refusals `openspec archive` gives for one delta spec (OpenSpec 1.16.1,
 # dist/core/specs-apply.js, buildUpdatedSpec). Each names the capability;
-# only REFUSAL also names one requirement of the delta.
+# only REFUSAL also names one requirement of the delta. A requirement under
+# an unrecognized `## ... Requirements` section, refused from 1.16.1, gives
+# the CAP_REFUSAL form "<capability> validation failed - ...".
 REFUSAL = re.compile(r'^(\S+) (RENAMED|REMOVED|MODIFIED|ADDED) failed for header '
                      r'"### Requirement: (.*?)"(?: -|$)')
 CAP_REFUSAL = re.compile(r"^(\S+?)(?::| validation failed -) ")
