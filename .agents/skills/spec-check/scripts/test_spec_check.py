@@ -5672,16 +5672,20 @@ class CiTests(unittest.TestCase):
         self.assertIn("fetch-depth: 0", r.stderr)
 
     def test_setup_ci_pins_a_commit_and_keeps_an_existing_workflow(self):
-        sha = "a" * 40
-        r = self.repo.run("setup-ci", "--sha", sha)
+        clone, skill, git = self.clone()
+        sha = git("rev-parse", "HEAD")
+        script = skill / "scripts/spec_check.py"
+        r = self.repo.run_script(script, "setup-ci", "--sha", sha)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         text = (self.repo.path / ".github/workflows/spec-check.yml").read_text()
         self.assertIn(f"SPEC_CHECK_SHA: {sha}", text)
         self.assertNotIn("<SPEC_CHECK_SHA>", text)
         self.assertIn("spec_check.py\" ci", text)
-        self.assertEqual(self.repo.run("setup-ci", "--sha", "b" * 40).returncode, 1)
-        self.assertEqual(self.repo.run("setup-ci", "--sha", "main", "--force").returncode, 1)
-        self.assertEqual(self.repo.run("setup-ci", "--sha", "b" * 40, "--force").returncode, 0)
+        self.assertEqual(self.repo.run_script(script, "setup-ci", "--sha", sha).returncode, 1)
+        self.assertEqual(self.repo.run_script(script, "setup-ci", "--sha", "main",
+                                              "--force").returncode, 1)
+        self.assertEqual(self.repo.run_script(script, "setup-ci", "--sha", sha,
+                                              "--force").returncode, 0)
 
     def test_setup_ci_refuses_a_short_sha(self):
         r = self.repo.run("setup-ci", "--sha", "abc1234")
@@ -5754,6 +5758,139 @@ class CiTests(unittest.TestCase):
         self.assertIn("is not pushed", r.stderr)
         self.assertFalse((self.repo.path / ".github").exists())
 
+    def test_setup_ci_does_not_copy_an_uncommitted_template_edit(self):
+        clone, skill, git = self.clone()
+        git("push", "-q", "origin", "main")
+        with open(skill / "ci/spec-check.yml", "a") as fh:
+            fh.write("# an uncommitted template line\n")
+        self.assertEqual(self.default_pin(skill), git("rev-parse", "HEAD"))
+        text = (self.repo.path / ".github/workflows/spec-check.yml").read_text()
+        self.assertNotIn("# an uncommitted template line", text)
+
+    def test_setup_ci_with_an_older_sha_copies_that_commits_template(self):
+        clone, skill, git = self.clone()
+        older = git("rev-parse", "HEAD")
+        with open(skill / "ci/spec-check.yml", "a") as fh:
+            fh.write("# a newer template line\n")
+        git("commit", "-q", "-am", "newer template")
+        git("push", "-q", "origin", "main")
+        r = self.repo.run_script(skill / "scripts/spec_check.py", "setup-ci", "--sha", older)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        text = (self.repo.path / ".github/workflows/spec-check.yml").read_text()
+        self.assertIn(f"SPEC_CHECK_SHA: {older}\n", text)
+        self.assertNotIn("# a newer template line", text)
+
+    def test_setup_ci_refuses_a_sha_absent_from_the_clone(self):
+        clone, skill, git = self.clone()
+        r = self.repo.run_script(skill / "scripts/spec_check.py", "setup-ci", "--sha", "b" * 40)
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("fetch", r.stderr)
+        self.assertFalse((self.repo.path / ".github").exists())
+
+
+class FoundByBugHunterSetupCiRun1Tests(unittest.TestCase):
+    """Iteration 1 of a bug-hunter run over setup-ci reading the template at the pin."""
+
+    # CiTests' scratch clone, without rerunning CiTests' own tests.
+    setUp, clone, default_pin = CiTests.setUp, CiTests.clone, CiTests.default_pin
+
+    def test_a_copy_that_is_not_a_clone_is_refused_without_advice_to_fetch(self):
+        clone, skill, git = self.clone()
+        sha = git("rev-parse", "HEAD")
+        copy = self.tmp / "copy"
+        shutil.copytree(clone / ".agents", copy / ".agents")
+        r = self.repo.run_script(copy / ".agents/skills/spec-check/scripts/spec_check.py",
+                                 "setup-ci", "--sha", sha)
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertNotIn("fetch", r.stderr)
+        self.assertIn("not a git clone", r.stderr)
+        self.assertFalse((self.repo.path / ".github").exists())
+
+    def test_an_annotated_tags_sha_is_refused(self):
+        clone, skill, git = self.clone()
+        git("tag", "-a", "v1", "-m", "a tag")
+        tag = git("rev-parse", "v1")
+        r = self.repo.run_script(skill / "scripts/spec_check.py", "setup-ci", "--sha", tag)
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn(git("rev-parse", "v1^{commit}"), r.stderr)
+        self.assertFalse((self.repo.path / ".github").exists())
+
+    def test_a_tree_sha_is_refused(self):
+        clone, skill, git = self.clone()
+        tree = git("rev-parse", "HEAD^{tree}")
+        r = self.repo.run_script(skill / "scripts/spec_check.py", "setup-ci", "--sha", tree)
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("is a tree, not a commit", r.stderr)
+        self.assertFalse((self.repo.path / ".github").exists())
+
+    def test_an_abbreviated_sha_of_a_commit_in_the_clone_is_refused(self):
+        clone, skill, git = self.clone()
+        short = git("rev-parse", "--short", "HEAD")
+        r = self.repo.run_script(skill / "scripts/spec_check.py", "setup-ci", "--sha", short)
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("full 40-character", r.stderr)
+        self.assertFalse((self.repo.path / ".github").exists())
+
+    def test_a_commit_without_the_template_is_refused(self):
+        clone, skill, git = self.clone()
+        git("rm", "-q", "--", ".agents/skills/spec-check/ci/spec-check.yml")
+        git("commit", "-q", "-m", "no template")
+        r = self.repo.run_script(skill / "scripts/spec_check.py", "setup-ci", "--sha",
+                                 git("rev-parse", "HEAD"))
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("has no workflow template", r.stderr)
+        self.assertFalse((self.repo.path / ".github").exists())
+
+    def test_the_default_pin_works_with_the_template_missing_from_the_working_tree(self):
+        clone, skill, git = self.clone()
+        git("push", "-q", "origin", "main")
+        (skill / "ci/spec-check.yml").unlink()
+        self.assertEqual(self.default_pin(skill), git("rev-parse", "HEAD"))
+        text = (self.repo.path / ".github/workflows/spec-check.yml").read_text()
+        self.assertIn("spec_check.py\" ci", text)
+
+    def test_setup_ci_run_through_an_install_symlink_reads_the_clone(self):
+        clone, skill, git = self.clone()
+        link = self.tmp / "installed" / "spec-check"
+        link.parent.mkdir()
+        link.symlink_to(skill, target_is_directory=True)
+        sha = git("rev-parse", "HEAD")
+        r = self.repo.run_script(link / "scripts/spec_check.py", "setup-ci", "--sha", sha)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        text = (self.repo.path / ".github/workflows/spec-check.yml").read_text()
+        self.assertIn(f"SPEC_CHECK_SHA: {sha}\n", text)
+
+
+
+class FoundByBugHunterSetupCiRun1Iteration2Tests(unittest.TestCase):
+    """Iteration 2 of the same bug-hunter run as FoundByBugHunterSetupCiRun1Tests."""
+
+    # CiTests' scratch clone, without rerunning CiTests' own tests.
+    setUp, clone = CiTests.setUp, CiTests.clone
+
+    def test_a_clone_reached_by_a_differently_cased_path_is_accepted(self):
+        clone, skill, git = self.clone()
+        upper = self.tmp / "CLONE"
+        if not upper.exists():
+            self.skipTest("the filesystem is case-sensitive")
+        sha = git("rev-parse", "HEAD")
+        r = self.repo.run_script(upper / ".agents/skills/spec-check/scripts/spec_check.py",
+                                 "setup-ci", "--sha", sha)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        text = (self.repo.path / ".github/workflows/spec-check.yml").read_text()
+        self.assertIn(f"SPEC_CHECK_SHA: {sha}\n", text)
+
+    def test_a_copy_inside_another_repository_is_refused(self):
+        clone, skill, git = self.clone()
+        sha = git("rev-parse", "HEAD")
+        outer = self.tmp / "outer"
+        shutil.copytree(clone / ".agents", outer / "vendor/.agents")
+        git("init", "-q", "-b", "main", cwd=outer)
+        r = self.repo.run_script(outer / "vendor/.agents/skills/spec-check/scripts/spec_check.py",
+                                 "setup-ci", "--sha", sha)
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("not a git clone", r.stderr)
+        self.assertFalse((self.repo.path / ".github").exists())
 
 class FoundByBugHunterHandbackRun4Tests(HandbackAfterTests):
     """Bug-hunter's first iteration over the one-gh-call hand-back hook."""

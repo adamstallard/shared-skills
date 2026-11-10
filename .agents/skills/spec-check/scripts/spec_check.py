@@ -4544,8 +4544,8 @@ def cmd_pass_due(args):
 # other action (a push) the workflow fails the check with a change unread,
 # but leaves the pull request as it is.
 CI_HANDBACKS = ("opened", "reopened", "ready_for_review", "review_requested")
-CI_TEMPLATE = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "ci",
-                           "spec-check.yml")
+# The workflow template's path in a shared-skills clone.
+CI_TEMPLATE = ".agents/skills/spec-check/ci/spec-check.yml"
 CI_PIN = "<SPEC_CHECK_SHA>"
 
 
@@ -4623,19 +4623,30 @@ def cmd_setup_ci(args):
         print(f"spec-check setup-ci: {dest} exists; pass --force to replace it",
               file=sys.stderr)
         return 1
+    # The clone holding this file, through any install symlink.
+    clone = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
+        os.path.dirname(os.path.realpath(__file__))))))
+    # The template is read from shared-skills commits, so a copy of the
+    # skill is refused when it sits outside any repository, or below the
+    # root of another repository, whose commits are not shared-skills
+    # commits. An empty prefix means `clone` is a work tree's root. Don't
+    # compare `clone` with `--show-toplevel`'s output instead: on macOS a
+    # path may be cased unlike the disk, and that comparison would refuse a
+    # real clone.
+    top = git(clone, "rev-parse", "--show-prefix", check=False)
+    if top.returncode != 0 or top.stdout.strip():
+        why = f" ({top.stderr.strip()})" if top.returncode != 0 else ""
+        print(f"spec-check setup-ci: {clone} is not a git clone of adamstallard/shared-skills"
+              f"{why}; setup-ci reads the workflow template from the pinned commit, so run it "
+              "from a clone", file=sys.stderr)
+        return 1
     sha = args.sha
     if sha is None:
-        # The clone holding this file, through any install symlink.
-        clone = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
-            os.path.dirname(os.path.realpath(__file__))))))
         # The newest commit, in the checked-out history, that changed the
-        # script or the template. In a clean clone it holds both files as
-        # they are on disk, so the steps copied from the template never run
-        # against an older script. A commit that changes neither file leaves
-        # the pin where it is.
+        # script or the template. So rerunning setup-ci after commits that
+        # change neither file picks the same pin.
         sha = git(clone, "log", "-1", "--format=%H", "--",
-                  ".agents/skills/spec-check/scripts/spec_check.py",
-                  ".agents/skills/spec-check/ci/spec-check.yml",
+                  ".agents/skills/spec-check/scripts/spec_check.py", CI_TEMPLATE,
                   check=False).stdout.strip()
         if not sha or not git(clone, "branch", "-r", "--contains", sha,
                               check=False).stdout.strip():
@@ -4648,8 +4659,30 @@ def cmd_setup_ci(args):
         print("spec-check setup-ci: --sha takes a full 40-character commit SHA, never a "
               "branch", file=sys.stderr)
         return 1
-    with open(CI_TEMPLATE, encoding="utf-8") as fh:
-        text = fh.read().replace(CI_PIN, sha)
+    kind = git(clone, "cat-file", "-t", sha, check=False)
+    if kind.returncode != 0:
+        print(f"spec-check setup-ci: commit {sha} is not in the clone {clone}, so its "
+              f"workflow template cannot be read; fetch it with `git -C {clone} fetch "
+              "origin` and run setup-ci again", file=sys.stderr)
+        return 1
+    if kind.stdout.strip() != "commit":
+        # GitHub serves files at a commit's SHA, not at a tag's or a tree's,
+        # so no workflow run could download the script at such a pin.
+        commit = git(clone, "rev-parse", "-q", "--verify", f"{sha}^{{commit}}",
+                     check=False).stdout.strip()
+        hint = f"; pass --sha {commit}, the commit it points to" if commit else ""
+        print(f"spec-check setup-ci: {sha} is a {kind.stdout.strip()}, not a commit{hint}",
+              file=sys.stderr)
+        return 1
+    # The template is read at the pin, never from the working tree, so the
+    # workflow's steps and the spec_check.py each run downloads come from
+    # one commit.
+    template = git(clone, "show", f"{sha}:{CI_TEMPLATE}", check=False, binary=True)
+    if template.returncode != 0:
+        print(f"spec-check setup-ci: commit {sha} has no workflow template ({CI_TEMPLATE})",
+              file=sys.stderr)
+        return 1
+    text = template.stdout.decode("utf-8").replace(CI_PIN, sha)
     os.makedirs(os.path.dirname(dest), exist_ok=True)
     with open(dest, "w", encoding="utf-8") as fh:
         fh.write(text)
