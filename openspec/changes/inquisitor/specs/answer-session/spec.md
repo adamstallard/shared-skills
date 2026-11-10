@@ -787,7 +787,8 @@ set by its mentions* says (igor #229).
 
 #### Scenario: An Igor log file on an unassigned item is shown to no one
 
-- **WHEN** an Igor's log file links a handback on an unassigned issue
+- **WHEN** an Igor's log file links a handback that mentions no one, on an
+  unassigned issue
 - **THEN** no answer session shows the handback or its log file until
   someone is assigned the issue, and then only the assignee's
 
@@ -2062,9 +2063,10 @@ The answer session SHALL start a post with `User says: ` or
 `User asks: ` only once the person confirms all of it, and make an
 automatic post only as *An automatic post's text is fixed by the answer
 session* says. No other post SHALL use a reserved prefix, as
-the skill's instructions SHALL say; only the inquisitor's GitHub post hook
-blocks one. An automatic post SHALL be posted as a relay post is, and
-never shown as the person's words.
+the skill's instructions SHALL say; outside the holder, the session
+holding the lock, only the inquisitor's GitHub post hook blocks one. An
+automatic post SHALL be posted as a relay post is, and never shown as the
+person's words.
 
 #### Scenario: The instructions reserve the prefixes
 

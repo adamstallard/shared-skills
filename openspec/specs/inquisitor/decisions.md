@@ -2,21 +2,9 @@
 
 ## Constraints
 
-- **Constraint: An idle machine keeps its verdict records, each naming its question by plain SHA-256, until the next call or hook, so anyone who can read the state folder and guesses a short question's text can confirm it was asked, with a category or without.**
-  Because: only the agent's user can read the state folder, so a guesser needs that user's access, or root's, first.
-  Evidence: the skill runs nothing but its two calls and its hooks, so a record past its 2 hours is deleted only when one of them next reads the records (inquisitor spec: *The two calls' files and records stay private*), adamstallard/shared-skills#25
-  Holds while: the skill runs nothing between its calls and hooks.
-  Paths: .agents/skills/inquisitor/scripts/inquisitor.py, .agents/skills/inquisitor/scripts/check-ask.sh, .agents/skills/inquisitor/scripts/check-post.sh
-
-- **Constraint: No hook checks that the decision an agent's `Related: ` line links is one that everyone who can read the question can also read.**
-  Because: the agent adds the line after the second call, so the filters never vet it; the hooks see it, but can check only that it holds no credential pattern, not who can read the decision it links.
-  Evidence: the hooks match a question's text without that line (inquisitor spec: *A related-decision line is one URL on a line of its own*), adamstallard/shared-skills#25
-  Holds while: the related-decision line is left out of the question's hash.
-  Paths: .agents/skills/inquisitor/SKILL.md, .agents/skills/inquisitor/scripts/check-post.sh
-
 - **Constraint: Until its work merges, a repository's log file is invisible to parallel work, so an agent on another branch may ask the same question again.**
   Because: a change's questions belong in its history and merge with it.
-  Evidence: a file committed on a work branch reaches the default branch only when that branch merges, adamstallard/shared-skills#25
+  Evidence: work committed on one branch is not in another branch's files until it is merged into it, https://git-scm.com/book/en/v2/Git-Branching-Basic-Branching-and-Merging
   Holds while: one repository's questions are committed with the work under `.inquisitor/questions/`.
   Paths: .agents/skills/inquisitor/scripts/inquisitor.py
 
@@ -34,53 +22,17 @@
 
 - **Constraint: Anyone who can rewrite the lore repository's default branch can restore an older relay file of the person's own, listing an App the person removed, so removing a compromised App from the file does not stop it speaking for the person.**
   Because: uninstalling the App or revoking its key does stop it, and the README says to do that.
-  Evidence: a restored file's last change is still the person's own commit, which the reader counts (inquisitor spec: *A reader counts a relay file only when its person made its last change*), adamstallard/shared-skills#25
+  Evidence: `git push --force` replaces a branch even when the push loses commits, so a rewrite can drop the commit that removed the App, https://git-scm.com/docs/git-push
   Holds while: a relay file counts by who last changed it on the default branch.
   Paths: .agents/skills/inquisitor/
 
 - **Constraint: A rule that depends on igor states its end state, with no clause for an igor state before the igor change it needs lands.**
-  Because: igor has no users yet, so an interim design would serve no one.
-  Evidence: igor runs for no team yet, https://github.com/adamstallard/igor
-  Holds while: igor has no users.
+  Because: igor has published no release, so there is no released igor state for an interim design to serve.
+  Evidence: igor's releases page listed none on 2026-11-09, https://github.com/adamstallard/igor/releases
+  Holds while: igor has published no release.
   Paths: openspec/specs/inquisitor/spec.md, openspec/specs/answer-session/spec.md
 
 ## Rejected
-
-- **Rejected: The hook running the four filters itself.**
-  Facing: proving that an agent ran the filters before its question reaches a person.
-  Lost because: a hook is a script with no model, so it cannot tell whether two options both have merit, which is filter 3's test, adamstallard/shared-skills#25.
-  Instead: the agent runs the script's two calls, and a hook lets a question through only on the fresh verdict record they leave.
-  Paths: .agents/skills/inquisitor/scripts/check-ask.sh, .agents/skills/inquisitor/scripts/check-post.sh
-
-- **Rejected: A signed footer in each question, as prose signs a post.**
-  Facing: proving that a question passed the filters.
-  Lost because: the person reads the question in the picker, where a hash is noise, adamstallard/shared-skills#25.
-  Instead: verdict records keyed by the question's hash, in the user's state folder.
-  Paths: .agents/skills/inquisitor/scripts/inquisitor.py, .agents/skills/inquisitor/scripts/check-ask.sh
-
-- **Rejected: Changing bug-hunter's Step 9 rules on their own, ahead of the inquisitor skill.**
-  Facing: bug-hunter's Step 9 recommendations each reaching the person as a question.
-  Lost because: that would be a rule of bug-hunter's own that skips the shared filters, adamstallard/shared-skills#25.
-  Instead: Step 9 runs each recommendation through the inquisitor's four filters, and bug-hunter changes only once the inquisitor skill exists.
-  Paths: .agents/skills/bug-hunter/SKILL.md
-
-- **Rejected: Keying verdict records' hashes with an HMAC and a per-HOME key.**
-  Facing: an idle machine's records letting anyone who can read them confirm that a guessed question was asked.
-  Lost because: the hooks must read the key, so it would sit under the same HOME, readable by whoever can read the records, and would stop only a guesser holding a copy of the records but not the key, adamstallard/shared-skills#25.
-  Instead: plain SHA-256, in a state folder only the agent's user can read.
-  Paths: .agents/skills/inquisitor/scripts/inquisitor.py, .agents/skills/inquisitor/scripts/check-ask.sh, .agents/skills/inquisitor/scripts/check-post.sh
-
-- **Rejected: Deleting expired verdict records on a timer or at session end.**
-  Facing: an idle machine's records letting anyone who can read them confirm that a guessed question was asked.
-  Lost because: it would shorten the exposure but needs something to run when no call or hook does, adamstallard/shared-skills#25.
-  Instead: the first call or hook to read the records after a record's 2 hours deletes it.
-  Paths: .agents/skills/inquisitor/scripts/inquisitor.py, .agents/skills/inquisitor/scripts/check-ask.sh, .agents/skills/inquisitor/scripts/check-post.sh
-
-- **Rejected: The script refusing a lesson that quotes a logged question.**
-  Facing: question and miss logs holding private content that a lesson sent to shared-skills could carry.
-  Lost because: a lesson in general terms never quotes one, adamstallard/shared-skills#25.
-  Instead: a lesson drafted from misses is general, and lands only through a pull request or a memory edit.
-  Paths: .agents/skills/inquisitor/scripts/inquisitor.py, .agents/skills/inquisitor/SKILL.md
 
 - **Rejected: Counting a relay file's pull request only when all its commits are the person's.**
   Facing: someone else pushing to a person's open pull request to change their relay file.
@@ -93,24 +45,6 @@
   Lost because: though simpler once igor shipped it, it would make the notice wait for igor's release and a change to another repository's spec, adamstallard/igor#171.
   Instead: the inquisitor ships its own `relay-notice.yml`, modelled on the seat-notice workflow igor PR #171 specifies.
   Paths: .agents/skills/inquisitor/
-
-- **Rejected: Accepting an `answers` key planted in a worker's file.**
-  Facing: which questions-branch file an answer reported by an Igor's worker answers.
-  Lost because: only the Igor, from its own record of the handback, knows which file was answered, so #216 pushes only an `answers` key the Igor writes, adamstallard/igor#216.
-  Instead: igor PR #216 is asked to refuse a worker's file holding `answers`, and the Igor adds the key itself.
-  Paths: .agents/skills/inquisitor/scripts/inquisitor.py
-
-- **Rejected: A glossary requirement holding every term.**
-  Facing: defining once each term the inquisitor spec uses.
-  Lost because: it ran to 17,651 characters, and `openspec validate --strict` fails any requirement over 500, adamstallard/shared-skills#25.
-  Instead: the inquisitor's Purpose defines the terms its spec uses throughout, and any other term is defined in the requirement that sets its rule.
-  Paths: openspec/specs/inquisitor/spec.md
-
-- **Rejected: Archiving the rest of the change and leaving the Igor-worker scenarios in an open change.**
-  Facing: Igor-worker scenarios that only igor's unbuilt work can make pass, while spec-trace's CI fails an untagged scenario in `openspec/specs/`.
-  Lost because: it would split each capability's scenarios between `openspec/specs/` and an open change, adamstallard/shared-skills#25.
-  Instead: the change is archived only once task 4.3 tags every expected gap and igor PR #216 has merged.
-  Paths: openspec/specs/inquisitor/spec.md, openspec/specs/answer-session/spec.md
 
 ## Rationale
 
@@ -143,7 +77,7 @@
   Evidence: igor PR #202's decision 11 states it, https://github.com/adamstallard/igor/pull/202
 
 - **Rationale: A lore decision record counts.**
-  igor's scribe puts a decision record in the repository the decision concerns, or in the team's lore repository when it spans repositories, so filter 1 reads both.
+  igor PR #202, open, specifies that igor's scribe puts a decision record in the repository the decision concerns, or in the team's lore repository when it spans repositories, so filter 1 reads both.
   Evidence: igor PR #202's decision 5, https://github.com/adamstallard/igor/pull/202
 
 - **Rationale: A session with no person in it asks in a post, a handback or nowhere.**
@@ -151,5 +85,5 @@
   Evidence: igor's requirement *The worker is given an explicit environment holding no credential but its seat's*, https://github.com/adamstallard/igor/blob/main/openspec/specs/task-execution/spec.md
 
 - **Rationale: A relay App is one its person's counted relay file lists.**
-  A person may own other Apps, such as their own Igor's, whose code posts text no hook sees, so only the Apps their counted relay file lists may speak for them. A reader can tell an Igor's App by its `igor-` slug prefix because igor enforces the prefix: an Igor whose App's slug lacks it refuses to start.
+  A person may own other Apps, such as their own Igor's, whose code posts text no hook sees, so only the Apps their counted relay file lists may speak for them. A reader never counts an App whose slug starts `igor-` as a relay App, even where a relay file lists it, so a person's own Igor cannot speak for them. That every Igor's App carries the prefix rests on igor PR #216, still open, which specifies that an Igor whose App's slug lacks it refuses to start.
   Evidence: igor PR #216's decision 62, https://github.com/adamstallard/igor/pull/216

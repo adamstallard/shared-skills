@@ -56,10 +56,6 @@ that was not vetted*):
   the hook never looks, and a verdict is about the text, not the clone or
   worker (scenario *A verdict recorded in another repository counts*).
 
-**Rejected,** in `openspec/specs/inquisitor/decisions.md`: *Rejected: The hook
-running the four filters itself* and *Rejected: A signed footer in each
-question, as prose signs a post*.
-
 ### What the hook relies on, not yet measured
 
 Three facts about Claude Code are unmeasured (tasks 0.1 to 0.3): a
@@ -296,10 +292,12 @@ Linear, or on GitHub outside a review thread, names its question with a last
 `Re: <URL>` line, so a thread holding several questions keeps a state for
 each; on Discord a relay post replies to its question.
 
-A relay identity may do other work, but only the answer session makes `User
-says: ` posts, which is why a relay App's `User says: ` comment can be trusted
-as its person's. That holds only while nothing else posts through the App
-unseen, which is why github-app is asked, in a change not yet built, to refuse
+The skill's instructions reserve `User says: ` for the answer session, and
+on GitHub the post hook blocks any tool-call post starting with it (*Polling
+while open, with the person's credentials*, above). That is why a relay
+App's `User says: ` comment is trusted as its person's, whatever other work
+the relay identity does. The trust holds only while nothing posts through
+the App where no post hook sees it, which is why github-app is asked, in a change not yet built, to refuse
 handing out a relay's token (*github-app refuses `token`, `run`, `credential
 get` and `wire` for a relay identity*).
 
@@ -486,9 +484,6 @@ bug-hunter changes before the inquisitor skill exists.
 
 **Why:** every skill's questions go through one set of filters, rather than
 each skill making its own exceptions.
-
-*Recorded:* `openspec/specs/inquisitor/decisions.md`, *Rejected: Changing
-bug-hunter's Step 9 rules on their own, ahead of the inquisitor skill*.
 
 #### A prepared question can be answered "yes"
 
@@ -687,14 +682,6 @@ worker ask that text, since a verdict is about the text, not the worker.
 text, and stays on disk until the first call or hook to read the records
 after its 2 hours deletes it,** which on an idle machine can be days.
 
-*Recorded:* `openspec/specs/inquisitor/decisions.md`, *Constraint: An idle
-machine keeps its verdict records, each naming its question by plain SHA-256,
-until the next call or hook, so anyone who can read the state folder and
-guesses a short question's text can confirm it was asked, with a category or
-without* and *Rejected: Keying verdict records' hashes with an HMAC and a
-per-HOME key* and *Rejected: Deleting expired verdict records on a timer or at
-session end*.
-
 #### Every verdict record expires after 2 hours
 
 **Every verdict record expires 2 hours after it was made, whatever its
@@ -728,10 +715,6 @@ which records it with the verdict, and adds the line afterwards with no
 further vetting. Since no vetting sees the line, both hooks block a
 related-decision line holding a credential pattern.
 
-*Recorded:* `openspec/specs/inquisitor/decisions.md`, *Constraint: An agent's
-`Related: ` line links only a decision that everyone who can read the question
-can read, and no hook checks that*.
-
 #### What each hook does when it can't read
 
 **The picker hook lets a question through when it can't read its input or
@@ -745,10 +728,6 @@ post reader returns*). The reason is under *Proving the filters ran*.
 **The skill's rules on its records, hash only for a question with a category
 and the 2-hour expiry, cover only its own records.** The host's transcripts
 are outside its control.
-
-*Recorded:* `openspec/specs/inquisitor/decisions.md`, *Constraint: The host's
-transcripts, such as Claude Code's under `~/.claude/projects/`, hold a
-question asked through the picker in full*.
 
 ### The shared post reader
 
@@ -930,12 +909,6 @@ so a tool-call post with a reserved prefix is never its. A `User says: `
 comment from the person's relay App proves their answer, and that App may do
 other work, so the block stops an agent holding it from forging an answer
 through `gh`.
-
-*Recorded:* `openspec/specs/answer-session/decisions.md`, *Constraint: Outside
-the Claude Code session running the answer session, nothing checks a reserved
-prefix on Linear or Discord, so a forged `User says: ` there marks its
-question answered in every answer session, and the skill's instructions are
-the only guard*.
 
 *Ruled out by a scenario:* reducing the body for this check as a comment is
 reduced for comparison with a recorded answer, since that reduction drops a
@@ -1400,9 +1373,6 @@ edit, never automatically. shared-skills gets only a generalized lesson,
 since question and miss logs can hold private content and stay with the
 repositories they concern.
 
-*Recorded:* `openspec/specs/inquisitor/decisions.md`, *Rejected: The script
-refusing a lesson that quotes a logged question*.
-
 ### Igor workers and Igor runs
 
 #### The script tells an Igor's run by `IGOR_RUN`
@@ -1637,9 +1607,11 @@ worker holds only its seat's token.
 
 #### igor-dependent rules state the end state
 
-What igor must provide is listed under *Open Questions*. The spec has no
-clause for an igor state before the change it needs lands, but keeps a
-clause that guards against misuse in the end state, such as:
+**A rule that depends on igor states its end state, with no clause for an
+igor state before the igor change it needs lands;** the *Recorded:* line
+below names the decision record's entry. What igor must provide is listed
+under *Open Questions*. A clause that guards against misuse in igor's end
+state is still written, such as:
 - a log file with no matching record of the handback writes no `answers`;
 - an `igor lore-search` call that fails searches no lore;
 - a handback-marked post is vetted like any other (*No exemption for an
@@ -1879,9 +1851,11 @@ concerns* rules out.
 #### Which cross-machine cases are accepted
 
 **A case between two machines of the same person whose worst outcome is a
-question shown twice or asked again is accepted, and gets no rule of its own**
-(*Recorded:* `openspec/specs/answer-session/decisions.md`, the *Constraint* of
-that name). A case that could record a wrong answer, close a question wrongly,
+question shown twice or asked again is accepted, and gets no rule of its
+own.** "Asked again" means an asking agent asks a question again, and
+"shown twice" means the person sees one question twice; either costs the
+person only a second look, and an entry cited twice only adds to igor's
+count. A case that could record a wrong answer, close a question wrongly,
 leak private content or lose an answer is still raised for a decision.
 
 #### One answer session runs on each machine
@@ -2118,11 +2092,6 @@ the thread, one case is left: a lore repository made more public later.
 Making it more public publishes everything already in it, so the answer file
 adds nothing worse.
 
-*Recorded:* `openspec/specs/answer-session/decisions.md`, *Rejected: Showing
-the log file's question beside the linked message's* and *Rejected: A rule of
-its own for a lore repository made more public after `asked_in` was written,
-such as generalising the message's words or relaying only in the thread*.
-
 #### An answer file names the file it answers
 
 **An answer file names the one file it answers in `answers`, because
@@ -2135,9 +2104,6 @@ what the Igor writes; *Open Questions* carries that request.
 gives machines different answers (inquisitor spec: *A named file's answer is
 the newest proven answer file naming it*, scenario *An answer naming one file
 does not answer another with the same question*).
-
-*Recorded:* `openspec/specs/inquisitor/decisions.md`, *Rejected: Accepting an
-`answers` key planted in a worker's file*.
 
 #### The newest proven answer counts
 
@@ -2197,11 +2163,6 @@ answering files that tag no one only through filter 1's hash search
 (scenario *A file that tags no one is answered by an account with write
 access*).
 
-*Recorded:* `openspec/specs/answer-session/decisions.md`, *Constraint: A copy
-of another of the person's answers, carrying their proof, a linked comment or
-verified signature, and pushed alone in its own commit, becomes a named file's
-answer*.
-
 #### A named file stays shown until its answer counts
 
 *Ruled out by a scenario:* letting any answer file hide the file it names
@@ -2253,9 +2214,6 @@ indefinitely, because the person can always post, edit or drop it. The
 person's other machines read only the thread, and ask the question again as
 usual, as *Which cross-machine cases are accepted* allows.
 
-*Recorded:* `openspec/specs/answer-session/decisions.md`, *Rejected: Pending
-answers as a state in the list of questions answered and handled*.
-
 *Ruled out by a scenario:* returning an answer no check brings back to the
 queue at the next opening (answer-session spec: *A pending answer no check
 returns waits for the person*, scenario *A text refused for its length stays
@@ -2282,12 +2240,6 @@ machine's own earlier file, pushed at once while the answer's channel was off
 cancel the push of the edited answer's file: if "Use Postgres" was pushed at
 once and the person's edit "Use SQLite" is posted later but its push fails,
 the "Use Postgres" file does not drop the retry.
-
-*Recorded:* `openspec/specs/answer-session/decisions.md`, *Constraint: An
-answer file pushed at once, because its channel is off or not read on this
-machine, gives up the comment link that would prove it on GitHub and counts
-only through its signature, and a dropped pending answer of that kind leaves
-its file on the branch, still answering the file it names*.
 
 *Ruled out by a scenario:* each of these:
 - pushing every answer file on confirmation, which leaves a file for a
@@ -2433,10 +2385,6 @@ since the person chose it. How the confirmation looks is prototyped (task
 6.9). The person can still answer on the surface by hand. Reason 1 is named
 "nothing to answer" to keep clear of filter 3's text, "not a real question".
 
-*Recorded:* `openspec/specs/answer-session/decisions.md`, *Rejected: Separate
-decline reasons for a conversation that is over and a message that isn't a
-question*.
-
 *Ruled out by a scenario:* the session's model asking the person which filter
 should have stopped the question, and why, since the person picks the filter
 and confirms its reply instead (answer-session spec: *Declining for
@@ -2470,9 +2418,6 @@ question that needs no answer (answer-session spec: *Filter 3 also offers that
 the agent shouldn't have asked*, scenario *The agent shouldn't have asked
 posts nothing*).
 
-*Recorded:* `openspec/specs/answer-session/decisions.md`, *Rejected: Calling
-filter 3's "the agent shouldn't have asked" option "not a question"*.
-
 #### Declining with nothing to answer closes only that question
 
 **A reason 1 decline closes only the declined question; every later message
@@ -2504,12 +2449,11 @@ even for a question with a category. An Igor worker could still report a file
 holding the handled keys for its Igor to push; refusing one is asked of igor
 PR #216, and is open on its side.
 
-A close that cites a record takes the question out of the person's queue
-whether or not the asking agent's own filter 1 would count that record
-(*Recorded:* `openspec/specs/answer-session/decisions.md`, *Constraint: A close
-that cites a record, such as a filter 1 decline or a `Recorded answer: ` post,
-closes the question in the person's queue even when the asking agent's own
-filter 1 would not count that record*).
+A close that cites a record, a filter 1 decline or a `Recorded answer: `
+post, takes the question out of the person's queue whether or not the
+asking agent's own filter 1 would count that record. The person's answer,
+the record, is then in the thread; an asker that cannot count it and asks
+again reaches the person's queue like any other new question.
 
 **An automatic filter 3 or 4 reply pushes no handled file,** so the
 questions-branch file stays shown until the person handles it, since the
@@ -2523,9 +2467,6 @@ stop accidents, not a determined forger, and a forger here already has push
 access to the lore repository. Such a forger can close a question so that the
 person never sees it, and the person cannot reopen it (*Reopening a declined
 question*).
-
-*Recorded:* `openspec/specs/answer-session/decisions.md`, the *Constraint* of
-that name.
 
 *Ruled out by a scenario:* the asking agent marking its own file handled, or
 deciding the close, which would need the post's author, waiting on task 0.21
@@ -2589,12 +2530,9 @@ provide*.
 *Ruled out by a scenario:* pushing a decline's citation only when its miss is
 pushed (answer-session spec: *A filter 1 decline cites its lore entry once*,
 scenario *A decline's citation is pushed when its miss is not*). That leaves
-one duplicate case, two machines declining one question:
-
-*Recorded:* `openspec/specs/answer-session/decisions.md`, *Constraint: One
-question can get a citation from each of two machines, when it is open on both
-at once, or when a thread copy declined with nothing posted on one is declined
-again on another*.
+a duplicate case: when two machines decline one question, each pushes a
+citation, so the entry is cited twice, which *Which cross-machine cases are
+accepted* accepts.
 
 #### Agreeing to a recorded answer is a filter 1 decline
 
@@ -2740,8 +2678,7 @@ mentions people reaches only the first, as any bot's message does.** So on
 an item assigned to the person, a handback that mentions people reaches them
 only if they are mentioned first. One that mentions no one, on an item
 assigned to no one, is shown to whoever is next assigned it. igor issue #229
-states this rule too, but names no case in which a handback mentions no one,
-which is a known gap.
+states both the assignee rule and the first-mention rule.
 
 #### Each Igor log file follows its own handback comment
 
@@ -2797,9 +2734,6 @@ detail moves first to scenarios, then reasons move here, then the text is
 compacted, and only a requirement still too long is split, along its own
 rule boundaries.
 
-*Recorded:* `openspec/specs/inquisitor/decisions.md`, *Rejected: A glossary
-requirement holding every term*.
-
 #### UI is prototyped and approved by use, not specified
 
 **Once the repository's owner has used a UI's prototype and approved it, the
@@ -2812,10 +2746,6 @@ patterns of the feature's approved prototype, needs no prototype of its own,
 and the task only names it; task 6.1's rule (c) is such a task. `AGENTS.md`
 states the rule and this exception.
 
-*Recorded:* `openspec/specs/answer-session/decisions.md`, *Rejected: Keeping
-the exception for screens designed at implementation only in this change,
-outside `AGENTS.md`*.
-
 #### Igor-worker scenarios stay untagged until igor builds what they need
 
 **spec-trace does not change for them;** *Tracing scenarios to tests* gives
@@ -2826,9 +2756,6 @@ the rule, task 4.3's tagging, and why a skipped test would not do.
 **Archiving waits for task 4.3 to tag every expected gap, beside task 7.0's
 wait for igor PR #216 to merge, since archiving writes the scenarios into
 the directory where spec-trace's CI fails on an untagged one.**
-
-*Recorded:* `openspec/specs/inquisitor/decisions.md`, *Rejected: Archiving the
-rest of the change and leaving the Igor-worker scenarios in an open change*.
 
 ## Open Questions
 
@@ -2886,16 +2813,6 @@ queried, and task 0.22 checks how one reads.
   its working tree. If a worker can post, it still asks only in its handback
   comment, and the credential in its reach is reported to igor as a breach of
   that requirement.
-
-- **Does the answer session's filter 1 search delete expired verdict
-  records?** No task measures it; the implementation of the answer session
-  settles it. Two entries in the inquisitor's decision record assume that
-  nothing touches the records between the skill's own calls and hooks: the
-  *Holds while* of *Constraint: An idle machine keeps its verdict records,
-  …*, and *Rejected: Deleting expired verdict records on a timer or at
-  session end*. If the open answer session deletes expired records, it
-  shortens the exposure that constraint accepts, and both entries are
-  rewritten; if it only reads them, or never touches them, both stand.
 
 ### Facts the answer session relies on
 
