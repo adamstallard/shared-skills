@@ -23,8 +23,9 @@ including a result that contradicts what design.md assumed.
       reviewers, drafts and changed files
 - [ ] 1.2 Find each open change on the default branch and on each open pull
       request's head, and the pull request it belongs to
-- [ ] 1.3 Read each change's deltas through the OpenSpec CLI, 1.15.0 or
-      later, and report a missing or older CLI as the spec says
+- [ ] 1.3 Read each change's deltas through OpenSpec's CLI, 1.16.0 or later,
+      and report a missing or older CLI as *The script reads OpenSpec
+      changes only through the OpenSpec CLI* says
 - [ ] 1.4 Select the issues the order holds, as *The order holds every
       open pull request and the issues linked to the work* says
 

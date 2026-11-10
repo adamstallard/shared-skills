@@ -77,17 +77,19 @@ pull request.
 ### Requirement: The script reads OpenSpec changes only through the OpenSpec CLI
 
 The script SHALL read each open change's requirements and deltas only
-through OpenSpec's CLI, version 1.15.0 or later, from each pull request's
-head without checking it out. Without that CLI it SHALL apply no rule that
-reads a change, and the order SHALL say that dependencies between
-requirements were not checked and why.
+through OpenSpec's CLI, 1.16.0 or later, from each pull request's head as
+fetched files, never a checkout, because an earlier CLI can take inline
+code that starts a line for a code fence and hide every requirement
+after it. With an older or missing CLI, the script SHALL apply no rule
+that reads a change (modifies, cites, copy duties), and the order's issue
+SHALL say requirements' dependencies were not checked, and why.
 
 #### Scenario: An old CLI checks no requirement
 
 - **WHEN** the script runs where `openspec --version` prints `1.14.3`, and
   two open pull requests hold changes
 - **THEN** no edge comes from a change's files, and the order's issue says
-  `Dependencies between requirements were not checked: OpenSpec 1.15.0 or
+  `Dependencies between requirements were not checked: OpenSpec 1.16.0 or
   later is not installed (this one is 1.14.3).`
 
 ### Requirement: A change that modifies another change's requirement comes after it
