@@ -85,6 +85,22 @@ to that pull request instead.
 - **WHEN** #50 closes issue #43, and #43's body says `Depends on #61`
 - **THEN** #50 comes after #61, and #43 shares #50's place
 
+### Requirement: Each change is read from the head of the pull request it belongs to
+
+Where several open pull requests' heads hold one change's directory, the
+script SHALL read the change, and compute its hash for *A code edge is
+kept while both changes it joins are unchanged*, from the head of the
+pull request it belongs to, as the terms above define, and ignore the
+other copies.
+
+#### Scenario: A stacked pull request's older copy is ignored
+
+- **WHEN** #25 adds the change `inquisitor`, so the change belongs to #25,
+  and #64, stacked on #25, carries an older copy of
+  `openspec/changes/inquisitor/`
+- **THEN** the script reads and hashes `inquisitor` from #25's head, and
+  #64's copy sets no edge and no hash
+
 ### Requirement: The script reads OpenSpec changes only through the OpenSpec CLI
 
 The script SHALL read each open change's requirements and deltas only
@@ -220,11 +236,12 @@ place this tiebreak decides.
 ### Requirement: A cycle is asked about, never chosen
 
 The script SHALL NOT choose which member of a cycle goes first. The order
-SHALL list a cycle's members together at one place, marked unchosen. Where
-a question asking a person to choose was posted, the place SHALL link it;
-otherwise it SHALL say `asked in a session by <login>`, naming the `gh`
-login the asking session ran as. The order SHALL place each item that
-comes after any member after all of them.
+SHALL list a cycle's members together at one place, marked unchosen, and
+place each item that comes after any member after all of them. The place SHALL link
+the question when one was posted. When a session asked through the
+picker, the host's question tool, that session's publish SHALL say
+`asked in a session by <login>`, naming its `gh` login. Otherwise the
+place SHALL say `not yet asked`.
 
 #### Scenario: Two changes that cite each other wait for a person
 
@@ -240,6 +257,13 @@ comes after any member after all of them.
   goes first, and publishes before she answers
 - **THEN** the order marks the cycle unchosen with `asked in a session by
   maya`
+
+#### Scenario: A cycle nobody has asked about says so
+
+- **WHEN** an Igor's Sequencer role publishes an order with a cycle between
+  #82 and #85, and no question about it was posted or asked through a
+  picker
+- **THEN** the order marks the cycle unchosen with `not yet asked`
 
 ### Requirement: A cycle a person has decided is ordered as decided
 
@@ -463,26 +487,13 @@ stays last, and at the body's end otherwise.
 - **WHEN** #90 enters the order, and its body ends with the line
   `prose ✓ 3f2a91`
 - **THEN** its new block sits just before that line, which stays the
-  body's last line
+  body's last line, though that footer's hash no longer matches the text
+  above it, which the script allows
 
 #### Scenario: A new block goes at the end of a body with no prose footer
 
 - **WHEN** #91 enters the order, and its body's last line is a person's text
 - **THEN** its new block is added after that line, at the body's end
-
-### Requirement: A prose footer stays valid whatever the script writes between its markers
-
-The prose skill, changed for the sequencer, SHALL leave out of its
-footer hash each span from a `<!-- sequencer:begin -->` line through its
-`<!-- sequencer:end -->` line, with the blank lines just above that span,
-in both signing and checking, so that a body that prose signed stays
-signed whatever the script adds, rewrites or removes between the markers.
-
-#### Scenario: A signed body stays signed after its block changes
-
-- **WHEN** #90's body ends with a prose footer that was valid when signed,
-  and the script adds #90's block above it, and later rewrites that block
-- **THEN** prose still finds #90's footer valid after each edit
 
 ### Requirement: A block is rewritten only when the order or its reasons change
 
@@ -675,6 +686,12 @@ for the cycle's change directories, and the order SHALL link it.
 - **WHEN** the order's issue marks a cycle `asked in a session by maya`,
   and a CI run finds that cycle still undecided
 - **THEN** the run posts no question for it
+
+#### Scenario: CI asks about a cycle marked not yet asked
+
+- **WHEN** the order's issue marks a cycle `not yet asked`, and a CI run
+  finds that cycle still undecided
+- **THEN** the run posts the question and links it at the cycle's place
 
 ### Requirement: The setup command writes the CI workflow and never overwrites it
 

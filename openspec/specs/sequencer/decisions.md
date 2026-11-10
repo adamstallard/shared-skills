@@ -2,9 +2,9 @@
 
 ## Rejected
 
-- **Rejected: Locking publishes so that only one runs at a time.**
+- **Rejected: Serialising session and Igor publishes with the workflow's runs through an Actions concurrency group.**
   Facing: a session, an Igor and the CI workflow can each run `publish` against the same bodies at once.
-  Lost because: a GitHub Actions `concurrency` group serialises only one workflow's runs, so it cannot hold back a session's or an Igor's publish, https://docs.github.com/en/actions/using-jobs/using-concurrency.
+  Lost because: a session's or an Igor's publish is no GitHub Actions run, and GitHub's docs describe a `concurrency` group as holding back only Actions jobs and workflow runs, https://docs.github.com/en/actions/using-jobs/using-concurrency.
   Instead: the later write wins. The next run recomputes the rule-decided order; code edges written by the losing publish are lost until a model step runs again.
   Paths: .agents/skills/sequencer/scripts/sequencer.py
 
@@ -33,7 +33,3 @@
   A reader who opens an issue with `gh issue view`, the default, sees its title and body and none of its comments, and an agent's piped `gh issue view --comments` prints the comments without the body. An order kept in comments would be missing from the default read, and one kept in the body is missing only from the comments-only read.
   Evidence: gh's manual says `gh issue view` displays "the title, body, and other information about an issue", and that "When output is piped or redirected, only the comments are printed" with `--comments`, https://cli.github.com/manual/gh_issue_view
   Evidence: measured on 2026-11-10 UTC with gh 2.103.2, on an issue whose body is 2521 bytes and which has one comment. `gh issue view 168 --repo adamstallard/igor | wc -c` printed 2803 bytes: the title, metadata and body. `gh issue view 168 --repo adamstallard/igor --comments | wc -c` printed 164: the one comment with its author header, and no title or body, https://github.com/adamstallard/igor/issues/168
-
-- **Rationale: A prose footer stays valid whatever the script writes between its markers.**
-  The prose skill signs a posted body with a footer that is a hash of all the text above it, and its hook checks that hash before a hand-back. Without this requirement, a block the script adds or rewrites above a prose footer would change that text, and every ordered body that prose had signed would fail its check.
-  Evidence: prose's `footer_hash` hashes the whole body above the footer, and `verify_post` reports "the footer does not match the text above it (edited after signing?)" when it differs, [prose.py](../../../.agents/skills/prose/scripts/prose.py)

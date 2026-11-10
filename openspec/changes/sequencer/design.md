@@ -170,13 +170,12 @@ giving its place, between markers the script owns, never in a comment**
 order lives in one issue's body* says why not a comment. A block is rewritten only when the order or its reasons change
 (igor#231, decision 2), so a watcher is notified only of a real move. The
 script touches nothing outside its markers, so a person may keep their own
-text in the same body. The prose skill signs a posted body with a footer
-that hashes the text above it, so a block the script adds there would
-break that signature. The Rationale for *A prose footer stays valid
-whatever the script writes between its markers*, in
-`openspec/specs/sequencer/decisions.md`, gives the evidence, and this
-change's task 3.8 changes prose to leave the marked span out of the
-hash.
+text in the same body. The prose skill ends each body it signs with a
+`prose ✓` footer, a hash of the text above it, and prose's hook reads the
+footer as the body's last line. A new block goes just above that footer
+so it stays last. The block changes the text the footer hashes, so a
+footer already in the body stops matching it. That is harmless: prose
+checks only text an agent is posting, never a body already posted.
 
 - *Ruled out by a scenario:* keeping the order in comments (*The whole
   order lives in one issue's body*).
