@@ -1,12 +1,6 @@
-# inquisitor: constraints and rejected alternatives
+# inquisitor: constraints, rejected alternatives and rationale
 
 ## Constraints
-
-- **Constraint: A picker `ask` record keeps no option's label, so the records cannot show later whether the person took the recommendation.**
-  Because: the labels are part of the question's text, which no verdict record holds.
-  Evidence: the picker's `questions` array carries each option's label beside the question, and the records keep that text only as a hash (inquisitor spec: *The two calls' files and records stay private*), adamstallard/shared-skills#25
-  Holds while: verdict records hold no question text.
-  Paths: .agents/skills/inquisitor/scripts/inquisitor.py
 
 - **Constraint: An idle machine keeps its verdict records, each naming its question by plain SHA-256, until the next call or hook, so anyone who can read the state folder and guesses a short question's text can confirm it was asked, with a category or without.**
   Because: only the agent's user can read the state folder, so a guesser needs that user's access, or root's, first.
@@ -36,30 +30,6 @@
   Because: that repository is never more visible than the question's, so the pusher is shown only to people who may already see the question.
   Evidence: GitHub's events API lists each push event's actor and time, https://docs.github.com/en/rest/activity/events
   Holds while: a citation is pushed with a person's own credentials.
-  Paths: .agents/skills/inquisitor/scripts/inquisitor.py
-
-- **Constraint: Filter 1 does not find a lore entry merged since the person's last fetch.**
-  Because: filter 1 fetches only the `questions` branch, and reads each lore clone's default branch as last fetched.
-  Evidence: inquisitor spec: *A lore entry is read from the remote-tracking default branch*, adamstallard/shared-skills#25
-  Holds while: filter 1 fetches no lore clone's default branch.
-  Paths: .agents/skills/inquisitor/scripts/inquisitor.py
-
-- **Constraint: A `project:` scope matches only a repository's short name, so a project whose repositories have other names needs a mapping file in the lore repository, read by igor and the inquisitor alike, which nothing provides.**
-  Because: igor matches a project scope that way, and igor and the inquisitor must read a lore entry's scope alike.
-  Evidence: `scopeMatches` in igor's `src/firing.ts`, https://github.com/adamstallard/igor/blob/main/src/firing.ts
-  Holds while: igor matches a project scope by a repository's short name.
-  Paths: .agents/skills/inquisitor/scripts/inquisitor.py
-
-- **Constraint: A questions-branch log file's name carries a slug of its question's words, though the Igor's record of a handback holds none of them.**
-  Because: the record finds the file by its name's suffix and date, so it needs no words, while the file itself holds the question's text on a questions branch no more visible than that question.
-  Evidence: inquisitor spec: *A later Igor run names the answered file only from the Igor's record*, adamstallard/shared-skills#25
-  Holds while: a log file's name carries a slug.
-  Paths: .agents/skills/inquisitor/scripts/inquisitor.py
-
-- **Constraint: Among proven answers to one question, two machines that first fetched a file at different times can order it differently against a file pushed between those fetches.**
-  Because: a signature's date is the earlier of the signed commit's committer date and this machine's first fetch of it, so no signer can date a commit into the future and outrank every later answer.
-  Evidence: the signer sets a commit's committer date, https://git-scm.com/docs/git-commit#_commit_information
-  Holds while: a signature's date is bounded by this machine's first fetch.
   Paths: .agents/skills/inquisitor/scripts/inquisitor.py
 
 - **Constraint: Someone who can push to a person's open pull request, such as a maintainer GitHub's "allow edits by maintainers" lets push to it, can change the person's relay file under it, and the change counts once merged.**
@@ -112,12 +82,6 @@
   Instead: the first call or hook to read the records after a record's 2 hours deletes it.
   Paths: .agents/skills/inquisitor/scripts/inquisitor.py, .agents/skills/inquisitor/scripts/check-ask.sh, .agents/skills/inquisitor/scripts/check-post.sh
 
-- **Rejected: Searching a fixed `docs/decisions/` for igor's scribe's records until igor PR #202 settles their path.**
-  Facing: filter 1 reading igor's scribe's decision records before #202 says where they are kept.
-  Lost because: it is an interim design for an igor dependency while igor has no users, adamstallard/igor#202.
-  Instead: filter 1 searches the path #202 sets, in the repository the question concerns and in the lore repository.
-  Paths: .agents/skills/inquisitor/scripts/inquisitor.py
-
 - **Rejected: The script refusing a lesson that quotes a logged question.**
   Facing: question and miss logs holding private content that a lesson sent to shared-skills could carry.
   Lost because: a lesson in general terms never quotes one, adamstallard/shared-skills#25.
@@ -153,3 +117,29 @@
   Lost because: it would split each capability's scenarios between `openspec/specs/` and an open change, adamstallard/shared-skills#25.
   Instead: the change is archived only once task 4.3 tags every expected gap and igor PR #216 has merged.
   Paths: openspec/specs/inquisitor/spec.md, openspec/specs/answer-session/spec.md
+
+## Rationale
+
+- **Rationale: Filter 1 hides every lore entry outside the question's scope.**
+  igor and the inquisitor must read a lore entry's scope alike, and igor matches a `project:` scope by a repository's short name. A project whose repositories have other names would need a mapping file in the lore repository, read by both, which nothing provides.
+  Evidence: `scopeMatches` in igor's `src/firing.ts`, https://github.com/adamstallard/igor/blob/main/src/firing.ts
+
+- **Rationale: A file is as new as its proof, and supersedes only if it would count.**
+  The signer sets a commit's committer date, so a signature dated by it alone would let a proven writer, or a skewed clock, date a commit far in the future and outrank every later answer for good. Bounding it by this machine's first fetch costs this: two machines that first fetched a file at different times can order it differently against a file pushed between those fetches.
+  Evidence: the committer date is whatever the committer's environment sets, https://git-scm.com/docs/git-commit#_commit_information
+
+- **Rationale: A reader counts no signature GitHub may have made.**
+  GitHub signs the commits it makes itself, such as one from its web editor. If GitHub verified such a commit for an account that did not make it, anyone with push access could make a commit that proves another person's answer or relay file.
+  Evidence: "GitHub will automatically use GPG to sign commits you make using the web interface", https://docs.github.com/en/authentication/managing-commit-signature-verification/about-commit-signature-verification
+  Evidence: task 0.11 read a merge commit on shared-skills' main as `VALID`, signed by `web-flow` with `wasSignedByGitHub` set, on 2026-11-04, https://github.com/web-flow.gpg
+
+- **Rationale: The script tells an Igor's run by IGOR_RUN.**
+  The script matches the variable's exact name and value, since a prefix match would take a seat's token variable, `IGOR_RUN_TOKEN`, for a run marker.
+  Evidence: igor PR #171 adds `IGOR_RUN_TOKEN`, https://github.com/adamstallard/igor/pull/171
+
+- **Rationale: In an Igor's run, filter 1 searches through igor.**
+  An Igor worker cannot run the skill, so its filter 1 asks igor. A worker's Bash permission is only its role's `commands`, the list of commands the role lets its worker run; Read is refused outside its working tree, and its HOME holds no `inquisitor.json` or `gh` login unless a developer set one up; igor's deployment guide says not to log `gh` in as the service user. Under igor PRs #174 and #175, skills load only from `/opt/igor/skills`, the lore checkout is mode 0750, which the worker cannot read, the worker loads no hooks, and the run is headless, with no picker. igor passes the worker no lore repository, and injects only the active entries that fit its token budget, so injected lore alone is not enough for filter 1.
+  Evidence: task 0.12, measured 2026-10-20: the worker's `allowedTools` are its role's `commands`, https://github.com/adamstallard/igor/blob/8478aec/src/execute.ts#L1607
+  Evidence: its system prompt, `workerSystemPrompt`, https://github.com/adamstallard/igor/blob/8478aec/src/execute.ts#L161
+  Evidence: the deployment guide on the service user's `gh` login, https://github.com/adamstallard/igor/blob/8478aec/docs/deployment.md#L112-L115
+  Evidence: #175's design, the row for "the Igor's home, lore checkout, `/etc/igor`", https://github.com/adamstallard/igor/blob/908c149/openspec/changes/worker-user/design.md

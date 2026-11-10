@@ -35,8 +35,9 @@ agent asks it again.
 
 design.md's *Decisions* gives the reason for each rule, and its *Open
 Questions* lists what this change leaves unmeasured or needs from igor and
-other changes. Each capability's `specs/<capability>/decisions.md` holds
-the constraints and rejected alternatives no test can check.
+other changes. Each capability's decision record,
+`openspec/specs/<capability>/decisions.md`, holds what no test can check:
+constraints, rejected alternatives, and the evidence behind requirements.
 
 **Out of scope:** the Igor inquisitor role, which brings surviving questions
 to a team discussion, with its per-channel budget of posts. An Igor is one

@@ -846,18 +846,13 @@ contradicts what design.md assumed.
       exempt from their trailers, and say in prose's `DECISIONS.md` that
       its file filter skips files under `.inquisitor/` (task 5.6) because
       they are records quoted word for word
-- [ ] 7.2 At archive, spec-check's fold merges this change's decision
-      records, `specs/inquisitor/decisions.md`,
-      `specs/answer-session/decisions.md` and `specs/gh-post/decisions.md`,
-      into `openspec/specs/<capability>/decisions.md`. The change already
-      holds them, in the form shared-skills issue #56 sets. Archive with a
-      spec-check that has that fold, since `openspec archive` leaves a
-      change's `decisions.md` only in the archived copy (issue #56). Write no
-      `.agents/skills/inquisitor/DECISIONS.md`. Fold by hand any other
-      lasting reasoning in design.md into the capability's record, as
-      `AGENTS.md` says. Point each requirement's
-      citation of a task 0.N or of design.md at its measured result or its
-      decision record entry. Fold the reasoning for moving prose's post
-      reader into `.agents/lib/gh-shell/` (task 1.1) into prose's
-      `DECISIONS.md`, as `AGENTS.md` says (design.md: *OpenSpec for new
-      work in shared-skills*)
+- [ ] 7.2 Archive with plain `openspec archive`. This pull request already
+      edits the decision records, `openspec/specs/inquisitor/decisions.md`,
+      `openspec/specs/answer-session/decisions.md` and
+      `openspec/specs/gh-post/decisions.md`, and archiving leaves them as
+      they are. Write no `.agents/skills/inquisitor/DECISIONS.md`. Point
+      each requirement's citation of a task 0.N or of design.md at its
+      measured result or its decision record entry. prose has no spec, so
+      its reasoning lives in its `DECISIONS.md`: write there why prose's
+      post reader moved into `.agents/lib/gh-shell/` (task 1.1; design.md:
+      *OpenSpec for new work in shared-skills*)
