@@ -5,7 +5,7 @@
                         [--no-validate] [--json]
     spec_check.py sign --read subagent|self|deferred [--amended N] [--open N]
                        [--base REF] [--no-validate]
-    spec_check.py verify-staged "Spec-check: <value>"   (reads and ignores the commit message on stdin)
+    spec_check.py verify-staged "Spec-check: <value>"   (ignores the commit message .agents/lib/commit-trailer pipes to stdin)
     spec_check.py verify-commit <sha> <value>
     spec_check.py ci [--event FILE] [--repo DIR]
     spec_check.py setup-ci [--repo DIR] [--sha SHA] [--force]
@@ -27,8 +27,9 @@ lines is checked against a scratch copy of the tree's specs, into which
 `openspec archive` has archived each open dependency. A merged dependency is
 never archived: its result must already show in the tree. Each dependency is
 read from its pull request with gh and git, which needs the network, and
-OpenSpec 1.16.1 or later must be on PATH. A dependency that cannot be read, judged or
-archived is an error, never skipped.
+OpenSpec 1.16.1 or later must be on PATH. It is an error, never skipped,
+when a dependency cannot be read, cannot be found to be merged or open,
+or cannot be archived.
 
 With the OpenSpec CLI on PATH, every checked change is also archived into
 a scratch copy of the specs by `openspec archive`: alone, or for a stacked
@@ -40,8 +41,16 @@ Specs and deltas are read only through the OpenSpec CLI, 1.16.1 or later:
 change applies. Without it, every check that needs a requirement is
 reported as not run, and a stacked change gets an error.
 
-check exits 0 with no errors, 1 with errors, 2 when it cannot run. Findings
-marked `check` are heuristics for a person or agent to judge; they never fail.
+check exits 0 with no errors, 1 with errors, 2 when it cannot run. Each
+finding has a level, `error` or `check`. A `check`-level finding is a
+heuristic for a person or agent to judge, and never fails.
+
+A hand-back puts a pull request in front of a reviewer: it is opened or
+reopened ready for review, marked ready, or has a review requested. A
+review round is the commits between two hand-backs. Once per round,
+before the hand-back that ends it, a fresh subagent (or the author) reads
+each change against every other spec, change and open pull request: the
+consistency read. It happens outside this script; sign records it.
 
 sign runs check on the staged tree and, when no error remains, prints the
 `Spec-check:` trailer value bound to that tree. `--read` says what the value
@@ -52,25 +61,40 @@ are due, and ends the value with `no read due` when none is.
 
 ci is the GitHub workflow's check of a pull request event ($GITHUB_EVENT_PATH):
 it fails when a change is unread at the pull request's head and, when the
-event handed the pull request back for review, makes it a draft again and
-withdraws the review request. setup-ci writes that workflow into a
-repository, pinned to a commit of this file. verify-staged and
-verify-commit check a `Spec-check:` value against the staged tree or a
-commit: the shared commit library (.agents/lib/commit-trailer) calls the
-first before it commits, and the commit hook the second after.
+event is a hand-back, makes it a draft again and withdraws the review
+request. setup-ci writes that workflow into a repository, from the
+workflow template (ci/spec-check.yml) as it stands at the commit it pins,
+so the workflow's steps match the spec_check.py each run downloads. The
+pin is the later of the newest commits on shared-skills' main that changed
+this file and the template, when one is in the other's history. When the
+two came from branches merged separately, neither holds the other's
+change, and the pin is the first commit on main's first-parent line whose
+history holds both. setup-ci reads the pin and the template from GitHub,
+so gh must be installed and signed in.
+
+verify-staged and verify-commit check a `Spec-check:` value against the
+staged tree or a commit. The shared commit library
+(.agents/lib/commit-trailer) calls verify-staged before it commits,
+passing the whole trailer line; the commit hook calls verify-commit after,
+passing the value alone.
 
 Each capability's decision record (its constraints, rejected alternatives
 and rationale) is at the path openspec/spec-check.yaml gives as
 `decision-records: <path with <capability>>`, by default
 openspec/specs/<capability>/decisions.md. A pull request edits that main
-record directly; a decisions.md inside a change is refused. The check
-command gives each record format checks, holds a Rationale entry's title to
-a requirement in force or in an open change, runs the `evolution` check on
-the lines a branch changes in a record, and gives each requirement of a
-change a `rationale` finding when its text holds more than its statement
-and one sentence. The records command prints the records a change's consistency read is given: the main record of
-each capability the change touches, and each main record whose Paths match
-a file the branch changes.
+record directly; a decisions.md inside a change is refused. A record holds Rationale, Constraint and Rejected
+entries, in the form SKILL.md's "Decision records" gives. The check
+command gives each record format checks, reports a Rationale entry whose
+title names no requirement in force or in an open change, and runs the
+`evolution` check on the lines a branch changes in a record. It gives each
+requirement of a change a `rationale` finding when its text holds more
+than its SHALL statement and one *because* sentence: reasoning with
+evidence belongs in a Rationale entry of the decision record, and the
+rest in design.md. The records command prints the records a change's
+consistency read is given: the main record of each capability the change
+touches, and each main record with a Constraint or Rejected entry whose
+Paths line, the files that entry governs, names a file the branch
+changes.
 
 Standard library only.
 """
@@ -4534,8 +4558,8 @@ def cmd_pass_due(args):
 # other action (a push) the workflow fails the check with a change unread,
 # but leaves the pull request as it is.
 CI_HANDBACKS = ("opened", "reopened", "ready_for_review", "review_requested")
-CI_TEMPLATE = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "ci",
-                           "spec-check.yml")
+# The workflow template's path in shared-skills.
+CI_TEMPLATE = ".agents/skills/spec-check/ci/spec-check.yml"
 CI_PIN = "<SPEC_CHECK_SHA>"
 
 
@@ -4606,6 +4630,161 @@ def cmd_ci(args):
     return 1
 
 
+# setup-ci reads the pin and the template from shared-skills on GitHub,
+# never from local files, so any copy of this script writes the same
+# workflow.
+SHARED_SKILLS = "adamstallard/shared-skills"
+CI_SCRIPT = ".agents/skills/spec-check/scripts/spec_check.py"
+
+
+class NotOnGitHub(StackError):
+    """GitHub answered that the object asked for does not exist: HTTP 404, or
+    422 for a SHA naming an object of another kind, such as a blob's asked
+    for as a tree. It is a StackError, the script's error for a failed read
+    of GitHub, so setup-ci reports one that reaches it like any other."""
+
+
+def github(path, raw=False, paginate=False):
+    """What GitHub's REST API returns for path, under repos/<SHARED_SKILLS>/,
+    read with `gh api`: parsed JSON, a list of each page's JSON with
+    paginate, or the file's text with raw. Raises NotOnGitHub when GitHub
+    answers 404 or 422, and StackError for any other failure, such as gh
+    missing or signed out, or GitHub unreachable."""
+    # github.com always, whatever host GH_HOST names: shared-skills is there.
+    args = [GH, "api", f"repos/{SHARED_SKILLS}/{path}", "--hostname", "github.com"]
+    if raw:
+        args += ["-H", "Accept: application/vnd.github.raw"]
+    if paginate:
+        args.append("--paginate")
+    try:
+        r = subprocess.run(args, capture_output=True, timeout=GH_TIMEOUT,
+                           env=dict(os.environ, GH_PROMPT_DISABLED="1"))
+    except (OSError, subprocess.TimeoutExpired) as e:
+        raise StackError(f"gh could not run: {e}") from e
+    out, err = (b.decode("utf-8", "replace") for b in (r.stdout, r.stderr))
+    if r.returncode != 0:
+        if re.search(r"\(HTTP 4(04|22)\)", err):
+            raise NotOnGitHub(path)
+        why = "; ".join(l.strip() for l in (err or out).splitlines() if l.strip())
+        raise StackError(f"`gh api` failed: {why or f'exit {r.returncode}'}")
+    if raw:
+        return out
+    try:
+        if not paginate:
+            return json.loads(out)
+        # gh prints the pages' JSON documents one after another.
+        pages, at, decoder = [], 0, json.JSONDecoder()
+        while out[at:].strip():
+            at += len(out[at:]) - len(out[at:].lstrip())
+            page, at = decoder.raw_decode(out, at)
+            pages.append(page)
+        return pages
+    except ValueError as e:
+        raise StackError(f"`gh api {path}` printed something that is not JSON: {e}") from e
+
+
+def newest_commit(head, path):
+    """The newest commit in head's history that changed path."""
+    return github(f"commits?sha={head}&path={urllib.parse.quote(path)}&per_page=1")[0]["sha"]
+
+
+def first_with_both(a, b, head):
+    """The oldest commit on head's first-parent line whose history holds both
+    a and b, for two commits on separate branches that were merged."""
+    parents = {c["sha"]: [p["sha"] for p in c["parents"]]
+               for page in github(f"compare/{a}...{head}?per_page=100", paginate=True)
+               for c in page["commits"]}
+    # parents holds every commit in head's history but not in a's. The
+    # caller found neither of a and b in the other's history, so b is in
+    # parents. A commit outside parents is in a's history, where neither b
+    # nor any commit after a can be. So a commit holds b only through
+    # commits in parents, and holds a when a is one of its parents or
+    # through commits in parents.
+    holds = {}
+
+    def holds_both(sha):
+        stack = [sha]
+        while stack:
+            c = stack[-1]
+            if c in holds:
+                stack.pop()
+                continue
+            todo = [p for p in parents[c] if p in parents and p not in holds]
+            if todo:
+                stack.extend(todo)
+                continue
+            stack.pop()
+            got_a = any(p == a or (p in parents and holds[p][0]) for p in parents[c])
+            got_b = c == b or any(p in parents and holds[p][1] for p in parents[c])
+            holds[c] = (got_a, got_b)
+        return holds[sha] == (True, True)
+
+    pin, c = None, head
+    while c in parents and holds_both(c):
+        pin, c = c, (parents[c] or [None])[0]
+    return pin
+
+
+def default_pin(head):
+    """The commit to pin, given main's head. Of the newest commit in head's
+    history that changed the script and the newest that changed the
+    template, the later, when one is in the other's history. When neither
+    is (GitHub's compare says they diverged), the first commit on head's
+    first-parent line whose history holds both. Raises StackError when no
+    commit holds both."""
+    a, b = newest_commit(head, CI_SCRIPT), newest_commit(head, CI_TEMPLATE)
+    if a == b:
+        return a
+    status = github(f"compare/{a}...{b}")["status"]
+    if status in ("behind", "ahead"):
+        return a if status == "behind" else b
+    pin = first_with_both(a, b, head)
+    if pin is None:
+        raise StackError(f"no commit on main holds both {a} and {b}")
+    return pin
+
+
+def on_main(sha):
+    """Whether sha is a commit on main; None when GitHub cannot compare it
+    with main: sha is no commit, or a commit with no history in common."""
+    try:
+        return github(f"compare/main...{sha}")["status"] in ("behind", "identical")
+    except NotOnGitHub:
+        return None
+
+
+def check_sha(sha):
+    """None if sha is a commit on main, or else why not. Call it only after
+    reading main from GitHub. That read shows gh reaches shared-skills, so
+    a 404 here means the object asked for is missing, never that gh could
+    not see the repository at all."""
+    found = on_main(sha)
+    if found:
+        return None
+    if found is False:
+        return f"commit {sha} is not on main"
+    try:
+        github(f"git/commits/{sha}")
+        return f"commit {sha} is not on main"
+    except NotOnGitHub:
+        pass
+    # GitHub serves files at a commit's SHA, not at a tag's or a tree's, so
+    # no workflow run could download the script at such a pin.
+    try:
+        target = github(f"git/tags/{sha}")["object"]
+    except NotOnGitHub:
+        target = None
+    if target is not None:
+        hint = f"; pass --sha {target['sha']}, the commit it points to" \
+            if target.get("type") == "commit" and on_main(target["sha"]) else ""
+        return f"{sha} is a tag, not a commit{hint}"
+    try:
+        github(f"git/trees/{sha}")
+        return f"{sha} is a tree, not a commit"
+    except NotOnGitHub:
+        return f"{sha} is not a commit of {SHARED_SKILLS}"
+
+
 def cmd_setup_ci(args):
     repo = repo_root(args.repo)
     dest = os.path.join(repo, ".github", "workflows", "spec-check.yml")
@@ -4614,25 +4793,36 @@ def cmd_setup_ci(args):
               file=sys.stderr)
         return 1
     sha = args.sha
-    if sha is None:
-        # The clone holding this file, through any install symlink.
-        clone = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
-            os.path.dirname(os.path.realpath(__file__))))))
-        sha = git(clone, "log", "-1", "--format=%H", "--",
-                  ".agents/skills/spec-check/scripts/spec_check.py",
-                  check=False).stdout.strip()
-        if not sha or not git(clone, "branch", "-r", "--contains", sha,
-                              check=False).stdout.strip():
-            print("spec-check setup-ci: the newest commit of spec_check.py in this clone "
-                  "is not pushed, so GitHub cannot serve it; pass --sha with a pushed "
-                  "commit of adamstallard/shared-skills", file=sys.stderr)
-            return 1
-    if not re.fullmatch(r"[0-9a-f]{40}", sha):
+    if sha is not None and not re.fullmatch(r"[0-9a-f]{40}", sha):
         print("spec-check setup-ci: --sha takes a full 40-character commit SHA, never a "
               "branch", file=sys.stderr)
         return 1
-    with open(CI_TEMPLATE, encoding="utf-8") as fh:
-        text = fh.read().replace(CI_PIN, sha)
+    try:
+        # Read first, so a GitHub that cannot serve shared-skills at all is
+        # refused as such, never taken for a --sha that is not a commit.
+        head = github("git/ref/heads/main")["object"]["sha"]
+        if sha is None:
+            sha = default_pin(head)
+        else:
+            why = check_sha(sha)
+            if why:
+                print(f"spec-check setup-ci: {why}; pass --sha with a commit on main of "
+                      f"{SHARED_SKILLS}", file=sys.stderr)
+                return 1
+        # The template is read at the pin, so the workflow's steps and the
+        # spec_check.py each run downloads come from one commit.
+        try:
+            template = github(f"contents/{CI_TEMPLATE}?ref={sha}", raw=True)
+        except NotOnGitHub:
+            print(f"spec-check setup-ci: commit {sha} has no workflow template ({CI_TEMPLATE})",
+                  file=sys.stderr)
+            return 1
+    except (StackError, KeyError, TypeError, IndexError) as e:
+        print(f"spec-check setup-ci: could not read {SHARED_SKILLS} from GitHub ({e}); "
+              "setup-ci needs gh installed and signed in (`gh auth login`), and wrote nothing",
+              file=sys.stderr)
+        return 1
+    text = template.replace(CI_PIN, sha)
     os.makedirs(os.path.dirname(dest), exist_ok=True)
     with open(dest, "w", encoding="utf-8") as fh:
         fh.write(text)
@@ -4726,8 +4916,11 @@ def main(argv=None):
 
     su = sub.add_parser("setup-ci", help="write the GitHub workflow into a repository")
     su.add_argument("--repo")
-    su.add_argument("--sha", help="the shared-skills commit to pin (default: this clone's "
-                                   "newest pushed commit of spec_check.py)")
+    su.add_argument("--sha", help="the commit on shared-skills' main to pin (default: the "
+                                   "newest commit on main that changed spec_check.py or "
+                                   "the workflow template, or, when the two were merged "
+                                   "separately, the first commit on main's first-parent "
+                                   "line holding both)")
     su.add_argument("--force", action="store_true")
     su.set_defaults(fn=cmd_setup_ci)
 

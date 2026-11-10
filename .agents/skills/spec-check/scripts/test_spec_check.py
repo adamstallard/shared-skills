@@ -140,7 +140,10 @@ class Repo:
         self.write(f"openspec/changes/{name}/tasks.md", TASKS)
 
     def run(self, *args, cwd=None, stdin=None, env=None):
-        return subprocess.run([sys.executable, str(SCRIPT), *args], cwd=cwd or self.path,
+        return self.run_script(SCRIPT, *args, cwd=cwd, stdin=stdin, env=env)
+
+    def run_script(self, script, *args, cwd=None, stdin=None, env=None):
+        return subprocess.run([sys.executable, str(script), *args], cwd=cwd or self.path,
                               capture_output=True, text=True, env=env or ENV, input=stdin)
 
     def check(self, *args, env=None):
@@ -5152,6 +5155,99 @@ HANDBACK = HERE / "check-handback.sh"
 # keyed by selector or URL, or else with the JSON in $FAKE_PR (failing when
 # neither is set or the selector is not a key), succeeds at `gh pr ready --undo` and `gh pr edit` unless
 # $FAKE_UNDO_FAIL is set, and logs every call to $FAKE_PR_LOG.
+CI_SCRIPT_PATH = ".agents/skills/spec-check/scripts/spec_check.py"
+CI_TEMPLATE_PATH = ".agents/skills/spec-check/ci/spec-check.yml"
+
+# A fake gh for setup-ci: answers the `gh api` calls it makes about
+# adamstallard/shared-skills from the git repository at $FAKE_GITHUB, as
+# GitHub would, and logs each call to $FAKE_GITHUB_LOG. Set, these change it:
+# - $FAKE_GITHUB_FAIL: fails every call as gh does when it cannot reach
+#   GitHub.
+# - $FAKE_GITHUB_404: answers every call with HTTP 404.
+# - $FAKE_GITHUB_PAGE: the number of commits in each page of a comparison.
+FAKE_GITHUB_GH = """\
+import base64, json, os, re, subprocess, sys, urllib.parse
+args = sys.argv[1:]
+with open(os.environ["FAKE_GITHUB_LOG"], "a") as fh:
+    fh.write(json.dumps(args) + "\\n")
+if os.environ.get("FAKE_GITHUB_404"):
+    print(json.dumps({"message": "Not Found", "status": "404"}))
+    sys.exit("gh: Not Found (HTTP 404)")
+if os.environ.get("FAKE_GITHUB_FAIL"):
+    sys.exit("error connecting to api.github.com\\ncheck your internet connection or "
+             "https://githubstatus.com")
+hub = os.environ["FAKE_GITHUB"]
+def git(*a):
+    return subprocess.run(["git", *a], cwd=hub, capture_output=True, text=True)
+def kind(sha):
+    r = git("cat-file", "-t", sha)
+    return r.stdout.strip() if r.returncode == 0 else None
+def refuse(message, code):
+    print(json.dumps({"message": message, "status": str(code)}))
+    sys.exit(f"gh: {message} (HTTP {code})")
+assert args[0] == "api", args
+url = urllib.parse.urlsplit(args[1])
+path = url.path.removeprefix("repos/adamstallard/shared-skills/")
+assert path != url.path, args
+query = dict(urllib.parse.parse_qsl(url.query))
+raw = "Accept: application/vnd.github.raw" in args
+if path == "git/ref/heads/main":
+    print(json.dumps({"object": {"sha": git("rev-parse", "main").stdout.strip()}}))
+elif path == "commits":
+    sha = git("log", "-1", "--format=%H", query["sha"], "--", query["path"]).stdout.strip()
+    print(json.dumps([{"sha": sha}] if sha else []))
+elif m := re.fullmatch(r"compare/(\\w+)\\.\\.\\.(\\w+)", path):
+    a, b = (git("rev-parse", x).stdout.strip() if kind(x) == "commit" else None
+            for x in m.groups())
+    if a is None or b is None:
+        refuse("Not Found", 404)
+    # As GitHub does, for two histories with nothing in common.
+    if git("merge-base", a, b).returncode != 0:
+        refuse(f"No common ancestor between {m[1]} and {m[2]}.", 404)
+    anc = lambda x, y: git("merge-base", "--is-ancestor", x, y).returncode == 0
+    status = ("identical" if a == b else "ahead" if anc(a, b) else
+              "behind" if anc(b, a) else "diverged")
+    commits = [{"sha": s[0], "parents": [{"sha": p} for p in s[1:]]}
+               for s in (l.split() for l in git("rev-list", "--reverse", "--parents",
+                                                  b, "^" + a).stdout.splitlines())]
+    # Pages hold the oldest commits first; without --paginate gh prints only
+    # the first, and with it every page back to back, as real gh does.
+    size = int(os.environ.get("FAKE_GITHUB_PAGE") or query.get("per_page", 250))
+    pages = [commits[i:i + size] for i in range(0, len(commits), size)] or [[]]
+    for page in pages if "--paginate" in args else pages[:1]:
+        sys.stdout.write(json.dumps({"status": status, "commits": page}))
+elif m := re.fullmatch(r"git/commits/(\\w+)", path):
+    if kind(m[1]) != "commit":
+        refuse("Not Found", 404)
+    print(json.dumps({"sha": m[1]}))
+elif m := re.fullmatch(r"git/tags/(\\w+)", path):
+    if kind(m[1]) != "tag":
+        refuse("Not Found", 404)
+    # The tag's own object, as GitHub gives it, never followed further.
+    head = dict(l.split(" ", 1) for l in git("cat-file", "tag", m[1]).stdout.split("\\n\\n")[0]
+                .splitlines())
+    print(json.dumps({"object": {"type": head["type"], "sha": head["object"]}}))
+elif m := re.fullmatch(r"git/trees/(\\w+)", path):
+    # GitHub serves a commit's tree here too, and answers 422 for a blob or
+    # a tag.
+    found = kind(m[1])
+    if found is None:
+        refuse("Not Found", 404)
+    if found not in ("tree", "commit"):
+        refuse("Invalid object requested. SHA must identify a commit or a tree.", 422)
+    print(json.dumps({"sha": git("rev-parse", m[1] + "^{tree}").stdout.strip()}))
+elif path.startswith("contents/"):
+    r = git("show", f"{query['ref']}:{path.removeprefix('contents/')}")
+    if r.returncode != 0:
+        refuse("Not Found", 404)
+    # Without the raw media type, GitHub answers with JSON holding base64.
+    sys.stdout.write(r.stdout if raw else json.dumps(
+        {"encoding": "base64", "content": base64.b64encode(r.stdout.encode()).decode()}))
+else:
+    sys.exit(f"fake gh: no answer for {args}")
+"""
+
+
 FAKE_PR_GH = """\
 import json, os, sys
 a = sys.argv[1:]
@@ -5594,6 +5690,9 @@ class CiTests(unittest.TestCase):
         self.gh.write_text(f"#!{sys.executable}\n" + FAKE_PR_GH)
         self.gh.chmod(0o755)
         self.log = tmp / "gh.log"
+        self.fake_github = tmp / "fake-github-gh"
+        self.fake_github.write_text(f"#!{sys.executable}\n" + FAKE_GITHUB_GH)
+        self.fake_github.chmod(0o755)
 
     def deferred(self):
         self.repo.change("good")
@@ -5669,21 +5768,317 @@ class CiTests(unittest.TestCase):
         self.assertIn("fetch-depth: 0", r.stderr)
 
     def test_setup_ci_pins_a_commit_and_keeps_an_existing_workflow(self):
-        sha = "a" * 40
-        r = self.repo.run("setup-ci", "--sha", sha)
+        git = self.github()
+        sha = git("rev-parse", "HEAD")
+        r = self.setup_ci("--sha", sha)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         text = (self.repo.path / ".github/workflows/spec-check.yml").read_text()
         self.assertIn(f"SPEC_CHECK_SHA: {sha}", text)
         self.assertNotIn("<SPEC_CHECK_SHA>", text)
         self.assertIn("spec_check.py\" ci", text)
-        self.assertEqual(self.repo.run("setup-ci", "--sha", "b" * 40).returncode, 1)
-        self.assertEqual(self.repo.run("setup-ci", "--sha", "main", "--force").returncode, 1)
-        self.assertEqual(self.repo.run("setup-ci", "--sha", "b" * 40, "--force").returncode, 0)
+        self.assertEqual(self.setup_ci("--sha", sha).returncode, 1)
+        self.assertEqual(self.setup_ci("--sha", "main", "--force").returncode, 1)
+        self.assertEqual(self.setup_ci("--sha", sha, "--force").returncode, 0)
 
     def test_setup_ci_refuses_a_short_sha(self):
         r = self.repo.run("setup-ci", "--sha", "abc1234")
         self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
         self.assertFalse((self.repo.path / ".github").exists())
+
+    def github(self):
+        """Make a git repository playing adamstallard/shared-skills on GitHub,
+        with the script and the template committed on main. The template has
+        `# the template on GitHub` appended, so a test can tell it from the
+        local one. Returns a function that runs git in the repository."""
+        hub = self.tmp / "github"
+        (hub / "scripts").mkdir(parents=True)
+        self.hub = hub
+
+        def git(*args, cwd=hub):
+            r = subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, env=ENV)
+            self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+            return r.stdout.strip()
+
+        git("init", "-q", "-b", "main")
+        git("config", "commit.gpgsign", "false")
+        self.edit(CI_SCRIPT_PATH, "", replace=SCRIPT.read_text())
+        self.edit(CI_TEMPLATE_PATH, "", replace=(HERE.parent / "ci/spec-check.yml").read_text()
+                  + "# the template on GitHub\n")
+        git("add", "-A")
+        git("commit", "-q", "-m", "script and template")
+        return git
+
+    def edit(self, rel, line, replace=None):
+        """Append line to the fake GitHub's file rel, or write replace there."""
+        path = self.hub / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "w" if replace is not None else "a") as fh:
+            fh.write(replace if replace is not None else line)
+
+    def setup_ci(self, *args, fail=False, script=SCRIPT, extra=None):
+        env = dict(ENV, SPEC_CHECK_GH=str(self.fake_github), FAKE_GITHUB=str(self.hub),
+                   FAKE_GITHUB_LOG=str(self.tmp / "github.log"), **(extra or {}))
+        if fail:
+            env["FAKE_GITHUB_FAIL"] = "1"
+        return self.repo.run_script(script, "setup-ci", *args, env=env)
+
+    def default_pin(self):
+        """Run setup-ci with no --sha, and return the pin it wrote."""
+        r = self.setup_ci("--force")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        text = (self.repo.path / ".github/workflows/spec-check.yml").read_text()
+        return re.search(r"SPEC_CHECK_SHA: (\S+)\n", text).group(1)
+
+    def written(self):
+        return (self.repo.path / ".github/workflows/spec-check.yml").read_text()
+
+    def test_setup_ci_pins_the_newest_commit_of_the_script_or_the_template(self):
+        git = self.github()
+        first = git("rev-parse", "HEAD")
+        self.edit("unrelated.md", "not used by the workflow\n")
+        git("add", "unrelated.md")
+        git("commit", "-q", "-m", "unrelated")
+        self.assertEqual(self.default_pin(), first)
+
+        self.edit(CI_TEMPLATE_PATH, "# a new template line\n")
+        git("commit", "-q", "-am", "template only")
+        self.assertEqual(self.default_pin(), git("rev-parse", "HEAD"))
+        self.assertIn("# a new template line", self.written())
+
+        self.edit(CI_SCRIPT_PATH, "# a new script line\n")
+        git("commit", "-q", "-am", "script only")
+        self.assertEqual(self.default_pin(), git("rev-parse", "HEAD"))
+
+    def test_setup_ci_pins_the_first_commit_holding_both_after_separate_merges(self):
+        git = self.github()
+        git("switch", "-q", "-c", "script-branch")
+        self.edit(CI_SCRIPT_PATH, "# a new script line\n")
+        git("commit", "-q", "-am", "script only")
+        git("switch", "-q", "-c", "template-branch", "main")
+        self.edit(CI_TEMPLATE_PATH, "# a new template line\n")
+        git("commit", "-q", "-am", "template only")
+        git("switch", "-q", "main")
+        git("merge", "-q", "--no-ff", "-m", "merge the script", "script-branch")
+        git("merge", "-q", "--no-ff", "-m", "merge the template", "template-branch")
+        both = git("rev-parse", "HEAD")
+        self.edit("unrelated.md", "not used by the workflow\n")
+        git("add", "unrelated.md")
+        git("commit", "-q", "-m", "unrelated")
+        # Neither branch's commit holds both new lines; the second merge does.
+        self.assertEqual(self.default_pin(), both)
+        self.assertIn("# a new template line", self.written())
+
+    def test_setup_ci_with_an_older_sha_on_main_copies_that_commits_template(self):
+        git = self.github()
+        older = git("rev-parse", "HEAD")
+        self.edit(CI_TEMPLATE_PATH, "# a newer template line\n")
+        git("commit", "-q", "-am", "newer template")
+        r = self.setup_ci("--sha", older)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn(f"SPEC_CHECK_SHA: {older}\n", self.written())
+        self.assertIn("# the template on GitHub", self.written())
+        self.assertNotIn("# a newer template line", self.written())
+
+    def test_setup_ci_refuses_a_sha_not_on_main(self):
+        git = self.github()
+        git("switch", "-q", "-c", "other")
+        self.edit(CI_SCRIPT_PATH, "# on another branch\n")
+        git("commit", "-q", "-am", "not on main")
+        for sha, why in ((git("rev-parse", "HEAD"), "is not on main"),
+                         ("b" * 40, "is not a commit of adamstallard/shared-skills")):
+            with self.subTest(sha=sha):
+                r = self.setup_ci("--sha", sha)
+                self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+                self.assertIn(why, r.stderr)
+                self.assertFalse((self.repo.path / ".github").exists())
+
+    def test_setup_ci_writes_nothing_when_github_cannot_be_read(self):
+        self.github()
+        for args in ((), ("--sha", "a" * 40)):
+            with self.subTest(args=args):
+                r = self.setup_ci(*args, fail=True)
+                self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+                self.assertIn("error connecting to api.github.com", r.stderr)
+                self.assertIn("wrote nothing", r.stderr)
+        # ENV's gh names a file nobody creates.
+        r = self.repo.run("setup-ci")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("gh could not run", r.stderr)
+        self.assertFalse((self.repo.path / ".github").exists())
+
+    def test_setup_ci_run_from_a_copy_inside_another_project_pins_shared_skills(self):
+        git = self.github()
+        copy = self.repo.path / ".agents/skills/spec-check/scripts/spec_check.py"
+        copy.parent.mkdir(parents=True)
+        shutil.copy(SCRIPT, copy)
+        self.repo.git("add", "-A")
+        self.repo.git("commit", "-q", "-m", "a vendored copy")
+        r = self.setup_ci(script=copy)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn(f"SPEC_CHECK_SHA: {git('rev-parse', 'HEAD')}\n", self.written())
+
+
+class FoundByBugHunterSetupCiRun1Tests(unittest.TestCase):
+    """Iteration 1 of a bug-hunter run over setup-ci reading the template at the pin."""
+
+    # CiTests' fake GitHub, without rerunning CiTests' own tests.
+    setUp, github, edit, setup_ci = CiTests.setUp, CiTests.github, CiTests.edit, CiTests.setup_ci
+
+    def test_an_annotated_tags_sha_is_refused(self):
+        git = self.github()
+        git("tag", "-a", "v1", "-m", "a tag")
+        r = self.setup_ci("--sha", git("rev-parse", "v1"))
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn(git("rev-parse", "v1^{commit}"), r.stderr)
+        self.assertFalse((self.repo.path / ".github").exists())
+
+    def test_a_tree_sha_is_refused(self):
+        git = self.github()
+        r = self.setup_ci("--sha", git("rev-parse", "HEAD^{tree}"))
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("is a tree, not a commit", r.stderr)
+        self.assertFalse((self.repo.path / ".github").exists())
+
+    def test_an_abbreviated_sha_of_a_commit_on_main_is_refused(self):
+        git = self.github()
+        r = self.setup_ci("--sha", git("rev-parse", "--short", "HEAD"))
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("full 40-character", r.stderr)
+        self.assertFalse((self.repo.path / ".github").exists())
+
+    def test_a_commit_without_the_template_is_refused(self):
+        git = self.github()
+        git("rm", "-q", "--", CI_TEMPLATE_PATH)
+        git("commit", "-q", "-m", "no template")
+        r = self.setup_ci("--sha", git("rev-parse", "HEAD"))
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("has no workflow template", r.stderr)
+        self.assertFalse((self.repo.path / ".github").exists())
+
+
+class FoundByBugHunterSetupCiRun2Tests(unittest.TestCase):
+    """Iteration 1 of a bug-hunter run over setup-ci reading GitHub."""
+
+    # CiTests' fake GitHub, without rerunning CiTests' own tests.
+    setUp, github, edit, setup_ci = CiTests.setUp, CiTests.github, CiTests.edit, CiTests.setup_ci
+
+    def test_a_github_that_answers_404_everywhere_is_a_clean_refusal(self):
+        # Real GitHub does not answer this way for this public repository;
+        # whatever answers 404, setup-ci refuses without a traceback.
+        git = self.github()
+        for args in ((), ("--sha", git("rev-parse", "HEAD"))):
+            with self.subTest(args=args):
+                r = self.setup_ci(*args, extra={"FAKE_GITHUB_404": "1"})
+                self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+                self.assertNotIn("Traceback", r.stderr)
+                self.assertIn("could not read adamstallard/shared-skills", r.stderr)
+                self.assertFalse((self.repo.path / ".github").exists())
+
+    def test_a_tag_of_a_commit_off_main_gets_no_hint_to_pass_that_commit(self):
+        git = self.github()
+        git("switch", "-q", "-c", "other")
+        self.edit(CI_SCRIPT_PATH, "# on another branch\n")
+        git("commit", "-q", "-am", "not on main")
+        git("tag", "-a", "v1", "-m", "a tag")
+        r = self.setup_ci("--sha", git("rev-parse", "v1"))
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("is a tag, not a commit", r.stderr)
+        self.assertNotIn(git("rev-parse", "v1^{commit}"), r.stderr)
+
+
+class FoundByBugHunterSetupCiRun2Iteration2Tests(unittest.TestCase):
+    """Iteration 2 of the same bug-hunter run as FoundByBugHunterSetupCiRun2Tests."""
+
+    # CiTests' fake GitHub, without rerunning CiTests' own tests.
+    setUp, github, edit, setup_ci, default_pin, written = (
+        CiTests.setUp, CiTests.github, CiTests.edit, CiTests.setup_ci, CiTests.default_pin,
+        CiTests.written)
+
+    def test_a_commit_sharing_no_history_with_main_is_not_on_main(self):
+        git = self.github()
+        git("switch", "-q", "--orphan", "lone")
+        self.edit("lone.md", "a history of its own\n")
+        git("add", "lone.md")
+        git("commit", "-q", "-m", "lone")
+        r = self.setup_ci("--sha", git("rev-parse", "HEAD"))
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("is not on main", r.stderr)
+        self.assertNotIn("tree", r.stderr)
+
+    def test_a_blob_sha_is_not_a_commit(self):
+        git = self.github()
+        r = self.setup_ci("--sha", git("rev-parse", f"HEAD:{CI_TEMPLATE_PATH}"))
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("is not a commit of adamstallard/shared-skills", r.stderr)
+        self.assertFalse((self.repo.path / ".github").exists())
+
+    def branches(self, git):
+        """A script-only branch and a template-only branch off main."""
+        git("switch", "-q", "-c", "script-branch")
+        self.edit(CI_SCRIPT_PATH, "# a new script line\n")
+        git("commit", "-q", "-am", "script only")
+        git("switch", "-q", "-c", "template-branch", "main")
+        self.edit(CI_TEMPLATE_PATH, "# a new template line\n")
+        git("commit", "-q", "-am", "template only")
+        git("switch", "-q", "main")
+
+    def unrelated(self, git, name):
+        self.edit(f"{name}.md", "not used by the workflow\n")
+        git("add", f"{name}.md")
+        git("commit", "-q", "-m", name)
+
+    def test_the_template_merged_first_then_the_script(self):
+        git = self.github()
+        self.branches(git)
+        git("merge", "-q", "--no-ff", "-m", "merge the template", "template-branch")
+        git("merge", "-q", "--no-ff", "-m", "merge the script", "script-branch")
+        both = git("rev-parse", "HEAD")
+        self.unrelated(git, "u")
+        self.assertEqual(self.default_pin(), both)
+
+    def test_an_unrelated_commit_between_the_two_merges(self):
+        git = self.github()
+        self.branches(git)
+        git("merge", "-q", "--no-ff", "-m", "merge the script", "script-branch")
+        self.unrelated(git, "x")
+        git("merge", "-q", "--no-ff", "-m", "merge the template", "template-branch")
+        self.assertEqual(self.default_pin(), git("rev-parse", "HEAD"))
+
+    def test_both_merged_on_a_side_branch_pins_main_s_merge_of_it(self):
+        git = self.github()
+        self.branches(git)
+        git("switch", "-q", "-c", "integration", "main")
+        git("merge", "-q", "--no-ff", "-m", "merge the script", "script-branch")
+        git("merge", "-q", "--no-ff", "-m", "merge the template", "template-branch")
+        git("switch", "-q", "main")
+        self.unrelated(git, "x")
+        git("merge", "-q", "--no-ff", "-m", "merge the integration branch", "integration")
+        self.assertEqual(self.default_pin(), git("rev-parse", "HEAD"))
+
+    def test_both_changed_in_order_on_one_merged_branch_pins_the_later_change(self):
+        git = self.github()
+        git("switch", "-q", "-c", "both")
+        self.edit(CI_SCRIPT_PATH, "# a new script line\n")
+        git("commit", "-q", "-am", "script")
+        self.edit(CI_TEMPLATE_PATH, "# a new template line\n")
+        git("commit", "-q", "-am", "template")
+        template = git("rev-parse", "HEAD")
+        git("switch", "-q", "main")
+        self.unrelated(git, "u")
+        git("merge", "-q", "--no-ff", "-m", "merge both", "both")
+        # The template commit holds both and changed one, so it is the pin,
+        # not the merge that brought it to main.
+        self.assertEqual(self.default_pin(), template)
+
+    def test_the_pin_after_separate_merges_reads_every_page_of_the_comparison(self):
+        git = self.github()
+        self.branches(git)
+        git("merge", "-q", "--no-ff", "-m", "merge the script", "script-branch")
+        git("merge", "-q", "--no-ff", "-m", "merge the template", "template-branch")
+        both = git("rev-parse", "HEAD")
+        r = self.setup_ci("--force", extra={"FAKE_GITHUB_PAGE": "1"})
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn(f"SPEC_CHECK_SHA: {both}\n", self.written())
 
 
 class FoundByBugHunterHandbackRun4Tests(HandbackAfterTests):
