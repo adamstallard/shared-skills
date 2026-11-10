@@ -1841,7 +1841,7 @@ outside any tool call.
 
 The hooks SHALL count as posting discord-bot's `post`, `edit`, `delete`
 and `thread` commands; linear-app's `token` and `headers`, whose output
-can post as an identity; a Linear MCP tool not named `get_…`, `list_…`
+can post as an identity, and `wire`, which lets later sessions post as one; a Linear MCP tool not named `get_…`, `list_…`
 or `search_…`; and a line naming either script, or running one whose path
 it cannot tell, that `.agents/lib/gh-shell/`'s splitter cannot split.
 For these hooks only, a lock that cannot be read SHALL count as naming
@@ -1850,6 +1850,12 @@ every session.
 #### Scenario: A token printed for a Linear post is blocked
 
 - **WHEN** in the holder, the model runs linear-app's `token` command
+- **THEN** linear-app's post hook blocks the call
+
+#### Scenario: Wiring Linear's MCP server to an identity is blocked
+
+- **WHEN** in the holder, the model runs linear-app's `wire` command, which
+  points Claude Code's Linear MCP server at an identity
 - **THEN** linear-app's post hook blocks the call
 
 #### Scenario: Reading Discord is not blocked
@@ -1958,9 +1964,13 @@ edit.
 
 ### Requirement: No answer file goes to a more visible lore repository
 
-When the lore repository is more visible than the repository the question
-was asked from, the answer session SHALL push no answer file; the answer
-stays in the thread where it was given.
+When the lore repository is more visible than the repository whose GitHub
+thread the answer was given in, the answer session SHALL push no answer
+file; the answer
+stays in the thread where it was given. It SHALL instead push, through
+the `log` command's handled option, a handled file naming the
+questions-branch file, when *A handled file is pushed once its close takes
+effect* says.
 
 #### Scenario: An answer typed in a private thread stays there
 
@@ -1968,8 +1978,10 @@ stays in the thread where it was given.
   thread, which a questions-branch file on a public lore repository holds
 - **THEN** the relay posts the answer in the thread, no answer file is
   pushed to the lore repository, where it would show the answer to readers
-  the private repository does not have, and the questions-branch file stays
-  unanswered there
+  the private repository does not have, and a handled file naming the
+  questions-branch file is pushed, closing it on every machine
+- **AND** the handled file names only the file it closes and holds no
+  question or answer text
 
 ### Requirement: A questions-branch answer file records the answer as given
 
@@ -1980,6 +1992,16 @@ confirmed answer if unrelayed, with any rephrasing and summary also in
 their own sections. The `log` command SHALL read a GitHub relay post
 itself. For Linear or Discord the answer session SHALL pass it the text
 sent to the relay's skill, and the command fetches nothing.
+
+#### Scenario: A relayed answer's file records the relay post as where it is recorded
+
+- **WHEN** the answer session pushes an answer file for an answer it
+  relayed
+- **THEN** the file's `recorded_in` is the relay post's URL, the same URL
+  as its `answer_link`
+- **AND** where *The log command withholds a link where it would leak*
+  leaves out the `answer_link`, `recorded_in` does not hold that URL
+  either
 
 #### Scenario: An answer records the question the person saw
 

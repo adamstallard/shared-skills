@@ -3,16 +3,12 @@
 ## Constraints
 
 - **Constraint: An allowlisted git subcommand can run any program the repository's configuration names, and the reader does not read that configuration.**
-  Because: blocking the allowlisted subcommands beside every gh post would block ordinary work, and what a repository's configuration makes git run is outside what a reader of the command line can see. That covers its hooks, such as `pre-commit`, `pre-push`, `post-checkout` and `reference-transaction`, which any ref update runs, and programs such as `core.fsmonitor` and an external diff driver, which `status` and `diff` can run. On a line that mentions a gh post verb, `git config` and `-c` make the line unreadable, but an agent can set that configuration in an earlier command, so any agent, not only a hostile repository, can open this gap; the hooks stop accidents, not a determined forger.
+  Because: blocking the reader's allowlisted git subcommands on every line with a gh post verb would block ordinary work, and what a repository's configuration makes git run, such as its hooks, `core.fsmonitor` and an external diff driver, is outside what a reader of the command line can see, and an agent can set that configuration in an earlier tool call, which the reader never sees.
   Evidence: git runs a repository's hooks on these commands, https://git-scm.com/docs/githooks; `core.fsmonitor` names a command git runs to find changed files, https://git-scm.com/docs/git-config#Documentation/git-config.txt-corefsmonitor; and git calls an external diff driver's configured `command` when it shows a diff, https://git-scm.com/docs/gitattributes#_defining_an_external_diff_driver
   Holds while: the reader judges only the command line.
   Paths: .agents/lib/gh-shell/
 
 ## Rationale
-
-- **Rationale: The shared post reader reads a post's body from an allow-list.**
-  A general command parser reads some commands differently from bash, and each difference can let a post through unread; an allow-list leaves nothing to diverge. Both post hooks read through this one reader, so neither runs a parser of its own.
-  Evidence: two bug-hunter runs found about 25 places where prose's general parser read a command differently from bash, most letting an unsigned post through, [prose's DECISIONS.md, *The posting hook reads an allow-list*](../../../.agents/skills/prose/DECISIONS.md)
 
 - **Rationale: The reader reads only gh's own top-level commands.**
   The reader cannot see what an alias or extension runs: with `c` aliased to `pr comment`, `gh c 5 -b 'User says: yes'` names no gh post verb, so letting it through would let an agent forge a relayed answer past both post hooks. The block costs every prose user gh's default alias `gh co` and read-only extensions such as `gh dash`.

@@ -119,7 +119,7 @@ beside what it concerns.
   repository, committed with the work, so every agent on the team finds it,
   as `openspec/config.yaml` is found, and a question about a change merges
   with it.
-- **About an organization or project:** a file on the `questions` orphan
+- **About an organization or project, or about the lore repository itself:** a file on the `questions` orphan
   branch of the team's lore repository, pushed directly. It needs no review,
   since a question's authority comes from who answered it, not from review.
   Keeping the files off the default branch leaves that branch holding only the
@@ -299,10 +299,12 @@ The skill's instructions reserve `User says: ` for the answer session, and
 on GitHub the post hook blocks any tool-call post starting with it (*Polling
 while open, with the person's credentials*, above). That is why a relay
 App's `User says: ` comment is trusted as its person's, whatever other work
-the relay identity does. The trust holds only while nothing posts through
-the App where no post hook sees it, which is why github-app is asked, in a change not yet built, to refuse
-handing out a relay's token (*github-app refuses `token`, `run`, `credential
-get` and `wire` for a relay identity*).
+the relay identity does. The trust is sound only while nothing but the
+answer session posts through the App where no post hook sees it. Until
+github-app refuses to hand out a relay's token, any agent on the machine can,
+and the answer-session decision record accepts that gap: *Constraint: Until
+github-app refuses `token`, `run`, `credential get` and `wire` for a relay
+identity, any agent on the person's machine can print a relay App's token*.
 
 ### What the answer session does by itself
 
@@ -685,8 +687,9 @@ decisions that run's filter 1 did not search.
 #### Records hash a question with plain SHA-256
 
 **A verdict record identifies its question by the plain SHA-256 of its
-text, and stays on disk until the first call or hook to read the records
-after its 2 hours deletes it,** which on an idle machine can be days.
+text, and stays on disk until it is deleted as *Every verdict record
+expires after 2 hours* says,** which on an idle machine can be days, since
+only a call or hook reading the records deletes one.
 
 #### Every verdict record expires after 2 hours
 
@@ -750,10 +753,12 @@ rule the reader gains applies to prose's hook too.** spec-check's hand-back
 hook splits command lines with the same library's splitter and reads its flag
 tables (shared-skills PR #55), but applies none of the post reader's rules. The `gh-post`
 spec states the rules, including the finer points of reading a line, such
-as heredocs, comments and line continuations.
-*Questions in posts* lists which prose tests change. The gh-post decision
-record's *Rationale: The shared post reader reads a post's body from an
-allow-list* gives the evidence against a second copy of prose's reader.
+as heredocs, comments and line continuations; *Questions in posts* lists
+which prose tests change. The reader is an allow-list because a general
+command parser reads some commands differently from bash, and each
+difference can let a post through unread; an allow-list blocks every form
+outside it, so a difference fails closed. A second copy of the reader
+would add a second set of differences.
 
 *Ruled out by a scenario:* calling prose's copy from the inquisitor, which
 fails whenever prose is not installed (gh-post spec: *The shared post reader
@@ -2211,7 +2216,11 @@ only when the record's repository is public.
 scenario *A Discord link is left out of a lore repository that is not
 private*); and writing no log file in a lore repository that is not private,
 though the file without the link still records the answer (scenario *A
-Linear link is left out of a lore repository that is not private*).
+Linear link is left out of a lore repository that is not private*). The
+exception is an answer given in a GitHub thread more private than the lore
+repository. Its text would leak, so no answer file is written, and a
+handled file closes the questions-branch file instead (answer-session spec:
+*No answer file goes to a more visible lore repository*).
 
 #### An answer that cannot reach its thread is kept pending
 
@@ -3026,7 +3035,10 @@ to its 149.
     repository. Filter 1 reads the lore repository's decision records where
     #202 puts them (task 7.0).
 - **igor issue #211's body should record that the post hook vets every post,
-  handbacks included** (*No exemption for an Igor's handback*). #211 proposes
+  handbacks included** (*No exemption for an Igor's handback*), **and that
+  filter 1 counts no repository's `DECISIONS.md` as a decision document**,
+  as the inquisitor spec's definition of a decision document rules, where
+  #211's decision 1.1 still lists one. #211 proposes
   this skill and the Igor inquisitor role, and its body lists five open
   questions:
   - Three concern only the role, which is out of scope (*The Igor inquisitor

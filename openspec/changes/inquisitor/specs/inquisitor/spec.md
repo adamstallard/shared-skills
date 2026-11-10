@@ -1494,6 +1494,12 @@ their own pull request, or a title or body edit keeping the base.
   pull request `alice` opened to add that file
 - **THEN** a new comment mentions `@alice`
 
+#### Scenario: A body edit keeping the base mentions no one
+
+- **WHEN** `bob` edits the body of an open pull request changing
+  `relays/alice.yaml`, keeping its base
+- **THEN** the workflow mentions no one for that edit
+
 #### Scenario: An earlier comment does not stop a mention
 
 - **WHEN** a pull request changing `relays/alice.yaml` already holds a
@@ -1754,9 +1760,8 @@ run the two calls on it again.
 ### Requirement: A question round ends at a hand-back or at the end of the agent's turn
 
 A **question round** SHALL end at a hand-back to a person, as spec-check's
-skill defines one (`.agents/skills/spec-check/SKILL.md`): a pull request
-opened or marked ready, a review requested, or telling a person the work
-is ready. With a person in the session, it SHALL also end at every end of
+skill defines one (`.agents/skills/spec-check/SKILL.md`), such as a pull
+request opened or marked ready. With a person in the session, it SHALL also end at every end of
 the agent's turn, on work with a pull request too; with no person in the
 session, it SHALL end when the agent's run ends, a subagent's run
 excepted.
@@ -1788,6 +1793,13 @@ excepted.
   turn
 - **THEN** that ends the round, and it asks the question through the
   picker before its final reply, though it handed nothing back
+
+#### Scenario: A headless run's end ends its round
+
+- **WHEN** an agent running with no person in the session holds a
+  question that blocked no step, and its run ends
+- **THEN** that ends the round, and the question goes where *A session
+  with no person in it asks in a post, a handback or nowhere* sends it
 
 #### Scenario: A subagent's result ends no round
 
@@ -2522,13 +2534,13 @@ by a person without write access leaves its question unanswered.
 
 ### Requirement: A question about one repository is logged in that repository
 
-A question about one repository SHALL be logged in `.inquisitor/questions/`
-at its root, where the agent SHALL add the answer to the file, committed
-with the work when that repository holds it, and otherwise added, answer
-included, by pull requests the agent opens without asking and whose links
-it reports. During an Igor's run, a question about a repository not the
-item's SHALL go in a questions-branch file the run reports (*An
-Igor's run reports the questions-branch files it would push*).
+A question about one repository other than a lore repository SHALL be
+logged in `.inquisitor/questions/` at its root, the agent adding the answer
+to the file: committed with the work when the agent works in that
+repository, and otherwise by pull requests it opens without asking and
+whose links it reports. During an Igor's run, a question about a repository
+not the item's SHALL instead go in a questions-branch file (*An Igor's run
+reports the questions-branch files it would push*).
 
 #### Scenario: A question about a public repository is logged in it
 
@@ -2580,6 +2592,21 @@ prose or bug-hunter trailer.
   lore repository's questions branch
 - **THEN** each commit's message is `inquisitor: log <file>` and nothing
   else, with no `Prose:` or `Bug-hunter:` trailer
+
+### Requirement: A question about a lore repository is pushed to its questions branch
+
+A question about a team's lore repository itself SHALL be pushed to that
+repository's questions branch, as an organization's question is, never
+logged in its `.inquisitor/questions/`, since its default branch holds no
+question or miss file.
+
+#### Scenario: A question raised while editing lore entries goes to the questions branch
+
+- **WHEN** an agent editing entries in the lore repository `o/lore` asks a
+  question about `o/lore`
+- **THEN** it pushes the log file, holding `repository: "o/lore"` and
+  `asked_from: "o/lore"`, to `o/lore`'s questions branch, and the default
+  branch gains no file
 
 ### Requirement: prose's pass skips files under .inquisitor/
 
@@ -3223,11 +3250,10 @@ questions-branch log and miss file but a handled one SHALL hold
   item's newest handback is open*; *A log file without `asked_in` is never
   merged*)
 - **AND** no other file holds `asked_in`
-- **AND** an answer to an organization's question, relayed in a private
-  repository's issue and logged on a public lore repository's questions
-  branch, has no `answer_link`, as *The
-  log command withholds a link where it would leak* rules, so it counts only
-  through its signature
+- **AND** an answer to an organization's question, given in a private
+  repository's issue, for a question a public lore repository's
+  questions-branch file holds, is logged in no answer file there, as the answer-session spec's
+  *No answer file goes to a more visible lore repository* rules
 
 #### Scenario: A handled file's keys
 

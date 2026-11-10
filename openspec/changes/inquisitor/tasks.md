@@ -745,7 +745,8 @@ contradicts what design.md assumed.
           file's answer; the search groups by hash*; *A named file's
           answer must be the person's own, added alone*);
         - a file that tags no one answered only by an account with write
-          access to the lore repository;
+          access to what its question concerns: the repository its
+          `repository` key names, or else the lore repository;
         - declining with two reasons, the first, nothing to answer
           (design.md: *Two reasons to decline*);
         - a named file still shown, with the answer beside it as input,
@@ -818,7 +819,7 @@ contradicts what design.md assumed.
       holder, Linear and Discord posts go only through the answer
       session*)
 - [ ] 6.13 linear-app's post hook: `PreToolUse` on Bash and Linear MCP
-      tools, which, in the holder, blocks `token`, `headers`, any line
+      tools, which, in the holder, blocks `token`, `headers`, `wire`, any line
       naming `linear_app.py` that `.agents/lib/gh-shell/` cannot read,
       and every Linear MCP tool not named `get_…`, `list_…` or
       `search_…`, telling the model to draft with `propose_reply`.
@@ -851,5 +852,6 @@ contradicts what design.md assumed.
       they are. Write no `.agents/skills/inquisitor/DECISIONS.md`. Since
       design.md and tasks.md are archived with the change and not read
       again, point each requirement's citation of a measurement task 0.N
-      at its measured result, and each citation of design.md at its
-      decision record entry
+      at its measured result, each citation of a design.md section
+      whose reason a decision record entry now gives at that entry, and
+      each other citation of design.md at the archived design.md
