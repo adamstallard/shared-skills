@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """Tests for spec-check's decision records: the configured location, the
 format checks, the rationale check, the checks on a branch's record edits,
-the reader's list, and the OpenSpec behaviour the records rely on.
+the list of records a change's consistency read is given (`records`), and
+what OpenSpec does with a decisions.md file.
 
 Standard library only:
 
     python3 test_decision_records.py
 
 Each test builds a throwaway git repository, as test_spec_check.py does,
-and the tests that need the OpenSpec CLI skip unless 1.16.0 or later is on
+and the tests that need the OpenSpec CLI skip unless 1.16.1 or later is on
 PATH.
 """
 
@@ -31,7 +32,7 @@ from test_spec_check import (ENV, GOOD_DELTA, GOOD_PROPOSAL, HAS_OPENSPEC, MAIN_
 from test_spec_check import TASKS  # noqa: E402
 from test_spec_check import Stack as StackRepo  # noqa: E402
 
-NEEDS = "needs OpenSpec 1.16.0 or later"
+NEEDS = "needs OpenSpec 1.16.1 or later"
 
 CONSTRAINT = """- **Constraint: The store keeps no credentials.**
   Because: a leaked store leaks every seat.

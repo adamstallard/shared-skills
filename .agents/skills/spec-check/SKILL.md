@@ -56,32 +56,36 @@ Checking a change, by name or as one of every open change, also checks the
 decision records under `openspec/specs/` (see
 [Decision records](#decision-records)) that the change bears on. `sign`,
 which signs a commit (see [Commit](#commit)), checks the same records for
-each staged change:
+each change under `openspec/changes/` that the commit stages:
 
 - the record of each capability the change touches;
-- each record whose *Paths* line names a file the branch changes since it
-  left the base branch;
-- each record the branch edits, or whose kept file it edits.
+- each record whose *Paths* line, which lists the files the record governs,
+  names a file the branch has changed since it left the base branch;
+- each record the branch edits, or whose kept file the branch edits (the
+  `.spec-check-kept` file beside the record; see
+  [Keeping a line the evolution check flags](#keeping-a-line-the-evolution-check-flags)).
 
-So one run of `check` finds every error in those records, and `sign` would
-refuse a commit over any one of them. `check specs` checks every record, as
-`sign` does whenever a commit stages a record.
+`check` and `sign` cover the same records, so one run of `check` finds every
+record error that would make `sign` refuse the change's commit. A commit
+that stages a record makes `sign` check every record, so before such a
+commit run `check specs` too.
 
 A shallow clone may hold too little history to reach the commit where the
 branch left the base branch. Then no one can tell which lines of a record the
-branch changed, so `check` and `sign` skip the `evolution` check of the
-record's lines and report a finding of severity `check` saying so. A history
-line in the record then goes unflagged. Fetch the full history (`git fetch
---unshallow`) to have it read.
+branch changed. So `check` and `sign` skip the `evolution` check, which flags
+lines that record history, on that record, and report a finding of severity
+`check` saying so. Run `git fetch --unshallow` to fetch the full history so
+the record's changed lines are checked.
 
-**It needs OpenSpec 1.16.0 or later on PATH** (`npm install -g
+**spec_check.py needs OpenSpec 1.16.1 or later on PATH** (`npm install -g
 @fission-ai/openspec`), and reads specs and deltas only through it:
 `openspec show --json` for requirements, `openspec validate --strict --json`
 for what a delta drops or misfiles, `openspec archive --json` for whether a
 change applies. Without it, each check that needs a requirement reports
-`not run: install OpenSpec 1.16.0 or later` and why, such as `(this one is
-1.14.3)`; citations, `Builds on:` lines and the `renamed-block` scan still
-run, and a stacked change gets a `stack` error.
+`not run: install OpenSpec 1.16.1 or later` and why, such as `(this one is
+1.14.3)`. Citations, the check that each `Builds on:` line can be read, and
+the `renamed-block` scan still run, and a stacked change gets a `stack`
+error.
 
 | Kind | Severity | What it means |
 | --- | --- | --- |
@@ -126,7 +130,7 @@ refusal is an `archive` error at the requirement it is about, or at line 0
 of the delta file when it is about the file as a whole. OpenSpec stops at
 its first refusal, so fix it and run `check` again to see the next.
 
-Without OpenSpec 1.16.0 or later on PATH, an unstacked change gets the line
+Without OpenSpec 1.16.1 or later on PATH, an unstacked change gets the line
 `openspec archive (<change>): not run`, saying why; a stacked one gets a
 `stack` error.
 
@@ -158,7 +162,7 @@ merge main.
 
 `check` and `sign` read each dependency from its pull request's head commit
 (`gh pr view` and `git fetch`; nothing is checked out), so stacked changes
-need `gh`, the network and OpenSpec 1.16.0 or later. Each dependency is
+need `gh`, the network and OpenSpec 1.16.1 or later. Each dependency is
 handled by its pull request's state:
 
 - **Open, or closed without merging.** In line order, `check` archives each
@@ -185,7 +189,7 @@ already sits is not reported again.
 **`stack` errors.** Each blocks; none is a pass:
 - a `Builds on:` line that cannot be read or is listed twice, or a change
   that names itself;
-- the OpenSpec CLI missing from PATH, or older than 1.16.0;
+- the OpenSpec CLI missing from PATH, or older than 1.16.1;
 - a dependency that cannot be read, or a delta in it where `openspec show`
   reads nothing;
 - a pull request that holds no change of the name on the line: the line
@@ -523,8 +527,10 @@ OpenSpec's /opsx skills, offer to merge the `rules:` block of
 each artifact, even one that never loads this skill; they are advice, and
 the checks and the consistency read still enforce.
 
-Without OpenSpec 1.16.0 or later, `sign` still signs, and the value says
-`show, validate and archive not run (install OpenSpec 1.16.0 or later)`.
+Without OpenSpec 1.16.1 or later, `sign` still signs an unstacked change,
+and the value says `show, validate and archive not run (install OpenSpec
+1.16.1 or later)`. A stacked change gets a `stack` error instead, so `sign`
+refuses it.
 For work in progress, skip `sign` and write the value yourself: `skipped
 (<reason>)`. A skip note records no read.
 
