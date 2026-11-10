@@ -152,10 +152,10 @@ in CI only where the repository opts in.** The deterministic part always
 runs and needs no secret. The order says plainly which pairs of changes
 the model step did not check, and never treats them as checked. The names
 both changes' `tasks.md` files hold point the model at the pairs worth
-reading. In CI, the model step runs with read-only access. Only the
-script edits the order's issue and the items' bodies, and the workflow runs
-it from the shared-skills commit it pins, so no pull request can change the
-code that edits.
+reading. In CI, the model step's job has read-only access to the
+repository, so text in a pull request that steers the model still cannot
+make it edit anything. Only the script edits the order's issue and the
+items' bodies.
 
 - *Ruled out by a scenario:* requiring a model for every run (*The
   workflow's deterministic part needs no secret*).
@@ -170,10 +170,13 @@ giving its place, between markers the script owns, never in a comment**
 order lives in one issue's body* says why not a comment. A block is rewritten only when the order or its reasons change
 (igor#231, decision 2), so a watcher is notified only of a real move. The
 script touches nothing outside its markers, so a person may keep their own
-text in the same body. prose hashes the text above its footer, so a block
-added above a prose footer would make the footer stop matching. Task 3.8
-changes prose to leave the sequencer's marked span out of that hash, so
-the footer stays valid.
+text in the same body. The prose skill signs a posted body with a footer
+that hashes the text above it, so a block the script adds there would
+break that signature. The Rationale for *A prose footer stays valid
+whatever the script writes between its markers*, in
+`openspec/specs/sequencer/decisions.md`, gives the evidence, and this
+change's task 3.8 changes prose to leave the marked span out of the
+hash.
 
 - *Ruled out by a scenario:* keeping the order in comments (*The whole
   order lives in one issue's body*).
@@ -239,8 +242,12 @@ lowest number first, unasked.
 
 **The order's issue is the one open issue labelled `sequencer`.** `publish`
 creates it when none is open, and refuses, naming both, when there are
-two. `igor init`, or a person, can then make one by adding the label, and
-no configuration names it.
+two. A person with write access, or `igor init` running under such a
+person's login, can also make one by adding the label, and no
+configuration names it. The script refuses a labelled issue whose author
+lacks write access. GitHub lets an issue's author edit its body whatever
+their access, so that author could rewrite the decided cycles and the
+model step's stored edges kept there.
 
 ### Code edges outlast runs with no model
 
@@ -269,10 +276,10 @@ what it expects of any caller:**
   question in its handback comment, the comment in which its Igor hands
   the item back to a person, as the inquisitor's *A session with no person
   in it asks in a post, a handback or nowhere* says.
-- Igor's Sequencer role calls the script, which takes reviewers through
-  the same chain as for any caller: the repository's config, else each
-  pull request's requested reviewers, else CODEOWNERS. Igor's work triage, the step where an Igor chooses
-  which items to take, reads positions from `order --json`.
+- An Igor in the Sequencer role, a Sequencer Igor, calls the script,
+  which takes reviewers as *Reviewers* above says for any caller. Igor's work triage, the step
+  where an Igor chooses which items to take, reads positions from
+  `order --json`.
 - Where a repository hands the model step to an Igor, `publish`, run by
   the workflow, labels the order's issue `sequencer: check code`. A
   Sequencer Igor then runs the model step and publishes its edges through

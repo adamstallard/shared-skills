@@ -64,15 +64,26 @@ item, and no other issue; the order's issue is never an item.
 
 ### Requirement: An issue an open pull request closes takes that pull request's place
 
-An issue that an open pull request closes, by GitHub's closing references,
-SHALL share that pull request's position, and its block SHALL name the
-pull request.
+An issue that open pull requests close, by GitHub's closing references,
+SHALL share the position of the lowest-numbered of them, and its block
+SHALL name that pull request. Every edge to or from the issue SHALL apply
+to that pull request instead.
 
 #### Scenario: A spec pull request and its issue share a place
 
 - **WHEN** open pull request #50 closes issue #43, and #50 is third in the
   order
 - **THEN** #43 is third too, and its block says it is closed by #50
+
+#### Scenario: An issue two pull requests close follows the lower-numbered
+
+- **WHEN** #50 and #57 both close issue #43
+- **THEN** #43 shares #50's place, and its block names #50
+
+#### Scenario: A closed-by issue's own link moves onto its pull request
+
+- **WHEN** #50 closes issue #43, and #43's body says `Depends on #61`
+- **THEN** #50 comes after #61, and #43 shares #50's place
 
 ### Requirement: The script reads OpenSpec changes only through the OpenSpec CLI
 
@@ -128,7 +139,9 @@ Where two open changes both modify one requirement of one capability, the
 order's issue SHALL say that the later of the two in the order must add the
 earlier one's new scenarios to its own copy of the requirement before it
 archives; this finding SHALL add no edge, because archiving replaces a
-requirement with the archiving change's whole copy.
+requirement with the archiving change's whole copy. When both changes are
+members of one unchosen cycle, the order's issue SHALL say instead that
+the copy duty waits for the cycle's choice.
 
 #### Scenario: The second to archive owes the copy
 
@@ -137,6 +150,13 @@ requirement with the archiving change's whole copy.
 - **THEN** the order's issue says #90 must add #82's new scenarios of
   *Claims expire after an hour* to its copy before it archives, and neither
   item gains an edge from it
+
+#### Scenario: A copy duty inside an unchosen cycle waits
+
+- **WHEN** #82 and #90 both modify *Claims expire after an hour*, and they
+  are members of one cycle no person has chosen
+- **THEN** the order's issue says the copy duty between #82 and #90 waits
+  for the cycle's choice, and names neither as owing it
 
 ### Requirement: Explicit links order the items they connect
 
@@ -200,9 +220,11 @@ place this tiebreak decides.
 ### Requirement: A cycle is asked about, never chosen
 
 The script SHALL NOT choose which member of a cycle goes first. The order
-SHALL list a cycle's members together at one place, marked unchosen, with a
-link to the question that asks a person to choose, and SHALL place each
-item that comes after any member after all of them.
+SHALL list a cycle's members together at one place, marked unchosen. Where
+a question asking a person to choose was posted, the place SHALL link it;
+otherwise it SHALL say `asked in a session by <login>`, naming the `gh`
+login the asking session ran as. The order SHALL place each item that
+comes after any member after all of them.
 
 #### Scenario: Two changes that cite each other wait for a person
 
@@ -212,12 +234,21 @@ item that comes after any member after all of them.
   unchosen, with a link to the question asking which archives first
 - **AND** #91, which cites #85, comes after both
 
+#### Scenario: A cycle asked in a session names who asked
+
+- **WHEN** `maya`'s session asks through the picker which of #82 and #85
+  goes first, and publishes before she answers
+- **THEN** the order marks the cycle unchosen with `asked in a session by
+  maya`
+
 ### Requirement: A cycle a person has decided is ordered as decided
 
 The order's issue SHALL keep a list of decided cycles, each naming the
-member a person with write access chose to go first and linking their
-answer. The order SHALL place each decided cycle's members as chosen, and
-the chosen member's reason SHALL link the answer.
+member a person with write access chose to go first, and linking their
+answer or, for a choice that `publish --decide` recorded, naming the
+`--by` login and the time it was recorded. The order SHALL place each decided
+cycle's members as chosen, and the chosen member's reason SHALL give the
+same link, or login and time.
 
 #### Scenario: A chosen member goes first though it cites the other
 
@@ -226,15 +257,19 @@ the chosen member's reason SHALL link the answer.
 - **THEN** #85 comes first, with the reason `before #82, though it cites
   #82's *<title>*: chosen at <link to the answer>`, and #82 comes after it
 
+#### Scenario: A choice recorded in a session names who chose and when
+
+- **WHEN** an agent runs `publish --decide '#85 first' --by maya`
+- **THEN** the decided cycles list #85 first, chosen by `maya`, with the
+  time the choice was recorded
+
 ### Requirement: A person's choice in a cycle is read from the order's issue
 
 A run SHALL add to the decided cycles a comment on the order's issue, posted
 after the cycle's question, whose text starts with one of the question's
 options, `#<n> first`: either a comment by a person with write access, or
 one by that person's relay App (the inquisitor's *A relay App is one its
-person's counted relay file lists*), read after its `User says: ` line. In
-a session, `publish --decide '#<n> first' --by <login>` SHALL add the
-choice a person made through the picker.
+person's counted relay file lists*), read after its `User says: ` line.
 
 #### Scenario: A reply naming an option decides the cycle
 
@@ -248,6 +283,20 @@ choice a person made through the picker.
 - **WHEN** a person without write access comments `#82 first` after the
   question
 - **THEN** the cycle stays unchosen
+
+### Requirement: A session records a person's choice in a cycle only as that person
+
+In a session, `publish --decide '#<n> first' --by <login>` SHALL add the
+choice a person made through the picker to the decided cycles, and SHALL
+refuse, editing nothing, unless `gh` is logged in as that login and it
+has write access.
+
+#### Scenario: A session choice in another person's name is refused
+
+- **WHEN** `gh` is logged in as `li`, and an agent runs
+  `publish --decide '#85 first' --by maya`
+- **THEN** the script edits nothing and says `gh` is not logged in as
+  `maya`
 
 ### Requirement: The model step orders changes whose code calls each other's code
 
@@ -359,8 +408,10 @@ wherever.
 
 The script SHALL keep the whole order in the body of the open issue labelled
 `sequencer`, creating that issue when none is open and publishing nothing
-when more than one is. Nothing of the order SHALL go in a comment, because
-`gh issue view` shows a body without its comments.
+when more than one is. It SHALL use such an issue only when its author has
+write access to the repository, and otherwise publish nothing and name
+the issue and its author. Nothing of the order SHALL go in a comment, because `gh issue view`
+shows a body without its comments.
 
 #### Scenario: The first publish creates the order's issue
 
@@ -372,6 +423,13 @@ when more than one is. Nothing of the order SHALL go in a comment, because
 
 - **WHEN** two open issues are labelled `sequencer`
 - **THEN** the script edits nothing and names both issues
+
+#### Scenario: An order issue opened without write access is refused
+
+- **WHEN** the one open issue labelled `sequencer` was opened by an
+  account without write access to the repository
+- **THEN** the script reads none of the decided cycles or stored code
+  edges in its body, edits nothing, and names the issue and its author
 
 ### Requirement: Each item's body carries a block giving its place
 
@@ -429,7 +487,8 @@ signed whatever the script adds, rewrites or removes between the markers.
 ### Requirement: A block is rewritten only when the order or its reasons change
 
 The script SHALL edit a body only when the text between its markers would
-change, and that text SHALL hold no date or time.
+change, and that text SHALL hold no date or time, save the fixed time a
+`publish --decide` choice was recorded.
 
 #### Scenario: An unchanged order edits nothing
 
@@ -590,12 +649,12 @@ agent asks through it, never in its reply* says.
 ### Requirement: In CI a judgement question is posted once on the order's issue
 
 The workflow SHALL post each undecided judgement question once on the
-order's issue, carrying the person-required line naming `sequencer` (the
-inquisitor's *A question another skill requires carries a person-required
-line*). The post SHALL be tagged as the inquisitor's *A question in a post
-tags one person who can decide, if there is one* says, with the cycle's
-change directories as the files the question concerns. The order SHALL
-link that post at the place it leaves unchosen.
+order's issue, unless that issue already records the cycle as asked, by
+a post or `asked in a session`. The post SHALL carry the person-required
+line naming `sequencer` and a tag, as the inquisitor's *A
+question another skill requires carries a person-required line* and *A
+question in a post tags one person who can decide, if there is one* say,
+for the cycle's change directories, and the order SHALL link it.
 
 #### Scenario: A cycle found in CI is posted on the order's issue
 
@@ -610,6 +669,12 @@ link that post at the place it leaves unchosen.
 - **WHEN** a later CI run finds the same undecided cycle, and its question
   is already posted on the order's issue
 - **THEN** it posts nothing new, and the order links the earlier post
+
+#### Scenario: A cycle asked in a session is not posted by CI
+
+- **WHEN** the order's issue marks a cycle `asked in a session by maya`,
+  and a CI run finds that cycle still undecided
+- **THEN** the run posts no question for it
 
 ### Requirement: The setup command writes the CI workflow and never overwrites it
 
