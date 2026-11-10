@@ -1307,9 +1307,8 @@ answers the file it names.
 
 ### Requirement: A replaced answer file stops counting even in its own hash group
 
-The answer session SHALL show a named file's answer even where its hash
-group's newest differs. An answer file that a newer one naming the same
-file replaces SHALL be shown as input, labelled as superseded, and SHALL
+When a newer answer file names the same file, the
+older one is replaced, and SHALL be shown as input, labelled as superseded, and SHALL
 stop counting for its own question. The replaced answer file SHALL still
 supersede the older files in its hash group, which can leave that group
 with no answer that counts (design.md: *`answers` decides a named file's
@@ -1322,8 +1321,7 @@ answer; the search groups by hash*).
 - **THEN** the second is the named file's answer, and filter 1's search
   shows the first as input, labelled as superseded, though their questions'
   hashes differ
-- **AND** the search shows the second as its own hash group's answer, and
-  the answer session shows it as the named file's answer
+- **AND** the search shows the second as its own hash group's answer
 - **AND** the older files in the first's hash group stay superseded by the
   first, so that group has no answer that counts, and the search shows all
   its files as input, labelled as superseded
@@ -2533,6 +2531,13 @@ prose or bug-hunter trailer.
   agent logs a question about the organization
 - **THEN** it pushes a new orphan branch named `questions` holding only
   that file, and the default branch gains no file
+
+#### Scenario: A log or miss file's commit carries no trailer
+
+- **WHEN** the script pushes a log file and, separately, a miss file to a
+  lore repository's questions branch
+- **THEN** each commit's message is `inquisitor: log <file>` and nothing
+  else, with no `Prose:` or `Bug-hunter:` trailer
 
 ### Requirement: A rejected questions-branch push is retried only when the branch moved
 

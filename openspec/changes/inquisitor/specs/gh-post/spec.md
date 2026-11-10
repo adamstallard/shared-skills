@@ -62,7 +62,7 @@ post verb SHALL send no post.
 - **WHEN** a hook asks about a command
 - **THEN** its gh post verbs are `gh pr` with `create`, `new`, `edit`,
   `comment`, `review`, `revert`, `close` or `reopen`; `gh issue` with
-  `create`, `new`, `edit`, `comment`, `review`, `close` or `reopen`; and
+  `create`, `new`, `edit`, `comment`, `close` or `reopen`; and
   a `gh api` call that can write
 - **AND** of these, the verbs that post text are `create`, `new`, `edit`,
   `comment` and `review`; `revert`, for a pull request only; and `close`
@@ -476,6 +476,13 @@ message saying how to fix it.
 - **WHEN** a hook asks about `python3 /tmp/other.py gh pr comment 5
   --body-file c.md`
 - **THEN** the reader reports the command as unreadable
+
+#### Scenario: A command before the github-app script makes it unreadable
+
+- **WHEN** a hook asks about `cd x && python3 /abs/github_app.py gh pr
+  comment 5 --body-file c.md`
+- **THEN** the reader reports the command as unreadable, since only the
+  `G` assignment may come before `python3`
 
 #### Scenario: The github-app script with an identity is read
 

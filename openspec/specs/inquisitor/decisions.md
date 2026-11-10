@@ -72,10 +72,6 @@
   Evidence: the deployment guide on the service user's `gh` login, https://github.com/adamstallard/igor/blob/8478aec/docs/deployment.md#L112-L115
   Evidence: #175's design, the row for "the Igor's home, lore checkout, `/etc/igor`", https://github.com/adamstallard/igor/blob/908c149/openspec/changes/worker-user/design.md
 
-- **Rationale: A logged decision needs write access to what its question concerns.**
-  Authority to instruct never exceeds authority over the artifact the instruction is about, which igor states for who may instruct an Igor, so a lore repository's writer may have no say over another repository.
-  Evidence: igor PR #202's decision 11 states it, https://github.com/adamstallard/igor/pull/202
-
 - **Rationale: A lore decision record counts.**
   igor PR #202, open, specifies that igor's scribe puts a decision record in the repository the decision concerns, or in the team's lore repository when it spans repositories, so filter 1 reads both.
   Evidence: igor PR #202's decision 5, https://github.com/adamstallard/igor/pull/202

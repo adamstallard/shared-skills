@@ -42,6 +42,9 @@ inquisitor's, or that spec's, *Title*:
 - **The picker** is Claude Code's question tool, `AskUserQuestion`.
 - **Task 0.N** is that task in this change's tasks.md.
 
+Any other term is defined in the requirement that sets the term's rule.
+A requirement before that one may already use the term.
+
 ## ADDED Requirements
 
 ### Requirement: Relay posts start with a reserved prefix
@@ -62,6 +65,24 @@ Nothing in this spec reads a relay identity's other posts.
 - **WHEN** a relay identity, used for other work, posts in a question's
   thread with no reserved prefix
 - **THEN** it is no relay post, and the question's state is unchanged
+
+### Requirement: Until task 0.21, a GitHub relay post is one this machine posted
+
+Until task 0.21 shows that GitHub's API reports which App wrote a
+comment, the answer session SHALL count a GitHub comment as a relay post
+only when the state folder's relay post ids hold its id, so another
+machine may still show a question answered from this one as unanswered (design.md: *Which cross-machine
+cases are accepted*). Once task 0.21 shows it, a GitHub comment SHALL
+count as a relay post as on any other surface.
+
+#### Scenario: Before task 0.21, another machine's GitHub relay post is not read
+
+- **WHEN** task 0.21 has not shown that GitHub reports which App wrote a
+  comment, and the person's GitHub relay answers a question from one
+  machine
+- **THEN** that machine shows the question as answered, and another
+  machine, whose state folder does not hold that post's id, counts no
+  relay post naming the question and shows it as unanswered
 
 ### Requirement: An automatic post's text is fixed by the answer session
 
@@ -206,11 +227,10 @@ file counting as the person's answer names in `answers`.
 ### Requirement: The person's answer to a named file is their own, added alone
 
 An answer file SHALL count as **the person's answer** only when it is the
-answer of the log file it names in `answers`. The inquisitor's *A named
-file's answer is the newest proven answer file naming it* sets that answer:
-the newest answer file naming it that its commit adds alone, proven to
-come from the person the named file's question tags or, if it tags no
-one, from an account with write access to what its question concerns.
+answer of the log file it names in `answers`, as the inquisitor's *A named
+file's answer is the newest proven answer file naming it* sets that
+answer. The answer session SHALL show a named file's answer even where
+the newest file with its question's hash differs.
 
 #### Scenario: An answer file proven to be the asked person's counts
 
@@ -233,6 +253,14 @@ one, from an account with write access to what its question concerns.
   concerns for this rule
 - **THEN** it counts as the person's answer, though the file tags no
   person
+
+#### Scenario: A named file's answer is shown though its hash group's newest differs
+
+- **WHEN** an answer file that would count names a log file in
+  `answers`, and a newer answer file with the same question text names no
+  file
+- **THEN** the answer session shows the first as the log file's answer,
+  though the newer file is its hash group's newest
 
 ### Requirement: A poll position marks the newest message a poll read
 
@@ -1082,6 +1110,13 @@ post none that matches.
 - **THEN** the post holds the person's words as confirmed, with no prose
   footer, and no hook blocks it
 
+#### Scenario: A Linear relay post is the answer session's own request
+
+- **WHEN** the person relays an answer to a Linear question
+- **THEN** the answer session posts it with its own request, carrying the
+  authentication headers linear-app's `headers` command prints, and no tool call of the model
+  posts it
+
 #### Scenario: A post's text file is private
 
 - **WHEN** a relay post's text is passed to the relay identity's skill in
@@ -1218,8 +1253,8 @@ questions-branch file.
 
 #### Scenario: A relay from another machine clears a pending answer
 
-- **WHEN** another machine relays in the thread an answer this machine
-  holds as answered, not relayed
+- **WHEN** another machine relays in a Linear or Discord thread an answer
+  this machine holds as answered, not relayed
 - **THEN** the answer leaves this machine's pending list, and the question
   shows as answered
 
@@ -1393,8 +1428,8 @@ new post is.
 
 #### Scenario: An edit on another machine finds the post in the thread
 
-- **WHEN** the person edits, on their second machine, an answer relayed
-  from their first
+- **WHEN** the person edits, on their second machine, a Linear answer
+  relayed from their first
 - **THEN** the answer session finds the relay post in the question's
   thread and edits it
 
@@ -1455,15 +1490,15 @@ question then waits for the asker.
 The answer session SHALL take a question's state from the latest relay
 post naming it in its thread: `User says: ` answered; `Recorded answer: `
 answered, and `Inquisitor: ` handled, for the person, listed apart from
-the queue; `User asks: ` waiting for the asker, whose reply returns it to
-the queue with the reply; otherwise unanswered. To the state read from
-the thread, this machine's own state adds only a pending answer and a
-close, and a local close overrides the thread's state.
+the queue; `User asks: ` waiting for the asker, whose reply requeues
+it; otherwise unanswered. To the thread's state,
+this machine adds only a pending answer, a close and, before task 0.21,
+its own GitHub relay post ids; a local close overrides the thread.
 
 #### Scenario: A relay reply marks the question answered on every machine
 
-- **WHEN** the person answered a question on one machine, and the state
-  folder of another holds no record of it
+- **WHEN** the person answered a Linear question on one machine, and the
+  state folder of another holds no record of it
 - **THEN** the other machine shows the question as answered, from the
   relay post in its thread
 
@@ -1523,7 +1558,8 @@ that reply and keeping a held-back answer pending.
 #### Scenario: An answer relayed elsewhere is not posted twice
 
 - **WHEN** the person relays an answer, and the thread already holds a
-  relay post answering the question, made from another machine
+  relay post answering the question, made from another machine on Linear
+  or Discord
 - **THEN** nothing is posted, and the question shows as answered
 
 #### Scenario: A new reply stops the post
@@ -1720,6 +1756,10 @@ record's URL, on the fixed post's `Recorded in: ` line.
 - **WHEN** a subagent of the session's model calls `propose_reply`, and
   the call carries an `agentId`
 - **THEN** the tool refuses the call, and the prompt box is unchanged
+- **AND** a subagent's call that arrives with no `agentId`, which task
+  0.26 checks for, is taken as the main conversation's, as *A call with
+  no agentId is the main conversation's* shows, so its draft lands only
+  in the prompt box, where the person sees it before anything is sent
 
 #### Scenario: A forked conversation's call carrying an agentId is refused
 
@@ -2410,7 +2450,7 @@ of it.
 
 The answer session SHALL post a recorded answer by itself only when the
 record is no more private than the question's thread: on GitHub, when
-the record's repository is no more visible than the thread's; on Linear
+the record's repository is at least as visible as the thread's; on Linear
 and Discord, only when the record's repository is public. A log or miss
 file's own visibility, as the inquisitor's *A log or miss file is as
 private as its more private repository* defines it, stands in for its
@@ -2597,13 +2637,12 @@ answer: such a repeat goes to the person, as an ordinary question.
 ### Requirement: Filters 2 to 4 judge every incoming question
 
 The session's model SHALL judge each question filter 1 did not stop
-against filters 2 to 4, as the inquisitor's spec states them, sending an
-unclear case to the person as an ordinary question. When an agent's
-question with no category and no person-required line clearly fails one
-of those filters in a thread the relay can
-reply in, the answer session SHALL itself post the filter's fixed text,
-as this requirement's scenarios give it, through the relay, log its
-miss, and list it as handled.
+against the inquisitor's filters 2 to 4, sending an unclear case to the
+person as an ordinary question. When an agent's question with no category
+and no person-required line (defined below) clearly fails one of those
+filters in a thread the relay can reply in, the answer session SHALL
+itself post the filter's fixed text through the relay, log its miss, and list the
+thread's question, not a log file holding it, as handled.
 
 #### Scenario: A deferrable agent's question is handled for the person
 
@@ -2623,6 +2662,9 @@ miss, and list it as handled.
   Take the option that has merit, and record what you chose and why.` on
   the first, and `Inquisitor: filter 4, cheap to reverse. Pick one, and
   record what you chose and why.` on the second
+- **AND** when an unanswered questions-branch log file holds either
+  question, the thread copy is listed as handled for the person, and the
+  log file stays shown until the person handles it
 
 #### Scenario: An unclear case goes to the person
 
@@ -2640,11 +2682,12 @@ miss, and list it as handled.
 
 ### Requirement: A question with a person-required line gets no filter 2 to 4 reply
 
-An agent's question with a line among those directly after it that,
-reduced as a question's text is, starts with the inquisitor's
+A question, whoever posted it, with a line among its related-decision
+and person-required lines directly after it that, reduced as the
+inquisitor reduces a question's text, starts with the inquisitor's
 person-required line up to `(required by `, SHALL get no filter 2, 3 or
-4 reply, by itself or by the person's decline, and no miss for those
-filters. Unless filter 1 answers it, it SHALL be shown to the person.
+4 reply, by itself, by a suggested verdict or by the person's decline,
+and no miss for those filters. Unless filter 1 answers it, it SHALL be shown to the person.
 The answer session SHALL trust any such line.
 
 #### Scenario: A question spec-trace requires reaches the person
@@ -2656,6 +2699,16 @@ The answer session SHALL trust any such line.
   question is shown to the person as an ordinary unanswered question
 - **AND** if the person declines it for the inquisitor, the only filter
   offered is filter 1
+
+#### Scenario: A marked question posted with the person's own login gets no filter 2 to 4 reply
+
+- **WHEN** an agent posts, with the person's own `gh` login, a question
+  that clearly fails filter 4, followed by `Inquisitor: a person must
+  decide this (required by spec-trace).`, so the answer session counts it
+  as a person's question
+- **THEN** no filter is suggested, nothing is posted by itself, and if
+  the person declines it for the inquisitor, the only filter offered is
+  filter 1
 
 #### Scenario: Filter 1 still answers a marked question
 
@@ -2683,7 +2736,8 @@ The answer session SHALL trust any such line.
 
 On a person's question, a relayed one included, and on an agent's
 question of the fourth source, the answer session SHALL post nothing by
-itself, but show the question with its suggested verdict. Agreeing to it
+itself, but show the question with its suggested verdict, unless it
+carries a person-required line. Agreeing to it
 is a decline under the second reason with that filter, handled as
 *Declining for the inquisitor posts the picked filter's reply* says. A
 message that is not a question SHALL get no automatic post.

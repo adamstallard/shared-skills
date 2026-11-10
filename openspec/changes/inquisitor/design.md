@@ -31,12 +31,10 @@ The records live in `${XDG_STATE_HOME:-$HOME/.local/state}/inquisitor/`,
 where prose keeps its session marks, for the same reason: a session spans
 repositories, and a hook's working directory can differ from `vet`'s
 (prose's DECISIONS.md, *The gate blocks a session's first file write*). They
-are the hooks' state, not a question log, and everything under one HOME
-shares them (*Verdict records are shared under one HOME*). Every record
-expires after 2 hours and is deleted by the next call or hook to read the
-records. On a machine where nothing runs, an expired record can stay on
-disk for days, until that next read (the decision entry *Records hash a
-question with plain SHA-256*, below). Beyond that, the hooks keep no record
+are the hooks' state, not a question log, and every session and process run
+under one HOME shares them (*Verdict records are shared under one HOME*). How long a
+record lasts is under *Every verdict record expires after 2 hours*, below.
+Apart from the verdict records, the hooks keep no record
 of any question, a vulnerability included. The question log files, under
 *Where the logs live*, are the lasting records; a vulnerability's is the
 repository's private security advisory.
@@ -89,9 +87,9 @@ searches through `igor lore-search`*), and the script knows it is in a run by
 ## Questions in posts
 
 prose's posting hook reads a `gh` post's body from an allow-list of command
-forms, and the body fields of GitHub MCP tools
-(`.agents/skills/prose/DECISIONS.md`, *The posting hook reads an
-allow-list*). The command splitter and gh's flag tables are in
+forms (`.agents/skills/prose/DECISIONS.md`, *The posting hook reads an
+allow-list*), and the body fields of GitHub MCP tools (`body_fields` in
+`.agents/skills/prose/scripts/prose.py`). The command splitter and gh's flag tables are in
 `.agents/lib/gh-shell/`, which spec-check's hand-back hook also reads
 (prose's *The command reader is shared, in `.agents/lib/gh-shell/`*). This
 change moves the rest of the reader, which finds a post's body, into that
@@ -1157,11 +1155,9 @@ compares the two keys, so a file whose keys are equal, such as an Igor's
 question about its own item's repository, counts by write access to that
 repository.
 
-The inquisitor's decision record gives igor's rule behind this, under
-*Rationale: A logged decision needs write access to what its question
-concerns*. A writer of the lore repository may have no say over another
-repository, such as `o/api`, so their answer about it is input, wherever
-the file sits. A permission that cannot be read counts as no authority, as
+A writer of the lore repository may have no say over another
+repository, such as `o/api`, so their answer about it is input, even in a file
+on the lore repository's questions branch. A permission that cannot be read counts as no authority, as
 every write-access check here fails closed.
 
 *Ruled out by a scenario* (inquisitor spec: *A logged decision needs write
@@ -1607,9 +1603,8 @@ worker holds only its seat's token.
 
 #### igor-dependent rules state the end state
 
-**A rule that depends on igor states its end state, with no clause for an
-igor state before the igor change it needs lands;** the *Recorded:* line
-below names the decision record's entry. What igor must provide is listed
+The rule this heading names is the inquisitor decision record's entry
+that the *Recorded:* line below names. What igor must provide is listed
 under *Open Questions*. A clause that guards against misuse in igor's end
 state is still written, such as:
 - a log file with no matching record of the handback writes no `answers`;
@@ -2442,8 +2437,12 @@ back.** A machine's first poll of a channel reads only its last 14 days, so a
 machine first polling more than 14 days after the question was asked never
 reads the thread copy, the same question in the thread the file's `asked_in`
 links, and would show the file as new. The answer session writes the handled
-file itself, so no rule depends on checking which App wrote a post, which
-waits on task 0.21. A handled file holds no question text, so it never
+file itself. If the asking agent wrote it instead, the agent would first have
+to check that a relay App wrote the closing post, and only task 0.21 shows
+whether GitHub reports which App wrote a post. So closing a questions-branch
+file does not wait on task 0.21. What does wait on it is counting another
+machine's GitHub relay posts (answer-session spec: *Until task 0.21, a GitHub
+relay post is one this machine posted*). A handled file holds no question text, so it never
 carries a private item's question into igor's search, and reveals nothing
 even for a question with a category. An Igor worker could still report a file
 holding the handled keys for its Igor to push; refusing one is asked of igor
