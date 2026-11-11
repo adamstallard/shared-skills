@@ -75,7 +75,10 @@ the pointer, then the file. Keep every section in your rewrite, since a
 person decides each move.
 
 Write plainly: one claim per sentence, the conclusion first, each sentence
-following from the last. Add nothing the document does not already say.
+following from the last. Finish one point before starting the next: when you
+reorder or merge sentences to save words, never split a point around another
+(rule 3 of prose's rules.md, *A point split around another*). Add nothing the
+document does not already say.
 
 **Reply** with only these lines, then the `Move` and `Stay` lines below for
 any sections listed, and the `Answers:` line when it applies:

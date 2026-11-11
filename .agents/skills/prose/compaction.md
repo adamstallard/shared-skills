@@ -139,7 +139,9 @@ the working file.
    changes, a file to search that `--verify` could not read, or a missing
    `--answers` file), fix that or narrow the paths, and run it again. A
    passing `--verify` stores the answers it checked for the staged file,
-   and the later steps and the commit gate read only that copy: an edit to the answers file counts only once `--verify` runs again.
+   and everything after it, the commit gate included, reads only that
+   stored copy: an edit to the answers file counts only once `--verify`
+   runs again.
 4. Have the compacted file read cold before any review, so the reviews check
    the cold read's fixes too. Write the compaction commit's message file and
    run `prose check`'s first call for it (SKILL.md's *Two calls*), then its signing
