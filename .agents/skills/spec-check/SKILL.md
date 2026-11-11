@@ -416,13 +416,13 @@ wrap onto indented lines, with no blank line before a continuation.
   each capability it concerns, never linked, because a later change reads
   only the records of the capabilities it touches.
 
-- **Edit it in the pull request.** A pull request that adds or changes a
-  recorded decision edits the real record of each capability it concerns, beside the
-  change's deltas; `check` refuses a `decisions.md` inside a change. Editing a record makes each open change
-  with a delta spec for that capability due for a consistency read before
+- **Edit it in the pull request.** A pull request that adds or changes
+  decision records (for capabilities it concerns) makes each open change
+  with a delta spec for those capabilities due for a consistency read before
   review (section 2); with no such change, the record itself is due and is
   read on its own. `openspec archive` never touches a decisions.md, so
-  archive the change as usual; the record stays where it is.
+  archive the change as usual. At archive, the record stays inside the spec.
+  `check` refuses a `decisions.md` inside a change, so don't put it there.
 
 ## Decisions and open questions
 
