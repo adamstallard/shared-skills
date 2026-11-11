@@ -13,9 +13,7 @@
 # the newest commit whose trailer names it.
 #
 # When every change has been read, the `spec-check` check passes and the
-# pull request is left alone. A pull request that `spec_check.py ci` (the
-# script this workflow runs) made a draft earlier stays a draft until
-# someone marks it ready. When a change is unread, what the script does
+# pull request is left alone. When a change is unread, what the script does
 # depends on the event and on whether the pull request is a draft.
 #
 # A ready pull request:
@@ -29,6 +27,9 @@
 #   the read. If each push made the pull request a draft, the agent or a
 #   person would mark it ready again, and the next push would make it a
 #   draft again.
+#
+# A pull request that `spec_check.py ci` (the script this workflow runs)
+# made a draft earlier stays a draft until someone marks it ready.
 #
 # A draft pull request:
 # - review_requested: the check fails, and the script withdraws that review
@@ -63,9 +64,7 @@
 # It works out the pin from adamstallard/shared-skills' commit history
 # on GitHub, through gh, and copies this workflow from the template as
 # committed at the pin, so the workflow's steps and the spec_check.py
-# each run downloads come from the same commit. It reads nothing from
-# local files, so every copy of spec_check.py writes the same workflow.
-# It writes no pin that is not on main. The pin holds the newest
+# each run downloads come from the same commit. The pin holds the newest
 # versions of both spec_check.py and the template
 # (.agents/skills/spec-check/ci/spec-check.yml). To find it, setup-ci
 # takes, for each of the two files, the newest commit in main's history
@@ -75,8 +74,8 @@
 #   first-parent line.
 # - When each file last changed on a branch of its own and the two
 #   branches were merged separately, neither commit holds both. The pin
-#   is then the earliest commit on main's first-parent line that does:
-#   the merge of the branch that was merged second.
+#   is then the earliest commit on main's first-parent line that holds
+#   both: the merge of the branch that was merged second.
 # So the pin moves only when a commit on main changes either file and
 # someone runs `setup-ci --force` again. With `--sha <commit>` the pin is
 # that commit instead, if GitHub confirms it is a full 40-character SHA of
@@ -99,10 +98,10 @@
 #
 # Editing a repository's .github/workflows/spec-check.yml by hand works,
 # SPEC_CHECK_SHA included, as long as the pin stays a full 40-character SHA
-# of a commit on main, but the edit lasts only until the next `setup-ci
-# --force`, which discards it. An edit every repository should get goes in
-# the template, by a pull request to adamstallard/shared-skills; once it
-# merges, update as above.
+# of a commit on main, but the edit lasts only until the next
+# `setup-ci --force`, which discards it. An edit every repository should
+# get goes in the template, by a pull request to adamstallard/shared-skills;
+# once it merges, update as above.
 name: spec-check
 on:
   pull_request:
