@@ -393,8 +393,8 @@ title it copies must be one of these:
 - the new title an open change renames a requirement to.
 
 An open change is any change folder under `openspec/changes/` in the tree of
-the branch being checked. That includes a change whose pull request has
-merged, once the branch has merged main, until the change is archived. `check` reports any other title as an error, suggesting
+the branch being checked, including the folder of a change whose pull
+request has merged, which stays there until the change is archived. `check` reports any other title as an error, suggesting
 the exact title when one matches ignoring case, spacing, backticks and a
 closing period. So a change that removes a requirement deletes its entry,
 and a change that renames one retitles its entry to the new title, each in
