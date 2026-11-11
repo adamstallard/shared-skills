@@ -227,8 +227,8 @@ contradicts what design.md assumed.
         and vetted*).
       - It reads `python3 <github-app script> gh pr|issue|api …` posts,
         including `python3 $G …` only when the same command assigns `G`,
-        and judges a `gh api` call through the script, in a line that form
-        allows, exactly as the same call made directly.
+        and judges a line holding such a call exactly as the same line
+        with the `gh` call made directly and no `G` assignment.
       - It counts a `gh api` call as mentioning a gh post verb only when
         the call can write, as the `gh-post` spec's *A gh api call writes
         by its method, fields, input or a mutation* says: `-X` or

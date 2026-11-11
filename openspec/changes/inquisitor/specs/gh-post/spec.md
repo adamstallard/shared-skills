@@ -500,12 +500,12 @@ sends no post.
 ### Requirement: The reader reads posts sent through the github-app skill and gh api
 
 The reader SHALL read a call of the github-app skill's script, in the
-forms its scenarios list, as the `gh` command it runs. The script's path
-SHALL end in `/github_app.py`, be a literal word, and be written out or a
-`$G` the line assigns first. Nothing but that assignment SHALL come
-before `python3` in the line. A line that mentions a gh post verb and
-runs `python3 $G` with `G` unassigned SHALL be unreadable, its block
-message saying how to fix it.
+forms its scenarios list, as the `gh` command it runs, judging its line
+as if that `gh` command stood in the call's place and the line held no
+`G` assignment. The script's path SHALL be a literal word ending in
+`/github_app.py`, written out in the call or assigned to `G` before it.
+A line that mentions a gh post verb and runs `python3 $G` with `G`
+unassigned SHALL be unreadable, its block message saying how to fix it.
 
 #### Scenario: A post sent through the github-app skill is read
 
@@ -519,13 +519,23 @@ message saying how to fix it.
   --body-file c.md`
 - **THEN** the reader reports the command as unreadable
 
-#### Scenario: A command before the github-app script makes it unreadable
+#### Scenario: The github-app script after another command is unreadable where a direct gh call is
 
 - **WHEN** a hook asks about `cd x && python3 /abs/github_app.py gh pr
-  comment 5 --body-file c.md`
-- **THEN** the reader reports the command as unreadable, since *The
-  reader reads posts sent through the github-app skill and gh api* lets
-  only the `G` assignment come before `python3`
+  comment 5 --body-file c.md`, and about `cd x && python3
+  /abs/github_app.py gh api repos/o/r/issues/5/comments -F body=@c.md`,
+  where `c.md` exists, so a missing file is not what blocks them
+- **THEN** the reader reports each command as unreadable, as it does the
+  same line with `gh` called directly, under *The reader reads a gh pr or
+  gh issue post only as a whole command line* and *A gh api write read
+  from a file is read only as a whole command line*
+
+#### Scenario: A gh api call through the github-app script after cd is read
+
+- **WHEN** a hook asks about `cd /x && python3 /abs/github_app.py gh api
+  repos/o/r/issues/5/comments -f body='done'`
+- **THEN** the reader returns `done` as the body, as it does for `cd /x &&
+  gh api repos/o/r/issues/5/comments -f body='done'`
 
 #### Scenario: The github-app script with an identity is read
 

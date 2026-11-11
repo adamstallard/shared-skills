@@ -778,24 +778,33 @@ configuration names, and the reader does not read that configuration*.
 
 **A post sent through the github-app skill's script is read as the `gh`
 command it runs, when the script's path ends in `/github_app.py` and is
-either written out in full or held in a `$G` that the line assigns first; a line that mentions a gh post
-verb and runs `python3 $G` with `G` unassigned is unreadable.** The `gh-post`
+either written out in full or held in a `$G` that the line assigns first, and
+its line is judged as the same line with that `gh` command made directly and
+no `G` assignment; a
+line that mentions a gh post verb and runs `python3 $G` with `G` unassigned is
+unreadable.** The `gh-post`
 spec's *The reader reads posts sent through the github-app skill and gh api*
 states the forms. Task 5.5 makes each example in the github-app skill's
 `SKILL.md` set `G` in the same command or write the script's path.
 
-**Why:** under prose's rules alone the script's form is unreadable, so every
-post sent as a GitHub App would be refused. A `gh api` call through the
-script is judged as the same call made directly, so an agent acting as a
-GitHub App can read the API as any agent can. The reader cannot know what any
-other script posts. An unset `$G` posts nothing in Claude Code, where each
+**Why:** prose's rules read a post only from a simple command whose command
+is `gh`. To them, the script's call is `gh` in another command's text, which is
+unreadable, so every post sent as a GitHub App would be refused. Judged as the
+same call made directly, a `gh api` read through the script passes, as it does
+when made directly. A command such as `cd` may also come before the script
+wherever it may come before `gh`. An earlier command still makes the line
+unreadable for a `gh pr` or `gh issue` post, or for a `gh api` write that
+reads a field from a file, since it could change what is posted. Only a path
+ending in `/github_app.py` is read, since the reader cannot know what any other
+script posts. An unset `$G` posts nothing in Claude Code, where each
 command starts a fresh shell, but could in a host whose shell keeps
 variables, such as Cursor; blocking it costs only a rewrite.
 
 *Ruled out by a scenario:* blocking every `gh api` call through the script
 (gh-post spec: *The reader reads posts sent through the github-app skill and
 gh api*, scenario *A gh api call through the github-app script is judged as a
-direct one*).
+direct one*), and blocking the script after any other command (scenario *A gh
+api call through the github-app script after cd is read*).
 
 #### The reader reads gh api writes, REST and GraphQL
 
