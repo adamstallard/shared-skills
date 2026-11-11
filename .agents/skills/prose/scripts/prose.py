@@ -2429,8 +2429,8 @@ def unasked_refusal(token, unasked, paths, answers, report, dispositions, items=
                   f"  Kept, because: {answer.reason}"]
     lines += ["", "Ask a person about each, one question per finding or understood line, with "
               "two options: \"Keep as is\" makes its line '<n>. kept (asked): <reason>' (for an "
-              "understood line, 'Item <n>: kept (asked): <reason>'); \"Fix it\" means rewrite "
-              "the passage (and restage it, for a commit) and make its line '<n>. fixed' (or "
+              "understood line, 'Item <n>: kept (asked): <reason>'); \"Fix it\" means cut, "
+              "move or reword the passage, whichever works first (and restage it, for a commit) and make its line '<n>. fixed' (or "
               "'Item <n>: fixed'). Then run the signing call again.",
               "If you cannot ask (a subagent, a background job, no picker), don't sign and don't "
               "commit: leave the change staged, and put this message in your result for "
