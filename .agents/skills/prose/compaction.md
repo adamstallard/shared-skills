@@ -149,7 +149,9 @@ the working file.
    yet: the commit gate refuses until steps 5 to 8 are done, so it lists the
    compaction steps still missing, then prints the cold-read brief. It signs
    at step 10. Follow SKILL.md's *The cold read* in full: a new subagent writes a
-   report, you send its findings back to the compactor to fix, and you
+   report; you send its findings, and each understood line that differs from
+   what you meant, back to the step 2 compactor, which fixes each with the
+   first fix that works of those [rules.md](rules.md)'s step 4 lists; and you
    answer every finding and understood line in the cold read's dispositions
    file, asking a person about any you would keep. Stage the file and run `--verify` again. Keep the
    token, the report and that dispositions file for step 10. A compaction

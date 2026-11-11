@@ -528,7 +528,8 @@ class ColdReadFindings(unittest.TestCase):
                      "  The cold reader: It was not clear.\n"
                      "  Kept, because: the line above says where\n",
                      '"Keep as is" makes its line \'<n>. kept (asked): <reason>\'',
-                     '"Fix it" means rewrite the passage (and restage it, for a commit)',
+                     '"Fix it" means cut, move or reword the passage, whichever works first '
+                     '(and restage it, for a commit)',
                      "If you cannot ask (a subagent, a background job, no picker), don't sign",
                      f"the report {pathlib.Path(report).resolve()}",
                      f"the dispositions file {pathlib.Path(answers).resolve()}")

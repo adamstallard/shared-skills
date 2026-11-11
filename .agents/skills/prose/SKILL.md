@@ -211,7 +211,9 @@ so the reader needs nothing else.
    Item 2, understood: A person may rerun a failed upload; nothing retries it.
    ```
 
-3. Fix the places the report names, by the rules, and restage. Compare each
+3. Fix each place the report names with the first fix that works of
+   those [rules.md](rules.md)'s step 4 lists: a cut, a move, or a
+   rewording. Restage. Compare each
    understood line with what you meant, and fix the item where they differ.
 4. Answer every finding and every understood line in a dispositions file
    beside the report, such as `dispositions.txt`. Its first line binds it to

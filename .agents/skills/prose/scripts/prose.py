@@ -2124,7 +2124,8 @@ def print_cold_read(token, items, next_command, stream=None, root=None, texts=No
     print("Give a new agent, one that has not seen this conversation, only the path on the "
           "'Brief file:' line below, telling it to read that file and follow it; don't copy the "
           f"brief into its prompt, or add to it. Save its report to {REPORT_FILE}, "
-          "outside the commit. Fix the places it names, and restage. Then answer every finding "
+          "outside the commit. Fix each place it names with the first fix that works (cut, move, "
+          "reword: rules.md step 4), and restage. Then answer every finding "
           f"in {DISPOSITIONS_FILE}: its first line '{dispositions_header(token)}', then one "
           "line per finding, '<n>. fixed' once you changed the item it is in, or "
           "'<n>. kept (asked): <why>' once a person chose to keep it. Answer every item's "
@@ -2428,8 +2429,8 @@ def unasked_refusal(token, unasked, paths, answers, report, dispositions, items=
                   f"  Kept, because: {answer.reason}"]
     lines += ["", "Ask a person about each, one question per finding or understood line, with "
               "two options: \"Keep as is\" makes its line '<n>. kept (asked): <reason>' (for an "
-              "understood line, 'Item <n>: kept (asked): <reason>'); \"Fix it\" means rewrite "
-              "the passage (and restage it, for a commit) and make its line '<n>. fixed' (or "
+              "understood line, 'Item <n>: kept (asked): <reason>'); \"Fix it\" means cut, "
+              "move or reword the passage, whichever works first (and restage it, for a commit) and make its line '<n>. fixed' (or "
               "'Item <n>: fixed'). Then run the signing call again.",
               "If you cannot ask (a subagent, a background job, no picker), don't sign and don't "
               "commit: leave the change staged, and put this message in your result for "
