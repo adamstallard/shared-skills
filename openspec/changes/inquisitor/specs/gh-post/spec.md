@@ -89,12 +89,12 @@ command* counts as a read.
 ### Requirement: The reader reads only gh's own top-level commands
 
 A `gh` command whose first word after `gh` is not one of gh's top-level
-commands, such as an alias or extension, SHALL be unreadable wherever it
-appears, even where another requirement says no post, bar a line that
-only runs prose's script. A simple command whose command is `gh` is a
-`gh` command, as is the word `gh`, quoted or not, followed by another
-word in another command's text, unless that command is a data command
-given no code (*Code-giving words are defined once, for every line*).
+commands SHALL be unreadable wherever it appears, even where another
+requirement says no post, bar a line that only runs prose's script. A
+simple command whose command is `gh` is a `gh` command, as is `gh`, or a
+path ending in `/gh`, quoted or not, that another word follows in another
+command's text, unless that other command is a data command given no code
+(*Code-giving words are defined once, for every line*).
 
 #### Scenario: gh's top-level commands are a closed list
 
@@ -118,9 +118,10 @@ given no code (*Code-giving words are defined once, for every line*).
 
 - **WHEN** a hook asks about `brew upgrade gh`, or about `which gh`
 - **THEN** the reader reports that each command sends no post
-- **AND** `ls ~/.config/gh hosts.yml` is unreadable: `~/.config/gh` names
-  `gh`, which keeps `ls` from being a data command, so `gh hosts.yml` is a
-  `gh` command whose first word after `gh` is not a top-level command
+- **AND** `ls ~/.config/gh hosts.yml` is unreadable: `~/.config/gh` is a
+  word ending in `/gh`, so `ls` is no data command (*A line whose simple
+  commands send no text is no post*), and `gh hosts.yml` is a `gh` command
+  whose first word after `gh` is not a top-level command
 
 #### Scenario: A gh alias run by another command is unreadable
 

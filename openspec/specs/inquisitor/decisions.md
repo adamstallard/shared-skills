@@ -73,3 +73,7 @@
 - **Rationale: A session with no person in it asks in a post, a handback or nowhere.**
   An Igor worker asks only in its handback comment because igor gives it no credential that can post: its environment holds only its seat's token, a credential for its model provider.
   Evidence: igor's requirement *The worker is given an explicit environment holding no credential but its seat's*, https://github.com/adamstallard/igor/blob/main/openspec/specs/task-execution/spec.md
+
+- **Rationale: A weakness is not described in public text before its advisory is published.**
+  The rule lasts only while the fix is public and the advisory is not, because a blanket rule would leave a fix's commit message unable to say why the fix was made even after disclosure, which prose's rules require of every commit message's body.
+  Evidence: prose's rule 14, "Commit subject says what changed; the body says why", https://github.com/adamstallard/shared-skills/blob/02c0a7782bc0392f5c1f5d8e3af0188cf84a9f0d/.agents/skills/prose/rules.md#L228

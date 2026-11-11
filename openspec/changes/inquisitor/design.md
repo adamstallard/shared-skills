@@ -61,7 +61,8 @@ what the input holds.
 
 ### What task 0.12 measured
 
-**An Igor worker can't run this skill.** Task 0.12 measured it on
+**An Igor worker can't run this skill, so the implementation builds
+everything except Igor-worker mode.** Task 0.12 measured it on
 2026-10-20, against igor's main branch and the branches of igor PRs #174
 (pinned skills), #175 (a worker as its own Unix user) and #216 (the igor
 change this one aligns with, *Alignment with igor PR #216*); the evidence
@@ -1022,9 +1023,10 @@ fork's commit messages may do under each result, and before it is measured.
   fix made in the advisory's temporary private fork, whose commits become
   public with the advisory, is not public first, unless the fork's pull
   request can merge first.
-- A blanket rule would leave a fix's commit message useless even after
-  disclosure, breaking rule 14 in the prose skill's `rules.md`: a commit
-  message's body says why.
+- A rule with no end at publication would leave a fix's commit message
+  unable to say why the fix was made, even after disclosure, as the
+  inquisitor decision record's *Rationale: A weakness is
+  not described in public text before its advisory is published* shows.
 - Until task 0.13 shows that the fork's pull request merges only at
   publication, the person who will publish the advisory can vouch that it
   will, letting the agent commit the regression test in the fork and describe
@@ -1090,10 +1092,13 @@ signature* holds the two proofs, because anyone who can push can write any
 email, which the committer sets. The signature needs a one-time
 commit-signing setup on the person's machine; the agent commits from their
 session, so they never sign an answer by hand. In a project set up for a
-GitHub App, the github-app skill commits as the bot, unsigned, so there an
-agent's questions-branch `decision` needs the comment-link proof. The answer
-session's answer files are the exception: it commits them as the person,
-signed (*Setup checks questions-branch commits are the person's*).
+GitHub App, the github-app skill's settings make an agent's commits the bot's,
+unsigned, so there an agent's questions-branch `decision` needs the
+comment-link proof. The answer session's answer files are signed even there:
+the answer session runs the `log` command without those settings, so the
+files are committed as the person, signed (the answer-session decision
+record's *Rationale: The log command commits with the person's git identity*
+has the evidence) (*Setup checks questions-branch commits are the person's*).
 
 *Ruled out by a scenario* (same requirement): matching the commit's author
 login to `answered_by`, which anyone with push access can forge (scenario *A
@@ -1347,11 +1352,6 @@ repository, and without the message the person could not tell why.
 possibly in an Igor's run (inquisitor spec: *The script tells an Igor's run by
 IGOR_RUN*).
 
-#### Task 0.12: an Igor worker cannot run the skill
-
-**Gate two builds everything except Igor-worker mode,** since an Igor worker
-cannot run this skill. *What task 0.12 measured* gives the evidence.
-
 #### An Igor worker asks only in its handback comment
 
 The Igor posts the handback comment (igor #211). The worker opens no post and
@@ -1377,9 +1377,10 @@ ban on offering a worker a search tool, which rested only on a worker not
 needing one, is lifted, and a run's search applies firing's scope rule and
 labels an in-scope non-`active` entry as not lore.
 
-**Why** a worker searches at all: igor injects the active entries in scope
-only when all of them fit a 4,000-token budget, and none when they do not,
-so an entry holding a person's answer can be missing from the worker's context.
+**Why** a worker searches at all: igor injects lore into the worker's context
+only when every entry in scope fits a token budget, so an entry holding a
+person's answer can be missing (evidence: the inquisitor decision record's
+*Rationale: In an Igor's run, filter 1 searches through igor*).
 
 **Why** only the lore repository the Igor injects from: the Igor checks a
 cited entry, reported by id alone, against that lore repository; another
@@ -1605,10 +1606,11 @@ its commit's signature.**
 as answered without the signature every other machine needs (answer-session
 spec: *A questions-branch answer file records the answer as given*, scenario
 *An unsigned log file of a Discord-relayed answer is input*); and committing
-as the App with a warning that such answers do not count, since github-app
-commits as the bot, unsigned, so the person's answers would never count
-(answer-session spec: *The log command commits with the person's git
-identity*, scenario *The log command drops github-app's git settings*).
+as the App with a warning that such answers do not count, since the person's
+answers would then never count (answer-session spec: *The log command commits
+with the person's git identity*, scenario *The log command drops github-app's
+git settings*; the answer-session decision record's *Rationale: The log
+command commits with the person's git identity* gives the evidence).
 
 #### Discord is in the first version, through discord-bot
 
@@ -1953,12 +1955,17 @@ lists them:**
 #### The thread is the durable record of an answer
 
 The thread is fetched again before each relay post, so an answer relayed from
-another machine is never posted twice. A relay post names its question by its
+another machine on Linear or Discord is never posted twice. On GitHub a relay
+post is recognised by the App that wrote it, which needs task 0.21 to show
+that GitHub reports it. Until then, only relay posts whose ids this machine
+saved are recognised, so an answer relayed from another machine can be posted
+again (answer-session spec: *Until task 0.21, a GitHub relay post is one this
+machine posted*). A relay post names its question by its
 `Re: ` line on GitHub and Linear, and by replying to it on Discord.
 
 **Why:** the thread is the one place every machine, and the asker, can read.
-A crash after a post but before its id is saved loses nothing: the next read
-of the thread finds the post.
+On Linear and Discord, a crash after a post but before its id is saved loses
+nothing: the next read of the thread finds the post.
 
 #### `User says: ` answers, `User asks: ` asks the asker
 
@@ -2688,11 +2695,6 @@ detail moves first to scenarios, then reasons move here, then the text is
 compacted, and only a requirement still too long is split, along its own
 rule boundaries.
 
-#### Igor-worker scenarios stay untagged until igor builds what they need
-
-**spec-trace does not change for them;** *Tracing scenarios to tests* gives
-the rule, task 4.3's tagging, and why a skipped test would not do.
-
 #### The change is archived only after every expected gap is tagged
 
 **Archiving waits for task 4.3 to tag every expected gap, beside task 7.0's
@@ -2700,6 +2702,36 @@ wait for igor PR #216 to merge, since archiving writes the scenarios into
 the directory where spec-trace's CI fails on an untagged one.**
 
 ## Open Questions
+
+### Rules a person must decide
+
+- **Whether the holder's model may post on GitHub.** In the holder, the
+  Claude Code session the answer session runs in, linear-app's and
+  discord-bot's post hooks block the model's own posts (answer-session spec:
+  *In the holder, Linear and Discord posts go only through the answer
+  session*). Its section *A discussion runs in the session's own
+  conversation* says the
+  inquisitor's post hook already gives GitHub the same guard. It does not: that hook blocks
+  only an unvetted question or a reserved prefix (inquisitor spec: *The post
+  hook vets what the shared post reader returns*), and the holder's model has
+  the person's `gh` login. A crafted thread could have it post `Use X` under
+  the person's own login, which filter 1 counts as the person's decision.
+  Either the holder blocks the model's GitHub posts too, or a Constraint in
+  the answer-session decision record accepts the gap.
+- **Whether recognising a bot's comment waits on task 0.21.** Task 0.21
+  measures whether GitHub's API reports which App wrote a comment. Until it
+  does, no comment counts as a relayed answer, and only this machine's relay
+  posts are recognised. Three other rules rest on the same fact and have no
+  such fallback:
+  - a comment counts as a handback only when its App's slug starts with
+    `igor-` (answer-session spec: *A handback is an igor- App's comment
+    holding igor's marker*);
+  - a message by a bot account is an agent's question, which reaches only
+    the first person it mentions;
+  - an automatic `Inquisitor: ` reply goes only to an agent's question.
+
+  Either these rules get a fallback until task 0.21 holds, or the spec states
+  why the fact they need differs from the one task 0.21 measures.
 
 ### Facts measured before building
 

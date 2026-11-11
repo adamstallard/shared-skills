@@ -35,3 +35,7 @@
 - **Rationale: An answer is relayed as the person's words.**
   A relay post carries the person's words with no agent header, and discord-bot already posts that way: its `post` adds a header only when `--agent`, `--session` or `--project` is given, so the relay passes none of them and needs no new option.
   Evidence: `header()` in discord-bot's script, https://github.com/adamstallard/shared-skills/blob/90a0237/.agents/skills/discord-bot/scripts/discord_bot.py
+
+- **Rationale: The log command commits with the person's git identity.**
+  An answer file with no `answer_link` counts only through its commit's signature, and in a session set up for a GitHub App the github-app skill's settings make every commit the bot's and unsigned, so the answer session runs the `log` command without them, or the person's answers would never count.
+  Evidence: github-app's `agent_env` sets `commit.gpgsign=false` and the bot's `GIT_AUTHOR_*` and `GIT_COMMITTER_*`, https://github.com/adamstallard/shared-skills/blob/02c0a7782bc0392f5c1f5d8e3af0188cf84a9f0d/.agents/skills/github-app/scripts/github_app.py#L499-L523

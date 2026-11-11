@@ -66,10 +66,9 @@ contradicts what design.md assumed.
 - [x] 0.12 Whether an Igor's worker can run this skill, with a lore clone
       and `inquisitor.json` in reach. It can't, nor once igor PRs #174 and
       #175 land, by their specs, unchecked since neither is built
-      (design.md: *Task 0.12: an Igor worker cannot run the skill*; *What
-      task 0.12 measured*). Gate two builds everything
-      except Igor-worker mode, which waits for what design.md's *Open
-      Questions* names
+      (design.md: *What task 0.12 measured*). The implementation builds
+      everything except Igor-worker mode, which waits for design.md's
+      *What igor must provide*
 - [ ] 0.13 Whether GitHub lets a security advisory's private-fork pull
       request be merged before the advisory is published (design.md:
       *Weaknesses stay out of public text until disclosure*). Until it

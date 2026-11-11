@@ -97,7 +97,8 @@ person's cite pushes a citation file*).
 ### Requirement: An Igor is an igor teammate, and its worker does an item
 
 The skill SHALL treat as an **Igor** one of the igor project's AI teammates,
-and as its **worker** the agent that Igor starts to do an item.
+and as its **worker** the agent that Igor starts to do an item, a piece of
+work such as an issue or pull request that the Igor holds.
 
 #### Scenario: An agent an Igor starts for an item is its worker
 
@@ -859,8 +860,8 @@ configuration or service.
 
 #### Scenario: Only the exact name and value of IGOR_RUN mark a run
 
-- **WHEN** a session's environment holds `IGOR_RUN_TOKEN`, an Igor seat's
-  token, or another name that starts with `IGOR_RUN`, and no `IGOR_RUN`, or
+- **WHEN** a session's environment holds `IGOR_RUN_TOKEN` (the token of an
+  Igor seat, a person's Claude subscription lent to Igors) or another name that starts with `IGOR_RUN`, and no `IGOR_RUN`, or
   holds `IGOR_RUN=yes`
 - **THEN** the script counts the session as outside any Igor's run
 
@@ -2692,12 +2693,12 @@ person's agent memory or user-level `CLAUDE.md`, never a committed one.
 ### Requirement: A lore entry that stops a question gets a citation file
 
 When filter 1 stops a question with a lore entry, the agent SHALL push a
-citation file to the questions branch of the lore repository holding the
-entry. It SHALL push none for a question with a category or, outside any
-repository, concerning none; to a lore repository more visible than the
-repository the question concerns; or where *No worker or Igor-started run
-pushes to a lore repository* or *An answer session's automatic reply is a
-verdict, not a person's answer* rules it out.
+citation file to the questions branch of the entry's lore repository,
+except for a question with a category or one asked outside any repository
+that concerns none, and except where *No question is pushed to a more
+visible lore repository* would refuse the question there, or *No worker or
+Igor-started run pushes to a lore repository* or *An answer session's
+automatic reply is a verdict, not a person's answer* rules it out.
 
 #### Scenario: Only the citation file names the lore entry
 
@@ -2907,8 +2908,9 @@ answer, and writes no `asked_in`.
 
 - **WHEN** the `log` command runs under `IGOR_RUN=worker` with an answer
   whose `answer_link` names a comment
-- **THEN** it makes no GitHub call, and the file it reports holds only the
-  question and the `answer_link`, no answer
+- **THEN** it makes no GitHub call, and the log file it writes holds only
+  the question and the `answer_link`, with no answer and no `asked_in`; a
+  later agent outside Igor-worker mode adds the answer
 
 ### Requirement: The log command fetches no Linear or Discord answer link
 
@@ -3188,8 +3190,8 @@ questions-branch log and miss file but a handled one SHALL hold
 
 - **WHEN** a log file's answer has a link
 - **THEN** its `answer_link` is the github.com URL of the comment or review
-  holding the answer, written only in a lore repository no more visible than
-  the repository it points into
+  holding the answer, written only in a repository, lore repository or not,
+  no more visible than the repository it points into
 - **AND**, for an answer an answer session relayed on Linear or Discord, it
   is that relay comment's or message's URL, which nothing fetches, written
   only in a lore repository whose visibility its writer reads as private:
@@ -4017,6 +4019,14 @@ two go by pull request.
 - **WHEN** misses have been logged and nobody has asked for a review
 - **THEN** the script drafts no lesson, and no pull request or memory edit
   is made
+
+#### Scenario: A team lesson goes to its lore repository by pull request
+
+- **WHEN** a review of the misses finds a pattern for a team, and the
+  team's lore repository is no more visible than any miss file the lesson
+  draws on
+- **THEN** the agent opens a pull request to that lore repository adding
+  the lesson
 
 #### Scenario: A team lesson from a private repository's misses stays out of a public lore repository
 

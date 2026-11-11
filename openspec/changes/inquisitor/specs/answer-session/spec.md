@@ -958,12 +958,12 @@ under that source; the resolved question stays as it was.
 #### Scenario: A later message in an answered or declined thread is a new question
 
 - **WHEN** the relay had posted in a GitHub issue before a question there,
-  the person answered that question or declined it (with nothing to
-  answer, or with filter 2's reply posted), and then the asker comments
-  again without a mention, or someone mentions the person there
-- **THEN** every machine shows the comment as a new question, under the
-  second source or the first, and the declined question stays closed or
-  handled
+  the person answered that question or declined it with filter 2's reply
+  posted, and then the asker comments again without a mention, or someone
+  mentions the person there
+- **THEN** every machine shows the comment as a new question, the asker's
+  as a reply to the relay post and a mention as a mention, and the earlier
+  question stays resolved
 
 ### Requirement: The answer session polls only while it is open
 
