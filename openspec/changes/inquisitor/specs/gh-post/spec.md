@@ -1,7 +1,7 @@
 ## Purpose
 
-The shared post reader tells a hook what an agent's command or tool call
-would post on GitHub, so prose's posting hook and the inquisitor's post
+The shared post reader tells a hook what a command or tool call would
+post on GitHub, so prose's posting hook and the inquisitor's post
 hook judge the same text, and each blocks a post it cannot read.
 
 ## ADDED Requirements
@@ -50,11 +50,12 @@ unreadable call.
 ### Requirement: A command that mentions no gh post verb sends no post
 
 A command SHALL send no post when it **mentions** no **gh post verb**, one
-of the closed list that *The gh post verbs are a closed list* gives. A
+of the verbs the scenario *The gh post verbs are a closed list* gives. A
 command mentions one when its text, quoted or not, holds `gh` followed
-later by `pr` or `issue` and later by one of their verbs, or `gh`
-followed by `api`, unless that `gh api` is a call *A gh api call is a
-read only as a plain gh command* counts as a read.
+later by `pr` or `issue` and later by one of the post verbs that scenario
+gives for it, or `gh` followed by `api`, unless
+that `gh api` is a call *A gh api call is a read only as a plain gh
+command* counts as a read.
 
 #### Scenario: The gh post verbs are a closed list
 
@@ -76,11 +77,14 @@ read only as a plain gh command* counts as a read.
 
 - **WHEN** a hook asks about `gh api repos/o/r/pulls/5 | python3 -c
   'import json, sys; print(json.load(sys.stdin)["title"])'`, or the same
-  with `python3 /abs/github_app.py gh api repos/o/r/pulls/5`
+  pipe with `python3 /abs/github_app.py gh api repos/o/r/pulls/5` as its
+  first command
 - **THEN** the reader reports that each line sends no post, since a read
-  is no gh post verb and the line mentions none
-- **AND** `python3 -c 'import os; os.system("gh api -X POST x")'` still
-  mentions one, in the code's text, and is unreadable
+  is no gh post verb, so the line mentions none and no rule for a
+  post-verb line applies
+- **AND** `python3 -c 'import os; os.system("gh api -X POST x")'` mentions
+  a gh post verb, in the code's text, and is unreadable under *An
+  interpreter given a code flag makes a post-verb line unreadable*
 
 ### Requirement: The reader reads only gh's own top-level commands
 
@@ -114,9 +118,9 @@ given no code (*Code-giving words are defined once, for every line*).
 
 - **WHEN** a hook asks about `brew upgrade gh`, or about `which gh`
 - **THEN** the reader reports that each command sends no post
-- **AND** `ls ~/.config/gh hosts.yml` is unreadable: the path ending in
-  `/gh` names `gh`, another word follows it, and that path keeps `ls`
-  from counting as a data command
+- **AND** `ls ~/.config/gh hosts.yml` is unreadable: `~/.config/gh` names
+  `gh`, which keeps `ls` from being a data command, so `gh hosts.yml` is a
+  `gh` command whose first word after `gh` is not a top-level command
 
 #### Scenario: A gh alias run by another command is unreadable
 
@@ -314,9 +318,10 @@ its scenarios list as unreadable SHALL be unreadable.
 A line mentioning a gh post verb SHALL send no post when its input obeys
 *Input to a no-post line reaches only data commands* and each simple
 command in it names no `gh`, is a `gh` command sending no text, or is one
-of prose's **data commands**, which its scenarios list. A data command SHALL count only when none of its words is `gh` or a path
-ending in `/gh`, and the github-app skill's form, in a line its own requirement allows,
-SHALL count as the `gh` command it runs.
+of the reader's **data commands**, which this requirement's scenarios
+list. A command SHALL count as a data command only when none of its words
+is `gh` or a path ending in `/gh`. The github-app skill's form, where its
+own requirement allows, SHALL count as the `gh` command it runs.
 
 #### Scenario: A command that sends no body is no post
 
@@ -330,7 +335,7 @@ SHALL count as the `gh` command it runs.
 
 - **WHEN** a hook asks about `echo 'run gh pr create next'`
 - **THEN** the reader reports that the command sends no post
-- **AND** prose's data commands are `echo`, `cat`, `tee`, `grep`,
+- **AND** the data commands are `echo`, `cat`, `tee`, `grep`,
   `egrep`, `fgrep`, `rg`, `git`, `python`, `python3`, `node`, `jq`,
   `head`, `tail`, `wc`, `sort`, `uniq`, `cut`, `tr`, `ls`, `cd`, `true`
   and `false`
@@ -355,10 +360,9 @@ command, so `git log -c` is given code too, and `wc -c` is not.
 
 - **WHEN** a hook asks about `git -c 'alias.x=!gh c 5 -b x' x`, a line that
   mentions no gh post verb
-- **THEN** `-c` is a code-giving word, so `git` is given code and is no
-  data command; the `gh c` in its text is then a `gh` command whose
-  subcommand is not one of gh's own, and the reader reports the line as
-  unreadable
+- **THEN** the reader reports the line as unreadable: `-c` gives `git`
+  code, so `git` is no data command and the `gh c` in its text is a gh
+  alias
 
 ### Requirement: An interpreter given a code flag makes a post-verb line unreadable
 
@@ -477,9 +481,9 @@ verb. Otherwise the line SHALL be unreadable. Input reaching `python`,
 ### Requirement: Any other line that mentions a gh post verb is unreadable
 
 The reader SHALL report as unreadable every line that mentions a gh post
-verb unless it returns a post for it or another requirement of this spec
-says the line sends no post, and any such line it cannot read exactly,
-such as one with a backtick, `$'…'` or an unterminated quote.
+verb and that it cannot read exactly, and every other such line unless it
+returns a post for it or another requirement of this spec says the line
+sends no post.
 
 #### Scenario: A gh post run through another shell is unreadable
 
@@ -519,8 +523,9 @@ message saying how to fix it.
 
 - **WHEN** a hook asks about `cd x && python3 /abs/github_app.py gh pr
   comment 5 --body-file c.md`
-- **THEN** the reader reports the command as unreadable, since only the
-  `G` assignment may come before `python3`
+- **THEN** the reader reports the command as unreadable, since *The
+  reader reads posts sent through the github-app skill and gh api* lets
+  only the `G` assignment come before `python3`
 
 #### Scenario: The github-app script with an identity is read
 
@@ -554,10 +559,10 @@ message saying how to fix it.
 - **WHEN** a hook asks about `python3 "$G" gh pr view 12 --comments`, and
   the command assigns `G` nowhere
 - **THEN** the reader reports that the command sends no post
-- **AND** for `python3 "$G" gh api repos/o/r/pulls/5`, with `G` assigned
-  nowhere, it reports the command as unreadable: a `gh api` call is a
-  read only as a plain `gh` command or the github-app skill's form, which
-  an unset `G` is not, so the call counts as a possible post
+- **AND** it reports `python3 "$G" gh api repos/o/r/pulls/5`, with `G`
+  assigned nowhere, as unreadable: an unassigned `$G` is not the
+  github-app skill's form, so *A gh api call is a read only as a plain gh
+  command* does not count the call as a read
 
 #### Scenario: A gh api call through the github-app script is judged as a direct one
 
@@ -566,8 +571,7 @@ message saying how to fix it.
   /abs/github_app.py --identity bot gh api -X DELETE
   repos/o/r/issues/comments/9`
 - **THEN** the reader returns `hi` as the first's body, and reports that
-  the second sends no post, as it would for the same `gh api` calls made
-  directly
+  the second sends no post
 
 ### Requirement: A gh api call is a read only as a plain gh command
 
@@ -598,8 +602,8 @@ field, and the github-app form's `$G`.
   `gh api -X "$M" repos/o/r/issues/5`, `cat a | xargs gh api
   repos/o/r/issues/5/comments`, or `sh -c 'gh api
   repos/o/r/issues/5/comments "$@"' _ -f body=x`
-- **THEN** none is a read, each line mentions a gh post verb, and the
-  reader reports each as unreadable, though `$F` could hold no field
+- **THEN** the reader reports each as unreadable, though `$F` could hold
+  no field
 
 ### Requirement: A gh api call writes by its method, fields, input or a mutation
 
@@ -647,23 +651,21 @@ query.
 
 ### Requirement: The reader reads a gh api write to an issue or pull request
 
-A `gh api` call writes as *A gh api call writes by its method, fields,
-input or a mutation* says. For a write under
-`repos/<owner>/<repo>/issues` or `.../pulls`, the reader SHALL read each
-`body` field or `--input` key as a body, a `title` one as the title, and,
+For a `gh api` write under `repos/<owner>/<repo>/issues` or `.../pulls`,
+the reader SHALL read each `body` field, and each `body` key of the
+`--input` JSON, as a body; each `title` field or key as the title; and,
 for a review under `.../pulls/<n>/reviews`, each `body` in its
-`comments`. A field that is not a literal word SHALL make the write
-unreadable. It SHALL say that a `POST` to `.../issues`
-creates an issue, as an MCP `create_issue` does.
+`comments`. The reader SHALL say that a `POST` to
+`repos/<owner>/<repo>/issues` creates an issue.
 
 #### Scenario: Each gh api body form is read
 
 - **WHEN** a hook asks about an issue comment sent with `gh api`, its body
   given by `-f body=…`, `--raw-field body=…`, `-F body=…`,
   `--field body=…`, `-F body=@c.md` or `--input c.json`
-- **THEN** the reader returns the body for each form, `@<file>` and
-  `--input` reading the named file, and the `--input` file being JSON
-  with a `body` key
+- **THEN** the reader returns the body for each form, reading the named
+  file for `@<file>` and `--input`, the `--input` file being JSON with a
+  `body` key
 
 #### Scenario: A new issue sent through gh api or MCP is reported as one
 
@@ -721,13 +723,13 @@ all given in the command SHALL be read in a longer line too.
 
 ### Requirement: The reader reads GraphQL posts and blocks a gh api write it can't read
 
-In the thirteen mutations
-its scenarios list, which post text, the reader SHALL read every `body`
-argument, at any depth, as a body and a `title` argument as the title;
-`createIssue` creates an issue. It SHALL report as unreadable a query it
-cannot parse, and a `gh api` write with a field, title or `body` it cannot
-read, or a `body` for an endpoint or mutation it does not read. Any other
-`gh api` call, read or write, SHALL send no post.
+In each of the thirteen mutations that post text, which its scenarios
+list, the reader SHALL read every `body` argument, at any depth, as a body,
+and, in the four its scenario names, the mutation's `title` argument as the
+title; `createIssue` creates an issue. It SHALL report as unreadable a
+query it cannot parse, and a `gh api` write with a field, title or `body`
+it cannot read, or a `body` sent to an endpoint or mutation outside those
+it reads. Any other `gh api` call SHALL send no post.
 
 #### Scenario: A GraphQL comment's body is read
 
