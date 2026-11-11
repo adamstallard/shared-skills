@@ -306,11 +306,11 @@ binds no later change.
 incident itself, linked; a link to its regression test may follow), a
 measurement (an experiment someone ran) or an outside fact. A test alone,
 the requirement's own included, is never Evidence: it shows the rule is
-enforced, not why it is needed. Every *Evidence* line
-and every *Lost because* line ends in a link: a URL, an issue or pull
-request, a commit, or a markdown link to a file. Reasoning without evidence,
-however sound, is not an entry: it goes in the change's design.md or a pull
-request description.
+enforced, not why it is needed. Every *Evidence* line and every
+*Lost because* line holds a link for each piece of evidence it names, and
+ends in a link: a URL, an issue or pull request, a commit, or a markdown
+link to a file. Reasoning without evidence, however sound, is not an entry:
+it goes in the change's design.md or a pull request description.
 
 Each entry is stated as it stands now, with no history:
 
@@ -353,9 +353,9 @@ A pull request that finds that a piece of an entry's evidence has failed
 (its link no longer resolves, or it is disproved) removes that piece, and
 gives the reason for each removal in the pull request description and the
 commit message. Delete an entry when no sound evidence is left, as after
-removing a *Lost because* line's link, or when the entry no longer holds: its *Holds while*
-condition has ended, its *Lost because* no longer applies, or its
-requirement is gone. Give each deletion's reason in the pull request
+removing a *Lost because* line's last link, or when the entry no longer
+holds: its *Holds while* condition has ended, its *Lost because* no longer
+applies, or its requirement is gone. Give each deletion's reason in the pull request
 description and the commit message, never in the record or design.md, since
 it is history. Rewording an entry is not a deletion: it needs no reason, and
 the entry keeps its evidence.
@@ -373,7 +373,7 @@ the entry keeps its evidence.
 ## Rejected
 - **Rejected: <the approach, named as someone would propose it>.**
   Facing: <the problem it tried to solve>.
-  Lost because: <one sentence>, <link to the failure, measurement or outside fact>.
+  Lost because: <one sentence>, <one or more links to the failure, measurement or outside fact>.
   Instead: <what was chosen>.
   Paths: <files or areas it governs>
 

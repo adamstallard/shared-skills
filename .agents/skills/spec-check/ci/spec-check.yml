@@ -43,24 +43,27 @@
 # The script makes the draft and withdraws the request through gh, with the
 # GH_TOKEN below and the `pull-requests: write` permission. If someone
 # removed either from this file, the check would still fail but the pull
-# request would be left as it is. The same happens on a pull request from a fork, because
-# GitHub gives the workflow only a read-only token there.
+# request would be left as it is. The same happens on a pull request from a
+# fork, because GitHub gives the workflow only a read-only token there.
 #
 # Where the script comes from: each run downloads spec_check.py from
 # adamstallard/shared-skills at the commit SPEC_CHECK_SHA names, below. That
-# commit is the pin. The download always works at a commit on main. At a
-# commit never pushed to GitHub it never works, so the check fails. At a
-# commit on another branch it can stop working once that branch is
-# deleted, because GitHub may stop serving a commit that no branch
-# reaches. Whether it works at a commit pushed only to a fork is untested.
-# So the pin must be a commit on main, and setup-ci writes no other.
+# commit is the pin. The download always works at a commit on main, meaning
+# any commit in main's history, including one on a branch merged into main.
+# At a commit never pushed to GitHub it never works, so the check fails. At
+# a commit on another branch it can stop working once that branch is
+# deleted, because GitHub may stop serving a commit that no branch reaches.
+# Whether it works at a commit pushed only to a fork of
+# adamstallard/shared-skills is untested. So the pin must be a commit on
+# main, and setup-ci writes no other.
 #
 # To update the pin, or this workflow:
 # 1. Install gh, GitHub's command-line tool, and sign in with
 #    `gh auth login`.
 # 2. From inside the repository that holds this workflow, run any copy of
 #    spec_check.py, such as the installed skill's:
-#      python3 ~/.agents/skills/spec-check/scripts/spec_check.py setup-ci --force
+#      python3 ~/.agents/skills/spec-check/scripts/spec_check.py \
+#        setup-ci --force
 #    `--force` replaces the whole file, discarding any local edit; without
 #    it, setup-ci refuses to replace an existing workflow and changes
 #    nothing. Add `--sha <commit>` to pin a commit on main other than the
@@ -71,22 +74,25 @@
 # .github/workflows/spec-check.yml into the git repository named by
 # `--repo <dir>`, or else the one holding the current directory. It reads
 # both the pin and the workflow from adamstallard/shared-skills on GitHub,
-# through gh, never from local files, so every copy of spec_check.py
-# writes the same workflow. The pin is the newest commit on main that
-# changed spec_check.py or the template
-# (.agents/skills/spec-check/ci/spec-check.yml). Sometimes each file last
-# changed on a branch of its own, and the two branches were merged
-# separately. Then neither branch's commit holds both new versions, and
-# the pin is the earliest commit on main's first-parent line that holds
-# both, usually the second merge. The workflow is copied from the template
-# as committed at the pin, so the workflow's steps and the spec_check.py
-# each run downloads always come from the same commit. After a shared-skills merge
-# that changed either file, the next setup-ci run moves the pin forward.
-# After a merge that left both alone, the pin stays where it was. With
-# `--sha <commit>` the pin is that commit instead, and setup-ci asks
-# GitHub whether it is a full 40-character SHA of a commit on main. It
-# writes nothing for any other value, such as a tag's SHA, and nothing
-# when gh is missing or signed out or GitHub cannot be reached.
+# through gh, never from local files, so every copy of spec_check.py writes
+# the same workflow. The pin is a commit holding the newest versions of both
+# spec_check.py and the template
+# (.agents/skills/spec-check/ci/spec-check.yml). When the newest commit that
+# changed one file has the newest commit that changed the other in its
+# history, the pin is that commit, which may sit on a merged branch rather
+# than on main's first-parent line. When each file last changed on a branch
+# of its own and the two branches were merged separately, neither of those
+# commits holds both, and the pin is the earliest commit on main's
+# first-parent line that does: the merge that brought in the later branch.
+# The workflow is copied from the template as committed at the pin, so the
+# workflow's steps and the spec_check.py each run downloads always come from
+# the same commit. After a shared-skills merge that changed either file, the
+# next setup-ci run moves the pin forward. After a merge that left both
+# alone, the pin stays where it was. With `--sha <commit>` the pin is that
+# commit instead, and setup-ci asks GitHub whether it is a full 40-character
+# SHA of a commit on main. It writes nothing for any other value, such as a
+# short SHA or a tag name, and nothing when gh is missing or signed out or
+# GitHub cannot be reached.
 #
 # Editing this file by hand works, SPEC_CHECK_SHA included, as long as the
 # pin stays a full 40-character SHA of a commit on main, but the edit lasts
