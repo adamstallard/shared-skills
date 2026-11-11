@@ -297,9 +297,10 @@ and the evidence for why a rule exists or why an alternative lost.**
 Whatever a test can express is a requirement with a scenario, including a
 rejection or constraint a test can check: to turn down an approach a test
 could catch, add a scenario that fails if the approach is used, under the
-requirement that approach would break. Create the record if the capability
-has none. Later changes and their consistency reads read the record; they
-never read an archived change's design.md, so nothing there binds them.
+requirement that approach would break. Reasoning with evidence goes in the
+record, not in design.md: later changes and their consistency reads read the
+record, but never an archived change's design.md, so an archived design.md
+binds no later change.
 
 **Every entry needs evidence, never invented:** a failure (the bug or
 incident itself, linked; a link to its regression test may follow), a
@@ -348,9 +349,11 @@ the agent writing the change may ask whoever decided for evidence that would
 make it a proper entry; item 17 of the checklist flags noise in the round
 it appears, while that person can still be asked.
 
-A pull request that finds a piece of an entry's evidence failed (its link
-no longer resolves, or it is disproved) removes that piece. Delete an entry
-when no sound evidence is left or it no longer holds: its *Holds while*
+A pull request that finds that a piece of an entry's evidence has failed
+(its link no longer resolves, or it is disproved) removes that piece, and
+gives the reason for each removal in the pull request description and the
+commit message. Delete an entry when no sound evidence is left, as after
+removing a *Lost because* line's link, or when the entry no longer holds: its *Holds while*
 condition has ended, its *Lost because* no longer applies, or its
 requirement is gone. Give each deletion's reason in the pull request
 description and the commit message, never in the record or design.md, since
@@ -380,18 +383,24 @@ the entry keeps its evidence.
   Evidence: <a failure (the bug or incident itself, linked; its regression test may follow as a pointer), a measurement (an experiment someone ran) or an outside fact>, <link>
 ```
 
-A Rationale entry's bold title ends in a period of its own. Less that
-period, it equals the exact title of a requirement in force (in
-`openspec/specs/`) that no open change removes or renames, one an open
-change adds or modifies, or the new title an open change renames one to. So for a requirement
-whose title ends in a period, the entry's title ends in two. An open change is any change folder under
-`openspec/changes/` in the pull request branch's tree, including one whose
-pull request has merged but which is not yet archived. `check` reports any
-other title as an error, suggesting the exact title when one matches
-ignoring case, spacing, backticks and a closing period; so when an open
-change removes or renames away a requirement, delete its entry or retitle
-it. A Rationale entry needs at least one *Evidence* line; all come last,
-after the reasoning, which has no blank line inside it. In every kind of
+A Rationale entry's bold title is a requirement's exact title followed by a
+period of its own, so a title that already ends in a period gets two. The
+title it copies must be one of these:
+
+- the title of a requirement in force (in `openspec/specs/`) that no open
+  change removes or renames;
+- the title of a requirement an open change adds or modifies;
+- the new title an open change renames a requirement to.
+
+An open change is any change folder under `openspec/changes/` in the tree of
+the branch being checked. That includes a change whose pull request has
+merged, once the branch has merged main, until the change is archived. `check` reports any other title as an error, suggesting
+the exact title when one matches ignoring case, spacing, backticks and a
+closing period. So a change that removes a requirement deletes its entry,
+and a change that renames one retitles its entry to the new title, each in
+its own pull request. A Rationale entry needs at least one *Evidence* line;
+its Evidence lines come last, after the reasoning, and the reasoning has no
+blank line inside it. In every kind of
 entry, any labelled part (*Because*, *Evidence*, *Paths* and the rest) may
 wrap onto indented lines, with no blank line before a continuation.
 
@@ -399,9 +408,13 @@ wrap onto indented lines, with no blank line before a continuation.
   Rationale entries, is a comma-separated list of files, directories
   (`src/store/`) or globs (`src/**/*.go`).
   List the files where a change could break the rule or bring back the
-  rejected approach: a branch that changes any of them has the entry checked
-  and read with it (sections 1 and 2). Without Paths, an entry has no
-  trigger and silently guards nothing.
+  rejected approach: when a branch changes any of them, that branch's `check`
+  and consistency read include the entry (sections 1 and 2). Without Paths,
+  an entry has no trigger and silently guards nothing. A Rationale entry
+  has no Paths because every change with a delta spec for its requirement's
+  capability includes that capability's whole record in its `check` and
+  consistency read; a branch that edits only code, with no delta spec, is
+  guarded by the requirement's own tests.
 
 - **Where.** The record is at `openspec/specs/<capability>/decisions.md`,
   unless `openspec/spec-check.yaml` says otherwise, in one line such as
@@ -423,6 +436,8 @@ wrap onto indented lines, with no blank line before a continuation.
   read on its own. `openspec archive` never touches a decisions.md, so
   archive the change as usual. At archive, the record stays inside the spec.
   `check` refuses a `decisions.md` inside a change, so don't put it there.
+  When you write an entry for a capability with no record, create one at
+  the path in *Where*.
 
 ## Decisions and open questions
 
@@ -432,8 +447,9 @@ it. Otherwise, write it either in design.md or in a pull request
 description. design.md is archived with its change and never read again. It
 never restates a record entry, though it may link to one.
 
-design.md's *Decisions* section states each of the change's other decisions
-once, as it stands now: design choices that are not record material, and
+design.md's *Decisions* section states once each
+decision the change did not write as a requirement, a scenario or a record
+entry: design choices that are not record material, and
 reasoning without the evidence a record entry needs. Its *Open Questions*
 section holds each undecided item. OpenSpec's design.md instructions name
 both sections; create design.md when the change has none. When a
