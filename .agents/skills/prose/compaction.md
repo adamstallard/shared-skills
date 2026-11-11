@@ -131,12 +131,15 @@ the working file.
    - a history marker is left, outside a passage answered `kept:`;
    - the file grew, or is empty.
 
-   Have the compactor fix what it names, stage it, and run `--verify` again
-   until it exits 0. On exit 2 (unstaged changes, a file to search it could
-   not read, or a missing `--answers` file), fix that or narrow the paths,
-   and run it again. A passing `--verify` stores the answers it checked for
-   the staged file, and the later steps and the commit gate read only that
-   copy: an edit to the answers file counts only once `--verify` runs again.
+   Have the compactor fix what `--verify` names. Also have it rejoin any
+   point of the doc it split around another while reordering or merging
+   sentences to save words, so that no sentence returns to an earlier point
+   after a different one (rule 3 of [rules.md](rules.md)). Then stage the
+   file and run `--verify` again, until it exits 0. On exit 2 (unstaged
+   changes, a file to search that `--verify` could not read, or a missing
+   `--answers` file), fix that or narrow the paths, and run it again. A
+   passing `--verify` stores the answers it checked for the staged file,
+   and the later steps and the commit gate read only that copy: an edit to the answers file counts only once `--verify` runs again.
 4. Have the compacted file read cold before any review, so the reviews check
    the cold read's fixes too. Write the compaction commit's message file and
    run `prose check`'s first call for it (SKILL.md's *Two calls*), then its signing

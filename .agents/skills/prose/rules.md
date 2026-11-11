@@ -74,6 +74,7 @@ Ask of each sentence: would a reader have to go back? If so, rewrite it so they 
 - **A pointer whose one referent is far back.** "It", "there" or "these commands" can have only one possible referent and still send the reader back a paragraph to find it; that trip is a reread too. Name the thing again unless the sentence before named it.
 - **A result before its condition**, in the same sentence or a later one. "X happens when Y" reads as always true until "when" arrives, and so does a paragraph whose last sentence says "only when Y". Start with what the sentence is about and the case it covers, then what happens.
 - **One thing said to be another.** "Each input it leaves out is a hook that can be skipped" makes the reader work out how an input and a hook are connected. Say the connection: "when an input it leaves out changes, the hook can be skipped".
+- **A point split around another.** A sentence that returns to an earlier point after a different one has intervened sends the reader back to find it. Finish one point before starting the next: move the sentence next to the point it continues.
 ```
 Before: The hook reports commits landed without trailers skipped.
 After:  The hook reports commits that landed without a trailer, including skipped ones.
@@ -87,6 +88,13 @@ Before: For the clone and the fetches, no global or system config file is read.
         `http.proxy` there does not reach these commands.
 After:  [The same two sentences.] A proxy set only as `http.proxy` in a global
         or system config file does not reach the clone or the fetches.
+
+Before: A Rationale entry's title ends in a period of its own. Less that period,
+        it equals the title of the requirement it explains. So for a
+        requirement whose title ends in a period, the entry's title ends in two.
+After:  A Rationale entry's title is the title of the requirement it explains,
+        followed by a period of its own. So for a requirement whose title ends
+        in a period, the entry's title ends in two.
 ```
 
 ### 4. A hypothetical reads as one
@@ -130,7 +138,7 @@ After:  # Pins git's trailer settings for this one command, so every trailer pas
 
 ### 6. Each sentence follows from the last
 Stay on the reader's topic. A sentence that jumps to a subject they weren't expecting, or may not know or care about, makes them stop, reread, or ask what it has to do with anything. Leave it out. If they do need the new subject, give it its own paragraph that says what it is and why it matters here, as briefly as rules 1 and 9 ask.
-**A "so" points at what the reader just read.** "So", "because", "which", "therefore" and "thus" each claim that this sentence follows from the one before. When it follows from something earlier, the reader searches the last sentence for a link that isn't there. Put the sentence next to its cause, or name the cause in it.
+**A "so" points at what the reader just read.** "So", "because", "which", "therefore" and "thus" each claim that this sentence follows from the one before. When it follows from something earlier, the reader searches the last sentence for a link that isn't there. Put the sentence next to its cause, or name the cause in it; when the cause is an earlier point that another point interrupted, move the sentence back beside that point (rule 3, *A point split around another*).
 *Why:* every abrupt switch costs the reader a pause to work out the connection, and often there is none for them to find. A connective pointing at the wrong sentence costs the same pause, and the reader blames their own reading first.
 ```
 Before: Run deploy.sh to push the build to staging. WSL1 has a clock-skew bug.
