@@ -418,8 +418,7 @@ wrap onto indented lines, with no blank line before a continuation.
 
 - **Edit it in the pull request.** A pull request that adds or changes a
   recorded decision edits the real record of each capability it concerns, beside the
-  change's deltas; `check` refuses a `decisions.md` inside a change. Reviewers see the real diff, and two branches editing one
-  entry conflict. Editing a record makes each open change
+  change's deltas; `check` refuses a `decisions.md` inside a change. Editing a record makes each open change
   with a delta spec for that capability due for a consistency read before
   review (section 2); with no such change, the record itself is due and is
   read on its own. `openspec archive` never touches a decisions.md, so
