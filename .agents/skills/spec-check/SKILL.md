@@ -413,8 +413,7 @@ wrap onto indented lines, with no blank line before a continuation.
   an entry has no trigger and silently guards nothing. A Rationale entry
   has no Paths because every change with a delta spec for its requirement's
   capability includes that capability's whole record in its `check` and
-  consistency read; a branch that edits only code, with no delta spec, is
-  guarded by the requirement's own tests.
+  consistency read.
 
 - **Where.** The record is at `openspec/specs/<capability>/decisions.md`,
   unless `openspec/spec-check.yaml` says otherwise, in one line such as
