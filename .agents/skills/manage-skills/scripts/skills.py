@@ -1341,11 +1341,23 @@ def cmd_install(args):
         # and any wiring left from an earlier install is removed. Without the
         # opt-out, a default-enabled skill's hooks would read as on: doctor
         # would report them UNWIRED and the next update would wire them. A
-        # skill that was already linked keeps its hook state, so
-        # `install --all --no-hook` turns nothing off.
+        # skill the install could not link, such as one blocked by a real
+        # directory, gets no opt-out, hence the linked_anywhere check after
+        # the install. A skill that was already linked keeps its hook state,
+        # so `install --all --no-hook` turns off no hook of an installed
+        # skill. A skill the user named gets a line saying so, since they
+        # asked for its hooks to be off; under --all nobody named it, so it
+        # gets none.
         for name in names:
-            newly_linked = name not in linked_before and linked_anywhere(repo, name)
-            if newly_linked and (repo / SKILLS_SUBDIR / name / HOOK_MANIFEST).is_file():
+            if not (repo / SKILLS_SUBDIR / name / HOOK_MANIFEST).is_file():
+                continue
+            if name in linked_before:
+                if not args.all_skills:
+                    print(
+                        f"  {name} is already installed; --no-hook leaves its hooks as they are;"
+                        f" use disable-hook {name}"
+                    )
+            elif linked_anywhere(repo, name):
                 changed += switch_hook(repo, name, enable=False)
                 print(f"  {name}: --no-hook recorded; turn its hooks on with:  skills.py enable-hook {name}")
     print(f"\n{changed} change(s). Open a new agent tab to pick them up.")

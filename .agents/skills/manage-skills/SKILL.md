@@ -115,10 +115,12 @@ recorded.
 
 **"Turn off the hook" / "stop nagging me about commits"** — `disable-hook <name>`. It
 removes the hook from every platform and *remembers the choice*, so a later
-`install` or `update` won't quietly put it back. `install --no-hook` records the
-same choice, and removes the skill's wiring, for each skill it links that was
-linked in no target before; it leaves the hooks of a skill already linked as
-they are. `enable-hook` clears that. Never hand-edit
+`install` or `update` won't quietly put it back. `enable-hook` clears the
+remembered choice. `install --no-hook` records the same choice, and removes the
+skill's wiring, for each skill it links that was linked in no target before.
+It leaves the hooks of a skill already linked to this clone as they are, and
+for each such skill named on the command line (not under `--all`) prints a
+line saying so and pointing at `disable-hook`. Never hand-edit
 `~/.claude/settings.json` or `~/.cursor/hooks.json` to do this — the manager
 matches its own entries by script path and will lose track of a hand-made one.
 

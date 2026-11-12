@@ -1291,6 +1291,22 @@ class HookTests(unittest.TestCase):
         self.assertEqual(len(self.ours(self.cursor_entries())), 1)
         self.assertNotIn("hooks_off", self.config.read_text() if self.config.is_file() else "")
 
+    def test_install_with_no_hook_of_a_named_installed_skill_says_so(self):
+        self.run_cli("install", SKILL)
+        output = self.run_cli("install", "--no-hook", SKILL)
+        self.assertIn(f"{SKILL} is already installed; --no-hook leaves its hooks as they are;"
+                      f" use disable-hook {SKILL}", output)
+        self.assertEqual(len(self.ours(self.claude_entries())), 1)
+
+    def test_install_all_with_no_hook_says_nothing_about_installed_skills(self):
+        self.run_cli("install", SKILL)
+        output = self.run_cli("install", "--all", "--no-hook")
+        self.assertNotIn("is already installed; --no-hook", output)
+
+    def test_install_with_no_hook_of_a_newly_linked_skill_does_not_call_it_installed(self):
+        output = self.run_cli("install", "--no-hook", SKILL)
+        self.assertNotIn("is already installed; --no-hook", output)
+
     def test_install_with_no_hook_counts_the_configs_it_changed(self):
         self.run_cli("install", SKILL)
         (self.targets / SKILL).unlink()
@@ -1303,6 +1319,8 @@ class HookTests(unittest.TestCase):
         (plain / "SKILL.md").write_text("---\nname: plain\ndescription: No hook.\n---\n")
         output = self.run_cli("install", "--no-hook", "plain")
         self.assertNotIn("hooks left off", output)
+        self.assertNotIn("--no-hook recorded", output)
+        self.assertNotIn("is already installed; --no-hook", self.run_cli("install", "--no-hook", "plain"))
         self.assertNotIn("hooks_off", self.config.read_text() if self.config.is_file() else "")
 
     def test_sandboxed_install_with_no_hook_touches_no_hook_config(self):
