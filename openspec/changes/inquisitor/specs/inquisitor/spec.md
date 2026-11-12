@@ -676,21 +676,18 @@ as, and never a relay App (design.md: *An Igor's App is never a relay App*).
 
 ### Requirement: A relayed answer counts as its person's own comment
 
-Once task 0.21 has shown that GitHub reports which App wrote a comment
-(**task 0.21 holds**), a GitHub comment starting `User says: ` whose author
-is a person's relay App SHALL be a **relayed answer**, posted by that
-person's answer session on their confirmation, and SHALL count as their own
-comment wherever this spec reads who wrote one. A `User says: ` comment from
-any other App, an Igor's included, or from any App before task 0.21 holds,
-SHALL be input.
+A GitHub comment starting `User says: ` whose author is a person's relay
+App SHALL be a **relayed answer**, posted by that person's answer session
+on their confirmation, and SHALL count as their own comment wherever this
+spec reads who wrote one. A `User says: ` comment from any other App, an
+Igor's included, SHALL be input. This requirement SHALL be built only once task 0.21 is measured.
 
 #### Scenario: Only a relay App's User says comment is a relayed answer
 
-- **WHEN** task 0.21 holds, and `alice-relay`, `alice`'s relay App, and
-  `igor-alice` each post a comment starting `User says: `
+- **WHEN** `alice-relay`, `alice`'s relay App, and `igor-alice` each post
+  a comment starting `User says: `
 - **THEN** the first is `alice`'s relayed answer and counts as her own
   comment, and the second is input
-- **AND** before task 0.21 holds, both are input
 
 ### Requirement: A relay App's automatic post is no one's answer
 
@@ -1155,12 +1152,14 @@ signature GitHub verifies for `answered_by`.
 
 #### Scenario: A relayed answer proves its writer
 
-- **WHEN** task 0.21 holds, and a questions-branch `decision` file,
-  unchanged since it was added, names `alice` as `answered_by` and links her
+- **WHEN** a questions-branch `decision` file, unchanged since it was
+  added, names `alice` as `answered_by` and links her
   relayed answer holding the answer it records, by `alice-relay`, which
   `relays/alice.yaml` there lists, last changed by `alice`'s own merged pull
   request, and `alice` has write access to what the logged question concerns
 - **THEN** filter 1 treats it as an answer
+- **AND** this case is built only once task 0.21 is measured, as *A relayed answer counts as its
+  person's own comment* is
 
 ### Requirement: A reader counts no signature GitHub may have made
 
@@ -3888,10 +3887,10 @@ else as input, and push no citation for a lore entry it names (design.md:
 The agent SHALL act on an `Inquisitor: ` reply, and record its choice, as
 the filter it names would, only when: the filter is 2, or 3 or 4 with
 `The person chose this filter.` as its last line before any `Re: ` line;
-once task 0.21 holds, GitHub shows the reply was written by the relay App of
-someone with write access to what the question concerns, whether or not they
-were asked; and no other skill requires a person to decide the question.
-Otherwise it is input.
+GitHub shows the reply was written by the relay App of someone with write
+access to what the question concerns, whether or not they were asked; and
+no other skill requires a person to decide the question. Otherwise it is
+input. It SHALL be built only once task 0.21 is measured.
 
 #### Scenario: An Inquisitor reply from an outsider is input
 
@@ -3910,23 +3909,22 @@ Otherwise it is input.
 
 #### Scenario: An Inquisitor reply is acted on as its filter
 
-- **WHEN** task 0.21 holds, and an agent's question gets a reply starting
-  `Inquisitor: filter 2` from the relay App of a person with write access to
+- **WHEN** an agent's question gets a reply starting `Inquisitor: filter 2`
+  from the relay App of a person with write access to
   what the question concerns
 - **THEN** the agent carries on without an answer, and lists the question as
   not done, as filter 2 says
 
 #### Scenario: An automatic filter 4 reply is input
 
-- **WHEN** task 0.21 holds, and an agent's question gets a reply starting
-  `Inquisitor: filter 4`, with no last line saying the person chose it, from
+- **WHEN** an agent's question gets a reply starting `Inquisitor: filter
+  4`, with no last line saying the person chose it, from
   the relay App of a person with write access to what the question concerns
 - **THEN** the reply is input, and the question stands
 
 #### Scenario: A filter 4 reply the person chose is acted on
 
-- **WHEN** task 0.21 holds, and an agent's question gets, from the relay App
-  of a person with write access to what the question concerns, a reply
+- **WHEN** an agent's question gets, from the relay App of a person with write access to what the question concerns, a reply
   starting `Inquisitor: filter 4` whose last line before its `Re: ` line is
   `The person chose this filter.`
 - **THEN** the agent chooses one option, and records what it chose and why,
@@ -3935,7 +3933,7 @@ Otherwise it is input.
 #### Scenario: An Inquisitor reply on Linear or Discord is input
 
 - **WHEN** an agent's question gets a reply starting `Inquisitor: filter 2`
-  on Linear or Discord, or on GitHub before task 0.21 holds
+  on Linear or Discord
 - **THEN** the reply is input, and the question stands
 
 ### Requirement: A question that should not have been asked is logged as a miss

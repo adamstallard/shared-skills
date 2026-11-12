@@ -57,7 +57,8 @@ a requirement before that one may already use the term.
 The answer session SHALL count as a **relay post** only a message a relay
 identity posted that starts with one of the four **reserved prefixes**:
 `User says: `, `User asks: `, `Recorded answer: ` or `Inquisitor: `.
-Nothing in this spec reads a relay identity's other posts.
+Nothing in this spec reads a relay identity's other posts. On GitHub this
+rule SHALL be built only once task 0.21 is measured.
 
 #### Scenario: A prefixed post by a relay identity is a relay post
 
@@ -70,24 +71,6 @@ Nothing in this spec reads a relay identity's other posts.
 - **WHEN** a relay identity, used for other work, posts in a question's
   thread with no reserved prefix
 - **THEN** it is no relay post, and the question's state is unchanged
-
-### Requirement: Until task 0.21, a GitHub relay post is one this machine posted
-
-Until task 0.21 shows that GitHub's API reports which App wrote a
-comment, the answer session SHALL count a GitHub comment as a relay post
-only when the state folder's relay post ids hold its id, so another
-machine may still show a question answered from this one as unanswered
-(design.md: *Which cross-machine cases are accepted*). Once task 0.21
-shows it, a GitHub comment SHALL count as a relay post as on any other
-surface.
-
-#### Scenario: Before task 0.21, another machine's GitHub relay post is not read
-
-- **WHEN** task 0.21 has not shown that, and the person's GitHub relay
-  answers a question from one machine
-- **THEN** that machine shows the question as answered, and another,
-  whose state folder lacks that post's id, counts no relay post naming
-  the question and shows it as unanswered
 
 ### Requirement: An automatic post's text is fixed by the answer session
 
@@ -1530,8 +1513,7 @@ post naming it in its thread: `User says: ` answered; `Recorded answer: `
 answered, and `Inquisitor: ` handled, for the person, listed apart from
 the queue; `User asks: ` waiting for the asker, whose reply requeues
 it; otherwise unanswered. To the thread's state, this machine adds only
-a pending answer, a close and, before task 0.21, its own GitHub relay
-post ids; a local close overrides the thread.
+a pending answer and a close; a local close overrides the thread.
 
 #### Scenario: A relay reply marks the question answered on every machine
 
@@ -1830,13 +1812,23 @@ line.
   recorded-answer post in its fixed form, with that URL on its
   `Recorded in: ` line, for the person to confirm
 
-### Requirement: In the holder, Linear and Discord posts go only through the answer session
+### Requirement: In the holder, GitHub, Linear and Discord posts go only through the answer session
 
-In the holder, linear-app's and discord-bot's post hooks SHALL block
-every tool call that would post, edit or delete on Linear or Discord,
-telling the model to draft the reply with `propose_reply` for the person
-to confirm. The answer session SHALL send a post the person confirmed
-outside any tool call.
+In the holder, the model SHALL post nothing on GitHub, under the person's
+`gh` login or otherwise, Linear or Discord. The inquisitor's post hook
+SHALL block every tool call the shared post reader returns as a GitHub
+post or cannot read, and linear-app's and discord-bot's post hooks every
+tool call that would post, edit or delete on Linear or Discord, telling
+the model to draft with `propose_reply`. The answer session SHALL send a
+confirmed post as the relay, outside any tool call.
+
+#### Scenario: The model's own GitHub comment is blocked
+
+- **WHEN** in the holder, the model runs `gh issue comment 5 -b 'Use X'`
+  with the person's `gh` login, or posts the same comment through the
+  github-app skill's script
+- **THEN** the inquisitor's post hook blocks the call, tells the model to
+  draft the reply with `propose_reply`, and nothing is posted
 
 #### Scenario: The model's own Discord post is blocked
 
@@ -1851,6 +1843,8 @@ outside any tool call.
   Discord question
 - **THEN** the relay posts it through discord-bot, no hook sees the post,
   and the person is asked for nothing more
+- **AND** an answer the person confirms to a GitHub question is posted by
+  their relay App, never through their `gh` login
 
 #### Scenario: The model's Linear comment through an MCP tool is blocked
 
@@ -1871,8 +1865,8 @@ and `thread` commands; linear-app's `token` and `headers`, whose output
 can post as an identity, and `wire`, which lets later sessions post as
 one; a Linear MCP tool not named `get_…`, `list_…` or `search_…`; and
 any line `.agents/lib/gh-shell/`'s splitter cannot split that names
-either script or runs one of unknown path. For these hooks only, a lock
-that cannot be read SHALL count as naming every session.
+either script or runs one of unknown path. For these hooks and the
+inquisitor's in the holder, an unreadable lock SHALL name every session.
 
 #### Scenario: A token printed for a Linear post is blocked
 
@@ -2193,7 +2187,7 @@ The answer session SHALL start a post with `User says: ` or
 post only as *An automatic post's text is fixed by the answer session*
 says. No other post SHALL start with a reserved prefix. Outside the
 holder, only GitHub's post hook blocks such a post; in the holder,
-Linear and Discord posts go only through the answer session. An
+GitHub, Linear and Discord posts go only through the answer session. An
 automatic post SHALL be posted as a relay post is, and never shown as
 the person's words.
 

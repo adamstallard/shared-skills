@@ -119,17 +119,20 @@ contradicts what design.md assumed.
       check can, setup runs the skill's own check only, and a post a
       channel refuses later turns that channel off (design.md: *A failed
       relay check turns off only its channel*)
-- [ ] 0.21 That GitHub's API reports, for a comment, the slug of the
+- [ ] 0.21 Whether GitHub's API reports, for a comment, the slug of the
       GitHub App that wrote it, in a form no account can take on, such as
       the author login `<slug>[bot]` with type `Bot`, or
       `performed_via_github_app` (design.md: *Only a listed relay App
-      speaks for a person on GitHub*). Until shown, no comment counts as a
-      relayed answer, an agent treats an `Inquisitor: ` reply as input,
-      and the answer session counts as a GitHub relay post only one whose
-      id its own state folder holds, so another machine may show the
-      question again (design.md: *Which cross-machine cases are
-      accepted*). If GitHub does not, these three rules stay for good:
-      record it and stop for the repository's owner
+      speaks for a person on GitHub*). These rules are not built until it
+      is measured: the inquisitor's *A relayed answer counts as its
+      person's own comment*, with the relayed-answer proof of a
+      questions-branch file's writer, and *An Inquisitor reply is acted
+      on only from a writer's relay App*, and on GitHub the
+      answer-session's *Relay posts start with a reserved prefix*. If
+      GitHub reports it, they are built as the spec states them; if not,
+      the repository's owner decides what to build. Whether the handback,
+      bot-question and first-mention rules wait too is open (design.md:
+      *Rules a person must decide*)
 - [ ] 0.22 What a reader needs to tie a relay file to its person
       (design.md: *Who last changed a relay file ties it to its person*):
       that GitHub's API gives, for the newest commit that changed
@@ -453,7 +456,11 @@ contradicts what design.md assumed.
       markdown matches the credential patterns; passes a `deferred`
       question less than 2 hours old that tags no one in an open-questions
       section or a new issue; and vets every post it sees, igor's handback
-      included (design.md: *No exemption for an Igor's handback*)
+      included (design.md: *No exemption for an Igor's handback*). In
+      the holder, it blocks every post the reader returns or cannot read,
+      telling the model to draft with `propose_reply` (answer-session
+      spec: *In the holder, GitHub, Linear and Discord posts go only
+      through the answer session*)
 - [ ] 3.3 `hook.json` with both hooks, `"default": "enabled"`
 
 ## 4. Tests
@@ -813,19 +820,21 @@ contradicts what design.md assumed.
       person cites a lore entry by naming it as an answer or a record*)
 - [ ] 6.12 discord-bot's post hook: `PreToolUse` on Bash, which, in the
       holder, blocks `post`, `edit`, `delete` and `thread`, and any line
-      naming `discord_bot.py` that `.agents/lib/gh-shell/` cannot read,
+      `.agents/lib/gh-shell/` cannot read that names `discord_bot.py` or
+      runs a script of unknown path,
       telling the model to draft with `propose_reply`. Registered in
       discord-bot's `hook.json`, with tests (answer-session spec: *In the
-      holder, Linear and Discord posts go only through the answer
+      holder, GitHub, Linear and Discord posts go only through the answer
       session*)
 - [ ] 6.13 linear-app's post hook: `PreToolUse` on Bash and Linear MCP
       tools, which, in the holder, blocks `token`, `headers`, `wire`, any line
-      naming `linear_app.py` that `.agents/lib/gh-shell/` cannot read,
+      `.agents/lib/gh-shell/` cannot read that names `linear_app.py` or
+      runs a script of unknown path,
       and every Linear MCP tool not named `get_…`, `list_…` or
       `search_…`, telling the model to draft with `propose_reply`.
       Registered in linear-app's `hook.json`, with tests (answer-session
-      spec: *In the holder, Linear and Discord posts go only through the
-      answer session*)
+      spec: *In the holder, GitHub, Linear and Discord posts go only
+      through the answer session*)
 
 ## 7. Archive
 

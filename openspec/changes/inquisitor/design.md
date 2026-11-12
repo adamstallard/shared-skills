@@ -1832,23 +1832,30 @@ session's screen. So a question the model asks back is the one exception to
 the rule that an agent asks only through the picker. The model's reach to the
 person's Linear key is accepted (*The session's model*).
 
-#### The model's own Linear and Discord posts are blocked
+#### The model's own GitHub, Linear and Discord posts are blocked
 
-**In the holder, linear-app's and discord-bot's post hooks block every tool
-call that would post, edit or delete on Linear or Discord, and tell the
-model to draft its reply with `propose_reply`.** The model reads thread text
-and has the person's tools, so a crafted thread could otherwise have it post
-`User says: ` as the relay. On GitHub the inquisitor's post hook already sees
-such a post; these hooks give Linear and Discord the same mechanical guard.
+**In the holder, the session holding the answer session's lock, the
+inquisitor's post hook blocks every GitHub post the model makes, through the person's `gh` login or any other way, and
+linear-app's and discord-bot's post hooks block every tool call that would
+post, edit or delete on Linear or Discord. Each tells the model to draft its
+reply with `propose_reply`. The answer session posts on GitHub only as the
+person's relay App, as it posts on Linear and Discord only as their relays.**
+The model reads thread text and has the person's tools, so a crafted thread
+could otherwise have it post `User says: ` as the relay, or a plain answer
+such as `Use X` under the person's own `gh` login, which filter 1 counts as
+the person's decision. Outside the holder, the inquisitor's post hook blocks
+only an unvetted question or a reserved prefix, which would not stop that
+plain answer, so in the holder it blocks every post.
 
-**A post the person confirmed passes because no hook sees it, as on
-GitHub.** The answer session runs every relay post as a host command, never
+**A post the person confirmed passes because no hook sees it.** The answer session runs every relay post as a host command, never
 as a tool call of the model (task 0.18), and a `PreToolUse` hook sees only
 tool calls. So any posting tool call in the holder is one the person did not
 confirm, and the hooks need no record of what the person confirmed.
 
-**What counts as posting** is every way the two skills let a tool call reach
-the surfaces as an identity: discord-bot's writing commands; linear-app's
+**What counts as posting** on GitHub is every call the shared post reader
+returns as a post or cannot read. A call that sends no text, such as a
+delete, is not blocked, since it puts no words under anyone's name. On Linear and Discord it is every way the two skills
+let a tool call reach the surfaces as an identity: discord-bot's writing commands; linear-app's
 `token` and `headers`, since linear-app has no post command and the token
 they print can post; its `wire`, which points Claude Code's Linear MCP server
 at an identity, so later sessions' MCP posts go out as it; and a Linear MCP
@@ -1859,7 +1866,7 @@ as the post hooks block an unreadable `gh` line.
 
 **Only the holder is guarded.** The holder's session does nothing but answer
 questions, so blocking its own posts costs no other work, and every other
-session posts through the two skills as before. A lock that cannot be read
+session posts as before. A lock that cannot be read
 counts as naming whichever session the hook runs in, so the hook fails
 closed, like the other post hooks.
 
@@ -1868,9 +1875,10 @@ that the post hooks guard against accidents, not a forging agent (quoted
 under *github-app refuses `token`, `run`, `credential get` and `wire` for a
 relay identity*).
 
-*Ruled out by a scenario* (answer-session spec: *In the holder, Linear and
-Discord posts go only through the answer session*, scenario *The model's own
-Discord post is blocked*): only telling the model to post nothing, since a
+*Ruled out by a scenario* (answer-session spec: *In the holder, GitHub,
+Linear and Discord posts go only through the answer session*, scenarios *The
+model's own Discord post is blocked* and *The model's own GitHub comment is
+blocked*): only telling the model to post nothing, since a
 crafted thread can override an instruction, not a hook; and asking the person
 to confirm each such post, since the answer session's own confirmation covers
 every post they mean.
@@ -1955,17 +1963,15 @@ lists them:**
 #### The thread is the durable record of an answer
 
 The thread is fetched again before each relay post, so an answer relayed from
-another machine on Linear or Discord is never posted twice. On GitHub a relay
-post is recognised by the App that wrote it, which needs task 0.21 to show
-that GitHub reports it. Until then, only relay posts whose ids this machine
-saved are recognised, so an answer relayed from another machine can be posted
-again (answer-session spec: *Until task 0.21, a GitHub relay post is one this
-machine posted*). A relay post names its question by its
+another machine is never posted twice. On GitHub, recognising a relay post by
+the App that wrote it is built only once task 0.21 is measured (answer-session spec: *Relay
+posts start with a reserved prefix*), so on GitHub this section holds from
+then on. A relay post names its question by its
 `Re: ` line on GitHub and Linear, and by replying to it on Discord.
 
 **Why:** the thread is the one place every machine, and the asker, can read.
-On Linear and Discord, a crash after a post but before its id is saved loses
-nothing: the next read of the thread finds the post.
+A crash after a post but before its id is saved loses nothing: the next read
+of the thread finds the post.
 
 #### `User says: ` answers, `User asks: ` asks the asker
 
@@ -2327,8 +2333,7 @@ and 4 need the person. Without the write-access condition anyone who can
 comment could post `Inquisitor: filter 4` and have an agent decide a
 maintainer's question. A reader can check that condition only where it can
 tell which App posted the reply, so every `Inquisitor: ` reply is input on
-Linear and Discord, and on GitHub until task 0.21 shows GitHub reports which
-App wrote a comment.
+Linear and Discord. On GitHub, acting on such a reply is built only once task 0.21 is measured.
 
 An agent pushes no citation for a lore entry a `Recorded answer: ` reply
 names, since the answer session pushed any that was due, so one question
@@ -2404,10 +2409,8 @@ links, and would show the file as new.
 
 The answer session writes the handled file itself. If the asking agent wrote
 it instead, the agent would first have to check that a relay App wrote the
-closing post, and only task 0.21 shows whether GitHub reports which App
-wrote a post. So closing a questions-branch file does not wait on task 0.21;
-counting another machine's GitHub relay posts does (answer-session spec:
-*Until task 0.21, a GitHub relay post is one this machine posted*).
+closing post, which on GitHub waits on task 0.21's result. So closing a
+questions-branch file does not wait on task 0.21.
 
 A handled file holds no question text, so it never carries a private item's
 question into igor's search, and reveals nothing even for a question with a
@@ -2705,33 +2708,23 @@ the directory where spec-trace's CI fails on an untagged one.**
 
 ### Rules a person must decide
 
-- **Whether the holder's model may post on GitHub.** In the holder, the
-  Claude Code session the answer session runs in, linear-app's and
-  discord-bot's post hooks block the model's own posts (answer-session spec:
-  *In the holder, Linear and Discord posts go only through the answer
-  session*). Its section *A discussion runs in the session's own
-  conversation* says the
-  inquisitor's post hook already gives GitHub the same guard. It does not: that hook blocks
-  only an unvetted question or a reserved prefix (inquisitor spec: *The post
-  hook vets what the shared post reader returns*), and the holder's model has
-  the person's `gh` login. A crafted thread could have it post `Use X` under
-  the person's own login, which filter 1 counts as the person's decision.
-  Either the holder blocks the model's GitHub posts too, or a Constraint in
-  the answer-session decision record accepts the gap.
-- **Whether recognising a bot's comment waits on task 0.21.** Task 0.21
-  measures whether GitHub's API reports which App wrote a comment. Until it
-  does, no comment counts as a relayed answer, and only this machine's relay
-  posts are recognised. Three other rules rest on the same fact and have no
-  such fallback:
-  - a comment counts as a handback only when its App's slug starts with
-    `igor-` (answer-session spec: *A handback is an igor- App's comment
-    holding igor's marker*);
-  - a message by a bot account is an agent's question, which reaches only
-    the first person it mentions;
-  - an automatic `Inquisitor: ` reply goes only to an agent's question.
+- **Whether three rules wait on task 0.21.** Task 0.21 measures whether
+  GitHub shows the App that wrote a comment in a form no account can take
+  on, such as the author login `<slug>[bot]`. These three rules read only
+  that login:
+  - a comment counts as a handback only when its App's slug, the login
+    before `[bot]`, starts with `igor-` (answer-session spec: *A handback is
+    an igor- App's comment holding igor's marker*);
+  - a message by a bot account is an agent's question, which the login's
+    `[bot]` suffix shows;
+  - since an agent's question is a bot's, it reaches only the first person
+    it mentions, and only it gets an automatic `Inquisitor: ` reply.
 
-  Either these rules get a fallback until task 0.21 holds, or the spec states
-  why the fact they need differs from the one task 0.21 measures.
+  The rules tasks.md's task 0.21 lists read nothing more than that login
+  either: the person an App speaks for comes from their relay file, not from
+  GitHub. So needing less does not set the three apart from those rules.
+  Either all of them wait on task 0.21, or the `<slug>[bot]` login is
+  trusted without it, and none of them waits.
 
 ### Facts measured before building
 
@@ -2795,10 +2788,9 @@ person's own signature was not queried, and task 0.22 checks how one reads.
 in tasks.md, says what the spec does if its measurement goes against it.
 Tasks 0.18 and 0.19, which check that a command the mod runs reaches no tool
 hook and that a mod keeps polling while idle or in the background, instead
-stop building until the repository's owner decides. If task 0.21 finds GitHub does not
-report which App wrote a comment, its fallbacks, each rule that holds
-"until task 0.21", stay for good, and building
-also stops until the repository's owner decides.** The other tasks cover
+stop building until the repository's owner decides. The rules that wait on
+task 0.21, which tasks.md's task 0.21 lists, are not built until it is
+measured, and what to build for them is decided then.** The other tasks cover
 GitHub's notifications endpoint, how Linear and Discord show mentions and
 replies, how the Linear relay posts a comment, how setup checks a relay's
 access to each channel, the pull request and signature behind a relay file's
@@ -2826,8 +2818,8 @@ box*).
   a writing tool has such a name, the hook lists the reading tools by name
   instead.
 - **Which App wrote a comment** is measured by both task 0.21 here and igor PR
-  #216's task 4.8. Until a measurement shows GitHub reports it, every `User
-  says: ` comment is input.
+  #216's task 4.8. The rules that need it wait on task 0.21, which lists
+  them.
 
 ### What igor must provide
 
