@@ -500,7 +500,10 @@ contradicts what design.md assumed.
 ## 5. Docs and registration
 
 - [ ] 5.1 `SKILL.md`: the filters, the two calls, writing a question at the
-      privacy of what it concerns, posting no more publicly than that, the
+      privacy of what it concerns, posting no more publicly than that,
+      that the person is accountable for what is posted as their relay
+      and where, since no hook checks where a relay post goes
+      (answer-session spec: *The person answers for what their relay posts*), the
       questions other skills require a person to decide and the
       person-required line copied exactly from the second call, preparing,
       holding a question that blocks no step until the round's end while

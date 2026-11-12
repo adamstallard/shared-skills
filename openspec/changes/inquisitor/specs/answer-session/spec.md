@@ -1664,7 +1664,7 @@ discussion record, log file or owed push, keep its question on screen
 and pending answer only in memory, so neither outlives the session, and
 name it in the state folder only by its hash and its thread's ids. Its
 decline SHALL still push a questions-branch file's handled file, which
-holds no question text, once, with no owed push or retry.
+adds no question text, once, with no owed push or retry.
 
 #### Scenario: A discussed question holding a secret leaves nothing readable
 
@@ -2035,8 +2035,8 @@ takes effect* says.
   to the lore repository, where it would show the answer to readers the
   private repository does not have; and a handled file naming the
   questions-branch file is pushed
-- **AND** the handled file names only the file it closes and holds no
-  question or answer text
+- **AND** the handled file names only the file it closes, and adds no
+  answer or question text
 
 #### Scenario: An answer typed in a Linear thread stays out of a lore repository that is not private
 
@@ -2244,6 +2244,22 @@ the person's words.
 - **THEN** it shows the post as made by the answer session, not as the
   person's answer
 
+
+### Requirement: The person answers for what their relay posts
+
+The inquisitor skill's instructions SHALL say that the person is
+accountable for what any agent, in any session, posts as their relay,
+including where it posts, and that no hook checks a relay post's
+audience, so the visibility rules bind the agent only through its
+instructions.
+
+#### Scenario: The instructions make the person answer for their relay
+
+- **WHEN** an agent reads the inquisitor skill's instructions on relay
+  identities
+- **THEN** they say the person is accountable for what an agent in any
+  session posts as their relay and where, and that no hook checks where a
+  relay post goes, so the visibility rules bind only through instructions
 
 ### Requirement: The person can decline to answer
 

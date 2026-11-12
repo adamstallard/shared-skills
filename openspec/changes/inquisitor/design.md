@@ -1880,6 +1880,18 @@ did not confirm, and the hooks need no record of what the person confirmed.
   it cannot tell, such as `python3 "$D"`, as the post hooks block an
   unreadable `gh` line.
 
+**No hook checks where a relay post goes, and the person is accountable for
+what is posted as their relay.** A post without a prefix does not count as the
+person's answer, but it still appears under an identity tied to them, and a
+crafted private thread could steer the model into reposting private text in
+a public place under that name. The inquisitor's visibility rules, such as
+*A question goes only where its audience is no wider than its subject*, still
+bind the model through its instructions. A hook cannot enforce them: it sees
+the post and where it goes, not which thread its text came from. So the gap is
+accepted, and the person, who chooses which relays to set up and what to let
+the model do, is accountable for what is posted (answer-session spec: *The
+person answers for what their relay posts*).
+
 **Only a session whose answer session is open is guarded.** Closing the answer
 session removes its lock, and a stale lock makes no session the holder, so a
 session where the person once typed `/answer` posts as before once it is
@@ -2429,11 +2441,12 @@ it instead, the agent would first have to check that a relay App wrote the
 closing post, which on GitHub waits on task 0.21's result. So closing a
 questions-branch file does not wait on task 0.21.
 
-A handled file holds no question text, so it never carries a private item's
-question into igor's search, and reveals nothing even for a question with a
-category. An Igor worker could still report a file holding the handled keys
-for its Igor to push; refusing one is asked of igor PR #216, and is open on
-its side.
+A handled file adds no question text: the closed file's name, which it
+repeats, is already on the same branch. So it never carries a private item's
+question into igor's lore search, and shows nothing the closed file does not.
+An Igor worker could still forge a handled file and report it for its Igor to
+push; igor refusing to push one is asked of igor PR #216, and is open on its
+side.
 
 A close that cites a record, a filter 1 decline or a `Recorded answer: `
 post, takes the question out of the person's queue whether or not the
@@ -2722,20 +2735,6 @@ wait for igor PR #216 to merge, since archiving writes the scenarios into
 the directory where spec-trace's CI fails on an untagged one.**
 
 ## Open Questions
-
-### Rules a person must decide
-
-- **Whether a relay post may reach a wider audience than its thread.** In
-  the holder the model may post through the relays, and the hooks check only
-  the identity and the reserved prefixes, never where the post goes. The
-  model reads untrusted thread text (*A thread's text reaches the model that
-  judges it*), so a crafted private thread could steer it into reposting
-  private content in a public repository or Discord channel under the
-  relay's name. The audience rule, the inquisitor's *A question goes only
-  where its audience is no wider than its subject*, binds only through
-  instructions. Either a hook guards the audience of the model's relay
-  posts, or the answer-session decision record accepts the gap as a
-  Constraint.
 
 ### Facts measured before building
 
