@@ -247,10 +247,11 @@ could post `User says: `, which marks a question answered on every machine
 and, on GitHub, counts as the person's own answer to filter 1. So the skill's
 instructions reserve the prefixes, and on GitHub the post hook blocks a
 tool-call post starting with one; the answer session's posts reach no tool
-hook. Tool calls in the holder cannot post at all, on GitHub, Linear or
-Discord (*The model's own GitHub, Linear and Discord posts are blocked*). The
-holder is the session whose answer session holds the per-machine lock, which
-lets only one answer session run on a machine. In any other session nothing
+hook. The holder is the session whose open answer session holds the
+per-machine lock, which lets only one answer session run on a machine. There,
+each surface's post hook lets a tool call post only as the person's relay and
+never with a reserved prefix, on GitHub, Linear and Discord (*In the holder,
+the model posts only as the person's relays*). In any other session nothing
 enforces the prefixes on Linear and Discord.
 
 ### Local state, one writer per machine
@@ -315,11 +316,13 @@ risks, and the spec answers each:
 ### The session's model
 
 The model may ask the person in its reply in a discussion (*A discussion runs
-in the session's own conversation*). It posts nothing: its draft goes into
-the prompt box, and the post hooks block any post it tries (*The model's
-own GitHub, Linear and Discord posts are blocked*). The hooks guard only tool
-calls that post: the model's tools can still read the keychain holding the
-person's Linear key and post with it outside any hook, a gap the
+in the session's own conversation*). It may post through the person's
+relays, but an answer in the person's name it only drafts into the prompt box,
+and the post hooks block any post it tries under the person's own account or
+with a reserved prefix (*In the holder, the model posts only as the person's
+relays*). The hooks guard only the posting commands and tools they recognise:
+the model's tools can still read the keychain holding the person's Linear key
+and post with it through a command no hook reads, such as `curl`, a gap the
 answer-session decision record's *Constraint: The session's model runs with
 the person's tools, …* accepts. The prototype has shown that a mod can fill
 the prompt box and register a tool the model calls by name.
@@ -1834,56 +1837,67 @@ session's screen. So a question the model asks back is the one exception to
 the rule that an agent asks only through the picker. The model's reach to the
 person's Linear key is accepted (*The session's model*).
 
-#### The model's own GitHub, Linear and Discord posts are blocked
+#### In the holder, the model posts only as the person's relays
 
-**In the holder, the session holding the answer session's lock, the
-inquisitor's post hook blocks every GitHub post the model makes, through the person's `gh` login or any other way, and
-linear-app's and discord-bot's post hooks block every tool call that would
-post, edit or delete on Linear or Discord. Each tells the model to draft its
-reply with `propose_reply`. The answer session posts on GitHub only as the
-person's relay App, as it posts on Linear and Discord only as their relays.**
-The model reads thread text and has the person's tools, so a crafted thread
-could otherwise have it post `User says: ` as the relay, or a plain answer
-such as `Use X` under the person's own `gh` login, which filter 1 counts as
-the person's decision. Outside the holder, the inquisitor's post hook blocks
-only an unvetted question or a reserved prefix, which would not stop that
-plain answer, so in the holder it blocks every post.
+**In the holder, the model posts on GitHub, Linear and Discord only as the
+person's relay on each, never under the person's own account, and never with
+a reserved prefix. Each surface's post hook blocks any other tool-call post
+there. A `User says: ` answer goes out only from the answer session, once the
+person gave or confirmed it.** The model reads thread text and has the
+person's tools, so a crafted thread could otherwise have it post a plain
+answer such as `Use X` under the person's own `gh` login, which filter 1
+counts as the person's decision, or `User says: ` as the relay, which marks a
+question answered as the person's words. A post as the relay without a prefix
+speaks for no one: the answer session counts none as a relay post (*Relay
+posts start with a reserved prefix*), and filter 1 counts a relayed answer
+only with the prefix.
 
-**A post the person confirmed passes because no hook sees it.** The answer session runs every relay post as a host command, never
-as a tool call of the model (task 0.18), and a `PreToolUse` hook sees only
-tool calls. So any posting tool call in the holder is one the person did not
-confirm, and the hooks need no record of what the person confirmed.
+**The hooks tell a confirmed answer from the model's by its path, not its
+text.** The answer session posts every confirmed answer as a host command,
+never as a tool call of the model (task 0.18), and a `PreToolUse` hook sees
+only tool calls. So any tool call carrying a reserved prefix is one the person
+did not confirm, and the hooks need no record of what the person confirmed.
 
-**What counts as posting** on GitHub is every call the shared post reader
-returns as a post or cannot read. A call that sends no text, such as a
-delete, is not blocked, since it puts no words under anyone's name. On Linear and Discord it is every way the two skills
-let a tool call reach the surfaces as an identity: discord-bot's writing commands; linear-app's
-`token` and `headers`, since linear-app has no post command and the token
-they print can post; its `wire`, which points Claude Code's Linear MCP server
-at an identity, so later sessions' MCP posts go out as it; and a Linear MCP
-server's writing tools. A command line the shared splitter in
-`.agents/lib/gh-shell/` cannot split exactly is blocked when it names either
-script, or runs a script whose path it cannot tell, such as `python3 "$D"`,
-as the post hooks block an unreadable `gh` line.
+**How each hook tells the relay from the person:**
+- On GitHub, the shared post reader reports the identity a github-app script
+  call names with `--identity`; a post passes only as the person's GitHub
+  relay identity. A direct `gh` call, a GitHub MCP tool or a script call
+  naming no identity goes out as the person, or as no one the hook can name,
+  and is blocked. A call that sends no text, such as a delete, is not
+  blocked, since it puts no words under anyone's name.
+- On Discord, discord-bot names its identity with `--identity`. A post, edit
+  or thread passes only as the Discord relay identity with text the hook can
+  read, and a delete, which carries no text, only as that identity.
+- On Linear, linear-app has no post command, so the model posts through a
+  Linear MCP server. A writing tool passes only while Claude Code's MCP
+  configuration shows linear-app wired that server to the Linear relay
+  identity. linear-app's `token` and `headers` are blocked, since the token
+  they print posts where no hook reads the text, and so does `wire`, which
+  could point the server at another identity.
+- A command line the shared splitter in `.agents/lib/gh-shell/` cannot split
+  exactly is blocked when it names `discord_bot.py` or `linear_app.py`, or
+  runs a script whose path
+  it cannot tell, such as `python3 "$D"`, as the post hooks block an
+  unreadable `gh` line.
 
-**Only the holder is guarded.** The holder's session does nothing but answer
-questions, so blocking its own posts costs no other work, and every other
-session posts as before. A lock that cannot be read
-counts as naming whichever session the hook runs in, so the hook fails
-closed, like the other post hooks.
+**Only a session whose answer session is open is guarded.** Closing the answer
+session removes its lock, and a stale lock makes no session the holder, so a
+session where the person once typed `/answer` posts as before once it is
+closed. A lock that cannot be parsed makes every session the holder, so the
+hooks fail closed, like the other post hooks.
 
 *Recorded:* `openspec/specs/answer-session/decisions.md`, the *Constraint*
 that the post hooks guard against accidents, not a forging agent (quoted
 under *github-app refuses `token`, `run`, `credential get` and `wire` for a
 relay identity*).
 
-*Ruled out by a scenario* (answer-session spec: *In the holder, GitHub,
-Linear and Discord posts go only through the answer session*, scenarios *The
-model's own Discord post is blocked* and *The model's own GitHub comment is
-blocked*): only telling the model to post nothing, since a
-crafted thread can override an instruction, not a hook; and asking the person
-to confirm each such post, since the answer session's own confirmation covers
-every post they mean.
+*Ruled out by a scenario* (answer-session spec: *In the holder, the model
+posts only as the person's relays*): letting the model post under the
+person's own `gh` login (scenario *The model's GitHub post under the person's
+login is blocked*); letting it post `User says: ` through a relay (scenario
+*The model's User says post is blocked*); and blocking every post in the
+holder, which would stop the model asking an asker back through the relay
+(scenario *The model's GitHub post through the relay goes out*).
 
 #### Claude drafts a reply only into the prompt box
 
@@ -2707,41 +2721,6 @@ wait for igor PR #216 to merge, since archiving writes the scenarios into
 the directory where spec-trace's CI fails on an untagged one.**
 
 ## Open Questions
-
-### Rules a person must decide
-
-- **When a session stops being the holder.** The model in the holder posts
-  nothing on GitHub, Linear or Discord, on the ground that the holder's
-  session does nothing but answer questions. But `/answer` opens the
-  answer session in any session, and no rule says the lock is released when
-  the answer session closes, or whether a stale lock, one no longer
-  refreshed, still makes its session the holder. A working session where the person once typed `/answer` could
-  then stay unable to post. Either a session whose answer session is closed
-  is not the holder, or the lock is released on close; and a rule says
-  whether a stale lock still makes its session the holder.
-- **Whether four rules wait on task 0.21.** Task 0.21 measures whether
-  GitHub shows the App that wrote a comment in a form no account can take
-  on, such as the author login `<slug>[bot]`. Three rules read only that
-  login:
-  - a comment counts as a handback only when its App's slug, the login
-    before `[bot]`, starts with `igor-` (answer-session spec: *A handback is
-    an igor- App's comment holding igor's marker*);
-  - a message by a bot account is an agent's question, which the login's
-    `[bot]` suffix shows;
-  - since an agent's question is a bot's, it reaches only the first person
-    it mentions, and only an agent's question, never a person's, gets an
-    automatic `Inquisitor: ` reply.
-
-  A fourth reads the login too: a `github-actions[bot]` comment holding the
-  relay notice is shown as a notice (answer-session spec: *A relay-notice
-  comment is shown as a notice*).
-
-  These four might seem to need less from task 0.21 than the rules it lists,
-  since they read only the login. They do not: the rules task 0.21 lists
-  read nothing more from GitHub either, since the person an App speaks for
-  comes from their relay file.
-  Either all of them wait on task 0.21, or the `<slug>[bot]` login is
-  trusted without it, and none of them waits.
 
 ### Facts measured before building
 

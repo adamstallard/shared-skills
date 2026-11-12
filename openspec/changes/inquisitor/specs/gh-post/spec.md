@@ -545,7 +545,8 @@ unassigned SHALL be unreadable, its block message saying how to fix it.
 - **THEN** the reader returns the file's text as the body
 - **AND** the script runs `gh pr`, `gh issue` or `gh api`, either
   directly or after `run --`
-- **AND** `--identity <name>` may come before `gh` or `run`
+- **AND** `--identity <name>` may come before `gh` or `run`, and the
+  reader reports that name, or none, as the identity the post goes out as
 - **AND** `$G` may be unquoted, and `G=<path>;` assigns `G` as
   `G=<path> &&` does
 

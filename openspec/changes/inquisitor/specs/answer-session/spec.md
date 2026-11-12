@@ -310,10 +310,12 @@ mode 0700, and every file the session writes in it SHALL have mode 0600.
 ### Requirement: The holder is the session whose answer session holds the lock
 
 The answer session SHALL count as **the holder** the Claude Code session
-whose answer session holds the lock *One answer session runs on each
-machine* defines, and as **a Claude Code background session** any Claude
-Code session with no terminal attached, such as one an app started from
-its list of sessions.
+whose answer session is open and holds the lock *One answer session runs
+on each machine* defines, while it is not stale; while it is stale, no
+session SHALL be the holder, and an unparsable lock SHALL make every
+session the holder for the post hooks. It SHALL count as **a Claude Code
+background session** any Claude Code session with no terminal attached,
+such as one an app started from its list of sessions.
 
 #### Scenario: A session started with no terminal that takes the lock is a background holder
 
@@ -321,6 +323,26 @@ its list of sessions.
   with no terminal attached, and its answer session takes the lock
 - **THEN** that session is the holder, and a Claude Code background
   session
+
+#### Scenario: A closed answer session leaves no holder
+
+- **WHEN** the person closes the answer session in a session
+- **THEN** the session removes its lock and is no longer the holder, so
+  its model's posts under the person's own `gh` login pass the post hook's
+  holder check again
+
+#### Scenario: A stale lock makes no holder
+
+- **WHEN** the lock has gone 2 minutes unrefreshed
+- **THEN** no session is the holder, and no post hook blocks a post for
+  being made in the holder
+
+#### Scenario: A lock that cannot be read blocks the post
+
+- **WHEN** the lock file is unparsable, and any session's model runs
+  discord-bot's `post` command with `User says: yes`, or `gh issue comment
+  5 -b 'Use X'` with the person's `gh` login
+- **THEN** the post hook blocks each, saying the lock cannot be read
 
 ### Requirement: Terms of the inquisitor's spec are judged as that spec has them
 
@@ -1812,32 +1834,43 @@ line.
   recorded-answer post in its fixed form, with that URL on its
   `Recorded in: ` line, for the person to confirm
 
-### Requirement: In the holder, GitHub, Linear and Discord posts go only through the answer session
+### Requirement: In the holder, the model posts only as the person's relays
 
-In the holder, the model SHALL post nothing on GitHub, under the person's
-`gh` login or otherwise, Linear or Discord. The inquisitor's post hook
-SHALL block every tool call the shared post reader returns as a GitHub
-post or cannot read, and linear-app's and discord-bot's post hooks every
-tool call that would post, edit or delete on Linear or Discord, telling
-the model to draft with `propose_reply`. The answer session SHALL send a
-confirmed post as the relay, outside any tool call.
+In the holder, the model SHALL post on GitHub, Linear or Discord only as
+the person's relay there, never under their own account, and SHALL start
+no post with a reserved prefix. Each surface's post hook SHALL block there
+a tool call posting as anyone but the relay, with a reserved prefix, or as
+an identity or with text it cannot read. A `User says: ` answer SHALL go
+out only from the answer session, once the person gave or confirmed it,
+outside any tool call.
 
-#### Scenario: The model's own GitHub comment is blocked
+#### Scenario: The model's GitHub post under the person's login is blocked
 
 - **WHEN** in the holder, the model runs `gh issue comment 5 -b 'Use X'`
-  with the person's `gh` login, or posts the same comment through the
-  github-app skill's script
+  with the person's `gh` login
 - **THEN** the inquisitor's post hook blocks the call, tells the model to
-  draft the reply with `propose_reply`, and nothing is posted
+  post through the relay or draft an answer with `propose_reply`, and
+  nothing is posted
 
-#### Scenario: The model's own Discord post is blocked
+#### Scenario: The model's GitHub post through the relay goes out
 
-- **WHEN** in the holder, the model runs discord-bot's `post` command to
-  answer a question with `User says: yes`
-- **THEN** discord-bot's post hook blocks the call, tells the model to
-  draft the reply with `propose_reply`, and nothing is posted
+- **WHEN** in the holder, the model runs `python3 /abs/github_app.py
+  --identity alice-relay gh issue comment 5 -b 'Which version?'`, where
+  `alice-relay` is the person's GitHub relay identity
+- **THEN** the holder check passes the call, and the post hook vets it as
+  it vets any post
+- **AND** the same call with `--identity` naming another identity, or
+  none, is blocked
 
-#### Scenario: A post the person confirmed goes out with no prompt
+#### Scenario: The model's User says post is blocked
+
+- **WHEN** in the holder, the model runs discord-bot's `post` command as
+  the Discord relay identity with `User says: yes`, or posts `User says:
+  yes` through the GitHub relay
+- **THEN** the post hook blocks the call, tells the model to draft the
+  answer with `propose_reply`, and nothing is posted
+
+#### Scenario: A post the person confirmed goes out with no further confirmation
 
 - **WHEN** the person confirms, in the answer session, an answer to a
   Discord question
@@ -1846,11 +1879,14 @@ confirmed post as the relay, outside any tool call.
 - **AND** an answer the person confirms to a GitHub question is posted by
   their relay App, never through their `gh` login
 
-#### Scenario: The model's Linear comment through an MCP tool is blocked
+#### Scenario: The model's Linear comment as another identity is blocked
 
 - **WHEN** in the holder, the model calls a Linear MCP server's tool that
-  creates a comment
+  creates a comment, and linear-app has not wired that server to the
+  person's Linear relay identity
 - **THEN** linear-app's post hook blocks the call, and nothing is posted
+- **AND** while linear-app has wired it to the relay identity, the call
+  passes, unless the comment starts with a reserved prefix
 
 #### Scenario: Another session posts on Discord as before
 
@@ -1858,15 +1894,15 @@ confirmed post as the relay, outside any tool call.
   `post` command, while an answer session runs in another session
 - **THEN** discord-bot's post hook lets the call through
 
-### Requirement: The Linear and Discord post hooks block each way the two skills post
+### Requirement: The Linear and Discord post hooks pass only the relay's readable posts
 
-The hooks SHALL count as posting discord-bot's `post`, `edit`, `delete`
-and `thread` commands; linear-app's `token` and `headers`, whose output
-can post as an identity, and `wire`, which lets later sessions post as
-one; a Linear MCP tool not named `get_…`, `list_…` or `search_…`; and
-any line `.agents/lib/gh-shell/`'s splitter cannot split that names
-either script or runs one of unknown path. For these hooks and the
-inquisitor's holder check, an unparsable lock SHALL name every session.
+In the holder, discord-bot's hook SHALL pass `post`, `edit` and
+`thread` only as the Discord relay identity with text it can read, and
+`delete` only as that identity; linear-app's hook SHALL pass a Linear MCP
+tool not named `get_…`, `list_…` or `search_…` only while linear-app has
+wired its server to the Linear relay identity, and block `token`,
+`headers` and `wire`. Each SHALL block a line `.agents/lib/gh-shell/`
+cannot split that names its script or runs one of unknown path.
 
 #### Scenario: A token printed for a Linear post is blocked
 
@@ -1892,12 +1928,11 @@ inquisitor's holder check, an unparsable lock SHALL name every session.
   runs, or a line naming `discord_bot.py` that it cannot read
 - **THEN** the call is blocked by discord-bot's post hook
 
-#### Scenario: A lock that cannot be read blocks the post
+#### Scenario: A Discord post as another bot is blocked
 
-- **WHEN** the lock file is unparsable, and any session's model runs
-  discord-bot's `post` command
-- **THEN** discord-bot's post hook blocks it, saying the lock cannot be
-  read
+- **WHEN** the holder's model runs discord-bot's `post` command as an
+  identity other than the Discord relay
+- **THEN** the call is blocked by discord-bot's post hook
 
 ### Requirement: A rephrased question is answered with its rephrasing
 
@@ -2186,8 +2221,8 @@ The answer session SHALL start a post with `User says: ` or
 `User asks: ` only once the person confirms it whole, and an automatic
 post only as *An automatic post's text is fixed by the answer session*
 says. No other post SHALL start with a reserved prefix. Outside the
-holder, only GitHub's post hook blocks such a post; in the holder,
-GitHub, Linear and Discord posts go only through the answer session. An
+holder, only GitHub's post hook blocks such a post; in the holder, every
+surface's post hook does. An
 automatic post SHALL be posted as a relay post is, and never shown as
 the person's words.
 

@@ -135,14 +135,21 @@ contradicts what design.md assumed.
         reserved prefix* and the relay-App attribution in *A relayed
         question is a person's question*;
       - on GitHub, the question state *The thread is the durable record
-        of an answer* reads from relay posts, since it needs relay posts
-        recognised, and so task 6.4's GitHub relaying.
+        of an answer* reads from relay posts, which needs relay posts
+        recognised;
+      - task 6.4's GitHub relaying, which needs that question state;
+      - on GitHub, each rule that reads a `[bot]` author login: *A
+        handback is an igor- App's comment holding igor's marker*, *An
+        agent's question comes from a bot account or a log file* and *A
+        relay-notice comment is shown as a notice*;
+      - on GitHub, the rules that need to tell an agent's question:
+        *Whom a message reaches is set by its mentions* and the
+        automatic `Inquisitor: ` reply of *Filters 2 to 4 judge every
+        incoming question*.
 
       If
       GitHub reports it, they are built as the spec states them; if not,
-      the repository's owner decides what to build. Whether the rules
-      that read only a `[bot]` login wait too is open (design.md: *Rules a
-      person must decide*)
+      the repository's owner decides what to build
 - [ ] 0.22 What a reader needs to tie a relay file to its person
       (design.md: *Who last changed a relay file ties it to its person*):
       that GitHub's API gives, for the newest commit that changed
@@ -204,8 +211,7 @@ contradicts what design.md assumed.
       wired, such as Linear's own, and check that every tool named `get_…`,
       `list_…` or `search_…` only reads. If one writes, linear-app's post
       hook lists the reading tools by name instead (answer-session spec:
-      *The Linear and Discord post hooks block each way the two skills
-      post*)
+      *The Linear and Discord post hooks pass only the relay's readable posts*)
 - [ ] 0.28 Post the line `Inquisitor: a person must decide this
       (required by spec-trace).` in a Linear comment and a Discord message,
       read each back as the answer session would, and record whether its
@@ -467,10 +473,10 @@ contradicts what design.md assumed.
       question less than 2 hours old that tags no one in an open-questions
       section or a new issue; and vets every post it sees, igor's handback
       included (design.md: *No exemption for an Igor's handback*). In
-      the holder, it blocks every post the reader returns or cannot read,
-      telling the model to draft with `propose_reply` (answer-session
-      spec: *In the holder, GitHub, Linear and Discord posts go only
-      through the answer session*)
+      the holder, it also blocks a post the reader does not report as
+      sent through the github-app skill's script as the person's GitHub
+      relay identity, named with `--identity` (answer-session spec:
+      *In the holder, the model posts only as the person's relays*)
 - [ ] 3.3 `hook.json` with both hooks, `"default": "enabled"`
 
 ## 4. Tests
@@ -828,22 +834,23 @@ contradicts what design.md assumed.
       *Filters 2 to 4 only suggest a verdict on other questions*; *A
       person cites a lore entry by naming it as an answer or a record*)
 - [ ] 6.12 discord-bot's post hook: `PreToolUse` on Bash, which, in the
-      holder, blocks `post`, `edit`, `delete` and `thread`, and any line
-      `.agents/lib/gh-shell/` cannot read that names `discord_bot.py` or
-      runs a script of unknown path,
-      telling the model to draft with `propose_reply`. Registered in
+      holder, blocks any line `.agents/lib/gh-shell/` cannot read that
+      names `discord_bot.py` or runs a script of unknown path, and passes
+      `post`, `edit` and `thread` only as the Discord relay identity with
+      readable text and no reserved prefix, and `delete` only as that
+      identity. Registered in
       discord-bot's `hook.json`, with tests (answer-session spec: *In the
-      holder, GitHub, Linear and Discord posts go only through the answer
-      session*)
+      holder, the model posts only as the person's relays*)
 - [ ] 6.13 linear-app's post hook: `PreToolUse` on Bash and Linear MCP
-      tools, which, in the holder, blocks `token`, `headers`, `wire`, any line
-      `.agents/lib/gh-shell/` cannot read that names `linear_app.py` or
-      runs a script of unknown path,
-      and every Linear MCP tool not named `get_…`, `list_…` or
-      `search_…`, telling the model to draft with `propose_reply`.
-      Registered in linear-app's `hook.json`, with tests (answer-session
-      spec: *In the holder, GitHub, Linear and Discord posts go only
-      through the answer session*)
+      tools, which, in the holder, blocks `token`, `headers`, `wire` and
+      any line `.agents/lib/gh-shell/` cannot read that names
+      `linear_app.py` or runs a script of unknown path, and passes a
+      Linear MCP tool not named `get_…`, `list_…` or `search_…` only
+      while Claude Code's MCP configuration shows linear-app wired that
+      server to the Linear relay identity, and the tool's text starts
+      with no reserved prefix. Registered in linear-app's `hook.json`,
+      with tests (answer-session spec: *In the holder, the model posts
+      only as the person's relays*)
 
 ## 7. Archive
 
