@@ -117,7 +117,9 @@ agent lists it as not done, and files an issue if it outlives the work.
 #### Scenario: An answered question is not asked
 
 - **WHEN** an agent is about to ask whether a skill's hooks are enabled by
-  default, and a capability decision record in the repository already decides it
+  default, and a capability's decision record,
+  `openspec/specs/<capability>/decisions.md`, on the repository's default
+  branch already decides it
 - **THEN** the agent cites that file and section, follows the decision, and
   asks nobody
 
@@ -511,6 +513,12 @@ and `discord`, each a list of quoted strings: under `github` a GitHub App's
 slug, shown as a comment's author `<slug>[bot]`; under `linear` a Linear
 app user's id; under `discord` a Discord bot's user id.
 
+#### Scenario: A relay file's name matches its login ignoring case
+
+- **WHEN** a lore repository holds `relays/Alice.yaml`, and `alice` is the
+  person's GitHub login
+- **THEN** that file is `alice`'s relay file
+
 #### Scenario: A person's relay file lists their relay identities
 
 - **WHEN** a lore repository holds `relays/adamstallard.yaml`:
@@ -591,6 +599,12 @@ A relay file that is missing, does not parse, or whose name is not
 GitHub's login syntax SHALL list no relay. A value that is not a list of
 strings SHALL list none for that key, and the rest of the file still
 counts.
+
+#### Scenario: A relay file that is missing or does not parse lists no relay
+
+- **WHEN** a lore repository has no `relays/alice.yaml`, or has one that
+  does not parse as YAML
+- **THEN** `alice` has no relay identity there
 
 #### Scenario: A malformed key leaves the rest of a relay file counting
 
@@ -1915,6 +1929,12 @@ filter 1's search results for each, and issue a token, recording no verdict.
 The **second call** SHALL take the token and a verdict per question,
 `answered`, `deferred`, `decided` or `ask`, with its field and, for an
 `ask`, any related earlier decision.
+
+#### Scenario: The first call prints the filters and records no verdict
+
+- **WHEN** the first call takes a question
+- **THEN** it prints the four filters and filter 1's search results for
+  it, and issues a token, and no verdict is recorded for the question
 
 #### Scenario: Each verdict carries its field
 

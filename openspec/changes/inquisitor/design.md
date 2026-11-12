@@ -1896,8 +1896,9 @@ posts only as the person's relays*): letting the model post under the
 person's own `gh` login (scenario *The model's GitHub post under the person's
 login is blocked*); letting it post `User says: ` through a relay (scenario
 *The model's User says post is blocked*); and blocking every post in the
-holder, which would stop the model asking an asker back through the relay
-(scenario *The model's GitHub post through the relay goes out*).
+holder, which would lose the model's relay posts for no gain, since an
+unprefixed relay post speaks for no one (scenario *The model's GitHub post
+through the relay goes out*).
 
 #### Claude drafts a reply only into the prompt box
 
@@ -2721,6 +2722,20 @@ wait for igor PR #216 to merge, since archiving writes the scenarios into
 the directory where spec-trace's CI fails on an untagged one.**
 
 ## Open Questions
+
+### Rules a person must decide
+
+- **Whether a relay post may reach a wider audience than its thread.** In
+  the holder the model may post through the relays, and the hooks check only
+  the identity and the reserved prefixes, never where the post goes. The
+  model reads untrusted thread text (*A thread's text reaches the model that
+  judges it*), so a crafted private thread could steer it into reposting
+  private content in a public repository or Discord channel under the
+  relay's name. The audience rule, the inquisitor's *A question goes only
+  where its audience is no wider than its subject*, binds only through
+  instructions. Either a hook guards the audience of the model's relay
+  posts, or the answer-session decision record accepts the gap as a
+  Constraint.
 
 ### Facts measured before building
 

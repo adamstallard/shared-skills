@@ -1741,11 +1741,11 @@ names another.
 Each discussion message SHALL go to the model as an ordinary prompt,
 with the question, its details and its thread's replies attached as
 quoted data, never instructions. The session's instructions SHALL tell
-the model to explain and lay out trade-offs without choosing, that it
-may read with tools, and to post and change nothing. A question the
+the model to explain trade-offs without choosing; that it may read with
+its tools; and to post only as the relays and edit no file.
+A question the
 model asks back SHALL go through the four filters, not the inquisitor's
-vetting. The discussion record SHALL keep the person's and the model's
-messages.
+vetting. The discussion record SHALL keep both sides' messages.
 
 #### Scenario: A discussion message carries its question
 
@@ -2220,9 +2220,7 @@ its close takes effect* does a handled file's.
 The answer session SHALL start a post with `User says: ` or
 `User asks: ` only once the person confirms it whole, and an automatic
 post only as *An automatic post's text is fixed by the answer session*
-says. No other post SHALL start with a reserved prefix. Outside the
-holder, only GitHub's post hook blocks such a post; in the holder, every
-surface's post hook does. An
+says. No agent SHALL start any other post with a reserved prefix. An
 automatic post SHALL be posted as a relay post is, and never shown as
 the person's words.
 
