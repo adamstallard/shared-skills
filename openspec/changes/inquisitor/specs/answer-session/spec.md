@@ -57,8 +57,8 @@ a requirement before that one may already use the term.
 The answer session SHALL count as a **relay post** only a message a relay
 identity posted that starts with one of the four **reserved prefixes**:
 `User says: `, `User asks: `, `Recorded answer: ` or `Inquisitor: `.
-Nothing in this spec reads a relay identity's other posts. On GitHub this
-rule SHALL be built only once task 0.21 is measured.
+Nothing in this spec reads a relay identity's other posts, and on GitHub
+this whole requirement waits on task 0.21 (tasks.md).
 
 #### Scenario: A prefixed post by a relay identity is a relay post
 
@@ -1866,7 +1866,7 @@ can post as an identity, and `wire`, which lets later sessions post as
 one; a Linear MCP tool not named `get_…`, `list_…` or `search_…`; and
 any line `.agents/lib/gh-shell/`'s splitter cannot split that names
 either script or runs one of unknown path. For these hooks and the
-inquisitor's in the holder, an unreadable lock SHALL name every session.
+inquisitor's holder check, an unparsable lock SHALL name every session.
 
 #### Scenario: A token printed for a Linear post is blocked
 

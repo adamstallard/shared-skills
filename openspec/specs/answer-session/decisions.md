@@ -39,3 +39,9 @@
 - **Rationale: The log command commits with the person's git identity.**
   An answer file with no `answer_link` counts only through its commit's signature, and in a session set up for a GitHub App the github-app skill's settings make every commit the bot's and unsigned, so the answer session runs the `log` command without them, or the person's answers would never count.
   Evidence: github-app's `agent_env` sets `commit.gpgsign=false` and the bot's `GIT_AUTHOR_*` and `GIT_COMMITTER_*`, https://github.com/adamstallard/shared-skills/blob/02c0a7782bc0392f5c1f5d8e3af0188cf84a9f0d/.agents/skills/github-app/scripts/github_app.py#L499-L523
+
+- **Rationale: The answer session polls only while it is open.**
+  The skill runs nothing while the answer session is closed, and receiving pushed events would need something running then: GitHub and Linear deliver webhooks only to a URL they can reach at any time, and Discord pushes events only over a gateway connection kept open, so a push sent while the session is closed would be lost. Polling needs neither, and catches up on what came while the session was closed when it next opens.
+  Evidence: GitHub delivers each webhook to a payload URL as an HTTP request, https://docs.github.com/en/webhooks/using-webhooks/creating-webhooks
+  Evidence: Linear's webhooks need a publicly reachable HTTPS URL, https://linear.app/developers/webhooks
+  Evidence: Discord's gateway is a persistent WebSocket connection, https://discord.com/developers/docs/events/gateway

@@ -73,8 +73,9 @@ None.
 - The answer session posts through the github-app, linear-app and
   discord-bot skills, discord-bot as merged in shared-skills PR #1.
   linear-app and discord-bot each gain a post hook that, in the session
-  running the answer session, blocks the model's own posts there, so only
-  posts the person confirmed go out. The
+  running the answer session, blocks the model's own posts on Linear and
+  Discord, and the inquisitor's post hook blocks every GitHub post the
+  model makes in that session, so only posts the person confirmed go out. The
   answer session's setup writes `~/.local/bin/answer`.
 - prose: its posting hook's body reader moves to `.agents/lib/gh-shell/`,
   beside the command splitter and gh flag tables already there, so the

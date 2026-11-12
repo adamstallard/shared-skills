@@ -230,9 +230,11 @@ identities* to *Linking log files to threads, and handbacks*.
 
 ### Polling while open, with the person's credentials
 
-A webhook needs a public HTTPS server, and Discord's push a permanent
-connection: each is a service to run, which nothing else here needs. So the
-answer session polls, only while it is open. The answer-session decision
+A webhook or Discord's push would need something running while the answer
+session is closed, and the skill runs nothing then, as the answer-session
+decision record's *Rationale: The answer session polls only while it is open*
+shows. So the answer session polls, and only while it is open, catching up on
+what came while it was closed. The answer-session decision
 record's *Rationale: The answer session polls GitHub's notifications and
 comments* gives why polling notifications is cheap. Task 0.15 checks that,
 and that a mention subscribes the person to its thread, so later replies
@@ -245,11 +247,11 @@ could post `User says: `, which marks a question answered on every machine
 and, on GitHub, counts as the person's own answer to filter 1. So the skill's
 instructions reserve the prefixes, and on GitHub the post hook blocks a
 tool-call post starting with one; the answer session's posts reach no tool
-hook. On Linear and Discord, tool calls in the holder, the session whose
-answer session holds the per-machine lock that lets only one answer session
-run on a machine, cannot post at all (*The model's own Linear and Discord
-posts are blocked*); in any other session nothing enforces the prefixes
-there.
+hook. Tool calls in the holder cannot post at all, on GitHub, Linear or
+Discord (*The model's own GitHub, Linear and Discord posts are blocked*). The
+holder is the session whose answer session holds the per-machine lock, which
+lets only one answer session run on a machine. In any other session nothing
+enforces the prefixes on Linear and Discord.
 
 ### Local state, one writer per machine
 
@@ -289,8 +291,8 @@ other work the relay identity does, because only the answer session starts a
 post with a reserved prefix. The trust is sound only while nothing but the
 answer session posts through the App where no post hook sees it. Until
 github-app refuses to hand out a relay's token, any agent on the machine can
-post through it so, a gap the answer-session decision record accepts (*github-app
-refuses `token`, `run`, `credential get` and `wire` for a relay identity*).
+post through the App where no hook sees it, a gap the answer-session decision record accepts (*Constraint:
+Until github-app refuses `token`, `run`, `credential get` and `wire`*).
 
 ### What the answer session does by itself
 
@@ -314,8 +316,8 @@ risks, and the spec answers each:
 
 The model may ask the person in its reply in a discussion (*A discussion runs
 in the session's own conversation*). It posts nothing: its draft goes into
-the prompt box, and the post hooks vet or block any post it tries (*The
-model's own Linear and Discord posts are blocked*). The hooks guard only tool
+the prompt box, and the post hooks block any post it tries (*The model's
+own GitHub, Linear and Discord posts are blocked*). The hooks guard only tool
 calls that post: the model's tools can still read the keychain holding the
 person's Linear key and post with it outside any hook, a gap the
 answer-session decision record's *Constraint: The session's model runs with
@@ -1131,7 +1133,7 @@ where an organization's question was asked and a reader tells the cases apart
 by comparing it with `asked_from`: that design judges a file about the Igor's
 own item's repository by the lore repository's writers.
 
-#### A signature GitHub may have made counts for no one
+#### A signature GitHub may have made waits on task 0.22
 
 *Recorded:* `openspec/specs/inquisitor/decisions.md`, *Rationale: A reader
 counts no signature GitHub may have made*. Task 0.22 records how a reader
@@ -2708,21 +2710,36 @@ the directory where spec-trace's CI fails on an untagged one.**
 
 ### Rules a person must decide
 
-- **Whether three rules wait on task 0.21.** Task 0.21 measures whether
+- **When a session stops being the holder.** The model in the holder posts
+  nothing on GitHub, Linear or Discord, on the ground that the holder's
+  session does nothing but answer questions. But `/answer` opens the
+  answer session in any session, and no rule says the lock is released when
+  the answer session closes, or whether a stale lock, one no longer
+  refreshed, still makes its session the holder. A working session where the person once typed `/answer` could
+  then stay unable to post. Either a session whose answer session is closed
+  is not the holder, or the lock is released on close; and a rule says
+  whether a stale lock still makes its session the holder.
+- **Whether four rules wait on task 0.21.** Task 0.21 measures whether
   GitHub shows the App that wrote a comment in a form no account can take
-  on, such as the author login `<slug>[bot]`. These three rules read only
-  that login:
+  on, such as the author login `<slug>[bot]`. Three rules read only that
+  login:
   - a comment counts as a handback only when its App's slug, the login
     before `[bot]`, starts with `igor-` (answer-session spec: *A handback is
     an igor- App's comment holding igor's marker*);
   - a message by a bot account is an agent's question, which the login's
     `[bot]` suffix shows;
   - since an agent's question is a bot's, it reaches only the first person
-    it mentions, and only it gets an automatic `Inquisitor: ` reply.
+    it mentions, and only an agent's question, never a person's, gets an
+    automatic `Inquisitor: ` reply.
 
-  The rules tasks.md's task 0.21 lists read nothing more than that login
-  either: the person an App speaks for comes from their relay file, not from
-  GitHub. So needing less does not set the three apart from those rules.
+  A fourth reads the login too: a `github-actions[bot]` comment holding the
+  relay notice is shown as a notice (answer-session spec: *A relay-notice
+  comment is shown as a notice*).
+
+  These four might seem to need less from task 0.21 than the rules it lists,
+  since they read only the login. They do not: the rules task 0.21 lists
+  read nothing more from GitHub either, since the person an App speaks for
+  comes from their relay file.
   Either all of them wait on task 0.21, or the `<slug>[bot]` login is
   trusted without it, and none of them waits.
 

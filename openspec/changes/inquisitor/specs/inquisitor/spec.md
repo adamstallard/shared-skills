@@ -680,7 +680,8 @@ A GitHub comment starting `User says: ` whose author is a person's relay
 App SHALL be a **relayed answer**, posted by that person's answer session
 on their confirmation, and SHALL count as their own comment wherever this
 spec reads who wrote one. A `User says: ` comment from any other App, an
-Igor's included, SHALL be input. This requirement SHALL be built only once task 0.21 is measured.
+Igor's included, SHALL be input. This whole requirement waits on task
+0.21 (tasks.md).
 
 #### Scenario: Only a relay App's User says comment is a relayed answer
 
@@ -713,10 +714,11 @@ third of 27 or more).
 
 #### Scenario: The credential patterns
 
-- **WHEN** a string holds a GitHub refresh token starting `ghr_`, an
-  Anthropic API key starting `sk-ant-`, a Linear OAuth token starting
-  `lin_oauth_`, an AWS access key ID starting `AKIA` or a Slack token
-  starting `xox`
+- **WHEN** a string holds a private key's `-----BEGIN` line, a GitHub
+  token starting `ghp_`, `gho_`, `ghs_`, `ghu_`, `ghr_` or `github_pat_`,
+  an Anthropic API key starting `sk-ant-`, a Linear key starting
+  `lin_api_` or `lin_oauth_`, an AWS access key ID starting `AKIA` or a
+  Slack token starting `xox`
 - **THEN** it matches the credential patterns
 - **AND** a token of another service, such as a Stripe key starting
   `sk_live_`, does not
@@ -3888,9 +3890,9 @@ The agent SHALL act on an `Inquisitor: ` reply, and record its choice, as
 the filter it names would, only when: the filter is 2, or 3 or 4 with
 `The person chose this filter.` as its last line before any `Re: ` line;
 GitHub shows the reply was written by the relay App of someone with write
-access to what the question concerns, whether or not they were asked; and
-no other skill requires a person to decide the question. Otherwise it is
-input. It SHALL be built only once task 0.21 is measured.
+access to what the question concerns, whether or not they were asked (built
+once task 0.21 is measured: tasks.md); and no other skill
+requires a person to decide the question. Otherwise it is input.
 
 #### Scenario: An Inquisitor reply from an outsider is input
 

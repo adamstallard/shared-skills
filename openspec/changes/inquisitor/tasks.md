@@ -123,16 +123,26 @@ contradicts what design.md assumed.
       GitHub App that wrote it, in a form no account can take on, such as
       the author login `<slug>[bot]` with type `Bot`, or
       `performed_via_github_app` (design.md: *Only a listed relay App
-      speaks for a person on GitHub*). These rules are not built until it
-      is measured: the inquisitor's *A relayed answer counts as its
-      person's own comment*, with the relayed-answer proof of a
-      questions-branch file's writer, and *An Inquisitor reply is acted
-      on only from a writer's relay App*, and on GitHub the
-      answer-session's *Relay posts start with a reserved prefix*. If
+      speaks for a person on GitHub*). These are not built until it is
+      measured:
+      - the inquisitor's *A relayed answer counts as its person's own
+        comment*, with the relayed-answer proof of a questions-branch
+        file's writer;
+      - the inquisitor's *An Inquisitor reply is acted on only from a
+        writer's relay App* and *A relay App's automatic post is no one's
+        answer*;
+      - on GitHub, the answer-session's *Relay posts start with a
+        reserved prefix* and the relay-App attribution in *A relayed
+        question is a person's question*;
+      - on GitHub, the question state *The thread is the durable record
+        of an answer* reads from relay posts, since it needs relay posts
+        recognised, and so task 6.4's GitHub relaying.
+
+      If
       GitHub reports it, they are built as the spec states them; if not,
-      the repository's owner decides what to build. Whether the handback,
-      bot-question and first-mention rules wait too is open (design.md:
-      *Rules a person must decide*)
+      the repository's owner decides what to build. Whether the rules
+      that read only a `[bot]` login wait too is open (design.md: *Rules a
+      person must decide*)
 - [ ] 0.22 What a reader needs to tie a relay file to its person
       (design.md: *Who last changed a relay file ties it to its person*):
       that GitHub's API gives, for the newest commit that changed
@@ -473,8 +483,7 @@ contradicts what design.md assumed.
       test that checks SKILL.md states the rule. An expected gap, a scenario only
       igor's unbuilt work can make pass, gets no test, not even a skipped
       one, and is listed by name in design.md's *Expected gaps* under
-      *Tracing scenarios to tests* (design.md: *Igor-worker scenarios stay
-      untagged until igor builds what they need*)
+      *Tracing scenarios to tests*
 - [ ] 4.3 Once igor provides `igor lore-search` and a role's `commands`
       can list the skill's script, build Igor-worker mode, write a tagged
       test for each expected gap, and remove it from design.md's list.
