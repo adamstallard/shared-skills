@@ -1173,6 +1173,225 @@ class HookTests(unittest.TestCase):
         self.assertNotIn("STRAY", self.run_cli("doctor"))
 
 
+    # -- an entry declared but not wired ----------------------------------
+
+    def one_then_two_hooks(self, default="enabled"):
+        """A generator: the first next() writes a one-entry list, and the
+        second adds a second entry, as a pull would."""
+        first = {"summary": "Commit check.", "command": "scripts/demo.sh",
+                 "events": {"claude": {"event": "PostToolUse", "matcher": "Bash"}}}
+        self.write_hook_list([first], default=default)
+        yield
+        self.post_sh = self.add_script("post.sh")
+        self.write_hook_list(
+            [first, {"summary": "Handback notice.", "command": "scripts/post.sh",
+                     "events": {"claude": {"event": "PreToolUse", "matcher": "Bash"}}}],
+            default=default,
+        )
+        yield
+
+    def unwired_lines(self, output):
+        return [line for line in output.splitlines() if line.lstrip().startswith("UNWIRED")]
+
+    def test_doctor_reports_an_entry_added_after_the_hooks_were_wired(self):
+        steps = self.one_then_two_hooks()
+        next(steps)
+        self.run_cli("install", SKILL)
+        next(steps)
+        output = self.run_cli("doctor")
+        unwired = self.unwired_lines(output)
+        self.assertEqual(len(unwired), 1, output)
+        self.assertIn(f"{self.post_sh} --host claude", unwired[0])
+        self.assertIn(f"fix: enable-hook {SKILL}", output)
+        self.assertIn("1 problem(s)", output)
+
+        self.run_cli("enable-hook", SKILL)
+        self.assertEqual(self.unwired_lines(self.run_cli("doctor")), [])
+
+    def test_doctor_reports_an_unwired_entry_of_a_default_off_skill_turned_on(self):
+        steps = self.one_then_two_hooks(default="off")
+        next(steps)
+        self.run_cli("install", SKILL)
+        self.run_cli("enable-hook", SKILL)
+        next(steps)
+        self.assertEqual(len(self.unwired_lines(self.run_cli("doctor"))), 1)
+
+    def test_doctor_reports_nothing_unwired_for_a_default_off_skill_left_off(self):
+        steps = self.one_then_two_hooks(default="off")
+        next(steps)
+        self.run_cli("install", SKILL)
+        next(steps)
+        self.assertEqual(self.unwired_lines(self.run_cli("doctor")), [])
+
+    def test_doctor_respects_a_disable_when_an_entry_is_added(self):
+        steps = self.one_then_two_hooks()
+        next(steps)
+        self.run_cli("install", SKILL)
+        self.run_cli("disable-hook", SKILL)
+        next(steps)
+        output = self.run_cli("doctor")
+        self.assertEqual(self.unwired_lines(output), [], output)
+        self.assertIn("No problems found in any target.", output)
+
+    def test_doctor_does_not_call_a_skill_that_is_not_installed_unwired(self):
+        output = self.run_cli("doctor")
+        self.assertEqual(self.unwired_lines(output), [], output)
+
+    def test_doctor_does_not_call_a_skill_linked_nowhere_unwired(self):
+        # Wiring left after every link went is ORPHAN's report, whose fix is
+        # install or disable-hook. Advising enable-hook beside it would ask for
+        # more wiring for a skill that is not installed.
+        steps = self.one_then_two_hooks()
+        next(steps)
+        self.run_cli("install", SKILL)
+        (self.targets / SKILL).unlink()
+        next(steps)
+        output = self.run_cli("doctor")
+        self.assertEqual(self.unwired_lines(output), [], output)
+        self.assertIn("ORPHAN", output)
+
+    def test_sandboxed_doctor_does_not_call_an_unwired_install_unwired(self):
+        # A sandboxed install never wires hooks, so its doctor must not ask for them.
+        env = dict(os.environ, SHARED_SKILLS_REPO=str(self.clone),
+                   SHARED_SKILLS_TARGET=str(self.targets),
+                   SHARED_SKILLS_CONFIG=str(self.config), HOME=str(self.home))
+        env.pop("SHARED_SKILLS_HOOK_HOME", None)
+        for command in ("install", "doctor"):
+            result = subprocess.run(
+                [sys.executable, str(SCRIPT), command, *([SKILL] if command == "install" else [])],
+                capture_output=True, text=True, env=env,
+            )
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(self.unwired_lines(result.stdout), [], result.stdout)
+
+    def test_doctor_respects_an_install_with_no_hook(self):
+        output = self.run_cli("install", "--no-hook", SKILL)
+        self.assertIn(f"enable-hook {SKILL}", output)
+        self.assertEqual(self.read(CLAUDE_REL), None)
+        output = self.run_cli("doctor")
+        self.assertEqual(self.unwired_lines(output), [], output)
+        self.assertIn("No problems found in any target.", output)
+
+    def test_install_with_no_hook_of_a_newly_linked_skill_removes_its_wiring(self):
+        # Removing the link by hand leaves the wiring, and makes the next
+        # install link the skill anew, so --no-hook applies to it.
+        self.run_cli("install", SKILL)
+        (self.targets / SKILL).unlink()
+        self.run_cli("install", "--no-hook", SKILL)
+        self.assertEqual(self.ours(self.claude_entries()), [])
+        self.assertEqual(self.ours(self.cursor_entries()), [])
+        self.assertIn(SKILL, json.loads(self.config.read_text())["hooks_off"])
+
+    def test_install_with_no_hook_leaves_an_installed_skill_as_it_is(self):
+        self.write_manifest(default="off")
+        self.run_cli("install", SKILL)
+        self.run_cli("enable-hook", SKILL)
+        self.run_cli("install", "--all", "--no-hook")
+        self.assertEqual(len(self.ours(self.claude_entries())), 1)
+        self.assertEqual(len(self.ours(self.cursor_entries())), 1)
+        self.assertNotIn("hooks_off", self.config.read_text() if self.config.is_file() else "")
+
+    def test_install_with_no_hook_of_a_named_installed_skill_says_so(self):
+        self.run_cli("install", SKILL)
+        output = self.run_cli("install", "--no-hook", SKILL)
+        self.assertIn(f"{SKILL} is already installed; --no-hook leaves its hooks as they are;"
+                      f" use disable-hook {SKILL}", output)
+        self.assertEqual(len(self.ours(self.claude_entries())), 1)
+
+    def test_install_with_no_hook_of_an_installed_skill_whose_hooks_are_off_says_nothing(self):
+        self.run_cli("install", SKILL)
+        self.run_cli("disable-hook", SKILL)
+        output = self.run_cli("install", "--no-hook", SKILL)
+        self.assertNotIn("is already installed; --no-hook", output)
+
+    def test_install_with_no_hook_of_an_installed_default_off_skill_says_nothing(self):
+        self.write_manifest(default="off")
+        self.run_cli("install", SKILL)
+        output = self.run_cli("install", "--no-hook", SKILL)
+        self.assertNotIn("is already installed; --no-hook", output)
+
+    def test_install_with_no_hook_of_an_installed_skill_whose_hook_json_does_not_load(self):
+        self.run_cli("install", SKILL)
+        (self.skill_dir / "hook.json").write_text("{not json")
+        # run_cli fails the test if the install exits non-zero.
+        output = self.run_cli("install", "--no-hook", SKILL)
+        self.assertNotIn("is already installed; --no-hook", output)
+
+    def test_install_all_with_no_hook_says_nothing_about_installed_skills(self):
+        self.run_cli("install", SKILL)
+        output = self.run_cli("install", "--all", "--no-hook")
+        self.assertNotIn("is already installed; --no-hook", output)
+
+    def test_install_with_no_hook_of_a_newly_linked_skill_does_not_call_it_installed(self):
+        output = self.run_cli("install", "--no-hook", SKILL)
+        self.assertNotIn("is already installed; --no-hook", output)
+
+    def test_install_with_no_hook_counts_the_configs_it_changed(self):
+        self.run_cli("install", SKILL)
+        (self.targets / SKILL).unlink()
+        # One link made, and the claude and cursor configs swept.
+        self.assertIn("\n3 change(s)", self.run_cli("install", "--no-hook", SKILL))
+
+    def test_install_with_no_hook_of_a_skill_without_hooks_records_nothing(self):
+        plain = self.clone / ".agents" / "skills" / "plain"
+        plain.mkdir()
+        (plain / "SKILL.md").write_text("---\nname: plain\ndescription: No hook.\n---\n")
+        output = self.run_cli("install", "--no-hook", "plain")
+        self.assertNotIn("hooks left off", output)
+        self.assertNotIn("--no-hook recorded", output)
+        self.assertNotIn("is already installed; --no-hook", self.run_cli("install", "--no-hook", "plain"))
+        self.assertNotIn("hooks_off", self.config.read_text() if self.config.is_file() else "")
+
+    def test_sandboxed_install_with_no_hook_touches_no_hook_config(self):
+        self.run_cli("install", SKILL)
+        (self.targets / SKILL).unlink()
+        env = dict(os.environ, SHARED_SKILLS_REPO=str(self.clone),
+                   SHARED_SKILLS_TARGET=str(self.targets),
+                   SHARED_SKILLS_CONFIG=str(self.config), HOME=str(self.home))
+        env.pop("SHARED_SKILLS_HOOK_HOME", None)
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT), "install", "--no-hook", SKILL],
+            capture_output=True, text=True, env=env,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(len(self.ours(self.claude_entries())), 1)
+        self.assertNotIn("hooks_off", self.config.read_text() if self.config.is_file() else "")
+
+    def test_install_with_no_hook_that_links_nothing_records_nothing(self):
+        # A real directory where the link would go blocks the install.
+        (self.targets / SKILL).mkdir()
+        output = self.run_cli("install", "--no-hook", SKILL)
+        self.assertNotIn("--no-hook recorded", output)
+        self.assertNotIn("hooks_off", self.config.read_text() if self.config.is_file() else "")
+
+    def test_doctor_calls_a_skill_linked_in_one_of_two_targets_unwired(self):
+        other = self.tmp / "other-targets"
+        other.mkdir()
+        (self.targets / SKILL).symlink_to(self.skill_dir)
+        env = dict(os.environ, SHARED_SKILLS_REPO=str(self.clone),
+                   SHARED_SKILLS_TARGET=os.pathsep.join([str(self.targets), str(other)]),
+                   SHARED_SKILLS_CONFIG=str(self.config),
+                   SHARED_SKILLS_HOOK_HOME=str(self.home))
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT), "doctor"], capture_output=True, text=True, env=env
+        )
+        self.assertEqual(len(self.unwired_lines(result.stdout)), 2, result.stdout)
+
+    def test_enable_after_an_install_with_no_hook_wires_it(self):
+        self.run_cli("install", "--no-hook", SKILL)
+        self.run_cli("enable-hook", SKILL)
+        self.assertEqual(len(self.ours(self.claude_entries())), 1)
+        self.assertEqual(self.run_cli("install", SKILL).count("turned it off"), 0)
+
+    def test_doctor_does_not_call_a_non_executable_entry_unwired(self):
+        steps = self.one_then_two_hooks()
+        next(steps)
+        self.run_cli("install", SKILL)
+        next(steps)
+        self.post_sh.chmod(0o644)
+        self.assertEqual(self.unwired_lines(self.run_cli("doctor")), [])
+
+
 MANAGER = "manage-skills"
 MANAGER_SOURCE = SCRIPT.parent.parent
 GIT_IDENTITY = ["-c", "user.name=test", "-c", "user.email=test@example.com", "-c", "commit.gpgsign=false"]
@@ -1387,6 +1606,163 @@ class UpdateTests(unittest.TestCase):
         self.assertEqual(self.installed(), ["public", "public"])
         self.assert_complete()
 
+
+
+    # -- update wires new hook entries ------------------------------------
+
+    def cli(self, *args):
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT), *args],
+            capture_output=True, text=True, env=self.env(),
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        return result.stdout
+
+    def hook_list(self, *scripts, default="enabled"):
+        return json.dumps({"version": 1, "default": default, "hooks": [
+            {"summary": f"Runs {script}.", "command": f"scripts/{script}",
+             "events": {"claude": {"event": "PreToolUse", "matcher": script}}}
+            for script in scripts
+        ]})
+
+    def add_hooked_skill(self, default="enabled"):
+        """Commit a skill with scripts a.sh and b.sh, whose hook.json declares
+        only a.sh (pull_a_second_hook adds b.sh), to the public clone. Link it
+        into every target and return its directory."""
+        skill = self.public / ".agents" / "skills" / "hooked"
+        (skill / "scripts").mkdir(parents=True)
+        (skill / "SKILL.md").write_text("---\nname: hooked\ndescription: x\n---\n")
+        for script in ("a.sh", "b.sh"):
+            (skill / "scripts" / script).write_text("#!/bin/sh\nexit 0\n")
+            (skill / "scripts" / script).chmod(0o755)
+        (skill / "hook.json").write_text(self.hook_list("a.sh", default=default))
+        self.git("add", "-A", cwd=self.public)
+        self.git("commit", "-q", "-m", "hooked", cwd=self.public)
+        self.git("push", "-q", "origin", "HEAD:main", cwd=self.public)
+        for target in self.targets:
+            (target / "hooked").symlink_to(skill)
+        return skill
+
+    def wired_scripts(self):
+        path = self.home / ".claude" / "settings.json"
+        data = json.loads(path.read_text()) if path.is_file() else {}
+        return sorted(
+            inner["command"].split(" ")[0].rsplit("/", 1)[-1]
+            for entry in data.get("hooks", {}).get("PreToolUse", [])
+            for inner in entry["hooks"]
+        )
+
+    def pull_a_second_hook(self, default="enabled"):
+        self.push_change(
+            "public", ".agents/skills/hooked/hook.json", self.hook_list("a.sh", "b.sh", default=default)
+        )
+
+    def test_update_wires_an_entry_the_pull_added(self):
+        self.add_hooked_skill()
+        self.cli("enable-hook", "hooked")
+        self.assertEqual(self.wired_scripts(), ["a.sh"])
+        self.pull_a_second_hook()
+        result = self.update()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(self.wired_scripts(), ["a.sh", "b.sh"])
+        self.assertIn("Runs b.sh.", result.stdout)
+        self.assertIn("enabled on PreToolUse", result.stdout)
+        self.assertIn("turn them off with:  skills.py disable-hook hooked", result.stdout)
+        self.assertIn("Restart Cursor", result.stdout)
+        self.assertNotIn("UNWIRED", self.cli("doctor"))
+
+    def test_update_with_nothing_new_to_wire_says_nothing_about_hooks(self):
+        self.add_hooked_skill()
+        self.cli("enable-hook", "hooked")
+        self.push_change("public", "pulled.txt", "yes")
+        result = self.update()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertNotIn("hooks are on", result.stdout)
+        self.assertNotIn("Restart Cursor", result.stdout)
+
+    def test_update_prints_each_new_hooks_summary_once(self):
+        self.add_hooked_skill()
+        self.push_change("public", ".agents/skills/hooked/hook.json", json.dumps(
+            {"version": 1, "default": "enabled", "hooks": [
+                {"summary": "Runs a.sh.", "command": "scripts/a.sh",
+                 "events": {"claude": {"event": "PreToolUse", "matcher": "a.sh"},
+                            "cursor": {"event": "preToolUse", "matcher": "Shell"}}},
+                {"command": "scripts/b.sh",
+                 "events": {"claude": {"event": "PreToolUse", "matcher": "b.sh"}}}]}))
+        result = self.update()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(result.stdout.count("Runs a.sh."), 1, result.stdout)
+        self.assertNotIn("None", result.stdout)
+
+    def test_update_wires_a_default_enabled_skill_that_has_nothing_wired(self):
+        self.add_hooked_skill()
+        self.pull_a_second_hook()
+        result = self.update()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(self.wired_scripts(), ["a.sh", "b.sh"])
+
+    def test_update_wires_an_entry_for_a_default_off_skill_turned_on(self):
+        self.add_hooked_skill(default="off")
+        self.cli("enable-hook", "hooked")
+        self.pull_a_second_hook(default="off")
+        self.update()
+        self.assertEqual(self.wired_scripts(), ["a.sh", "b.sh"])
+
+    def test_update_leaves_a_default_off_skill_off(self):
+        self.add_hooked_skill(default="off")
+        self.pull_a_second_hook(default="off")
+        self.update()
+        self.assertEqual(self.wired_scripts(), [])
+
+    def test_update_respects_a_disable(self):
+        self.add_hooked_skill()
+        self.cli("enable-hook", "hooked")
+        self.cli("disable-hook", "hooked")
+        self.pull_a_second_hook()
+        result = self.update()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(self.wired_scripts(), [])
+        self.assertNotIn("Runs b.sh.", result.stdout)
+
+    def test_update_does_not_wire_a_skill_that_is_not_installed(self):
+        self.add_hooked_skill()
+        for target in self.targets:
+            (target / "hooked").unlink()
+        self.pull_a_second_hook()
+        self.update()
+        self.assertEqual(self.wired_scripts(), [])
+
+    def test_update_does_not_wire_a_skill_whose_links_are_gone(self):
+        self.add_hooked_skill()
+        self.cli("enable-hook", "hooked")
+        for target in self.targets:
+            (target / "hooked").unlink()
+        self.pull_a_second_hook()
+        self.update()
+        self.assertEqual(self.wired_scripts(), ["a.sh"])
+
+    def test_update_in_a_sandbox_touches_no_hook_config(self):
+        self.add_hooked_skill()
+        self.pull_a_second_hook()
+        env = self.env()
+        env.pop("SHARED_SKILLS_HOOK_HOME")
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT), "update"], capture_output=True, text=True, env=env
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertNotIn("enabled on", result.stdout)
+        self.assertNotIn("Restart Cursor", result.stdout)
+
+    def test_update_respects_an_install_with_no_hook(self):
+        self.add_hooked_skill()
+        # Remove the links, so that install --no-hook installs the skill
+        # afresh, as a user would.
+        for target in self.targets:
+            (target / "hooked").unlink()
+        self.cli("install", "--no-hook", "hooked")
+        self.pull_a_second_hook()
+        self.update()
+        self.assertEqual(self.wired_scripts(), [])
 
 
 class ModTests(unittest.TestCase):
