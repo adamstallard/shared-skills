@@ -1117,6 +1117,11 @@ def sandboxed():
     ).strip()
 
 
+def linked_anywhere(repo, name):
+    """Is this skill linked to this clone in at least one target it belongs in?"""
+    return any(status(repo, name, target) == LINKED for target in targets_for(repo, name))
+
+
 def hooks_switched_on(repo, name, manifest):
     """Are this skill's hooks on? Hooks are switched per skill, never per entry.
 
@@ -1129,7 +1134,7 @@ def hooks_switched_on(repo, name, manifest):
     """
     if opted_out_of_hook(name):
         return False
-    if not any(status(repo, name, target) == LINKED for target in targets_for(repo, name)):
+    if not linked_anywhere(repo, name):
         return False
     return manifest.get("default") == HOOK_ENABLED or bool(owned_wiring(repo, name))
 
@@ -1326,16 +1331,23 @@ def cmd_install(args):
     for target in TARGETS:
         print(f"  {target.label:<{LABEL_WIDTH}}  {target.path}")
     print()
+    linked_before = {name for name in names if linked_anywhere(repo, name)}
     changed = sum(install_one(repo, name, args.force) for name in names)
     changed += auto_enable_hooks(repo, names, args.no_hook)
     if args.no_hook and not sandboxed():
-        # --no-hook is the user's choice, so it is recorded as disable-hook
-        # records it. Without the opt-out, doctor would report the hooks
-        # UNWIRED and the next update would wire them.
+        # auto_enable_hooks above wired nothing, since --no-hook was given.
+        # For a skill linked in no target before this install, --no-hook is
+        # the user's choice, so it is recorded as disable-hook records it,
+        # and any wiring left from an earlier install is removed. Without the
+        # opt-out, a default-enabled skill's hooks would read as on: doctor
+        # would report them UNWIRED and the next update would wire them. A
+        # skill that was already linked keeps its hook state, so
+        # `install --all --no-hook` turns nothing off.
         for name in names:
-            if (repo / SKILLS_SUBDIR / name / HOOK_MANIFEST).is_file():
+            newly_linked = name not in linked_before and linked_anywhere(repo, name)
+            if newly_linked and (repo / SKILLS_SUBDIR / name / HOOK_MANIFEST).is_file():
                 changed += switch_hook(repo, name, enable=False)
-                print(f"  {name}: hooks left off; turn them on with:  skills.py enable-hook {name}")
+                print(f"  {name}: --no-hook recorded; turn its hooks on with:  skills.py enable-hook {name}")
     print(f"\n{changed} change(s). Open a new agent tab to pick them up.")
 
 
@@ -1741,7 +1753,7 @@ def main():
     add.add_argument(
         "--no-hook",
         action="store_true",
-        help="Install with the skill's hooks off, as disable-hook does",
+        help="For each skill linked in no target before, turn its hooks off and record that, as disable-hook does",
     )
 
     remove = sub.add_parser("uninstall", help="Remove one or more symlinked skills")

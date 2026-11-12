@@ -1272,15 +1272,30 @@ class HookTests(unittest.TestCase):
         self.assertEqual(self.unwired_lines(output), [], output)
         self.assertIn("No problems found in any target.", output)
 
-    def test_install_with_no_hook_removes_hooks_already_wired(self):
+    def test_install_with_no_hook_of_a_newly_linked_skill_removes_its_wiring(self):
+        # Removing the link by hand leaves the wiring, and makes the next
+        # install link the skill anew, so --no-hook applies to it.
         self.run_cli("install", SKILL)
+        (self.targets / SKILL).unlink()
         self.run_cli("install", "--no-hook", SKILL)
         self.assertEqual(self.ours(self.claude_entries()), [])
         self.assertEqual(self.ours(self.cursor_entries()), [])
+        self.assertIn(SKILL, json.loads(self.config.read_text())["hooks_off"])
+
+    def test_install_with_no_hook_leaves_an_installed_skill_as_it_is(self):
+        self.write_manifest(default="off")
+        self.run_cli("install", SKILL)
+        self.run_cli("enable-hook", SKILL)
+        self.run_cli("install", "--all", "--no-hook")
+        self.assertEqual(len(self.ours(self.claude_entries())), 1)
+        self.assertEqual(len(self.ours(self.cursor_entries())), 1)
+        self.assertNotIn("hooks_off", self.config.read_text() if self.config.is_file() else "")
 
     def test_install_with_no_hook_counts_the_configs_it_changed(self):
         self.run_cli("install", SKILL)
-        self.assertIn("\n2 change(s)", self.run_cli("install", "--no-hook", SKILL))
+        (self.targets / SKILL).unlink()
+        # One link made, and the claude and cursor configs swept.
+        self.assertIn("\n3 change(s)", self.run_cli("install", "--no-hook", SKILL))
 
     def test_install_with_no_hook_of_a_skill_without_hooks_records_nothing(self):
         plain = self.clone / ".agents" / "skills" / "plain"
@@ -1292,6 +1307,7 @@ class HookTests(unittest.TestCase):
 
     def test_sandboxed_install_with_no_hook_touches_no_hook_config(self):
         self.run_cli("install", SKILL)
+        (self.targets / SKILL).unlink()
         env = dict(os.environ, SHARED_SKILLS_REPO=str(self.clone),
                    SHARED_SKILLS_TARGET=str(self.targets),
                    SHARED_SKILLS_CONFIG=str(self.config), HOME=str(self.home))
@@ -1303,6 +1319,26 @@ class HookTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(len(self.ours(self.claude_entries())), 1)
         self.assertNotIn("hooks_off", self.config.read_text() if self.config.is_file() else "")
+
+    def test_install_with_no_hook_that_links_nothing_records_nothing(self):
+        # A real directory where the link would go blocks the install.
+        (self.targets / SKILL).mkdir()
+        output = self.run_cli("install", "--no-hook", SKILL)
+        self.assertNotIn("--no-hook recorded", output)
+        self.assertNotIn("hooks_off", self.config.read_text() if self.config.is_file() else "")
+
+    def test_doctor_calls_a_skill_linked_in_one_of_two_targets_unwired(self):
+        other = self.tmp / "other-targets"
+        other.mkdir()
+        (self.targets / SKILL).symlink_to(self.skill_dir)
+        env = dict(os.environ, SHARED_SKILLS_REPO=str(self.clone),
+                   SHARED_SKILLS_TARGET=os.pathsep.join([str(self.targets), str(other)]),
+                   SHARED_SKILLS_CONFIG=str(self.config),
+                   SHARED_SKILLS_HOOK_HOME=str(self.home))
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT), "doctor"], capture_output=True, text=True, env=env
+        )
+        self.assertEqual(len(self.unwired_lines(result.stdout)), 2, result.stdout)
 
     def test_enable_after_an_install_with_no_hook_wires_it(self):
         self.run_cli("install", "--no-hook", SKILL)

@@ -49,7 +49,7 @@ python3 $SK list                       # every skill, and its state in each targ
 python3 $SK install bug-hunter         # symlink one or more skills into every target
 python3 $SK install --all              # symlink everything into every target
 python3 $SK install --force <name>     # replace whatever is already there
-python3 $SK install --no-hook <name>   # install with its hook off, remembered as disable-hook does
+python3 $SK install --no-hook <name>   # turn off and record off the hook of a skill not linked before
 python3 $SK uninstall <name>           # remove the symlink from every target
 python3 $SK doctor                     # find broken, missing, or stale installs
 python3 $SK update                     # git pull the clone, refresh this skill
@@ -116,7 +116,9 @@ recorded.
 **"Turn off the hook" / "stop nagging me about commits"** — `disable-hook <name>`. It
 removes the hook from every platform and *remembers the choice*, so a later
 `install` or `update` won't quietly put it back. `install --no-hook` records the
-same choice. `enable-hook` clears that. Never hand-edit
+same choice, and removes the skill's wiring, for each skill it links that was
+linked in no target before; it leaves the hooks of a skill already linked as
+they are. `enable-hook` clears that. Never hand-edit
 `~/.claude/settings.json` or `~/.cursor/hooks.json` to do this — the manager
 matches its own entries by script path and will lose track of a hand-made one.
 
@@ -205,7 +207,8 @@ names no platform this manager knows.
 The mirror case is an entry added to the manifest. While the skill's hooks are
 on, the next `update`, `install` or `enable-hook` wires it, and until then
 `doctor` reports it as `UNWIRED`. A skill's hooks are on when no opt-out is
-recorded for it (`disable-hook` and `install --no-hook` record one), it is
+recorded for it (`disable-hook` records one, as does `install --no-hook` for
+a skill it links that was linked in no target before), it is
 installed in some target, and either its `default` is `"enabled"` or at least
 one of its hooks is wired, as after `enable-hook`.
 

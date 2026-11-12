@@ -23,8 +23,9 @@ which platforms enable rewrites and `STRAY` inspects.
 `hooks_switched_on` decides it, per skill. A skill's hooks are on when all
 three hold:
 
-- no opt-out is recorded for it. `disable-hook` and `install --no-hook` record
-  the same one, through `switch_hook`;
+- no opt-out is recorded for it. `disable-hook` records one, through
+  `switch_hook`. So does `install --no-hook`, for each skill it links that was
+  linked to this clone in no target before that install;
 - it is linked into some target;
 - its `default` is `"enabled"`, or at least one of its hooks is wired on some
   platform, as after `enable-hook` on a default-off skill.
@@ -42,6 +43,10 @@ wires it after the pull (`wire_new_hooks`). A sandboxed run, one with
 - **Why `--no-hook` records the opt-out:** without it, a default-enabled skill
   installed with `--no-hook` would read as on, so `doctor` would report its
   hooks `UNWIRED` and the next `update` would wire them.
+- **Why only for a skill not linked before:** a skill already linked to this
+  clone in any target it belongs in keeps its hook state. So
+  `install --all --no-hook`, run to pick up new skills, turns off no hook the
+  user has on.
 - **Rejected:** "on" without the link condition. A skill in the clone that is
   not installed would read as on. So would a skill whose links are all gone
   but whose wiring was left behind; `doctor` reports that wiring as `ORPHAN`,

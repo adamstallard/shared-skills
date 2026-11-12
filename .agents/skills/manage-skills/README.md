@@ -156,7 +156,9 @@ bug-hunter ships a hook, enabled by default:
 To turn it off, ask the agent to "turn off the bug-hunter hook", or run
 `python3 $SK disable-hook bug-hunter`. **The choice sticks** — installing or
 reinstalling skills later won't switch it back on, and neither will `update`.
-`python3 $SK hooks` shows what is on right now.
+Installing a skill with `--no-hook` makes the same choice for it, but only when
+that install is the one that adds it; for a skill you already have, the hook
+stays as it is. `python3 $SK hooks` shows what is on right now.
 
 When a skill whose hook is on adds a hook in a later version, `update` wires the
 new one and says so.
