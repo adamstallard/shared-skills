@@ -155,8 +155,11 @@ bug-hunter ships a hook, enabled by default:
 
 To turn it off, ask the agent to "turn off the bug-hunter hook", or run
 `python3 $SK disable-hook bug-hunter`. **The choice sticks** — installing or
-reinstalling skills later won't switch it back on. `python3 $SK hooks` shows what
-is on right now.
+reinstalling skills later won't switch it back on, and neither will `update`.
+`python3 $SK hooks` shows what is on right now.
+
+When a skill whose hook is on adds a hook in a later version, `update` wires the
+new one and says so.
 
 This writes to `~/.claude/settings.json` and `~/.cursor/hooks.json`. Your existing
 settings and any other hooks in those files are left alone, and the first time

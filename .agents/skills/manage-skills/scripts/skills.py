@@ -1109,6 +1109,43 @@ def hook_present(repo, name):
     return bool(owned_wiring(repo, name))
 
 
+def sandboxed():
+    """A throwaway run: SHARED_SKILLS_TARGET set without SHARED_SKILLS_HOOK_HOME.
+    Nothing that writes hook configs runs in one."""
+    return bool(os.environ.get(TARGET_ENV, "").strip()) and not os.environ.get(
+        HOOK_HOME_ENV, ""
+    ).strip()
+
+
+def hooks_switched_on(repo, name, manifest):
+    """Are this skill's hooks on? Hooks are switched per skill, never per entry.
+
+    On means the user has not turned them off with disable-hook, the skill is
+    linked into a target, and either its default is enabled or it has
+    something wired. The link condition keeps two cases off: a skill in the
+    clone that is not installed, and a skill whose links are all gone but
+    whose wiring was left behind. doctor reports that wiring as ORPHAN, with
+    the fix install or disable-hook, so update must not add to it.
+    """
+    if opted_out_of_hook(name):
+        return False
+    if not any(status(repo, name, target) == LINKED for target in targets_for(repo, name)):
+        return False
+    return manifest.get("default") == HOOK_ENABLED or bool(owned_wiring(repo, name))
+
+
+def unwired_rows(repo, name, rows):
+    """The rows of `hook_rows`, (hook, platform, state, detail), whose state is
+    off and whose hook's script is executable: the hooks set_hook(enable=True)
+    would wire. A hook whose script is not executable is left out, because
+    set_hook skips it; doctor reports it as BROKEN once it is wired."""
+    return [
+        row
+        for row in rows
+        if row[2] == HOOK_OFF and os.access(hook_script(repo, name, row[0]), os.X_OK)
+    ]
+
+
 def hooked_skills(repo):
     """[(name, manifest), ...] for every skill in the clone that ships a hook."""
     found = []
@@ -1232,9 +1269,7 @@ def auto_enable_hooks(repo, names, skip):
     Sandboxes (SHARED_SKILLS_TARGET without SHARED_SKILLS_HOOK_HOME) are left
     alone: a throwaway install should never touch real agent config files.
     """
-    if skip:
-        return 0
-    if os.environ.get(TARGET_ENV, "").strip() and not os.environ.get(HOOK_HOME_ENV, "").strip():
+    if skip or sandboxed():
         return 0
 
     changed = 0
@@ -1293,6 +1328,14 @@ def cmd_install(args):
     print()
     changed = sum(install_one(repo, name, args.force) for name in names)
     changed += auto_enable_hooks(repo, names, args.no_hook)
+    if args.no_hook and not sandboxed():
+        # --no-hook is the user's choice, so it is recorded as disable-hook
+        # records it. Without the opt-out, doctor would report the hooks
+        # UNWIRED and the next update would wire them.
+        for name in names:
+            if (repo / SKILLS_SUBDIR / name / HOOK_MANIFEST).is_file():
+                changed += switch_hook(repo, name, enable=False)
+                print(f"  {name}: hooks left off; turn them on with:  skills.py enable-hook {name}")
     print(f"\n{changed} change(s). Open a new agent tab to pick them up.")
 
 
@@ -1327,48 +1370,54 @@ def cmd_uninstall(args):
     print(f"\n{changed} change(s). Open a new agent tab to pick them up.")
 
 
+def switch_hook(repo, name, enable):
+    """Turn a skill's hooks on or off and remember the choice, so a later
+    install or update doesn't undo it. Returns how many config files changed."""
+    changed = 0
+    manifest = read_hook_manifest(repo, name)
+    if not manifest:
+        # No manifest loads. Wiring can outlive a deleted or broken
+        # hook.json, and removal doesn't need a manifest, so disable still
+        # sweeps. A hook.json that exists but won't load still counts as a
+        # hook: the choice is recorded whether enabling or disabling, so it
+        # applies once the file loads again.
+        broken = (repo / SKILLS_SUBDIR / name / HOOK_MANIFEST).is_file()
+        if broken:
+            # Nothing loads to wire, so whatever is wired is leftover: sweep it
+            # whether enabling or disabling.
+            changed += sweep_owned(repo, name, HOOK_PLATFORMS, NO_MANIFEST)
+            set_hook_opt_out(name, not enable)
+            if enable:
+                print(
+                    f"  {name}: opt-out cleared; once {HOOK_MANIFEST} declares a usable hook,"
+                    " install wires it if its default is enabled, else run enable-hook again"
+                )
+            else:
+                print(
+                    f"  {name}: hook turned off; it stays off once {HOOK_MANIFEST}"
+                    " declares a usable hook"
+                )
+            return changed
+        if enable and opted_out_of_hook(name):
+            # Undoes a disable made while hook.json was missing.
+            set_hook_opt_out(name, False)
+        if enable or not hook_present(repo, name):
+            print(f"  {name}: ships no hook")
+            return changed
+        changed += sweep_owned(repo, name, HOOK_PLATFORMS, NO_MANIFEST)
+        set_hook_opt_out(name, True)
+        return changed
+    changed += set_hook(repo, name, manifest, enable=enable)
+    # Remember the choice, so a later install doesn't undo it.
+    set_hook_opt_out(name, not enable)
+    return changed
+
+
 def cmd_enable_hook(args):
     repo = find_repo()
     if not args.names:
         sys.exit("Name at least one skill. See 'hooks' for which ones ship one.")
-    changed = 0
-    for name in args.names:
-        manifest = read_hook_manifest(repo, name)
-        if not manifest:
-            # No manifest loads. Wiring can outlive a deleted or broken
-            # hook.json, and removal doesn't need a manifest, so disable still
-            # sweeps. A hook.json that exists but won't load still counts as a
-            # hook: record the choice either way, so it applies once the file
-            # loads again.
-            broken = (repo / SKILLS_SUBDIR / name / HOOK_MANIFEST).is_file()
-            if broken:
-                # Nothing loads to wire, so whatever is wired is leftover, in
-                # either direction.
-                changed += sweep_owned(repo, name, HOOK_PLATFORMS, NO_MANIFEST)
-                set_hook_opt_out(name, not args.enable)
-                if args.enable:
-                    print(
-                        f"  {name}: opt-out cleared; once {HOOK_MANIFEST} declares a usable hook,"
-                        " install wires it if its default is enabled, else run enable-hook again"
-                    )
-                else:
-                    print(
-                        f"  {name}: hook turned off; it stays off once {HOOK_MANIFEST}"
-                        " declares a usable hook"
-                    )
-                continue
-            if args.enable and opted_out_of_hook(name):
-                # Undoes a disable made while hook.json was missing.
-                set_hook_opt_out(name, False)
-            if args.enable or not hook_present(repo, name):
-                print(f"  {name}: ships no hook")
-                continue
-            changed += sweep_owned(repo, name, HOOK_PLATFORMS, NO_MANIFEST)
-            set_hook_opt_out(name, True)
-            continue
-        changed += set_hook(repo, name, manifest, enable=args.enable)
-        # Remember the choice, so a later install doesn't undo it.
-        set_hook_opt_out(name, not args.enable)
+    changed = sum(switch_hook(repo, name, args.enable) for name in args.names)
     print(f"\n{changed} change(s).")
     if changed and args.enable:
         print("Restart Cursor to pick up hooks.json; Claude Code reads settings.json")
@@ -1560,6 +1609,14 @@ def cmd_doctor(args):
                 print(f"  BROKEN     hook script missing or not executable: {script}")
                 print(f"             it fails open, so commits are not being checked")
                 print(f"             fix: chmod +x {script}")
+        # A sandboxed install wires nothing on purpose, so a hook it left
+        # unwired is not a problem there.
+        if not sandboxed() and hooks_switched_on(repo, name, manifest):
+            for hook, platform, _, _ in unwired_rows(repo, name, rows):
+                problems += 1
+                command = wired_command(hook_script(repo, name, hook), platform)
+                print(f"  UNWIRED    declared, but not wired on {platform.name}: {command}")
+                print(f"             fix: enable-hook {name}   (or disable-hook {name})")
         if "hooks" in manifest:
             for command in stray_wiring(repo, name, manifest):
                 problems += 1
@@ -1626,6 +1683,43 @@ def cmd_update(args):
         print(f"Left {MANAGER} as it is: {why_not}")
     print("Symlinked skills track the clone automatically. Open a new agent tab")
     print("to pick up changes.")
+    if wire_new_hooks(repo):
+        print()
+        print("Restart Cursor to pick up hooks.json; Claude Code reads settings.json")
+        print("on the next session.")
+
+
+def wire_new_hooks(repo):
+    """After a pull, for each skill whose hooks are on (see
+    hooks_switched_on) and that declares a hook not yet wired, rewire the
+    skill through set_hook(enable=True). set_hook sweeps the skill's wiring
+    and writes every usable hook again. Returns how many config files it
+    rewrote.
+
+    Without this, an entry added to a hook.json stays unwired until the next
+    install or enable-hook, and nothing says so.
+    """
+    if sandboxed():
+        return 0
+    changed = 0
+    for name, manifest in hooked_skills(repo):
+        if not hooks_switched_on(repo, name, manifest):
+            continue
+        rows = hook_rows(repo, name, manifest)
+        missing = unwired_rows(repo, name, rows)
+        if not missing:
+            continue
+        print()
+        print(f"{name}'s hooks are on; wiring the ones it now declares:")
+        shown = []
+        for hook, _, _, _ in missing:
+            summary = hook.get("summary")
+            if summary and not any(hook is seen for seen in shown):
+                shown.append(hook)
+                print(f"  {summary}")
+        changed += set_hook(repo, name, manifest, enable=True)
+        print(f"  turn them off with:  skills.py disable-hook {name}")
+    return changed
 
 
 def main():
@@ -1647,7 +1741,7 @@ def main():
     add.add_argument(
         "--no-hook",
         action="store_true",
-        help="Install without wiring up hooks the skill enables by default",
+        help="Install with the skill's hooks off, as disable-hook does",
     )
 
     remove = sub.add_parser("uninstall", help="Remove one or more symlinked skills")
