@@ -1298,6 +1298,25 @@ class HookTests(unittest.TestCase):
                       f" use disable-hook {SKILL}", output)
         self.assertEqual(len(self.ours(self.claude_entries())), 1)
 
+    def test_install_with_no_hook_of_an_installed_skill_whose_hooks_are_off_says_nothing(self):
+        self.run_cli("install", SKILL)
+        self.run_cli("disable-hook", SKILL)
+        output = self.run_cli("install", "--no-hook", SKILL)
+        self.assertNotIn("is already installed; --no-hook", output)
+
+    def test_install_with_no_hook_of_an_installed_default_off_skill_says_nothing(self):
+        self.write_manifest(default="off")
+        self.run_cli("install", SKILL)
+        output = self.run_cli("install", "--no-hook", SKILL)
+        self.assertNotIn("is already installed; --no-hook", output)
+
+    def test_install_with_no_hook_of_an_installed_skill_whose_hook_json_does_not_load(self):
+        self.run_cli("install", SKILL)
+        (self.skill_dir / "hook.json").write_text("{not json")
+        # run_cli fails the test if the install exits non-zero.
+        output = self.run_cli("install", "--no-hook", SKILL)
+        self.assertNotIn("is already installed; --no-hook", output)
+
     def test_install_all_with_no_hook_says_nothing_about_installed_skills(self):
         self.run_cli("install", SKILL)
         output = self.run_cli("install", "--all", "--no-hook")

@@ -46,11 +46,16 @@ wires it after the pull (`wire_new_hooks`). A sandboxed run, one with
 - **Why only for a skill not linked before:** a skill already linked to this
   clone in any target it belongs in keeps its hook state. So
   `install --all --no-hook`, run to pick up new skills, turns off no hook the
-  user has on. A skill named on the command line that is already linked gets
-  a line saying its hooks were left as they are, with `disable-hook` as the
-  way to turn them off: the user asked for its hooks to be off and would
-  otherwise not learn that nothing changed. Under `--all` no skill was named,
-  so no such line is printed.
+  user has on.
+- **The notice for a named installed skill:** when the user names a skill
+  that was already linked to this clone before the install, and its hooks
+  are on, the install prints a line saying its hooks were left as they are,
+  with `disable-hook` as the way to turn them off. Naming it was a request for
+  its hooks to be off, and without the line the user would not learn they are
+  still on. A skill whose hooks are already off gets no line, since
+  `disable-hook` would change nothing. Under `--all` no line is printed:
+  `--all` is how new skills are picked up, so it asks nothing of a skill
+  already installed.
 - **Rejected:** "on" without the link condition. A skill in the clone that is
   not installed would read as on. So would a skill whose links are all gone
   but whose wiring was left behind; `doctor` reports that wiring as `ORPHAN`,

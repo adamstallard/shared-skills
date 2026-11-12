@@ -1336,23 +1336,32 @@ def cmd_install(args):
     changed += auto_enable_hooks(repo, names, args.no_hook)
     if args.no_hook and not sandboxed():
         # auto_enable_hooks above wired nothing, since --no-hook was given.
-        # For a skill linked in no target before this install, --no-hook is
-        # the user's choice, so it is recorded as disable-hook records it,
-        # and any wiring left from an earlier install is removed. Without the
-        # opt-out, a default-enabled skill's hooks would read as on: doctor
-        # would report them UNWIRED and the next update would wire them. A
-        # skill the install could not link, such as one blocked by a real
-        # directory, gets no opt-out, hence the linked_anywhere check after
-        # the install. A skill that was already linked keeps its hook state,
-        # so `install --all --no-hook` turns off no hook of an installed
-        # skill. A skill the user named gets a line saying so, since they
-        # asked for its hooks to be off; under --all nobody named it, so it
-        # gets none.
+        # A sandboxed run skips this block: it must not write the hook
+        # configs, which there are the real ones in the home directory.
+        # Skills with no hook.json are skipped.
+        #
+        # For a skill linked to this clone in no target before this install,
+        # --no-hook is the user's choice, so it is recorded as disable-hook
+        # records it. Wiring left behind when its links were removed by hand
+        # is removed too. Without the opt-out, a default-enabled skill's hooks
+        # would read as on: doctor would report them UNWIRED and the next
+        # update would wire them. A skill the install could not link, such as
+        # one blocked by a real directory, gets no opt-out, hence the
+        # linked_anywhere check after the install.
+        #
+        # A skill that was already linked keeps its hook state, so
+        # `install --all --no-hook` turns off no hook of an installed skill.
+        # When the user named it and its hooks are on, a line says its hooks
+        # were left on, since they asked for them to be off. It gets no line
+        # when its hooks are already off, when its hook.json does not load
+        # (read_hook_manifest prints why), or under --all, which asks nothing
+        # of an installed skill.
         for name in names:
             if not (repo / SKILLS_SUBDIR / name / HOOK_MANIFEST).is_file():
                 continue
             if name in linked_before:
-                if not args.all_skills:
+                manifest = read_hook_manifest(repo, name)
+                if not args.all_skills and manifest and hooks_switched_on(repo, name, manifest):
                     print(
                         f"  {name} is already installed; --no-hook leaves its hooks as they are;"
                         f" use disable-hook {name}"
