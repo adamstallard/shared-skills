@@ -73,18 +73,14 @@ DEFAULT_GROWTH = 50
 # ... and only when it has also grown by at least this many bytes, so a
 # small doc is not due for a few added lines.
 DEFAULT_GROWTH_BYTES = 2_000
-# A doc that its name, place, read-first link or declaration does not make
-# read often is read often when commits since its last compaction imply at
-# least this many reads of it.
-DEFAULT_READS = 20
 # A commit that shrinks a file by at least this share, in percent, counts as
 # a compaction of it.
 COMPACTED_SHARE = 10
 # How far back, in commits that changed the file, to look for the last
 # compaction.
 HISTORY_DEPTH = 500
-# How many commits back from HEAD the read count looks, so the trigger stays
-# cheap on every commit.
+# How many commits back from HEAD the read count looks, so `prose cost` and
+# a compaction brief stay cheap.
 READS_DEPTH = 300
 
 # The .gitattributes names a repository sets to override the defaults.
@@ -93,7 +89,6 @@ ATTR_GROWTH = "prose-compact-growth"
 ATTR_GROWTH_BYTES = "prose-compact-growth-bytes"
 ATTR_FLAGGED = "prose-compact-flagged"
 ATTR_FLAGGED_SHARE = "prose-compact-flagged-share"
-ATTR_READS = "prose-compact-reads"
 ATTR_ATTRIBUTION = "prose-compact-attribution"
 
 # Exit codes of `prose compact`: the brief was printed (the step is the
@@ -133,44 +128,33 @@ def human_only(path):
 
 
 def default_current(path):
-    """True when, with no `prose-compact` attribute, path is a current-state
-    doc agents read before working: a SKILL.md, AGENTS.md or CLAUDE.md; an
-    architecture doc; or, under openspec/, a spec, a capability's decision
-    record, or an open change's proposal, design or delta spec. A
-    human_only doc never is."""
+    """True when, with no `prose-compact` attribute, path's name or place
+    alone puts it under the compaction trigger: a SKILL.md, AGENTS.md or
+    CLAUDE.md, or an open OpenSpec change's proposal or design. A human_only
+    doc never is. _due also takes a file a SKILL.md or AGENTS.md links to be
+    read first. A spec, main or delta, is not under the trigger by default:
+    spec-check reads it, but its compactions cut little, since OpenSpec's
+    format repeats scenario lines on purpose and spec-check keeps history
+    out of it."""
     pure = pathlib.PurePosixPath(path)
-    name = pure.name.lower()
     if human_only(path):
         return False
-    if name in DEFAULT_NAMES:
+    if pure.name.lower() in DEFAULT_NAMES:
         return True
-    if name.startswith("architecture") and name.endswith(".md"):
-        return True
-    parts = pure.parts
-    if "openspec" not in parts:
-        return False
-    if name == "decisions.md" and parts[:1] == ("openspec",):
-        return True
-    rest = parts[parts.index("openspec") + 1:]
-    if rest[:1] == ("specs",):
-        return name == "spec.md"
-    return open_change_doc(rest) is not None
+    return pure.parts[:1] == ("openspec",) and open_change_doc(pure.parts[1:]) is not None
 
 
 def open_change_doc(rest):
-    """Which file of an open change rest names, a path's parts after its
-    openspec/ directory: "proposal", "design", "delta spec", or None.
-    default_current makes those three candidates, and _often counts them
-    read often by place, naming the kind in its reason: spec-check's
-    consistency read opens all three in every open change."""
-    if len(rest) < 3 or rest[0] != "changes" or rest[1] == "archive":
+    """"proposal" or "design" when rest, a path's parts after the
+    repository's openspec/ directory, is changes/<change>/proposal.md or
+    design.md, unless <change> is the archive directory; otherwise None.
+    default_current puts both under the trigger, and _often names the kind
+    in the reason it prints, both from this one function, so the two agree.
+    spec-check's consistency read opens both in every open change."""
+    if len(rest) != 3 or rest[0] != "changes" or rest[1] == "archive":
         return None
     name = rest[-1].lower()
-    if len(rest) == 3 and name in ("proposal.md", "design.md"):
-        return name[:-3]
-    if len(rest) == 5 and rest[2] == "specs" and name == "spec.md":
-        return "delta spec"
-    return None
+    return name[:-3] if name in ("proposal.md", "design.md") else None
 
 
 class Settings(NamedTuple):
@@ -179,7 +163,6 @@ class Settings(NamedTuple):
     binary: bool = False
     declared: bool = False      # `prose-compact`: read often, whatever its name
     flagged: int = DEFAULT_FLAGGED
-    reads: int = DEFAULT_READS
     drop_attribution: bool = False  # `prose-compact-attribution=drop`
     exempt: bool = False        # `-prose-compact`
     growth_bytes: int = DEFAULT_GROWTH_BYTES
@@ -194,13 +177,12 @@ def settings(paths, root):
     """{path: Settings} from the staged .gitattributes, falling back to the
     defaults. `prose-compact` declares a doc read often, `-prose-compact`
     exempts one, the numeric attributes replace the growth share, the
-    bytes of growth, the flagged bytes, the flagged share and the reads
-    needed, and `prose-compact-attribution=drop`
+    bytes of growth, the flagged bytes and the flagged share, and `prose-compact-attribution=drop`
     has the compactor drop "who decided" credits. Outside a repository, or
     when git fails, every path gets the defaults."""
     found = {path: {} for path in paths}
     names = [ATTR_DECLARE, ATTR_GROWTH, ATTR_GROWTH_BYTES, ATTR_FLAGGED, ATTR_FLAGGED_SHARE,
-             ATTR_READS, ATTR_ATTRIBUTION, "diff"]
+             ATTR_ATTRIBUTION, "diff"]
     if paths and root is not None:
         try:
             result = subprocess.run(
@@ -225,7 +207,6 @@ def settings(paths, root):
                              attrs.get("diff") == "unset",
                              declared is not None and declared != "unset",
                              _number(attrs.get(ATTR_FLAGGED), DEFAULT_FLAGGED),
-                             _number(attrs.get(ATTR_READS), DEFAULT_READS),
                              attrs.get(ATTR_ATTRIBUTION) == "drop", declared == "unset",
                              _number(attrs.get(ATTR_GROWTH_BYTES), DEFAULT_GROWTH_BYTES),
                              _number(attrs.get(ATTR_FLAGGED_SHARE), DEFAULT_FLAGGED_SHARE))
@@ -1116,12 +1097,7 @@ READ_FIRST = re.compile(r"\bread\b(?:\[[^\]\n]*\]\([^)\n]*\)|[^.]){0,40}?\b(?:fi
                         r"(?![ \t\n]+(?:chang|edit|modif|updat|touch)))", re.I)
 LINK = re.compile(r"\[[^\]\n]*\]\(<?([^)\s>]+)>?(?:[ \t]+\"[^\"]*\")?\)")
 # Trailers that imply a read of the skill they name.
-READ_TRAILERS = re.compile(r"^(bug-hunter|prose|spec-check)[ \t]*:(.*)$", re.I | re.M)
-# The ends of a Spec-check: value that say no consistency read ran: on a
-# commit before the end of a review round, and on one with no change due.
-# They must match spec_check.py's DEFERRED and NO_READ_DUE. A `skipped
-# (<reason>)` value is not among them, so it still counts as a read.
-SPEC_CHECK_NO_READ = ("read deferred to the round's end", "no read due")
+READ_TRAILERS = re.compile(r"^(bug-hunter|prose|spec-check)[ \t]*:", re.I | re.M)
 
 
 def _batch_blobs(oids, root):
@@ -1229,16 +1205,15 @@ def implied_reads(root, index, links, stops):
     None; only commits newer than it count. With None, the count starts at
     the commit that added the doc, found by size_history, and includes that
     commit. A doc that is not in HEAD has no reads. These rules map each commit to the reads
-    it implies; they are declared, not inferred:
+    it implies; they are fixed here, not measured from real reads:
     - a commit changing a file in a skill's directory reads that skill's
       SKILL.md and the files it links as read first;
-    - a commit reads every AGENTS.md and CLAUDE.md in the directories above
-      each file it changes, the repository's root among them, and the
-      files an AGENTS.md links as read first;
+    - a commit reads every AGENTS.md and CLAUDE.md in each changed file's
+      directory and every directory above it, the repository's root among
+      them, and the files those AGENTS.md files link as read first (only a
+      SKILL.md or AGENTS.md has read-first links);
     - a Bug-hunter:, Prose: or Spec-check: trailer reads that skill's
-      SKILL.md;
-    - a Spec-check: trailer also reads the main specs and the open changes,
-      unless its value records no read."""
+      SKILL.md."""
     out = {doc: 0 for doc in stops}
     if not stops:
         return out
@@ -1268,10 +1243,6 @@ def implied_reads(root, index, links, stops):
     # and an AGENTS.md to only one of them; with every source, either reads it.
     first_of = {source: set(targets)
                 for source, targets in read_first_sources(root, index).items()}
-    specs = {path for path in index
-             if (path.startswith("openspec/specs/") and path.endswith("/spec.md"))
-             or (path.startswith("openspec/changes/") and not path.startswith(
-                 "openspec/changes/archive/") and path.endswith(".md"))}
     for chunk in log.split("\x01")[1:]:
         commit, _, rest = chunk.partition("\n")
         body, _, files = rest.partition("\x02")
@@ -1288,12 +1259,10 @@ def implied_reads(root, index, links, stops):
             if skill:
                 reads.add(skill)
                 reads |= first_of.get(skill, set())
-        for trailer, value in READ_TRAILERS.findall(body):
+        for trailer in READ_TRAILERS.findall(body):
             name = trailer.lower()
             reads |= {path for path in skills
                       if path == f"{name}/SKILL.md" or path.endswith(f"/{name}/SKILL.md")}
-            if name == "spec-check" and not value.strip().endswith(SPEC_CHECK_NO_READ):
-                reads |= specs
         for doc in stops:
             if doc not in done and doc in reads:
                 out[doc] += 1
@@ -1366,18 +1335,19 @@ def due(paths, root, passes=None):
     flagged-bytes setting and its flagged share of the file's current size,
     or when it has grown by both its growth
     share and its growth bytes since then. Its last compaction is found as
-    size_history says; a staged blob that is itself a compaction is not
-    due. The trigger looks only at candidates: paths that are current-state,
-    by default or by their declaration in .gitattributes, or linked from a
-    SKILL.md or AGENTS.md to be read first, and not exempt. A candidate due
-    by flagged text or growth is reported only when it is read often. A binary file, by its
-    `-diff` attribute or a NUL byte, is skipped. Reads the index, so it
-    judges the change about to be committed; sizes and blobs are read by
-    the ids `git ls-files -s` and `git ls-tree` list. Read counts come
-    last, and only for a doc otherwise due, since they read the log.
+    size_history says; a staged blob that passed a compaction's review, or
+    that shrinks the file by COMPACTED_SHARE percent or more against HEAD,
+    is a compaction and not due. The trigger looks only at docs read often
+    (_often): paths default_current or a .gitattributes declaration
+    names, or that a SKILL.md or AGENTS.md links to be read first, and not
+    exempt. A binary file, by its `-diff` attribute or a NUL byte, is skipped. Reads
+    the index, so it judges the change about to be committed; sizes and
+    blobs are read by the ids `git ls-files -s` and `git ls-tree` list.
 
     No git call here fetches a blob a partial clone lacks: a history blob
-    missing counts as unknown, so the trigger never waits on the network."""
+    missing makes the doc's baseline unknown, so its flagged text cannot
+    make it due (growth is judged apart, from the sizes size_history
+    finds), and the trigger never waits on the network."""
     with _no_lazy_fetch():
         return _due(paths, root, passes)
 
@@ -1446,23 +1416,9 @@ def _due(paths, root, passes):
         if grown:
             reasons.append(grown)
         if reasons:
-            pending.append((path, setting, history, reasons))
-    out, counted = [], {}
-    unplaced = {path: (history.last[0] if history.last else None)
-                for path, setting, history, _ in pending if not _often(path, setting, links)}
-    if unplaced:
-        counted = implied_reads(root, index, links, unplaced)
-    for path, setting, history, reasons in pending:
-        often = _often(path, setting, links)
-        if often is None:
-            reads = counted.get(path, 0)
-            if reads < setting.reads:
-                continue
-            often = (f"{reads} reads implied by commits since "
-                     + ("its last compaction" if history.last else "it was added")
-                     + f"; {setting.reads} make it read often")
-        out.append(Due(path, f"read often ({often}); " + "; ".join(reasons)))
-    return out
+            pending.append((path, setting, reasons))
+    return [Due(path, f"read often ({_often(path, setting, links)}); " + "; ".join(reasons))
+            for path, setting, reasons in pending]
 
 
 def print_due(found, command):
@@ -1483,8 +1439,8 @@ def print_due(found, command):
 #
 # A section only some readers need costs every reader who loads the doc,
 # so a move is ranked by its bytes times the doc's estimated reads, the
-# count implied_reads gives the trigger. reading_cost.py finds the sections
-# and reads the descriptions; this part feeds it the repository.
+# count implied_reads gives. reading_cost.py finds the sections
+# and reads the skill descriptions; this part feeds it the repository.
 #
 # The older helpers above, such as index_entries and implied_reads, have no
 # type annotations, so this part calls each through a typed adapter that
