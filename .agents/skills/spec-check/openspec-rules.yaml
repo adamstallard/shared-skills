@@ -1,7 +1,8 @@
-# Guidance for agents that write OpenSpec changes through OpenSpec's /opsx
-# slash commands.
-# Merge the `rules:` block below into the repository's openspec/config.yaml
-# by hand. If config.yaml already has a `rules:` key, add these lists to it,
+# Guidance for agents that write OpenSpec changes through OpenSpec's
+# workflow skills.
+# When a repository's agents write changes that way, merge the `rules:` block
+# below into its openspec/config.yaml by hand. Merge it again whenever this
+# file changes, replacing the rules merged last time. If config.yaml already has a `rules:` key, add these lists to it,
 # and where it already has a list for an artifact, such as `proposal`,
 # append these rules to that list.
 # Rules that several lists share are written once, in `proposal`, each
@@ -9,9 +10,9 @@
 # (`*name`). YAML resolves an alias only to an anchor above it, so in the
 # merged file `proposal` must come before `specs` and `design`: move it up
 # if config.yaml lists either of them first. If config.yaml already uses
-# one of these anchor names, rename the clashing anchor here, and its
-# aliases.
-# `openspec instructions <artifact>` (OpenSpec 1.0.0 and later) shows each
+# one of these anchor names, rename the clashing anchor, and its aliases,
+# in the copy you merge.
+# `openspec instructions <artifact>` shows each
 # list to the agent writing that artifact, so the rules reach agents that
 # never load spec-check. To those agents the rules are advice. spec-check
 # enforces them on every change it checks, whoever wrote the change,

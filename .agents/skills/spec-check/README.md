@@ -154,9 +154,12 @@ path that breaks them, such as `openspec/docs/<capability>.md`, would
 match every doc in `openspec/docs/`, and `check` would report `record`
 errors in each one.
 
-If your agents write changes through OpenSpec's /opsx skills, the agent can
-merge [opsx-rules.yaml](opsx-rules.yaml) into `openspec/config.yaml`, so
-OpenSpec shows them these rules while they write.
+If your agents write changes through OpenSpec's workflow skills, you or your
+agent can merge the `rules:` block of [openspec-rules.yaml](openspec-rules.yaml)
+into `openspec/config.yaml`, as the file's header comment says. OpenSpec then
+shows those agents spec-check's rules for decision records while they write
+each proposal, spec and design. The block changes with spec-check, so merge it
+again after updating spec-check.
 
 ## Examples of what to say
 

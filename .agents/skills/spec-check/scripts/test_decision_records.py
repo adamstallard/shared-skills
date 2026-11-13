@@ -1373,11 +1373,12 @@ class MutationGapRun8Tests(unittest.TestCase):
         self.assertFalse(spec_check.path_matches("src/*.py", "src/lib/x.py"))
 
 
-class OpsxRulesTests(unittest.TestCase):
-    """opsx-rules.yaml is merged into openspec/config.yaml by hand; OpenSpec
-    must read it with no warning and show each artifact its rules."""
+class OpenspecRulesTests(unittest.TestCase):
+    """OpenSpec accepts openspec-rules.yaml's block in openspec/config.yaml
+    and shows each artifact its rules. The test appends the whole file to a
+    schema line; it does not test merging into an existing config."""
 
-    RULES = pathlib.Path(spec_check.__file__).parent.parent / "opsx-rules.yaml"
+    RULES = pathlib.Path(spec_check.__file__).parent.parent / "openspec-rules.yaml"
 
     def rules(self):
         """{artifact: [rule text]}, read line by line with no YAML library.
@@ -1562,8 +1563,8 @@ class FoundByBugHunterNoFoldRunTests(unittest.TestCase):
                       r.stdout)
         self.assertEqual(r.returncode, 1, r.stdout)
 
-    def test_the_opsx_rules_point_rationale_at_the_main_record(self):
-        text = (HERE.parent / "opsx-rules.yaml").read_text()
+    def test_the_openspec_rules_point_rationale_at_the_main_record(self):
+        text = (HERE.parent / "openspec-rules.yaml").read_text()
         self.assertNotIn("change's decisions.md", text)
 
 

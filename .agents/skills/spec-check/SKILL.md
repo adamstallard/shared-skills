@@ -572,14 +572,16 @@ setup-ci reads the pin and the template from GitHub, so gh must be
 installed and signed in. Commit it, and suggest making the `spec-check` check required
 in the base branch's protection rules.
 
-When it has `openspec/config.yaml` and its agents write changes through
-OpenSpec's /opsx skills, offer to merge the `rules:` block of
-[opsx-rules.yaml](opsx-rules.yaml) into that file's `rules:` by hand.
-OpenSpec shows them to the agent writing each artifact, even one that never
+When the repository has `openspec/config.yaml` and its agents write changes
+through OpenSpec's workflow skills, offer to merge the `rules:` block of
+[openspec-rules.yaml](openspec-rules.yaml) into that file's `rules:`. No
+script does it: you edit config.yaml, as the block's header comment says.
+OpenSpec shows the rules to the agent writing each artifact, even one that never
 loads this skill; they advise, and the checks and the read enforce.
-The block changes with spec-check, so whenever you rerun setup-ci to
-refresh the pin of a repository whose config.yaml already holds the block,
-merge it again by hand, replacing the copy merged last time.
+The block changes with spec-check. So whenever you set up a repository whose
+config.yaml already holds it, or rerun setup-ci there, compare its rules with
+this file's. Where they differ, replace the rules merged last time, which end
+each of config.yaml's lists, since the merge appends them.
 
 Without OpenSpec 1.16.1 or later, `sign` still signs an unstacked change,
 and the value says `show, validate and archive not run (install OpenSpec
