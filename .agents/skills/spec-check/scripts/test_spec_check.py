@@ -2099,6 +2099,195 @@ class QuotesAndSubmodulesTests(unittest.TestCase):
 
 
 
+@unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.16.1 or later")
+class OpsxRulesTests(unittest.TestCase):
+    """check warns when openspec/config.yaml lacks a rule of opsx-rules.yaml,
+    and never when a hand merge kept every rule."""
+
+    TEMPLATE = (HERE.parent / "opsx-rules.yaml").read_text()
+    RULES = TEMPLATE[TEMPLATE.index("rules:\n"):]
+
+    def setUp(self):
+        self.repo = Repo(self)
+        self.repo.change("good")
+
+    def check_with(self, config):
+        self.repo.write("openspec/config.yaml", config)
+        r = self.repo.check("good")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        return r
+
+    def test_a_verbatim_merge_is_silent(self):
+        r = self.check_with("schema: spec-driven\n" + self.RULES)
+        self.assertEqual(kinds(r), [], r.stdout)
+
+    def test_a_hand_merge_with_its_own_rules_renamed_anchors_and_wrapping_is_silent(self):
+        rules = self.RULES.replace("&evidence", "&sc-evidence").replace("*evidence", "*sc-evidence")
+        # The repository's own rule leads proposal's list, its own tasks list
+        # follows the template's lists, and one rule wraps onto a second line.
+        rules = rules.replace("  proposal:\n", "  proposal:\n    - 'Keep it short: one page.'\n", 1)
+        rules = rules.replace(" in one or two pages.", "\n      in one or two pages.", 1)
+        r = self.check_with("schema: spec-driven\n" + rules + "  tasks:\n    - Small tasks.\n"
+                            "context: |\n  A repo.\n")
+        self.assertEqual(kinds(r), [], r.stdout)
+
+    def test_a_missing_or_changed_rule_is_a_check_naming_the_setup_step(self):
+        rules = self.RULES.replace(" in one or two pages.", " in two pages.", 1)
+        rules = rules.replace("    - *dead-evidence\n", "", 1)  # the first is under specs
+        r = self.check_with("schema: spec-driven\n" + rules)
+        self.assertEqual(kinds(r), ["opsx-rules", "opsx-rules"], r.stdout)
+        self.assertIn("openspec/config.yaml:2: check [opsx-rules] rules.proposal lacks 1 rule(s)",
+                      r.stdout)
+        self.assertIn('"proposal.md keeps to the sections of OpenSpec\'s proposal ..."', r.stdout)
+        self.assertIn("rules.specs lacks 1 rule(s)", r.stdout)
+        self.assertIn("Setting up a repository", r.stdout)
+
+    def test_an_alias_is_compared_as_the_text_of_its_anchor(self):
+        rules = self.RULES.replace("&evidence Evidence, which", "&evidence Proof, which", 1)
+        r = self.check_with("schema: spec-driven\n" + rules)
+        self.assertEqual(kinds(r), ["opsx-rules"] * 3, r.stdout)
+
+    def test_a_rule_rewritten_as_a_block_scalar_is_silent(self):
+        start = self.RULES.index("    - &evidence ")
+        end = self.RULES.index("\n", start)
+        text = self.RULES[start + len("    - &evidence "):end]
+        words, lines, line = text.split(), [], ""
+        for w in words:
+            if len(line) + len(w) > 60:
+                lines.append(line)
+                line = ""
+            line = (line + " " + w).strip()
+        lines.append(line)
+        for indicator in (">-", ">"):
+            with self.subTest(indicator=indicator):
+                block = f"    - &evidence {indicator}\n" + "".join(f"      {l}\n" for l in lines)
+                rules = self.RULES[:start] + block + self.RULES[end + 1:]
+                self.assertEqual(kinds(self.check_with("schema: spec-driven\n" + rules)), [])
+
+    def test_a_repositorys_own_rule_naming_spec_check_is_not_a_merge(self):
+        config = ("schema: spec-driven\nrules:\n  proposal:\n"
+                  "    - Run spec-check before opening a pull request.\n")
+        self.assertEqual(kinds(self.check_with(config)), [])
+
+    def test_blank_and_comment_lines_inside_rules_are_skipped_to_the_last_rule(self):
+        rules = self.RULES.replace("  specs:\n", "\n  # ours\n  specs:\n", 1)
+        rules = rules.replace("never name who made", "do not name who made", 1)
+        r = self.check_with("schema: spec-driven\n" + rules)
+        self.assertEqual(kinds(r), ["opsx-rules"], r.stdout)
+        self.assertIn("rules.design lacks 1 rule(s)", r.stdout)
+
+    def test_the_next_top_level_key_ends_the_rules(self):
+        rule = self.RULES.split("\n    - ", 2)[1].split("\n")[0].split(" ", 1)[1]
+        config = ("schema: spec-driven\nrules:\n  proposal:\n    - Keep it short.\n"
+                  f"notes:\n  - {rule}\n")
+        self.assertEqual(kinds(self.check_with(config)), [])
+
+    def test_quoted_and_plain_rules_read_as_yaml_reads_them(self):
+        _, rules, _ = spec_check.opsx_rules(
+            "rules:\n  proposal:\n    - 'it''s'\n    - \"say \\\"hi\\\"\"\n"
+            "    - the users'\n    - say \"hi\"\n    - 'wrapped\n      on' # note\n"
+            "    - Keep it. # note\n")
+        self.assertEqual(rules, {"proposal": ["it's", 'say "hi"', "the users'", 'say "hi"',
+                                              "wrapped on", "Keep it."]})
+
+    def test_any_yaml_form_of_a_merge_is_silent(self):
+        start = self.RULES.index("    - &record-kinds ")
+        end = self.RULES.index("\n", start)
+        text = self.RULES[start + len("    - &record-kinds "):end]
+        for name, rules in (
+                ("anchor on its own line, then a block", self.RULES[:start] +
+                 "    - &record-kinds\n      >-\n      " + text + "\n" + self.RULES[end + 1:]),
+                ("quoted artifact keys", self.RULES.replace("  proposal:", '  "proposal":')
+                 .replace("  specs:", "  'specs':")),
+                ("an anchor outside rules", "shared:\n  - &rk " + text + "\n" +
+                 self.RULES[:start] + "    - *rk\n" + self.RULES[end + 1:]
+                 .replace("*record-kinds", "*rk"))):
+            with self.subTest(name):
+                self.assertEqual(kinds(self.check_with("schema: spec-driven\n" + rules)), [])
+
+    def test_an_older_merge_naming_spec_checks_skill_is_reported(self):
+        config = ("schema: spec-driven\nrules:\n  proposal:\n"
+                  "    - Records follow spec-check's SKILL.md, an older wording.\n")
+        r = self.check_with(config)
+        self.assertEqual(kinds(r), ["opsx-rules"] * 3, r.stdout)
+        self.assertIn("rules.proposal lacks 12 rule(s)", r.stdout)
+
+    def lean_schema(self):
+        """A project schema forked from spec-driven, without design."""
+        subprocess.run(["openspec", "schema", "fork", "spec-driven", "lean"], cwd=self.repo.path,
+                       capture_output=True, env=ENV, check=True)
+        path = self.repo.path / "openspec/schemas/lean/schema.yaml"
+        text = path.read_text()
+        text = re.sub(r"  - id: design\n.*?(?=  - id: tasks\n)", "", text, flags=re.S)
+        path.write_text(text.replace("      - specs\n      - design\n", "      - specs\n"))
+        return path
+
+    def test_a_schema_without_a_template_artifact_is_not_asked_for_its_rules(self):
+        self.lean_schema()
+        r = self.check_with("schema: lean\n" + self.RULES)
+        self.assertEqual(kinds(r), [], r.stdout)
+
+    def test_an_unreadable_schema_file_leaves_check_running(self):
+        path = self.lean_schema().with_name("notes.txt")
+        path.write_text("x")
+        path.chmod(0)
+        self.addCleanup(path.chmod, 0o644)
+        r = self.check_with("schema: lean\n" + self.RULES)
+        self.assertNotIn("Traceback", r.stderr)
+        self.assertEqual(kinds(r), [], r.stdout)
+
+    def test_a_merge_openspec_cannot_parse_is_reported(self):
+        proposal = self.RULES[self.RULES.index("  proposal:\n"):self.RULES.index("  specs:\n")]
+        rules = self.RULES.replace(proposal, "") + proposal  # proposal holds the anchors; last, it follows their aliases
+        r = self.check_with("schema: spec-driven\n" + rules)
+        self.assertIn("opsx-rules", kinds(r), r.stdout)
+
+    def test_an_artifact_openspec_cannot_give_instructions_for_is_skipped(self):
+        self.lean_schema().with_name("templates").joinpath("proposal.md").unlink()
+        r = self.check_with("schema: lean\n" + self.RULES)
+        self.assertEqual(kinds(r), [], r.stdout)
+
+    def test_a_parseable_config_with_no_template_rules_is_not_called_unparseable(self):
+        for config in ("# Rules follow spec-check's SKILL.md\nschema: spec-driven\nrules:\n  tasks: []\n",
+                       "schema: spec-driven\nrules:\n  research:\n    - Read spec-check's SKILL.md.\n"):
+            with self.subTest(config=config):
+                self.assertEqual(kinds(self.check_with(config)), [])
+
+    def test_a_byte_order_mark_before_rules_still_reports_drift(self):
+        rules = self.RULES.replace("    - *dead-evidence\n", "", 1)
+        r = self.check_with("\ufeff" + rules)
+        self.assertEqual(kinds(r), ["opsx-rules"], r.stdout)
+
+    def test_a_list_openspec_ignores_points_at_openspec_status(self):
+        rules = self.RULES.replace("    - Before proposing", "    - Note: an unquoted colon\n    - Before proposing", 1)
+        r = self.check_with("schema: spec-driven\n" + rules)
+        self.assertEqual(kinds(r), ["opsx-rules"], r.stdout)
+        self.assertIn("`openspec status`", r.stdout)
+
+    def test_drift_under_a_project_schema_is_reported(self):
+        self.lean_schema()
+        rules = self.RULES.replace(" in one or two pages.", " in two pages.", 1)
+        r = self.check_with("schema: lean\n" + rules)
+        self.assertEqual(kinds(r), ["opsx-rules"], r.stdout)
+        self.assertIn("rules.proposal lacks 1 rule(s)", r.stdout)
+
+    def test_without_a_usable_openspec_the_check_is_silent(self):
+        self.repo.write("openspec/config.yaml", "schema: spec-driven\n" +
+                        self.RULES.replace(" in one or two pages.", " in two pages.", 1))
+        for version, delegate in (("1.14.3", True), ("1.16.1", False)):
+            with self.subTest(version=version, delegate=delegate):
+                env = dict(ENV, PATH=str(fake_openspec(self, version, delegate)))
+                r = self.repo.check("good", env=env)
+                self.assertNotIn("Traceback", r.stderr)
+                self.assertNotIn("opsx-rules", r.stdout)
+
+    def test_a_config_that_never_merged_the_template_is_silent(self):
+        for config in ("schema: spec-driven\n",
+                       "schema: spec-driven\nrules:\n  proposal:\n    - Keep it short.\n"):
+            with self.subTest(config=config):
+                self.assertEqual(kinds(self.check_with(config)), [])
+
+
 class TrailerTests(unittest.TestCase):
     def setUp(self):
         self.repo = Repo(self)

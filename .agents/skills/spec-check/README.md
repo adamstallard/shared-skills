@@ -155,8 +155,11 @@ match every doc in `openspec/docs/`, and `check` would report `record`
 errors in each one.
 
 If your agents write changes through OpenSpec's /opsx skills, the agent can
-merge [opsx-rules.yaml](opsx-rules.yaml) into `openspec/config.yaml`, so
-OpenSpec shows them these rules while they write.
+merge the rules in [opsx-rules.yaml](opsx-rules.yaml), on where a change's
+reasons and evidence go, into `openspec/config.yaml`. OpenSpec then shows
+those rules to each agent while it writes. The merged copy never updates
+itself: when opsx-rules.yaml changes, `check` names each rule config.yaml
+lacks, and merging the file again brings it up to date.
 
 ## Examples of what to say
 

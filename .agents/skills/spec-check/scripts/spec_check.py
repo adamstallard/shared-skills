@@ -1685,6 +1685,94 @@ def read_config(root):
     return template, [Finding(CONFIG_FILE, n, sev, "config", msg) for n, sev, msg in problems]
 
 
+OPENSPEC_CONFIG = "openspec/config.yaml"
+OPSX_TEMPLATE = os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir, "opsx-rules.yaml")
+OPSX_CHANGE = "spec-check-rules"
+
+
+def opsx_rules(config, schemas=None):
+    """Read the rules in a config.yaml's text as OpenSpec gives them to
+    agents, by running `openspec instructions` in a scratch repository that
+    holds only that file, an empty change and a copy of schemas (the checked
+    repository's openspec/schemas), if given. OpenSpec resolves the YAML,
+    aliases included. Returns the artifacts OpenSpec gives instructions
+    for, {artifact: [rule]} for those that have rules, and whether the
+    `status` call's output holds "could not parse", OpenSpec 1.16.1's
+    wording for a config.yaml it ignores; if OpenSpec rewords it, the parse
+    finding stops firing."""
+    with tempfile.TemporaryDirectory(prefix="spec-check-rules-") as tmp:
+        os.makedirs(os.path.join(tmp, "openspec", "changes", OPSX_CHANGE))
+        with open(os.path.join(tmp, *OPENSPEC_CONFIG.split("/")), "w", encoding="utf-8") as fh:
+            fh.write(config)
+        if schemas:
+            shutil.copytree(schemas, os.path.join(tmp, "openspec", "schemas"), symlinks=True)
+        _, data, said = openspec_json(tmp, "status", "--change", OPSX_CHANGE, "--json")
+        artifacts, rules = [], {}
+        for artifact in (data or {}).get("artifactPaths") or {}:
+            _, data, _ = openspec_json(tmp, "instructions", artifact, "--change", OPSX_CHANGE, "--json")
+            if not (data or {}).get("artifactId"):
+                continue  # OpenSpec cannot instruct it, as when the schema lacks its template file
+            artifacts.append(artifact)
+            got = (data or {}).get("rules")
+            if isinstance(got, list):
+                rules[artifact] = [r for r in got if isinstance(r, str)]
+        return artifacts, rules, "could not parse" in said
+
+
+def check_opsx_rules(root):
+    """A check finding for each artifact whose rules in config.yaml lack a
+    rule of spec-check's opsx-rules.yaml, or one finding when OpenSpec
+    cannot parse a config.yaml that names spec-check's SKILL.md. Silent
+    without OpenSpec, when either file is missing, when config.yaml has no
+    `rules:`, when the schemas cannot be copied, and when nothing in
+    config.yaml shows the repository ever merged the template."""
+    config_path = os.path.join(root, *OPENSPEC_CONFIG.split("/"))
+    try:
+        with open(OPSX_TEMPLATE, encoding="utf-8") as fh:
+            template_text = fh.read()
+        with open(config_path, encoding="utf-8-sig") as fh:
+            config_text = fh.read()
+    except (OSError, UnicodeDecodeError):
+        return []
+    if openspec_missing() or not re.search(r"^rules[ \t]*:", config_text, re.M):
+        return []
+    schemas = os.path.join(root, "openspec", "schemas")
+    try:
+        _, template, _ = opsx_rules(template_text)
+        artifacts, config, unparsed = opsx_rules(config_text, schemas if os.path.isdir(schemas) else None)
+    except OSError:
+        return []  # such as a schema file copytree cannot read
+    line = next((n for n, text in enumerate(config_text.splitlines(), 1)
+                 if re.match(r"rules[ \t]*:", text)), 0)
+    if unparsed and "spec-check's SKILL.md" in config_text:
+        return [Finding(OPENSPEC_CONFIG, line, "check", "opsx-rules",
+                        "OpenSpec cannot parse this file, so no agent sees its rules, spec-check's "
+                        "among them. `openspec status` says why")]
+    norm = lambda s: " ".join(s.split())
+    # The template counts as merged at some time when a rule matches one of
+    # its rules today, or names spec-check's SKILL.md, as a rule of every
+    # earlier version did.
+    ours = {norm(r) for rules in template.values() for r in rules}
+    if not any(norm(r) in ours or "spec-check's SKILL.md" in r
+               for rules in config.values() for r in rules):
+        return []
+    findings = []
+    for artifact, rules in template.items():
+        if artifact not in artifacts:
+            continue  # the schema lacks it, or OpenSpec cannot instruct it
+        have = {norm(r) for r in config.get(artifact, [])}
+        missing = [r for r in rules if norm(r) not in have]
+        if missing:
+            starts = "; ".join('"' + " ".join(r.split()[:8]) + ' ..."' for r in missing)
+            findings.append(Finding(OPENSPEC_CONFIG, line, "check", "opsx-rules",
+                                    f"rules.{artifact} lacks {len(missing)} rule(s) of spec-check's "
+                                    f"opsx-rules.yaml, as OpenSpec reads it: {starts}. If `openspec "
+                                    f"status` warns that it ignores these rules, fix what it names; "
+                                    f"otherwise merge the template again, replacing the older copies "
+                                    f"(spec-check's SKILL.md, Setting up a repository)"))
+    return findings
+
+
 def record_path(template, cap):
     return template.replace(CAPABILITY_SLOT, cap)
 
@@ -3823,7 +3911,7 @@ def run_checks(root, repo, base_ref, targets, validate, base_required=False, cha
     # to each change's name. With "specs" a target, every record is checked,
     # so no list is needed.
     changed = changed_files(repo, base_ref, change) if not specs else None
-    findings, statuses, archives = list(corpus.config_findings), [], []
+    findings, statuses, archives = corpus.config_findings + check_opsx_rules(root), [], []
     stacks, declared, kept = [], {}, []
     main_names = {(spec_cap(p), r.name) for p, rs in corpus.specs.items() for r in rs}
     for change in changes:

@@ -103,6 +103,7 @@ the `renamed-block` scan still run.
 | `rationale` | check | A requirement in a change holds more than its SHALL statement and one *because* sentence. Move reasoning with evidence to a Rationale entry in the capability's decision record, and the rest to design.md (see [Decision records](#decision-records)) |
 | `record` | error, or check | Error: a decision record departs from its form, such as a Rationale entry with no *Evidence*, or one whose title names no requirement in force or in an open change, or names one an open change removes or renames away (reported at the record and at the change's delta line); or a change holds its own `decisions.md`. A *Paths* entry the tree lacks is an error, or a check while an open change touches the capability, since its implementation may add it. Check: *Because* or *Lost because* runs past one sentence, or *Evidence* or *Lost because* links nothing |
 | `config` | error | `openspec/spec-check.yaml`, which sets where decision records live, holds a line that is not `key: value`, a key other than `decision-records`, a second `decision-records` line (the first stays in force), or a record path that breaks the rules in *Decision records*. The rest of the file is still read; with no usable `decision-records` line, records are at the default `openspec/specs/<capability>/decisions.md` |
+| `opsx-rules` | check | A list under `rules:` in `openspec/config.yaml` lacks a rule of [opsx-rules.yaml](opsx-rules.yaml), usually because that file changed after its rules were merged. It quotes the start of each missing rule. Merge opsx-rules.yaml again, replacing the rules merged from it before (see *Setting up a repository*). A list OpenSpec cannot read, such as one holding an item with an unquoted `: `, makes all its rules look missing; `openspec status` then warns about that list, so fix what it names first. Rules compare as OpenSpec resolves them, so the YAML form, anchor names and the repository's own extra rules make no difference. An artifact the repository's schema lacks is skipped. A merged config.yaml that OpenSpec cannot parse gets one finding saying so. Silent without OpenSpec 1.16.1 or later, and when config.yaml shows no merge: none of its rules matches one of opsx-rules.yaml's or names spec-check's SKILL.md, as a rule of every version of that file has |
 
 A **check** is a heuristic: judge it, and fix it or leave it. An `openspec
 archive` or `openspec validate` result of "not run" never means it passed;
@@ -577,6 +578,8 @@ OpenSpec's /opsx skills, offer to merge the `rules:` block of
 [opsx-rules.yaml](opsx-rules.yaml) into that file's `rules:` by hand.
 OpenSpec shows them to the agent writing each artifact, even one that never
 loads this skill; they advise, and the checks and the read enforce.
+`check` never edits config.yaml; once the template changes, it reports
+each rule the merged copy lacks as an `opsx-rules` check.
 
 Without OpenSpec 1.16.1 or later, `sign` still signs an unstacked change,
 and the value says `show, validate and archive not run (install OpenSpec
