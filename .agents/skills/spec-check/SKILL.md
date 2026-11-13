@@ -577,6 +577,9 @@ OpenSpec's /opsx skills, offer to merge the `rules:` block of
 [opsx-rules.yaml](opsx-rules.yaml) into that file's `rules:` by hand.
 OpenSpec shows them to the agent writing each artifact, even one that never
 loads this skill; they advise, and the checks and the read enforce.
+The block changes with spec-check, so whenever you rerun setup-ci to
+refresh the pin of a repository whose config.yaml already holds the block,
+merge it again by hand, replacing the copy merged last time.
 
 Without OpenSpec 1.16.1 or later, `sign` still signs an unstacked change,
 and the value says `show, validate and archive not run (install OpenSpec
