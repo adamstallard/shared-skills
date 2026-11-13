@@ -31,11 +31,19 @@ you. A read-only question needs no worktree.
 ```bash
 # new branch
 git worktree add --lock --reason "<agent or person> working: <task>" \
-  -b <name> .claude/worktrees/<name> origin/<branch-to-start-from>
+  --no-track -b <name> .claude/worktrees/<name> origin/<branch-to-start-from>
 # existing branch
 git worktree add --lock --reason "<agent or person> working: <task>" \
   .claude/worktrees/<name> <existing-branch>
 ```
+
+`--no-track` stops a new branch tracking the branch it started from. A
+plain `git pull` pulls from the tracked branch, and with some `push.default`
+settings a plain `git push` goes to it. An IDE asked to check out the start
+branch, such as another pull request's branch to review it, can pick your
+branch instead, because yours already tracks it. The worktree holds your
+branch, so that checkout fails. Push the first time with
+`git push -u origin <name>`, so the branch tracks its own remote branch.
 
 `--reason` with `add` needs git 2.33 or later. On an older git, add the
 worktree with `--lock` alone and run
