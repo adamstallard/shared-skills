@@ -155,7 +155,12 @@ contradicts what design.md assumed.
       that GitHub's API gives, for the newest commit that changed
       `relays/<login>.yaml`, the merged pull request it came from and its
       author, after a merge commit, a squash and a rebase alike, such as
-      through `commits/<sha>/pulls`; whether a commit GitHub signs itself,
+      through `commits/<sha>/pulls`; that the commits API, filtered by
+      the file's path from the default branch's head, finds the same newest
+      commit as `git log -1 -- relays/<login>.yaml` from that head, with
+      git's default history simplification, so that a caller with no clone
+      of the lore repository ties the file to the same person as one
+      reading its clone; whether a commit GitHub signs itself,
       from its web editor or contents API, is verified for an account
       other than its author's, which would let anyone with push access
       make a commit verified for another person, and which also bears on *A questions-branch

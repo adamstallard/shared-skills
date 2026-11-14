@@ -638,14 +638,15 @@ counts.
 - **THEN** `bad_login!` has no relay App, and `bob`'s listed App is his
   relay App
 
-### Requirement: A relay file is read as last fetched, or as igor last applied it
+### Requirement: A relay file is read as last fetched, through the API without a clone, or as igor last applied it
 
-Outside an Igor, a relay file SHALL be read from the lore repository's
-default branch as the clone's remote-tracking branch last fetched it. An
-Igor SHALL read it as of the last commit applied by igor PR #208's **lore
-read**, igor's step that fetches the lore repository's commits and applies
-only those passing igor's startup checks (igor PR #216's decision 77;
-design.md: *An Igor reads relay files as of igor PR #208's applied commit*).
+Outside an Igor, an AI teammate igor runs, a check of a person's relay
+Apps SHALL read their relay file from the lore repository's default branch:
+as its own clone of that repository last fetched the branch, or, only with
+no clone, through GitHub's API at the branch's head. An Igor SHALL read it
+as of the last commit applied by igor PR #208's **lore read**, which
+applies only lore commits passing igor's startup checks (design.md: *An
+Igor reads relay files as of igor PR #208's applied commit*).
 
 #### Scenario: A relay merged since the last fetch is not yet read
 
@@ -653,6 +654,14 @@ design.md: *An Igor reads relay files as of igor PR #208's applied commit*).
   `relays/alice.yaml` merged after the clone's remote-tracking branch was
   last fetched
 - **THEN** the reader reads the file without `alice-relay`
+
+#### Scenario: A caller with no lore clone reads the relay file through the API
+
+- **WHEN** outside an Igor, a CI workflow with no clone of the lore
+  repository checks whether `alice-relay` is `alice`'s relay App
+- **THEN** it reads `relays/alice.yaml` through GitHub's API at the head
+  of the lore repository's default branch, and finds through the API the
+  newest commit that changed it, to check that `alice` made that change
 
 #### Scenario: An Igor counts no relay from a commit igor refused
 

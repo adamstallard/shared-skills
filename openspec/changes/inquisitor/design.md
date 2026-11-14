@@ -1546,6 +1546,9 @@ repository without the answer*).
 
 #### An Igor reads relay files as of igor PR #208's applied commit
 
+**igor PR #216's decision 77 has an Igor read relay files as of the last
+lore commit #208 applied; the reasons below are this change's.**
+
 **Why:** #208 applies only commits passing igor's startup checks, so a
 refused commit's relay files never count, just as no relay file counts whose
 last change can't be shown to be its person's. The check of who last changed
