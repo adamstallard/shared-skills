@@ -2748,8 +2748,8 @@ prototyped and then built directly; this change adopts OpenSpec, spec-check
 and spec-trace for the repository.** `AGENTS.md` states the arrangement,
 decision records included. An existing skill gets its spec in a change of its
 own, skill by skill, as shared-skills issue #57 plans; a change that edits a
-skill with no spec, as this one edits github-app and bug-hunter (tasks 5.5
-and 5.7), lists the edit as a task. This change's reasoning that no test can
+skill with no spec, as this one edits github-app and bug-hunter (tasks 5.5,
+5.7 and 5.8), lists the edit as a task. This change's reasoning that no test can
 check is in the decision records of `inquisitor`, `answer-session` and
 `gh-post`; there is no `.agents/skills/inquisitor/DECISIONS.md`.
 
@@ -3041,13 +3041,13 @@ to its 149.
 
 ### What other changes must provide
 
-- **bug-hunter needs a matching note:** the regression-test rule of
-  *Weaknesses stay out of public text until disclosure*, carried by a separate
-  change to bug-hunter.
 - **The github-app skill's `token`, `run`, `credential get` and `wire`
-  commands must refuse an identity marked as a relay.** No pull request for it
-  is open. This change ships without it (*github-app refuses `token`, `run`,
-  `credential get` and `wire` for a relay identity*).
+  commands must refuse an identity marked as a relay.** Issue
+  adamstallard/shared-skills#96 tracks it. Its spec, in a pull request
+  stacked on this one, starts once this change's spec is approved, and its
+  implementation follows this change's. This change does not wait for it:
+  the entry *github-app refuses `token`, `run`, `credential get` and `wire`
+  for a relay identity*, above, says why and what stays open meanwhile.
 
 ### Outside this change
 
