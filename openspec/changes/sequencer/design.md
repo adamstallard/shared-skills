@@ -1,7 +1,6 @@
 The sequencer is a skill that recommends the order in which a repository's
 open work is specified, implemented, reviewed and merged. Shared-skills
-issue #43 decides what it does. adamstallard/igor#231 decides how the order
-is kept and published, and the skill follows those decisions.
+issue #43 and adamstallard/igor#231 hold the discussion behind it.
 
 Terms used throughout, as the spec defines them:
 
@@ -60,19 +59,21 @@ commands:
   the backticked names that appear in both changes' `tasks.md` files, to
   help the model step. `--reviewers` tries a reviewer list in place of the
   configured one. It edits nothing.
-- `publish [--code-edges FILE] [--decide '#<n> first' --by <login>]`
+- `publish [--code-edges FILE | --model api] [--decide '#<n> first' --by <login>]`
   computes the order and edits the order's issue and the items' bodies. It
   takes the model step's edges from `FILE`, which carries the inputs hash
-  `order` printed, and records a person's choice in a cycle given with
-  `--decide`, naming that person with `--by`.
-- `setup-ci [--model-step none|api-key|igor] [--force]` writes the workflow
-  template.
+  `order` printed, or from one API call with `--model api`, and records a
+  person's choice in a cycle given with `--decide`, naming that person with
+  `--by`.
+- `setup-ci [--model-step none|api-key|igor] [--lore <owner>/<repo>] [--force]`
+  writes the workflow template, and with `--lore` names the team's lore
+  repository in `.github/sequencer.json`.
 
 In a session, the agent runs `order`, applies the model step to the
 printed changes and names, writes its edges to a file, and runs `publish
---code-edges` with it. The CI workflow runs `publish` on each trigger.
-Where the repository chose its API key, a second job then runs the model
-step and publishes its edges. Where it chose an Igor, `publish` labels the
+--code-edges` with it. The CI workflow runs `publish` on each trigger,
+as `publish --model api` where the repository chose to run the model step
+on its own API key. Where it chose an Igor, `publish` labels the
 order's issue, and a Sequencer Igor runs the model step and publishes its
 edges through the same script.
 
@@ -122,21 +123,39 @@ copy: the later of the two in the order.
 
 **A cycle is reported as a question and its place left unchosen,** because
 whichever member archives first cites a requirement not yet in force, and
-only a person may accept that gap (igor#231, decision 3). Once a person
+only a person may accept that gap. Once a person
 chooses, the chosen member's reason links the answer.
 
 **The order's issue body keeps the list of decided cycles, and the
 sequencer checks that list before asking,** as the inquisitor's filter 1,
 already answered, checks for an earlier answer. So a decided cycle is not
-asked again. A run with no model can judge no free-text answer, so each
-question offers its members as options labelled `#<n> first`. A run counts
-a comment on the order's issue as the answer when it was posted after the
-cycle's question and starts with one of those labels. The comment must
-come from a person with write access, or from their relay App, the bot
-that posts a person's answers for them; for a relay App, only the text
-after its `User says: ` prefix is read. In a session, the agent records the
-answer the person gave through the picker, the host's question tool, with
-`publish --decide`.
+asked again.
+
+**Only an agent session asks a cycle's question; CI lists the cycle in the
+order's issue and asks nothing.** In a session, the agent asks through the
+picker, the host's question tool, and records the answer with `publish
+--decide`. A session's ask is marked in the order's issue with its time, and lapses after 7 days
+unanswered, so a question asked in a session that ended without an answer
+is asked again by a later one.
+
+A run with no model can judge no free-text answer, so each question offers
+its members as options labelled `#<n> first`. Every run, CI's included,
+counts a comment on the order's issue that starts with one of those labels
+and was posted after the cycle was first listed. The comment counts when an
+account with write access posted it, or when it is a relayed answer.
+
+A relayed answer is a `User says: ` comment that a person's relay App, the
+GitHub App their answer session posts through, posted for them. Which Apps
+are a person's is read from their relay file, `relays/<login>.yaml` in the
+team's lore repository, the repository of shared answers the inquisitor
+uses. `.github/sequencer.json` names that repository, so every caller reads
+the same one, through GitHub's API under the inquisitor's *A reader counts
+a relay file only when its person made its last change*. A public lore
+repository is read with the workflow's own token, a private one with a
+read-only token `setup-ci` stores as a secret. Without access to the lore
+repository, only direct comments count, and the order's issue says so.
+Relayed answers are counted only once the inquisitor's task 0.21 has
+measured whether GitHub's API names the App that wrote a comment.
 
 The decided cycles are kept in the order's issue rather than in a committed
 file, as the inquisitor keeps a repository's answers, because the order's
@@ -150,12 +169,15 @@ issue has no branch to commit a file to.
 **The model step runs in a session through the agent running the skill, and
 in CI only where the repository opts in.** The deterministic part always
 runs and needs no secret. The order says plainly which pairs of changes
-the model step did not check, and never treats them as checked. The names
-both changes' `tasks.md` files hold point the model at the pairs worth
-reading. In CI, the model step's job has read-only access to the
-repository, so text in a pull request that steers the model still cannot
-make it edit anything. Only the script edits the order's issue and the
-items' bodies.
+the model step did not check, and never treats them as checked; a change
+the OpenSpec CLI refuses counts as unchecked too. The names both changes'
+`tasks.md` files hold point the model at the pairs worth reading. In CI,
+the model step is one API call with no tools, and the script validates its
+reply; the decision record's Rationale for *With an API key, the model step
+is one API call with no tools* says why. Every string the script takes from
+a pull request or the model is written as inline code, so a reason that
+text in a pull request steered the model into writing can @-mention no
+one.
 
 - *Ruled out by a scenario:* requiring a model for every run (*The
   workflow's deterministic part needs no secret*).
@@ -174,10 +196,8 @@ text in the same body. The prose skill ends each body it signs with a
 `prose ✓` footer, a hash of the text above it, and prose's hook reads the
 footer as the body's last line. A new block goes just above that footer
 so it stays last. The block changes the text the footer hashes, so a
-footer already in the body stops matching it. That is harmless: before a
-hand-back, prose's hook reads a posted body's footer only for whether it
-says the body's cold read was put off, never its hash, and the footer stays
-last.
+footer already in the body stops matching it. That is harmless, because
+prose's hook never checks the hash of a footer already posted.
 
 - *Ruled out by a scenario:* keeping the order in comments (*The whole
   order lives in one issue's body*).
@@ -190,16 +210,17 @@ last.
 whether or not it has OpenSpec changes,** since an OpenSpec repository
 still has issues with no change yet and code pull requests that overlap. A
 repository without OpenSpec gets its order from them alone, and the order
-says dependencies between requirements were not checked (#43). Overlapping files give merge waits, so each later
-pull request rebases once, onto the one merged before it, rather than after
-every merge. A merge wait follows the order the other rules and the
+says dependencies between requirements were not checked. Overlapping files
+give merge waits: each later pull request waits for the earlier one that
+shares its files, and rebases once, onto it, rather than after every
+merge. A merge wait follows the order the other rules and the
 tiebreak give, and never changes it.
 
 ### Reviewers
 
 **The order's issue names each reviewer's next review, ranking first the
-pull request that the most items come after,** because review time usually
-limits how fast a team ships (igor#231, decision 4). Reviewers are the
+pull request that the most items come after,** because reviewing it
+unblocks the most work. Reviewers are the
 `reviewers` list in the repository's `.github/sequencer.json`; with none,
 everyone each pull request has requested on GitHub, including anyone
 GitHub dropped from its request list when they submitted a review; and
@@ -232,9 +253,7 @@ rule placing them.
 **Among items no rule orders, the lowest number goes first, and nobody is
 asked, for every caller, Igor's Sequencer included.** The order needs a
 deterministic tiebreak, nearly every pair of items is unordered, and a
-wrong guess is cheap to reverse. igor#231's decision 3 sends only a
-cycle's order to a person, and says that items the rules leave unordered go
-lowest number first, unasked.
+wrong guess is cheap to reverse.
 
 - *Ruled out by a scenario:* asking a person about each unordered pair
   (*Items no rule orders keep the order they were opened in*).
@@ -246,9 +265,8 @@ creates it when none is open, and refuses, naming both, when there are
 two. A person with write access, or `igor init` running under such a
 person's login, can also make one by adding the label, and no
 configuration names it. The script refuses a labelled issue whose author
-lacks write access. GitHub lets an issue's author edit its body whatever
-their access, so that author could rewrite the decided cycles and the
-model step's stored edges kept there.
+lacks write access; the decision record's Rationale for *The whole order
+lives in one issue's body* says why.
 
 ### Code edges outlast runs with no model
 
@@ -292,8 +310,9 @@ body from its loop and gating gate two on the order, is igor#231's.
 ### It recommends and never merges
 
 **The sequencer recommends a merge order and never merges, approves or
-closes anything** (igor#231, decision 5). A person approves and merges every
-pull request.
+closes anything.** Under the repository's workflow (AGENTS.md), a person
+approves each pull request's specification and its implementation, and
+merging belongs with that approval; the sequencer only orders work.
 
 - *Ruled out by a scenario:* merging the first approved pull request (*The
   sequencer recommends a merge order and never merges*).
@@ -311,21 +330,18 @@ never stops a cycle's question either: the sequencer lets only a person
 choose any of a cycle's members (*A cycle is asked about, never chosen*),
 and filter 3, which has the agent take a question's one option of merit
 itself, never takes an option the requiring skill reserves for a person. In a
-session the question is asked through the picker. In CI it is posted once
-on the order's issue, where the person's answer session, the inquisitor's
-view for answering the questions asked of them, shows it (the answer
-session's *A question asked of the person comes from one of four
-sources*). Until it is answered, the order shows the question and leaves
-that place unchosen.
+session the question is asked through the picker. CI asks nothing. Until it
+is answered, the order leaves that place unchosen.
 
 ### The CI workflow
 
 **`setup-ci` writes the workflow template and never overwrites a copy
 already there; `--force` replaces it** (#43), as spec-check's `setup-ci`
-does. The template triggers on issues opened, pull requests opened, pushes
-to an open pull request's branch, merges, and a daily run (igor#231,
-decision 6), in one `concurrency` group so two runs never edit the same
-body at once.
+does. The template triggers on every event that can change the order:
+issues opened, edited, closed or commented on; pull requests opened,
+edited, marked ready, reviewed or closed, merged or not; pushes to an open
+pull request's branch; and a daily run. All share one `concurrency` group,
+so no two workflow runs edit the same body at once.
 
 The template uses `pull_request_target`, and reads each pull request's
 change files through `git fetch` of its head and the OpenSpec CLI, never
@@ -351,7 +367,26 @@ workflow file.
 
 ## Open Questions
 
-No design question is open. Three facts are measured before building.
+- **Whether edges from authors without write access count.** Anyone who
+  can open a pull request or an issue can steer the order: a requirement
+  title copying a sentence in another change makes that change cite it, a
+  citation back makes a cycle that leaves that change unplaced until a
+  person chooses, and issues saying
+  `Depends on #<n>` raise #n in every reviewer's queue.
+- **How an ask without a picker is answered.** An Igor worker asks in its
+  handback comment, where the person answers on the item's thread, which
+  no run reads, and its Igor cannot record the answer with `publish
+  --decide` under the person's login. Such an ask never decides the cycle.
+- **Whether a cycle question is logged.** Through the inquisitor, each
+  asked question is logged as a file in its repository or the team's lore
+  repository, and the inquisitor lists no exemption for the sequencer's;
+  this change keeps the answer only in the order's issue.
+- **A Sequencer Igor's publish racing the workflow's.** The decision
+  record accepts the later write; igor#231 says two runs must not race to
+  edit one body.
+
+Tasks 0.1 to 0.4 measure four facts before building. The last bullet is a
+fact the inquisitor's task 0.21 measures, which relayed answers wait on.
 
 ### Facts measured before building
 
@@ -369,3 +404,12 @@ Each bullet says what the spec does if the fact is false.
   it needs a checkout, the script writes each head's change files, read
   with `git show`, into a scratch directory laid out as an `openspec/`
   tree and runs the CLI there.
+- **A run on a review of a fork's pull request can edit bodies** (task
+  0.4). Reviews trigger through `pull_request_review`, which for a fork's
+  pull request may get a read-only token. If so, that run publishes
+  nothing, and the next run with a write token, at the latest the daily
+  one, publishes the order.
+- **GitHub's API names the App that wrote a comment** (the inquisitor's
+  task 0.21). Relayed answers are not counted, and no lore token is set
+  up, until it is measured. If GitHub does not, the repository's owner
+  decides what to build, as that task says.

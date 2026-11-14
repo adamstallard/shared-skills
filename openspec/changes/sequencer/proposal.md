@@ -33,14 +33,15 @@ Igor's Sequencer role (adamstallard/igor#231).
   reviewer's next review. The sequencer recommends a merge order and never
   merges.
 - A question of judgement, such as which change in a cycle goes first, goes
-  to a person through the inquisitor skill, and the order leaves that place
-  unchosen until a person answers.
+  to a person through the inquisitor skill in an agent session; CI only
+  lists it. The order leaves that place unchosen until a person answers.
 - `setup-ci` writes a GitHub Actions workflow that keeps the order current.
-  The repository chooses how its model step runs: not at all, with the
-  repository's API key, or by an Igor.
+  The repository chooses how its model step runs: not at all, by one API
+  call with no tools on the repository's API key, or by an Igor.
 
 design.md's *Decisions* gives the reason for each rule, and its *Open
-Questions* lists three facts to measure before building.
+Questions* lists four questions for a person and the facts to measure
+before building.
 The capability's decision record, `openspec/specs/sequencer/decisions.md`,
 holds what no test can express, each entry with its evidence: constraints
 no test can check, alternatives no requirement guards against, and reasons

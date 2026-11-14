@@ -15,6 +15,9 @@ including a result that contradicts what design.md assumed.
       requirement's operation and title, from files fetched from a pull
       request's head without checking it out
 
+- [ ] 0.4 A `pull_request_review` run for a fork's pull request gets a
+      `GITHUB_TOKEN` that can edit issue and pull request bodies
+
 ## 1. Reading the repository
 
 - [ ] 1.1 `.agents/skills/sequencer/scripts/sequencer.py`, checked by
@@ -26,7 +29,9 @@ including a result that contradicts what design.md assumed.
 - [ ] 1.3 Read each change's deltas through OpenSpec's CLI, 1.16.1 or later,
       and report a missing or older CLI as *The script reads OpenSpec
       changes only through the OpenSpec CLI* says
-- [ ] 1.4 Select the issues the order holds, as *The order holds every
+- [ ] 1.4 List a change the CLI refuses as not checked, with the CLI's
+      reason, and its pairs as unchecked
+- [ ] 1.5 Select the issues the order holds, as *The order holds every
       open pull request and the issues linked to the work* says
 
 ## 2. The rules
@@ -61,25 +66,33 @@ including a result that contradicts what design.md assumed.
 - [ ] 3.7 Rank a spec pull request ahead of the pull requests that come
       after it, and stop a pull request awaiting a reviewer once their
       review's `commit_id` is its head commit
+- [ ] 3.8 Write every string taken from an issue, a pull request, a
+      change's files or the model step as inert inline code, and refuse
+      one holding the end marker
 
 ## 4. Judgement questions
 
 - [ ] 4.1 Put each undecided cycle through the inquisitor as a question the
-      sequencer requires: through the picker in a session, and posted once
-      on the order's issue in CI, with the person-required line and the
-      inquisitor's tag
-- [ ] 4.2 Read a person's choice in a cycle and record it, as *A person's
-      choice in a cycle is read from the order's issue* says, and
-      `publish --decide`
+      sequencer requires, through the picker in a session; mark the ask
+      with its time and let it lapse after 7 days; in CI, list the cycle
+      and ask nothing
+- [ ] 4.2 Count direct answer comments on the order's issue, and record a
+      session's answer with `publish --decide`
+- [ ] 4.3 Built only once the inquisitor's task 0.21 is measured: count
+      relayed answers from relay files read through the API from the lore
+      repository `.github/sequencer.json` names, and `setup-ci --lore`
+      with its `SEQUENCER_LORE_TOKEN` secret
 
 ## 5. The CI workflow
 
-- [ ] 5.1 `.agents/skills/sequencer/ci/sequencer.yml`: the triggers, one
-      concurrency group, `pull_request_target` reading pull requests as data,
-      the sequencer script fetched from the shared-skills commit `setup-ci`
+- [ ] 5.1 `.agents/skills/sequencer/ci/sequencer.yml`: every trigger
+      *The workflow recomputes the order on each event that can change it*
+      names, one concurrency group, `pull_request_target` reading pull
+      requests as data, the sequencer script fetched from the shared-skills commit `setup-ci`
       writes into the template
 - [ ] 5.2 The three model-step choices: none; `ANTHROPIC_API_KEY` through
-      `claude-code-action` in a read-only job; an Igor, through the label
+      `publish --model api`, one API call with no tools whose reply the
+      script parses and validates; an Igor, through the label
       `sequencer: check code`
 - [ ] 5.3 `setup-ci [--model-step none|api-key|igor] [--force]`, refusing an
       existing file without `--force`
