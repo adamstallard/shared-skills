@@ -116,14 +116,18 @@ None.
   shell variable `G`. They set `G` in the same command as each use, or write
   the script's full path, since the shared post reader reads `$G` only when
   the same command sets it.
-- github-app, in a separate change not made here: its `token`, `run`,
-  `credential get` and `wire` commands refuse an identity marked as a
-  relay, so that no agent posts through a person's relay App by mistake.
-  This change ships without it, and the inquisitor's README says what
-  that leaves open.
+- github-app, in a separate change not made here (issue #96): its
+  `token`, `run`, `credential get` and `wire` commands refuse an identity
+  marked as a relay, so that no agent posts through a person's relay App
+  by mistake. This change ships without it, so until then any agent on
+  the person's machine can post through a relay App unseen by the post
+  hook; the inquisitor's README says so.
 - bug-hunter: its Step 9, the step that reports a run's recommendations
   and asks the person about each, runs each recommendation through the
-  inquisitor's filters before asking (task 5.7).
+  inquisitor's filters before asking (task 5.7). Its regression test for
+  a security weakness lands nowhere public before the weakness's security
+  advisory is published, as the inquisitor's own disclosure rules require
+  (task 5.8).
 - The README's skills table, and its list of skills that turn on a hook.
 - This pull request's first commit adds `openspec/`, `AGENTS.md` and
   spec-trace's CI workflow to shared-skills.

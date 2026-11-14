@@ -555,6 +555,20 @@ contradicts what design.md assumed.
 
       Only a broad root-cause fix or a design choice, or an abort's
       leftover whose new run is costly, still goes to the person
+- [ ] 5.8 Add to bug-hunter's SKILL.md the inquisitor spec's rules for a
+      weakness whose advisory is unpublished (design.md: *Weaknesses stay
+      out of public text until disclosure*). Task 0.13 measures whether
+      GitHub can merge the advisory's private-fork pull request before
+      publication. When it shows the merge waits, or the advisory's
+      publisher says it does, the regression test lands in the private
+      fork, and fork commit messages may describe
+      the weakness (*A commit in an advisory's private fork is described as
+      task 0.13 allows*). Without either, the test lands nowhere until
+      publication, and then on a public branch (*A weakness's regression
+      test lands nowhere public before publication*). Commit messages on a
+      public branch never describe the weakness before publication (*A
+      weakness is not described in public text before its advisory is
+      published*)
 
 ## 6. The answer session
 
