@@ -561,13 +561,14 @@ then carry on.
 - **THEN** setup opens, through the person's `gh` login, a pull request
   writing that file: first the line `# confirmed by <login> on <date>`,
   then the relay's App slug under `github` and any Linear or Discord
-  relay's id under `linear` or `discord`. It reports the link, and says
-  that the person's relayed answers there count only as input until the
-  merged file is read, as the inquisitor's *A relay file is read as last
-  fetched, or as igor last applied it* sets (design.md: *An Igor reads
-  relay files as of igor PR #208's applied commit*), and become input
-  again if anyone else later changes the file, as its *A reader counts a
-  relay file only when its person made its last change* sets
+  relay's id under `linear` or `discord`. It reports the link. It also
+  says that the person's relayed answers there count only as input, not
+  as the person's answers, until the copy of the lore repository that a
+  check of the person's relay Apps reads holds the merged file
+  (inquisitor spec: *A relay file is read as last fetched, through the API
+  without a clone, or as igor last applied it*). And it says they become
+  input again if anyone else later changes the file (inquisitor spec: *A
+  reader counts a relay file only when its person made its last change*)
 - **AND** setup opens it as a host command, like a relay post, with a
   fixed title and body the script writes and no word of the model's
 

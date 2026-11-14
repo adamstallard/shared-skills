@@ -638,15 +638,15 @@ counts.
 - **THEN** `bad_login!` has no relay App, and `bob`'s listed App is his
   relay App
 
-### Requirement: A relay file is read as last fetched, or as igor last applied it
+### Requirement: A relay file is read as last fetched, through the API without a clone, or as igor last applied it
 
-Outside an Igor, a reader SHALL read a relay file from the lore
-repository's default branch: as its own clone's remote-tracking branch last
-fetched it, or, only when it has no clone of that repository, through
-GitHub's API at the branch's head. An Igor SHALL read it as of the last
-commit applied by igor PR #208's **lore read**, which #208 defines (igor PR
-#216's decision 77; design.md: *An Igor reads relay files as of igor PR
-#208's applied commit*).
+Outside an Igor, an AI teammate igor runs, a check of a person's relay
+Apps SHALL read their relay file from the lore repository's default branch:
+as its own clone of that repository last fetched the branch, or, only with
+no clone, through GitHub's API at the branch's head. An Igor SHALL read it
+as of the last commit applied by igor PR #208's **lore read**, which
+applies only lore commits passing igor's startup checks (design.md: *An
+Igor reads relay files as of igor PR #208's applied commit*).
 
 #### Scenario: A relay merged since the last fetch is not yet read
 
