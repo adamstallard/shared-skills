@@ -150,26 +150,26 @@ contradicts what design.md assumed.
       If
       GitHub reports it, they are built as the spec states them; if not,
       the repository's owner decides what to build
-- [ ] 0.22 What a reader needs to tie a relay file to its person
-      (design.md: *Who last changed a relay file ties it to its person*):
-      that GitHub's API gives, for the newest commit that changed
-      `relays/<login>.yaml`, the merged pull request it came from and its
-      author, after a merge commit, a squash and a rebase alike, such as
-      through `commits/<sha>/pulls`; that the commits API, filtered by
-      the file's path from the default branch's head, finds the same newest
-      commit as `git log -1 -- relays/<login>.yaml` from that head, with
-      git's default history simplification, so that a caller with no clone
-      of the lore repository ties the file to the same person as one
-      reading its clone; whether a commit GitHub signs itself,
-      from its web editor or contents API, is verified for an account
-      other than its author's, which would let anyone with push access
-      make a commit verified for another person, and which also bears on *A questions-branch
-      decision needs a proven writer*; and how a reader tells a signature
-      GitHub made from the person's own, such as GraphQL's
-      `wasSignedByGitHub`. If it can't tell, no signature counts. If the
-      pull request can't be read, only a signature proves the file. Until
-      this shows GitHub never verifies such a commit for someone who
-      didn't make it, a signature GitHub made proves nothing
+- [ ] 0.22 What a reader, the code that checks whether an App is a
+      person's relay App, needs to tie a relay file to its person
+      (design.md: *Who last changed a relay file ties it to its person*).
+      It measures three things:
+      - That GitHub's API gives, for the newest commit that changed
+        `relays/<login>.yaml`, the merged pull request it came from and
+        that pull request's author, after a merge commit, a squash and a
+        rebase alike, such as through `commits/<sha>/pulls`.
+      - Whether a commit GitHub signs itself, from its web editor or
+        contents API, is verified for an account other than its author's.
+        That would let anyone with push access make a commit verified for
+        another person, and it also bears on *A questions-branch decision
+        needs a proven writer*.
+      - How a reader tells a signature GitHub made from the person's own,
+        such as GraphQL's `wasSignedByGitHub`. If it can't tell, no
+        signature counts.
+
+      If the pull request can't be read, only a signature proves the
+      file. Until this shows GitHub never verifies such a commit for
+      someone who didn't make it, a signature GitHub made proves nothing
 - [ ] 0.23 That the URL an asking agent records as `asked_in` (design.md:
       *A log file follows its thread message by exact link*), and the
       handback comment URL an Igor records (design.md: *Each Igor log file

@@ -563,10 +563,10 @@ then carry on.
   then the relay's App slug under `github` and any Linear or Discord
   relay's id under `linear` or `discord`. It reports the link. It also
   says that the person's relayed answers there count only as input, not
-  as the person's answers, until the copy of the lore repository that a
-  check of the person's relay Apps reads holds the merged file
-  (inquisitor spec: *A relay file is read as last fetched, through the API
-  without a clone, or as igor last applied it*). And it says they become
+  as the person's answers, until the merged file reaches the copy a reader
+  checks: its lore clone as last fetched, or in an Igor, the lore commit
+  igor last applied (inquisitor spec: *A relay file is read as last
+  fetched, or as igor last applied it*). And it says they become
   input again if anyone else later changes the file (inquisitor spec: *A
   reader counts a relay file only when its person made its last change*)
 - **AND** setup opens it as a host command, like a relay post, with a
