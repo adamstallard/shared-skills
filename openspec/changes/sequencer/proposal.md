@@ -20,11 +20,12 @@ Igor's Sequencer role (adamstallard/igor#231).
   repository's open pull requests, issues and OpenSpec changes, with no
   model, and gives a reason for each place a rule decides. A change that
   modifies or names another change's requirement comes after it, and an
-  item comes after what GitHub's "blocked by" relations or its `Depends on`
-  lines say it waits on. Where two changes modify one requirement, the
+  item comes after what GitHub's "blocked by" relations, its `Depends on`
+  lines or its change's `Builds on:` lines say it waits on. Where two changes modify one requirement, the
   order says which must copy the other's new scenarios before archiving.
   Pull requests that change the same files get a merge order. Items that
-  wait on each other in a loop are a cycle, which a person resolves.
+  wait on each other in a loop are a cycle, ordered lowest number first
+  unless a person overrides it.
 - One rule, that a change whose code calls another change's code is built
   after it, needs a model. That model step runs where a model is
   available, and the order says plainly when it did not run.
@@ -32,24 +33,21 @@ Igor's Sequencer role (adamstallard/igor#231).
   item's body, never in a comment. The order's issue also names each
   reviewer's next review. The sequencer recommends a merge order and never
   merges.
-- A question of judgement, such as which change in a cycle goes first, goes
-  to a person through the inquisitor skill in an agent session; CI only
-  lists it. The order leaves that place unchosen until a person answers.
 - `setup-ci` writes a GitHub Actions workflow that keeps the order current.
   The repository chooses how its model step runs: not at all, by one API
   call with no tools on the repository's API key, or by an Igor.
 
 design.md's *Decisions* gives the reason for each rule, and its *Open
-Questions* lists two questions for a person and the facts to measure before
-building.
+Questions* lists the facts to measure before building.
 The capability's decision record, `openspec/specs/sequencer/decisions.md`,
 holds what no test can express, each entry with its evidence: constraints
 no test can check, alternatives no requirement guards against, and reasons
 for requirements.
 
 An Igor uses the skill in three ways, each through the same commands as
-any other caller: its worker, the agent an Igor starts to do one item, runs
-it in its own session; its Sequencer role calls the script; and a
+any other caller: its worker, the agent an Igor starts to do one item,
+runs the model step on the order its Igor passes it; its Sequencer role
+calls the script; and a
 repository's workflow can hand the model step to a Sequencer Igor.
 
 **Out of scope:** what Igor builds for its Sequencer role, igor#231: builders
@@ -62,8 +60,7 @@ what a Sequencer Igor needs to run the model step.
 ### New Capabilities
 
 - `sequencer`: computing, publishing and keeping current the order of a
-  repository's open work, the reviewers' next reviews, and the questions of
-  judgement the order raises.
+  repository's open work and the reviewers' next reviews.
 
 ### Modified Capabilities
 

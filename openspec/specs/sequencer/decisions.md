@@ -5,7 +5,7 @@
 - **Rejected: Serialising a session's publish with the workflow's runs through an Actions concurrency group.**
   Facing: a person's session and the CI workflow can each run `publish` against the same bodies at once.
   Lost because: a session's publish is no GitHub Actions run, and GitHub's docs describe a `concurrency` group as holding back only Actions jobs and workflow runs, https://docs.github.com/en/actions/using-jobs/using-concurrency.
-  Instead: the later write wins. The next run recomputes the rule-decided order. What only the losing publish wrote is lost until it is published again: its code edges until a model step runs, and its ask mark or recorded choice until the session publishes it again. A Sequencer Igor publishes only by dispatching the workflow, so its writes share the workflow's group.
+  Instead: the later of two concurrent writes wins. The next run recomputes the rule-decided order. What only the overwritten publish wrote is lost until it is published again: its code edges until a model step runs, and its recorded override until the session publishes it again. A Sequencer Igor publishes only by dispatching the workflow, so its writes share the workflow's group.
   Paths: .agents/skills/sequencer/scripts/sequencer.py
 
 - **Rejected: Running the workflow on `pull_request`.**
@@ -36,7 +36,7 @@
 
 - **Rationale: The whole order lives in one issue's body.**
   A reader who opens an issue with `gh issue view`, the default, sees its title and body and none of its comments, and an agent's piped `gh issue view --comments` prints the comments without the body. An order kept in comments would be missing from the default read, and one kept in the body is missing only from the comments-only read.
-  The order's issue is used only when its author has write access, because the issue's author can edit its body whatever their access, and so could rewrite the decided cycles and stored code edges kept there.
+  The order's issue is used only when its author has write access, because the issue's author can edit its body whatever their access, and so could rewrite the cycle overrides and stored code edges kept there.
   Evidence: gh's manual says `gh issue view` displays "the title, body, and other information about an issue", and that "When output is piped or redirected, only the comments are printed" with `--comments`, https://cli.github.com/manual/gh_issue_view
   Evidence: measured on 2026-11-10 UTC with gh 2.103.2, on an issue whose body is 2521 bytes and which has one comment. `gh issue view 168 --repo adamstallard/igor | wc -c` printed 2803 bytes: the title, metadata and body. `gh issue view 168 --repo adamstallard/igor --comments | wc -c` printed 164: the one comment with its author header, and no title or body, https://github.com/adamstallard/igor/issues/168
   Evidence: GitHub's REST documentation for updating an issue says "Issue owners and users with push access or Triage role can edit an issue", https://docs.github.com/en/rest/issues/issues#update-an-issue
@@ -45,3 +45,7 @@
 - **Rationale: The script edits only the text between its markers.**
   A new block goes above the prose skill's `prose ✓` footer and changes the text that footer hashes, so the footer stops matching. That is harmless. The only posted body prose's hook fetches is a pull request's, when an agent hands the pull request back for review, and it reads only whether the footer says the body's cold read was put off until then, never the hash. An issue body, such as the order's issue, it never fetches.
   Evidence: prose's hook fetches a body only for a pull request being handed back, and calls only `deferred_footer(body)` on it, [.agents/skills/prose/scripts/prose.py:1561](https://github.com/adamstallard/shared-skills/blob/528ae4ec/.agents/skills/prose/scripts/prose.py#L1561)
+
+- **Rationale: The sequencer recommends a merge order and never merges.**
+  In this repository's development process, a person approves each change's specification before its implementation is built. Approving and merging are people's acts there, and a script that merged would take one over; the sequencer only recommends an order.
+  Evidence: AGENTS.md says to build the implementation on the same branch "once the repository's owner approves that pull request's specification", [AGENTS.md](https://github.com/adamstallard/shared-skills/blob/be45f09b/AGENTS.md)

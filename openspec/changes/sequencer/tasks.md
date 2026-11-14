@@ -43,10 +43,12 @@ including a result that contradicts what design.md assumed.
 
 - [ ] 2.1 Modifies and cites edges, with their reasons
 - [ ] 2.2 Copy duties
-- [ ] 2.3 `Depends on` lines, outside code fences, and blocked-by relations
+- [ ] 2.3 `Depends on` lines, outside code fences, blocked-by relations,
+      and `Builds on:` lines in a change's `proposal.md`
 - [ ] 2.4 Merge waits between pull requests that change a file in common
 - [ ] 2.5 The topological order with the lowest-number tiebreak, cycles
-      grouped and marked unchosen, decided cycles placed as decided
+      grouped, ordered lowest number first and marked `ordered by rule`,
+      and cycle overrides placed as overridden
 - [ ] 2.6 The names both changes' `tasks.md` files hold, for the model step
 - [ ] 2.7 Model-step checked pairs and edges: validate, record with the two changes' hashes,
       keep or drop them on later runs, and refuse edges computed against
@@ -77,20 +79,15 @@ including a result that contradicts what design.md assumed.
       change's files or the model step as inert inline code, and refuse
       one holding the end marker
 
-## 4. Judgement questions
+## 4. Cycle overrides
 
-- [ ] 4.1 Put each undecided cycle through the inquisitor as a question the
-      sequencer requires, through the picker, only in a session with a
-      person in it, and log it as the inquisitor logs any question; mark
-      the ask with its time and let it lapse after 7 days; elsewhere, list
-      the cycle and ask nothing
-- [ ] 4.2 Count direct answer comments on the order's issue, mark a
-      session's ask with `publish --asked`, and record its answer with
+- [ ] 4.1 Count writers' `#<n> first` comments on the order's issue as
+      cycle overrides, and record a session's override with
       `publish --decide`
-- [ ] 4.3 Built only once the inquisitor's tasks 0.21 and 0.22 are measured: count
-      relayed answers from relay files read through the API from the lore
-      repository `.github/sequencer.json` names, and `setup-ci --lore`
-      with its `SEQUENCER_LORE_TOKEN` secret
+- [ ] 4.2 Built only once the inquisitor's tasks 0.21 and 0.22 are
+      measured: count relayed answers from relay files read through the
+      inquisitor's reader from the lore repository `.github/sequencer.json`
+      names, and `setup-ci --lore` with its `SEQUENCER_LORE_TOKEN` secret
 
 ## 5. The CI workflow
 
