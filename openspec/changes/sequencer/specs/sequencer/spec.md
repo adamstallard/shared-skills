@@ -39,8 +39,12 @@ These terms hold throughout this spec:
   itself published and the stored checked pairs and code edges, so that
   publishing does not change it. It does hash the cycle overrides, since
   an override changes the order an edges file was computed against.
-- **A writer** is an account with write access to the repository. **An
-  edges file** is the model step's output: the pairs of changes it checked
+- **A writer** is an account with write access to the repository. Where
+  the workflow's token cannot read permissions, the script instead counts
+  the author of an issue, pull request or comment as a writer when
+  GitHub's `author_association` on that item is OWNER, MEMBER or
+  COLLABORATOR, which also counts some accounts with only read access.
+- **An edges file** is the model step's output: the pairs of changes it checked
   and the edges it found, with the inputs hash of the `order` run it read.
 - **The model step** applies the one rule that needs a model: a change
   whose code will call another change's code is built after it.

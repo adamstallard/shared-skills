@@ -343,15 +343,6 @@ workflow file.
 - **A large repository's first publish edits many bodies.** Each item gets
   one edit, and later runs edit only blocks whose text changes.
 
-## Open Questions
-
-- **Whether a permissions token may be required.** If a workflow's own
-  token cannot read another account's permission (task 0.6), every edge
-  and override, which rest on writer checks, would need a token stored as
-  a repository secret, against *The workflow's deterministic part needs no
-  secret*. Either that requirement allows this token, or without it the
-  order counts no edge or override that needs a writer check.
-
 Tasks 0.1 to 0.6 measure six facts before building.
 
 ### Facts measured before building
@@ -380,6 +371,12 @@ Each bullet says what the spec does if the fact is false.
   one can exceed GitHub's limit, a Sequencer Igor sends its edges in
   several dispatches, each a whole edges file for the same inputs hash.
 - **A workflow's own token can read another account's permission and a
-  CODEOWNERS team's members** (task 0.6). If it cannot read permissions,
-  the open question above decides what the spec does; if it cannot expand
-  a team, the team counts as one reviewer, with one next review.
+  CODEOWNERS team's members** (task 0.6). If the token cannot read
+  permissions, the script decides who is a writer, the check every edge
+  and override rests on, from the `author_association` GitHub attaches to
+  the author of each issue, pull request and comment: OWNER, MEMBER and
+  COLLABORATOR count. Unlike a stored token that can read permissions,
+  this needs no secret; the price is a looser check, since a collaborator
+  or organization member with only read access counts as a writer. If the
+  token cannot expand a team, the team counts as one reviewer, and the
+  order names one next review for the whole team.
