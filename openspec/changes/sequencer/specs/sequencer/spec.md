@@ -39,14 +39,13 @@ These terms hold throughout this spec:
   itself published and the stored checked pairs and code edges, so that
   publishing does not change it. It does hash the cycle overrides, since
   an override changes the order an edges file was computed against.
+- **A writer** is an account with write access to the repository. **An
+  edges file** is the model step's output: the pairs of changes it checked
+  and the edges it found, with the inputs hash of the `order` run it read.
 - **The model step** applies the one rule that needs a model: a change
   whose code will call another change's code is built after it.
-- **The inquisitor's** *Title* names a requirement of the inquisitor spec.
 - **A Sequencer Igor** is an Igor in the Sequencer role; **an Igor's work
   triage** is the step where an Igor chooses which items to take.
-- **A relay App**, **a relay file**, **a lore repository**, **the team's
-  lore repository** and **the inquisitor's configuration** are the
-  inquisitor spec's terms.
 
 ## ADDED Requirements
 
@@ -98,6 +97,11 @@ an issue nor bring one into the order.
 - **WHEN** #50 closes issue #43, and #43's body says `Depends on #61`
 - **THEN** #50 comes after #61, and #43 shares #50's place
 
+#### Scenario: An edge to a closed-by issue moves onto its pull request
+
+- **WHEN** #50 closes issue #43, and #70's body says `Depends on #43`
+- **THEN** #70 comes after #50
+
 #### Scenario: An outside author's closing reference moves nothing
 
 - **WHEN** `zed`, without write access, opens #48 saying `Fixes #43`, and
@@ -144,6 +148,14 @@ SHALL apply no rule that reads a change's files,
 and the order's issue SHALL say requirements' dependencies were not
 checked, and why.
 
+#### Scenario: A missing CLI checks no requirement
+
+- **WHEN** `openspec` is not on the path, and two open pull requests hold
+  changes
+- **THEN** no edge comes from a change's files, and the order's issue says
+  requirements' dependencies were not checked, because OpenSpec is not
+  installed
+
 #### Scenario: A change is read without checking out its head
 
 - **WHEN** the script reads #90's change from #90's head
@@ -183,6 +195,12 @@ requirement SHALL come after that change.
   service*, and #90's change modifies it
 - **THEN** #90 comes after #82, with the reason
   `` after #82: modifies its `An open condition never ends a running service` ``
+
+#### Scenario: Removing or renaming another change's requirement orders it too
+
+- **WHEN** #91's change removes a requirement #82's change adds, and #93's
+  renames another of #82's
+- **THEN** both #91 and #93 come after #82
 
 ### Requirement: A change that names another change's requirement comes after it
 
@@ -328,9 +346,8 @@ place this tiebreak or a cycle's rule decides.
 
 #### Scenario: An unordered pair raises no question
 
-- **WHEN** a Sequencer Igor reads an order in which no edge connects #20
-  and #17
-- **THEN** no question about their order is posted or asked
+- **WHEN** a run publishes an order in which no edge connects #20 and #17
+- **THEN** it posts no question about their order
 
 ### Requirement: A cycle's members are ordered by rule
 
@@ -349,6 +366,12 @@ SHALL say so in its reason.
   `ordered by rule since <time>`, and #82's reason says
   `` before #85 by rule, though it cites #85's `<title>` ``
 - **AND** #91, which cites #85, comes after both
+
+#### Scenario: A cycle not yet published has no time
+
+- **WHEN** `order` runs before any publish has listed the cycle of #82 and
+  #85
+- **THEN** it prints the cycle as `ordered by rule`, with no time
 
 #### Scenario: A cycle found in CI asks no one
 
@@ -380,12 +403,10 @@ reason SHALL give the same link, or login and time.
 
 ### Requirement: A cycle override is read from the order's issue
 
-A run SHALL read a comment on the order's issue, after any `User says: `
-prefix, as an override when it was posted after the cycle's
-`ordered by rule since` time and its text starts with
-`#<n> first`, `#<n>` being one of the cycle's members, and an account with
-write access posted it or it is a relayed answer from such a person (the
-inquisitor's *A relayed answer counts as its person's own comment*).
+A run SHALL read a comment on the order's issue as an override when a
+person's own account with write access posted it, not an App, after the cycle's
+`ordered by rule since` time, and its text starts with `#<n> first`,
+`#<n>` being one of the cycle's members.
 
 #### Scenario: A writer's comment overrides the rule
 
@@ -412,95 +433,11 @@ inquisitor's *A relayed answer counts as its person's own comment*).
   issue before the cycle of #85 and #90 was listed
 - **THEN** that comment leaves the cycle ordered by rule
 
-#### Scenario: A relayed answer overrides the rule
+#### Scenario: A comment an App posts overrides nothing
 
-- **WHEN** `alice-relay`, `alice`'s relay App, comments `User says: #85
-  first` on the order's issue after the cycle was listed, and `alice` has
-  write access
-- **THEN** the next run adds the override, linking that comment
-
-### Requirement: A relay file is read through the inquisitor's reader from the configured lore repository
-
-The `lore` key of `.github/sequencer.json` SHALL name the team's lore
-repository; the script SHALL read relay files there as the inquisitor's *A
-relay file is read as last fetched, through the API without a clone, or as
-igor last applied it* says, and count each as its *A reader counts a relay
-file only when its person made its last change* says. It SHALL read none
-where the caller's inquisitor configuration names another as the team's.
-
-#### Scenario: A session with a lore clone reads it
-
-- **WHEN** a session whose inquisitor configuration has a clone of
-  `acme/lore`, the repository `.github/sequencer.json` names, runs the
-  script
-- **THEN** it reads `relays/alice.yaml` as that clone's remote-tracking
-  branch last fetched it
-
-#### Scenario: CI reads the relay file through the API
-
-- **WHEN** a CI run, which has no clone of `acme/lore`, needs
-  `relays/alice.yaml`
-- **THEN** it reads the file and its newest commit through GitHub's API at
-  the default branch's head
-
-#### Scenario: A Sequencer Igor reads the relay file igor last applied
-
-- **WHEN** the lore repository's newest commit adds `alice-relay` to
-  `relays/alice.yaml`, and igor has not applied it
-- **THEN** a Sequencer Igor's `order` does not count `alice-relay`
-
-#### Scenario: A configured lore repository that is not the team's is not read
-
-- **WHEN** `.github/sequencer.json` names `acme/lore`, and the session's
-  inquisitor configuration serves this repository from `acme/team-lore`
-- **THEN** the script reads no relay file, and the order's issue says
-  relayed answers were not read
-
-### Requirement: Relayed answers wait on the inquisitor's tasks 0.21 and 0.22
-
-Relayed answers, and the relay-file reading they need, SHALL be built only
-once the inquisitor's tasks 0.21 and 0.22 are measured.
-
-#### Scenario: Before the measurements, no relayed answer counts
-
-- **WHEN** the inquisitor's task 0.21 is not yet measured, and
-  `alice-relay` comments `User says: #85 first` on the order's issue
-- **THEN** the comment overrides no cycle
-
-### Requirement: Without the lore repository, only direct answers count
-
-With no `lore` key, or no access to the repository it names, the script
-SHALL count only comments that accounts with write access posted
-themselves, and the order's issue SHALL say
-`Relayed answers were not read: <reason>.`
-
-#### Scenario: A private lore repository without its token
-
-- **WHEN** a CI run cannot read the private lore repository that
-  `.github/sequencer.json` names
-- **THEN** a `User says: ` comment overrides no cycle, a direct comment
-  still does, and the order's issue says relayed answers were not read
-
-### Requirement: The workflow reads the lore repository with its own token, or a private one's secret
-
-The workflow SHALL read the lore repository with the token GitHub gives each
-run, needing no setup when that repository is public. Only for a private
-one SHALL it use the secret `SEQUENCER_LORE_TOKEN`, a read-only token,
-which `setup-ci --lore <owner>/<repo>` adds with `gh secret set` from
-standard input after writing `lore` into `.github/sequencer.json`.
-
-#### Scenario: A public lore repository needs no secret
-
-- **WHEN** `setup-ci --lore acme/lore` runs, and `acme/lore` is public
-- **THEN** `.github/sequencer.json` has `"lore": "acme/lore"`, no secret is
-  added, and the workflow reads relay files there with its own token
-
-#### Scenario: Setup adds the token for a private lore repository
-
-- **WHEN** `setup-ci --lore acme/lore` runs, and `acme/lore` is private
-- **THEN** `.github/sequencer.json` has `"lore": "acme/lore"`, and the
-  repository holds the secret `SEQUENCER_LORE_TOKEN` read from standard
-  input
+- **WHEN** a GitHub App with write access posts `#85 first` on the order's
+  issue
+- **THEN** the cycle stays ordered by rule
 
 ### Requirement: A session records a cycle override only as that person
 
@@ -639,8 +576,8 @@ requirement's title, in the order's issue and in the item's block.
 
 ### Requirement: The same inputs give the same order whoever runs the script
 
-Given the same repository state, the same recorded code edges and the same
-access to the lore repository, the script
+Given the same repository state and the same stored checked pairs and code
+edges, the script
 SHALL produce byte-identical order text, whichever caller runs it and
 wherever.
 
@@ -665,6 +602,12 @@ shows a body without its comments.
   `sequencer`
 - **THEN** it opens one, labelled `sequencer`, whose body holds the order
 
+#### Scenario: The order is never posted as a comment
+
+- **WHEN** the script publishes an order
+- **THEN** it posts no comment on any issue or pull request, and the order
+  is in the order's issue body
+
 #### Scenario: Two order issues stop the publish
 
 - **WHEN** two open issues are labelled `sequencer`
@@ -681,9 +624,10 @@ shows a body without its comments.
 
 The script SHALL write each string taken from an issue, a pull request, a
 change's files or the model step, such as a reason, a requirement's title or
-a file path, as inline code delimited by a backtick run longer than any in
-it, with its line breaks as spaces, so mentions, links and markers in it
-render inert. It SHALL refuse a string holding `<!-- sequencer:end -->`.
+a file path, as inline code: delimited by a backtick run longer than any in
+it, padded with a space where it starts or ends with a backtick, and with
+its line breaks as spaces, so mentions, links and markers in it render
+inert. It SHALL refuse a string holding `<!-- sequencer:end -->`.
 
 #### Scenario: A mention in a model's reason does not notify
 
@@ -691,6 +635,13 @@ render inert. It SHALL refuse a string holding `<!-- sequencer:end -->`.
   https://example.com`
 - **THEN** the block shows that reason inside inline code, and GitHub
   notifies no one and renders no link
+
+#### Scenario: Backticks and line breaks stay inside the code
+
+- **WHEN** a reason is ``x` `` followed by a line break and `@maya`
+- **THEN** the block shows it as one code span, delimited by two backticks
+  and holding the text x, a backtick, a space and @maya, and GitHub
+  notifies no one
 
 #### Scenario: A string holding the end marker is refused
 
@@ -958,8 +909,8 @@ concurrency group, so no two of them edit a body at once.
 
 The workflow SHALL compute and publish an order with no secret but the
 token GitHub gives each run, whichever way the repository chose to run the
-model step. A secret, such as a private lore repository's token or the
-API key, only adds to that order.
+model step. The API key, where the repository chose it, only adds
+model-step edges and checked pairs to that order.
 
 #### Scenario: A repository with no secrets gets an order
 
@@ -1032,17 +983,24 @@ keep it when it refuses them.
   that check every pair of open changes
 - **THEN** the script removes the label `sequencer: check code`
 
-### Requirement: A Sequencer Igor runs the model step on the labelled issue
+### Requirement: The workflow publishes an edges file a dispatched run carries
 
-When the issue labelled `sequencer: check code` asks for the model step, a
-Sequencer Igor SHALL run it and hand its edges to the workflow, which publishes
-them with `publish --code-edges` under the same checks as any caller's and
-no input that only an Igor gives; what Igor builds to claim that issue and
-run the model step is adamstallard/igor#231's.
+The workflow SHALL accept a `workflow_dispatch` run whose input is an edges
+file, as a Sequencer Igor sends after running the model step on the issue
+labelled `sequencer: check code`, and publish it with `publish --code-edges`
+under the checks any caller's edges file gets and in the same concurrency
+group.
+What Igor builds to run the model step and dispatch is adamstallard/igor#231's.
 
-#### Scenario: A stale result from an Igor leaves the label on
+#### Scenario: A dispatched edges file is published
 
-- **WHEN** a Sequencer Igor hands over edges computed before a merge that
+- **WHEN** a `workflow_dispatch` run carries an edges file computed against
+  the current inputs
+- **THEN** the run publishes its edges, in the workflow's concurrency group
+
+#### Scenario: A stale dispatched edges file leaves the label on
+
+- **WHEN** a dispatched run carries edges computed before a merge that
   changed the inputs
 - **THEN** the workflow's `publish` refuses them, and the label
   `sequencer: check code` stays on the order's issue
@@ -1060,47 +1018,19 @@ data, and SHALL NOT check out or run code from a pull request's head.
 - **THEN** the run reads the pull request's change files as data and runs
   none of its code
 
-### Requirement: An Igor's worker runs the model step on the order its Igor passes
+### Requirement: The model step needs only the order's printed output
 
-An Igor's worker SHALL be able to run the model step in its own session on
-the `order --json` output its Igor passes it, since a worker has no GitHub
-credential of its own, and write an edges file. A `publish` that another process runs SHALL accept and apply an
-edges file a worker wrote, while the inputs are unchanged.
+The model step SHALL need nothing but `order --json` output, which SHALL
+include the open changes' files, so an agent with no GitHub credential,
+such as an Igor's worker, can run it and write an edges file; `publish`, run elsewhere, SHALL
+apply that file while the inputs are unchanged.
 
-#### Scenario: A worker's edges are published through the workflow
+#### Scenario: An edges file written without GitHub access is published
 
-- **WHEN** an Igor passes its worker `order --json` output, the worker runs
-  the model step and writes an edges file, and the Igor hands that file to
-  the workflow before any input changes
-- **THEN** the workflow's `publish` takes the edges
-
-### Requirement: A Sequencer Igor publishes only through the workflow
-
-A Sequencer Igor SHALL edit no body itself. It SHALL publish by dispatching
-the workflow (`workflow_dispatch`), passing any edges file as the run's
-input, so that its publishes share the workflow's concurrency group, and
-dispatch again when that run is cancelled before it publishes. Its `order`
-SHALL take only data that any caller could pass.
-
-#### Scenario: A Sequencer Igor's publish waits for a running workflow run
-
-- **WHEN** a Sequencer Igor publishes edges while a workflow run for a
-  merge is still running
-- **THEN** its dispatched run starts only after that run finishes, and the
-  Igor edits no body itself
-
-#### Scenario: A cancelled dispatch is sent again
-
-- **WHEN** a Sequencer Igor's dispatched run is pending, and a comment's
-  run queues in the same concurrency group, which cancels the older
-  pending run
-- **THEN** the Igor dispatches the workflow again with the same edges file
-
-#### Scenario: A Sequencer Igor reads the order CI publishes
-
-- **WHEN** a Sequencer Igor runs `order --json` against the inputs the CI
-  workflow last published from, reading the same relay files
-- **THEN** the positions it reads are the ones in the order's issue
+- **WHEN** an agent with no GitHub credential runs the model step on
+  `order --json` output and writes an edges file, and the workflow
+  publishes that file before any input changes
+- **THEN** `publish` takes the edges
 
 ### Requirement: The script prints the order for callers without editing anything
 

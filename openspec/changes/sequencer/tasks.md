@@ -12,8 +12,8 @@ including a result that contradicts what design.md assumed.
 - [ ] 0.2 A `pull_request_target` run's `GITHUB_TOKEN`, with
       `pull-requests: write`, can edit the body of a pull request from a fork
 - [ ] 0.3 `openspec show --json` reads a change's deltas, with each
-      requirement's operation and title, from files fetched from a pull
-      request's head without checking it out
+      requirement's operation and title, from a pull request head's files
+      written into a scratch `openspec/` tree, as spec-check's `show()` does
 
 - [ ] 0.4 A `pull_request_review` run for a fork's pull request gets a
       `GITHUB_TOKEN` that can edit issue and pull request bodies
@@ -84,10 +84,6 @@ including a result that contradicts what design.md assumed.
 - [ ] 4.1 Count writers' `#<n> first` comments on the order's issue as
       cycle overrides, and record a session's override with
       `publish --decide`
-- [ ] 4.2 Built only once the inquisitor's tasks 0.21 and 0.22 are
-      measured: count relayed answers from relay files read through the
-      inquisitor's reader from the lore repository `.github/sequencer.json`
-      names, and `setup-ci --lore` with its `SEQUENCER_LORE_TOKEN` secret
 
 ## 5. The CI workflow
 

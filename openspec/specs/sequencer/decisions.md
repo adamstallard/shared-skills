@@ -47,5 +47,5 @@
   Evidence: prose's hook fetches a body only for a pull request being handed back, and calls only `deferred_footer(body)` on it, [.agents/skills/prose/scripts/prose.py:1561](https://github.com/adamstallard/shared-skills/blob/528ae4ec/.agents/skills/prose/scripts/prose.py#L1561)
 
 - **Rationale: The sequencer recommends a merge order and never merges.**
-  In this repository's development process, a person approves each change's specification before its implementation is built. Approving and merging are people's acts there, and a script that merged would take one over; the sequencer only recommends an order.
+  Approving a change is a person's act in the process the skill serves: in this repository, a person approves each specification before its implementation is built. A script that merged would decide what lands without that person, so the sequencer only recommends an order.
   Evidence: AGENTS.md says to build the implementation on the same branch "once the repository's owner approves that pull request's specification", [AGENTS.md](https://github.com/adamstallard/shared-skills/blob/be45f09b/AGENTS.md)

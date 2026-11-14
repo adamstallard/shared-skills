@@ -67,9 +67,8 @@ commands:
   the inputs hash `order` printed, or from one API call with `--model api`.
   With `--decide` it records a person's override of a cycle's order; `--by`
   names that person.
-- `setup-ci [--model-step none|api-key|igor] [--lore <owner>/<repo>] [--force]`
-  writes the workflow template, and with `--lore` names the team's lore
-  repository in `.github/sequencer.json`.
+- `setup-ci [--model-step none|api-key|igor] [--force]` writes the workflow
+  template.
 
 In a session, the agent runs `order`, applies the model step to the
 printed changes and names, writes its edges to a file, and runs `publish
@@ -114,10 +113,10 @@ a reason against the files it names.
 - *Ruled out by a scenario:* a model choosing the rule-decided places
   (*The same inputs give the same order whoever runs the script*).
 
-A citation is a requirement's full title appearing verbatim in another
-change's files. Titles in this repository's specs are whole sentences, so
-a verbatim match rarely fires by chance, and spec authors already cite a
-requirement by its title in italics. A copy duty sets no edge, because
+The script matches a requirement's full title (*A change that names
+another change's requirement comes after it*), so a reviewer can find the
+citation by searching for it. A copy duty, defined in the terms above,
+sets no edge, because
 either of the two changes may archive first, as long as the second carries
 the first one's new scenarios. The script names the change that owes the
 copy: the later of the two in the order.
@@ -133,29 +132,12 @@ change which to review first.
 
 **A writer's `#<n> first` comment on the order's issue overrides the rule,**
 and the order's issue keeps the list of overrides. Every run, CI's
-included, counts such a comment when two things hold: it was posted after
-the cycle was first listed, so an old comment about another cycle cannot
-count, and an account with write access posted it or it is a relayed
-answer.
-Comments on an ordered item's own thread are never read. In a session, an
+included, counts such a comment when a person with write access posted it
+with their own account, not through an App, after the cycle was first
+listed in the order's issue, so an old comment about another cycle cannot
+count. A comment an App posts for a person, and a
+comment on an ordered item's own thread, are never read. In a session, an
 agent can record an override a person gives it with `publish --decide`.
-
-A relayed answer is a `User says: ` comment that a person's relay App, the
-GitHub App through which the person's answer session (the inquisitor's
-view for answering questions) posts, posted for them. Which Apps
-are a person's is read from their relay file, `relays/<login>.yaml` in the
-team's lore repository, the repository of shared answers the inquisitor
-uses, which `.github/sequencer.json` names. The script reads it through the
-inquisitor's reader: from the caller's own clone of the lore repository
-when it has one, through GitHub's API when it has none, as in CI, and, for
-an Igor, at the last lore commit the Igor's own lore step accepted. A public lore repository needs no
-setup; only a private one needs a read-only token, which `setup-ci` stores
-as a secret. Without access to the lore repository, only direct comments
-count, and the order's issue says so. Telling a relayed answer from a
-forgery needs two facts. The inquisitor's task 0.21 measures whether
-GitHub's API names the App that wrote a comment. Task 0.22 measures whether
-the API finds a relay file's newest commit as git does. Relayed answers are
-counted only if both hold.
 
 - *Ruled out by a scenario:* asking a person about a cycle's order (*A
   cycle's members are ordered by rule*).
@@ -232,13 +214,11 @@ one worth keeping and set it again in their own item.
 
 **The order's issue names each reviewer's next review, ranking first the
 pull request that the most items come after,** because reviewing it
-unblocks the most work. Reviewers are the
-`reviewers` list in the repository's `.github/sequencer.json`; with none,
-everyone each pull request has requested on GitHub, including anyone
-GitHub dropped from its request list when they submitted a review; and
-when it has requested no one, the CODEOWNERS file. Every caller takes reviewers through this chain,
-and `publish` accepts no reviewer list of its own, so a session and the CI
-workflow publish the same issue body for the same inputs. A draft is not offered
+unblocks the most work. Every caller takes reviewers through one chain
+(*Reviewers come from the repository's config, else from GitHub's
+requests, else CODEOWNERS*), and `publish` accepts no reviewer list of its
+own, so a session and the CI workflow publish the same issue body for the
+same inputs. A draft is not offered
 for review, since its author has not handed it over yet.
 
 A spec pull request ranks ahead of the pull requests that come after it.
@@ -272,13 +252,13 @@ wrong guess is cheap to reverse.
 
 ### The order's issue is found by its label
 
-**The order's issue is the one open issue labelled `sequencer`.** `publish`
-creates it when none is open, and refuses, naming both, when there are
-two. A person with write access, or `igor init` running under such a
-person's login, can also make one by adding the label, and no
-configuration names it. The script refuses a labelled issue whose author
-lacks write access; the decision record's Rationale for *The whole order
-lives in one issue's body* says why.
+**The order's issue is found by its `sequencer` label** (*The whole order
+lives in one issue's body*), so no configuration names it, and a person
+with write access, or `igor init` running under such a person's login, can
+make one by adding the label; `igor init` is igor's setup command. The
+decision record's Rationale for *The whole order lives in one issue's body*
+says why the order's issue must be opened by an account with write
+access.
 
 ### Code edges outlast runs with no model
 
@@ -317,8 +297,11 @@ what it expects of any caller:**
   its edges file.
 
 What Igor builds for these, such as claiming the labelled issue,
-dispatching the workflow from its loop and gating gate two on the order,
-is igor#231's.
+dispatching the workflow from its loop, dispatching again when the
+concurrency group cancels a pending run because a newer one queued, and
+holding back a change's implementation until the changes before it are
+built, is igor#231's. The skill's part is that the workflow publishes a dispatched
+edges file.
 
 ### It recommends and never merges
 
@@ -333,11 +316,10 @@ recommends a merge order and never merges* says why.
 
 **`setup-ci` writes the workflow template and never overwrites a copy
 already there; `--force` replaces it,** as spec-check's `setup-ci`
-does. The template triggers on every event that can change the order:
-issues opened, edited, closed or commented on; pull requests opened,
-edited, marked ready, reviewed or closed, merged or not; pushes to an open
-pull request's branch; a Sequencer Igor's dispatch; and a daily run. All share one `concurrency` group,
-so no two workflow runs edit the same body at once.
+does. The template triggers on every event that can change the order
+(*The workflow recomputes the order on each event that can change it*),
+and all its runs share one `concurrency` group, so no two workflow runs
+edit the same body at once.
 
 The template uses `pull_request_target`, and reads each pull request's
 change files through `git fetch` of its head and the OpenSpec CLI, never
@@ -363,22 +345,14 @@ workflow file.
 
 ## Open Questions
 
-- **Whether relayed overrides stay.** A relay App posts only an answer to
-  a question that the person's answer session showed them, in that
-  question's thread. The sequencer asks no question, so nothing puts a
-  cycle in front of an answer session, and relayed overrides may never
-  arrive unless something shows the cycle to it, such as a mention of the
-  person or an assignment.
-- **A private lore repository named in a public repository.**
-  `.github/sequencer.json`, committed to a public repository, would name a
-  private lore repository, and the order's issue line `Relayed answers were
-  not read: <reason>` may too. The inquisitor's *A log or miss file is as
-  private as its more private repository* forbids moving what concerns one
-  repository to a place more people can see.
+- **Whether a permissions token may be required.** If a workflow's own
+  token cannot read another account's permission (task 0.6), every edge
+  and override, which rest on writer checks, would need a token stored as
+  a repository secret, against *The workflow's deterministic part needs no
+  secret*. Either that requirement allows this token, or without it the
+  order counts no edge or override that needs a writer check.
 
-Tasks 0.1 to 0.6 measure six facts before building, listed below. The
-last bullet of that list holds facts the inquisitor's tasks 0.21 and 0.22
-measure, which relayed answers wait on.
+Tasks 0.1 to 0.6 measure six facts before building.
 
 ### Facts measured before building
 
@@ -392,10 +366,11 @@ Each bullet says what the spec does if the fact is false.
   no block, which *An item the script cannot edit is named, not skipped
   silently* covers.
 - **`openspec show --json` gives each delta's operation and title for a
-  change read outside a checkout** (task 0.3), as spec-check relies on. If
-  it needs a checkout, the script writes each head's change files, read
-  with `git show`, into a scratch directory laid out as an `openspec/`
-  tree and runs the CLI there.
+  change written into a scratch `openspec/` tree** (task 0.3). The script
+  writes each head's change files, read with `git show`, into such a tree
+  and runs the CLI there, as spec-check's `show()` already does. If the
+  CLI cannot read a change that way, the script treats it as a change the
+  CLI refuses.
 - **A run on a review of a fork's pull request can edit bodies** (task
   0.4). Reviews trigger through `pull_request_review`, which for a fork's
   pull request may get a read-only token. If so, that run publishes
@@ -406,11 +381,5 @@ Each bullet says what the spec does if the fact is false.
   several dispatches, each a whole edges file for the same inputs hash.
 - **A workflow's own token can read another account's permission and a
   CODEOWNERS team's members** (task 0.6). If it cannot read permissions,
-  `setup-ci` stores a read-only token that can, as for a private lore
-  repository; if it cannot expand a team, the team counts as one
-  reviewer, with one next review.
-- **GitHub's API names the App that wrote a comment, and finds a relay
-  file's newest commit as git does** (the inquisitor's tasks 0.21 and
-  0.22). Relayed answers are not counted, and no lore token is set up,
-  until both are measured. If either fact is false, the repository's
-  owner decides what to build, as the task that measured it says.
+  the open question above decides what the spec does; if it cannot expand
+  a team, the team counts as one reviewer, with one next review.
