@@ -11,7 +11,8 @@ hook judge the same text, and each blocks a post it cannot read.
 The shared post reader, `.agents/lib/gh-shell/`, SHALL tell a hook, for a
 tool call, its post, that it sends no post, or that it is unreadable. A
 post is a body; a title, when the call sets an issue's or a pull request's
-title; and whether it creates an issue. prose's posting hook and the
+title; whether it creates an issue; and, for a github-app call, its
+identity. prose's posting hook and the
 inquisitor's post hook SHALL read posts only through it.
 
 #### Scenario: Both post hooks read a post through the shared reader
@@ -545,8 +546,7 @@ unassigned SHALL be unreadable, its block message saying how to fix it.
 - **THEN** the reader returns the file's text as the body
 - **AND** the script runs `gh pr`, `gh issue` or `gh api`, either
   directly or after `run --`
-- **AND** `--identity <name>` may come before `gh` or `run`, and the
-  reader reports that name, or none, as the identity the post goes out as
+- **AND** `--identity <name>` may come before `gh` or `run`
 - **AND** `$G` may be unquoted, and `G=<path>;` assigns `G` as
   `G=<path> &&` does
 
@@ -584,6 +584,20 @@ unassigned SHALL be unreadable, its block message saying how to fix it.
   repos/o/r/issues/comments/9`
 - **THEN** the reader returns `hi` as the first's body, and reports that
   the second sends no post
+
+### Requirement: The reader reports the identity a github-app call names
+
+For a call of the github-app skill's script it reads, the reader SHALL
+report, as the identity the post goes out as, the name the call gives with
+`--identity`, or no name when it gives none.
+
+#### Scenario: The reader reports a github-app call's identity
+
+- **WHEN** a hook asks about `python3 /abs/github_app.py --identity
+  alice-relay gh issue comment 5 -b 'x'`, and about the same call with no
+  `--identity`
+- **THEN** the reader reports `alice-relay` as the first post's identity,
+  and no identity for the second
 
 ### Requirement: A gh api call is a read only as a plain gh command
 

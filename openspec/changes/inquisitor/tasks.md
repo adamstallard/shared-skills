@@ -467,7 +467,7 @@ contradicts what design.md assumed.
       person-required line, or another question carries one. It blocks every post holding
       a question whose latest verdict record has a category, read from
       that record (inquisitor spec: *A question with a category is asked
-      only through the picker or its advisory*); blocks a post with a
+      only of the person or in its advisory*); blocks a post with a
       question when it can't read its records; blocks a question whose raw
       markdown matches the credential patterns; passes a `deferred`
       question less than 2 hours old that tags no one in an open-questions

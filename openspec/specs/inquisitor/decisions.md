@@ -48,7 +48,10 @@
 
 - **Rationale: A file is as new as its proof, and supersedes only if it would count.**
   The signer sets a commit's committer date, so a signature dated by it alone would let a proven writer, or a skewed clock, date a commit far in the future and outrank every later answer for good. Bounding it by this machine's first fetch costs this: two machines that first fetched a file at different times can order it differently against a file pushed between those fetches.
+  A comment is dated by GraphQL's `lastEditedAt`, or `createdAt` if it was never edited, because GitHub documents `lastEditedAt` as the time of the last edit; REST's `updated_at` is never read. Anyone's edit makes the comment newer, but it also changes the text, and a link proves a writer only while the comment holds the answer the file records, so an edit cannot make an old answer the newest. Reviews and review comments carry the same fields, since both types implement GraphQL's `Comment` interface.
   Evidence: the committer date is whatever the committer's environment sets, https://git-scm.com/docs/git-commit#_commit_information
+  Evidence: GitHub's GraphQL reference documents `lastEditedAt` as "The moment the editor made the last edit", https://docs.github.com/en/graphql/reference/issues#object-issuecomment
+  Evidence: GitHub's GraphQL schema lists `PullRequestReview` and `PullRequestReviewComment` among the types implementing `Comment`, read by introspection on 2026-11-13, https://docs.github.com/en/graphql/reference/pulls#object-pullrequestreview
 
 - **Rationale: A reader counts no signature GitHub may have made.**
   GitHub signs the commits it makes itself, such as one from its web editor. If GitHub verified such a commit for an account that did not make it, anyone with push access could make a commit that proves another person's answer or relay file.

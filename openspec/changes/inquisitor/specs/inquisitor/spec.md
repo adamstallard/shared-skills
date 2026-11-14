@@ -229,7 +229,7 @@ category (*Some questions are recorded by hash only*) or about an
 organization with no lore repository configured, has no place where its
 answer is recorded: the agent SHALL state its choice and reason in its
 report, saying of one with a category only what *A question with a category
-is asked only through the picker or its advisory* and *A session with no
+is asked only of the person or in its advisory* and *A session with no
 person in it holds back a question with a category* allow.
 
 #### Scenario: An organization's choice with no lore repository is reported
@@ -426,7 +426,7 @@ visibility of **the repository it was asked from**: the one holding the
 current work or, for a logged question, the one its file's `asked_from`
 names; one asked in a Linear or Discord thread counts as asked from a
 private repository. An agent working in no git repository SHALL ask such a
-question only through the picker, and with no picker nowhere. A
+question only of a person in the session, and with none, nowhere. A
 way-of-working question SHALL never be posted.
 
 #### Scenario: An organization's question in private work stays private
@@ -708,7 +708,8 @@ Igor's included, SHALL be input. This whole requirement waits on task
 
 A comment from a person's relay App that starts with `Recorded answer: ` or
 `Inquisitor: ` SHALL be the answer session's automatic post, and no one's
-answer.
+answer. Nothing of this requirement is built before task 0.21 is measured
+(tasks.md).
 
 #### Scenario: A relay App's Recorded answer comment answers nothing
 
@@ -2429,11 +2430,12 @@ read what it concerns can read it.
 
 A question SHALL go only where its audience is no wider than what it
 concerns, by *Nothing about a repository goes somewhere more visible* for a
-post or issue. Where it is wider or unknown, the agent SHALL ask through the
-picker. With no person in the session: if wider, it SHALL post in the
+post or issue. If it is wider or unknown, with a person in session, the
+agent SHALL ask through the picker, or in its reply on a host with none.
+With no person in the session: if wider, it SHALL post in the
 repository the question concerns, or, for an organization's, the one it
 was asked from, when it can; if unknown, it SHALL post
-nothing and report it.
+nothing and say so.
 
 #### Scenario: A headless organization's question is posted where it was asked from
 
@@ -3543,17 +3545,17 @@ a post with a question whose latest record has one.
 - **WHEN** an agent runs `gh issue comment 7 --body-file body.md`, and the
   body holds a question recorded as `ask` with the category
   `vulnerability`
-- **THEN** the post hook blocks the command, and says to ask through the
-  picker or the private security advisory
+- **THEN** the post hook blocks the command, and says to ask the person
+  directly or in the private security advisory
 
-### Requirement: A question with a category is asked only through the picker or its advisory
+### Requirement: A question with a category is asked only of the person or in its advisory
 
 The filters SHALL run on a question with a category. The agent SHALL ask it
-only through the picker or, if `vulnerability`, the repository's private
-security advisory, recording a `vulnerability` question's answer in the
+only through the picker, in its reply on a host with no picker, or, if
+`vulnerability`, in the repository's private security advisory, recording a `vulnerability` question's answer in the
 advisory and using it in the fix. It SHALL list one in no post or issue, and
-defer one under filter 2 only as not done in its report or, if
-`vulnerability`, the advisory.
+defer one under filter 2 only by listing it as not done in its report or,
+if `vulnerability`, in the advisory.
 
 #### Scenario: A deferred vulnerability goes to the advisory
 
@@ -3568,12 +3570,21 @@ defer one under filter 2 only as not done in its report or, if
 - **THEN** the agent uses the answer in the fix, records it in the repository's
   private security advisory, and writes no log file
 
+#### Scenario: With no picker, a question with a category is asked in the reply
+
+- **WHEN** an agent, in a session with a person in it on a host with no
+  picker, has a question with the category `secret` that survives the
+  filters
+- **THEN** it asks the question in the text of its reply, and in no post
+  or issue
+
 ### Requirement: Without advisory access, a vulnerability question is recorded nowhere
 
 An agent that cannot open, or write in, the repository's private security
-advisory SHALL ask a `vulnerability` question only through the picker,
-record neither the question nor its answer, use the answer only in the
-fix's code, and tell the person only that the question blocks.
+advisory SHALL ask a `vulnerability` question only of the person, through
+the picker or, on a host with none, in its reply, record neither the
+question nor its answer, use the answer only in the fix's code, and report
+only that the question blocks.
 
 #### Scenario: With no access to the advisory, a vulnerability stays in the fix
 

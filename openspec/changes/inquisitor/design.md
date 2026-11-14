@@ -487,7 +487,9 @@ the hook blocks as unvetted.
 **With a person in the session, on a host with a picker, an agent never asks
 in its reply, except in an answer session's discussion; a subagent hands its
 surviving questions back to the agent that started it.** On a host with no
-picker, the agent asks in its reply once the two calls vet the question.
+picker, the agent asks in its reply once the script's two calls vet the
+question, a `vulnerability`, `secret` or `personal` question included, since
+the reply, like the picker, reaches only the person.
 
 **Why:** the picker hook then sees every question, and the starting agent,
 which is talking to the person, can batch a subagent's questions with its
@@ -979,9 +981,10 @@ or not at all, and then the question stays open.
 
 **A `vulnerability`, `secret` or `personal` question is kept in none of the
 skill's records in readable form. The filters still run on it, and the agent
-may still ask it, but only through the picker or, for a `vulnerability`, the
-repository's private security advisory** (spec: *A question with a category
-is asked only through the picker or its advisory*). The post hook blocks every post holding a question whose latest verdict
+may still ask it, but only of the person (through the picker, or in its reply
+on a host with none) or, for a `vulnerability`, in the repository's private
+security advisory** (spec: *A question with a category
+is asked only of the person or in its advisory*). The post hook blocks every post holding a question whose latest verdict
 record has a category, since a post would keep the text where the thread's
 readers see it (spec: *Some questions are recorded by hash only*). The script
 records the hash, verdict, time and category, which the picker hook matches
@@ -1446,9 +1449,11 @@ on. It holds no question or answer, and the lists never say which stopped
 question had which category. The Igor accepts a word only when it is exactly
 one of the three, and writes the words only into its operator-only file on
 its host (#216's decision 89), never into the execution ledger, the state
-branch, a comment or a label. It writes no transcript of the run, which
-would hold the question. Each worker run reports its own flag, including the
-model steps igor PR #153 runs after the worker (#216's decisions 60 and 64).
+branch, a comment or a label. The Igor moves the run's session logs, which
+hold the question's text, next to that operator-only file (#216's decisions
+88, 89, 97 and 98), and writes no other copy of the run's text. Each worker
+run reports its own flag, and so does each model step igor PR #153 runs
+after the worker (#216's decisions 60 and 64).
 How the Igor stores the flag is #216's (decisions 92, 97 and 100).
 
 *Ruled out by a scenario:* a word per question, which tells the Igor how many
@@ -1625,23 +1630,24 @@ identity with no service to run.
 
 #### On Discord one identity both reads and relays
 
-**The answer session reads with the person's own `gh` login and Linear key,
-so a relay's token needs only the right to post and nothing the person reads
-is read under a bot's name.** Discord is the exception: its terms do not
-allow automating a user account, so the Discord relay identity both reads
-and posts, in the channels it has been added to.
+**The answer session reads GitHub and Linear with the person's own `gh`
+login and Linear key, so a relay's token there needs only the right to post
+and nothing the person reads there is read under a bot's name.** On Discord the relay identity both reads and
+posts, in the channels it has been added to; the answer-session decision
+record's *Rationale: The answer session reads with the person's credentials,
+except on Discord* gives the reason and its evidence.
 
-*Ruled out by a scenario:* a second Discord identity, in a `read` key, reading
-as the person, which Discord's terms forbid (answer-session spec: *The answer
-session reads with the person's credentials, except on Discord*, scenario
-*Discord is read by its relay*).
+*Ruled out by a scenario:* a second Discord identity reading as the person
+(answer-session spec: *The answer session reads with the
+person's credentials, except on Discord*, scenario *Discord is read by its
+relay*).
 
 #### The Discord relay needs the Message Content intent
 
 **The Discord relay reads messages that do not mention the bot, which needs
-Discord's privileged Message Content intent.** discord-bot's setup
-(shared-skills PR #1, commit 369ae16) has the person turn it on, and its
-`check` reports `messageContent` from the bot's application flags (f83b167).
+Discord's privileged Message Content intent.** The answer-session decision
+record's *Rationale: Setup checks each relay identity before its channels
+are used* gives the evidence.
 
 #### Only the prefixes are reserved, not the identity
 
@@ -1923,16 +1929,13 @@ answers the question.
 without one as the main conversation's.** The spec takes it that Claude Code
 sets `agentId` on every tool call made outside the main conversation, by a
 subagent or by a side conversation Claude Code forks; task 0.26 checks both.
-A mod's `tool.call` handler receives the `agentId` with the call, and nothing
-else tells the main conversation's calls from the others'. The approved
-prototype does this (fc3c35f, `answer-session/hooks/register.tsx`, the
-`tool.call` handler for `propose_reply`).
-
-**Why:** only the conversation the person is in may fill their prompt box. A
-forked side conversation, such as the one that guesses the next prompt, could
-otherwise drop an unasked draft there, possibly over what the person is
-typing; a subagent that read an untrusted Linear or Discord message could
-plant text the person then sends without seeing where it came from.
+A forked side conversation, such as the one that guesses the next prompt,
+could otherwise drop an unasked draft in the prompt box, possibly over what
+the person is typing. The approved prototype refuses such calls (fc3c35f,
+`answer-session/hooks/register.tsx`, the `tool.call` handler for
+`propose_reply`). The answer-session decision record's *Rationale: Claude's
+draft goes to the prompt box, never to a post* gives the reason for
+subagents and its evidence.
 
 **The model writes each draft for whichever is more public: the thread's
 readers or the readers of the question's repository** (answer-session spec:
@@ -2112,20 +2115,13 @@ a newer answer. If a file that would not count could supersede, a person
 without write access, whose answer to a handback an Igor logs as `input`,
 would undo a maintainer's answer.
 
-**Why** a comment is dated by GitHub's GraphQL `lastEditedAt`, or
-`createdAt` if it was never edited: GitHub's GraphQL reference documents
-`lastEditedAt` as "the moment the editor made the last edit", so a reaction,
-a hide or other metadata cannot make an older answer the newest. REST's
-`updated_at` is never read. GitHub documents both fields on issue comments,
-reviews and review comments, through GraphQL's `Comment` interface; task 0.11
-queried an issue comment. An edit by anyone re-dates the comment but also
-changes its text, and a link proves a writer only while the comment holds the
-answer the file records.
-
-A signature's date is the earlier of the signed commit's committer date and
+A file proven by the comment it links is as new as that comment's GraphQL
+`lastEditedAt`, or `createdAt` if it was never edited. A file proven by its
+signature is as new as the earlier of the signed commit's committer date and
 the time this machine first fetched that commit (spec: *A file is as new as
-its proof, and supersedes only if it would count*). The inquisitor's
-decision record gives the reason under that requirement's title.
+its proof, and supersedes only if it would count*). The
+inquisitor's decision record gives the reasons under that requirement's
+title.
 
 #### `answers` decides a named file's answer; the search groups by hash
 

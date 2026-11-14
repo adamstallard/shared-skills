@@ -58,13 +58,21 @@ The answer session SHALL count as a **relay post** only a message a relay
 identity posted that starts with one of the four **reserved prefixes**:
 `User says: `, `User asks: `, `Recorded answer: ` or `Inquisitor: `.
 Nothing in this spec reads a relay identity's other posts, and on GitHub
-this whole requirement waits on task 0.21 (tasks.md).
+this whole requirement waits on task 0.21 (tasks.md). On GitHub, every
+requirement that posts through the relay is built only once task 0.21 is
+measured, since none can read the thread's relay posts before then.
 
 #### Scenario: A prefixed post by a relay identity is a relay post
 
 - **WHEN** the person's Linear relay identity posts a comment starting
   `User asks: `
 - **THEN** that comment counts as a relay post
+
+#### Scenario: Nothing is relayed on GitHub before task 0.21
+
+- **WHEN** task 0.21 is not yet measured, and the person answers a
+  question asked in a GitHub issue
+- **THEN** the build has no GitHub relaying, and posts nothing there
 
 #### Scenario: A relay identity's post without a prefix is not read
 
@@ -112,10 +120,11 @@ channel or thread holding it.
 
 The answer session SHALL treat as a **relayed question** any message
 starting `User says: ` or `User asks: ` that a bot account posted on any
-surface, and SHALL count it as a person's question: when a relay App
-posted it on GitHub, the question of the person whose counted relay file
-lists that App (the inquisitor's *A relay App is one its person's counted
-relay file lists*), and otherwise of a person the session cannot name.
+surface, and SHALL count it as the question of a person the session
+cannot name, unless a relay App posted it on GitHub: then it is the
+question of the person whose counted relay file lists that App (the
+inquisitor's *A relay App is one its person's counted relay file lists*),
+which is built only once task 0.21 is measured (tasks.md).
 
 #### Scenario: A relayed question from a listed relay App is that person's
 
@@ -136,9 +145,9 @@ relay file lists*), and otherwise of a person the session cannot name.
 as an Igor's worker. Unless it is a relayed question, the answer session
 SHALL count as **an agent's question** a fourth-source log file (*A
 question asked of the person comes from one of four sources*) and a
-message by a bot account, such as a GitHub App, a Linear app user, or a
-Discord bot or webhook. Every other question SHALL count as **a person's
-question**.
+message by a bot account (a GitHub App, Linear app user, or Discord bot or
+webhook). Every other question SHALL count as **a person's question**; on
+GitHub, this requirement is built only once task 0.21 is measured.
 
 #### Scenario: A Linear app user's question is an agent's
 
@@ -730,7 +739,7 @@ account or a log file* defines it, SHALL reach only the first person it
 mentions; any other message, a relayed question and an agent's posted
 under a person's own account included, SHALL reach each person it
 mentions (design.md: *A bot's question reaches only the first person it
-mentions*).
+mentions*). On GitHub, this rule is built only once task 0.21 is measured.
 
 #### Scenario: A bot's message reaches only the first person it mentions
 
@@ -761,7 +770,8 @@ none.
 The answer session SHALL count as a **handback** only a comment by an
 App whose slug starts with `igor-` holding a fixed marker that quoted
 text cannot produce, which igor PR #216 is asked to give, in a form task
-0.6 records (design.md: *igor's handback marker*).
+0.6 records (design.md: *igor's handback marker*). It is built only once
+task 0.21 is measured (tasks.md).
 
 #### Scenario: An Igor comment without the handback marker is not a handback
 
@@ -929,7 +939,8 @@ such item is shown on its own.
 A `github-actions[bot]` comment whose first line is the relay notice's,
 as the inquisitor's *A pull request that changes a relay file mentions
 its person* gives it, SHALL be shown as a notice, not a question, with
-nothing posted on it and no miss logged.
+nothing posted on it and no miss logged, once task 0.21 is measured
+(tasks.md); nothing of it is built before then.
 
 #### Scenario: A relay notice is shown, never answered
 
@@ -1535,7 +1546,8 @@ post naming it in its thread: `User says: ` answered; `Recorded answer: `
 answered, and `Inquisitor: ` handled, for the person, listed apart from
 the queue; `User asks: ` waiting for the asker, whose reply requeues
 it; otherwise unanswered. To the thread's state, this machine adds only
-a pending answer and a close; a local close overrides the thread.
+a pending answer and a close; a local close overrides the thread. Reading
+relay posts on GitHub is built only once task 0.21 is measured.
 
 #### Scenario: A relay reply marks the question answered on every machine
 
@@ -2797,12 +2809,12 @@ answer: such a repeat goes to the person, as an ordinary question.
 ### Requirement: Filters 2 to 4 judge every incoming question
 
 The session's model SHALL judge each question filter 1 did not stop
-against filters 2 to 4, sending an unclear case to the person as an
-ordinary question. When an agent's question with no category and no
-person-required line clearly fails one of those filters in a thread the
-relay can reply in, the answer session SHALL itself post the filter's
-fixed text, log its miss, and list the thread's question as handled; a
-log file holding it is closed only by a handled file.
+against filters 2 to 4, sending an unclear case to the person. When an
+agent's question with no category and no person-required line clearly
+fails one of those filters where the relay can reply, the answer
+session SHALL itself post the filter's fixed text, log its miss, and list
+the thread's question as handled; a log file holding it is closed only by a
+handled file. On GitHub, this is built only once task 0.21 is measured.
 
 #### Scenario: A deferrable agent's question is handled for the person
 
