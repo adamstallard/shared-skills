@@ -463,6 +463,38 @@ review rounds too, since agents push after almost every commit (*A question
 round ends at a hand-back or at the end of the agent's turn*, scenario *A
 push ends no round*).
 
+#### A question another skill requires goes through filters 1 and 3 only
+
+**The agent puts a question that another installed skill requires a person
+to decide through filter 1 (already answered) and filter 3 (not a real
+question), and skips filters 2 and 4,** so the inquisitor still screens the
+questions other skills generate, which is what it is for. Such questions
+include a prose cold-read finding the agent would keep, spec-trace's
+adopt-or-decline, and bug-hunter's Step 0 stop, where bug-hunter asks which
+of a file's diverging staged and unstaged edits to keep.
+
+When only one option has merit, filter 3 has the agent take it: for a prose
+finding, that is usually fixing the passage, which is what prose wants.
+Filter 3 takes only an option the requiring skill lets the agent take
+itself. When the one option with merit is one the skill allows only with a
+person's answer, such as prose keeping a finding as `kept (asked)`, the
+question is asked.
+
+**Why filters 2 and 4 stay skipped:** a deferral cannot unblock a step the
+requiring skill holds, such as prose's signing or bug-hunter's Step 0 stop.
+A cheap reversal does not override a choice the skill reserves for a person,
+such as adopting spec-trace. Filter 3 never settles a real choice, since it
+acts only when one option alone has merit. Filter 4 acts when two options
+have merit; under the same limit it could take only the one the skill lets
+the agent take, so it would always fix a prose finding that keeping had
+merit for too.
+
+*Ruled out by a scenario:* exempting such a question from filter 3 too
+(inquisitor spec: *A question another skill requires skips filters 2 and 4*,
+scenario *A prose finding with only a fix of merit is fixed, not asked*);
+and filter 3 taking an option the skill reserves (scenario *Filter 3 takes no
+option the requiring skill reserves for a person*).
+
 #### bug-hunter's Step 9 recommendations go through the filters
 
 **bug-hunter's Step 9 recommendations, which it asks the person about one at
@@ -2335,9 +2367,11 @@ filter 2 to 4 reply* state the rules. On GitHub the post hook checks that the
 line is there on each such question, names the right skill, and is on no other
 question; elsewhere nothing checks it.
 
-**Why:** the asking agent skips filters 2 to 4 for such a question, but the
-answer session would otherwise apply them, and could close by itself a
-question only a person may decide. The line is visible text, since Linear and
+**Why:** the asking agent skips filters 2 and 4 for such a question. It
+has already run filter 3, knowing which options the requiring skill lets it
+take itself; the answer session cannot see those options. If the answer
+session applied filters 2 to 4, it could close by itself a question only a
+person may decide. The line is visible text, since Linear and
 Discord have no hidden comments. It starts `Inquisitor: ` like the session's
 own fixed texts, but sits after the question, since a post starting
 `Inquisitor: ` is blocked on GitHub as a reserved prefix. The script prints
@@ -2350,7 +2384,9 @@ line's words unchanged.
 
 *Ruled out by a scenario:* keeping the automatic reply on such questions
 (answer-session spec: *A question with a person-required line gets no filter 2
-to 4 reply*, scenario *A question spec-trace requires reaches the person*).
+to 4 reply*, scenario *A question spec-trace requires reaches the person*);
+and applying filter 3 again to them (scenario *A marked question that seems
+to fail filter 3 reaches the person*).
 
 #### A reply to an automatic post is a new question
 

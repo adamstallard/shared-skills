@@ -238,11 +238,12 @@ person in it holds back a question with a category* allow.
   4, no decision document fits, and no lore repository is configured
 - **THEN** it logs nothing, and states its choice and reason in its report
 
-### Requirement: A question another skill requires skips filters 2 to 4
+### Requirement: A question another skill requires skips filters 2 and 4
 
-A question that another installed skill requires a person to decide SHALL be
-exempt from filters 2, 3 and 4, so it is asked now. Only filter 1 SHALL
-still apply, and its `ask` verdict SHALL name the requiring skill.
+A question that another installed skill requires a person to decide SHALL
+skip filters 2 and 4, and its `ask` verdict SHALL name that skill. Filter 3
+SHALL NOT stop it when its one option with merit is one that skill allows
+only with a person's answer.
 bug-hunter's Step 9 recommendations are not exempt: each SHALL pass all four
 filters (design.md: *bug-hunter's Step 9 recommendations go through the
 filters*).
@@ -250,7 +251,8 @@ filters*).
 #### Scenario: A question another skill requires is not decided by the agent
 
 - **WHEN** spec-trace requires the person to decide whether to adopt it,
-  and the choice is cheap to reverse
+  both adopting and declining have merit, and the choice is cheap to
+  reverse
 - **THEN** filter 4 does not stop it, and the agent asks it with an `ask`
   verdict naming spec-trace
 
@@ -261,6 +263,22 @@ filters*).
   without the answer
 - **THEN** filter 2 does not stop it, and the agent asks it now with an
   `ask` verdict naming prose
+
+#### Scenario: A prose finding with only a fix of merit is fixed, not asked
+
+- **WHEN** the agent leans to keep a passage prose's cold read flagged, so
+  prose would have it ask the person, and filter 3 finds that only fixing
+  the passage has merit
+- **THEN** filter 3 stops the question, the agent fixes the passage, and
+  asks nobody
+
+#### Scenario: Filter 3 takes no option the requiring skill reserves for a person
+
+- **WHEN** prose's cold read leaves a finding where only keeping the
+  passage as written has merit, and prose keeps a finding only with a
+  person's answer, recorded as `kept (asked)`
+- **THEN** filter 3 does not stop the question, and the agent asks it with
+  an `ask` verdict naming prose
 
 #### Scenario: A bug-hunter recommendation passes the filters
 
@@ -1649,8 +1667,9 @@ string matching the credential patterns.
 
 ### Requirement: A question another skill requires carries a person-required line
 
-A posted question that *A question another skill requires skips filters 2 to
-4* exempts SHALL carry its **person-required line**,
+A posted question whose `ask` names the skill that requires it (*A question
+another skill requires skips filters 2 and 4*) SHALL carry its
+**person-required line**,
 `Inquisitor: a person must decide this (required by <skill>).`, exactly as
 the second call prints it, `<skill>` being the requiring skill's name. The
 line goes where a related-decision line would, after any such line.

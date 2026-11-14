@@ -2872,6 +2872,14 @@ shown to the person. The answer session SHALL trust any such line.
 - **AND** if the person declines it for the inquisitor, the only filter
   offered is filter 1
 
+#### Scenario: A marked question that seems to fail filter 3 reaches the person
+
+- **WHEN** an agent's question whether to keep a passage prose's cold read
+  flagged, where only keeping it seems to have merit, is followed by the
+  line `Inquisitor: a person must decide this (required by prose).`
+- **THEN** no filter 3 reply is posted and no miss is logged; the person
+  is shown it as an ordinary unanswered question
+
 #### Scenario: A marked question posted with the person's own login gets no filter 2 to 4 reply
 
 - **WHEN** an agent posts, with the person's own `gh` login, a question

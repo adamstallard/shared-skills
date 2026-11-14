@@ -504,7 +504,8 @@ contradicts what design.md assumed.
       that the person is accountable for what is posted as their relay
       and where, since no hook checks where a relay post goes
       (answer-session spec: *The person answers for what their relay posts*), the
-      questions other skills require a person to decide and the
+      questions other skills require a person to decide (the agent runs
+      only filters 1 and 3 on them), the
       person-required line copied exactly from the second call, preparing,
       holding a question that blocks no step until the round's end while
       going on with its recommended answer, batching and tagging, the order with prose, logging answers and
