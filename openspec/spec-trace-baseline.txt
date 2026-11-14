@@ -1,0 +1,6 @@
+# Scenarios in openspec/specs that no test tagged when spec-trace was adopted.
+# spec-trace check fails on a line whose scenario a test now tags, or that names no
+# scenario: run `baseline --prune` to remove such lines. Never add one; a new scenario
+# gets a tagged test instead. Keep this file when no scenario is left in it: it
+# records that this repository adopted spec-trace.
+# No scenario is exempt: no line follows.
