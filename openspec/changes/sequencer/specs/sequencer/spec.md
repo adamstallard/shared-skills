@@ -43,7 +43,10 @@ These terms hold throughout this spec:
 - **The model step** applies the one rule that needs a model: a change
   whose code will call another change's code is built after it.
 - **The inquisitor's** *Title* names a requirement of the inquisitor spec.
-- **A Sequencer Igor** is an Igor in the Sequencer role.
+- **A Sequencer Igor** is an Igor in the Sequencer role; **an Igor's work
+  triage** is the step where an Igor chooses which items to take.
+- **A relay App**, **a lore repository** and **a session with a person in
+  it** are the inquisitor spec's terms.
 
 ## ADDED Requirements
 
@@ -72,10 +75,12 @@ item, and no other issue; the order's issue is never an item.
 
 ### Requirement: An issue an open pull request closes takes that pull request's place
 
-An issue that open pull requests close, by GitHub's closing references,
-SHALL share the position of the lowest-numbered of them, and its block
-SHALL name that pull request. Every edge to or from the issue SHALL apply
-to that pull request instead.
+Where open pull requests close an issue by GitHub's closing references,
+the issue SHALL share the position of the lowest-numbered of those opened
+by accounts with write access, and its block SHALL name that pull request.
+Every edge to or from the issue SHALL apply to that pull request instead.
+A closing reference from an author without write access SHALL neither move
+an issue nor bring one into the order.
 
 #### Scenario: A spec pull request and its issue share a place
 
@@ -93,11 +98,18 @@ to that pull request instead.
 - **WHEN** #50 closes issue #43, and #43's body says `Depends on #61`
 - **THEN** #50 comes after #61, and #43 shares #50's place
 
+#### Scenario: An outside author's closing reference moves nothing
+
+- **WHEN** `zed`, without write access, opens #48 saying `Fixes #43`, and
+  #50, opened by a writer, also closes #43
+- **THEN** #43 shares #50's place, not #48's, and gains no place from #48
+  alone
+
 ### Requirement: Each change is read from the head of the pull request it belongs to
 
 Where several open pull requests' heads hold one change's directory, the
-script SHALL read the change, and compute its hash for *A code edge is
-kept while both changes it joins are unchanged*, from the head of the
+script SHALL read the change, and compute its hash for *A checked pair is
+kept while both its changes are unchanged*, from the head of the
 pull request it belongs to, as the terms above define, and ignore the
 other copies.
 
@@ -118,6 +130,12 @@ earlier CLI can drop requirements without saying so. With an older or missing CL
 SHALL apply no rule that reads a change's files,
 and the order's issue SHALL say requirements' dependencies were not
 checked, and why.
+
+#### Scenario: A change is read without checking out its head
+
+- **WHEN** the script reads #90's change from #90's head
+- **THEN** it reads fetched files, and the working tree and `HEAD` are as
+  they were
 
 #### Scenario: An old CLI checks no requirement
 
@@ -225,6 +243,28 @@ same repository, separated by commas or `and`.
 - **WHEN** the only `Depends on #9` in #12's body is inside a code fence
 - **THEN** it gives no edge
 
+### Requirement: Only edges set by writers count
+
+An edge SHALL count only when every item whose text sets it was opened by an
+account with write access: both changes' pull requests for an edge from
+changes' files or the model step, and the item holding the `Depends on`
+line, or the blocked item, for an explicit link. The order's issue SHALL
+list each other edge as not counted, naming the author.
+
+#### Scenario: A Depends on line from an outside author is not counted
+
+- **WHEN** issue #120, opened by `zed` who has no write access, says
+  `Depends on #95`
+- **THEN** #120 gains no edge after #95, #95 gains no rank from it, and the
+  order's issue lists `#120 after #95` as not counted, opened by `zed`
+
+#### Scenario: A citation set by an outside author's title is not counted
+
+- **WHEN** `zed`, without write access, opens #121, whose change adds a
+  requirement titled as a sentence in #82's `design.md`
+- **THEN** #82 does not come after #121, and the order's issue lists that
+  edge as not counted, opened by `zed`
+
 ### Requirement: Pull requests that change the same files merge one after another
 
 Where two open pull requests change a file in common, the later of them in
@@ -261,10 +301,15 @@ place this tiebreak decides.
 - **THEN** #17 comes before #20, and neither block gives a reason for that
   place
 
+#### Scenario: A cycle is placed by its lowest member
+
+- **WHEN** #40 and #44 form a cycle, and #42 is connected to neither
+- **THEN** the cycle comes before #42, placed as if numbered #40
+
 #### Scenario: An unordered pair raises no question
 
-- **WHEN** an Igor's Sequencer role publishes an order in which no edge
-  connects #20 and #17
+- **WHEN** a Sequencer Igor reads an order in which no edge connects #20
+  and #17
 - **THEN** no question about their order is posted or asked
 
 ### Requirement: A cycle is asked about, never chosen
@@ -272,11 +317,10 @@ place this tiebreak decides.
 The script SHALL NOT choose which member of a cycle goes first. The order
 SHALL list a cycle's members together at one place, marked
 `unchosen since <time>` with the time a run first listed it, and place each
-item that comes after any member after all of them. When a session asked
-through the picker, the host's question tool, its publish SHALL add
-`asked in a session by <login> at <time>`, `<login>` being the `gh` login
-the session runs under; otherwise
-the place SHALL say `not yet asked`.
+item that comes after any member after all of them. After a session asks
+through the picker, `publish --asked '#<n>,#<m>' --by <login>` SHALL add
+`asked in a session by <login> at <time>`, `<login>` being the session's
+`gh` login; otherwise the place SHALL say `not yet asked`.
 
 #### Scenario: Two changes that cite each other wait for a person
 
@@ -289,35 +333,34 @@ the place SHALL say `not yet asked`.
 #### Scenario: A cycle asked in a session names who asked
 
 - **WHEN** `maya`'s session asks through the picker which of #82 and #85
-  goes first, and publishes before she answers
+  goes first, and runs `publish --asked '#82,#85' --by maya` before she
+  answers
 - **THEN** the order marks the cycle unchosen with `asked in a session by
   maya at <time>`, the time her session published
 
 #### Scenario: A cycle nobody has asked about says so
 
-- **WHEN** an Igor's Sequencer role publishes an order with a cycle between
-  #82 and #85, and no session asked about it through a picker
+- **WHEN** a run publishes an order with a cycle between #82 and #85, and no session asked about it through a picker
 - **THEN** the order marks the cycle unchosen with `not yet asked`
 
 ### Requirement: An ask in a session lapses after 7 days unanswered
 
-An `asked in a session` mark SHALL count for 7 days from the time it
-records. Once 7 days pass with no answer counted, the cycle SHALL count as
-unasked, and its place SHALL say `not yet asked`, so that the next session
+An `asked in a session` mark SHALL count through the seventh UTC date after
+the date it records. On any later date, with no answer counted, the cycle
+SHALL count as unasked, and its place SHALL say `not yet asked`, so that the next session
 asks again.
 
 #### Scenario: A week-old unanswered ask counts as unasked
 
 - **WHEN** a cycle is marked `asked in a session by maya at
-  2026-11-01T14:03Z`, no answer counts, and a run is on 2026-11-09
+  2026-11-01T14:03Z`, no answer counts, and a run is on 2026-11-09 UTC
 - **THEN** the run marks the cycle `not yet asked`, and the next session
   running the skill asks about it
 
 #### Scenario: A recent ask stands
 
 - **WHEN** the same cycle's mark is `asked in a session by maya at
-  2026-11-05T09:00Z`, and a run is on
-  2026-11-09
+  2026-11-05T09:00Z`, and a run is on 2026-11-09 UTC
 - **THEN** the mark stays as it is
 
 ### Requirement: A cycle a person has decided is ordered as decided
@@ -365,6 +408,12 @@ after its `User says: ` prefix.
   cycle was listed unchosen
 - **THEN** the cycle stays unchosen
 
+#### Scenario: An answer on an item's thread decides nothing
+
+- **WHEN** a person with write access comments `#85 first` on #82's thread,
+  not on the order's issue
+- **THEN** no run reads it, and the cycle stays unchosen
+
 #### Scenario: A comment older than the cycle decides nothing
 
 - **WHEN** a person with write access commented `#85 first` on the order's
@@ -381,14 +430,19 @@ after its `User says: ` prefix.
 
 ### Requirement: A relay file is read from the configured lore repository through the API
 
-To count a relayed answer, the script SHALL read the person's
-`relays/<login>.yaml` and the newest commit changing it through
-GitHub's API from the lore repository `.github/sequencer.json`'s `lore`
-names, under the inquisitor's *A reader counts a relay file only
-when its person made its last change*; a Sequencer Igor reads it instead
-from the commit igor last applied, as *A relay file is read as last fetched,
-or as igor last applied it* says. Relayed answers wait on the
-inquisitor's task 0.21.
+To count a relayed answer, the script SHALL read `relays/<login>.yaml` and
+its newest commit by API from the lore repository `.github/sequencer.json`
+names, counting it as the inquisitor's *A reader counts a relay file only
+when its person made its last change* says. A Sequencer Igor SHALL read it
+at the commit igor last applied (the inquisitor's *A relay file is read as
+last fetched, through the API without a clone, or as igor last applied
+it*).
+
+#### Scenario: A Sequencer Igor reads the relay file igor last applied
+
+- **WHEN** the lore repository's newest commit adds `alice-relay` to
+  `relays/alice.yaml`, and igor has not applied it
+- **THEN** a Sequencer Igor's `order` does not count `alice-relay`
 
 #### Scenario: A counted relay file in the configured lore repository is read
 
@@ -396,6 +450,17 @@ inquisitor's task 0.21.
   `relays/alice.yaml` there lists `alice-relay` and was last changed by a
   merged pull request `alice` authored
 - **THEN** the script counts `alice-relay` as `alice`'s relay App
+
+### Requirement: Relayed answers wait on the inquisitor's tasks 0.21 and 0.22
+
+Relayed answers, and the relay-file reading they need, SHALL be built only
+once the inquisitor's tasks 0.21 and 0.22 are measured.
+
+#### Scenario: Before the measurements, no relayed answer counts
+
+- **WHEN** the inquisitor's task 0.21 is not yet measured, and
+  `alice-relay` comments `User says: #85 first` on the order's issue
+- **THEN** the comment decides no cycle
 
 ### Requirement: Without the lore repository, only direct answers count
 
@@ -411,14 +476,20 @@ themselves, and the order's issue SHALL say
 - **THEN** a `User says: ` comment decides no cycle, a direct comment still
   does, and the order's issue says relayed answers were not read
 
-### Requirement: The workflow reads a private lore repository with a read-only token
+### Requirement: The workflow reads the lore repository with its own token, or a private one's secret
 
-The workflow SHALL read a public lore repository with the token GitHub gives
-each run, and a private one with the secret `SEQUENCER_LORE_TOKEN`, a
-read-only token for it. `setup-ci --lore <owner>/<repo>` SHALL write `lore`
-into `.github/sequencer.json` and, when that repository is private, add the
-secret with `gh secret set`, reading the token from standard input. This
-waits on the inquisitor's task 0.21, as the relayed answers it serves do.
+The workflow SHALL read the lore repository with the token GitHub gives each
+run, needing no setup when that repository is public. Only for a private
+one SHALL it use the secret `SEQUENCER_LORE_TOKEN`, a read-only token,
+which `setup-ci --lore <owner>/<repo>` adds with `gh secret set` from
+standard input after writing `lore` into `.github/sequencer.json`. This
+waits on the inquisitor's task 0.21.
+
+#### Scenario: A public lore repository needs no secret
+
+- **WHEN** `setup-ci --lore acme/lore` runs, and `acme/lore` is public
+- **THEN** `.github/sequencer.json` has `"lore": "acme/lore"`, no secret is
+  added, and the workflow reads relay files there with its own token
 
 #### Scenario: Setup adds the token for a private lore repository
 
@@ -440,6 +511,12 @@ has write access.
   `publish --decide '#85 first' --by maya`
 - **THEN** the script edits nothing and says `gh` is not logged in as
   `maya`
+
+#### Scenario: A session choice by a person without write access is refused
+
+- **WHEN** `gh` is logged in as `zed`, who has no write access, and an
+  agent runs `publish --decide '#85 first' --by zed`
+- **THEN** the script edits nothing and says `zed` has no write access
 
 ### Requirement: The model step orders changes whose code calls each other's code
 
@@ -464,13 +541,13 @@ when any edge names something else or has no reason.
 - **THEN** the script publishes none of that set's edges, and says which
   edge it refused
 
-### Requirement: A code edge is kept while both changes it joins are unchanged
+### Requirement: A checked pair is kept while both its changes are unchanged
 
-The order's issue SHALL record, with each model-step edge, one hash for
-each of the two changes it joins, of that change's files. A later run
-SHALL keep the edge while both hashes match, and drop it when either
-differs. `publish` SHALL refuse a model-step edges file whose inputs hash
-differs from the inputs hash of what it reads.
+An edges file SHALL name every pair of changes the model step checked. The
+order's issue SHALL record each checked pair, with any edge found and one
+hash of each change's files. A later run SHALL count the pair checked, and
+keep its edge, while both hashes match. `publish` SHALL refuse an edges
+file whose inputs hash differs from that of what it reads.
 
 #### Scenario: A run with no model keeps an unchanged code edge
 
@@ -485,6 +562,13 @@ differs from the inputs hash of what it reads.
 - **WHEN** a push revises #90's `tasks.md`
 - **THEN** the next run drops the code edge between #82 and #90, and counts
   that pair as unchecked
+
+#### Scenario: A pair checked with no edge stays checked
+
+- **WHEN** the model step checked #82 and #95 and found no edge, and a
+  later run finds both changes' files unchanged
+- **THEN** that run counts the pair as checked, and does not label the
+  order's issue `sequencer: check code` for it
 
 #### Scenario: Edges computed against changed inputs are refused
 
@@ -701,6 +785,24 @@ order.
   and #88, which one item comes after
 - **THEN** the order's issue names #82 as that reviewer's next review
 
+#### Scenario: A reviewer is never offered their own pull request
+
+- **WHEN** `maya` authored #82, which the most items come after
+- **THEN** #82 is not `maya`'s next review
+
+#### Scenario: A tie goes to the pull request earlier in the order
+
+- **WHEN** a reviewer awaits #82 and #88, which as many items come after,
+  and #82 is earlier in the order
+- **THEN** #82 is that reviewer's next review
+
+#### Scenario: Items reached through others count
+
+- **WHEN** #91 comes after #88, which comes after #82, and a reviewer
+  awaits #82 and #84, and only one item comes after #84, directly
+- **THEN** #82 counts two items after it, and is that reviewer's next
+  review
+
 #### Scenario: A draft is not offered for review
 
 - **WHEN** #93 is a draft requesting review from a reviewer
@@ -798,32 +900,51 @@ issue; the order it publishes SHALL be a recommendation.
 - **WHEN** #82 is first in the order, approved and passing its checks
 - **THEN** the script leaves it open and unmerged
 
-### Requirement: A judgement question goes to a person through the inquisitor
+### Requirement: Only a session with a person in it asks a cycle question
 
-An agent running the skill SHALL put each question of judgement, such as
-which member of a cycle goes first, through the inquisitor skill as a question the sequencer
-requires a person to decide (the inquisitor's *A question another skill
-requires skips filters 2 and 4*: filter 2, deferrable, and filter 4,
-cheap to reverse), and in a session with a person in it the
-agent SHALL ask it as the inquisitor's *Where the host has a picker, an
-agent asks through it, never in its reply* says.
+In a session with a person in it, the agent SHALL put each question of
+judgement, such as which member of a cycle goes first, through the
+inquisitor as a question the sequencer requires a person to decide (the
+inquisitor's *A question another skill requires skips filters 2 and 4*),
+asking through the picker. No other session, an Igor worker included, and
+no CI run SHALL ask one.
 
 #### Scenario: In a session the agent asks through the picker
 
 - **WHEN** an agent running the skill in a session with a person in it
   finds an undecided cycle
 - **THEN** it asks the person which member goes first through the picker,
-  as a question the sequencer requires, and neither filter 2 nor 4 stops
-  it
+  as a question the sequencer requires, and neither filter 2, deferrable,
+  nor filter 4, cheap to reverse, stops it
 - **AND** filter 3, which has the agent take a question's one option of
   merit itself, does not stop it even when only one member has merit going
   first, since the sequencer lets only a person choose that member
 
+#### Scenario: A session with no person in it leaves the cycle listed
+
+- **WHEN** a `claude -p` job running the skill finds an undecided cycle
+- **THEN** it asks no question, and the order's issue keeps the cycle
+  listed as `not yet asked`
+
+### Requirement: A cycle question is logged like any inquisitor question
+
+A cycle question asked in a session SHALL be logged, and its answer
+recorded, as the inquisitor's *Every answer is recorded and every asked
+question logged* says for any question; `publish --decide` SHALL also show
+the choice in the order's issue.
+
+#### Scenario: A picker answer is logged and shown
+
+- **WHEN** `maya` answers `#85 first` in the picker, and the agent runs
+  `publish --decide '#85 first' --by maya`
+- **THEN** the question and her answer are logged as the inquisitor logs
+  any question, and the order's issue lists the cycle as decided by `maya`
+
 ### Requirement: CI lists an unchosen cycle and asks no question
 
 The workflow SHALL post no question. It SHALL list each unchosen cycle in
-the order's issue, for an agent session to ask through the inquisitor and
-record with `publish --decide`.
+the order's issue until a person answers it, in a person's session through
+`publish --decide` or in a comment the order's issue counts.
 
 #### Scenario: A cycle found in CI is listed, not asked
 
@@ -855,7 +976,8 @@ it with the newer template when given `--force`.
 The workflow SHALL run the script when an issue is opened, edited, closed
 or commented on; when a pull request is opened, edited, marked ready for
 review, reviewed, or closed, merged or not; when a push reaches an open
-pull request's branch; and once a day. All its runs SHALL share one
+pull request's branch; when a Sequencer Igor dispatches it; and once a
+day. All its runs SHALL share one
 concurrency group, so no two of them edit a body at once.
 
 #### Scenario: Two quick merges run one after the other
@@ -900,11 +1022,11 @@ the repository holds as the secret `ANTHROPIC_API_KEY`; or by an Igor.
 ### Requirement: With an API key, the model step is one API call with no tools
 
 Where the repository chose its API key, `publish --model api` SHALL run the
-model step as one Messages API call that offers no tools, sending the
-changes' files as text and taking from the reply only the edges it parses
-and validates as for an edges file. When the secret is missing, the call
-fails or the reply does not parse, the order SHALL say code dependencies
-were not checked.
+model step, only while a pair of writers' changes is unchecked, as one
+Messages API call that offers no tools, sending those changes' files and
+taking from the reply only what it validates as an edges file. When that
+fails, the pairs SHALL stay unchecked, as *The order says plainly what it
+did not check* says.
 
 #### Scenario: The model step's call offers no tools
 
@@ -912,6 +1034,12 @@ were not checked.
 - **THEN** the request the script sends holds no `tools` and no MCP server,
   and the script runs no command and makes no other request from the
   reply
+
+#### Scenario: No unchecked pair makes no call
+
+- **WHEN** an outside account's comment triggers a run, and every pair of
+  writers' changes is checked
+- **THEN** the script makes no API call
 
 #### Scenario: A reply that does not parse checks nothing
 
@@ -941,24 +1069,24 @@ keep it when it refuses them.
 
 #### Scenario: Publishing the model step's edges removes the label
 
-- **WHEN** an Igor publishes model-step edges through the script that check
-  every pair of open changes
+- **WHEN** a Sequencer Igor's dispatched run publishes model-step edges
+  that check every pair of open changes
 - **THEN** the script removes the label `sequencer: check code`
 
 ### Requirement: A Sequencer Igor runs the model step on the labelled issue
 
-`publish --code-edges` SHALL take a Sequencer Igor's edges file, from the
-model step it runs on the issue labelled `sequencer: check code`, with the
-same checks as any caller's and no input that only an Igor gives; what Igor
-builds to claim that issue and run the model step is
-adamstallard/igor#231's.
+When the issue labelled `sequencer: check code` asks for the model step, a
+Sequencer Igor SHALL run it and hand its edges to the workflow, which publishes
+them with `publish --code-edges` under the same checks as any caller's and
+no input that only an Igor gives; what Igor builds to claim that issue and
+run the model step is adamstallard/igor#231's.
 
 #### Scenario: A stale result from an Igor leaves the label on
 
-- **WHEN** a Sequencer Igor publishes edges computed before a merge that
+- **WHEN** a Sequencer Igor hands over edges computed before a merge that
   changed the inputs
-- **THEN** `publish` refuses them, and the label `sequencer: check code`
-  stays on the order's issue
+- **THEN** the workflow's `publish` refuses them, and the label
+  `sequencer: check code` stays on the order's issue
 
 ### Requirement: The workflow runs no code from a pull request
 
@@ -976,40 +1104,50 @@ data, and SHALL NOT check out or run code from a pull request's head.
 ### Requirement: An Igor's worker runs the skill in its own session
 
 An Igor's worker SHALL be able to run the skill in its own session as any
-agent does, with `order` and the model step, and SHALL ask a judgement
-question only where the inquisitor's *A session with no person in it asks
-in a post, a handback or nowhere* lets an Igor worker ask. A
-`publish` that another process runs SHALL accept and apply an edges file a
-worker wrote, while the inputs are unchanged.
+agent does, with `order` and the model step, and SHALL ask no cycle
+question. A `publish` that another process runs SHALL accept and apply an
+edges file a worker wrote, while the inputs are unchanged.
 
-#### Scenario: A worker's edges are published by its Igor
+#### Scenario: A worker's edges are published through the workflow
 
-- **WHEN** an Igor's worker runs `order` and the model step, writes an
-  edges file, and its Igor runs `publish --code-edges` with that file
-  before any input changes
-- **THEN** `publish` takes the edges
+- **WHEN** an Igor's worker runs `order` and the model step and writes an
+  edges file, and its Igor hands that file to the workflow before any
+  input changes
+- **THEN** the workflow's `publish` takes the edges
 
-#### Scenario: A worker asks about a cycle in its handback comment
+#### Scenario: A worker asks nothing about a cycle
 
-- **WHEN** an Igor's worker running the skill finds an undecided cycle, in
-  a run igor has not flagged (the inquisitor's *A flagged run's handoff
-  asks no question*)
-- **THEN** it asks which member goes first in its handback comment, the
-  comment in which its Igor hands the item back, and
-  opens no post and calls no picker
+- **WHEN** an Igor's worker running the skill finds an undecided cycle
+- **THEN** it asks about it nowhere, neither in its handback comment (the
+  comment in which its Igor hands the item back) nor in a post, and the cycle stays listed in the order's issue
 
-### Requirement: Igor's Sequencer role calls the script as any caller does
+### Requirement: A Sequencer Igor publishes only through the workflow
 
-An Igor's Sequencer role SHALL run the same commands as any caller and
-pass no data that another caller does not pass, so *Only a dry run takes a
-reviewer list* and *The same inputs give the same order whoever runs the
-script* hold for it.
+A Sequencer Igor SHALL edit no body itself. It SHALL publish by dispatching
+the workflow (`workflow_dispatch`), passing any edges file as the run's
+input, so that its publishes share the workflow's concurrency group, and
+dispatch again when that run is cancelled before it publishes. Its `order`
+SHALL take only data that any caller could pass.
 
-#### Scenario: The Sequencer role and CI agree
+#### Scenario: A Sequencer Igor's publish waits for a running workflow run
 
-- **WHEN** a Sequencer Igor and the CI workflow each run `publish` against
-  the same inputs and recorded code edges
-- **THEN** both give the same text for the order's issue and every block
+- **WHEN** a Sequencer Igor publishes edges while a workflow run for a
+  merge is still running
+- **THEN** its dispatched run starts only after that run finishes, and the
+  Igor edits no body itself
+
+#### Scenario: A cancelled dispatch is sent again
+
+- **WHEN** a Sequencer Igor's dispatched run is pending, and a comment's
+  run queues in the same concurrency group, which cancels the older
+  pending run
+- **THEN** the Igor dispatches the workflow again with the same edges file
+
+#### Scenario: A Sequencer Igor reads the order CI publishes
+
+- **WHEN** a Sequencer Igor runs `order --json` against the inputs the CI
+  workflow last published from, reading the same relay files
+- **THEN** the positions it reads are the ones in the order's issue
 
 ### Requirement: The script prints the order for callers without editing anything
 

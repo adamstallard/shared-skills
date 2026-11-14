@@ -17,6 +17,11 @@ including a result that contradicts what design.md assumed.
 
 - [ ] 0.4 A `pull_request_review` run for a fork's pull request gets a
       `GITHUB_TOKEN` that can edit issue and pull request bodies
+- [ ] 0.5 The largest input a `workflow_dispatch` run accepts, against the
+      size of an edges file for a large repository
+- [ ] 0.6 Whether a workflow run's `GITHUB_TOKEN` can read another
+      account's permission on the repository, and the members of a team
+      CODEOWNERS names
 
 ## 1. Reading the repository
 
@@ -43,11 +48,13 @@ including a result that contradicts what design.md assumed.
 - [ ] 2.5 The topological order with the lowest-number tiebreak, cycles
       grouped and marked unchosen, decided cycles placed as decided
 - [ ] 2.6 The names both changes' `tasks.md` files hold, for the model step
-- [ ] 2.7 Model-step edges: validate, record with the two changes' hashes,
+- [ ] 2.7 Model-step checked pairs and edges: validate, record with the two changes' hashes,
       keep or drop them on later runs, and refuse edges computed against
       other inputs
 - [ ] 2.8 The statements of what the order did not check
 - [ ] 2.9 A test that two runs on the same inputs give byte-identical text
+- [ ] 2.10 Count an edge only when a writer opened every item whose text
+      sets it, and list the rest as not counted
 
 ## 3. Publishing
 
@@ -73,12 +80,14 @@ including a result that contradicts what design.md assumed.
 ## 4. Judgement questions
 
 - [ ] 4.1 Put each undecided cycle through the inquisitor as a question the
-      sequencer requires, through the picker in a session; mark the ask
-      with its time and let it lapse after 7 days; in CI, list the cycle
-      and ask nothing
-- [ ] 4.2 Count direct answer comments on the order's issue, and record a
-      session's answer with `publish --decide`
-- [ ] 4.3 Built only once the inquisitor's task 0.21 is measured: count
+      sequencer requires, through the picker, only in a session with a
+      person in it, and log it as the inquisitor logs any question; mark
+      the ask with its time and let it lapse after 7 days; elsewhere, list
+      the cycle and ask nothing
+- [ ] 4.2 Count direct answer comments on the order's issue, mark a
+      session's ask with `publish --asked`, and record its answer with
+      `publish --decide`
+- [ ] 4.3 Built only once the inquisitor's tasks 0.21 and 0.22 are measured: count
       relayed answers from relay files read through the API from the lore
       repository `.github/sequencer.json` names, and `setup-ci --lore`
       with its `SEQUENCER_LORE_TOKEN` secret

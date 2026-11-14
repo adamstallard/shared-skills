@@ -2,16 +2,16 @@
 
 ## Rejected
 
-- **Rejected: Serialising session and Igor publishes with the workflow's runs through an Actions concurrency group.**
-  Facing: a session, an Igor and the CI workflow can each run `publish` against the same bodies at once.
-  Lost because: a session's or an Igor's publish is no GitHub Actions run, and GitHub's docs describe a `concurrency` group as holding back only Actions jobs and workflow runs, https://docs.github.com/en/actions/using-jobs/using-concurrency.
-  Instead: the later write wins. The next run recomputes the rule-decided order; code edges written by the losing publish are lost until a model step runs again.
+- **Rejected: Serialising a session's publish with the workflow's runs through an Actions concurrency group.**
+  Facing: a person's session and the CI workflow can each run `publish` against the same bodies at once.
+  Lost because: a session's publish is no GitHub Actions run, and GitHub's docs describe a `concurrency` group as holding back only Actions jobs and workflow runs, https://docs.github.com/en/actions/using-jobs/using-concurrency.
+  Instead: the later write wins. The next run recomputes the rule-decided order. What only the losing publish wrote is lost until it is published again: its code edges until a model step runs, and its ask mark or recorded choice until the session publishes it again. A Sequencer Igor publishes only by dispatching the workflow, so its writes share the workflow's group.
   Paths: .agents/skills/sequencer/scripts/sequencer.py
 
 - **Rejected: Running the workflow on `pull_request`.**
   Facing: a trigger for the workflow's runs on pull request events.
   Lost because: a `pull_request` run for a fork's pull request gets a read-only token, which cannot edit that pull request's body, https://docs.github.com/en/actions/writing-workflows/choosing-when-your-workflow-runs/events-that-trigger-workflows#workflows-in-forked-repositories.
-  Instead: `pull_request_target`, reading each pull request's change files as data and running none of its code.
+  Instead: `pull_request_target`, reading each pull request's change files as data and running none of its code. `pull_request_target` has no activity type for a submitted review (same page, https://docs.github.com/en/actions/writing-workflows/choosing-when-your-workflow-runs/events-that-trigger-workflows#pull_request_target), so review events come through `pull_request_review`, whose run for a fork's pull request may get a read-only token and publish nothing; the next run with a write token publishes the order.
   Paths: .agents/skills/sequencer/ci/sequencer.yml
 
 ## Rationale
@@ -41,3 +41,7 @@
   Evidence: measured on 2026-11-10 UTC with gh 2.103.2, on an issue whose body is 2521 bytes and which has one comment. `gh issue view 168 --repo adamstallard/igor | wc -c` printed 2803 bytes: the title, metadata and body. `gh issue view 168 --repo adamstallard/igor --comments | wc -c` printed 164: the one comment with its author header, and no title or body, https://github.com/adamstallard/igor/issues/168
   Evidence: GitHub's REST documentation for updating an issue says "Issue owners and users with push access or Triage role can edit an issue", https://docs.github.com/en/rest/issues/issues#update-an-issue
   Evidence: GitHub's table of repository roles gives "Edit anyone's issue titles and bodies" to the Moderate, Write, Maintain and Admin roles, and not to Read or Triage, so of those without write access only the issue's author can edit its body, https://docs.github.com/en/organizations/managing-user-access-to-your-organizations-repositories/managing-repository-roles/repository-roles-for-an-organization
+
+- **Rationale: The script edits only the text between its markers.**
+  A new block goes above the prose skill's `prose ✓` footer and changes the text that footer hashes, so the footer stops matching. That is harmless. The only posted body prose's hook fetches is a pull request's, when an agent hands the pull request back for review, and it reads only whether the footer says the body's cold read was put off until then, never the hash. An issue body, such as the order's issue, it never fetches.
+  Evidence: prose's hook fetches a body only for a pull request being handed back, and calls only `deferred_footer(body)` on it, [.agents/skills/prose/scripts/prose.py:1561](https://github.com/adamstallard/shared-skills/blob/528ae4ec/.agents/skills/prose/scripts/prose.py#L1561)

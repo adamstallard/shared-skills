@@ -40,8 +40,8 @@ Igor's Sequencer role (adamstallard/igor#231).
   call with no tools on the repository's API key, or by an Igor.
 
 design.md's *Decisions* gives the reason for each rule, and its *Open
-Questions* lists four questions for a person and the facts to measure
-before building.
+Questions* lists two questions for a person and the facts to measure before
+building.
 The capability's decision record, `openspec/specs/sequencer/decisions.md`,
 holds what no test can express, each entry with its evidence: constraints
 no test can check, alternatives no requirement guards against, and reasons
