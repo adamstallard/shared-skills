@@ -35,8 +35,9 @@ agent asks it again.
 
 design.md's *Decisions* gives the reason for each rule, and its *Open
 Questions* lists what this change leaves unmeasured or needs from igor and
-other changes. Each capability's `specs/<capability>/decisions.md` holds
-the constraints and rejected alternatives no test can check.
+other changes. Each capability's decision record,
+`openspec/specs/<capability>/decisions.md`, holds what no test can check:
+constraints, rejected alternatives, and the evidence behind requirements.
 
 **Out of scope:** the Igor inquisitor role, which brings surviving questions
 to a team discussion, with its per-channel budget of posts. An Igor is one
@@ -71,9 +72,11 @@ None.
   `answer-session-ui-approved-v0.1-33`.
 - The answer session posts through the github-app, linear-app and
   discord-bot skills, discord-bot as merged in shared-skills PR #1.
-  linear-app and discord-bot each gain a post hook that, in the session
-  running the answer session, blocks the model's own posts there, so only
-  posts the person confirmed go out. The
+  In the session running the answer session, the model posts only as the
+  person's relays: the inquisitor's post hook, and a new post hook in each
+  of linear-app and discord-bot, block its posts under the person's own
+  account and any carrying a reserved prefix, so only answers the person
+  confirmed go out as theirs. The
   answer session's setup writes `~/.local/bin/answer`.
 - prose: its posting hook's body reader moves to `.agents/lib/gh-shell/`,
   beside the command splitter and gh flag tables already there, so the
@@ -107,8 +110,8 @@ None.
   `relays/<login>.yaml` on its default branch, and a `relay-notice.yml`
   workflow that mentions a relay file's person on a pull request changing
   it.
-- prose: its pass skips files under `.inquisitor/`, and its `DECISIONS.md`
-  says why.
+- prose: its pass skips files under `.inquisitor/`, because a log or miss
+  file quotes a question, and what a person said, word for word.
 - github-app: its SKILL.md's examples hold the skill's script path in the
   shell variable `G`. They set `G` in the same command as each use, or write
   the script's full path, since the shared post reader reads `$G` only when

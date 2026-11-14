@@ -9,10 +9,11 @@ Each entry: what was decided, why, what was rejected, and where it stops applyin
 auto-enable and `doctor` all ask them. `enable_plan` likewise decides, once,
 which platforms enable rewrites and `STRAY` inspects.
 
-- **Why:** the rule used to live in four places (`owns_entry`, `runs_script`,
-  the sweep's spare logic, `stray_wiring`'s claim), and seven of the first eight
-  bugs in the several-hooks work were two of them disagreeing.
-- **Rejected:** a separate matcher or path check at each caller.
+- **Why:** one rule can't disagree with itself.
+- **Rejected:** a separate matcher or path check at each caller. With the rule
+  in four places (`owns_entry`, `runs_script`, the sweep's spare logic,
+  `stray_wiring`'s claim), seven of the first eight bugs in the several-hooks
+  work were two of them disagreeing.
 - **Stops applying:** skill *ownership* — "did this skill wire it at all" — is a
   different question, answered by `owns` (the skill's directory in the path), so
   a renamed script stays removable.
@@ -41,14 +42,14 @@ shows the entry's real state there, and `n/a` only when nothing is present.
 `loads_here` exempts a target that is the same directory as one the mod belongs
 in, comparing each pair separately (`same_dir`).
 
-- **Why:** before this, doctor said `install --force`, which never touches that
-  target, so the problem never cleared. Without the same-directory check, a
-  `~/.agents/skills` linked to `~/.claude/skills` would get advice to delete the
-  only working link; that happened once, when one missing target ended the
-  whole comparison.
+- **Why:** without the same-directory check, a `~/.agents/skills` linked to
+  `~/.claude/skills` would get advice to delete the only working link; that
+  happened once, when one missing target ended the whole comparison.
 - **Rejected:** `uninstall <name>` as the fix (it walks every target and drops
-  the working `.claude` link too); `install --force` cleaning other targets
-  (install would start deleting in targets it otherwise never touches).
+  the working `.claude` link too); `install --force` as the fix (it never
+  touches that target, so the problem never clears); `install --force`
+  cleaning other targets (install would start deleting in targets it otherwise
+  never touches).
 - **Stops applying:** entries are still matched by exact name and regular files
   are still ignored, as everywhere else in doctor.
 
@@ -92,27 +93,27 @@ invalid, an empty `hooks` list, only unusable entries, `command` beside such a
 list, or a one-hook manifest that names no platform this manager knows), whatever
 the skill wired before is leftover. `doctor` reports each
 such command as `STRAY`, and `install` and `enable-hook` remove it, found by the
-skill's directory in the path, as `disable-hook` and `uninstall` already do.
+skill's directory in the path, as `disable-hook` and `uninstall` do.
 The opt-out still follows the last command: `disable-hook` records it,
 `enable-hook` clears it.
 
 - **Why:** a hook that nothing declares any more must not keep firing unseen.
   Ownership needs no manifest, so the sweep needs none either.
-- **Rejected:** leaving the wiring until `disable-hook` or `uninstall`. It kept
-  running, and nothing said so.
+- **Rejected:** leaving the wiring until `disable-hook` or `uninstall`. It keeps
+  running, and nothing says so.
 - **Stops applying:** a skill with no `hook.json` at all. It ships no hook, so
   its old wiring is left for `disable-hook` or `uninstall`.
 
 ## `update` refreshes manage-skills only from the recorded clone
 
-Decided by Adam, 2026-10-01. `update` pulls whichever clone the command uses,
+`update` pulls whichever clone the command uses,
 but copies `manage-skills` into the targets only from the clone `bootstrap`
 recorded in the config. When `SHARED_SKILLS_REPO` names another clone, `update`
 pulls it and says it left `manage-skills` as it is. When the variable names the
 recorded clone, it refreshes as usual. When the variable is set and nothing is
 recorded (bootstrap never ran), it refuses to refresh, because nothing says
 which clone is the source; `bootstrap` records it. Without the variable and with
-nothing recorded, it refreshes from the clone the script lives in, as before.
+nothing recorded, it refreshes from the clone the script lives in.
 
 `install_manager` checks the source has a `manage-skills` before touching any
 target, and builds each new copy beside the target, swapping it in only once
@@ -121,14 +122,14 @@ the `finally` puts the old one back if the target is left empty, whatever
 stopped it.
 
 - **Why:** the variable lets people install from a second, private skills
-  repository. `update` used to delete the installed `manage-skills` and copy
-  the one in whichever clone it was pulling: an older private copy replaced
-  the public one, and a private repository with none left no `manage-skills` at
-  all.
-- **Rejected:** telling people not to run `update` with the variable. The
-  command they would naturally type stayed destructive. Also rejected:
-  restoring the old copy only on `OSError`, since a Ctrl-C between the two
-  renames then deleted it with the staging directory.
+  repository, and that clone's `manage-skills` may be older or missing.
+- **Rejected:** replacing the installed `manage-skills` with the one in
+  whichever clone `update` pulls. An older private copy replaces the public
+  one, and a private repository with none leaves no `manage-skills` at all.
+  Also rejected: telling people not to run `update` with the variable. The
+  command they would naturally type stays destructive. And restoring the old
+  copy only on `OSError`, since a Ctrl-C between the two renames then deletes
+  it with the staging directory.
 - **Stops applying:** `bootstrap`, which copies `manage-skills` from the clone it
   is run from and records that clone.
 
@@ -160,11 +161,11 @@ resolved path isn't in it.
 The sweep always removes the skill's entries before re-adding them, so the
 "already enabled" branch is unreachable once a hook is wired: a second
 `enable-hook` rewrites the file (same content, entries moved to the end),
-counts a change and prints the Restart Cursor notice. `main` does the same.
+counts a change and prints the Restart Cursor notice.
 
 - **Why accepted:** counting a change only when the file's content changes
-  would alter the single-hook output, which is kept identical to `main`.
-- **Stops applying:** once that parity is no longer required.
+  would alter the single-hook output, which is kept stable.
+- **Stops applying:** once the single-hook output may change.
 
 ### A case-sensitive clone with case-insensitive targets
 
@@ -174,23 +175,22 @@ target filesystem finds it) but leaves its hook wired.
 
 - **Why accepted:** case-blindness is decided from the clone's filesystem, where
   `Bug-Hunter` is not `bug-hunter`, so the name isn't rewritten and nothing is
-  folded. The same happens on `main`. It needs an unusual layout and the wrong
-  case typed.
+  folded. It needs an unusual layout and the wrong case typed.
 - **What would fix it:** deciding case-blindness per filesystem touched, or
   refusing a name that matches no skill directory exactly.
 - **Stops applying:** clone and targets on filesystems that agree about case.
 
 ### Duplicate wiring left by two spellings
 
-On `main`, `install Bug-Hunter` then `install bug-hunter` wired the hook twice,
-once per spelling, so it runs twice. Neither `install` nor `doctor` flags it;
+A version that recorded the typed spelling wired the hook twice for `install
+Bug-Hunter` then `install bug-hunter`, once per spelling, so it runs twice. Neither `install` nor `doctor` flags it;
 `enable-hook` collapses it to one, because its sweep ignores case.
 
-- **Why accepted:** only older versions create it, and `enable-hook` repairs it.
+- **Why accepted:** only such versions create it, and `enable-hook` repairs it.
 - **What would fix it:** `doctor` reporting a skill wired more than once per
   event and matcher in the single-hook form, as it already does with `STRAY` in
   the list form.
-- **Stops applying:** once no install from before this change remains.
+- **Stops applying:** once no install made by such a version remains.
 
 ### Leftover wiring inside a config that doesn't parse
 
@@ -200,10 +200,8 @@ both read only configs that parse. A sweep that reaches such a file refuses to
 rewrite it and says so.
 
 - **Why accepted:** the host most likely can't read that file either, so the
-  entry isn't firing; the file itself needs repairing first. `main` is the same.
+  entry isn't firing; the file itself needs repairing first.
 - **What would fix it:** `doctor` naming each unparseable config once, for every
   skill that might have wiring there.
 - **Stops applying:** once the config parses again, when `doctor` reports the
   leftover and `install` removes it.
-
-Recorded 2026-09-26.

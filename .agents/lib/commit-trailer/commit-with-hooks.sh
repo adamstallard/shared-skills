@@ -3,10 +3,6 @@
 # the commit script commits with a plain `git commit -m ... --trailer ...`, and
 # none of this runs.
 #
-# BEFORE CHANGING ANY OF THIS, READ DECISIONS.md next to this file — "The
-# pre-commit hook runs before anything is bound" and "The pre-commit hook runs
-# once per commit".
-#
 # Not run on its own: it uses the commit script's variables (families, args,
 # subject, body, lib_dir, nl) and functions (fail, q, verify).
 #
@@ -103,7 +99,7 @@ hooks_commit() {
   # --no-verify skips only pre-commit and commit-msg, and both have just run,
   # so git commit would only run them a second time. prepare-commit-msg and
   # post-commit still run (git 2.54, tested in CommitFamiliesTests).
-  exec git commit --no-verify -F "$msg_file"
+  exec git commit --no-verify $allow_empty -F "$msg_file"
 }
 
 # Cleans a message as `git commit -m` does: whitespace, unless commit.cleanup

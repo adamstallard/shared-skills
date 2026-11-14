@@ -1,13 +1,12 @@
 #!/bin/sh
 # Prints the result block that ends a "caller commits" run: the Bug-hunter
 # trailer, the Bug-hunter-Tree binding minted here over what is staged now,
-# and the open decisions. The agent supplies the value and the decisions;
-# nothing in the block is typed by hand.
+# and the open decisions. The agent passes the value and the decisions as
+# arguments, and this script assembles the block, so no line of it is typed
+# by hand.
 #
 # The format belongs to the shared library,
-# ../../../lib/commit-trailer/result-block.sh. BEFORE CHANGING EITHER FILE,
-# READ that library's DECISIONS.md "The result block is printed by a script",
-# and ../DECISIONS.md "A caller that commits gets the result, not the commit".
+# ../../../lib/commit-trailer/result-block.sh.
 #
 # Usage:
 #   caller-result.sh <bug-hunter-value> [--decisions <file>]

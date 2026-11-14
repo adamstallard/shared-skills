@@ -277,11 +277,9 @@ happen, treat this the same as an unchecked commit.
 Read plainly, that repair command computes the exact same hash
 `scripts/mint-trailer.sh` would have — which means it also "repairs" a
 trailer that was pure fabrication, with nothing behind it at all. That's a
-real, accepted limit on what this binding proves, not an oversight: see
-*The trailer is minted from the tree, not recalled by the agent* in
-`DECISIONS.md`. Reach for this repair when a run genuinely happened and the
-mint step was just missed or mistimed — not as a way to make a report go
-away.
+real, accepted limit on what this binding proves, not an oversight. Reach
+for this repair when a run genuinely happened and the mint step was just
+missed or mistimed — not as a way to make a report go away.
 
 **It told me an honest commit is unminted, and I staged everything before
 minting.** Two shapes of this are a workflow bug, not a fabricated trailer:
@@ -289,10 +287,9 @@ minting.** Two shapes of this are a workflow bug, not a fabricated trailer:
 - A pre-commit hook that reformats or re-stages files changes the index
   *after* the mint ran, when the commit was made by hand with a mint taken
   beforehand. `scripts/commit-with-trailer.sh` avoids this: it runs the
-  pre-commit hook first and mints after it (see the shared library's
-  DECISIONS.md, *The pre-commit hook runs before anything is bound*). For a
-  commit made by hand, re-run `mint-trailer.sh` once the commit exists and
-  its hooks have already fired, then apply the repair above.
+  pre-commit hook first and mints after it. For a commit made by hand,
+  apply the repair above once the commit exists: it hashes the tree that
+  landed, after its hooks ran.
 - `git commit -- <pathspec>` or `git commit -a` can land a different tree
   than the one you minted, if anything else was staged, or unstaged-but-
   tracked, at the time. Stage exactly what this commit should contain, mint,

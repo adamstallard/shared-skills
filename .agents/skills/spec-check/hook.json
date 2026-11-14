@@ -6,8 +6,69 @@
       "summary": "Reports any commit that changes openspec/ and lands without a valid Spec-check: trailer.",
       "command": "scripts/check-commit-trailer.sh",
       "events": {
-        "claude": { "event": "PostToolUse", "matcher": "Bash" },
-        "cursor": { "event": "postToolUse", "matcher": "Shell" }
+        "claude": {
+          "event": "PostToolUse",
+          "matcher": "Bash"
+        },
+        "cursor": {
+          "event": "postToolUse",
+          "matcher": "Shell"
+        }
+      }
+    },
+    {
+      "summary": "Blocks a hand-back for review (a pull request marked ready, or a review requested) that names its pull request while a change there is unread at its head on GitHub.",
+      "command": "scripts/check-handback.sh",
+      "events": {
+        "claude": {
+          "event": "PreToolUse",
+          "matcher": "^(Bash|mcp__github__.*|mcp__plugin_.*_github__.*)$"
+        },
+        "cursor": {
+          "event": "beforeShellExecution"
+        }
+      }
+    },
+    {
+      "summary": "After a pull request is handed back for review with a change unread at its head, makes it a draft again, withdraws the review requests the call made, and tells the agent.",
+      "command": "scripts/check-handback.sh",
+      "events": {
+        "claude": {
+          "event": "PostToolUse",
+          "matcher": "^(Bash|mcp__github__.*|mcp__plugin_.*_github__.*)$"
+        },
+        "cursor": {
+          "event": "postToolUse",
+          "matcher": "Shell"
+        }
+      }
+    },
+    {
+      "summary": "The same, after a command that hands back and then exits nonzero (Claude Code).",
+      "command": "scripts/check-handback.sh",
+      "events": {
+        "claude": {
+          "event": "PostToolUseFailure",
+          "matcher": "^(Bash|mcp__github__.*|mcp__plugin_.*_github__.*)$"
+        }
+      }
+    },
+    {
+      "summary": "The same two checks for GitHub MCP calls in Cursor (unverified).",
+      "command": "scripts/check-handback.sh",
+      "events": {
+        "cursor": {
+          "event": "beforeMCPExecution"
+        }
+      }
+    },
+    {
+      "summary": "After a GitHub MCP call in Cursor hands a pull request back with a change unread, takes it back (unverified).",
+      "command": "scripts/check-handback.sh",
+      "events": {
+        "cursor": {
+          "event": "afterMCPExecution"
+        }
       }
     }
   ]

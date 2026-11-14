@@ -216,7 +216,12 @@ class Repo:
 
 
 # compact.py, compiled from source as prose.py is above, so a stale .pyc can
-# never stand in for the code under test.
+# never stand in for the code under test. compact.py imports reading_cost.py
+# from this directory; with bytecode writing off, that import writes no .pyc,
+# as when prose.py imports it.
+sys.dont_write_bytecode = True
+if str(HERE) not in sys.path:
+    sys.path.insert(0, str(HERE))
 COMPACT = HERE / "compact.py"
 compact = types.ModuleType("compact_under_test")
 compact.__file__ = str(COMPACT)

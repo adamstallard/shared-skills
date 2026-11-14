@@ -3,9 +3,6 @@
 # staged tree, so a formatter in it rewrites the files before the binding is
 # made rather than during `git commit`, after it.
 #
-# BEFORE CHANGING ANY OF THIS, READ DECISIONS.md next to this file — "The
-# pre-commit hook runs before anything is bound".
-#
 # Usage: run-pre-commit.sh
 #
 # Call it after the final `git add` and before minting or signing anything.
@@ -21,12 +18,14 @@
 # (commit-trailer/pre-commit-passed) with the tree it left staged and the
 # state it ran in: HEAD, the hook file and its content, all git config
 # (hashed) and the unstaged changes, submodules' included. A later call in
-# that same state skips the hook. Environment variables are not part of it. So
-# `prose check` runs it, signs, and the commit script does not run it again.
-# A hook defined in config (hook.<name>.event) is recorded like a hook file.
-# Code a hook runs from outside the repository (a config hook's script, or a
-# gitignored file a hook loads) is not in the state: after editing it, run the
-# hook by hand or change what is staged.
+# that same state skips the hook, so `prose check` runs it and signs, and the
+# commit script that follows does not run it again. Environment variables are
+# not part of the state. A hook defined in config (hook.<name>.event) is
+# recorded like a hook file. Code a hook runs from outside the repository (a
+# config hook's script, or a gitignored file a hook loads) is not in the
+# state, so after editing it the recorded pass still skips the hook: change
+# what is staged to make this script run it again, or run the hook by hand to
+# see its result.
 # Exit 1: the hook failed, the staged tree could not be read, or this git
 #   cannot run the hook (older than 2.36) and there is a hook to run. stdout
 #   is empty and the reason is on stderr.
@@ -34,7 +33,7 @@
 # The hook's own output goes to stderr, as it does during `git commit`. It
 # runs through `git hook run`, which honours core.hooksPath and runs the hook
 # from the top of the work tree. Unlike during `git commit`, GIT_INDEX_FILE
-# and the GIT_AUTHOR_* variables are not set; see DECISIONS.md.
+# and the GIT_AUTHOR_* variables are not set.
 set -eu
 
 me=run-pre-commit

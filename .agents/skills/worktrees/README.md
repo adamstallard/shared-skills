@@ -180,5 +180,3 @@ From the root of your shared-skills clone:
 ```bash
 python3 .agents/skills/worktrees/scripts/test_worktree_sweep.py
 ```
-
-Why the hook works the way it does: [DECISIONS.md](DECISIONS.md).

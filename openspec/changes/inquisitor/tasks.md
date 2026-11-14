@@ -1,18 +1,19 @@
 ## Before gate one is approved
 
-- [x] G.1 Adam approves the prototype build covering thread replies and
+- [x] G.1 The repository's owner approves the prototype build covering thread replies and
       the recorded answer shown beside the question, and task 6.1's rule
       (d) names its tag. Done: build v0.1-33, tagged
       `answer-session-ui-approved-v0.1-33`
 
-Gate two: the tasks below follow on this branch once Adam approves the
+Gate two: the tasks below follow on this branch once the repository's owner approves the
 spec.
 
 ## 0. Measure before building
 
-Record each result in design.md: *What the hook relies on, not yet
-measured* for 0.1 to 0.3, *Configuration* and *Facts measured before
-building* for 0.4, *Facts measured
+Record each result that a requirement rests on as Evidence in its
+capability's decision record, and the rest in design.md: *What the hook
+relies on, not yet measured* for 0.1 to 0.3, both *Configuration* and *Facts measured
+before building* for 0.4, *Facts measured
 before building* for 0.5 to 0.14, and *Facts the answer session relies on*
 for 0.15 to 0.28, including a result that
 contradicts what design.md assumed.
@@ -37,7 +38,7 @@ contradicts what design.md assumed.
 - [ ] 0.7 How the script can learn which login a post goes out as, when the
       agent posts through the github-app skill's script
 - [ ] 0.8 Whether the script can find the approver of the pull request that
-      added a decision, from a `DECISIONS.md` section through blame, the
+      added a decision, from a spec or decision record file through blame, the
       commit and its pull request's reviews
 - [ ] 0.9 How the script tells a session with a person in it from a
       headless run, such as an Igor worker or `claude -p`, and whether a
@@ -65,10 +66,9 @@ contradicts what design.md assumed.
 - [x] 0.12 Whether an Igor's worker can run this skill, with a lore clone
       and `inquisitor.json` in reach. It can't, nor once igor PRs #174 and
       #175 land, by their specs, unchecked since neither is built
-      (design.md: *Task 0.12: an Igor worker cannot run the skill*; *What
-      task 0.12 measured*). Gate two builds everything
-      except Igor-worker mode, which waits for what design.md's *Open
-      Questions* names
+      (design.md: *What task 0.12 measured*). The implementation builds
+      everything except Igor-worker mode, which waits for design.md's
+      *What igor must provide*
 - [ ] 0.13 Whether GitHub lets a security advisory's private-fork pull
       request be merged before the advisory is published (design.md:
       *Weaknesses stay out of public text until disclosure*). Until it
@@ -103,12 +103,12 @@ contradicts what design.md assumed.
       `PreToolUse` hook, so no post hook, on GitHub, Linear or Discord,
       sees a relay post (design.md:
       *A relay post gets no prose pass and no vetting*). If a hook does
-      see it, record it and stop for Adam
+      see it, record it and stop for the repository's owner
 - [ ] 0.19 That a mod's timers keep polling every 60 seconds and
       refreshing the lock every 30 seconds while its session is idle or
       runs as a Claude Code background session, and how a session tells
       that it is one, so the lock can record it. If they stop, record it
-      and stop for Adam: a live holder's lock would go stale and another
+      and stop for the repository's owner: a live holder's lock would go stale and another
       session would take it without asking
 - [ ] 0.20 How setup checks, on each surface, that a relay identity can
       post in a given channel. On GitHub, setup reads the App
@@ -119,17 +119,37 @@ contradicts what design.md assumed.
       check can, setup runs the skill's own check only, and a post a
       channel refuses later turns that channel off (design.md: *A failed
       relay check turns off only its channel*)
-- [ ] 0.21 That GitHub's API reports, for a comment, the slug of the
+- [ ] 0.21 Whether GitHub's API reports, for a comment, the slug of the
       GitHub App that wrote it, in a form no account can take on, such as
       the author login `<slug>[bot]` with type `Bot`, or
       `performed_via_github_app` (design.md: *Only a listed relay App
-      speaks for a person on GitHub*). Until shown, no comment counts as a
-      relayed answer, an agent treats an `Inquisitor: ` reply as input,
-      and the answer session counts as a GitHub relay post only one whose
-      id its own state folder holds, so another machine may show the
-      question again (design.md: *Which cross-machine cases are
-      accepted*). If GitHub does not, these three rules stay for good:
-      record it and stop for Adam
+      speaks for a person on GitHub*). These are not built until it is
+      measured:
+      - the inquisitor's *A relayed answer counts as its person's own
+        comment*, with the relayed-answer proof of a questions-branch
+        file's writer;
+      - the inquisitor's *An Inquisitor reply is acted on only from a
+        writer's relay App* and *A relay App's automatic post is no one's
+        answer*;
+      - on GitHub, the answer-session's *Relay posts start with a
+        reserved prefix* and the relay-App attribution in *A relayed
+        question is a person's question*;
+      - on GitHub, the question state *The thread is the durable record
+        of an answer* reads from relay posts, which needs relay posts
+        recognised;
+      - task 6.4's GitHub relaying, which needs that question state;
+      - on GitHub, each rule that reads a `[bot]` author login: *A
+        handback is an igor- App's comment holding igor's marker*, *An
+        agent's question comes from a bot account or a log file* and *A
+        relay-notice comment is shown as a notice*;
+      - on GitHub, the rules that need to tell an agent's question:
+        *Whom a message reaches is set by its mentions* and the
+        automatic `Inquisitor: ` reply of *Filters 2 to 4 judge every
+        incoming question*.
+
+      If
+      GitHub reports it, they are built as the spec states them; if not,
+      the repository's owner decides what to build
 - [ ] 0.22 What a reader needs to tie a relay file to its person
       (design.md: *Who last changed a relay file ties it to its person*):
       that GitHub's API gives, for the newest commit that changed
@@ -181,17 +201,17 @@ contradicts what design.md assumed.
       takes a call without one as the main conversation's (answer-session
       spec: *Claude's draft goes to the prompt box, never to a post*). If
       any arrives without one, record it in design.md's *Claude drafts a
-      reply only into the prompt box*; the rule stands. If a subagent's
-      call arrives without one, the scenario *A subagent cannot call
-      propose_reply* cannot hold, and design.md's *Claude drafts a reply
-      only into the prompt box* already accepts that case at the same
-      bound as a fork's
+      reply only into the prompt box*; the rule stands. A subagent's call
+      that arrives without one is taken as the main conversation's, as
+      the scenario *A subagent cannot call propose_reply* already says,
+      and design.md's *Claude drafts a reply only into the prompt box*
+      accepts that case as it accepts a fork's: the draft reaches only the
+      prompt box, where the person sees it before anything is sent
 - [ ] 0.27 List the tools of the Linear MCP servers an agent may have
       wired, such as Linear's own, and check that every tool named `get_…`,
       `list_…` or `search_…` only reads. If one writes, linear-app's post
       hook lists the reading tools by name instead (answer-session spec:
-      *The Linear and Discord post hooks block each way the two skills
-      post*)
+      *The Linear and Discord post hooks pass only the relay's readable posts*)
 - [ ] 0.28 Post the line `Inquisitor: a person must decide this
       (required by spec-trace).` in a Linear comment and a Discord message,
       read each back as the answer session would, and record whether its
@@ -222,13 +242,11 @@ contradicts what design.md assumed.
         an issue or pull request, and a GitHub MCP `title` key. A title it
         can't read, one built by the shell, and a title edit chained to
         another command are unreadable (design.md: *A post's title is read
-        and vetted*). Rewrite the paragraph "Titles are not checked" in
-        prose's `DECISIONS.md`, under *The posting hook reads an
-        allow-list*, to say a title is read
+        and vetted*).
       - It reads `python3 <github-app script> gh pr|issue|api …` posts,
         including `python3 $G …` only when the same command assigns `G`,
-        and judges a `gh api` call through the script exactly as the same
-        call made directly.
+        and judges a line holding such a call exactly as the same line
+        with the `gh` call made directly and no `G` assignment.
       - It counts a `gh api` call as mentioning a gh post verb only when
         the call can write, as the `gh-post` spec's *A gh api call writes
         by its method, fields, input or a mutation* says: `-X` or
@@ -239,8 +257,7 @@ contradicts what design.md assumed.
         builds, each with a test, and a read piped into `python3 -c`
         passing. Check each case against `gh api --help` and gh's
         behaviour, not only this list (design.md: *A gh api call counts
-        only when it can write*). Say in prose's `DECISIONS.md` that its
-        hook now counts such a call
+        only when it can write*).
       - It reads an unquoted `--body` or `-b` of one word holding no `$`,
         backtick, `*`, `?`, `[`, `{`, `~` or `\`, such as `--body hi`,
         `-bhi` or `--body=hi`, as that word, as prose's reader does
@@ -261,20 +278,16 @@ contradicts what design.md assumed.
         and a review whose comments it can't read.
       - It applies the closed list of gh post verbs, and blocks as
         unreadable, as prose's reader does today, a command that names
-        `gh` in another command's arguments, such as `sh -c`, or that
+        `gh`, followed by another word, in another command's arguments,
+        such as `sh -c`, unless that command is a data command given no
+        code (gh-post spec: *The reader reads only gh's own top-level
+        commands*), or that
         pipes into a command other than a data command.
       - On a line that mentions a gh post verb, it blocks as unreadable
         an interpreter with a code flag anywhere among its words, such as
         `python3 -W ignore -c`, `node -pe` or `perl -e`, and input from a
         pipe or heredoc reaching `python`, `python3` or `node` (design.md:
         *Code given on the command line beside a gh post verb*).
-      - Once the reader has moved, prose's `DECISIONS.md` section on the
-        allow-list points at the library's list instead of restating it.
-        Its section *A command that runs no gh post is not a post* keeps
-        its reasons, points at the `gh-post` spec for the rules of reading
-        a line, and drops the claims that a script handed to another
-        interpreter (`python3 - <<'EOF'`, `node -e`) and git aliases are
-        outside the hook's reach and that `rebase -x` is out of scope
 
 ## 2. The script
 
@@ -348,10 +361,14 @@ contradicts what design.md assumed.
         and date (design.md: *A later run names the answered file from
         the Igor's record*).
       - On a questions branch, `repository` only on a file about one
-        repository, and `asked_from` on every log and miss file but a
-        handled one: the repository holding the current work outside an
-        Igor's run, and no `asked_from` during one (design.md: *Every
-        questions-branch file names where it was asked from*).
+        repository, and `asked_from` on every log and miss file except a
+        handled file and a file written during an Igor's run. Outside a
+        run it is the repository holding the current work; on a log or
+        miss file the answer session writes, it is the `asked_from` the
+        answer session passes to the `log` command (design.md: *Every
+        questions-branch file names where it was asked from*;
+        answer-session spec: *A miss records who judged it and where it
+        was asked from*).
       - A handled file holds only `handled` and `closes`, the closed
         file's name, with no body (design.md: *The answer session writes
         a handled file on every close of a questions-branch file*). It is
@@ -450,12 +467,16 @@ contradicts what design.md assumed.
       person-required line, or another question carries one. It blocks every post holding
       a question whose latest verdict record has a category, read from
       that record (inquisitor spec: *A question with a category is asked
-      only through the picker or its advisory*); blocks a post with a
+      only of the person or in its advisory*); blocks a post with a
       question when it can't read its records; blocks a question whose raw
       markdown matches the credential patterns; passes a `deferred`
       question less than 2 hours old that tags no one in an open-questions
       section or a new issue; and vets every post it sees, igor's handback
-      included (design.md: *No exemption for an Igor's handback*)
+      included (design.md: *No exemption for an Igor's handback*). In
+      the holder, it also blocks a post the reader does not report as
+      sent through the github-app skill's script as the person's GitHub
+      relay identity, named with `--identity` (answer-session spec:
+      *In the holder, the model posts only as the person's relays*)
 - [ ] 3.3 `hook.json` with both hooks, `"default": "enabled"`
 
 ## 4. Tests
@@ -468,8 +489,7 @@ contradicts what design.md assumed.
       test that checks SKILL.md states the rule. An expected gap, a scenario only
       igor's unbuilt work can make pass, gets no test, not even a skipped
       one, and is listed by name in design.md's *Expected gaps* under
-      *Tracing scenarios to tests* (design.md: *Igor-worker scenarios stay
-      untagged until igor builds what they need*)
+      *Tracing scenarios to tests*
 - [ ] 4.3 Once igor provides `igor lore-search` and a role's `commands`
       can list the skill's script, build Igor-worker mode, write a tagged
       test for each expected gap, and remove it from design.md's list.
@@ -480,8 +500,12 @@ contradicts what design.md assumed.
 ## 5. Docs and registration
 
 - [ ] 5.1 `SKILL.md`: the filters, the two calls, writing a question at the
-      privacy of what it concerns, posting no more publicly than that, the
-      questions other skills require a person to decide and the
+      privacy of what it concerns, posting no more publicly than that,
+      that the person is accountable for what is posted as their relay
+      and where, since no hook checks where a relay post goes
+      (answer-session spec: *The person answers for what their relay posts*), the
+      questions other skills require a person to decide (the agent runs
+      only filters 1 and 3 on them), the
       person-required line copied exactly from the second call, preparing,
       holding a question that blocks no step until the round's end while
       going on with its recommended answer, batching and tagging, the order with prose, logging answers and
@@ -499,7 +523,8 @@ contradicts what design.md assumed.
       as a relay, any agent on the person's machine can print a relay
       App's token and post `User says: ` unseen by the post hook
       (design.md: *github-app refuses `token`, `run`, `credential get` and
-      `wire` for a relay identity*)
+      `wire` for a relay identity*). It says too that uninstalling a
+      compromised relay App, or revoking its key, stops it
 - [ ] 5.3 A row in the README's skills table, and `inquisitor` in its list of
       skills that turn on a hook
 - [ ] 5.4 `manage-skills` installs it and wires its hooks: check with
@@ -507,9 +532,10 @@ contradicts what design.md assumed.
 - [ ] 5.5 github-app's `SKILL.md`: every example that runs `python3 $G`
       sets `G` in the same command, or writes the script's full path, so
       the post hooks don't block it (design.md: *Posts sent through the github-app skill's script*)
-- [ ] 5.6 prose's file filter skips files under `.inquisitor/` (design.md:
-      *prose's pass skips `.inquisitor/`*), shipping with the skill,
-      because the skill writes `.inquisitor/` files from gate two on
+- [ ] 5.6 prose's file filter skips files under `.inquisitor/` (inquisitor
+      spec: *prose's pass skips files under .inquisitor/*), shipping with the skill,
+      because the skill writes `.inquisitor/` files from gate two, this
+      change's implementation, on
 - [ ] 5.7 Change bug-hunter's SKILL.md so that Step 9 runs each
       recommendation in its report through the inquisitor skill's four
       filters before asking about it: a root cause, a finding too large
@@ -517,7 +543,7 @@ contradicts what design.md assumed.
       a property from the hunt (Step 3) worth keeping as a permanent
       guard (design.md: *bug-hunter's Step 9 recommendations go through
       the filters*). These starting rules are input, not decided
-      behaviour: the builder sets the final rules, and Adam reviews them
+      behaviour: the builder sets the final rules, which are reviewed
       with the implementation.
 
       | Step 9 recommendation | Settle it without asking when | What to do then | Filter |
@@ -540,7 +566,7 @@ contradicts what design.md assumed.
       that ping*)
 - [ ] 6.1 The mod, built into the inquisitor skill from the tag
       `answer-session-ui-approved-v0.1-33` on shared-skills (build v0.1-33,
-      commit fc3c35f; `ui-approved-v0.1-33` in Adam's local prototype
+      commit fc3c35f; `ui-approved-v0.1-33` in the repository's owner's local prototype
       repository, `~/answer-session-prototype`), the only build the mod
       starts from. It descends
       from v0.1-30 (`answer-session-ui-approved-v0.1-30`, commit c9c6eb5)
@@ -550,7 +576,7 @@ contradicts what design.md assumed.
       ones. Four rules decide what is built (design.md: *How the approved
       prototype meets the spec*; *The UI is built from prototype build
       v0.1-33*):
-      - (a) Keep the approved screens' layout and interaction: the band,
+      - (a) Keep the approved screens' layout and interaction: the band, which is the mod's panel above the prompt box,
         the keys, the prompt-box flow and the declining screens. Changes
         needed to wire them to real data are fine; restyling or
         reorganising them is not.
@@ -647,7 +673,7 @@ contradicts what design.md assumed.
       decline), and the rephrased answer's post. SKILL.md tells an agent
       that records an answer from a relay post to log its rephrasing and
       summary
-- [ ] 6.7 prose's SKILL.md and `DECISIONS.md` say that a relay post gets
+- [ ] 6.7 prose's SKILL.md says that a relay post gets
       no prose pass, because it is the person's words, and an automatic
       post none, because its text is fixed (design.md: *A relay post gets no
       prose pass and no vetting*; *What the answer session posts by
@@ -656,7 +682,7 @@ contradicts what design.md assumed.
       and the README's section on the answer session: setup, the `answer`
       command, what to do when a relay check fails, and that no post but
       the answer session's starts with a reserved prefix
-- [x] 6.9 Adam's approval, by use, of the screens prototyped after the
+- [x] 6.9 The repository's owner's approval, by use, of the screens prototyped after the
       first approved build: declining a question, the choice of filter
       under "the inquisitor should have handled it" (reason 2) and the
       exact post shown before it goes out (design.md: *Misses the answer
@@ -744,7 +770,8 @@ contradicts what design.md assumed.
           file's answer; the search groups by hash*; *A named file's
           answer must be the person's own, added alone*);
         - a file that tags no one answered only by an account with write
-          access to the lore repository;
+          access to what its question concerns: the repository its
+          `repository` key names, or else the lore repository;
         - declining with two reasons, the first, nothing to answer
           (design.md: *Two reasons to decline*);
         - a named file still shown, with the answer beside it as input,
@@ -760,8 +787,9 @@ contradicts what design.md assumed.
           for an answer held back or dropped, and at once only for one
           whose channel is off or not subscribed, including one whose
           refused post turned it off;
-        - a github.com `answer_link` withheld where the lore repository
-          is more visible than the repository it points into;
+        - no answer file, and a handled file instead, where the lore
+          repository is more visible than the thread the answer was given
+          in, a Linear or Discord thread counting as private;
         - the `log` command refusing an `answers` that names no file on
           the branch;
         - an answer file holding the question the person saw and naming
@@ -792,36 +820,42 @@ contradicts what design.md assumed.
           no one on an unassigned item and never to this person on an
           item assigned to someone else (design.md: *A handback that
           mentions no one reaches the assignee*).
-- [ ] 6.11 Decide at implementation, with no requirement added, and
-      record each choice in design.md while the change is open (design.md:
-      *Some answer-session details are decided at implementation*): how a
-      question's options are parsed from its thread; a draft's privacy,
-      beyond its being written at the privacy of what the question
-      concerns; an asker's reply revising the options; and the UI of the
-      notice for the comment GitHub Actions posts when a pull request
-      changes the person's relay file, designed from the prototype's
-      existing patterns with no prototype round, as task 6.1's rule (c)
-      says of a screen v0.1-33 lacks. Agreeing
+- [ ] 6.11 Decide at implementation, and when each choice is made, add
+      it to the spec as a requirement with a scenario or, if no test can
+      check it, to the answer-session decision record as an entry with
+      evidence; design.md only links to that requirement or entry
+      (design.md: *Some answer-session details are decided at
+      implementation*): how a question's options, the choices it offers
+      with what each would change, are parsed from its thread; how the
+      session handles an asker's reply that revises those options; and
+      the UI of the notice for the comment GitHub Actions posts when a
+      pull request changes the person's relay file (answer-session spec:
+      *A relay-notice comment is shown as a notice*), designed from the
+      prototype's existing patterns, as task 6.1's rule (c) says of a
+      screen v0.1-33 lacks. Agreeing
       to a shown recorded answer is already decided (design.md: *Agreeing
       to a recorded answer is a filter 1 decline*), as are agreeing to a
       suggested verdict and citing a lore entry (answer-session spec:
       *Filters 2 to 4 only suggest a verdict on other questions*; *A
       person cites a lore entry by naming it as an answer or a record*)
 - [ ] 6.12 discord-bot's post hook: `PreToolUse` on Bash, which, in the
-      holder, blocks `post`, `edit`, `delete` and `thread`, and any line
-      naming `discord_bot.py` that `.agents/lib/gh-shell/` cannot read,
-      telling the model to draft with `propose_reply`. Registered in
+      holder, blocks any line `.agents/lib/gh-shell/` cannot read that
+      names `discord_bot.py` or runs a script of unknown path, and passes
+      `post`, `edit` and `thread` only as the Discord relay identity with
+      readable text and no reserved prefix, and `delete` only as that
+      identity. Registered in
       discord-bot's `hook.json`, with tests (answer-session spec: *In the
-      holder, Linear and Discord posts go only through the answer
-      session*)
+      holder, the model posts only as the person's relays*)
 - [ ] 6.13 linear-app's post hook: `PreToolUse` on Bash and Linear MCP
-      tools, which, in the holder, blocks `token`, `headers`, any line
-      naming `linear_app.py` that `.agents/lib/gh-shell/` cannot read,
-      and every Linear MCP tool not named `get_…`, `list_…` or
-      `search_…`, telling the model to draft with `propose_reply`.
-      Registered in linear-app's `hook.json`, with tests (answer-session
-      spec: *In the holder, Linear and Discord posts go only through the
-      answer session*)
+      tools, which, in the holder, blocks `token`, `headers`, `wire` and
+      any line `.agents/lib/gh-shell/` cannot read that names
+      `linear_app.py` or runs a script of unknown path, and passes a
+      Linear MCP tool not named `get_…`, `list_…` or `search_…` only
+      while Claude Code's MCP configuration shows linear-app wired that
+      server to the Linear relay identity, and the tool's text starts
+      with no reserved prefix. Registered in linear-app's `hook.json`,
+      with tests (answer-session spec: *In the holder, the model posts
+      only as the person's relays*)
 
 ## 7. Archive
 
@@ -841,23 +875,13 @@ contradicts what design.md assumed.
       `openspec/specs/lore-firing/spec.md` on main, and its link to
       *Transcripts and outcomes are captured to the state branch* at
       igor's `openspec/specs/task-execution/spec.md` on main
-- [ ] 7.1 Say in prose's and bug-hunter's `DECISIONS.md` that the
-      inquisitor's commits to a lore `questions` branch are machine records,
-      exempt from their trailers, and say in prose's `DECISIONS.md` that
-      its file filter skips files under `.inquisitor/` (task 5.6) because
-      they are records quoted word for word
-- [ ] 7.2 At archive, spec-check's fold merges this change's decision
-      records, `specs/inquisitor/decisions.md`,
-      `specs/answer-session/decisions.md` and `specs/gh-post/decisions.md`,
-      into `openspec/specs/<capability>/decisions.md`. The change already
-      holds them, in the form shared-skills issue #56 sets. Archive with a
-      spec-check that has that fold, since `openspec archive` leaves a
-      change's `decisions.md` only in the archived copy (issue #56). Write no
-      `.agents/skills/inquisitor/DECISIONS.md`. Fold by hand any other
-      lasting reasoning in design.md into the capability's record, as
-      `AGENTS.md` says. Point each requirement's
-      citation of a task 0.N or of design.md at its measured result or its
-      decision record entry. Fold the reasoning for moving prose's post
-      reader into `.agents/lib/gh-shell/` (task 1.1) into prose's
-      `DECISIONS.md`, as `AGENTS.md` says (design.md: *OpenSpec for new
-      work in shared-skills*)
+- [ ] 7.1 Archive with `openspec archive` and no flags. This pull request already
+      edits the decision records, `openspec/specs/inquisitor/decisions.md`,
+      `openspec/specs/answer-session/decisions.md` and
+      `openspec/specs/gh-post/decisions.md`, and archiving leaves them as
+      they are. Write no `.agents/skills/inquisitor/DECISIONS.md`. Since
+      design.md and tasks.md are archived with the change and not read
+      again, point each requirement's citation of a measurement task 0.N
+      at its measured result, each citation of a design.md section
+      whose reason a decision record entry now gives at that entry, and
+      each other citation of design.md at the archived design.md

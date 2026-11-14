@@ -7,7 +7,9 @@ approved before any code for it is written, and that review is where a
 reviewer's time goes. It has two parts: a script, `scripts/spec_check.py`,
 and a consistency read done by a fresh subagent. The script's `check`
 subcommand runs the mechanical checks, and `sign` runs them on the staged tree
-and prints the commit trailer.
+and prints the commit trailer. A session hook (`scripts/handback.py`) and a
+GitHub workflow keep a pull request from being handed back for review while
+a change in it was edited after its last consistency read.
 This file is why it works the way it does.
 
 Each entry: the decision, why, and what was rejected.
@@ -27,6 +29,32 @@ fact stated as known; and evidence shown as checked when its source did not
 exist. The script takes the kinds a program can detect, and the subagent's
 consistency read takes the rest, undefined terms among them (see *Undefined
 terms are left to the consistency read*).
+
+Two items came later, once decisions moved to design.md (see *Decisions live
+in design.md*): decisions that contradict or repeat each other (item 12), and
+a decision not needed to build the change (item 13). Three more came with
+decision records (see *Decision records per capability*): a change that
+brings back a rejected approach or breaks a recorded constraint (item 14),
+a rejection or constraint named only in design.md (item 15), and a record
+entry that repeats a requirement (item 16). Item 17 came with the rule that
+record entries rest on evidence (see *Record entries are grounded*). It
+flags reasoning or an entry that does any of these:
+- names a person as its reason;
+- records who decided or amended a decision, or when;
+- states a preference;
+- claims a fact without Evidence;
+- gives a Rationale entry its requirement's own test as its only Evidence;
+- gives a Rejected entry for an alternative that a requirement guards
+  against, which belongs in that requirement's Rationale;
+- only restates its requirement.
+
+Every consistency read covers items 12 to 17, so no script checks decisions
+or record entries for what those items cover. That stays true after
+`prose compact` (the prose skill's command that shortens docs) shortens a
+change's docs: whether a compaction kept every conclusion is checked by
+`prose compact`'s own review. The evolution check does read a change's
+records, but only for history wording (see *Document-evolution text is an
+error*).
 
 **Why.** Those are the mistakes a careful author made. A checklist from
 first principles would rank them by guesswork.
@@ -95,6 +123,151 @@ broken.
   are never files.
 - Treating every citation as a check. That would drop the error for a
   citation copied from another branch, whose line no longer exists here.
+
+---
+
+## Document-evolution text is an error
+
+**Decision.** `check` gives an `evolution` error on each line of a checked
+change's files that records how the change got to its shape rather than what
+holds now:
+- an amendment: "amending decision 79", "superseded by decision 12";
+- a credit naming who decided or when: "(Adam, 2026-10-21)", "Adam decided",
+  "decided by Adam", "decisions 21 and 22 on 2026-10-20";
+- "previously" or "originally", an earlier draft, the next revision;
+- a review round: "this push", "since review", "the second consistency read".
+
+In a decision record, the check reads only the lines a branch changes
+(*Rounds and the evolution check*), and skips the credit rules: the one for
+who decided and the one for when. A record's Evidence
+names products, standards and dated runs ("Chrome chose a stricter parser",
+"(Linux, 2024-05-01)"), which a credit rule cannot tell from a person or a
+ruling date (see *Record entries are grounded*). The other history rules
+apply to a record as to any change file. History in a record that only a
+credit rule would catch, because it names who or when ("reversed by Adam
+on 2026-10-21", "decided on 2026-10-21"), passes the script and is left to
+the consistency read's item 17.
+
+The finding quotes the line. Text in a code fence, a code span or double
+quotes is skipped, since a spec about a checker quotes what it checks for.
+Every line of a change's files is read, not only the lines a branch
+changed. The specs under `openspec/specs` are not read: they are the
+archived result of earlier changes, which no author is reviewing now.
+
+**A person keeps a false `evolution` error.** Each change can hold a
+`.spec-check-kept` file, committed with it, which `check` and `sign` both
+read; so can each decision record's folder, for the record's lines (*Rounds
+and the evolution check*). An entry names a file relative to the change, or
+to the record's folder, and quotes the flagged
+line's text: `design.md: «The spec narrows the decision.» kept (asked):
+<reason>`. The agent writes an entry only after a person chose "Keep as is"
+in a question the agent asked through its host's interactive picker (in
+Claude Code, `AskUserQuestion`). The entry clears every `evolution` error in
+that file whose line has the quoted text, compared after runs of whitespace
+are made one space. The spec text stays as written, and the trailer counts
+the errors the file cleared (`1 evolution kept`), so the override shows in
+git. The quote ends at the first `» kept`, so a line holding `» kept:` or
+`» kept (asked):` cannot be kept. That limit is accepted: lifting it would
+need an escape syntax in the entry form.
+
+An entry that is malformed, gives no reason, or quotes the same line as an
+earlier entry is a `kept` error.
+
+An entry that matches no `evolution` error is a `kept` check asking for its
+removal, whether or not it has `(asked)`. Its line changed or is gone, so
+the person's answer no longer covers it. It is a check, not an error,
+because it keeps nothing.
+
+An entry that matches an error but lacks `(asked)` is a `kept` error. An
+agent that cannot ask, such as a subagent, writes its entries without
+`(asked)`. `sign` then refuses and names each such entry with the errors it
+matches. The agent passes that message to whoever started it, who asks the
+person. The prose skill uses the same `kept (asked)` wording when a person
+keeps a passage its reviewer flagged, so an agent learns one convention.
+The script cannot check that a person answered: `(asked)` is the agent's
+statement.
+
+The file is part of the change, so `openspec archive` moves it into
+`openspec/changes/archive/<date>-<name>/` with the change's other files,
+and spec-check never reads an archived change. `openspec validate --strict`
+accepts it.
+
+**Within a review round** (*One consistency read per round*), the
+`evolution` check runs on every commit, since it is mechanical. An unkept
+error refuses a commit whose read is deferred, just as it refuses the
+round's last commit. The kept count goes after the check count on every value, whatever
+its read clause says: `0 errors, 2 checks, 1 evolution kept; validate
+passed; read deferred to the round's end`. The read clause is unchanged,
+so `sign`, `ci` and the hand-back hook find a round's read on a commit
+whose value counts kept lines. The kept file is one of the change's files,
+so editing it, even alone, makes the change due for a read again. Reading
+it costs the reader one short file, and a separate rule for it would let a
+kept file change after the read with no reader seeing it.
+
+**Limits.** Each line is read on its own, so a code span wrapped across two
+lines reads as prose, and its second line can draw a false error. An
+indented code block also reads as prose, as it does for every other check
+that reads lines through `markdown_lines`.
+
+**Why an error.** A finding of `check` severity never fails the run, so it
+asks whoever runs spec-check to judge it. History is never worth keeping in
+a change: it should simply be removed before a person reviews the change. An error makes the agent remove
+it, and only a person can let a line through.
+
+Behaviour uses the same words: a newer file supersedes an older one, a
+candidate previously rejected is not proposed again, the agent decided. So
+most patterns fire only beside a decision, a person, a date, or a word
+naming the document's own drafts or review rounds ("an earlier draft",
+"this push"). The bare "previously" and "originally" fire alone, unless a
+determiner precedes them ("a previously rejected rule"). The patterns were
+measured on two kinds of text:
+- About 25,000 lines of open changes: the `inquisitor` change in this
+  repository's pull request #25; in
+  the igor repository (adamstallard/igor), the six changes open on its main
+  branch and the changes in four of its spec pull requests. The patterns
+  flagged 292 lines, of which 2 were not history.
+- igor's 5,000 lines of main specs, which describe settled behaviour and so
+  show how often behaviour text is flagged. The patterns flagged 1 line
+  there, and it was history.
+
+So a false error is rare, and the override covers it.
+
+**Why its own patterns, not prose's.** prose's history patterns, in its
+`comment_scan.py`, catch a code comment narrating the code's past: "the old
+implementation", "we refactored". A change's history is about decisions,
+people, dates and review rounds, and none of prose's patterns covers those.
+The three that carry over ("previously", "originally", an earlier draft) are
+adapted here. So is prose's veto: no hit when a word such as "a" or "the"
+sits right before "previously", as in "a previously rejected rule". spec-check
+uses only the standard library and installs without prose, so it cannot
+import them.
+
+**Rejected:**
+- **A warning.** It asks whoever runs the check to review each line, when
+  the line should just be fixed.
+- **Rewording a false positive until the pattern misses it.** The words were
+  right; rewording them to suit a regex makes the spec worse and hides that
+  a person was needed. The override keeps the text and records the person's
+  call.
+- **The bare words**: `supersedes`, `replaces`, `reversed`, `was changed`,
+  `no longer`. In the `inquisitor` change's specs they describe behaviour on
+  31 lines, and each of those would fire.
+- **A list of people's names.** A credit is found as a capitalised word before
+  a decision verb ("Adam decided"), so it works in any repository. The word
+  is not a name when it is in a heading, or in a list of common pronouns,
+  determiners, conjunctions, prepositions and adverbs ("Also ruled out by
+  scenarios"). An unlisted word draws an error. Treating every capitalised
+  word ending in -ly as an adverb was rejected: it would also skip names
+  such as "Anatoly". A missed credit passes silently, while a person can
+  keep a false error (*A person keeps a false `evolution` error*, above).
+- **A kept file outside the commit**, passed to `sign` as `--kept <file>`.
+  `check` does not read it, so a reviewer, or a reviewing agent, running
+  `check` on the branch sees each kept line as an error again, and may fix
+  a line a person kept.
+- **Entries keyed by line number** (`design.md:5035`). Any line added or
+  removed above a kept line makes the entry stale.
+- **An inline marker in the spec**, such as an HTML comment beside the
+  line. It puts tooling noise in text people read.
 
 ---
 
@@ -485,6 +658,482 @@ them. A reader using them sees the discussion and misses the decision.
 
 ---
 
+## One consistency read per round
+
+**Decision.** The mechanical checks run before every commit. The
+consistency read runs once per review round. A **review round** is the
+agent's work between two hand-backs to a person for review. A push ends
+nothing: commits inside a round, pushed or not, carry `read deferred to the
+round's end`, and pushing them warns about nothing. The read runs before the
+hand-back that ends the round, and the round's last commit carries it, as
+`read by a fresh subagent: <change>, ...; N amended, M open`. That trailer
+is the record of the read. A change's **last read** is the newest commit,
+among the branch's last 1,000, whose `Spec-check:` value names it and is
+bound to that commit's own tree.
+
+A change is **due** when the branch adds or edits it (its files differ from
+the merge base with the base branch), or edits the decision record of a
+capability it touches, and any of those files differs from its last read's
+tree. A record the branch edits for a capability no open change touches is
+due on its own the same way, under its path. Only the branch's own history is searched. On the base
+branch itself the merge base is HEAD, which would leave nothing due, so
+there every open change counts as the branch's own. No record is due on
+its own there: with no merge base to compare against, every record would
+count as edited, and since no read has ever named an existing record, all
+of them would be due on every commit. Each read is of the
+whole change. A `Spec-check:` value written before this rule existed,
+`read by ...` with no names, counts as a read of every change its commit
+touched, which is what each commit's read covered then.
+
+- `sign` computes the names, from what is due, rather than taking them from
+  the agent: the read covers every due change, or the value says `no read
+  due`.
+- A read that led to amendments is recorded on the commit holding them, so
+  the amendments count as read. Reading them again would never end.
+- `sign --read subagent` signs a code-only commit while a change is due, so
+  the round's last commit can carry the read whatever it changes.
+- A change on the base branch that this branch does not touch is not due,
+  even when it changed after its own last read: its own pull request read
+  it.
+
+**Why.** In two long sessions, agents in review rounds re-reading large
+documents were about 69% of spend, and spec-check's consistency reads were
+13% of one session's spend and 19% of the other's. A read on every commit read the same change again for each
+small fix. The record lives in git, in the trailer that already binds the
+mechanical checks to the tree, so another agent, another worktree or a
+reviewer finds it with no state of its own. A trailer whose tree is not its
+commit's records nothing, so a value copied from another commit cannot
+excuse a read.
+
+**Why a hand-back and not a push.** Agents here push after almost every
+commit, so that work survives a crash. A round ended at each push would
+make each commit a round's last, and every one of them would need a read:
+the per-commit cost this rule exists to cut. A hand-back is when a person
+starts to read, so it is when the read must be done. The first design
+(pull request #51) ended a round at a push too, and detecting a push
+(`@{push}`, `push.default`, a push to the base branch, merges) was where
+most of its bugs were.
+
+The benchmark in the next section supports reading once per round: each
+round-end read caught every problem planted in the round's edits, so
+deferring the read to the round's end missed none of them. The saving
+depends on how many commits a round holds. igor PR #216 had 40 commits with
+a read and about 27 pushes; shared-skills PR #25 had 54 and about 53, so
+rounds ended at pushes would have saved a third of #216's reads and almost
+none of #25's. How many hand-backs either had was not counted.
+
+**Two checks enforce it, and both judge the pull request, not a
+directory.** Each asks GitHub for the pull request's head and reads the
+`Spec-check:` trailers on its own commits, so the answer is the same for a
+local agent, a person and an Igor (an agent run by igor, see *It fits igor
+best*). A change is unread when it is due at that head. A hand-back is:
+- `gh pr create`, unless `--draft` or `--dry-run`. With `--reviewer` it is
+  a hand-back even as a draft, since it requests a review;
+- `gh pr ready`, unless `--undo`;
+- `gh pr edit --add-reviewer`;
+- the GitHub MCP server's `create_pull_request` without `draft: true`, and
+  its `update_pull_request` with `draft: false` or with `reviewers`.
+
+A draft pull request that requests no review is not a hand-back.
+
+- **The GitHub workflow is the guarantee**, where a repository uses Actions
+  (`ci/spec-check.yml`, written by `spec_check.py setup-ci`). On
+  `opened`, `reopened`, `ready_for_review` and `review_requested`, a pull
+  request with an unread change fails the `spec-check` check, is made a
+  draft again, and loses the review request. On `synchronize` the check
+  only fails, so a round's pushes before its read do not flip the pull
+  request back and forth, and a required check holds the merge until the
+  read lands. It runs `spec_check.py ci` fetched at a pinned commit, as
+  spec-trace's CI step does. The judgement reads only git, so it needs no
+  OpenSpec CLI. It sees every hand-back however it was made: the agent's
+  gh, the web page, another client, and an Igor's own posts. A fork's pull
+  request gets a read-only token, so there the check fails and cannot make
+  it a draft.
+- **The session hook is fast feedback**, and where a repository has no
+  Actions it is the only check, best effort (`scripts/check-handback.sh`,
+  run before and after the tool call):
+  - **Before the call**, a hand-back that names its pull request without
+    needing a directory to find it is judged, and blocked while a change is
+    unread. Named means by URL, by `-R` or `GH_REPO` with a number or
+    branch, or by the MCP's owner, repo and number.
+  - **After the call**, one GitHub MCP call that hands back is judged, and
+    so is a shell command on an allowlist:
+    - the shared command reader parses all of it, refusing no part;
+    - it holds exactly one gh call, and that call is a hand-back;
+    - no word in it expands (`$`, a backtick, a glob, a brace, or a `~` at
+      a word's start, though `~/` passes), and no variable is assigned but
+      `GH_REPO=<plain>` before the gh;
+    - every other command in it starts with `git`, `cd`, `echo`, `printf`,
+      `true` or `sleep`. When the hand-back names no pull request by number
+      or URL (a create, or a ready or edit by branch), the list is
+      narrower: `git push`, `git add` and `git commit` with plain options,
+      `cd`, `true` and `sleep` (see *Why a hand-back that names no pull
+      request gets a narrower list*).
+
+    The one pull request the call printed is then the hand-back's: its URL,
+    gh's `Pull request owner/repo#N is` line, or the MCP result's
+    `html_url`. One handed back with a change unread is made a draft again
+    (`gh pr ready --undo`), the reviewers the call requested are removed,
+    and the agent is told to read, sign, push and hand back again. The hook
+    also runs after a command that fails (Claude Code's
+    `PostToolUseFailure`), since the hand-back may have gone through. The
+    URL gh prints when a pull request already exists for the branch is not
+    one the call handed back, and is never taken back.
+  - **A hand-back off the allowlist gets a note, never a block.** Nothing
+    is undone. The agent is told, as additional context after the call,
+    that the hook did not check this hand-back, and why: the note names the
+    program not on the list (`timeout`, `tee`, `bash`), quotes the word that
+    expands, or names the variable assigned or the second gh call. It gives
+    the allowlist and the plain form (run `gh pr ...` on its own, or with
+    only those programs beside it), and says the GitHub workflow still
+    checks the pull request. The note is given only when the command holds a
+    hand-back. To find one, the hook reads each gh word, also one among
+    another program's words, and the string after a shell's `-c`. An
+    ordinary command gets no note.
+  - **Also not judged**, and left to the workflow where there is one: a
+    hand-back that printed no single pull request, as with output sent to
+    `/dev/null`, or printed one other than the one it named.
+  - **What the output is read as.** A URL alone at the start of a line, or
+    gh's `Pull request owner/repo#N is` line after its symbol, once colour
+    codes are taken out. An indented line, such as a commit body in
+    `git log`, is not gh's. Every pull request printed is looked up on
+    GitHub, and they must all be one; a named hand-back's must be that one,
+    so another repository's pull request with the same number is never
+    taken back. An `echo` or `printf` whose words hold such a URL or line,
+    and `printf -v` (zsh runs commands in its variable name), are off the
+    allowlist.
+  - The pull request's commits are fetched into a cache, one bare partial
+    clone per repository with no file contents
+    (`~/.cache/spec-check/pulls/`), since the judgement reads only trees
+    and trailers. The head commit is fetched by its id, and only then by
+    `refs/pull/<n>/head`, which GitHub makes a moment after the pull
+    request. git fetches with gh's token, so a private repository works as
+    `gh repo clone` does.
+  - The shell is read with the command reader prose's posting hook uses
+    (`.agents/lib/gh-shell/gh_shell.py`), only to tell whether a command
+    hands back and which pull request it names; never to work out the
+    directory gh runs in (see *Why directory placement was abandoned*).
+    What a hand-back is, and which pull request it names, is read by
+    `.agents/lib/gh-shell/handbacks.py`, which prose's hooks share, so the
+    two skills agree on what a hand-back is.
+- **Both checks act after the fact.** A pull request created ready, or a
+  review requested, notifies GitHub's watchers before the post-call hook or
+  the workflow can take it back. A reviewer may get the notification of a
+  hand-back that is a draft again a moment later. Blocking before the call
+  is possible only when the call names its pull request.
+- **What neither catches.** A hand-back made in conversation, with no gh
+  command, such as telling a person the work is ready. Without a workflow,
+  a hand-back through `gh api`, another client or the web page. For these,
+  the reviewer still sees `read deferred to the round's end` on the head
+  commit's trailer.
+
+**Why directory placement was abandoned.** The first version of the hook
+judged the local branch where gh would run, working out that directory from
+the command text: each `cd` and `pushd`, runners such as `bash -c` and
+`env -C`, CDPATH, heredocs. Two bug-hunter runs found 29 bugs in it, and
+every iteration of both found new shell forms that moved gh somewhere the
+hook did not look: `builtin cd`, `\cd`, `cd>/dev/null`, `env -iC`, a
+heredoc fed to bash, `cd -P` through a symlink. The forms have no end. The
+pull request itself is what is handed back, and GitHub names it exactly.
+
+**Why one gh call, and no other.** The rejected alternative judged every
+command that might hand back, and worked out which of the pull requests it
+printed was the hand-back's. A bug-hunter run found 13 bugs in those rules
+over three iterations. One fix, which skipped a pull request another gh
+command named, hid the very pull request handed back in
+`gh pr checks 7 && gh pr ready`. With one gh call, and that call a
+hand-back, whatever pull request the command printed is that call's, and
+no rule is needed to tell them apart. A command the hook does not judge is
+uncommon in an agent's hand-backs, and the workflow judges it whatever the
+command was.
+
+**Why the post-call check is an allowlist.** The hook is fast feedback
+for an honest agent; the workflow is the guarantee. The rejected
+alternative listed what may hide a gh (shells, interpreters, wrappers,
+`env -S` inside a word), and a bug-hunter run found another such program
+in each of its three iterations. Any program can run a gh with no gh in
+its words, so that list never ends, and a form it misses is misread: the
+hook takes back whichever pull request was printed, which may be the wrong
+one. An allowlist fails the other way. A form it does not list is skipped,
+never misread, and the note tells the agent how to make it judged. The
+forms an agent uses to hand back (`git push && gh pr create`,
+`cd repo && gh pr ready 12`) are on it.
+
+**Why a hand-back that names no pull request gets a narrower list.** When
+its own gh prints nothing (a failed `gh pr create`, or a ready by branch),
+a pull request another listed command printed would be the only one in the
+output, and would be taken for the hand-back's: `git show -s --format=%b`,
+a git alias or `rebase -x` that runs gh, `printf '%s/pull/%s\n' ...`. A
+hand-back that names its number or URL is safe, since the pull request
+printed must be the one it named. So beside one that names nothing, only
+commands that never print a pull request may stand: `git push`,
+`git add`, `git commit`, `cd`, `true` and `sleep`. `git -c` and every
+other git subcommand are left out. Those three take only options that
+print no diff and run no command (`commit -m`, `-a`, `--amend`; `push -u`,
+`--force-with-lease`; `add -A`), so `git add -p`, `git commit -v` or
+`--dry-run`, and `git push --exec` are off. When the narrower list is the
+one broken, the note names it. The other option considered was to confirm
+the pull request on GitHub (its author and creation time, or its requested
+reviewers) before taking it back. The narrower list needs no further call
+to GitHub, and a form it leaves out gets the note, never a wrong
+take-back.
+
+**Known gap.** `git commit` and `git push` run the repository's own hooks
+(pre-commit, commit-msg, pre-push), which could call gh or print a pull
+request's URL; the hook would then read that pull request as the listed
+hand-back's. A gh hidden on purpose, by an agent working against the
+check, is out of scope. The workflow covers both.
+
+**It fits igor best.** In igor, a hand-back is an explicit, recorded
+event: an Igor's handback comment, carrying igor's handback marker. An Igor
+posts through its own code, which spec-check's session hook never sees, but
+the workflow does: an Igor's pull request marked ready or sent for review
+is judged like anyone's. This may make igor's own loop-side check (igor
+issue #149) unnecessary. spec-check builds nothing igor-side.
+
+**Every hand-back this detection finds also starts a current-state
+pass:** prose's hook reads the agent's call after it runs, and the workflow
+reads GitHub's `opened`, `reopened`, `ready_for_review` and
+`review_requested` events (see *Events start a current-state pass*).
+
+**A read with nothing to commit lands on an empty commit.** The read has
+to be on a commit, and when every edit of the round is already pushed and
+the read amends nothing, there is nothing to commit. A pushed commit is
+never rewritten, so the read goes on an empty commit, made through the
+shared commit script's `--allow-empty` (the commit-trailer library's
+DECISIONS.md, *An empty commit, only when asked*). Its `Spec-check:` value
+is still bound to the tree, which is the parent's. #51 never needed one: its
+round ended at a push, so the last commit was still unpushed and could be
+committed again with `git reset --soft`.
+
+**Rejected:**
+- **Ending a round at a push** (pull request #51). See *Why a hand-back and
+  not a push*.
+- **A state file under `.git/`.** It is per clone: another machine, or a
+  reviewer, would read everything again, and nothing in the history would
+  show that a read happened.
+- **Main's spec changes making every open change due.** A spec change on
+  main came through its own pull request, whose read held it against the
+  open pull requests, this one included. Each read of this change reads
+  main's specs whole anyway.
+- **A gh reader of spec-check's own.** prose's already reads every form the
+  agent's shell may take, and two readers would disagree about the same
+  command. So prose's reader moved into `.agents/lib/gh-shell/`, which both
+  hooks import from the clone, as the shell scripts find
+  `.agents/lib/commit-trailer/`.
+- **Loading `prose.py` by path for its reader.** It tied spec-check to
+  private names in another skill's script, and ran all of prose's module
+  code on every hand-back command.
+- **Judging the local branch where gh runs.** See *Why directory placement
+  was abandoned*. Judging every directory a `cd` might reach, and blocking
+  when one could not be followed, still missed forms each iteration.
+- **Judging only before the call.** A `gh pr create` names no pull request
+  before it runs; only its output does.
+- **Telling apart the pull requests a command printed.** See *Why one gh
+  call, and no other*.
+- **Looking up the branch's pull request when nothing was printed**, as
+  after `gh pr create > /dev/null`. It needs the directory gh ran in.
+- **Treating every command that names gh as running it**, as prose's
+  posting hook does. A missed post publishes unchecked text; a missed
+  hand-back leaves `deferred` on the head commit for the reviewer to see,
+  and the workflow catches it where there is one. The false blocks cost
+  more here than the misses.
+- **Making the pull request a draft again on every push with an unread
+  change.** Pushes inside a round are expected before the read; flipping
+  the pull request on each would notify watchers each time. The failed
+  check holds the merge instead.
+
+---
+
+## Events start a current-state pass
+
+**Decision.** A current-state pass rewrites texts that may still describe
+an earlier state, such as a design that says "will" for what is now built.
+On each event below, a hook in the agent's session prints `current-state
+pass due for: ...`, naming the texts, and the agent rewrites them to
+describe the state as it now is, without asking first. It asks a person
+only before deleting a conclusion, such as a decision or its reason; this is
+the same rule `prose compact` follows ("just do it; ask on loss").
+
+| Event | Detected as | The pass |
+|---|---|---|
+| The implementation is pushed onto a spec branch (gate two of the two-gate workflow, where a specification is approved first and its implementation is then pushed onto the same branch) | the commit hook sees a commit add a file under a `src/` directory while the branch adds or edits an open change (a change folder not yet archived). The branch's changes are found by comparing with the point where it left the base branch, its merge base. On the base branch itself, every open change counts | the change's proposal.md and design.md, and the pull request's body and title, for wording such as "specification only", or "will" for what is now built |
+| A change is archived | the commit hook sees one commit delete `openspec/changes/<name>/` and add `openspec/changes/archive/<date>-<name>/`, or `archive/<name>/` when the name already starts with a date, as `openspec archive` does | anything still in the change's design.md that should have been in a decision record, moved (not deleted, so the agent need not ask first) out of design.md into the decision record of each capability the change touches, editing that capability's own record at its configured location, never a copy inside the change's folder (a safety net: item 15 of consistency-read.md already flags record material left in design.md during review), under the same rules as any record edit and in the record form SKILL.md's *Decision records* gives: a Rationale entry for reasoning about one requirement, with its Evidence (reasoning with none stays in the archived design.md); a Constraint entry for a rule the code must keep that no test can check, with its Evidence; a principle behind several requirements is one such Constraint entry, not repeated as Rationale under each (a principle with no evidence of its own goes into the Rationale entry of each requirement that guards against what the principle rules out, beside that Rationale entry's own Evidence; with no such requirement, it is left out); a Rejected entry for an alternative turned down, including, where the design accepts a limit or trade-off, the fix it chose not to make. What fits none of these (how the design was reached, rollout or migration steps, overviews of the code, open questions), and anything still without Evidence or too slight for a later reader to decide anything with, stays in the archived design.md. Then `prose check` on each decision record edited, and compacting any record that check reports as due for compaction |
+| A pull request is handed back for review | a hand-back, as *One consistency read per round* detects it: prose's hook, after the agent's `gh` or GitHub MCP call that hands back; or spec-check's GitHub Actions workflow, which prints a `::notice::` when every change already has its consistency read, so the hand-back stands | prose's single-pass rule holds doc rewrites back to one pass at the end, before a person reads them; this is that pass: any doc the pull request changes, or its body, that still describes work as unfinished or to come |
+
+**Why.** Keeping proposals, designs and pull request bodies current had
+slipped: in the igor repository, pull request #216's body sat stale for six
+review rounds. An agent does a pass when something tells it to at
+the moment it is due.
+
+- The commit hook, which the agent host runs after each shell command
+  (not a git hook), finds the first two events through the commit-trailer
+  library's `commit_trailer_notice` callback, which sees every new commit,
+  including those that change nothing under `openspec/` (the library's
+  DECISIONS.md, *A skill may print notices about a commit*). A shell `grep`
+  of the paths the commit adds spares starting Python for other commits.
+- Each commit that adds `src/` files prints the gate-two pass again, since
+  each may build more of what the change says "will" happen.
+- An amend prints only the passes its replaced commit would not have
+  printed. The replaced commit is found from HEAD's reflog. A pass for the
+  same change or archive is not asked for again when the amend adds no
+  `src/` file the replaced commit lacked, so folding a pass's own edits into the commit, or
+  dropping a file from it, asks for nothing. To know what the replaced
+  commit printed, it is judged as its own hook judged it: by the base-branch
+  rule when the base branch's reflog records it committed there, otherwise
+  by the branch rule (only open changes the branch adds or edits). The
+  branch rule counts fewer passes as already printed, so using it when
+  unsure makes the amend print more: a pass the replaced commit may not
+  have printed is printed now rather than lost. With no reflog entry for it, the
+  branch rule is used.
+- **An archive is the pair `openspec archive` makes.** The archive pass is
+  asked for only when one commit deletes `openspec/changes/<name>/` and adds
+  `openspec/changes/archive/<date>-<name>/`, or `archive/<name>/` with the
+  name kept as is, as `openspec archive` does for a name that already starts
+  with a date. Moving folders that are already archived changes, kept
+  elsewhere in the repository or already under `openspec/changes/archive/`,
+  deletes no open change folder (one directly under `openspec/changes/`
+  other than `archive/`), so it is not archiving and asks for nothing.
+  Archiving a change that was never committed as open asks for nothing
+  either, since no commit deletes its folder; the two-gate workflow never
+  does this, as its spec is committed first.
+- Whether a commit is on the base branch is read from the commit, not from
+  HEAD: it is when the local base branch, or the base ref (such as
+  `origin/main`), holds it. The hook
+  runs after the whole command, so `git commit && git checkout main` leaves
+  HEAD elsewhere, and after `git push origin HEAD:main` from another branch
+  only the remote's copy holds the commit.
+
+**Known limits.**
+- **A rebase continued after a conflict on the gate-two commit asks for the
+  pass again,** as does a cherry-pick of it. The library treats the reflog
+  actions `rebase (continue)` and `cherry-pick` as new commits and passes
+  them to the callback, and the replayed commit
+  adds the same `src/` files against its new parent. It is not fixed because
+  the original commit is not in the reflog, so pairing the replay with it
+  would mean guessing, by subject or patch-id. The repeat is one advisory
+  notice, and doing the pass again is cheap.
+- **Amending a cherry-picked, reverted or `git am` commit on the base
+  branch asks for the pass again.** The replaced commit counts as made on
+  the base branch only when that branch's reflog records an action starting
+  with `commit`; these log `cherry-pick:`, `revert:` or `am`, so it is judged
+  by the branch rule and its pass looks unprinted. To avoid it, commit there
+  rather than amend. An agent that already did the pass for that change can
+  skip the repeat.
+- **A commit reset away in the same command may never get its pass.** The
+  replaced commit is judged by whether it was ever committed on the base
+  branch, not whether the branch held it when its hook ran. So
+  `git commit && git reset --hard HEAD~1` in one command on the base branch,
+  then `git reset --hard <that commit>` and an amend, may show no pass at
+  all. The commit's hook ran after the reset, when the base branch no longer
+  held it, so it used the branch rule and printed nothing. The amend finds
+  the commit in the base branch's reflog and counts the pass as printed. No
+  test has proved this case; it is reasoned from the code.
+- **"On the base branch" is judged at commit time.** A commit made on
+  another branch and pushed to main in a later, separate command gets no
+  gate-two notice: when the hook judges the commit, neither the base ref nor
+  the local base branch holds it. The library finds new commits in HEAD's
+  reflog, and a push adds no entry there for the hook to see. Committing and pushing in one command gets the notice.
+- The archive pass is printed for the commit that archives, in the clone
+  where it is made. A merge that brings an archive in is not that commit,
+  and prints nothing.
+- The hand-back pass is prose's to print in the session, since the
+  single-pass rule is prose's, and prose may be installed where spec-check is
+  not. The workflow's notice is for a hand-back made outside such a
+  session, such as by a person on GitHub or from a clone without prose.
+
+---
+
+## The read is of the whole change, and the reader finds what is related
+
+**Decision.** Each round's read covers the whole change, and the reader
+searches the specs, open changes, pull requests and architecture docs for
+what relates to it, as the brief says. Neither a script-built reading pack
+nor a read of only what changed since the last read is used.
+
+**Why.** Both were built and benchmarked against the brief before them
+(2026-11-01), and neither earned its place.
+
+The benchmark: four rounds from real history, each a sandbox whose last read
+is the round's start and whose working tree is the round's end: igor PR
+#216 from `974d106` to `83d01a1` and from `8600ffe` to `3cd96d3`, and
+shared-skills PR #25 from `9f93f19` to `1d19e58` and from `dfa9f36` to
+`3576599`. Into each, six contradictions were planted: five in the round's
+edits, against main's specs, the unchanged change or its decisions, and one
+already present at the last read. Each sandbox was read once by each brief:
+this one, one reading a pack built from the whole change, and one reading a
+pack of only what changed since the last read. No pull requests were read:
+the sandboxes have no remote.
+
+| Round | This brief: tokens, caught | Whole-change pack | Incremental pack |
+|---|---|---|---|
+| #216, 974d106 | 99k, 6/6 | 256k, 5/6 | 161k, 5/6 |
+| #216, 8600ffe | 222k, 6/6 | 246k, 6/6 | 133k, 5/6 |
+| #25, 9f93f19 | 72k, 5/6 | 228k, 6/6 | 119k, 6/6 |
+| #25, dfa9f36 | 87k, 5/6 | 297k, 6/6 | 84k, 5/6 |
+| Total | 481k, 22/24 | 1,028k, 23/24 | 497k, 21/24 |
+
+Every brief caught all 20 problems planted in the rounds' edits. Of the four
+present at the last read, this brief caught two, the whole-change pack
+three, and the incremental pack one. This brief's readers did not read
+every spec in full: they searched, at 72k to 222k tokens. Single runs, with
+planted problems, so the figures are a sign, not a measure.
+
+**Rejected:**
+- **A reading pack built by a script** (`spec_check.py pack`): the
+  requirement paragraphs, scenarios and decisions elsewhere that share a
+  name or IDF-weighted terms with the change. Built from the whole change,
+  it cost twice this brief's tokens for one more catch; the readers it
+  replaced were already searching, not reading everything.
+- **Reading only what changed since the last read.** It cost what this
+  brief did (3% more over the four rounds) and caught the fewest problems
+  already present at the last read: one of four, which its pack happened to
+  quote.
+
+---
+
+## The reader reads every file of the change whole
+
+**Decision.** The read is done by a general-purpose subagent, not Explore.
+Its brief lists every file of the change and tells it to read each whole,
+every line, paging long files with the Read tool, never skimming, grepping
+or sampling: a problem may sit anywhere in a long delta spec. The files are
+listed, not pasted into the brief.
+
+**Why.** A second benchmark (2026-11-02) used the same four rounds and
+planted problems as the one above, two runs per round and brief, so eight
+reads per brief:
+
+| Brief | Tokens per read | Problems in the round's edits (of 40) | Already there at the last read (of 8) |
+|---|---|---|---|
+| A: today's brief, general-purpose | 150k | 39, 1 partly | 2 |
+| B: A with the change's files pasted in | 147k | 40 | 3 |
+| C: Explore, told to read each listed file whole | 206k | 38, 2 partly | 6 |
+| D: general-purpose, told to read each listed file whole | 267k | 39, 1 partly | 7 |
+
+The first comparison had a confound: C changed both the agent and the
+wording, so its 6 of 8 could have come from either. D kept A's agent and
+took C's wording, and caught 7 of 8 against A's 2 of 8 (Fisher's exact
+test, one-sided, about 0.02). The wording does it. Problems in the round's
+edits were caught by every brief, so the gain is all in what was already
+there, which a reader of only the familiar parts misses.
+
+The cost is about 78% more tokens per read (267k against 150k). Reading
+once per review round (see *One consistency read per round*) is what pays
+for it.
+
+**Rejected:**
+- **Explore** (C). It cost 37% more than A for one fewer catch than D, and
+  one of its eight reads said it had not read every line: the wording does
+  not hold it.
+- **Pasting the change into the brief** (B). It saved no tokens, and its
+  readers skimmed what they were handed.
+
+Single runs per cell, with planted problems: the figures are a sign, not a
+measure.
+
+---
+
 ## Findings go into the spec, not into comments
 
 **Decision.** A finding is fixed by amending the spec. A question only a
@@ -508,7 +1157,9 @@ nobody is doing.
 design.md's *Decisions*, and each undecided item in its *Open Questions*,
 both sections OpenSpec's instructions for design.md name. No record is kept
 of how a decision was amended: git and pull request comments hold that.
-spec-check does not check where a decision sits; the reviewer judges it.
+The reviewer judges where a decision sits; the `check` command
+gives an error on a line that records how one was amended
+(*Document-evolution text is an error*).
 
 **Why.** OpenSpec keeps a proposal to one or two pages of why and what, and
 puts decisions and their rationale in design.md. Reviews of this repository's
@@ -528,6 +1179,333 @@ the specs. A proposal that collects rulings grows without bound: one reached
 
 ---
 
+## Decision records per capability
+
+**Decision** (issue #56). A behavioural rejection or constraint is an
+ordinary requirement, with a scenario the rejected approach would fail,
+under the requirement that approach would break. A requirement holds its
+rule: its SHALL statement plus at most one *because* sentence. A decision record, one per capability, holds only what a
+test can't express: the evidence for why a rule exists, or why an
+alternative lost. Each entry carries such evidence: a Constraint for a rule
+no test can check, a Rejected entry for an alternative no requirement
+guards against, and, named after a requirement, a Rationale entry for why
+it exists, however short; each is stated as it stands now, in the form SKILL.md, *Decision records*, gives. Decision
+records work in any repository that uses spec-check.
+
+spec-check:
+- **reads the record's location** from `openspec/spec-check.yaml`
+  (`decision-records: <path holding <capability>>`), by default
+  `openspec/specs/<capability>/decisions.md`, beside the spec, so an agent
+  reading a spec sees the record in the same folder;
+- **checks a record's form** (`record`): its title, its sections, every part
+  of every entry, each path in *Paths*, and that each Rationale entry names
+  a requirement in force or in an open change;
+- **flags a requirement with more** than its statement and one sentence
+  (`rationale`, a check), and the consistency read's item 6 asks for
+  reasoning with evidence to move to a Rationale entry, and the rest to
+  design.md;
+- **gives the reader** the record of every capability the change touches
+  and every record whose *Paths* match a file the branch changes
+  (`spec_check.py records`), and the reader reports a change that brings
+  back a rejected approach or breaks a constraint (item 14), names one in
+  design.md that no record holds (item 15), or keeps a record entry whose
+  rule a requirement already states (item 16);
+- **checks a branch's edits to a record**: the `evolution` check reads the
+  lines the branch changes, and the edit makes a consistency read due. A
+  pull request edits the record directly, and a change holds no record of
+  its own (*Rounds and the evolution check*).
+
+**Why.** Rejected alternatives and constraints lived in files no check
+reads: a skill's DECISIONS.md here, and archived `design.md` files in
+igor, another repository that uses spec-check. So
+nothing flagged a change that brought one back. A rule a test can check
+belongs where spec-trace, the skill that links tests to scenarios, ties it
+to a test; the rest needs a fixed place
+and form, so a script can check it and a reader can be handed it.
+
+**Rationale is admitted by evidence, not length.** A reason with evidence
+(a failure, a measurement or an outside fact) goes in a `## Rationale`
+entry, however short the reason: `- **Rationale: <requirement title>.**`,
+then the reasoning on its own lines and one or more `Evidence:` lines. A
+requirement's *because* sentence is a plain one-line reason for
+orientation and never the justification; a requirement may keep it beside
+a Rationale entry. Why: the *because* sentence has no place for Evidence.
+Routing reasons by length, one sentence to the requirement and longer
+reasoning to the record, sent every short reason to that sentence, where
+its evidence had nowhere to go. Rejected for that reason: a
+Rationale entry only for reasoning longer than one sentence.
+
+**A record never repeats a requirement.** A Constraint or Rejected entry
+whose rule a requirement or scenario already states is cut, and a
+Rationale entry never restates its requirement's rule. Why: two statements
+of one rule drift apart, and the reader of a later change cannot tell
+which one holds. The requirement and its scenario are the statement a test
+checks, so that one stays. A Rationale entry's title must name a
+requirement in force in main's specs, or one an open change adds, modifies
+or renames to. An open change is any under `openspec/changes/` in the
+branch's tree, including one merged but not yet archived. `check` reports
+any other title as an error, since reasoning for a requirement that is
+gone explains nothing; it skips that check when `openspec show` cannot
+read the capability's main spec, and for a record whose capability has no
+spec, which instead gets a check saying the capability has no spec. A
+record for a capability an open change creates is held to that change's
+titles. For the
+same reason, an entry naming a requirement an open change removes or
+renames away is a `record` error until the record deletes the entry or
+retitles it to the new name. It is reported at the record and at the
+change's delta line. The titles are read from the delta text, so the error
+does not depend on `openspec show` reading the change. `records` names a
+Rationale entry whose requirement
+the change's delta adds, modifies, removes or renames, so the reader
+checks that the reasoning still holds. An entry that repeats a requirement
+is the consistency read's to find (item 16). Rejected: a
+mechanical check of text overlap between entries and requirements. The
+same rule is worded differently in each place, so matching words would
+both miss repeats and flag entries that only share terms.
+
+**What OpenSpec does with a record**, measured on 1.16.0 and 1.15.0 in a
+scratch project: `openspec validate --all --strict` passes with a record
+at `openspec/specs/<capability>/decisions.md` or at
+`openspec/decisions/<capability>.md`, and neither is read as a spec or a
+capability, even when it holds a requirement header; `list` and `show`
+ignore both, and so does a `specs/<capability>/` folder holding a record
+alone. `openspec archive` leaves a main record unchanged, and ignores a
+change's `specs/<capability>/decisions.md`: the file stays only in the
+archived copy. So plain `openspec archive` is right for a change whose
+pull request edited the record directly. `OpenSpecIgnoresDecisionRecordsTests` pins all of this, so a
+release that starts reading a record fails spec-check's tests. spec-trace
+reads only each capability's `spec.md` (`scripts/spec_trace.py`, where it
+joins `spec.md` to each capability's folder), so it needs no change.
+
+**The configuration.** One key, read with a few lines of standard-library
+code rather than a YAML parser, since spec-check installs with no
+dependencies. The path must hold `<capability>` once, as a folder of its
+own, sit under `openspec/` (the only directory `check --ref` and `sign`
+read from git) but not under `openspec/changes/`, and end in a fixed `.md`
+file name other than `spec.md`.
+An unknown key, a malformed line or an unusable path is a `config` error,
+so `sign` refuses; the default location is used meanwhile, so the other
+checks still run.
+**The location ends in a fixed file name inside a `<capability>` folder:**
+the default `openspec/specs/<capability>/decisions.md`,
+or for example `openspec/decisions/<capability>/decisions.md`. Every file it
+matches is a record, and nothing under `openspec/changes/` is ever a main
+record. A location whose file name holds `<capability>` is a `config`
+error. Why: such a location, like `openspec/specs/<capability>.md`, also
+matches ordinary docs, and no rule tells a record from a doc reliably.
+The two rules tried, by title and by whether the capability has a spec,
+between them misread three cases: a nested capability's record was hidden
+and then written over; a doc turned into a malformed record when its
+capability was created; and a malformed record passed `sign`. Rejected for
+that reason:
+`openspec/decisions/<capability>.md`, the alternative measured in issue
+#56. A location naming `spec.md` or `openspec/changes/` in other letter
+case is refused too, since macOS's default filesystem ignores letter case.
+
+**No symlink under openspec/.** spec-check refuses every symlink that is
+`openspec` itself or under it, wherever it points, at one gate. The gate
+looks only at the tree being judged: the checkout or staged tree for
+`check`, `sign` and `records`, which exit 2 naming each link;
+the pull request's head for `ci` and the hand-back hook, which take the
+hand-back back or block it, as for an unread change. No linked layout is
+supported. Why: no repository using spec-check has such a link, and every
+attempt to handle one, in any form, brought new bugs. Resolving links let
+one record have several paths. Judging them by where they stood let a
+link's record be judged in some places and skipped in others. A tree read from
+git does not hold what a link outside `openspec/` points to, so check and
+sign disagreed.
+
+**Record entries are grounded.** Every entry gives a later reader
+something to decide with. A Constraint is a rule no test can check, with
+Evidence that is a failure, a measurement or an outside fact; a Rationale
+entry states what goes wrong without its requirement, with at least one
+Evidence line: a failure, a measurement (an experiment someone ran), or
+an outside fact. A failure Evidence line links the bug or incident
+itself, with its regression test as a further pointer. A test alone, the
+requirement's own test included, is never Evidence: it shows that a rule
+is enforced, never why it is needed (item 17).
+Purely logical reasoning with none of these stays in the change's
+design.md, archived with it. `check` reports a Rationale entry with no
+Evidence as a `record` error. A rejection that a requirement guards
+against, one its scenario would fail, is written as that requirement's
+Rationale, with Evidence. A Rejected entry is only for an alternative no
+requirement guards against, and its *Lost because* links evidence: a
+failure, a measurement or an outside fact. A judgment call that no
+requirement guards against and that has no evidence is struck, and an entry that no longer holds is deleted. Reasoning that names who decided, states a preference or only
+restates its requirement is noise, and a generic principle never goes in a
+record. The consistency read flags all of this (item 17) in the round it
+appears, and
+the archive pass leaves anything still unevidenced in the archived
+design.md. Why: every entry costs every future reader a read, by people
+who were not there, so an entry with nothing a reader can check costs that
+read and returns nothing;
+a rule backed only by who decided it either fossilizes, since nobody can
+tell whether it still holds, or gets ignored; and evidence is cheapest to
+get while the person who decided is still present, not at archive.
+Rejected: optional Evidence on a Constraint, which lets a preference pass
+as a rule; optional Evidence on a Rationale entry, on the argument that a
+requirement stands without its Rationale, since the entry still costs every
+reader a read.
+Rejected: a test showing what goes wrong without the rule as a kind of
+Evidence. A test proves a requirement and evidence proves a decision: such
+a test was a failure, a measurement, or the requirement's own test (which
+item 17 rejects), so it added no evidence and invited tests written only to
+be cited.
+Rejected: missing links as errors, since `check` can tell only a link's
+form (any URL passes), and whether the evidence holds up is the consistency
+read's judgment (item 17).
+Rejected: a *Lost because* that links the requirement a rejected
+approach would break, since a rejection a requirement's scenario would fail
+is one a test can check, which is a requirement (and its reasoning that
+requirement's Rationale), and an entry restating it is a repeat (item 16);
+a lenient mode or a transition period for main records
+written before Evidence was required, since a record that misses
+the bar costs readers the same whenever it was written; a link to the decision counting as Evidence, which points at who
+decided rather than why it holds; an Evidence-free "stated policy" kind,
+the same preference under another name; a `check` pattern for attribution
+wording in records, including the evolution check's credit rules, which
+records skip, since a pattern cannot tell a person from a product, a
+standard or a group ("per Unicode", "Chrome chose…", "(Linux, 2024-05-01)"),
+so it errors on the very evidence the bar asks for (the same reason the
+undefined-term check was rejected: "A program cannot tell a term from any
+other word"). Accepted limit, for the same reason: history in a record
+that only a credit rule would catch, because it names who or when, passes
+the script and is left to item 17, since a rule that caught "Adam narrowed
+the scope" would also catch "Safari reversed the default", and one that
+caught "decided on 2026-10-21" would also catch a dated run; the other
+history rules still apply to records. A process rule for people, such as
+who reviews what, has no evidence a later reader could check, so it belongs
+in an agent's memory or the team's notes, not in a spec or record.
+
+**Record titles match exactly.** A record entry names a requirement, and
+matches a main entry, only by its exact title: the bold title less its
+closing period, with surrounding space trimmed. `openspec archive` trims a
+requirement's name the same way and compares names with no other
+normalisation, so case and spacing count. An entry for a requirement whose
+title ends in a period writes its bold title with two periods. This holds everywhere titles
+match: the rule that a Rationale title names a requirement, and the check
+that no entry names one an open change removes or renames away. On a miss, the error
+suggests the exact title when one requirement or entry matches ignoring
+case, spacing, backticks and a closing period. That loose match only feeds
+the suggestion; it never counts as a match.
+Why: matching exactly as the archive does means spec-check and OpenSpec
+always agree on what a title names. Rejected: matching loosely, ignoring
+case, spacing, backticks and a closing period. The archive removes or
+renames only the exact name and skips any other as already applied, so a
+loose match would pass an entry for a requirement that is gone, or flag
+one for a requirement that stayed.
+Three gates tried to close that gap (refusing titles that shared a loose
+key within a change, against main, and on removals that missed) and each
+review found another way through.
+
+**No title reused within one change.** `check` and `sign` refuse, as a
+`title-reuse` error, a change in which one exact title both leaves
+(removed or renamed from) and arrives (added or renamed to): a swap, a
+chain, or a rename plus a new requirement under the old title. Plain
+renames and removals pass, and so does a rename that changes only case,
+whose Rationale entry is retitled like any other. A near-duplicate
+differing in case or spacing from a requirement that stays is left to
+`openspec archive`, which refuses a requirement whose name differs from an
+existing one only in case or spacing. Why: with one title naming two requirements in one change,
+a Rationale entry under it could belong to either. After a rename of A to
+B plus a new A, an entry titled A names a requirement renamed away, an
+error, though it may mean the new A, and nothing the author writes in the
+record settles which. Splitting into two stacked changes, which can
+share a pull request, gives each title one meaning per change. Until the
+rename archives, a Rationale entry for the new A is still an error, since
+an open change renames A away: wait for that archive, or pick another
+title.
+
+**What is an error and what a check.** A departure from the form is an
+error: the record is read by a script. A missing
+Rationale *Evidence* line is a departure from the form. *Evidence* or *Lost
+because* that links nothing is a check: the script can tell only a link's
+form, since any URL passes, and whether the evidence holds up is the
+consistency read's judgment (item 17). A link is a URL, an issue or pull
+request, a commit, or a markdown link to a file such as a test. *Because*
+or *Lost because* holding more than one sentence is a check: telling a
+sentence from other text is a guess. A path in *Paths* that the tree lacks is an error,
+and a check while an open change touches the capability: a spec-stage
+change names files its implementation adds, just as a citation of a line
+only the change adds is a check (*A citation fails only where it cannot be wrong*). A main
+record whose capability has no spec, and that no open change creates, is a
+check.
+
+**The rationale check counts sentences.** A sentence holding an RFC 2119
+keyword (SHALL, MUST, MAY, SHOULD, REQUIRED, RECOMMENDED, OPTIONAL) states
+the rule. A list item continues the statement it hangs from, so only the
+sentences after an item's first count. A sentence that is only a link, or
+starts `Evidence:` or `See`, links evidence. More than one other sentence
+is a check. It runs on a change's added and modified requirements only. Of
+the 138 requirements in igor's main specs at `7117a88`, 84 hold more than
+one such sentence: too many to show on every `check specs`. The check
+reaches such reasoning when a change edits its requirement, and the
+change's author moves it out: to a Rationale entry when it has evidence,
+and to the change's design.md when it has none.
+
+**Rounds and the evolution check.** A pull request edits a record
+directly, so the branch's edit is checked as a change is. The `evolution`
+check reads the lines the branch changes in a record, against the merge
+base, skipping the credit rules as in any record; the lines it leaves
+alone are not read, as main specs are not. A kept file beside the record
+(`.spec-check-kept` in the record's folder, in a change's kept-file form,
+naming the record relative to that folder) keeps a flagged record line a
+person chose to keep, whether or not an open change touches the
+capability. It is part of the record edit: editing it makes the same read
+due as editing the record, and the `evolution` check never reads it. An
+entry whose line is still in the record unchanged keeps nothing once that
+line reaches the base branch, and is left alone rather than reported as
+stale, since the line did not change.
+Editing a record makes due the open change on the branch that
+touches its capability, and that change's read is given the record and
+its diff. A record edited for a capability no open change touches is due
+on its own, keyed by its path, named in the `read by …` trailer like a
+change, and read against its capability's spec (consistency-read.md, *A
+record read on its own*). A change holding a `decisions.md` of its own is
+a `record` error naming the record to edit.
+
+**Rejected:**
+- **Change-local records with a fold at archive.** The fold needed
+  Retired entries, carry-overs, dependency folds and an archive wrapper,
+  and produced most of the bugs found while pull request #68 built it,
+  while a direct edit shows reviewers the real diff and conflicts the
+  ordinary git way. Accepted cost: in a repository that merges before
+  archiving, a record on the base branch can explain a requirement that
+  only an open change holds, so it can say a rule holds before the change
+  bringing it lands.
+- **The rationale check on main specs.** 84 checks on every `check specs`
+  in igor, about text no change is editing.
+- **Finding rejected alternatives in design.md with a pattern.** OpenSpec's
+  design.md has no fixed place for them, and telling a rejected approach
+  from a described one is the reader's judgment (item 15).
+
+---
+
+## OpenSpec rules ship as a file merged by hand
+
+**Decision.** spec-check ships `opsx-rules.yaml`, a `rules:` block for
+`openspec/config.yaml`. When a repository has `openspec/config.yaml` and its agents
+write changes through OpenSpec's /opsx skills, the setup step in SKILL.md
+offers to merge the block in by hand, adding to any `rules:` already there.
+No script reads or writes `config.yaml`.
+
+**Why.** OpenSpec 1.16.0's `openspec instructions <artifact>`, which the
+/opsx skills call while an agent writes each artifact, shows that
+artifact's list from `rules:` (`dist/core/artifact-graph/instruction-loader.js`).
+So the rules reach an agent that never loads spec-check, at the moment it
+writes. They are advice: the checks and the consistency read still enforce.
+The file is OpenSpec's, so merging by hand leaves its other keys and its
+comments as their owner wrote them.
+
+**Rejected:**
+- **A script that writes the rules into `config.yaml`.** It would edit a
+  file another tool owns, as spec-trace's DECISIONS.md also rejects for its
+  decline line.
+- **Placing the guidance only in the README.** Agents set up repositories,
+  and they read SKILL.md, not the README.
+
+---
+
 ## Every change is archived into a scratch copy
 
 **Decision.** `check` copies the tree's specs into a temporary directory and
@@ -538,7 +1516,7 @@ requirement whose name is already there, a RENAMED onto a taken name, a
 MODIFIED that drops a scenario the requirement holds, and a requirement
 modified, removed or renamed that is not there. A refusal about a delta file
 as a whole, such as two sections naming one requirement, is reported at line
-0 of that file. Without OpenSpec 1.15.0 or later, the archive is reported
+0 of that file. Without OpenSpec 1.16.0 or later, the archive is reported
 "not run", like every check that needs the CLI. The tree is never touched.
 
 **Why.** Each of these passes `openspec validate`, which reads a change on
@@ -551,7 +1529,7 @@ which lands first is not known.
 OpenSpec stops at its first refusal, so one run shows at most one.
 
 `check` reads the archive's result from `archive --json`. It reads
-`openspec --version` first and treats a CLI older than 1.15.0, or one whose
+`openspec --version` first and treats a CLI older than 1.16.0, or one whose
 version it cannot read, as a missing one, naming the version to install. An
 older CLI's errors, such as "unknown option '--json'", are never read as a
 refusal of the change.
@@ -641,7 +1619,7 @@ the same name and pass.
 ## spec-check reads OpenSpec only through its CLI
 
 **Decision.** spec-check reads specs and deltas only through the public
-commands of the OpenSpec CLI, 1.15.0 or later:
+commands of the OpenSpec CLI, 1.16.0 or later:
 
 - `openspec show --json` gives each requirement's name, text and scenarios:
   `--type spec` for a main spec, `--deltas-only` for a change. A change's
@@ -665,8 +1643,8 @@ WARNING fails validation, so it is an error. An INFO note, such as the one on
 a stray heading, never fails it, so it is a check, and the advice spec-check
 adds to it does not change that.
 
-Below 1.15.0, or with no CLI, every check that needs a requirement reports
-`not run: install OpenSpec 1.15.0 or later`: the scenario, duplicate and
+Below 1.16.0, or with no CLI, every check that needs a requirement reports
+`not run: install OpenSpec 1.16.0 or later`: the scenario, duplicate and
 drift checks, the archive and validation. A stacked change gets a `stack`
 error, since its other checks are wrong without its dependencies. The checks
 that read no requirement still run: citations, `Builds on:` lines and the
@@ -718,7 +1696,13 @@ spec-check adds to OpenSpec's output in two places only:
   change them.
 - **1.14.0 as the minimum.** Its `validate` reports a requirement under a
   section it does not read, but not a section or preamble of plain text that
-  the archive drops. Only 1.15.0 reports both.
+  the archive drops. Only 1.15.0 and later report both.
+- **1.15.0 as the minimum.** Its fence reader lacks CommonMark's rule that a
+  backtick fence's info string may not hold a backtick, so a line such as
+  ```` ```npm test``` ```` opens a fence in 1.15.0's reader and hides every requirement
+  after it from the archive. spec-check reads fences as 1.16.0 does, so on
+  1.15.0 its title-reuse gate and record title checks could judge requirements
+  the archive never applies.
 - **Keeping spec-check's own section and fence findings beside OpenSpec's.**
   Where OpenSpec reports a case, its report is the definition; a second
   report of it would only disagree with it.
@@ -738,7 +1722,7 @@ can find, so spec-check reports nothing more for them:
   is archived into the scratch specs, spec-check no longer sees it there,
   and a stacked change that modifies it gets a `drift` error saying no one
   defines it.
-- **A section or requirement written inside a code fence.** OpenSpec 1.15.0
+- **A section or requirement written inside a code fence.** OpenSpec 1.16.0
   reads every fenced line as text, in `show`, `validate` and the archive, so
   a `## ` line or `### Requirement:` header inside a fence is never a
   section or a header. If an author fences one by mistake, nothing reports
@@ -815,7 +1799,9 @@ understood.
 ## The trailer is bound to the tree
 
 **Decision.** `sign` runs the mechanical checks on the staged tree and prints
-`Spec-check: ✓ <tree> <summary>`. The commit script runs `verify-staged.sh`
+`Spec-check: ✓ <tree> <summary>`. The summary ends with the round's read:
+deferred, the changes read, or `no read due` (see *One consistency read per
+round*). The commit script runs `verify-staged.sh`
 before committing, and the commit hook runs `verify-commit` after. Both
 compare the value's tree with the tree that lands. A value starting `skipped` binds
 nothing.
@@ -825,9 +1811,9 @@ proves the checks ran on what landed, and an edit staged after signing breaks
 it. This is the commit-trailer library's design
 ([its DECISIONS.md](../../lib/commit-trailer/DECISIONS.md#the-trailer-is-minted-from-the-tree-not-recalled-by-the-agent)).
 
-Without OpenSpec 1.15.0 or later, `sign` still signs, and the value names
+Without OpenSpec 1.16.0 or later, `sign` still signs, and the value names
 everything that did not run in place of the validate result: `show,
-validate and archive not run (install OpenSpec 1.15.0 or later)`. A reader
+validate and archive not run (install OpenSpec 1.16.0 or later)`. A reader
 of the trailer then knows that no requirement was checked, and how to fix
 that.
 
@@ -847,8 +1833,11 @@ spec, not the commit message.
 ## Only commits that change `openspec/` are judged
 
 **Decision.** The commit hook sets the library's `COMMIT_TRAILER_PATHSPEC` to
-`:(top)openspec/`. A commit that changes nothing there is never judged, with
-or without a trailer.
+`:(top)openspec`. `sign` lists the staged paths with the same pathspec, to
+decide whether the commit needs a trailer and what to check. The pathspec
+matches a folder, file or symlink named `openspec` at the root, and every path
+under it, but not a path such as `openspec-notes/`. A commit that changes nothing there is
+never judged, with or without a trailer.
 
 **Why.** A code-only commit has nothing to check, and a report on it would
 teach readers to ignore the report.
@@ -859,26 +1848,35 @@ teach readers to ignore the report.
   generic one.
 - **A callback the library calls per commit.** A pathspec is data, so it
   needs none of the subshell and marker machinery a sourced callback does.
+- **`:(top)openspec/`, with the slash.** It matches only paths under a
+  folder, so a commit that only adds or retargets an `openspec` symlink
+  would never be judged, and so never meet spec-check's refusal of a
+  symlink under `openspec/` (*No symlink under openspec/*).
 
 **Limit:** only `openspec/` at the repository root counts, which is where
 OpenSpec puts it.
 
 ---
 
-## The hook is enabled by default
+## The hooks are enabled by default
 
-**Decision.** `hook.json` says `"default": "enabled"` for the commit hook.
+**Decision.** `hook.json` says `"default": "enabled"`, for the commit hook
+and the hand-back hooks alike: manage-skills switches a skill's hooks
+together.
 
 **Why.** Several organizations install from this repository, each with its
 own repositories, so the default must suit a repository that uses OpenSpec and
 one that does not:
-- Installing spec-check is itself the opt-in. Nobody gets the hook without
+- Installing spec-check is itself the opt-in. Nobody gets the hooks without
   asking for the skill.
-- In a repository without OpenSpec, the hook does not speak: it judges only
-  commits that change `openspec/`.
-- It never blocks.
+- In a repository without OpenSpec, neither hook speaks: the commit hook
+  judges only commits that change `openspec/`, and the hand-back hook only a
+  pull request with an open change.
+- The commit hook never blocks. The hand-back hook acts only on a hand-back
+  that would leave a change unread, and a draft that requests no review is
+  never a hand-back.
 - Off by default, an installed spec-check would leave the spec stage
   unchecked, and nothing would say so.
 
 **Rejected:** off by default. It suits a hook that reports on every commit,
-which this one does not.
+which neither does.

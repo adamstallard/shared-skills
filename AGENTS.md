@@ -13,26 +13,21 @@
   The spec still does not describe the screen; its task only names it. The rest of the same feature (data flow, integrations,
   setup, rules) still goes through its own specification pull request
   first.
-- **A capability's decision record, or a skill's `DECISIONS.md`, is its
-  current reasoning in one place, not a log.** A capability is what one
+- **A capability's decision record holds the capability's current
+  reasoning in one place, not a log.** A capability is what one
   spec, `openspec/specs/<capability>/spec.md`, specifies, such as a skill
   or part of one. A rejected alternative that a test can check becomes a
   requirement in that spec, with a scenario the alternative would fail,
   and so does a constraint, with a scenario that breaking it would fail.
-  The capability keeps the alternatives and constraints no test can check
-  in `openspec/specs/<capability>/decisions.md`, one entry each, with its
-  reason, evidence and the paths it governs, in the form shared-skills
-  issue #56 sets. A skill with no spec keeps its reasoning in its
-  `DECISIONS.md`. While a
-  change is open, its reasoning lives in its proposal and `design.md`, and
-  the constraints and rejected alternatives it adds live in
-  `openspec/changes/<change>/specs/<capability>/decisions.md`, in issue
-  #56's form. When the change is archived, spec-check folds those records
-  into each capability's decision record, and the author folds the rest of
-  the reasoning a later reader still needs into each affected capability's
-  record, or into the
-  `DECISIONS.md` of each skill without a spec that it affects. Where that reasoning
-  replaces older reasoning in the file, rewrite the older reasoning rather
-  than appending.
+  The capability's decision record,
+  `openspec/specs/<capability>/decisions.md`, holds only what no test can
+  check, each entry with its evidence, in the form spec-check's `SKILL.md`
+  sets. A pull request edits that record directly, beside the spec files
+  its change adds or edits under `openspec/changes/<change>/specs/`; a
+  change holds no record of its own. A skill with no spec keeps in
+  its `SKILL.md` everything an agent needs to act on it, the reasons
+  included. Where new reasoning replaces older
+  reasoning in a record, rewrite the older reasoning rather than
+  appending.
 - **Tests tag the OpenSpec scenario they check** with
   `@scenario <capability>: <Scenario name>`; see the spec-trace skill.

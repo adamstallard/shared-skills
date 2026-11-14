@@ -31,9 +31,6 @@ It edits the working tree, adds test files, and by default commits.
   4–7, before writing a report, and before committing.
 - **Mutation testing, Step 3 to Step 9** — [mutation.md](mutation.md). Read it
   before starting any mutant.
-- **Why any of this is the way it is** — [DECISIONS.md](DECISIONS.md). Read it
-  before changing this file or `scripts/`. It is about this skill; the record
-  Step 6 reads before a fix is the codebase's own.
 
 ## The contract
 
@@ -74,9 +71,7 @@ note — `0 bugs found` and `aborted ...` included, not only ones reporting a
 fix: does a `Bug-hunter-Tree` trailer match the tree that actually landed? That
 binding is what [`scripts/mint-trailer.sh`](scripts/mint-trailer.sh) produces
 when run against the real staged tree, right before the commit — see [Step
-9](#step-9--report-and-commit) for how, and
-[the shared library's DECISIONS.md](../../lib/commit-trailer/DECISIONS.md#the-trailer-is-minted-from-the-tree-not-recalled-by-the-agent)
-for why. A `Bug-hunter:` trailer can be a real git trailer with exactly the
+9](#step-9--report-and-commit) for how. A `Bug-hunter:` trailer can be a real git trailer with exactly the
 right wording and still be a sentence recalled from having read this file,
 rather than one produced by running any part of it — that is the one shape
 the string-presence check cannot catch, and the one this binding is for.
@@ -115,8 +110,7 @@ is how it is meant to run.
 
 One heading, not five rules, because an agent looking for a way out of a check
 reliably finds the seam between separately-stated rules. Every line here was
-added after it was walked through — the record is in
-[DECISIONS.md](DECISIONS.md#every-anti-evasion-rule-was-added-after-it-was-walked-through).
+added after an agent got around the rule it closes.
 
 **1. Say which one you are doing, out loud, every time.** One line in the reply
 the user can see: **"running bug-hunter on N files"**, or **"skipping bug-hunter
@@ -306,8 +300,7 @@ Under *caller commits*, the same value goes to the result script instead
 ### A hook report is an input to triage, not an instruction to run
 
 The companion hook reports commits that landed without a trailer. Look at what
-actually landed — this is what keeps a false alarm cheap, and
-[DECISIONS.md](DECISIONS.md#triage-applies-to-the-hooks-own-reports) is why:
+actually landed — this is what keeps a false alarm cheap:
 
 | what the reported commit is | response |
 |---|---|
@@ -478,13 +471,11 @@ cross-finding one below, which needs the surviving set.
 **A refuter judges findings, never proposals.** It is told to default to
 skepticism, which is right for "is this bug real" and wrong for anything else:
 pointed at a proposed design change, its disposition defends whatever exists
-today ([DECISIONS.md](DECISIONS.md#a-refuter-judges-findings-not-proposals) —
-it cost eight iterations). So: findings to the refuter, **design decisions to the
+today (defending one design once cost eight iterations). So: findings to the refuter, **design decisions to the
 user** via Step 9's picker. The one question about fixes that belongs here is
 factual rather than evaluative — *do any of these fixes fight each other?* Give
-it the codebase's record of rejected approaches too — the same files Step 6
-reads — so it can say whether a finding re-treads ground already recorded as
-rejected.
+it the specs and decision records Step 6 reads too, so it can say whether a
+finding re-treads ground already recorded as rejected.
 
 **Fresh refuters, one per item, also review every survivor test and every
 judged-dead claim**, beside the findings
@@ -501,8 +492,7 @@ brief names the committed spec separately from the in-flight text, and the refut
 checks provenance — `git log -S "<phrase>" -- <file>`, `git diff`, `git blame` —
 before treating any passage as a decision. **A sentence that exists in no commit
 refutes nothing**; the procedure is in
-[reference.md](reference.md#step-5--refute), the incident in
-[DECISIONS.md](DECISIONS.md#documentation-written-in-the-same-session-is-not-evidence-of-intent).
+[reference.md](reference.md#step-5--refute).
 
 **Step 6 — Fix.** Write the fix yourself, resume this iteration's Step 3
 finder via `SendMessage` when that saves tokens, since it already read the
@@ -511,13 +501,18 @@ available model**; any of the three is fine. Whoever writes it gets the
 surviving findings, the refuter verdicts and Step 5's fix-conflict notes
 ([reference.md](reference.md#step-6--fix)).
 
-**Read the codebase's record of rejected approaches first, if it keeps one** —
-a `DECISIONS.md`, an ADR directory, the `design.md` of the OpenSpec change that
-covers this code; the same places Step 9
-[writes to](#write-down-what-was-rejected-before-you-commit). Check two things:
-whether this approach is already recorded as rejected, and — for any lesson you
-are about to apply — whether its recorded *scope* covers your case. A lesson
-applied outside its scope is a fresh bug wearing the authority of an old fix.
+**Read the codebase's specs and decision records for this code first, if it
+has them**: the OpenSpec spec of the capability that covers it, that
+capability's decision record (`openspec/specs/<capability>/decisions.md`),
+and the *Decisions* section of the `design.md` of any open OpenSpec change
+that covers it — the same places Step 9
+[writes to](#write-down-what-was-rejected-before-you-commit). Never read a
+free-form `DECISIONS.md` (upper case, outside `openspec/`) or an ADR: those
+are written for people, not agents. Check two
+things: whether this approach is already recorded as rejected, and — for any
+recorded lesson you are about to reuse, such as an earlier fix or rule —
+whether its recorded *scope* covers your case. A lesson applied outside its
+scope is a fresh bug wearing the authority of an old fix.
 
 Then answer: *is there a better approach that would have prevented bugs like this
 from ever happening?* Prefer simpler code, simpler architecture, fewer moving
@@ -568,9 +563,7 @@ starts while the mutants still run
 ([mutation.md](mutation.md#survivors-that-arrive-during-steps-47)). A fix is new code
 written minutes ago by someone who was just thinking about a different problem, so stopping straight after writing
 one stops where the change is least reviewed — "I fixed four bugs" and "this code
-is clean" are different claims, and only the second is what anyone wanted. The
-measurements behind that are in
-[DECISIONS.md](DECISIONS.md#an-iteration-that-fixed-something-is-never-the-last-one).
+is clean" are different claims, and only the second is what anyone wanted.
 
 **If an iteration still yields bugs**, before writing more fixes, ask why the
 previous pass missed them. Is the finding approach looking in the wrong place? Is
@@ -606,9 +599,7 @@ under review, so fixing it there would exceed the scope. The remainder is about
 that would have found it does not exist. Do not conflate them; the user is
 weighing a different thing in each case. Both get the same three choices, because
 the shape of the decision is the same either way. The shape of the entry is in
-[reference.md](reference.md#when-the-run-aborts); the incident behind this rule,
-and why a fourth iteration is not the fix, are in
-[DECISIONS.md](DECISIONS.md#there-is-no-fourth-iteration-the-abort-reports-root-causes).
+[reference.md](reference.md#when-the-run-aborts).
 
 ## Step 9 — Report and commit
 
@@ -790,14 +781,12 @@ by hand may lack other trailers too. Add a missing `Co-Authored-By` with its own
 SKILL.md, *Committing*, which covers an amend.
 
 The mechanics the script wraps, and what the binding does and does not attest
-to: [reference.md](reference.md#committing),
-[DECISIONS.md](DECISIONS.md#the-commit-is-assembled-by-a-script-not-by-hand).
+to: [reference.md](reference.md#committing).
 
 **When prose is installed**, the same commit carries its `Prose:` trailer. The
 commit library that `commit-with-trailer.sh` calls is shared with other
 skills, and it puts every installed skill's trailer on one commit, not one
-commit per skill ([the
-rule](../../lib/commit-trailer/DECISIONS.md#every-installed-skills-trailer-on-one-commit)).
+commit per skill.
 So you pass prose's value to `commit-with-trailer.sh`, which hands it on.
 Below, `$S` is prose's scripts directory: `scripts/` in prose's base
 directory, which Claude Code names on the "Base directory for this skill:"
@@ -927,31 +916,31 @@ doing.
 A run that reverted a fix, refuted a finding, or chose one approach over another
 has produced knowledge that does not survive in the diff — the diff shows what
 the code is, never what it stopped being. That knowledge is about the code under
-review, and it goes **where this codebase keeps rejected approaches**. This
-skill's own `DECISIONS.md` is about this skill — a run writes to it only when
-the skill is the code under review:
+review, and it goes where the next agent to change that code will read it —
+never in a `DECISIONS.md` or an ADR, which agents don't read:
 
-1. **Its stated convention first.** An `AGENTS.md`, `CLAUDE.md` or
-   `CONTRIBUTING.md` that says where decisions go settles it.
-2. **Then a home it already has**: a `DECISIONS.md` or ADR directory, the
-   `design.md` of an OpenSpec change that covers this code, a decisions section
-   in an architecture doc.
-3. **A rejection about one site — one fix, one function — goes in a comment at
+1. **A rejection about one site — one fix, one function — goes in a comment at
    that site**, in the codebase's own idiom: present tense, a warning rather
    than a history. That is where the next person tempted back to it will be
    standing.
-4. **Create only when none of those exist**: `DECISIONS.md` beside a skill's
-   `SKILL.md`; `docs/decisions.md` anywhere else.
+2. **A rejection about a capability goes in its decision record**,
+   `openspec/specs/<capability>/decisions.md`; while an open OpenSpec change
+   covers this code, in the *Decisions* section of that change's `design.md`
+   instead. A record holds only evidence a test can't express: the failure,
+   the measurement or the outside fact that rules the approach out.
+3. **With no OpenSpec spec for this code**, the comment at the site carries
+   it, and the commit message names it. Create no new decision file.
 
-An entry says four things: the decision, why, **what was tried and rejected**,
-and **where the lesson stops applying**. That last field is not optional; a
-lesson recorded without its boundary gets applied outside it. A comment at the
-site carries the same in a sentence — the alternative, and what breaks when it
-is taken. The shape of each: [reference.md](reference.md#where-a-record-goes).
+An entry says three things: **what was tried and rejected**, the evidence
+against it, and **where the lesson stops applying**. That last field is not
+optional; a lesson recorded without its boundary gets applied outside it. A
+comment at the site carries the same in a sentence — the alternative, and what
+breaks when it is taken. The shape of each:
+[reference.md](reference.md#where-a-record-goes).
 
-Three reverts in this skill's own history — recorded in its `DECISIONS.md`
-because there the skill *was* the code under review — exist only because they
-were written down within minutes of happening. Nothing else would have kept them.
+The records of three reverts in this skill's own history survive only because
+they were written down within minutes of happening. Nothing else would have
+kept them.
 
 ### The commit waits for the run, exactly as the report does
 
@@ -962,8 +951,7 @@ iterations, which is what the abort clause already assumes.
 
 **There is no exception**, and an earlier draft invented one. What an invented
 exception provides is a documented reason to do the thing the rule forbids, which
-is how every other rule here has been walked around
-([DECISIONS.md](DECISIONS.md#the-commit-waits-for-the-run-and-the-iteration-counter-resets)).
+is how every other rule here has been walked around.
 
 What does need saying, because it is a real distinction rather than an escape:
 **the rule is about the change under review.** A commit that touches any file the
@@ -1019,8 +1007,7 @@ Bug-hunter-Tree: <the hash the script minted>
 
 **Never type the block.** The script is the only way to make it, for the same
 reason commits go through `commit-with-trailer.sh`: hand-assembled trailers
-went wrong until a script took the assembly away
-([DECISIONS.md](DECISIONS.md#a-caller-that-commits-gets-the-result-not-the-commit)).
+went wrong until a script took the assembly away.
 The binding signs the snapshot the run worked on; the caller commits exactly
 that tree, or the binding is false. So nothing is staged after the script
 runs. If something must be, run the script again.
@@ -1079,16 +1066,15 @@ that cause — the fixes iteration 3 wrote, and the files they touched. Say
 never count it as a fourth iteration, in the report or in the trailer.
 
 **2 — write it down.** Record it as a known, accepted gap where this codebase
-already keeps them — the same lookup as
-[Write down what was rejected](#write-down-what-was-rejected-before-you-commit),
-stated convention first and a new file last, but the home is the one for open
-questions rather than decisions: a spec's Open Questions or Roads Not Taken
-section, an existing OpenSpec change, a `docs/` or ADR entry, a
-`DECISIONS.md`-style file if the thing under review keeps one, then the closest
-README. Only if none of those exist, create `docs/open-questions.md`. One entry:
-the cause, which findings it produced, the recommendation, the odds, and the
-date. Commit it with the rest of the change. A recommendation that lives only in
-a terminal report is gone when the tab closes, which is choice 3 with extra
+already lists work it knows about and has not done. An `AGENTS.md`,
+`CLAUDE.md` or `CONTRIBUTING.md` that names the place settles it; otherwise,
+in this order: a spec's Open Questions or Roads Not Taken section, an
+existing OpenSpec change, a `docs/` entry, then the closest README — never a
+`DECISIONS.md` or an ADR. Only if none of those exist, create
+`docs/open-questions.md`. One entry: the cause, which findings it produced,
+the recommendation, the odds that the recommendation works, and the date.
+Commit it with the rest of the change. A recommendation that lives only in a
+terminal report is gone when the tab closes, which is choice 3 with extra
 steps.
 
 **3 — skip.** Nothing happens. Still name it in the report so the run's record is
@@ -1111,7 +1097,9 @@ no options under it, is the same thing one hop later.
 - Leave a failing or discarded test in the tree.
 - Report a bug with no failing test, or a style opinion of any kind.
 - Apply a refactor larger than the change under review.
-- Write to this skill's own files — `DECISIONS.md` included — unless they are
-  the change under review.
+- Write to this skill's own files unless they are the change under review.
+- Read or write a `DECISIONS.md` or an ADR, in this skill or in the codebase.
+  They are for people; what an agent needs is in the specs and decision
+  records.
 - End a reply holding a decision from the user's list. Written is not asked;
   relayed to you is not relayed to them.

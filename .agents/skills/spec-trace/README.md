@@ -16,9 +16,11 @@ it("takes the claim before invoking the worker", async () => { ... });
 
 The specs are never edited to point at tests, so they don't grow.
 
-The checker, `scripts/spec_trace.py`, is one Python 3 file, and needs
-nothing else but git. It reads text, so the tag works in any language's test
-files.
+The checker, `scripts/spec_trace.py`, is one Python 3 file. It needs git,
+and [OpenSpec](https://github.com/Fission-AI/OpenSpec) 1.15.0 or later on
+`PATH` (`npm install -g @fission-ai/openspec`): it reads the specs only
+through the `openspec` CLI, so a scenario is exactly what OpenSpec reads.
+It reads test files as plain text, so the tag works in any language.
 
 ## What it does not check
 
@@ -121,6 +123,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install OpenSpec
+        run: npm install -g @fission-ai/openspec@1.15.0
       - name: Every scenario in openspec/specs is tagged by a test
         env:
           # A full commit SHA of adamstallard/shared-skills, never a branch.
@@ -131,7 +138,9 @@ jobs:
 ```
 
 `actions/checkout` leaves a git clone, which the checker needs to find
-tags.
+tags. The checker reads the specs through the OpenSpec CLI, which needs
+Node 20.19 or later. Without the OpenSpec CLI, `check` prints `not run:
+install OpenSpec 1.15.0 or later` and fails the step.
 
 The SHA pins the exact checker your CI runs. A branch name would let a
 change to shared-skills fail your CI, or pass it, without any change in your
@@ -140,7 +149,8 @@ repository.
 **To update the pin**, take the newest commit that touches the checker,
 `git -C <shared-skills clone> log -1 --format=%H -- .agents/skills/spec-trace/scripts/spec_trace.py`,
 put it in `SPEC_TRACE_SHA`, and run the new checker locally with `check`
-before pushing.
+before pushing. The OpenSpec version is pinned for the same reason: update
+it on purpose, to the version you run locally.
 
 ## Day to day
 
@@ -235,6 +245,12 @@ Each problem is printed with its file and line and the fix:
 - **A tag names no scenario.** The scenario was renamed or removed. Update or
   delete the tag; the message suggests the closest name. If the file is not
   a test, list it in `openspec/spec-trace-ignore.txt` instead.
+- **`not run: install OpenSpec 1.15.0 or later`.** Install or update the
+  OpenSpec CLI, then rerun the command. `state` and `decline` work without it.
+- **`openspec show` cannot read a spec or a change.** Fix that file until
+  the `openspec validate` command the message names passes. Until then
+  `check` fails, reporting that file as a problem, and none of the file's
+  scenarios are checked.
 - **A baseline line is now tagged, or names no scenario.** Run
   `spec_trace.py baseline --prune`, and commit the pruned baseline with the
   change that tagged the scenario or removed it.
@@ -250,5 +266,3 @@ tagged test.
 ```bash
 python3 .agents/skills/spec-trace/scripts/test_spec_trace.py
 ```
-
-Why it works this way: [DECISIONS.md](DECISIONS.md).

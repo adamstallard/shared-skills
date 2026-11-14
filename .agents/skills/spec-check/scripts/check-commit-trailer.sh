@@ -1,16 +1,24 @@
 #!/bin/sh
-# spec-check's commit hook. It reports each commit that changes a path under
-# openspec/ and lands without a Spec-check: trailer, or with one whose tree no
-# longer matches the commit. A commit that changes nothing under openspec/ is
-# never judged.
+# spec-check's commit hook. The agent host runs it after each shell command,
+# so it sees commits after they land, and reports to the agent; it blocks
+# nothing. It judges each commit that changes `openspec` at the repository
+# root, whether a folder, a file or a symlink, or any path under it. It reports
+# one without a Spec-check: trailer, or with one whose tree no longer matches
+# the commit. Every other commit is never judged.
 #
 # Usage: check-commit-trailer.sh [--host <platform>]
 #
-# The check itself is shared: ../../../lib/commit-trailer/check-commit-trailer.sh,
-# with its own DECISIONS.md. This file configures it for spec-check and sources
-# it. Sourcing keeps $0 pointing at this file, so when the library re-runs the
-# check in each submodule, it runs this file again. The report's wording, and
-# the verification the library calls back into, are in hook-report.sh.
+# --host names the agent host that runs the hook, claude or cursor, and sets
+# how a report is delivered; the library lists the hosts in its header.
+#
+# The check itself is shared: ../../../lib/commit-trailer/check-commit-trailer.sh.
+# This file configures it for spec-check and sources
+# it, rather than running it. Sourcing keeps $0 pointing at this file, so when
+# the library re-runs the check in each submodule, it runs this file again,
+# with spec-check's settings. Run directly, the library would check each
+# submodule without them. hook-report.sh holds the
+# report's wording and commit_trailer_verify, the function the library calls
+# to verify a Spec-check: value.
 
 # -P resolves an install symlink to the clone. The library is found at
 # ../../../lib from the clone's copy of this file, and is not beside the
@@ -33,6 +41,6 @@ fi
 SPEC_CHECK_SCRIPTS=$here
 COMMIT_TRAILER_SKILL=spec-check
 COMMIT_TRAILER_KEY=Spec-check
-COMMIT_TRAILER_PATHSPEC=':(top)openspec/'
+COMMIT_TRAILER_PATHSPEC=':(top)openspec'
 COMMIT_TRAILER_REPORT="$here/hook-report.sh"
 . "$lib"

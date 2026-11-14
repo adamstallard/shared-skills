@@ -5,8 +5,7 @@ commit messages, pull request descriptions, ticket comments) so you can review
 it in one read, and makes every commit and post carry proof that the rewrite
 ran.
 
-> Agent instructions: [SKILL.md](SKILL.md). Why it works this way:
-> [DECISIONS.md](DECISIONS.md).
+> Agent instructions: [SKILL.md](SKILL.md).
 
 ## What you get
 
@@ -104,8 +103,19 @@ back. The agent commits the result in a commit of its own, and asks you first
 only when the rewrite would drop a conclusion.
 [compaction.md](compaction.md) has the steps.
 
+A compaction also looks for text that only some readers need. In a doc agents
+load before every task, it lists each large section a condition opens, such
+as one headed "When the caller commits", ranked by its size times how often
+the doc is read. The rewriting subagent proposes moving each one into a
+linked file, with the line that will point readers to it, and you decide
+each move. When a commit adds a skill or changes its `description:`, which
+a host loads in every session for every installed skill, prose prints the
+description's size and the total for the repository's skills.
+
 You can ask your agent to:
 - compact a specific file now, whether or not it is due;
+- show what agents spend most to read here: each skill's description, and
+  each section that could move to a linked file (`prose.py cost`);
 - mark a file as read often, so it's checked for compaction;
 - exempt a file from compaction;
 - drop "who decided" credits, such as "(Adam, 2026-10-24)", when files are
@@ -125,15 +135,15 @@ it proposes the line, and once you confirm, the agent makes the edit.
 | GitHub posts, through MCP | A hook blocks the post unless its body ends with a valid footer |
 | GitHub posts, through `gh` | The same hook, for a few exact command forms (see [Posting through `gh`](#posting-through-gh)) |
 | A Claude Code session's first file write or GitHub post | A hook blocks it until prose's first call has printed the rules in that session |
-| A changed comment or doc passage, or a post | The signing call signs it only with a cold reader's report for that pass, and an answer to each finding and understood line |
+| A changed comment or doc passage, or a post | The signing call signs it only with a cold reader's report for that pass, and an answer to each finding and to each line saying what the reader understood. A pull request body posted between two hand-backs for review (`gh pr create`, `gh pr ready`, `gh pr edit --add-reviewer`) may defer its cold read to the next one |
+| A pull request handed back for review | Before the call, the posting hook blocks it while the body still defers its cold read; after it, a hook reminds the agent to do the current-state pass: rewrite any doc, body or title the pull request changes that still describes work as unfinished or to come |
 
 To turn the hooks off, run
 `python3 ~/.agents/skills/manage-skills/scripts/skills.py disable-hook prose`;
 `enable-hook prose` turns them back on. While they are off, nothing is checked.
 
 There is no GitHub Action: installing the skill installs these hooks, so every
-agent that uses it is checked where it works. See
-[DECISIONS.md](DECISIONS.md#rejected-a-github-action).
+agent that uses it is checked where it works.
 
 ## Using it in Cursor: unverified
 
@@ -142,8 +152,7 @@ The posting hook is wired for Cursor as a best guess, on
 hook contract but has not been run in a real Cursor, so it may need fixing. If
 it blocks every shell command, or never blocks an unsigned post, turn it off
 with `python3 ~/.agents/skills/manage-skills/scripts/skills.py disable-hook
-prose` and report it. See
-[DECISIONS.md](DECISIONS.md#cursors-posting-hook-is-wired-as-a-best-guess).
+prose` and report it as an issue on this repository.
 
 ## Posting through `gh`
 
@@ -194,6 +203,7 @@ Or run one file, such as `python3 .agents/skills/prose/scripts/test_compact.py`:
 | `test_cold_read.py` | the cold read: briefs, reports, findings, saved brief files |
 | `test_compact_triggers.py` | which docs are due for compaction, and the bloat detectors |
 | `test_compact.py` | compaction itself: `prose compact`, `--verify`, the gate on signing |
+| `test_reading_cost.py` | the reading cost: sections to move out, skill descriptions, `prose cost` |
 | `test_comment_scan.py` | `comment_scan.py` |
 
 Their shared helpers are in `prose_test_support.py`.

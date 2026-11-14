@@ -1,0 +1,128 @@
+# spec-check's workflow checks that every OpenSpec change a pull request
+# adds or edits has had a consistency read since its last edit. A
+# consistency read is a step of the spec-check skill: before a pull request
+# goes to a person for review, a fresh agent reads each such change against
+# the repository's other specs and changes.
+#
+# Whoever wrote the change, a person or an agent, records the read by
+# committing with a `Spec-check:` trailer, printed by `spec_check.py sign`,
+# that names the changes read. The trailer is the only record of a read. A
+# change under openspec/changes is unread when no commit in the history of
+# the pull request's head has a trailer naming that change, or when the
+# change's files have changed since the newest commit whose trailer names it.
+#
+# When no change is unread, the `spec-check` check passes and the pull
+# request is left alone. When one is, what `spec_check.py ci` does depends
+# on the event and on whether the pull request is a draft.
+#
+# A ready pull request:
+# - opened, reopened, ready_for_review: each puts it in front of a reviewer,
+#   for the first time or again. The check fails, and the script makes the
+#   pull request a draft.
+# - review_requested: the same, and the script also withdraws that review
+#   request.
+# - synchronize (a push to the branch): the check fails, but the pull
+#   request stays ready. An agent often pushes several times before doing
+#   the read. If each push made the pull request a draft, the agent or a
+#   person would mark it ready again, and the next push would make it a
+#   draft again.
+#
+# A draft pull request:
+# - review_requested: the check fails, and the script withdraws that review
+#   request. The pull request stays a draft.
+# - opened, reopened, synchronize: the check passes even with a change
+#   unread, because no one is yet asked to review it. The check runs again
+#   when the pull request is marked ready.
+#
+# When the base branch's protection rules require `spec-check`, a failed
+# check blocks the merge.
+#
+# The script makes the draft and withdraws the request through gh, with the
+# GH_TOKEN below and the `pull-requests: write` permission. Without the
+# token or the permission, the check still fails but the pull request is
+# left as it is. The same happens on a pull request from a fork, because
+# GitHub gives the workflow only a read-only token there.
+#
+# Where the script comes from: each run downloads spec_check.py from
+# adamstallard/shared-skills at the commit SPEC_CHECK_SHA names, below.
+# That commit is the pin. A commit on the main branch of
+# adamstallard/shared-skills always downloads. A commit never pushed to
+# GitHub fails the download, and so fails the check. Whether the download
+# works for any other commit, such as one pushed only to a fork, is
+# untested, so pin a commit on main. To
+# confirm that the pin is on main, run this, with <sha> the SPEC_CHECK_SHA
+# value below:
+#   gh api repos/adamstallard/shared-skills/compare/main...<sha> --jq .status
+# It prints `behind` (the commit is an ancestor of main's head) or
+# `identical` (it is main's head) when the commit is on main. Any other
+# output, or an error, means it is not: update the pin as below.
+#
+# How the pin is set: `spec_check.py setup-ci` writes this workflow as
+# .github/workflows/spec-check.yml into the git repository named by
+# `--repo <dir>`, or else the one holding the current directory. It copies
+# the workflow from the clone of adamstallard/shared-skills it runs from, so
+# an out-of-date clone writes an out-of-date workflow. The pin is the commit
+# given with `--sha`, or else the newest commit that changed spec_check.py
+# in the history of the clone's checked-out branch. setup-ci does not
+# confirm the pin is on main. Without `--sha` it requires only that the
+# commit is on one of the clone's remote-tracking branches, which may be a
+# fork's or a branch other than main. With `--sha` it checks only that the
+# value is a full 40-character SHA.
+#
+# To update the pin, or this workflow:
+# 1. Update a clone of adamstallard/shared-skills that has main checked out:
+#      git -C <clone> pull --ff-only
+#    If shared-skills' manage-skills installed spec-check, then
+#    ~/.agents/skills/spec-check is a link into a clone, and this prints the
+#    clone's path:
+#      git -C ~/.agents/skills/spec-check rev-parse --show-toplevel
+#    Then this prints the branch the clone has checked out, which must be main:
+#      git -C <clone> branch --show-current
+#    Otherwise, make a clone, which has main checked out:
+#      git clone https://github.com/adamstallard/shared-skills <clone>
+# 2. From inside the repository that holds this workflow, run:
+#      python3 <clone>/.agents/skills/spec-check/scripts/spec_check.py setup-ci --force
+#    Add `--sha <commit>` to pin a commit on main other than the default.
+# 3. Commit .github/workflows/spec-check.yml.
+# Without `--force`, setup-ci refuses to replace an existing workflow and
+# changes nothing. With it, setup-ci replaces the whole file, discarding any
+# local edit. Without `--sha`, the pin is the newest commit that changed
+# spec_check.py, so after pulling a shared-skills merge that left
+# spec_check.py alone, the pin stays where it was: the workflow gets any new
+# steps of the template it is copied from
+# (.agents/skills/spec-check/ci/spec-check.yml in the clone) and runs the
+# same spec_check.py as before. Any commit that changes spec_check.py moves
+# the pin. So contributors to shared-skills must add a template step that
+# needs new script behaviour together with the spec_check.py change that
+# provides it. This is a rule for contributors, and no check enforces it.
+#
+# Editing this file by hand works, SPEC_CHECK_SHA included, as long as the
+# pin stays a full 40-character SHA of a commit on main. The next
+# `setup-ci --force` discards the edit, so setup-ci is the supported way to
+# change the pin. An edit every repository should get goes in the template,
+# by a pull request to adamstallard/shared-skills; once it merges, update as
+# above.
+name: spec-check
+on:
+  pull_request:
+    types: [opened, reopened, ready_for_review, review_requested, synchronize]
+permissions:
+  contents: read
+  pull-requests: write
+jobs:
+  spec-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - name: Every OpenSpec change was read since it last changed
+        env:
+          # A full commit SHA of adamstallard/shared-skills, never a branch,
+          # so the script the workflow runs cannot change under it.
+          SPEC_CHECK_SHA: <SPEC_CHECK_SHA>
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          curl -fsSL "https://raw.githubusercontent.com/adamstallard/shared-skills/$SPEC_CHECK_SHA/.agents/skills/spec-check/scripts/spec_check.py" -o "$RUNNER_TEMP/spec_check.py"
+          python3 "$RUNNER_TEMP/spec_check.py" ci

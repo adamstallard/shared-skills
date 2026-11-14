@@ -7,17 +7,19 @@ Standard library only:
 
 Each test builds a throwaway git repository in a temp directory, so nothing
 here touches a real repository. Tests that need the OpenSpec CLI skip
-unless OpenSpec 1.15.0 or later is on PATH.
+unless OpenSpec 1.16.1 or later is on PATH.
 """
 
 import json
 import os
 import pathlib
+import random
 import re
 import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from unittest import mock
 
@@ -52,9 +54,9 @@ def openspec_version():
     return tuple(map(int, m.groups())) if m else None
 
 
-# spec-check reads requirements only through OpenSpec 1.15.0 or later.
+# spec-check reads requirements only through OpenSpec 1.16.1 or later.
 OPENSPEC_VERSION = openspec_version()
-HAS_OPENSPEC = OPENSPEC_VERSION is not None and OPENSPEC_VERSION >= (1, 15, 0)
+HAS_OPENSPEC = OPENSPEC_VERSION is not None and OPENSPEC_VERSION >= (1, 16, 1)
 
 MAIN_SPEC = """# cap Specification
 
@@ -161,7 +163,7 @@ class CheckTests(unittest.TestCase):
         self.assertEqual(kinds(r), [])
         self.assertIn("0 error(s), 0 check(s) in good", r.stdout)
 
-    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.15.0 or later")
+    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.16.1 or later")
     def test_a_requirement_without_a_scenario_fails(self):
         self.repo.change("x", delta="## ADDED Requirements\n\n### Requirement: Bare\n\n"
                                     "The store SHALL do a thing.\n")
@@ -170,7 +172,7 @@ class CheckTests(unittest.TestCase):
         self.assertEqual(kinds(r), ["no-scenario"])
         self.assertIn("openspec/changes/x/specs/cap/spec.md:3: error [no-scenario]", r.stdout)
 
-    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.15.0 or later")
+    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.16.1 or later")
     def test_a_scenario_without_then_fails(self):
         self.repo.change("x", delta=GOOD_DELTA.replace("- **THEN** it is deleted\n", ""))
         r = self.repo.check("x")
@@ -178,7 +180,7 @@ class CheckTests(unittest.TestCase):
         self.assertEqual(kinds(r), ["scenario-incomplete"])
         self.assertIn("has no THEN", r.stdout)
 
-    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.15.0 or later")
+    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.16.1 or later")
     def test_a_scenario_without_when_or_then_names_both(self):
         self.repo.change("x", delta=GOOD_DELTA.replace("- **WHEN** a record has not been read for ninety days\n", "")
                          .replace("- **THEN** it is deleted\n", "- it goes\n"))
@@ -190,7 +192,7 @@ class CheckTests(unittest.TestCase):
                                                  "**Reason**: gone. The store MUST NOT do it.\n")
         self.assertEqual(kinds(self.repo.check("x")), [])
 
-    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.15.0 or later")
+    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.16.1 or later")
     def test_a_rule_stated_in_two_places_fails(self):
         dup = ("The store SHALL keep every record it is given for at least thirty days "
                "after the last read.")
@@ -202,7 +204,7 @@ class CheckTests(unittest.TestCase):
         self.assertEqual(kinds(r), ["duplicate"])
         self.assertIn('also stated in "Records are kept" at openspec/specs/cap/spec.md:11', r.stdout)
 
-    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.15.0 or later")
+    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.16.1 or later")
     def test_a_rule_copied_into_two_changes_is_reported_in_each(self):
         rule = ("Every command SHALL be redacted of each credential the process knows "
                 "before it is written anywhere.")
@@ -280,10 +282,10 @@ class CheckTests(unittest.TestCase):
         env = dict(ENV, PATH=str(bin_dir))
         r = subprocess.run([sys.executable, str(SCRIPT), "check", "--base", "main", "good"],
                            cwd=self.repo.path, capture_output=True, text=True, env=env)
-        self.assertIn("openspec validate --strict (good): not run: install OpenSpec 1.15.0 or later "
+        self.assertIn("openspec validate --strict (good): not run: install OpenSpec 1.16.1 or later "
                       "(the openspec CLI is not on PATH)", r.stdout, r.stderr)
 
-    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.15.0 or later")
+    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.16.1 or later")
     def test_validate_runs_and_its_issues_are_findings(self):
         self.repo.change("good")
         self.repo.change("bad", delta=GOOD_DELTA.replace("SHALL", "will"))
@@ -311,7 +313,7 @@ class ArchiveRefusalTests(unittest.TestCase):
 
     def setUp(self):
         if not HAS_OPENSPEC:
-            self.skipTest("needs OpenSpec 1.15.0 or later")
+            self.skipTest("needs OpenSpec 1.16.1 or later")
         self.repo = Repo(self)
 
     def refused(self, r, name, quote):
@@ -323,6 +325,24 @@ class ArchiveRefusalTests(unittest.TestCase):
         self.assertIn(quote, hits[0])
         self.assertIn("openspec archive (x): refused", r.stdout)
         return hits[0]
+
+    def test_a_requirement_under_an_unrecognized_section_is_refused(self):
+        # OpenSpec 1.16.0's archive applies "Records expire" and drops
+        # "Records are archived" with only a warning. So on 1.16.0 the
+        # archive line reads "passed", and this check exits 0, since
+        # Repo.check passes --no-validate (Fission-AI/OpenSpec#2207).
+        self.repo.change("x", delta=added_req("Records expire", "The store SHALL expire records.")
+                         + "\n## DEPRECATED Requirements\n\n### Requirement: Records are archived\n\n"
+                           "The store SHALL archive records.\n\n"
+                           "#### Scenario: S\n\n- **WHEN** w\n- **THEN** t\n")
+        r = self.repo.check("x")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        hits = [l for l in errors(r) if "[archive]" in l]
+        self.assertEqual(len(hits), 1, r.stdout)
+        self.assertTrue(hits[0].startswith(self.DELTA + ":"), hits[0])
+        self.assertIn('"Records are archived"', hits[0])
+        self.assertIn('"## DEPRECATED Requirements"', hits[0])
+        self.assertIn("openspec archive (x): refused", r.stdout)
 
     def test_an_added_name_main_already_has_is_an_error(self):
         self.repo.change("x", delta=added_req("Records are kept", "The store SHALL keep records for a year."))
@@ -390,7 +410,7 @@ class NewCapabilityPurposeTests(unittest.TestCase):
 
     def setUp(self):
         if not HAS_OPENSPEC:
-            self.skipTest("needs OpenSpec 1.15.0 or later")
+            self.skipTest("needs OpenSpec 1.16.1 or later")
         self.repo = Repo(self)
 
     def purpose(self, delta, cap="audit"):
@@ -604,7 +624,7 @@ class SameNameDuplicateTests(unittest.TestCase):
     def setUp(self):
         self.repo = Repo(self)
 
-    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.15.0 or later")
+    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.16.1 or later")
     def test_an_added_requirement_repeating_main_under_its_name_is_a_duplicate(self):
         self.repo.change("x", delta=added_req("Records are kept", MAIN_RULE))
         r = self.repo.check("x")
@@ -612,14 +632,14 @@ class SameNameDuplicateTests(unittest.TestCase):
         self.assertIn("duplicate", kinds(r))
         self.assertIn('also stated in "Records are kept" at openspec/specs/cap/spec.md:11', r.stdout)
 
-    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.15.0 or later")
+    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.16.1 or later")
     def test_the_same_name_in_another_capability_is_a_duplicate(self):
         self.repo.change("x", delta=purposed(PURPOSE, added_req("Records are kept", MAIN_RULE)),
                          cap="archive-store")
         r = self.repo.check("x")
         self.assertEqual(kinds(r), ["duplicate"], r.stdout)
 
-    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.15.0 or later")
+    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.16.1 or later")
     def test_a_modification_in_another_capability_is_a_duplicate(self):
         self.repo.change("x", delta=MAIN_SPEC.split("## Requirements\n", 1)[1]
                          .join(["## MODIFIED Requirements\n", ""]), cap="archive-store")
@@ -650,7 +670,7 @@ class FoundByBugHunterGapTests(unittest.TestCase):
                         added_req("Records are kept", MAIN_RULE))
         self.assertNotIn("duplicate", kinds(self.repo.check("x")))
 
-    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.15.0 or later")
+    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.16.1 or later")
     def test_lines_after_a_stray_heading_are_read_as_openspec_show_reads_them(self):
         # `openspec show` ends the scenario at the stray heading, so the THEN
         # line under it is in no scenario.
@@ -691,11 +711,13 @@ NO_SCENARIO = ("## ADDED Requirements\n\n### Requirement: Invoices are kept\n\n"
 
 
 class CliMinimumTests(unittest.TestCase):
-    """spec-check reads requirements only through OpenSpec 1.15.0 or later.
-    Without it, every check that needs a requirement is reported as not run
-    (Adam, 2026-10-31)."""
+    """spec-check reads requirements only through OpenSpec 1.16.1 or later.
+    Without it, every check that needs a requirement is reported as not run.
+    Any release before 1.16.0, such as 1.14.3 or 1.15.0 below, reads fences
+    differently from spec-check, and 1.16.0's archive drops a requirement
+    under an unrecognized section."""
 
-    NEEDS = "not run: install OpenSpec 1.15.0 or later"
+    NEEDS = "not run: install OpenSpec 1.16.1 or later"
 
     def setUp(self):
         self.repo = Repo(self)
@@ -715,7 +737,7 @@ class CliMinimumTests(unittest.TestCase):
         r = self.repo.check("x", "--json", env=dict(ENV, PATH=str(git_only_path(self))))
         self.assertTrue(json.loads(r.stdout)["openspec_show"].startswith(self.NEEDS), r.stdout)
 
-    def test_a_cli_older_than_1_15_0_is_not_used(self):
+    def test_a_cli_at_1_14_3_is_not_used(self):
         r = self.repo.run("check", "--base", "main", "x",
                           env=dict(ENV, PATH=str(fake_openspec(self, "1.14.3", delegate=False))))
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
@@ -728,12 +750,24 @@ class CliMinimumTests(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertIn("`openspec --version` printed no version", r.stdout)
 
-    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.15.0 or later")
-    def test_a_cli_at_exactly_1_15_0_is_used(self):
-        r = self.repo.check("x", env=dict(ENV, PATH=str(fake_openspec(self, "1.15.0", delegate=True))))
+    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.16.1 or later")
+    def test_a_cli_at_exactly_1_16_1_is_used(self):
+        r = self.repo.check("x", env=dict(ENV, PATH=str(fake_openspec(self, "1.16.1", delegate=True))))
         self.assertIn("[no-scenario]", r.stdout, r.stdout + r.stderr)
         self.assertIn("openspec archive (x): passed", r.stdout)
         self.assertNotIn("requirement checks", r.stdout)
+
+    def test_a_cli_at_1_16_0_is_not_used(self):
+        r = self.repo.check("x", env=dict(ENV, PATH=str(fake_openspec(self, "1.16.0", delegate=True))))
+        self.assertIn(f"{self.NEEDS} (this one is 1.16.0)", r.stdout, r.stdout + r.stderr)
+        self.assertIn(f"openspec archive (x): {self.NEEDS}", r.stdout)
+        self.assertNotIn("[no-scenario]", r.stdout)
+
+    def test_a_cli_at_1_15_0_is_not_used(self):
+        r = self.repo.check("x", env=dict(ENV, PATH=str(fake_openspec(self, "1.15.0", delegate=True))))
+        self.assertIn("not run: install OpenSpec 1.16.1 or later (this one is 1.15.0)", r.stdout,
+                      r.stdout + r.stderr)
+        self.assertNotIn("[no-scenario]", r.stdout)
 
     def stacked(self):
         s = Stack(self, openspec=False)
@@ -784,7 +818,7 @@ class RelayedFromValidateTests(unittest.TestCase):
 
     def setUp(self):
         if not HAS_OPENSPEC:
-            self.skipTest("needs OpenSpec 1.15.0 or later")
+            self.skipTest("needs OpenSpec 1.16.1 or later")
         self.repo = Repo(self)
 
     def validated(self, delta):
@@ -881,7 +915,7 @@ class OpenSpecReadingTests(unittest.TestCase):
 
     def setUp(self):
         if not HAS_OPENSPEC:
-            self.skipTest("needs OpenSpec 1.15.0 or later")
+            self.skipTest("needs OpenSpec 1.16.1 or later")
         self.repo = Repo(self)
 
     def check_delta(self, delta, *args):
@@ -968,7 +1002,7 @@ class RenamedBlockTests(unittest.TestCase):
         self.assertIn("spec.md:10: error [renamed-block] \"### Notes\"",
                       self.check_delta(self.RENAME_WITH_BLOCK).stdout)
 
-    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.15.0 or later")
+    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.16.1 or later")
     def test_a_requirement_under_renamed_gets_no_requirement_findings(self):
         r = self.check_delta(self.RENAME_WITH_BLOCK)
         for kind in ("no-scenario", "scenario-incomplete", "duplicate"):
@@ -1002,7 +1036,7 @@ class FoundByBugHunterRun7Tests(unittest.TestCase):
 
     def setUp(self):
         if not HAS_OPENSPEC:
-            self.skipTest("needs OpenSpec 1.15.0 or later")
+            self.skipTest("needs OpenSpec 1.16.1 or later")
         self.repo = Repo(self)
 
     def check_delta(self, delta, *args):
@@ -1040,7 +1074,7 @@ class FoundByBugHunterRun7Iteration2Tests(unittest.TestCase):
 
     def setUp(self):
         if not HAS_OPENSPEC:
-            self.skipTest("needs OpenSpec 1.15.0 or later")
+            self.skipTest("needs OpenSpec 1.16.1 or later")
         self.repo = Repo(self)
 
     def check_delta(self, delta, validate=False):
@@ -1076,7 +1110,7 @@ class FoundByBugHunterRun7Iteration3Tests(unittest.TestCase):
 
     def setUp(self):
         if not HAS_OPENSPEC:
-            self.skipTest("needs OpenSpec 1.15.0 or later")
+            self.skipTest("needs OpenSpec 1.16.1 or later")
         self.repo = Repo(self)
 
     WIDGET = ("## ADDED Requirements\n\n### Requirement: Intro\n\nThe tool SHALL format a header like this:\n\n"
@@ -1110,7 +1144,7 @@ class FoundByBugHunterRun8Tests(unittest.TestCase):
 
     def setUp(self):
         if not HAS_OPENSPEC:
-            self.skipTest("needs OpenSpec 1.15.0 or later")
+            self.skipTest("needs OpenSpec 1.16.1 or later")
         self.repo = Repo(self)
 
     def relayed(self, r):
@@ -1216,7 +1250,7 @@ class FoundByBugHunterRun8Tests(unittest.TestCase):
         self.assertIn('openspec/changes/x/specs/cap2/spec.md:14: error [archive] "B" in cap2', self.repo.check("x").stdout)
 
     def test_a_cli_that_fails_to_read_the_deltas_is_an_error_not_a_crash(self):
-        bin_dir = fake_openspec(self, "1.15.0", delegate=True)
+        bin_dir = fake_openspec(self, "1.16.1", delegate=True)
         f = bin_dir / "openspec"
         f.write_text(f.read_text().replace("exec ", 'case "$*" in *"--type change"*) echo "boom" >&2; exit 1;; esac\nexec ', 1))
         self.repo.change("x")
@@ -1265,14 +1299,14 @@ class FoundByBugHunterTests(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertIn("Spec-check: \u2713", r.stdout)
 
-    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.15.0 or later")
+    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.16.1 or later")
     def test_a_failed_strict_validation_is_an_error(self):
         self.repo.write("openspec/specs/cap/spec.md", MAIN_SPEC.replace("What cap does.", "Short."))
         r = self.repo.run("check", "--base", "main", "specs")
         self.assertIn("failed", r.stdout)
         self.assertEqual(r.returncode, 1, r.stdout)
 
-    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.15.0 or later")
+    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.16.1 or later")
     def test_a_spec_validation_finding_names_the_spec_file(self):
         self.repo.write("openspec/specs/cap/spec.md", MAIN_SPEC.replace("SHALL", "will"))
         r = self.repo.run("check", "--base", "main", "specs")
@@ -1323,7 +1357,7 @@ class FoundByBugHunterIteration2Tests(unittest.TestCase):
         self.repo.change("x", proposal=GOOD_PROPOSAL + "\nIt calls api.example.com:443 and example.com:80.\n")
         self.assertEqual(kinds(self.repo.check("x")), [])
 
-    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.15.0 or later")
+    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.16.1 or later")
     def test_an_info_note_stays_a_check_and_keeps_its_line(self):
         self.repo.change("x", delta="## ADDED Requirements\n\n### Documentation Requirements\n\n"
                                     "### Requirement: Plain\n\nThe store keeps things.\n\n"
@@ -1346,7 +1380,7 @@ class FoundByBugHunterIteration3Tests(unittest.TestCase):
         r = self.repo.check("x")
         self.assertEqual(r.returncode, 0, r.stdout)
 
-    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.15.0 or later")
+    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.16.1 or later")
     def test_sign_a_commit_that_deletes_openspec_runs_no_validation(self):
         self.repo.git("rm", "-rq", "openspec")
         r = self.repo.run("sign", "--read", "self", "--base", "main")
@@ -1472,6 +1506,496 @@ class CitationRuleTests(unittest.TestCase):
         r = self.sign()
         self.assertEqual(r.returncode, 1, r.stdout)
         self.assertIn("error [citation] src/gone.py:5", r.stdout)
+
+
+class EvolutionTextTests(unittest.TestCase):
+    """Text recording how a change got to its shape is an error, which only
+    a person's override through the change's kept file clears. The examples are
+    taken from real changes the patterns were measured on."""
+
+    HISTORY = [
+        "Amended by Adam's decision 298: no decline can be reopened.",
+        "This rule amends decision 4.",
+        "It reverses the earlier decision to keep records.",
+        "That paragraph is superseded by decision 12.",
+        "104. **A release deletes the files** (Adam, 2026-10-21, amending decision 79).",
+        "Its scope was narrowed by decision 9.",
+        "and Adam narrowed it on 2026-10-20.",
+        "The store keeps records (Adam, 2026-10-21).",
+        "A fetch authenticates as the App (Adam,",
+        "Adam decided that a seat's reserve is a line.",
+        "Issue #212, decided by Adam and recorded in igor.",
+        "Approved by Adam (2026-10-20), as written.",
+        "- decisions 21 and 22 on 2026-10-20, answering two questions.",
+        "Recorded 2026-09-28. This changes no requirement.",
+        "The rule previously said thirty days.",
+        "Previously, records were kept forever.",
+        "This change originally assumed a weaker signal.",
+        "An earlier draft defined a role file here.",
+        "The earlier wording kept records forever.",
+        "This rule was changed to ninety days.",
+        "It was reworded after the read.",
+        "This requirement was narrowed to one store.",
+        "Fixed in this push.",
+        "Found this round.",
+        "## Since review: the reserve becomes a line",
+        "Findings for this change's next revision.",
+        "Hitherto it said thirty days.",
+        "Then this was amended.",
+        "It moves to the next version of this spec.",
+        "Questions this change's second to fourth consistency reads raised.",
+    ]
+
+    BEHAVIOUR = [
+        "A newer file supersedes an older one.",
+        "The item is no longer claimed.",
+        "The derived length supersedes the built-in one.",
+        "The new session replaces the lock and holds it.",
+        "Every action is cheap to reverse.",
+        "A candidate previously rejected is not proposed again.",
+        "New evidence may raise a previously rejected rule.",
+        "#### Scenario: Claim confirmed",
+        "No link is kept, since the review is planned and has no spec.",
+        "Its accepted cost is that Igor sees its spend late.",
+        "An added seat file has no earlier version in the first parent.",
+        "The agent decided it on its own.",
+        "- **WHEN** on 2026-10-20 the agent logs the question",
+        "The record names who asked and what they said.",
+        "A comment that was changed by a later commit is not counted.",
+        "Each field that was changed is listed.",
+        "The decision is recorded where the question was asked.",
+        "One previously held claim is released.",
+        "Adam's previously held claim is released.",
+        "A claim previously shown is hidden.",
+        "A previously held claim is released.",
+    ]
+
+    def test_each_kind_of_history_is_flagged(self):
+        for line in self.HISTORY:
+            with self.subTest(line=line):
+                self.assertEqual(len(spec_check.evolution_hits(line + "\n")), 1)
+
+    def test_behaviour_using_the_same_words_is_not_flagged(self):
+        for line in self.BEHAVIOUR:
+            with self.subTest(line=line):
+                self.assertEqual(spec_check.evolution_hits(line + "\n"), [])
+
+    def test_code_fences_and_quoted_examples_are_not_flagged(self):
+        text = ("A checker flags `amended by` and \"this round\" in a change.\n\n"
+                "```\nAmended by decision 3 (Adam, 2026-10-21)\n```\n")
+        self.assertEqual(spec_check.evolution_hits(text), [])
+
+    def test_property_a_history_line_is_found_at_its_own_line_number(self):
+        # Seeded, so a failure reproduces: any mix of behaviour lines and blank
+        # lines, with history lines dropped in at random places, reports each
+        # history line once, at its own number, quoting it, and nothing else.
+        rng = random.Random(20261102)
+        for trial in range(200):
+            lines, expected = [], []
+            for _ in range(rng.randint(1, 12)):
+                kind = rng.random()
+                if kind < 0.3:
+                    lines.append(rng.choice(self.HISTORY))
+                    expected.append((len(lines), lines[-1]))
+                elif kind < 0.8:
+                    lines.append(rng.choice(self.BEHAVIOUR))
+                else:
+                    lines.append("")
+            with self.subTest(trial=trial):
+                hits = spec_check.evolution_hits("\n".join(lines) + "\n")
+                self.assertEqual([(n, quote) for n, _, _, quote in hits], expected)
+                for _, phrase, _, quote in hits:
+                    self.assertIn(phrase.lower(), quote.lower())
+
+    def test_a_word_opening_a_sentence_is_not_taken_for_a_name(self):
+        # A word in EVOLUTION_NOT_NAMES before a decision verb is not a name.
+        # The first line is from a real design.md that the check flagged as
+        # crediting a person named "Also". Each line of the second loop is a
+        # real credit and gives one error, from whichever pattern fires first:
+        # plain names, names ending in -ly ("Anatoly"), a name after a listed
+        # word ("Then Alice"), an @ handle, and an "(Adam, <date>)" credit.
+        for line in ["Also ruled out by scenarios:",
+                     "This settled the order.", "Then approved by the reviewer.",
+                     "Later agreed in the session.", "And chose the second path.",
+                     "Once accepted, a claim holds.", "Finally settled by a test.",
+                     "- Eventually adopted by every store.", "So confirmed: the claim holds."]:
+            with self.subTest(line=line):
+                self.assertEqual(spec_check.evolution_hits(line + "\n"), [])
+        for line in ["Adam ruled out the second store.", "Alice decided the order.",
+                     "Also, Adam ruled out the second store.", "Then Alice decided it.",
+                     "Beverly decided the order.", "Emily approved it.",
+                     "Anatoly decided the order.", "Then Anatoly decided it.",
+                     "@Adam decided the order.",
+                     "(Adam, 2026-11-04) decided the order."]:
+            with self.subTest(line=line):
+                self.assertEqual(len(spec_check.evolution_hits(line + "\n")), 1)
+
+    def test_function_words_are_not_names(self):
+        for line in ["The agreed order holds.", "We decided to keep one store.",
+                     "However settled the rule is, it holds.", "Today approved stores sync hourly.",
+                     "They agreed on one store.", "A settled rule stays.", "An approved list is final.",
+                     "When accepted, a claim holds.", "Newly accepted claims are held for a day.",
+                     "Typically accepted claims stay.", "Ultimately chose one store.",
+                     "Clearly settled by a test."]:
+            with self.subTest(line=line):
+                self.assertEqual(spec_check.evolution_hits(line + "\n"), [])
+
+    def test_property_quoting_a_history_line_silences_it(self):
+        for line in self.HISTORY:
+            with self.subTest(line=line):
+                self.assertEqual(spec_check.evolution_hits(f"`{line}`\n"), [])
+
+    def test_a_quoted_word_does_not_make_the_text_before_it_a_determiner(self):
+        # A mask of spaces would put "The" right before "previously" in the
+        # first line, and right before "Adam" in the second, so the
+        # determiner veto would silence both.
+        # The mask is neither space nor word. Found by bug-hunter.
+        self.assertEqual(len(spec_check.evolution_hits("The `claim` previously held for an hour.\n")), 1)
+        self.assertEqual(len(spec_check.evolution_hits("The \"Claim\" Adam decided on.\n")), 1)
+
+    def test_a_code_span_holding_a_backtick_is_skipped_whole(self):
+        # A ``double-backtick`` span may hold a single backtick. Found by
+        # bug-hunter.
+        self.assertEqual(spec_check.evolution_hits("``Adam decided ` x``\n"), [])
+
+    def test_a_long_line_of_vetoed_hits_is_read_in_linear_time(self):
+        # A veto that reads all the text before each hit takes 11 s on the
+        # first line. Found by bug-hunter.
+        start = time.monotonic()
+        spec_check.evolution_hits("a previously " * 8000 + "\n")
+        spec_check.evolution_hits("the " + "previously rejected " * 5000 + "\n")
+        self.assertLess(time.monotonic() - start, 2.0)
+
+    def test_a_backtick_run_opens_a_span_only_as_a_whole_run(self):
+        # ``x ... ` is no code span in CommonMark: two backticks never close on
+        # one. Found by bug-hunter, iteration 2.
+        self.assertEqual(len(spec_check.evolution_hits("A ``x Adam decided it` y.\n")), 1)
+        self.assertEqual(spec_check.evolution_hits("A ``x Adam decided it`` y.\n"), [])
+
+    def test_the_phrase_is_the_line_as_written(self):
+        # The phrase carried the invisible mask character where a quote sat.
+        # Found by bug-hunter, iteration 2.
+        hit = spec_check.evolution_hits("Adam decided `the scope` on 2026-01-01.\n")
+        self.assertEqual(hit[0][1], "decided `the scope` on 2026-01-01")
+        self.assertEqual(spec_check.evolution_hits("(Adam,   \n")[0][1], "(Adam,")
+
+    def test_a_veto_reads_past_a_run_of_spaces_and_late_in_a_long_line(self):
+        self.assertEqual(spec_check.evolution_hits("every      previously held claim\n"), [])
+        self.assertEqual(spec_check.evolution_hits("x " * 60 + "the previously held claim\n"), [])
+        self.assertEqual(spec_check.evolution_hits("The previously held claim stays. " + "x " * 60 + "\n"),
+                         [])
+
+    def test_an_escaped_backtick_opens_no_code_span(self):
+        # A backslash makes the backtick after it literal, so it opens no code
+        # span and the text after it is still read. Found by bug-hunter,
+        # iteration 3.
+        self.assertEqual(len(spec_check.evolution_hits("The rule \\`previously` held.\n")), 1)
+        self.assertEqual(spec_check.evolution_hits("Write \\`x` previously `y` here.\n"), [])
+
+    def test_a_change_with_history_fails_with_an_error_naming_the_line(self):
+        repo = Repo(self)
+        repo.change("x")
+        repo.write("openspec/changes/x/design.md",
+                   "## Decisions\n\nRecords expire after ninety days (Adam, 2026-10-21).\n")
+        r = repo.check("x")
+        self.assertEqual((r.returncode, kinds(r)), (1, ["evolution"]), r.stdout + r.stderr)
+        self.assertIn("openspec/changes/x/design.md:3: error [evolution] \"(Adam, 2026-10-21\"",
+                      r.stdout)
+        self.assertIn("to git: Records expire after ninety days (Adam, 2026-10-21).", r.stdout)
+
+    def test_history_blocks_sign(self):
+        repo = Repo(self)
+        repo.change("x", proposal=GOOD_PROPOSAL.replace("- Records expire.",
+                                                        "- Records expire. An earlier draft kept them."))
+        repo.git("add", "-A")
+        r = repo.run("sign", "--read", "self", "--base", "main", "--no-validate")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("error [evolution]", r.stdout)
+        self.assertNotIn("Spec-check: ✓", r.stdout)
+
+    def test_main_specs_are_not_scanned(self):
+        repo = Repo(self)
+        repo.write("openspec/specs/cap/spec.md",
+                   MAIN_SPEC.replace("What cap does.", "What cap does (Adam, 2026-10-21)."))
+        repo.change("x")
+        r = repo.check("x", "specs")
+        self.assertNotIn("evolution", kinds(r), r.stdout)
+
+    def test_the_finding_says_what_the_phrase_does_and_quotes_the_line_stripped(self):
+        hit = spec_check.evolution_hits("  - The rule previously said thirty days.\n")
+        self.assertEqual(hit, [(1, "previously", "narrates an earlier state of the document",
+                                "- The rule previously said thirty days.")])
+
+    def test_a_line_of_exactly_the_limit_is_quoted_whole(self):
+        corpus = mock.Mock(texts={})
+        for length, quote in ((160, None), (161, 159)):
+            line = "Adam decided " + "x" * (length - len("Adam decided "))
+            corpus.texts["d.md"] = line + "\n"
+            out = []
+            spec_check.check_evolution(["d.md"], corpus, out)
+            with self.subTest(length=length):
+                tail = out[0].message.split("to git: ", 1)[1]
+                self.assertEqual(tail, line if quote is None else line[:quote] + "…")
+
+    def test_a_long_line_is_quoted_cut_short(self):
+        repo = Repo(self)
+        repo.change("x")
+        repo.write("openspec/changes/x/design.md", "Adam decided " + "x" * 300 + "\n")
+        r = repo.check("x")
+        line = next(l for l in r.stdout.splitlines() if "[evolution]" in l)
+        self.assertTrue(line.endswith("…"), line)
+
+
+class KeptEvolutionTests(unittest.TestCase):
+    """A person overrules a false evolution error through the change's
+    committed kept file, which check and sign both read; the spec text stays
+    as written and the trailer counts the errors it cleared."""
+
+    DESIGN = "openspec/changes/x/design.md"
+    KEPT = "openspec/changes/x/.spec-check-kept"
+    NARROWS = "The spec narrows the decision."
+    DATED = "Records expire (Adam, 2026-10-21)."
+
+    def setUp(self):
+        self.repo = Repo(self)
+        self.repo.change("x")
+        self.design(self.NARROWS, self.DATED)
+
+    def design(self, *lines):
+        self.repo.write(self.DESIGN, "## Decisions\n\n" + "".join(l + "\n" for l in lines))
+        self.repo.git("add", "-A")
+
+    def kept(self, text):
+        self.repo.write(self.KEPT, text)
+        self.repo.git("add", "-A")
+
+    def sign(self, kept=None):
+        if kept is not None:
+            self.kept(kept)
+        return self.repo.run("sign", "--read", "self", "--base", "main", "--no-validate")
+
+    def both(self, how1="kept (asked)", how2="kept (asked)"):
+        return (f"design.md: «{self.NARROWS}» {how1}: compares a spec with a decision\n"
+                f"design.md: «{self.DATED}» {how2}: the date is part of the rule\n")
+
+    def test_kept_entries_sign_and_the_trailer_counts_them(self):
+        r = self.sign(self.both())
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertNotIn("error [evolution]", r.stdout)
+        self.assertIn(f"{self.DESIGN}:3: kept (asked) [evolution] compares a spec with a decision",
+                      r.stdout)
+        trailer = r.stdout.strip().splitlines()[-1]
+        self.assertRegex(trailer, r"^Spec-check: ✓ [0-9a-f]{12} 0 errors, 0 checks, "
+                                  r"2 evolution kept; ")
+        self.assertIn(self.NARROWS, (self.repo.path / self.DESIGN).read_text())
+
+    def test_check_reads_the_committed_file_so_a_reviewer_sees_no_error(self):
+        self.kept(self.both())
+        self.repo.git("commit", "-q", "-m", "x")
+        for args in ((), ("--ref", "HEAD")):
+            with self.subTest(args=args):
+                r = self.repo.check("x", *args)
+                self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+                self.assertIn(f"{self.DESIGN}:4: kept (asked) [evolution] the date is part",
+                              r.stdout)
+                self.assertIn("0 error(s), 0 check(s), 2 evolution kept in x", r.stdout)
+
+    def test_blank_lines_between_entries_are_skipped(self):
+        first, second = self.both().splitlines()
+        r = self.sign(f"{first}\n\n   \n{second}\n")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("0 checks, 2 evolution kept; ", r.stdout)
+
+    def test_json_and_text_reports_list_the_kept_errors(self):
+        self.kept(self.both())
+        kept = [f"{self.DESIGN}:3: kept (asked) [evolution] compares a spec with a decision",
+                f"{self.DESIGN}:4: kept (asked) [evolution] the date is part of the rule"]
+        data = json.loads(self.repo.check("x", "--json").stdout)
+        self.assertEqual((data["evolution_kept"], data["kept"], data["errors"]), (2, kept, 0))
+        # When the kept file clears every finding, a blank line still
+        # follows the kept lines, before the summary.
+        self.assertEqual(self.repo.check("x").stdout.splitlines()[:3], kept + [""])
+
+    def test_without_entries_the_trailer_has_no_count(self):
+        self.design("Records expire.")
+        r = self.sign()
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertNotIn("kept", r.stdout.strip().splitlines()[-1])
+
+    def test_a_finding_not_kept_still_blocks_sign(self):
+        r = self.sign(self.both().splitlines()[0] + "\n")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn(f"{self.DESIGN}:4: error [evolution]", r.stdout)
+        self.assertNotIn("Spec-check: ✓", r.stdout)
+
+    def test_an_entry_survives_lines_inserted_above_and_other_spacing(self):
+        self.design("A new first line.", "", "Another.", "   " + self.NARROWS.replace(" ", "  "),
+                    self.DATED)
+        r = self.sign(self.both())
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn(f"{self.DESIGN}:6: kept (asked) [evolution] compares", r.stdout)
+
+    def test_one_entry_keeps_every_line_with_its_text(self):
+        self.design(self.DATED, "Records last.", self.DATED)
+        r = self.sign(f"design.md: «{self.DATED}» kept (asked): the date is part of the rule\n")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("0 checks, 2 evolution kept; ", r.stdout)
+
+    def test_an_entry_whose_text_changed_is_a_check_asking_for_its_removal(self):
+        self.kept(self.both())
+        self.design(self.NARROWS, "Records expire (Adam, 2026-10-22).")
+        r = self.sign()
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn(f"{self.DESIGN}:4: error [evolution]", r.stdout)
+        self.assertIn(f"{self.KEPT}:2: check [kept] «{self.DATED}» matches no evolution error in "
+                      f"design.md: the line changed or is gone, so remove the entry", r.stdout)
+        self.design(self.NARROWS, "Records expire after a year.")
+        r = self.sign()
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertRegex(r.stdout.strip().splitlines()[-1], r" 0 errors, 1 checks, 1 evolution kept; ")
+
+    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.16.1 or later")
+    def test_an_entry_quoting_a_line_of_another_kind_of_error_is_stale(self):
+        self.repo.change("x", delta=GOOD_DELTA.split("#### Scenario")[0])
+        self.repo.git("add", "-A")
+        r = self.sign(self.both() + "specs/cap/spec.md: «The store SHALL keep records.» "
+                                    "kept (asked): not history\n")
+        self.assertIn("error [no-scenario]", r.stdout)
+        self.assertIn(f"{self.KEPT}:3: check [kept]", r.stdout)
+
+    def test_an_entry_without_asked_is_refused_and_named_for_hand_back(self):
+        r = self.sign(self.both(how2="kept"))
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn(f"{self.KEPT}:2: error [kept] the entry has no `(asked)`", r.stdout)
+        handback = r.stdout.split("no person approved:", 1)[1]
+        self.assertIn(f"{self.KEPT}:2: design.md: «{self.DATED}»", handback)
+        self.assertIn(f"{self.DESIGN}:4: \"(Adam, 2026-10-21\"", handback)
+        self.assertIn("reason: the date is part of the rule", handback)
+        self.assertIn("Do not commit.", handback)
+        self.assertNotIn(f"{self.DESIGN}:3:", handback)
+        self.assertNotIn("Spec-check: ✓", r.stdout)
+
+    def test_an_entry_without_a_reason_or_twice_or_malformed_is_refused(self):
+        for extra, why in ((f"design.md: «{self.DATED}» kept (asked):   \n",
+                            "the entry quotes the same line of design.md as line 2"),
+                           (f"design.md:4 kept (asked): the date\n",
+                            "the entry is not `<file>: «<line text>» kept (asked): <reason>`"),
+                           ("whatever\n", "the entry is not")):
+            with self.subTest(why=why):
+                r = self.sign(self.both() + extra)
+                self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+                self.assertIn(f"{self.KEPT}:3: error [kept] {why}", r.stdout)
+        r = self.sign(self.both().replace("the date is part of the rule", ""))
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn(f"{self.KEPT}:2: error [kept] the entry gives no reason", r.stdout)
+
+    def test_an_unreadable_kept_file_is_an_error(self):
+        (self.repo.path / self.KEPT).write_bytes(b"\xff\xfe\n")
+        self.repo.git("add", "-A")
+        r = self.repo.check("x")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn(f"{self.KEPT}: error [kept] cannot read the kept file", r.stdout)
+
+    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.16.1 or later")
+    def test_the_file_passes_validate_and_archives_with_its_change(self):
+        self.kept(self.both())
+        exe = shutil.which("openspec")
+        v = subprocess.run([exe, "validate", "x", "--strict"], cwd=self.repo.path,
+                           capture_output=True, text=True, env=ENV)
+        self.assertEqual(v.returncode, 0, v.stdout + v.stderr)
+        a = subprocess.run([exe, "archive", "x", "-y"], cwd=self.repo.path,
+                           capture_output=True, text=True, env=ENV)
+        self.assertEqual(a.returncode, 0, a.stdout + a.stderr)
+        archived = list((self.repo.path / "openspec/changes/archive").glob("*-x/.spec-check-kept"))
+        self.assertEqual([p.read_text() for p in archived], [self.both()])
+        self.assertFalse((self.repo.path / self.KEPT).exists())
+
+    def test_property_entries_clear_exactly_the_findings_whose_text_they_quote(self):
+        # Seeded: entries for any subset of the flagged texts clear exactly the
+        # findings with those texts and count them; they still do with plain
+        # lines inserted anywhere. Editing one quoted line so that it is still
+        # flagged, with another text, gives it an error the entry no longer
+        # clears, and makes the entry a stale check.
+        rng = random.Random(20261103)
+        pool = EvolutionTextTests.HISTORY[:8] + ["Plain line %d." % i for i in range(8)]
+        prefix = "openspec/changes/x/"
+        for trial in range(150):
+            lines = [rng.choice(pool) for _ in range(rng.randint(1, 12))]
+            with self.subTest(trial=trial), tempfile.TemporaryDirectory() as tmp:
+                corpus = mock.Mock(root=tmp, texts={})
+
+                def run(lines, entries):
+                    corpus.texts[prefix + "design.md"] = "".join(l + "\n" for l in lines)
+                    p = pathlib.Path(tmp, prefix, ".spec-check-kept")
+                    p.parent.mkdir(parents=True, exist_ok=True)
+                    p.write_text("".join(f"design.md: «{t}» kept (asked): r\n" for t in entries))
+                    own = []
+                    spec_check.check_evolution([prefix + "design.md"], corpus, own)
+                    before = list(own)
+                    kept = spec_check.apply_kept("x", corpus, own)
+                    return before, own, kept
+
+                flagged = sorted({l for l in lines if spec_check.evolution_hits(l + "\n")})
+                chosen = rng.sample(flagged, rng.randint(0, len(flagged)))
+                before, left, kept = run(lines, chosen)
+                cleared = [f for f in before if f.quote in chosen]
+                self.assertEqual(left, [f for f in before if f not in cleared])
+                self.assertEqual(len(kept), len(cleared))
+                moved = list(lines)
+                for _ in range(rng.randint(1, 4)):
+                    moved.insert(rng.randint(0, len(moved)), "Inserted plain line.")
+                _, left, kept = run(moved, chosen)
+                self.assertEqual((len(kept), [f.kind for f in left]),
+                                 (len(cleared), ["evolution"] * (len(before) - len(cleared))))
+                if chosen:
+                    gone = rng.choice(chosen)
+                    edited = [l[:-1] + " (Adam, 2026-01-01)." if l == gone else l for l in moved]
+                    _, left, kept = run(edited, chosen)
+                    stale = [f for f in left if f.kind == "kept"]
+                    self.assertEqual([(f.severity, f.line) for f in stale],
+                                     [("check", chosen.index(gone) + 1)])
+                    self.assertEqual(len(kept), len(cleared) - lines.count(gone))
+                    self.assertEqual(sum(1 for f in left if f.kind == "evolution"),
+                                     len(before) - len(cleared) + lines.count(gone))
+
+
+class FoundByBugHunterKeptTests(unittest.TestCase):
+    """Kept-file cases found by the first pass of a bug-hunter run on the
+    kept file."""
+
+    DESIGN = "openspec/changes/x/design.md"
+    KEPT = "openspec/changes/x/.spec-check-kept"
+
+    def setUp(self):
+        self.repo = Repo(self)
+        self.repo.change("x")
+
+    def test_a_byte_order_mark_does_not_hide_the_first_entry(self):
+        self.repo.write(self.DESIGN, "## Decisions\n\nRecords expire (Adam, 2026-10-21).\n")
+        self.repo.write(self.KEPT, "\ufeffdesign.md: «Records expire (Adam, 2026-10-21).» "
+                                   "kept (asked): the date is the rule\n")
+        r = self.repo.check("x")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("1 evolution kept", r.stdout)
+
+    def test_entries_split_only_at_newlines_as_the_markdown_does(self):
+        for sep in ("\u2028", "\x0c"):
+            with self.subTest(sep=repr(sep)):
+                line = f"Records expire (Adam, 2026-10-21).{sep}See the table."
+                self.repo.write(self.DESIGN, f"## Decisions\n\n{line}\n")
+                self.repo.write(self.KEPT, f"design.md: «{line}» kept (asked): the date is the rule\n")
+                r = self.repo.check("x")
+                self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+                self.assertIn("1 evolution kept", r.stdout)
+
+    def test_an_unasked_entry_that_keeps_nothing_is_stale_not_handed_back(self):
+        self.repo.write(self.DESIGN, "## Decisions\n\nRecords expire (Adam, 2026-10-21).\n")
+        self.repo.write(self.KEPT, "design.md: «Records expire (Adam, 2026-10-20).» kept: the date\n")
+        self.repo.git("add", "-A")
+        r = self.repo.run("sign", "--read", "self", "--base", "main", "--no-validate")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn(f"{self.KEPT}:1: check [kept]", r.stdout)
+        self.assertNotIn("no person approved", r.stdout)
 
 
 class FencesAndLinksTests(unittest.TestCase):
@@ -1661,13 +2185,52 @@ class TrailerTests(unittest.TestCase):
         r = self.hook()
         self.assertEqual((r.returncode, r.stdout, r.stderr), (0, "", ""))
 
+    def stage_openspec_symlink(self):
+        """Stages a symlink named openspec at the root as the commit's only
+        change, after a commit that removes the openspec/ folder."""
+        self.repo.git("rm", "-q", "-r", "openspec")
+        self.repo.git("commit", "-q", "-m", "Drop the folder")
+        # The hook reports each commit once: this run reports the removal, so
+        # the test's next run reports only the symlink commit.
+        self.hook()
+        (self.repo.path / "specs-elsewhere").mkdir()
+        (self.repo.path / "openspec").symlink_to("specs-elsewhere")
+        self.repo.git("add", "openspec")
+
+    def test_a_commit_that_only_adds_an_openspec_symlink_is_reported(self):
+        self.stage_openspec_symlink()
+        self.repo.git("commit", "-q", "-m", "Link the specs")
+        r = self.hook()
+        self.assertEqual(r.returncode, 2, r.stderr)
+        self.assertIn("1 new commit(s) changed openspec/ without a Spec-check: trailer", r.stderr)
+        self.assertIn("Link the specs", r.stderr)
+
+    def test_staged_targets_lists_a_staged_openspec_symlink(self):
+        self.stage_openspec_symlink()
+        self.assertEqual(spec_check.staged_targets(str(self.repo.path)), (["openspec"], [], False))
+
+    def test_staged_targets_takes_a_file_named_changes_as_no_change(self):
+        self.repo.write("openspec/changes", "x\n")
+        self.repo.git("add", "-A")
+        self.assertEqual(spec_check.staged_targets(str(self.repo.path)),
+                         (["openspec/changes"], [], False))
+
+    def test_a_path_that_only_starts_with_openspec_is_never_reported(self):
+        self.repo.write("openspec-notes/a.md", "x\n")
+        self.repo.write("openspecx", "x\n")
+        self.repo.git("add", "-A")
+        self.assertEqual(spec_check.staged_targets(str(self.repo.path)), ([], [], False))
+        self.repo.git("commit", "-q", "-m", "Notes only")
+        r = self.hook()
+        self.assertEqual((r.returncode, r.stdout, r.stderr), (0, "", ""))
+
     def test_a_signed_commit_is_quiet(self):
         self.stage_change()
         r = self.commit_with("--verified-value", str(VERIFY), "Spec-check", self.value())
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(self.hook().returncode, 0)
         body = self.repo.git("log", "-1", "--format=%B")
-        self.assertIn("read by a fresh subagent; 2 amended, 0 open", body)
+        self.assertIn("read by a fresh subagent: good; 2 amended, 0 open", body)
 
     def test_a_skip_note_is_quiet(self):
         self.stage_change()
@@ -1709,6 +2272,7 @@ class TrailerTests(unittest.TestCase):
         self.assertEqual(r.returncode, 1)
         self.assertIn("needs no Spec-check trailer", r.stderr)
 
+    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.16.1 or later")
     def test_sign_records_a_self_review(self):
         self.stage_change()
         r = self.repo.run("sign", "--read", "self", "--base", "main", "--no-validate")
@@ -1725,9 +2289,34 @@ class TrailerTests(unittest.TestCase):
                                   env=dict(ENV, PATH=str(path)))
                 self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
                 line = next(l for l in r.stdout.splitlines() if l.startswith("Spec-check:"))
-                self.assertIn("; show, validate and archive not run (install OpenSpec 1.15.0 or "
+                self.assertIn("; show, validate and archive not run (install OpenSpec 1.16.1 or "
                               "later); read by", line)
                 self.assertNotIn("; validate not run;", line)
+
+    def test_a_read_that_amends_nothing_lands_on_an_empty_commit(self):
+        """With every edit committed, the read is recorded on an empty commit,
+        its trailer still bound to the tree."""
+        self.hook(BUG_HUNTER_HOOK)
+        self.repo.git("checkout", "-q", "-b", "spec")
+        self.stage_change()
+        signed_commit(self, self.repo, read="deferred")
+        r = self.repo.run("sign", "--read", "subagent", "--base", "main", "--no-validate")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        value = r.stdout.strip().splitlines()[-1][len("Spec-check: "):]
+        self.assertIn("read by a fresh subagent: good;", value)
+        (self.repo.path / "msg.txt").write_text("Record the consistency read\n")
+        before = self.repo.git("rev-parse", "HEAD^{tree}")
+        r = subprocess.run(
+            ["sh", str(BUG_HUNTER), "--allow-empty",
+             "--verified-value", str(VERIFY), "Spec-check", value, "--",
+             "-F", "msg.txt", "skipped at triage (no change)"],
+            cwd=self.repo.path, capture_output=True, text=True, env=ENV)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(self.repo.git("rev-parse", "HEAD^{tree}"), before)
+        self.assertEqual(self.hook().returncode, 0)
+        self.assertIn("nothing waits for its consistency read",
+                      self.repo.run("sign", "--read", "subagent", "--base", "main",
+                                    "--no-validate").stderr)
 
     def test_bug_hunter_prose_and_spec_check_land_on_one_commit(self):
         """bug-hunter's commit script carries the other two as families."""
@@ -1757,7 +2346,8 @@ class ManifestTests(unittest.TestCase):
         manifest = json.loads((HERE.parent / "hook.json").read_text())
         self.assertEqual(manifest["default"], "enabled")
         commands = [h["command"] for h in manifest["hooks"]]
-        self.assertEqual(commands, ["scripts/check-commit-trailer.sh"])
+        self.assertEqual(commands, ["scripts/check-commit-trailer.sh"]
+                         + ["scripts/check-handback.sh"] * 5)
         for command in commands:
             self.assertTrue(os.access(HERE.parent / command, os.X_OK), command)
 
@@ -1779,6 +2369,16 @@ class ManifestTests(unittest.TestCase):
         cursor = json.loads((tmp / "home/.cursor/hooks.json").read_text())["hooks"]
         self.assertTrue(any("check-commit-trailer.sh --host cursor" in h["command"]
                             for h in cursor["postToolUse"]))
+        before = {(g["matcher"], h["command"].split("/")[-1].split(" ")[0])
+                  for g in claude["PreToolUse"] for h in g["hooks"]}
+        self.assertIn(("^(Bash|mcp__github__.*|mcp__plugin_.*_github__.*)$", "check-handback.sh"),
+                      before)
+        self.assertIn(("^(Bash|mcp__github__.*|mcp__plugin_.*_github__.*)$", "check-handback.sh"),
+                      wired)
+        for event in ("beforeShellExecution", "beforeMCPExecution", "postToolUse",
+                      "afterMCPExecution"):
+            self.assertTrue(any("check-handback.sh --host cursor" in h["command"]
+                                for h in cursor[event]), event)
         r = subprocess.run([sys.executable, str(SKILLS_PY), "doctor"],
                            capture_output=True, text=True, env=env, cwd=tmp)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
@@ -1864,7 +2464,7 @@ class Stack:
         # A stacked change is checked by archiving its dependencies with the
         # OpenSpec CLI, so a test that gets that far needs it.
         if openspec and not HAS_OPENSPEC:
-            test.skipTest("needs OpenSpec 1.15.0 or later")
+            test.skipTest("needs OpenSpec 1.16.1 or later")
         self.test = test
         self.repo = Repo(test)
         tmp = pathlib.Path(tempfile.mkdtemp(prefix="spec-check-stack-")).resolve()
@@ -2976,9 +3576,8 @@ class ContentCheckTests(unittest.TestCase):
         self.s.repo.git("commit", "-q", "-m", "a later change")
         self.s.stacked(modified("Records are kept", KEPT, AUDIT, SEARCH), "seat-files (acme/widgets#171)")
         out = self.s.check("lore-search")
-        # The dependency's pull request is open, so its text is used quietly
-        # (DECISIONS.md, "A modified requirement is decided by its pull
-        # request's state").
+        # The dependency's pull request is open, so its text is applied
+        # with no stack error, drift check or hint to drop its Builds on: line.
         self.assertNotIn("error [stack]", out.stdout)
         self.assertNotIn("check [drift]", out.stdout)
         self.assertNotIn("remove the `Builds on:", out.stdout)
@@ -3085,9 +3684,8 @@ class FoundByBugHunterRun4Tests(unittest.TestCase):
         s.repo.git("commit", "-qam", "another change on main")
         s.stacked(GOOD_DELTA.replace("Records expire", "Lore"), "seat-files (acme/widgets#171)")
         out = s.check("lore-search")
-        # The dependency's pull request is open, so its text is used quietly
-        # (DECISIONS.md, "A modified requirement is decided by its pull
-        # request's state").
+        # The dependency's pull request is open, so its text is applied
+        # with no stack error, drift check or hint to drop its Builds on: line.
         self.assertNotIn("error [stack]", out.stdout)
         self.assertNotIn("check [drift]", out.stdout)
         self.assertNotIn("remove the `Builds on:", out.stdout)
@@ -3111,9 +3709,8 @@ class FoundByBugHunterRun4Iteration2Tests(unittest.TestCase):
         r.git("commit", "-q", "-m", "archive X")
         s.stacked(ADDED_SEAT, "audit-log (acme/widgets#172)")
         out = s.check("lore-search")
-        # The dependency's pull request is open, so its text is used quietly
-        # (DECISIONS.md, "A modified requirement is decided by its pull
-        # request's state").
+        # The dependency's pull request is open, so its text is applied
+        # with no stack error, drift check or hint to drop its Builds on: line.
         self.assertNotIn("error [stack]", out.stdout)
         self.assertNotIn("check [drift]", out.stdout)
         self.assertNotIn("remove the `Builds on:", out.stdout)
@@ -3198,9 +3795,8 @@ class FoundByBugHunterRun4Iteration3Tests(unittest.TestCase):
         s.repo.git("commit", "-q", "-m", "A in tree")
         s.stacked(modified("Records are kept", KEPT, SEAT_REWORDED, AUDIT, SEARCH), "b-change (acme/widgets#172)")
         out = s.check("lore-search")
-        # The dependency's pull request is open, so its text is used quietly
-        # (DECISIONS.md, "A modified requirement is decided by its pull
-        # request's state").
+        # The dependency's pull request is open, so its text is applied
+        # with no stack error, drift check or hint to drop its Builds on: line.
         self.assertNotIn("error [stack]", out.stdout)
         self.assertNotIn("check [drift]", out.stdout)
         self.assertNotIn("remove the `Builds on:", out.stdout)
@@ -4106,9 +4702,8 @@ class ExactComparisonTests(unittest.TestCase):
 
 class StackedChangeArchiveTests(unittest.TestCase):
     """The stacked change itself is archived by `openspec archive`, after its
-    open dependencies, into a copy of the scratch specs (DECISIONS.md,
-    "The stacked change itself is archived too"). Each refusal is a drift error naming its delta file
-    and requirement and quoting the CLI."""
+    open dependencies, into a copy of the scratch specs. Each refusal is an `archive` error naming its delta
+    file and requirement and quoting the CLI."""
 
     A = "a-change (acme/widgets#171)"
     DELTA = "openspec/changes/lore-search/specs/cap/spec.md"
@@ -4217,6 +4812,1820 @@ class StackedChangeArchiveTests(unittest.TestCase):
         self.s.repo.write("openspec/changes/lore-search/specs/cap/v2-spec.md", self.added("Search", SEARCH))
         line = self.refused(self.s.check("lore-search"), "Audit trail", "already exists")
         self.assertIn(f"{self.DELTA}:3:", line)
+
+
+def signed_commit(test, repo, read="subagent", message="Change the spec", extra=()):
+    """Signs the staged tree with sign --read <read> and commits it with that
+    trailer; returns the trailer's value."""
+    r = repo.run("sign", "--read", read, "--base", "main", "--no-validate", *extra)
+    test.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+    value = r.stdout.strip().splitlines()[-1][len("Spec-check: "):]
+    repo.git("commit", "-q", "-m", message, "--trailer", f"Spec-check: {value}")
+    return value
+
+
+class RoundTests(unittest.TestCase):
+    """One consistency read per round: the trailer records where it ran."""
+
+    def setUp(self):
+        self.repo = Repo(self)
+        self.repo.git("checkout", "-q", "-b", "spec")
+
+    def sign(self, read, *extra):
+        return self.repo.run("sign", "--read", read, "--base", "main", "--no-validate", *extra)
+
+    def value(self, r):
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        return r.stdout.strip().splitlines()[-1]
+
+    def test_a_deferred_read_says_so(self):
+        self.repo.change("good")
+        self.repo.git("add", "-A")
+        r = self.sign("deferred")
+        line = self.value(r)
+        self.assertTrue(line.endswith("; read deferred to the round's end"), line)
+
+    def test_a_deferred_read_takes_no_counts(self):
+        self.repo.change("good")
+        self.repo.git("add", "-A")
+        r = self.sign("deferred", "--amended", "1")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("a deferred read has none", r.stderr)
+
+    def test_a_read_names_the_changes_it_read(self):
+        self.repo.change("good")
+        self.repo.change("other", delta=GOOD_DELTA.replace("Records expire", "Records are counted")
+                         .replace("delete a record ninety", "count a record each"))
+        self.repo.git("add", "-A")
+        line = self.value(self.sign("subagent", "--amended", "2", "--open", "1"))
+        self.assertTrue(line.endswith("; read by a fresh subagent: good, other; 2 amended, 1 open"), line)
+
+    def test_after_a_read_an_unchanged_change_is_not_due(self):
+        self.repo.change("good")
+        self.repo.git("add", "-A")
+        signed_commit(self, self.repo)
+        self.repo.write("openspec/specs/cap/spec.md", MAIN_SPEC + "\n")
+        self.repo.git("add", "-A")
+        line = self.value(self.sign("subagent"))
+        self.assertTrue(line.endswith("; no read due"), line)
+
+    def test_a_change_edited_after_its_read_is_due_again(self):
+        self.repo.change("good")
+        self.repo.git("add", "-A")
+        signed_commit(self, self.repo)
+        self.repo.write("openspec/changes/good/design.md", "## Context\n\nMore.\n")
+        self.repo.git("add", "-A")
+        line = self.value(self.sign("subagent"))
+        self.assertIn("read by a fresh subagent: good;", line)
+
+    def test_a_deferred_commit_does_not_count_as_a_read(self):
+        self.repo.change("good")
+        self.repo.git("add", "-A")
+        signed_commit(self, self.repo, read="deferred")
+        self.repo.write("src/app.py", "changed\n")
+        self.repo.git("add", "-A")
+        # Nothing under openspec/ is staged, but the change still waits for
+        # its read, so a code commit can carry it.
+        line = self.value(self.sign("subagent"))
+        self.assertIn("read by a fresh subagent: good;", line)
+
+    def test_a_code_commit_needs_no_trailer_when_no_read_waits(self):
+        self.repo.change("good")
+        self.repo.git("add", "-A")
+        signed_commit(self, self.repo)
+        self.repo.write("src/app.py", "changed\n")
+        self.repo.git("add", "-A")
+        r = self.sign("subagent")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("nothing waits for its consistency read", r.stderr)
+
+    def test_a_value_from_before_rounds_read_the_changes_its_commit_touched(self):
+        self.repo.change("good")
+        self.repo.git("add", "-A")
+        tree = self.repo.git("write-tree")
+        self.repo.git("commit", "-q", "-m", "Old style", "--trailer",
+                      f"Spec-check: ✓ {tree[:12]} 0 errors, 0 checks; validate passed; "
+                      "read by a fresh subagent; 3 amended, 0 open")
+        self.repo.write("openspec/specs/cap/spec.md", MAIN_SPEC + "\n")
+        self.repo.git("add", "-A")
+        self.assertTrue(self.value(self.sign("subagent")).endswith("; no read due"))
+
+    def test_a_read_whose_tree_is_not_its_commits_records_nothing(self):
+        self.repo.change("good")
+        self.repo.git("add", "-A")
+        self.repo.git("commit", "-q", "-m", "Copied trailer", "--trailer",
+                      "Spec-check: ✓ 0123456789ab 0 errors, 0 checks; validate passed; "
+                      "read by a fresh subagent: good; 0 amended, 0 open")
+        self.repo.write("openspec/specs/cap/spec.md", MAIN_SPEC + "\n")
+        self.repo.git("add", "-A")
+        self.assertIn("read by a fresh subagent: good;", self.value(self.sign("subagent")))
+
+class KeptInRoundsTests(unittest.TestCase):
+    """Kept lines inside a review round: evolution errors fail every commit,
+    deferred or not; the kept count sits beside the checks on each kind of
+    value; and a value carrying it still records the round's read for sign,
+    unread_at and ci."""
+
+    DESIGN = "openspec/changes/x/design.md"
+    KEPT = "openspec/changes/x/.spec-check-kept"
+    ENTRY = "design.md: «The spec narrows the decision.» kept (asked): compares a spec with a decision\n"
+
+    def setUp(self):
+        self.repo = Repo(self)
+        self.repo.git("checkout", "-q", "-b", "spec")
+        self.repo.change("x")
+        self.repo.write(self.DESIGN, "## Decisions\n\nThe spec narrows the decision.\n")
+
+    def keep(self, text=ENTRY):
+        self.repo.write(self.KEPT, text)
+        self.repo.git("add", "-A")
+
+    def sign(self, read):
+        return self.repo.run("sign", "--read", read, "--base", "main", "--no-validate")
+
+    def test_a_deferred_commit_refuses_an_evolution_error_nobody_kept(self):
+        self.repo.git("add", "-A")
+        r = self.sign("deferred")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("error [evolution]", r.stdout)
+
+    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.16.1 or later")
+    def test_a_deferred_commit_counts_kept_lines_and_records_no_read(self):
+        self.keep()
+        value = signed_commit(self, self.repo, read="deferred")
+        self.assertRegex(value, r"^✓ [0-9a-f]{12} 0 errors, 0 checks, 1 evolution kept; "
+                                r"validate not run; read deferred to the round's end$")
+        self.assertEqual(spec_check.unread_at(str(self.repo.path), "HEAD", "main"), ["x"])
+
+    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.16.1 or later")
+    def test_a_read_carrying_kept_counts_is_the_changes_last_read(self):
+        self.keep()
+        value = signed_commit(self, self.repo)
+        self.assertRegex(value, r"^✓ [0-9a-f]{12} 0 errors, 0 checks, 1 evolution kept; "
+                                r"validate not run; read by a fresh subagent: x; 0 amended, 0 open$")
+        self.assertEqual(spec_check.unread_at(str(self.repo.path), "HEAD", "main"), [])
+        self.repo.write("openspec/specs/cap/spec.md", MAIN_SPEC + "\n")
+        self.repo.git("add", "-A")
+        r = self.sign("subagent")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertTrue(r.stdout.strip().endswith("; no read due"), r.stdout)
+
+    def test_editing_only_the_kept_file_makes_the_change_due(self):
+        self.keep()
+        signed_commit(self, self.repo)
+        self.keep(self.ENTRY + "\n")
+        signed_commit(self, self.repo, read="deferred")
+        self.assertEqual(spec_check.unread_at(str(self.repo.path), "HEAD", "main"), ["x"])
+
+    def test_ci_passes_a_head_whose_read_carries_kept_counts(self):
+        self.keep()
+        signed_commit(self, self.repo)
+        tmp = pathlib.Path(tempfile.mkdtemp(prefix="spec-check-ci-")).resolve()
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        event = tmp / "event.json"
+        event.write_text(json.dumps({"action": "ready_for_review", "pull_request": {
+            "html_url": "https://github.com/o/r/pull/7", "draft": False,
+            "head": {"sha": self.repo.git("rev-parse", "HEAD")}, "base": {"ref": "main"}}}))
+        r = self.repo.run("ci", "--event", str(event))
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("no OpenSpec change is unread", r.stdout)
+
+
+class RoundStartTests(unittest.TestCase):
+    """Which commit a never-read change's edits are counted from (the merge
+    base, or HEAD on the base branch), and which changes count as open."""
+
+    def setUp(self):
+        self.repo = Repo(self)
+
+    def value(self, *args):
+        r = self.repo.run("sign", *args)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        return r.stdout.strip().splitlines()[-1]
+
+    def test_a_change_on_the_base_that_the_branch_leaves_alone_is_not_due(self):
+        self.repo.change("onmain")
+        self.repo.git("add", "-A")
+        self.repo.git("commit", "-q", "-m", "A change on main")
+        self.repo.git("checkout", "-q", "-b", "spec")
+        self.repo.write("openspec/specs/cap/spec.md", MAIN_SPEC + "\n")
+        self.repo.git("add", "-A")
+        self.assertTrue(self.value("--read", "subagent", "--base", "main", "--no-validate")
+                        .endswith("; no read due"))
+
+    def test_with_the_base_at_head_an_unread_change_is_due(self):
+        self.repo.git("checkout", "-q", "-b", "spec")
+        self.repo.change("good")
+        self.repo.git("add", "-A")
+        self.repo.git("commit", "-q", "-m", "Unread")
+        self.repo.write("openspec/specs/cap/spec.md", MAIN_SPEC + "\n")
+        self.repo.git("add", "-A")
+        self.assertIn("read by a fresh subagent: good;",
+                      self.value("--read", "subagent", "--base", "HEAD", "--no-validate"))
+
+    def test_a_change_with_no_deltas_is_open_and_its_read_is_recorded(self):
+        self.repo.git("checkout", "-q", "-b", "spec")
+        self.repo.write("openspec/changes/bare/proposal.md", GOOD_PROPOSAL)
+        self.repo.git("add", "-A")
+        self.assertIn("read by a fresh subagent: bare;",
+                      self.value("--read", "subagent", "--base", "main", "--no-validate"))
+
+    def test_a_value_from_before_rounds_covers_a_commit_of_top_level_files(self):
+        self.repo.git("checkout", "-q", "-b", "spec")
+        self.repo.change("good")
+        self.repo.git("add", "-A")
+        self.repo.git("commit", "-q", "-m", "Unread")
+        self.repo.write("openspec/changes/good/tasks.md", TASKS + "- [ ] 1.2 More\n")
+        self.repo.git("add", "-A")
+        tree = self.repo.git("write-tree")
+        self.repo.git("commit", "-q", "-m", "Old style", "--trailer",
+                      f"Spec-check: ✓ {tree[:12]} 0 errors, 0 checks; validate passed; "
+                      "read by a fresh subagent; 0 amended, 0 open")
+        self.repo.write("openspec/specs/cap/spec.md", MAIN_SPEC + "\n")
+        self.repo.git("add", "-A")
+        self.assertTrue(self.value("--read", "subagent", "--base", "main", "--no-validate")
+                        .endswith("; no read due"))
+
+    @unittest.skipUnless(HAS_OPENSPEC, "needs OpenSpec 1.16.1 or later")
+    def test_a_change_that_validates_says_validate_passed(self):
+        self.repo.git("checkout", "-q", "-b", "spec")
+        self.repo.change("good")
+        self.repo.git("add", "-A")
+        self.assertIn("; validate passed;", self.value("--read", "subagent", "--base", "main"))
+
+
+class FoundByBugHunterRoundsIteration2Tests(unittest.TestCase):
+    """Bug-hunter's second iteration over rounds."""
+
+    def setUp(self):
+        self.repo = Repo(self)
+        up = pathlib.Path(tempfile.mkdtemp(prefix="spec-check-up-")).resolve()
+        self.addCleanup(shutil.rmtree, up, ignore_errors=True)
+        subprocess.run(["git", "init", "-q", "--bare", str(up)], check=True, env=ENV)
+        self.repo.git("remote", "add", "origin", str(up))
+        self.repo.git("push", "-q", "origin", "main")
+
+    def test_a_merged_change_with_an_edit_after_its_read_is_not_due_on_another_branch(self):
+        r = self.repo
+        r.git("checkout", "-q", "-b", "pr1")
+        r.change("x")
+        r.git("add", "-A")
+        signed_commit(self, r)
+        r.write("openspec/changes/x/tasks.md", TASKS + "- [ ] 1.2 Suggested\n")
+        r.git("add", "-A")
+        r.git("commit", "-q", "-m", "Apply suggestion from code review")
+        r.git("checkout", "-q", "main")
+        r.git("merge", "-q", "--no-ff", "pr1", "-m", "Merge PR 1")
+        r.git("push", "-q", "origin", "main")
+        r.git("checkout", "-q", "-b", "pr2", "origin/main")
+        r.change("y", delta=GOOD_DELTA.replace("Records expire", "Logs rotate").replace(
+            "delete a record ninety days after its last read", "rotate a log file weekly"))
+        r.git("add", "-A")
+        out = r.run("sign", "--read", "subagent", "--base", "origin/main", "--no-validate")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertIn("read by a fresh subagent: y;", out.stdout)
+
+class FoundByBugHunterWholeReadTests(unittest.TestCase):
+    """Bug-hunter's run over whole-change rounds."""
+
+    def setUp(self):
+        self.repo = Repo(self)
+
+    def origin(self):
+        up = pathlib.Path(tempfile.mkdtemp(prefix="spec-check-up-")).resolve()
+        self.addCleanup(shutil.rmtree, up, ignore_errors=True)
+        subprocess.run(["git", "init", "-q", "--bare", str(up)], check=True, env=ENV)
+        self.repo.git("remote", "add", "origin", str(up))
+        self.repo.git("push", "-q", "origin", "main")
+
+    def test_a_round_committed_on_the_base_branch_keeps_its_read_due(self):
+        r = self.repo
+        r.change("good")
+        r.git("add", "-A")
+        signed_commit(self, r, read="deferred")
+        r.write("src/app.py", "x = 1\n")
+        r.git("add", "-A")
+        out = r.run("sign", "--read", "subagent", "--no-validate")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertIn("read by a fresh subagent: good;", out.stdout)
+
+    def test_a_tag_named_like_the_branch_does_not_hide_the_base_branch(self):
+        r = self.repo
+        self.origin()
+        r.git("tag", "main")
+        r.change("good")
+        r.git("add", "-A")
+        signed_commit(self, r, read="deferred")
+        r.git("push", "-q", "origin", "refs/heads/main:refs/heads/main")
+        r.write("src/app.py", "x = 1\n")
+        r.git("add", "-A")
+        out = r.run("sign", "--read", "subagent", "--base", "origin/main", "--no-validate")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertIn("read by a fresh subagent: good;", out.stdout)
+
+
+
+class TouchedChangesTests(unittest.TestCase):
+    """Which open changes a commit touches, for a read recorded before
+    reads named their changes (tests from bug-hunter's mutation pass)."""
+
+    def setUp(self):
+        self.repo = Repo(self)
+
+    def test_a_commit_adding_only_under_archive_touches_no_open_change(self):
+        r = self.repo
+        r.write("openspec/changes/archive/2026-01-01-y/tasks.md", TASKS)
+        r.git("add", "-A")
+        r.git("commit", "-q", "-m", "Archive y")
+        self.assertEqual(spec_check.touched_changes(str(r.path), r.git("rev-parse", "HEAD")), set())
+
+    def test_a_root_commit_touches_the_changes_it_adds(self):
+        r = self.repo
+        r.git("checkout", "-q", "--orphan", "fresh")
+        r.change("x")
+        r.git("add", "-A")
+        r.git("commit", "-q", "-m", "A history that starts with a change")
+        self.assertEqual(spec_check.touched_changes(str(r.path), r.git("rev-parse", "HEAD")), {"x"})
+
+HANDBACK = HERE / "check-handback.sh"
+# A gh that answers `gh pr view <selector>` from $FAKE_PRS, a JSON object
+# keyed by selector or URL, or else with the JSON in $FAKE_PR (failing when
+# neither is set or the selector is not a key), succeeds at `gh pr ready --undo` and `gh pr edit` unless
+# $FAKE_UNDO_FAIL is set, and logs every call to $FAKE_PR_LOG.
+FAKE_PR_GH = """\
+import json, os, sys
+a = sys.argv[1:]
+if os.environ.get("FAKE_PR_LOG"):
+    with open(os.environ["FAKE_PR_LOG"], "a") as fh:
+        fh.write(json.dumps(a) + "\\n")
+if a[:2] == ["pr", "view"] and os.environ.get("FAKE_PRS") is not None:
+    prs = json.loads(os.environ["FAKE_PRS"])
+    key = a[2] if len(a) > 2 and not a[2].startswith("-") else ""
+    if key not in prs:
+        sys.exit("gh: no pull request " + key)
+    print(json.dumps(prs[key]))
+elif a[:2] == ["pr", "view"] and os.environ.get("FAKE_PR") is not None:
+    print(os.environ["FAKE_PR"])
+elif a[:2] in (["pr", "ready"], ["pr", "edit"]) and not os.environ.get("FAKE_UNDO_FAIL"):
+    pass
+else:
+    sys.exit("gh: not this time")
+"""
+
+
+class HandbackBase(unittest.TestCase):
+    """A repository on branch spec, pushed to an origin that stands in for
+    GitHub, and the hand-back hook run against it."""
+
+    def setUp(self):
+        self.repo = Repo(self)
+        self.repo.git("checkout", "-q", "-b", "spec")
+        tmp = pathlib.Path(tempfile.mkdtemp(prefix="spec-check-hb-")).resolve()
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        self.tmp, self.up, self.cache = tmp, tmp / "origin", tmp / "cache"
+        subprocess.run(["git", "init", "-q", "--bare", str(self.up)], check=True, env=ENV)
+        self.repo.git("remote", "add", "origin", str(self.up))
+        self.repo.git("push", "-q", "origin", "main")
+        self.gh = tmp / "gh"
+        self.gh.write_text(f"#!{sys.executable}\n" + FAKE_PR_GH)
+        self.gh.chmod(0o755)
+        self.log = tmp / "gh.log"
+
+    def pr(self, number=7, draft=False):
+        """Pushes branch spec as pull request <number> and returns gh's view."""
+        self.repo.git("push", "-q", "-f", "origin", f"spec:spec",
+                      f"spec:refs/pull/{number}/head")
+        return {"number": number, "url": f"{self.up}/pull/{number}",
+                "headRefOid": self.repo.git("rev-parse", "spec"), "baseRefName": "main",
+                "isDraft": draft}
+
+    def run_hook(self, payload, host="claude", pr=None, extra_env=None):
+        env = dict(ENV, SPEC_CHECK_GH=str(self.gh), SPEC_CHECK_CACHE=str(self.cache),
+                   FAKE_PR_LOG=str(self.log))
+        if pr is not None:
+            env["FAKE_PR"] = json.dumps(pr)
+        env.update(extra_env or {})
+        return subprocess.run([str(HANDBACK), "--host", host], input=json.dumps(payload),
+                              capture_output=True, text=True, env=env, cwd=self.repo.path)
+
+    def hook(self, command, pr=None, output=None, host="claude", cwd=None, extra_env=None):
+        """The hook before a Bash call, or after it when output is given."""
+        payload = {"tool_name": "Bash", "tool_input": {"command": command},
+                   "cwd": str(cwd or self.repo.path), "hook_event_name": "PreToolUse"}
+        if output is not None:
+            payload.update(hook_event_name="PostToolUse",
+                           tool_response={"stdout": output, "stderr": ""})
+        if host == "cursor":
+            payload = {"command": command, "cwd": str(cwd or self.repo.path),
+                       "hook_event_name": "beforeShellExecution"}
+            if output is not None:
+                payload = {"tool_name": "Shell", "tool_input": {"command": command},
+                           "tool_output": output, "cwd": str(cwd or self.repo.path),
+                           "hook_event_name": "postToolUse"}
+        return self.run_hook(payload, host, pr, extra_env)
+
+    def calls(self):
+        """Every gh call the hook made, as argument lists."""
+        if not self.log.exists():
+            return []
+        return [json.loads(line) for line in self.log.read_text().splitlines()]
+
+    def undos(self):
+        return [c for c in self.calls() if c[:2] in (["pr", "ready"], ["pr", "edit"])]
+
+    def blocked(self, r, *names):
+        self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+        self.assertIn("spec-check: blocked this hand-back", r.stderr)
+        for name in names:
+            self.assertIn(name, r.stderr)
+
+    def taken_back(self, r, *names):
+        self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+        self.assertIn("spec-check: took back a hand-back", r.stderr)
+        for name in names:
+            self.assertIn(name, r.stderr)
+
+    def allowed(self, r):
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(r.stderr, "")
+
+    def noted(self, r, reason, host="claude"):
+        """Not judged: nothing blocked or undone, and the agent told why."""
+        self.allowed(r)
+        out = json.loads(r.stdout)
+        note = out["additional_context"] if host == "cursor" else \
+            out["hookSpecificOutput"]["additionalContext"]
+        for part in ("did not check this hand-back", reason,
+                     "git, cd, echo, printf, true or sleep",
+                     "no $, backticks, globs, braces or leading ~",
+                     "run `gh pr ...` on its own", "GitHub workflow, it still checks"):
+            self.assertIn(part, note)
+        self.assertEqual(self.undos(), [])
+        return out
+
+    def deferred(self):
+        self.repo.change("good")
+        self.repo.git("add", "-A")
+        signed_commit(self, self.repo, read="deferred")
+
+    def read(self):
+        self.repo.write("openspec/changes/good/tasks.md", TASKS + "- [ ] 1.2 More\n")
+        self.repo.git("add", "-A")
+        signed_commit(self, self.repo)
+
+
+class HandbackBeforeTests(HandbackBase):
+    """Before the call: a hand-back whose pull request can be found without
+    knowing the directory gh runs in."""
+
+    def test_a_named_hand_back_with_an_unread_change_is_blocked(self):
+        self.deferred()
+        pr = self.pr()
+        for command in ("gh pr ready 7 -R o/r", "gh -R o/r pr ready 7",
+                        "gh pr --repo=o/r ready 7", "GH_REPO=o/r gh pr ready 7",
+                        f"gh pr ready {pr['url']}", "gh pr edit 7 -R o/r --add-reviewer=adam",
+                        "git push && gh pr ready 7 -R o/r"):
+            with self.subTest(command=command):
+                self.blocked(self.hook(command, pr=pr), "good", pr["url"])
+
+    def test_after_the_read_the_hand_back_goes_ahead(self):
+        self.deferred()
+        self.read()
+        self.repo.write("src/app.py", "code after the read\n")
+        self.repo.git("add", "-A")
+        self.repo.git("commit", "-q", "-m", "Code")
+        self.allowed(self.hook("gh pr ready 7 -R o/r", pr=self.pr()))
+
+    def test_the_pull_request_s_head_is_judged_not_the_local_branch(self):
+        self.deferred()
+        pr = self.pr()
+        self.read()  # read locally, not pushed
+        self.blocked(self.hook("gh pr ready 7 -R o/r", pr=pr), "good")
+
+    def test_an_edit_after_the_read_is_unread_again(self):
+        self.repo.change("good")
+        self.repo.git("add", "-A")
+        signed_commit(self, self.repo)
+        self.repo.write("openspec/changes/good/tasks.md", TASKS + "- [ ] 1.2 More\n")
+        self.repo.git("add", "-A")
+        signed_commit(self, self.repo, read="deferred")
+        self.blocked(self.hook("gh pr ready 7 -R o/r", pr=self.pr()), "good")
+
+    def test_a_change_the_branch_leaves_alone_is_not_unread(self):
+        self.repo.git("checkout", "-q", "main")
+        self.repo.change("onmain")
+        self.repo.git("add", "-A")
+        self.repo.git("commit", "-q", "-m", "A change on main, read in its own pull request")
+        self.repo.git("push", "-q", "origin", "main")
+        self.repo.git("checkout", "-q", "-B", "spec")
+        self.repo.write("src/app.py", "x\n")
+        self.repo.git("add", "-A")
+        self.repo.git("commit", "-q", "-m", "Code only")
+        self.allowed(self.hook("gh pr ready 7 -R o/r", pr=self.pr()))
+
+    def test_a_hand_back_found_only_through_a_directory_is_not_judged_before(self):
+        self.deferred()
+        pr = self.pr()
+        for command in ("gh pr ready 7", "gh pr ready spec", "gh pr ready",
+                        "gh pr create --title x", "gh pr edit --add-reviewer adam"):
+            self.allowed(self.hook(command, pr=pr))
+        self.assertEqual(self.calls(), [])
+
+    def test_what_is_not_a_hand_back_is_not_judged(self):
+        self.deferred()
+        pr = self.pr()
+        for command in ("gh pr create --draft --title x -R o/r", "gh pr create -dt x",
+                        "gh pr create --dry-run", "gh pr ready 7 -R o/r --undo",
+                        "gh pr edit 7 -R o/r --title 'New title'",
+                        "sed -i '' 's/gh pr create/gh pr create --draft/' notes.md",
+                        "printf '%s\\n' 'then run gh pr ready 7 -R o/r'"):
+            self.allowed(self.hook(command, pr=pr))
+        self.assertEqual(self.calls(), [])
+
+    def test_a_pull_request_gh_cannot_show_or_fetch_is_let_through(self):
+        self.deferred()
+        self.allowed(self.hook("gh pr ready 7 -R o/r"))
+        pr = self.pr()
+        pr["url"] = f"{self.tmp}/nowhere/pull/7"
+        self.allowed(self.hook("gh pr ready 7 -R o/r", pr=pr))
+        pr["url"] = str(self.up)
+        self.allowed(self.hook("gh pr ready 7 -R o/r", pr=pr))
+
+    def test_a_head_github_has_no_pull_ref_for_yet_is_still_judged(self):
+        self.deferred()
+        pr = self.pr()
+        subprocess.run(["git", "-C", str(self.up), "update-ref", "-d", "refs/pull/7/head"],
+                       check=True, env=ENV)
+        self.blocked(self.hook("gh pr ready 7 -R o/r", pr=pr), "good")
+
+    def test_a_pull_request_without_openspec_is_never_blocked(self):
+        self.repo.write("src/app.py", "x\n")
+        self.repo.git("add", "-A")
+        self.repo.git("commit", "-q", "-m", "Code")
+        self.allowed(self.hook("gh pr ready 7 -R o/r", pr=self.pr()))
+
+    def test_a_github_mcp_update_is_judged(self):
+        self.deferred()
+        pr = self.pr()
+        for tool in ("mcp__github__update_pull_request",
+                     "mcp__plugin_gh_github__update_pull_request"):
+            update = {"tool_name": tool, "cwd": str(self.repo.path),
+                      "hook_event_name": "PreToolUse",
+                      "tool_input": {"owner": "o", "repo": "r", "pullNumber": 7, "draft": False}}
+            self.blocked(self.run_hook(update, pr=pr), "MCP update_pull_request")
+        update["tool_input"] = {"owner": "o", "repo": "r", "pullNumber": 7, "title": "y"}
+        self.allowed(self.run_hook(update, pr=pr))
+
+    def test_cursor_gets_a_permission(self):
+        self.deferred()
+        pr = self.pr()
+        r = self.hook("gh pr ready 7 -R o/r", pr=pr, host="cursor")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(json.loads(r.stdout)["permission"], "deny")
+        r = self.hook("gh pr ready 7 -R o/r --undo", pr=pr, host="cursor")
+        self.assertEqual(json.loads(r.stdout), {"permission": "allow"})
+
+    def test_the_fetched_pull_requests_are_kept_in_one_cache_per_repository(self):
+        self.deferred()
+        pr = self.pr()
+        self.hook("gh pr ready 7 -R o/r", pr=pr)
+        self.hook("gh pr ready 7 -R o/r", pr=pr)
+        self.assertEqual(len(list((self.cache / "pulls").iterdir())), 1)
+
+
+class HandbackAfterTests(HandbackBase):
+    """After the call: a command holding exactly one gh call, a hand-back,
+    judged at the pull request it printed, and taken back."""
+
+    READY_7 = '✓ Pull request o/r#7 is marked as "ready for review"\n'
+
+    def prs(self, *prs):
+        found = {}
+        for pr in prs:
+            found.update({str(pr["number"]): pr, pr["url"]: pr})
+        return {"FAKE_PRS": json.dumps(found)}
+
+    def test_a_pull_request_created_ready_with_an_unread_change_is_made_a_draft(self):
+        self.deferred()
+        pr = self.pr()
+        r = self.hook("gh pr create --title x", pr=pr, output=pr["url"] + "\n")
+        self.taken_back(r, pr["url"], "good", "it is a draft again")
+        self.assertEqual(self.undos(), [["pr", "ready", pr["url"], "--undo"]])
+
+    def test_the_reviewers_the_call_requested_are_removed(self):
+        self.deferred()
+        pr = self.pr()
+        self.hook("gh pr create -t x -r adam,bo --reviewer cy", pr=pr, output=pr["url"])
+        ready, edit = self.undos()
+        self.assertEqual(ready, ["pr", "ready", pr["url"], "--undo"])
+        self.assertEqual(edit[:4], ["pr", "edit", pr["url"], "--remove-reviewer"])
+        self.assertEqual(sorted(edit[4].split(",")), ["adam", "bo", "cy"])
+
+    def test_a_review_request_is_withdrawn_without_making_a_draft(self):
+        self.deferred()
+        pr = self.pr()
+        r = self.hook("gh pr edit --add-reviewer adam", pr=pr, output=pr["url"] + "\n")
+        self.taken_back(r, "the review request to adam is withdrawn")
+        self.assertEqual(self.undos(), [["pr", "edit", pr["url"], "--remove-reviewer", "adam"]])
+
+    def test_a_draft_that_requested_a_reviewer_loses_only_the_request(self):
+        self.deferred()
+        pr = self.pr(draft=True)
+        self.hook("gh pr create -d -r adam -t x", pr=pr, output=pr["url"])
+        self.assertEqual(self.undos(), [["pr", "edit", pr["url"], "--remove-reviewer", "adam"]])
+
+    def test_gh_s_ready_line_names_the_pull_request(self):
+        self.deferred()
+        pr = self.pr()
+        for command in ("gh pr ready", "gh pr ready 7", f"git push && gh pr ready {pr['url']}"):
+            with self.subTest(command=command):
+                self.taken_back(self.hook(command, output=self.READY_7, extra_env=self.prs(pr)),
+                                "good")
+        self.assertIn(["pr", "view", "7", "--json", "number,url,headRefOid,baseRefName,isDraft",
+                       "-R", "o/r"], self.calls())
+
+    def test_gh_s_lines_are_found_on_stderr_and_after_other_lines(self):
+        self.deferred()
+        pr = self.pr()
+        payload = {"tool_name": "Bash", "tool_input": {"command": "git push && gh pr ready"},
+                   "cwd": str(self.repo.path), "hook_event_name": "PostToolUse",
+                   "tool_response": {"stdout": "", "stderr": self.READY_7}}
+        self.taken_back(self.run_hook(payload, pr=pr), "good")
+        self.taken_back(self.hook("git push && gh pr create -t x", pr=pr,
+                                  output=f"\nCreating pull request for spec into main\n\n"
+                                         f"{pr['url']}\n"), "good")
+
+    def test_after_the_read_nothing_is_taken_back(self):
+        self.deferred()
+        self.read()
+        pr = self.pr()
+        self.allowed(self.hook("gh pr create --title x", pr=pr, output=pr["url"]))
+        self.assertEqual(self.undos(), [])
+
+    def test_a_command_with_any_gh_the_reader_cannot_see_is_not_judged(self):
+        self.deferred()
+        pr = self.pr()
+        for command in ("gh pr checks 7 && gh pr ready",
+                        "gh pr view 8 --json url -q .url; gh pr ready 7",
+                        "timeout 60 gh pr ready 7", "stdbuf -oL gh pr create -t x",
+                        "op run -- gh pr create -t x", "bash -c 'gh pr create -t x'",
+                        "xargs gh pr ready < prs.txt", "awk 'BEGIN{system(\"gh pr ready 7\")}'",
+                        "git -c alias.r='!gh pr ready 7' r",
+                        'gh pr ready "$(git branch --show-current)"',
+                        "bash <<EOF\ngh pr create --title x\nEOF",
+                        "gh pr create -t x; bash <<EOF\ngh pr ready 8\nEOF",
+                        "echo 'gh pr ready 8' | bash; gh pr create -t x"):
+            with self.subTest(command=command):
+                self.allowed(self.hook(command, output=self.READY_7 + pr["url"] + "\n",
+                                       extra_env=self.prs(pr)))
+        self.assertEqual(self.calls(), [])
+
+    def test_a_hand_back_that_printed_no_one_pull_request_is_not_judged(self):
+        self.deferred()
+        seven, eight = self.pr(7), self.pr(8)
+        env = self.prs(seven, eight)
+        self.allowed(self.hook("gh pr create -t x > /dev/null", output="", extra_env=env))
+        self.allowed(self.hook("gh pr create -t x", output=f"{seven['url']}\n{eight['url']}\n",
+                               extra_env=env))
+        self.assertEqual(self.calls(), [])
+
+    def test_without_the_shared_reader_nothing_is_judged(self):
+        self.deferred()
+        pr = self.pr()
+        sys.path.insert(0, str(HERE))
+        import handback
+        payload = {"tool_name": "Bash", "tool_input": {"command": "gh pr create -t x"},
+                   "cwd": str(self.repo.path), "hook_event_name": "PostToolUse",
+                   "tool_response": {"stdout": pr["url"], "stderr": ""}}
+        with mock.patch.object(handback, "load_reader", return_value=None), \
+                mock.patch.object(handback.sc, "GH", str(self.gh)), \
+                mock.patch.dict(os.environ, {"SPEC_CHECK_CACHE": str(self.cache),
+                                             "FAKE_PR": json.dumps(pr),
+                                             "FAKE_PR_LOG": str(self.log)}):
+            self.assertEqual(handback.hook(json.dumps(payload), "claude"), (0, "", ""))
+
+    def test_a_draft_made_with_nobody_requested_is_left_alone(self):
+        self.deferred()
+        pr = self.pr(draft=True)
+        self.allowed(self.hook("gh pr create --title x", pr=pr, output=pr["url"]))
+        self.assertEqual(self.undos(), [])
+
+    def test_a_hand_back_in_a_command_that_fails_is_still_taken_back(self):
+        self.deferred()
+        pr = self.pr()
+        payload = {"tool_name": "Bash", "tool_input": {"command": "git push && gh pr create -t x"},
+                   "cwd": str(self.repo.path), "hook_event_name": "PostToolUseFailure",
+                   "error": f"{pr['url']}\nExit code 1"}
+        self.taken_back(self.run_hook(payload, pr=pr), "good")
+
+    def test_a_create_that_fails_because_the_pull_request_exists_takes_nothing_back(self):
+        self.deferred()
+        pr = self.pr()
+        payload = {"tool_name": "Bash",
+                   "tool_input": {"command": "gh pr create -t x -r adam --draft"},
+                   "cwd": str(self.repo.path), "hook_event_name": "PostToolUseFailure",
+                   "error": 'a pull request for branch "spec" into branch "main" already '
+                            f'exists:\n{pr["url"]}\n'}
+        self.allowed(self.run_hook(payload, pr=pr))
+        self.assertEqual(self.undos(), [])
+
+    def test_a_failed_undo_says_what_to_run(self):
+        self.deferred()
+        pr = self.pr()
+        r = self.hook("gh pr create --title x", pr=pr, output=pr["url"],
+                      extra_env={"FAKE_UNDO_FAIL": "1"})
+        self.taken_back(r, f"gh pr ready {pr['url']} --undo")
+
+    def test_a_payload_with_output_and_no_event_name_is_after_the_call(self):
+        self.deferred()
+        pr = self.pr()
+        payload = {"tool_name": "Bash", "tool_input": {"command": "gh pr create -t x"},
+                   "cwd": str(self.repo.path), "tool_response": {"stdout": pr["url"]}}
+        self.taken_back(self.run_hook(payload, pr=pr), "good")
+
+    def test_a_github_mcp_call_is_judged_from_its_result(self):
+        self.deferred()
+        pr = self.pr()
+        payload = {"tool_name": "mcp__github__create_pull_request", "cwd": str(self.repo.path),
+                   "hook_event_name": "PostToolUse",
+                   "tool_input": {"owner": "o", "repo": "r", "head": "spec", "base": "main",
+                                  "title": "x", "body": "Alternative to o/r/pull/51"},
+                   "tool_response": [{"type": "text", "text": json.dumps(
+                       {"number": 7, "html_url": pr["url"],
+                        "body": "Alternative to https://github.com/o/r/pull/51"})}]}
+        self.taken_back(self.run_hook(payload, pr=pr), pr["url"])
+        self.assertEqual(self.undos(), [["pr", "ready", pr["url"], "--undo"]])
+        payload["tool_input"]["draft"] = True
+        self.log.unlink()
+        self.allowed(self.run_hook(payload, pr=pr))
+        update = {"tool_name": "mcp__github__update_pull_request", "cwd": str(self.repo.path),
+                  "hook_event_name": "PostToolUse", "tool_response": "ok",
+                  "tool_input": {"owner": "o", "repo": "r", "pullNumber": 7,
+                                 "reviewers": ["adam"]}}
+        self.taken_back(self.run_hook(update, pr=pr), "adam")
+
+    def test_cursor_is_told_through_additional_context(self):
+        self.deferred()
+        pr = self.pr()
+        r = self.hook("gh pr create --title x", pr=pr, output=pr["url"], host="cursor")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("took back", json.loads(r.stdout)["additional_context"])
+        payload = {"tool_name": "Shell", "tool_input": {"command": "git push && gh pr create"},
+                   "tool_output": json.dumps({"exitCode": 0, "stdout": pr["url"] + "\n"}),
+                   "cwd": str(self.repo.path), "hook_event_name": "postToolUse"}
+        r = self.run_hook(payload, host="cursor", pr=pr)
+        self.assertIn("took back", json.loads(r.stdout)["additional_context"])
+        self.read()
+        pr = self.pr()
+        r = self.hook("gh pr create -t x", pr=pr, output=pr["url"], host="cursor")
+        self.assertEqual((r.returncode, r.stdout), (0, ""), r.stderr)
+
+
+class CiTests(unittest.TestCase):
+    """The GitHub workflow's check (spec_check.py ci) and setup-ci."""
+
+    def setUp(self):
+        self.repo = Repo(self)
+        self.repo.git("checkout", "-q", "-b", "spec")
+        tmp = pathlib.Path(tempfile.mkdtemp(prefix="spec-check-ci-")).resolve()
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        self.tmp = tmp
+        self.gh = tmp / "gh"
+        self.gh.write_text(f"#!{sys.executable}\n" + FAKE_PR_GH)
+        self.gh.chmod(0o755)
+        self.log = tmp / "gh.log"
+
+    def deferred(self):
+        self.repo.change("good")
+        self.repo.git("add", "-A")
+        signed_commit(self, self.repo, read="deferred")
+
+    def ci(self, action, draft=False, **extra):
+        event = {"action": action, "pull_request": {
+            "html_url": "https://github.com/o/r/pull/7", "draft": draft,
+            "head": {"sha": self.repo.git("rev-parse", "HEAD")}, "base": {"ref": "main"}}}
+        event.update(extra)
+        path = self.tmp / "event.json"
+        path.write_text(json.dumps(event))
+        return self.repo.run("ci", "--event", str(path),
+                             env=dict(ENV, SPEC_CHECK_GH=str(self.gh), FAKE_PR_LOG=str(self.log)))
+
+    def calls(self):
+        return [json.loads(l) for l in self.log.read_text().splitlines()] \
+            if self.log.exists() else []
+
+    def test_a_hand_back_with_an_unread_change_fails_and_is_made_a_draft(self):
+        self.deferred()
+        for action in ("opened", "ready_for_review"):
+            r = self.ci(action)
+            self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+            self.assertIn("::error::spec-check: good", r.stdout)
+        self.assertEqual(self.calls(), [["pr", "ready", "https://github.com/o/r/pull/7",
+                                         "--undo"]] * 2)
+
+    def test_a_review_request_is_withdrawn(self):
+        self.deferred()
+        self.assertEqual(self.ci("review_requested", draft=True,
+                                 requested_reviewer={"login": "adam"}).returncode, 1)
+        self.assertEqual(self.ci("review_requested", requested_team={"slug": "core"},
+                                 repository={"owner": {"login": "o"}}).returncode, 1)
+        self.assertEqual(self.calls(), [
+            ["pr", "edit", "https://github.com/o/r/pull/7", "--remove-reviewer", "adam"],
+            ["pr", "ready", "https://github.com/o/r/pull/7", "--undo"],
+            ["pr", "edit", "https://github.com/o/r/pull/7", "--remove-reviewer", "o/core"]])
+
+    def test_a_push_only_fails_the_check(self):
+        self.deferred()
+        r = self.ci("synchronize")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertEqual(self.calls(), [])
+
+    def test_a_draft_or_a_read_change_passes(self):
+        self.deferred()
+        self.assertEqual(self.ci("opened", draft=True).returncode, 0)
+        self.assertEqual(self.ci("synchronize", draft=True).returncode, 0)
+        self.repo.write("openspec/changes/good/tasks.md", TASKS + "- [ ] 1.2 More\n")
+        self.repo.git("add", "-A")
+        signed_commit(self, self.repo)
+        r = self.ci("ready_for_review")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(self.calls(), [])
+
+    def test_a_failed_undo_still_fails_the_check(self):
+        self.deferred()
+        event = self.tmp / "event.json"
+        r = self.ci("ready_for_review")
+        self.assertEqual(r.returncode, 1)
+        env = dict(ENV, SPEC_CHECK_GH=str(self.gh), FAKE_UNDO_FAIL="1")
+        r = self.repo.run("ci", "--event", str(event), env=env)
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("::warning::", r.stdout)
+
+    def test_a_clone_without_the_base_cannot_run(self):
+        self.deferred()
+        self.repo.git("branch", "-m", "main", "trunk")
+        r = self.ci("opened")
+        self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+        self.assertIn("fetch-depth: 0", r.stderr)
+
+    def test_setup_ci_pins_a_commit_and_keeps_an_existing_workflow(self):
+        sha = "a" * 40
+        r = self.repo.run("setup-ci", "--sha", sha)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        text = (self.repo.path / ".github/workflows/spec-check.yml").read_text()
+        self.assertIn(f"SPEC_CHECK_SHA: {sha}", text)
+        self.assertNotIn("<SPEC_CHECK_SHA>", text)
+        self.assertIn("spec_check.py\" ci", text)
+        self.assertEqual(self.repo.run("setup-ci", "--sha", "b" * 40).returncode, 1)
+        self.assertEqual(self.repo.run("setup-ci", "--sha", "main", "--force").returncode, 1)
+        self.assertEqual(self.repo.run("setup-ci", "--sha", "b" * 40, "--force").returncode, 0)
+
+    def test_setup_ci_refuses_a_short_sha(self):
+        r = self.repo.run("setup-ci", "--sha", "abc1234")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertFalse((self.repo.path / ".github").exists())
+
+
+class FoundByBugHunterHandbackRun4Tests(HandbackAfterTests):
+    """Bug-hunter's first iteration over the one-gh-call hand-back hook."""
+
+    READY_8 = '✓ Pull request o/r#8 is marked as "ready for review"\n'
+
+    def test_gh_hidden_from_the_reader_is_not_taken_for_the_one_it_sees(self):
+        self.deferred()
+        seven, eight = self.pr(7), self.pr(8)
+        env = self.prs(seven, eight)
+        edit = "gh pr edit 7 --add-reviewer adam >/dev/null; "
+        for hidden in ("bash -o pipefail <<'EOF'\ngh pr ready 8\nEOF",
+                       "bash -s x <<'EOF'\ngh pr ready 8\nEOF",
+                       "env bash <<'EOF'\ngh pr ready 8\nEOF",
+                       "bash /dev/stdin <<'EOF'\ngh pr ready 8\nEOF",
+                       "bash -o pipefail <<< 'gh pr ready 8'",
+                       "c='gh pr ready 8'; eval \"$c\"",
+                       "G=gh; $G pr ready 8",
+                       "python3 - <<'EOF'\nimport subprocess\nEOF",
+                       "./make-pr.sh"):
+            with self.subTest(hidden=hidden):
+                self.allowed(self.hook(edit + hidden, output=self.READY_8, extra_env=env))
+        self.assertEqual(self.calls(), [])
+
+    def test_a_printed_pull_request_other_than_the_one_named_is_not_judged(self):
+        self.deferred()
+        seven, eight = self.pr(7), self.pr(8)
+        self.allowed(self.hook("gh pr edit 7 --add-reviewer adam", output=eight["url"],
+                               extra_env=self.prs(seven, eight)))
+        self.assertEqual(self.calls(), [])
+
+    def test_a_hand_back_with_words_only_the_shell_reads_is_judged(self):
+        self.deferred()
+        pr = self.pr()
+        for command in ("gh pr create --title x --body-file ~/pr.md",
+                        'gh pr create --title x --body "line one\\nline two"',
+                        "gh pr create --title café"):
+            with self.subTest(command=command):
+                self.taken_back(self.hook(command, pr=pr, output=pr["url"]), "good")
+
+
+class HandbackRun4MutationTests(HandbackAfterTests):
+    """What the one-gh-call hook's mutants showed no test checked."""
+
+    def mcp(self, tool, tool_input, response):
+        return {"tool_name": f"mcp__github__{tool}", "cwd": str(self.repo.path),
+                "hook_event_name": "PostToolUse", "tool_input": tool_input,
+                "tool_response": response}
+
+    def test_an_mcp_draft_that_requests_a_review_loses_the_request(self):
+        self.deferred()
+        pr = self.pr(draft=True)
+        self.taken_back(self.run_hook(self.mcp(
+            "create_pull_request", {"owner": "o", "repo": "r", "head": "spec", "base": "main",
+                                    "title": "x", "draft": True, "reviewers": ["adam"]},
+            json.dumps({"html_url": pr["url"]})), pr=pr), "adam")
+
+    def test_an_mcp_update_marking_ready_makes_a_draft_again(self):
+        self.deferred()
+        pr = self.pr()
+        self.taken_back(self.run_hook(self.mcp(
+            "update_pull_request", {"owner": "o", "repo": "r", "pullNumber": 7, "draft": False},
+            json.dumps({"html_url": pr["url"]})), pr=pr), "it is a draft again")
+
+    def test_a_result_with_an_html_url_and_an_api_url_is_one_pull_request(self):
+        self.deferred()
+        pr = self.pr()
+        self.taken_back(self.run_hook(self.mcp(
+            "create_pull_request", {"owner": "o", "repo": "r", "head": "spec", "base": "main",
+                                    "title": "x"},
+            json.dumps({"html_url": pr["url"],
+                        "url": "https://api.github.com/repos/o/r/pull/77"})), pr=pr), "good")
+
+    def test_gh_s_already_exists_message_without_a_colon_names_no_hand_back(self):
+        self.deferred()
+        pr = self.pr()
+        payload = {"tool_name": "Bash", "tool_input": {"command": "gh pr create -t x"},
+                   "cwd": str(self.repo.path), "hook_event_name": "PostToolUseFailure",
+                   "error": f'a pull request for branch "spec" already exists\n{pr["url"]}\n'}
+        self.allowed(self.run_hook(payload, pr=pr))
+
+
+class FoundByBugHunterHandbackRun4Iteration2Tests(FoundByBugHunterHandbackRun4Tests):
+    """Bug-hunter's second iteration over the one-gh-call hand-back hook."""
+
+    def test_a_hand_back_after_an_assignment_or_reserved_word_is_judged(self):
+        self.deferred()
+        pr = self.pr()
+        for command in ("GH_REPO=o/r gh pr create -t x", "time gh pr create -t x",
+                        "! gh pr create -t x"):
+            with self.subTest(command=command):
+                self.taken_back(self.hook(command, pr=pr, output=pr["url"]), "good")
+
+    def test_a_shell_s_name_as_an_ordinary_argument_hides_nothing(self):
+        self.deferred()
+        pr = self.pr()
+        for command in ("git add . && git commit -qm x && git push && gh pr create -t x",
+                        "gh pr create -t x -r node", "gh pr create -t x -H source"):
+            with self.subTest(command=command):
+                self.taken_back(self.hook(command, pr=pr, output=pr["url"]), "good")
+
+    def test_words_the_shell_expands_are_not_read_as_written(self):
+        self.deferred()
+        pr = self.pr()
+        for command in ("gh pr edit 7 --add-reviewer={adam,bob}",
+                        "gh pr edit 7 --add-reviewer adam,bo?"):
+            with self.subTest(command=command):
+                self.allowed(self.hook(command, pr=pr, output=pr["url"]))
+        self.assertEqual(self.undos(), [])
+
+    def test_gh_spelled_with_quotes_inside_another_program_is_hidden(self):
+        self.deferred()
+        seven, eight = self.pr(7), self.pr(8)
+        env = self.prs(seven, eight)
+        for hidden in ("timeout 60 g\\h pr ready 8", "timeout 60 g''h pr ready 8",
+                       "echo 'pr ready 8' | xargs g\\h", "=bash <<'EOF'\ngh pr ready 8\nEOF",
+                       "python3.12 - <<'EOF'\nimport os\nEOF"):
+            with self.subTest(hidden=hidden):
+                self.allowed(self.hook("gh pr create -t x >/dev/null; " + hidden,
+                                       output=self.READY_8, extra_env=env))
+        self.assertEqual(self.calls(), [])
+
+    def test_a_number_or_url_gh_reads_as_the_same_pull_request_matches(self):
+        self.deferred()
+        pr = self.pr()
+        self.taken_back(self.hook("gh pr ready 007", output=self.READY_7,
+                                  extra_env=self.prs(pr)), "good")
+        self.blocked(self.hook(f"gh pr ready {pr['url']}/files",
+                               extra_env={"FAKE_PRS": json.dumps({pr["url"] + "/files": pr})}),
+                     "good")
+
+
+class FoundByBugHunterHandbackRun4Iteration3Tests(FoundByBugHunterHandbackRun4Tests):
+    """Bug-hunter's third iteration over the one-gh-call hand-back hook."""
+
+    def test_quoted_text_that_looks_like_a_glob_does_not_stop_the_judgement(self):
+        self.deferred()
+        pr = self.pr()
+        for command in ('gh pr create -t x --body "## Summary\\n- a\\n\\n## Test plan\\n- [ ] run"',
+                        'gh pr create -t "x [WIP]" -b y -F ~/b.md',
+                        'gh pr create -t "retries = 3?" --body "a\\nb"'):
+            with self.subTest(command=command):
+                self.taken_back(self.hook(command, pr=pr, output=pr["url"]), "good")
+
+    def test_a_file_sourced_through_builtin_or_command_is_hidden(self):
+        self.deferred()
+        seven, eight = self.pr(7), self.pr(8)
+        for hidden in ("builtin source ./x.sh", "command . ./x.sh", "exec . ./x.sh",
+                       ". x.sh", "source x.sh", "my-gh foo"):
+            with self.subTest(hidden=hidden):
+                self.allowed(self.hook("gh pr create -t x >/dev/null; " + hidden,
+                                       output=self.READY_8, extra_env=self.prs(seven, eight)))
+        self.assertEqual(self.calls(), [])
+
+    def test_a_selector_of_digits_outside_ascii_does_not_crash(self):
+        self.deferred()
+        pr = self.pr()
+        r = self.hook("gh pr ready ²", output=self.READY_7, extra_env=self.prs(pr))
+        self.assertIn(r.returncode, (0, 2), r.stderr)
+        self.assertNotIn("Traceback", r.stderr)
+
+
+class FoundByBugHunterHandbackRun5Tests(FoundByBugHunterHandbackRun4Tests):
+    """Bug-hunter's fifth run, over plain_words' shlex fallback and the check
+    for a command that sources a file."""
+
+    def test_a_file_sourced_after_a_prefix_s_option_or_by_trap_is_not_judged(self):
+        self.deferred()
+        seven, eight = self.pr(7), self.pr(8)
+        for hidden in ("command -p . ./x.sh", "builtin -- . ./x.sh", "time -p . ./x.sh",
+                       "command -- . ./x.sh", "- . ./x.sh", "exec -a x . ./x.sh",
+                       "trap '. ./x.sh' EXIT"):
+            with self.subTest(hidden=hidden):
+                self.noted(self.hook("gh pr edit --add-reviewer adam >/dev/null; " + hidden,
+                                       output=self.READY_8, extra_env=self.prs(seven, eight)), "because")
+        self.assertEqual(self.calls(), [])
+
+    def test_a_carriage_return_is_part_of_a_word(self):
+        self.deferred()
+        pr = self.pr()
+        self.allowed(self.hook("gh pr edit 7 --title x\r--add-reviewer\radam", pr=pr,
+                               output=pr["url"]))
+        self.assertEqual(self.undos(), [])
+
+    def test_the_fallback_refuses_what_the_shell_reads_otherwise(self):
+        sys.path.insert(0, str(HERE))
+        import handback
+        for source in ('gh pr ready "fix\\$x"', 'gh pr ready "fix\\`x"',
+                       'gh pr ready 7 -R "o/r\\$"', "gh pr edit 7 --add-reviewer ~adam",
+                       "gh pr ready ~+", "gh pr ready ~", "gh pr create -t x -b y\r--draft"):
+            with self.subTest(source=source):
+                self.assertIsNone(handback.plain_words(source))
+        self.assertEqual(handback.plain_words("gh pr create -F ~/b.md")[-1][0], "~/b.md")
+
+
+class FoundByBugHunterHandbackRun5Iteration2Tests(FoundByBugHunterHandbackRun4Tests):
+    """Bug-hunter's fifth run, second iteration."""
+
+    def test_space_shlex_keeps_in_a_word_does_not_stop_the_fallback(self):
+        sys.path.insert(0, str(HERE))
+        import handback
+        for space in (" ", "\f", "\v", " ", " "):
+            with self.subTest(space=repr(space)):
+                words = handback.plain_words(f'gh pr edit 5 --body "say \\"hi\\"{space}there"')
+                self.assertEqual(words[-1][0], f'say "hi"{space}there')
+        self.assertEqual(handback.plain_words('gh pr edit 5 --body "a\rb\\"c"')[-1][0], 'a\rb"c')
+
+    def test_a_prefix_spelled_with_zsh_s_equals_is_not_judged(self):
+        self.deferred()
+        seven, eight = self.pr(7), self.pr(8)
+        for hidden in ("=command . ./x.sh", "=builtin source ./x.sh"):
+            with self.subTest(hidden=hidden):
+                self.noted(self.hook("gh pr edit --add-reviewer adam >/dev/null; " + hidden,
+                                       output=self.READY_8, extra_env=self.prs(seven, eight)), "because")
+        self.assertEqual(self.calls(), [])
+
+    def test_a_shell_named_inside_a_word_env_splits_is_not_judged(self):
+        self.deferred()
+        seven, eight = self.pr(7), self.pr(8)
+        self.noted(self.hook('gh pr edit --add-reviewer adam >/dev/null; env -S "bash ./x.sh"',
+                               output=self.READY_8, extra_env=self.prs(seven, eight)), "because")
+        self.assertEqual(self.calls(), [])
+
+    def test_a_tilde_after_an_equals_sign_is_refused(self):
+        sys.path.insert(0, str(HERE))
+        import handback
+        self.assertIsNone(handback.plain_words('gh pr edit 5 x=~root --body "a\\"b"'))
+
+
+class FoundByBugHunterHandbackRun5Iteration3Tests(FoundByBugHunterHandbackRun4Tests):
+    """Bug-hunter's fifth run, third iteration."""
+
+    def test_env_splitting_a_string_or_running_a_variable_is_not_judged(self):
+        self.deferred()
+        seven, eight = self.pr(7), self.pr(8)
+        for hidden in ("env -S'bash ./x.sh'", 'env -S"bash ./x.sh"', "env -iS'bash ./x.sh'",
+                       "env -S'bash\\_./x.sh'", "env --split-string='bash ./x.sh'",
+                       'env "$X"', 'env -S"$X"'):
+            with self.subTest(hidden=hidden):
+                self.noted(self.hook("gh pr edit --add-reviewer adam >/dev/null; " + hidden,
+                                       output=self.READY_8, extra_env=self.prs(seven, eight)), "because")
+        self.assertEqual(self.calls(), [])
+
+    def test_a_tilde_after_a_colon_is_refused(self):
+        sys.path.insert(0, str(HERE))
+        import handback
+        self.assertIsNone(handback.plain_words('gh pr edit 5 --title "é" --add-reviewer x=a:~root'))
+
+
+
+
+class HandbackAllowlistTests(HandbackBase):
+    """After the call, only the forms on the allowlist are judged; a hand-back
+    in any other form is given a note and left to the workflow."""
+
+    def test_a_hand_back_beside_only_listed_programs_is_judged(self):
+        self.deferred()
+        pr = self.pr()
+        for command in ("git push && gh pr create -t x", "cd repo && gh pr ready {n}",
+                        "git push; sleep 1; gh pr ready {n} && echo done",
+                        "printf x; true && gh pr ready {n}",
+                        "cd ~/repo && gh pr ready {n}"):
+            command = command.format(n=pr["number"])
+            with self.subTest(command=command):
+                self.taken_back(self.hook(command, pr=pr, output=pr["url"]), "good")
+
+    def test_a_program_not_listed_is_named_in_the_note(self):
+        self.deferred()
+        pr = self.pr()
+        for command, program in (("timeout 60 gh pr ready 7", "timeout"),
+                                 ("gh pr create -t x | tee log", "tee"),
+                                 ("gh pr create -t x; false", "false"),
+                                 ("if gh pr create -t x; then echo ok; fi", "fi"),
+                                                                  ("bash -c 'gh pr create -t x'", "bash"),
+                                 ("npm test && gh pr create -t x", "npm")):
+            with self.subTest(command=command):
+                self.noted(self.hook(command, pr=pr, output=pr["url"]),
+                           f"`{program}` is not one of the programs listed")
+
+    def test_an_expanding_word_is_quoted_in_the_note(self):
+        self.deferred()
+        pr = self.pr()
+        for command, word in (("gh pr create -t \"$TITLE\"", '"$TITLE"'),
+                              ("gh pr edit 7 --add-reviewer={adam,bob}",
+                               "--add-reviewer={adam,bob}"),
+                              ("gh pr create -t *.md", "*.md")):
+            with self.subTest(command=command):
+                self.noted(self.hook(command, pr=pr, output=pr["url"]),
+                           f"the word `{word}` expands")
+
+    def test_a_brace_group_is_not_judged(self):
+        self.deferred()
+        pr = self.pr()
+        self.noted(self.hook("{ gh pr create -t x; }", pr=pr, output=pr["url"]),
+                   "the word `}` expands")
+
+    def test_an_assignment_or_a_second_gh_call_is_named_in_the_note(self):
+        self.deferred()
+        pr = self.pr()
+        for command, reason in (("FOO=1 git push && gh pr create -t x",
+                                 "`FOO=1` assigns a variable"),
+                                ("gh pr checks 7 && gh pr ready 7",
+                                 "the command runs 2 gh calls")):
+            with self.subTest(command=command):
+                self.noted(self.hook(command, pr=pr, output=pr["url"]), reason)
+
+    def test_a_command_the_reader_cannot_read_still_gets_the_note(self):
+        self.deferred()
+        pr = self.pr()
+        self.noted(self.hook("echo $(gh pr create -t x)", pr=pr, output=pr["url"]),
+                   "expands")
+
+    def test_cursor_gets_the_note_as_additional_context(self):
+        self.deferred()
+        pr = self.pr()
+        self.noted(self.hook("timeout 60 gh pr ready 7", pr=pr, output=pr["url"],
+                             host="cursor"), "`timeout`", host="cursor")
+
+    def test_the_note_names_the_event_it_answers(self):
+        self.deferred()
+        pr = self.pr()
+        payload = {"tool_name": "Bash", "tool_input": {"command": "timeout 9 gh pr ready 7"},
+                   "cwd": str(self.repo.path), "hook_event_name": "PostToolUseFailure",
+                   "error": "Exit code 1"}
+        out = self.noted(self.run_hook(payload, pr=pr), "`timeout`")
+        self.assertEqual(out["hookSpecificOutput"]["hookEventName"], "PostToolUseFailure")
+
+    def test_no_note_without_a_hand_back(self):
+        self.deferred()
+        pr = self.pr()
+        for command in ("timeout 60 gh pr view 7", "npm test | tee log",
+                        "FOO=1 make $TARGET", "gh pr checks 7 && gh pr view 7",
+                        "gh pr create -t x --draft | tee log",
+                        "git commit -m 'gh pr create later' && npm test",
+                        "echo $(gh pr view 7)"):
+            with self.subTest(command=command):
+                r = self.hook(command, pr=pr, output=pr["url"])
+                self.allowed(r)
+                self.assertEqual(r.stdout, "")
+
+    def test_no_note_before_the_call(self):
+        self.deferred()
+        pr = self.pr()
+        r = self.hook("timeout 60 gh pr ready 7", pr=pr)
+        self.allowed(r)
+        self.assertEqual(r.stdout, "")
+
+
+
+class FoundByBugHunterHandbackRun6Tests(HandbackBase):
+    """Bug-hunter's sixth run, over the post-call allowlist and its note."""
+
+    READY = '\u2713 Pull request o/r#{n} is marked as "ready for review"\n'
+
+    def other(self, pr):
+        """The same pull request number in a second repository."""
+        other = self.tmp / "other"
+        subprocess.run(["git", "init", "-q", "--bare", str(other)], check=True, env=ENV)
+        self.repo.git("push", "-q", str(other), "main", "spec:spec",
+                      f"spec:refs/pull/{pr['number']}/head")
+        return dict(pr, url=f"{other}/pull/{pr['number']}")
+
+    def env(self, *prs):
+        found = {}
+        for pr in prs:
+            found.setdefault(str(pr["number"]), pr)
+            found[pr["url"]] = pr
+        return {"FAKE_PRS": json.dumps(found)}
+
+    def test_another_repository_s_pull_request_with_the_same_number_is_not_taken_back(self):
+        self.deferred()
+        seven = self.pr(7)
+        other = self.other(seven)
+        r = self.hook(f"echo {other['url']}; gh pr ready 7 -R o/r",
+                      output=other["url"] + "\n" + self.READY.format(n=7),
+                      extra_env=self.env(seven, other))
+        self.assertNotIn(other["url"], json.dumps(self.undos()))
+        self.assertNotEqual(r.returncode, 2, r.stderr)
+
+    def test_a_url_echo_prints_is_not_taken_for_the_hand_back_s(self):
+        self.deferred()
+        seven = self.pr(7)
+        other = self.other(seven)
+        payload = {"tool_name": "Bash",
+                   "tool_input": {"command": f"echo {other['url']} && git push; gh pr create -t x"},
+                   "cwd": str(self.repo.path), "hook_event_name": "PostToolUseFailure",
+                   "error": other["url"] + "\nmust first push the current branch\n"}
+        r = self.run_hook(payload, extra_env=self.env(seven, other))
+        self.assertEqual(self.undos(), [])
+        self.assertNotEqual(r.returncode, 2, r.stderr)
+
+    def test_an_indented_url_or_state_line_is_not_gh_s(self):
+        self.deferred()
+        seven = self.pr(7)
+        other = self.other(seven)
+        for printed in ("    " + other["url"] + "\n",
+                        "    fix: " + self.READY.format(n=7)):
+            with self.subTest(printed=printed):
+                r = self.hook("git log -1 && gh pr create -t x", output=printed,
+                              extra_env=self.env(seven, other))
+                self.assertEqual(self.undos(), [])
+                self.assertNotEqual(r.returncode, 2, r.stderr)
+
+    def test_printf_assigning_a_variable_is_not_judged(self):
+        self.deferred()
+        seven = self.pr(7)
+        r = self.hook("printf -v 'a[$(gh pr ready 9 >&2)]' x; gh pr create -t x",
+                      output=seven["url"] + "\n", extra_env=self.env(seven))
+        self.assertEqual(self.undos(), [])
+        self.assertIn("printf -v", r.stdout)
+
+    def test_gh_run_by_its_path_gets_the_note(self):
+        self.deferred()
+        seven = self.pr(7)
+        r = self.hook("/opt/homebrew/bin/gh pr ready 7", output=self.READY.format(n=7),
+                      extra_env=self.env(seven))
+        self.assertEqual(self.undos(), [])
+        self.assertIn("did not check this hand-back", r.stdout)
+        self.assertIn("/opt/homebrew/bin/gh", r.stdout)
+
+    def test_a_count_flag_is_not_a_shell_command(self):
+        self.deferred()
+        seven = self.pr(7)
+        for command in ("grep -c 'gh pr ready 7' notes.txt", "rg -c 'gh pr create' ."):
+            with self.subTest(command=command):
+                r = self.hook(command, output="3\n", extra_env=self.env(seven))
+                self.assertEqual(r.stdout, "")
+        r = self.hook("bash -c 'gh pr create -t x'", output=seven["url"] + "\n",
+                      extra_env=self.env(seven))
+        self.assertIn("did not check this hand-back", r.stdout)
+
+    def test_a_single_quoted_dollar_is_not_named_as_expanding(self):
+        self.deferred()
+        seven = self.pr(7)
+        r = self.hook("echo 'a $b' <(true); gh pr create -t x", output=seven["url"] + "\n",
+                      extra_env=self.env(seven))
+        self.assertNotIn("`a $b` expands", r.stdout)
+
+
+
+class FoundByBugHunterHandbackRun6Iteration2Tests(FoundByBugHunterHandbackRun6Tests):
+    """Bug-hunter's sixth run, second iteration."""
+
+    def test_an_echo_naming_no_pull_request_beside_the_hand_back_is_judged(self):
+        self.deferred()
+        seven = self.pr(7)
+        for command, printed in (
+                ("gh pr edit 7 --add-reviewer adam && echo 'Pull request created'",
+                 seven["url"] + "\nPull request created\n"),
+                ("gh pr ready 7 && echo 'Pull request is ready for review'",
+                 self.READY.format(n=7) + "Pull request is ready for review\n")):
+            with self.subTest(command=command):
+                self.taken_back(self.hook(command, output=printed, extra_env=self.env(seven)),
+                                "good")
+
+    def test_an_unquoted_state_line_echo_prints_is_not_judged(self):
+        self.deferred()
+        seven = self.pr(7)
+        r = self.hook("echo Pull request o/r#7 is ready; gh pr create -t x",
+                      output="Pull request o/r#7 is ready\n", extra_env=self.env(seven))
+        self.assertEqual(self.undos(), [])
+        self.assertIn("did not check this hand-back", r.stdout)
+
+    def test_a_command_shlex_cannot_split_still_gets_the_note(self):
+        self.deferred()
+        seven = self.pr(7)
+        r = self.hook("gh pr ready 7 && echo 'oops", output=self.READY.format(n=7),
+                      extra_env=self.env(seven))
+        self.assertEqual(self.undos(), [])
+        self.assertIn("did not check this hand-back", r.stdout)
+
+    def test_gh_s_coloured_ready_line_is_read(self):
+        self.deferred()
+        seven = self.pr(7)
+        for line in ('\x1b[0;32m\u2713\x1b[0m Pull request o/r#7 is marked as "ready for review"\n',
+                     '\x1b[0;33m!\x1b[0m Pull request o/r#7 is already "ready for review"\n'):
+            with self.subTest(line=line):
+                self.taken_back(self.hook("gh pr ready 7", output=line,
+                                          extra_env=self.env(seven)), "good")
+
+    def test_the_existing_pull_request_in_crlf_output_is_not_taken_back(self):
+        self.deferred()
+        seven = self.pr(7)
+        payload = {"tool_name": "Bash", "tool_input": {"command": "gh pr create -t x"},
+                   "cwd": str(self.repo.path), "hook_event_name": "PostToolUseFailure",
+                   "error": 'a pull request for branch "spec" into branch "main" already '
+                            f'exists:\r\n{seven["url"]}\r\n'}
+        self.allowed(self.run_hook(payload, extra_env=self.env(seven)))
+        self.assertEqual(self.undos(), [])
+
+
+
+class HandbackUnnamedTests(FoundByBugHunterHandbackRun6Tests):
+    """Beside a hand-back that names no pull request, only git push, git add,
+    git commit, cd, true and sleep may stand."""
+
+    def test_an_unnamed_hand_back_beside_the_narrow_list_is_judged(self):
+        self.deferred()
+        seven = self.pr(7)
+        for command in ("git push && gh pr create -t x",
+                        "git add -A && git commit -qm x && git push -u origin spec && "
+                        "gh pr create -t x",
+                        "cd repo && sleep 1 && true && gh pr create -t x",
+                        "git push && gh pr ready",
+                        "git push && gh pr edit --add-reviewer adam"):
+            with self.subTest(command=command):
+                self.taken_back(self.hook(command, output=seven["url"] + "\n",
+                                          extra_env=self.env(seven)), "good")
+
+    def test_an_unnamed_hand_back_beside_anything_else_gets_the_narrow_note(self):
+        self.deferred()
+        seven = self.pr(7)
+        for command, beside in (("echo 'Opening' && gh pr create -t x", "echo 'Opening'"),
+                                ("printf x && gh pr create -t x", "printf x"),
+                                ("git show -s --format=%b && gh pr create -t x",
+                                 "git show -s --format=%b"),
+                                ("git -c alias.x=y x && gh pr create -t x",
+                                 "git -c alias.x=y x"),
+                                ("git rebase -x true HEAD~1; gh pr ready spec",
+                                 "git rebase -x true HEAD~1"),
+                                ("git && gh pr create -t x", "git")):
+            with self.subTest(command=command):
+                r = self.hook(command, output=seven["url"] + "\n", extra_env=self.env(seven))
+                self.noted(r, f"`{beside}` stands beside a hand-back that names no pull request")
+                self.assertIn("only git push, git add, git commit, cd, true or sleep", r.stdout)
+
+    def test_a_hand_back_naming_its_number_or_url_keeps_the_wide_list(self):
+        self.deferred()
+        seven = self.pr(7)
+        for command in ("echo 'Opening' && gh pr ready 7",
+                        "git log -1 && gh pr edit 7 --add-reviewer adam",
+                        f"printf x && gh pr ready {seven['url']}"):
+            with self.subTest(command=command):
+                self.taken_back(self.hook(command, output=self.READY.format(n=7),
+                                          extra_env=self.env(seven)), "good")
+
+    def test_a_wide_list_break_gets_the_wide_note(self):
+        self.deferred()
+        seven = self.pr(7)
+        r = self.hook("npm test && gh pr create -t x", output=seven["url"] + "\n",
+                      extra_env=self.env(seven))
+        self.noted(r, "`npm` is not one of the programs listed")
+        self.assertNotIn("only git push, git add", r.stdout)
+
+
+
+class FoundByBugHunterHandbackRun7Tests(FoundByBugHunterHandbackRun6Tests):
+    """Bug-hunter's seventh run, over the narrower list beside an unnamed
+    hand-back."""
+
+    def test_a_git_option_that_prints_a_diff_or_runs_a_command_is_off_the_narrow_list(self):
+        self.deferred()
+        seven = self.pr(7)
+        for command in ("git add -p; gh pr edit feature --add-reviewer bob",
+                        "git commit --dry-run -v; gh pr ready feature",
+                        "git commit -v -m x && gh pr create -t x -r bob",
+                        "git push --receive-pack=x ../b.git HEAD:x; gh pr ready",
+                        "git push --exec=x origin; gh pr ready"):
+            with self.subTest(command=command):
+                r = self.hook(command, output="+Pull request o/r#7 is ready\n",
+                              extra_env=self.env(seven))
+                self.assertEqual(self.undos(), [])
+                self.assertIn("names no pull request", r.stdout)
+
+    def test_a_value_in_a_short_cluster_is_read_as_git_reads_it(self):
+        sys.path.insert(0, str(HERE))
+        import handback
+        self.assertTrue(handback.on_unnamed_list(["git", "commit", "-am", "--bogus"]))
+        self.assertFalse(handback.on_unnamed_list(["git", "commit", "-mx", "--bogus"]))
+
+    def test_commit_takes_no_bare_double_dash_beside_an_unnamed_hand_back(self):
+        sys.path.insert(0, str(HERE))
+        import handback
+        self.assertFalse(handback.on_unnamed_list(["git", "commit", "--", "path"]))
+        self.assertTrue(handback.on_unnamed_list(["git", "add", "--", "path"]))
+
+    def test_plain_git_options_beside_an_unnamed_hand_back_are_judged(self):
+        self.deferred()
+        seven = self.pr(7)
+        for command in ("git add -A && git commit -qm 'fix: x' && git push -u origin spec && "
+                        "gh pr create -t x",
+                        "git add . && git commit -am x -s && git push --force-with-lease && "
+                        "gh pr ready",
+                        "git commit --amend --no-edit && git push -f origin spec && "
+                        "gh pr create -t x",
+                        "git commit -m '-x' -F msg.txt && git push && gh pr create -t x"):
+            with self.subTest(command=command):
+                self.taken_back(self.hook(command, output=seven["url"] + "\n",
+                                          extra_env=self.env(seven)), "good")
+
+
+class PassDueTests(unittest.TestCase):
+    """The commit hook prints `current-state pass due for: ...` for a commit
+    that adds a src/ file on a branch with an open change (gate two), and for
+    one that archives a change (SKILL.md, *Current-state passes*)."""
+
+    def setUp(self):
+        self.repo = Repo(self)
+        self.hook()  # settles the cursor past the base commit
+
+    def hook(self):
+        return subprocess.run(["sh", str(HOOK), "--host", "claude"],
+                              input=json.dumps({"cwd": str(self.repo.path)}),
+                              capture_output=True, text=True, cwd=self.repo.path, env=ENV)
+
+    def commit(self, message, *paths):
+        for rel in paths:
+            self.repo.write(rel, "x\n")
+        self.repo.git("add", "-A")
+        self.repo.git("commit", "-q", "-m", message, "--trailer", "Spec-check: skipped (test)")
+
+    def spec_branch(self):
+        self.repo.git("checkout", "-q", "-b", "spec")
+        self.repo.change("good")
+        self.repo.write("openspec/changes/good/design.md", "## Decisions\n\nNone.\n")
+        self.commit("Add the spec")
+        self.hook()
+
+    def pass_due(self, sha="HEAD"):
+        return self.repo.run("pass-due", sha, "--base", "main")
+
+    def test_new_src_files_on_a_spec_branch_start_a_pass(self):
+        self.spec_branch()
+        self.commit("Build it", "src/store.py", "packages/web/src/view.ts")
+        r = self.hook()
+        self.assertEqual(r.returncode, 2, r.stderr)
+        self.assertIn("current-state pass due for: openspec/changes/good/proposal.md, "
+                      "openspec/changes/good/design.md, and the pull request's body and title. "
+                      "The implementation is on the branch of the open change good "
+                      "(packages/web/src/view.ts, src/store.py added)", r.stderr)
+        self.assertNotIn("without a Spec-check: trailer", r.stderr)
+
+    def test_an_edited_src_file_or_a_branch_without_its_own_change_starts_none(self):
+        self.spec_branch()
+        self.repo.write("src/app.py", "changed\n")
+        self.commit("Edit only")
+        self.assertEqual(self.pass_due().stdout, "")
+        # A change already on main is not this branch's.
+        self.repo.git("checkout", "-q", "main")
+        self.repo.git("merge", "-q", "--ff-only", "spec")
+        self.repo.git("checkout", "-q", "-b", "impl")
+        self.commit("Build elsewhere", "src/new.py")
+        self.assertEqual(self.pass_due().stdout, "")
+        # On main itself, every open change counts, as spec_check.py sign
+        # counts them.
+        self.repo.git("checkout", "-q", "main")
+        self.commit("Build on main", "src/main.py")
+        self.assertIn("open change good", self.pass_due().stdout)
+
+    def test_no_open_change_means_no_pass(self):
+        self.repo.git("checkout", "-q", "-b", "code")
+        self.commit("Build", "src/new.py")
+        self.assertEqual(self.pass_due().stdout, "")
+        self.assertEqual(self.hook().returncode, 0)
+
+    def test_an_archive_commit_starts_the_decision_record_pass(self):
+        self.spec_branch()
+        (self.repo.path / "openspec/changes/archive").mkdir()
+        self.repo.git("mv", "openspec/changes/good", "openspec/changes/archive/2026-11-06-good")
+        self.repo.git("commit", "-q", "-m", "Archive good", "--trailer",
+                      "Spec-check: skipped (test)")
+        r = self.hook()
+        self.assertEqual(r.returncode, 2, r.stderr)
+        self.assertIn("current-state pass due for: the decision record of each capability the "
+                      "change good changes (cap). It is archived as "
+                      "openspec/changes/archive/2026-11-06-good: move anything still in its "
+                      "design.md that should have been in a decision record out of design.md into "
+                      "those records, "
+                      "editing each main record directly at the location decision records are "
+                      "configured to, under the same rules as any record edit: a Rationale entry "
+                      "for reasoning about one requirement, with its Evidence, a Constraint entry for "
+                      "a rule the "
+                      "code must keep that no test can check, with its Evidence (a principle "
+                      "with none goes into the Rationale, beside that entry's Evidence, of each "
+                      "requirement that guards against what it rules out, or is left out), a "
+                      "Rejected entry for an alternative turned down that "
+                      "no requirement guards against, with its evidence (including the fix not "
+                      "taken behind an accepted limit or trade-off); leave the rest, and anything "
+                      "without Evidence or too slight to decide anything with, in the archived "
+                      "design.md (spec-check's SKILL.md, Decision "
+                      "records). Then "
+                      "run prose check on each file changed and compact any it reports as due.",
+                      r.stderr)
+
+    def test_an_amended_commit_says_its_pass_once(self):
+        self.spec_branch()
+        self.commit("Build it", "src/store.py")
+        self.repo.git("commit", "-q", "--amend", "-m", "Build it again", "--trailer",
+                      "Spec-check: skipped (test)")
+        r = self.hook()
+        self.assertEqual(r.stderr.count("current-state pass due for:"), 1, r.stderr)
+
+    def test_a_commit_then_a_checkout_of_main_judges_the_commits_branch(self):
+        # Found by bug-hunter: with HEAD back on main, every open change on
+        # main counted as the branch's own.
+        self.repo.change("other")
+        self.commit("An open change on main")
+        self.hook()
+        self.repo.git("checkout", "-q", "-b", "feature")
+        self.commit("Build", "src/a.py")
+        self.repo.git("checkout", "-q", "main")
+        r = self.hook()
+        self.assertNotIn("current-state pass due for:", r.stderr)
+
+    def test_amending_the_pass_into_the_commit_asks_for_it_no_more(self):
+        # Found by bug-hunter: the amend still adds src/ against its parent,
+        # so the pass just done was asked for again.
+        self.spec_branch()
+        self.commit("Build it", "src/store.py")
+        self.assertIn("current-state pass due for:", self.hook().stderr)
+        self.repo.write("openspec/changes/good/proposal.md", "## Why\n\nBuilt.\n")
+        self.repo.git("add", "-A")
+        self.repo.git("commit", "-q", "--amend", "--no-edit")
+        self.assertNotIn("current-state pass due for:", self.hook().stderr)
+        # An amend that adds another src/ file builds more: asked again.
+        self.repo.write("src/more.py", "x\n")
+        self.repo.git("add", "-A")
+        self.repo.git("commit", "-q", "--amend", "--no-edit")
+        self.assertIn("(src/more.py, src/store.py added)", self.hook().stderr)
+
+    def test_a_change_with_no_specs_folder_is_archived_too(self):
+        self.repo.git("checkout", "-q", "-b", "spec")
+        self.commit("A proposal-only change", "openspec/changes/lone/proposal.md",
+                    "openspec/changes/lone/tasks.md")
+        (self.repo.path / "openspec/changes/archive").mkdir()
+        self.repo.git("mv", "openspec/changes/lone", "openspec/changes/archive/2026-11-06-lone")
+        self.commit("Archive lone")
+        self.assertIn("the change lone changes. It is archived", self.pass_due().stdout)
+
+    def test_an_archive_names_each_capability_of_its_own_change_only(self):
+        self.repo.git("checkout", "-q", "-b", "spec")
+        self.commit("Two changes", "openspec/changes/wide/specs/beta/spec.md",
+                    "openspec/changes/wide/specs/alpha/spec.md", "openspec/changes/wide/specs/notes.md",
+                    "openspec/changes/other/specs/gamma/spec.md")
+        (self.repo.path / "openspec/changes/archive").mkdir()
+        self.repo.git("mv", "openspec/changes/wide", "openspec/changes/archive/2026-11-06-wide")
+        self.repo.git("mv", "openspec/changes/other", "openspec/changes/archive/2026-11-06-other")
+        self.commit("Archive both")
+        out = self.pass_due().stdout
+        self.assertIn("the change wide changes (alpha, beta). It is archived", out)
+        self.assertIn("the change other changes (gamma). It is archived", out)
+
+    def test_found_by_bug_hunter_an_archive_names_a_nested_capability_whole(self):
+        # Found by bug-hunter: only the first path segment was named.
+        self.repo.git("checkout", "-q", "-b", "spec")
+        self.commit("Nested", "openspec/changes/x/specs/area/cap/spec.md",
+                    "openspec/changes/x/specs/flat/spec.md", "openspec/changes/x/specs/README.md",
+                    "openspec/changes/x/specs/spec.md")
+        (self.repo.path / "openspec/changes/archive").mkdir()
+        self.repo.git("mv", "openspec/changes/x", "openspec/changes/archive/2026-11-08-x")
+        self.commit("Archive x")
+        self.assertIn("the change x changes (area/cap, flat). It is archived", self.pass_due().stdout)
+
+    def test_a_deep_src_path_is_not_read_as_an_archive(self):
+        self.spec_branch()
+        self.commit("Build deep", "packages/web/src/ui/view.ts")
+        out = self.pass_due().stdout
+        self.assertIn("(packages/web/src/ui/view.ts added)", out)
+        self.assertNotIn("is archived as", out)
+
+    def test_more_than_three_src_files_are_counted_not_listed(self):
+        self.spec_branch()
+        self.commit("Build three", "src/a.py", "src/b.py", "src/c.py")
+        self.assertIn("(src/a.py, src/b.py, src/c.py added)", self.pass_due().stdout)
+        self.commit("Build four", "src/d.py", "src/e.py", "src/f.py", "src/g.py")
+        self.assertIn("(src/d.py, src/e.py, src/f.py and 1 more added)", self.pass_due().stdout)
+
+    def test_amending_the_decision_record_fold_into_an_archive_asks_no_more(self):
+        # Found by bug-hunter: the amend still adds the archive folder.
+        self.spec_branch()
+        (self.repo.path / "openspec/changes/archive").mkdir()
+        self.repo.git("mv", "openspec/changes/good", "openspec/changes/archive/2026-11-06-good")
+        self.commit("Archive good")
+        self.assertIn("the change good changes (cap). It is archived", self.hook().stderr)
+        self.repo.write("openspec/specs/cap/decisions.md", "# cap: constraints, rejected alternatives and rationale\n\n"
+                        "## Rejected\n\n- **Rejected: A nightly batch.**\n  Facing: records pile up.\n"
+                        "  Lost because: it misses the audit window, #12\n  Instead: expire on read.\n"
+                        "  Paths: openspec/specs/cap/\n")
+        self.repo.git("add", "-A")
+        self.repo.git("commit", "-q", "--amend", "--no-edit")
+        self.assertNotIn("current-state pass due for:", self.hook().stderr)
+
+    def test_a_commit_pushed_to_main_from_another_branch_counts_as_main(self):
+        # Found by bug-hunter: the push moved origin/main to the commit
+        # while local main lagged, so the commit looked like nobody's.
+        self.repo.change("good")
+        self.commit("An open change on main")
+        remote = pathlib.Path(tempfile.mkdtemp(prefix="spec-check-remote-")).resolve()
+        self.addCleanup(shutil.rmtree, remote, ignore_errors=True)
+        self.repo.git("init", "-q", "--bare", str(remote))
+        self.repo.git("remote", "add", "origin", str(remote))
+        self.repo.git("push", "-q", "origin", "main")
+        self.repo.git("fetch", "-q", "origin")
+        self.repo.git("checkout", "-q", "-b", "direct", "origin/main")
+        self.commit("Build on main", "src/a.py")
+        self.repo.git("push", "-q", "origin", "HEAD:main")
+        self.repo.git("fetch", "-q", "origin")
+        r = self.repo.run("pass-due", "HEAD", "--base", "origin/main")
+        self.assertIn("open change good", r.stdout)
+
+    def test_amending_the_change_into_a_code_commit_starts_the_pass(self):
+        # Found by bug-hunter: the amend filter dropped src/ files the replaced
+        # commit held, though that commit, made before the branch had an open
+        # change, started no pass.
+        self.repo.git("checkout", "-q", "-b", "feat")
+        self.commit("Build first", "src/a.py")
+        self.assertNotIn("current-state pass due for:", self.hook().stderr)
+        self.repo.change("good")
+        self.repo.git("add", "-A")
+        self.repo.git("commit", "-q", "--amend", "--no-edit")
+        self.assertIn("open change good", self.hook().stderr)
+
+    def test_an_amend_that_drops_a_src_file_asks_no_more(self):
+        # Found by bug-hunter: the shown file list changed, so the whole pass
+        # was asked for again.
+        self.spec_branch()
+        self.commit("Build it", "src/a.py", "src/b.py")
+        self.assertIn("current-state pass due for:", self.hook().stderr)
+        self.repo.git("rm", "-q", "src/b.py")
+        self.repo.git("commit", "-q", "--amend", "--no-edit")
+        self.assertNotIn("current-state pass due for:", self.hook().stderr)
+
+    def test_an_amend_after_landing_on_main_still_asks_for_mains_changes(self):
+        # Found by bug-hunter: the replaced commit was judged as on main, so
+        # main's other open change looked asked for, though its own hook,
+        # on the branch, never printed it.
+        self.repo.change("other")
+        self.commit("An open change on main")
+        self.spec_branch()
+        self.commit("Build it", "src/a.py")
+        self.assertNotIn("open change other", self.hook().stderr)
+        self.repo.git("checkout", "-q", "main")
+        self.repo.git("merge", "-q", "--ff-only", "spec")
+        self.repo.write("openspec/changes/good/proposal.md", "## Why\n\nBuilt.\n")
+        self.repo.git("add", "-A")
+        self.repo.git("commit", "-q", "--amend", "--no-edit")
+        self.assertIn("open change other", self.hook().stderr)
+
+    def test_an_amend_with_nothing_older_in_the_reflog_is_judged_alone(self):
+        self.spec_branch()
+        self.commit("Build it", "src/a.py")
+        self.repo.git("reflog", "expire", "--expire=now", "--all")
+        self.repo.git("commit", "-q", "--amend", "-m", "Build it again")
+        self.assertIn("open change good", self.pass_due().stdout)
+
+    def test_a_short_id_or_head_reads_the_amend_as_the_full_id_does(self):
+        # Found by bug-hunter: the reflog names commits in full, so `HEAD`
+        # or a short id never matched an amend.
+        self.spec_branch()
+        self.commit("Build it", "src/a.py")
+        self.repo.git("rm", "-q", "--cached", "src/a.py")
+        self.repo.git("add", "-A")
+        self.repo.write("openspec/changes/good/proposal.md", "## Why\n\nBuilt.\n")
+        self.repo.git("add", "-A")
+        self.repo.git("commit", "-q", "--amend", "--no-edit")
+        short = self.repo.git("rev-parse", "--short", "HEAD")
+        for ref in ("HEAD", short):
+            with self.subTest(ref=ref):
+                self.assertEqual(self.pass_due(ref).stdout, "")
+
+    def test_amending_a_commit_made_on_main_asks_no_more(self):
+        # Found by bug-hunter: the replaced commit was judged as on a branch,
+        # so main's open changes looked unasked and were asked again.
+        self.repo.change("good")
+        self.commit("An open change on main")
+        self.hook()
+        self.commit("Build on main", "src/a.py")
+        self.assertIn("open change good", self.hook().stderr)
+        self.repo.write("src/a.py", "more\n")
+        self.repo.git("add", "-A")
+        self.repo.git("commit", "-q", "--amend", "--no-edit")
+        self.assertNotIn("current-state pass due for:", self.hook().stderr)
+
+    def test_moving_an_existing_archive_folder_starts_no_pass(self):
+        # Archiving deletes the change's folder; moving archive folders that
+        # already exist deletes none, so it is not archiving.
+        # docs/old/old ends in "old", the name in archive/2026-01-01-old, but
+        # it is no change folder: only a deletion under openspec/changes/
+        # pairs with an archive.
+        self.repo.write("docs/old/old/proposal.md", GOOD_PROPOSAL)
+        self.repo.write("openspec/changes/archive/2026-01-02-archive/proposal.md",
+                        GOOD_PROPOSAL)
+        self.commit("Keep old archives")
+        self.hook()
+        self.repo.git("mv", "docs/old/old",
+                      "openspec/changes/archive/2026-01-01-old")
+        self.repo.git("mv", "openspec/changes/archive/2026-01-02-archive",
+                      "openspec/changes/archive/2026-01-03-archive")
+        self.commit("Move the archives")
+        self.assertNotIn("is archived as", self.hook().stderr)
+        self.assertEqual(self.pass_due().stdout, "")
+
+    def test_a_change_named_with_a_date_is_archived_under_its_own_name(self):
+        # Found by bug-hunter: `openspec archive` adds no second date to a
+        # name that starts with one. Stripping the date from the archive
+        # folder left "dated", which matched no deleted change folder.
+        self.repo.change("2026-01-01-dated")
+        self.commit("Add the change")
+        self.hook()
+        (self.repo.path / "openspec/changes/archive").mkdir()
+        self.repo.git("mv", "openspec/changes/2026-01-01-dated",
+                      "openspec/changes/archive/2026-01-01-dated")
+        self.commit("Archive it")
+        self.assertIn("the change 2026-01-01-dated changes (cap). It is archived as "
+                      "openspec/changes/archive/2026-01-01-dated:", self.hook().stderr)
+
+    def test_deleting_a_change_archives_nothing_outside_the_archive(self):
+        # Only a folder under openspec/changes/archive/ pairs with a deleted
+        # change. Both added paths below have "ui" as their fourth part, the
+        # position the archive folder's name is read from, but neither is
+        # under archive/: one is deep in packages/, one inside change new.
+        self.repo.change("ui")
+        self.commit("Add ui")
+        self.hook()
+        self.repo.git("rm", "-rq", "openspec/changes/ui")
+        self.repo.change("new")
+        self.commit("Drop ui", "packages/web/src/ui/view.ts",
+                    "openspec/changes/new/ui/notes.md")
+        self.assertNotIn("is archived as", self.pass_due().stdout)
+
+    def test_a_handed_back_pull_request_gets_the_notice_in_ci(self):
+        self.spec_branch()
+        tmp = pathlib.Path(tempfile.mkdtemp(prefix="spec-check-ci-")).resolve()
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        def ci(action):
+            event = tmp / "event.json"
+            event.write_text(json.dumps({"action": action, "pull_request": {
+                "html_url": "https://github.com/o/r/pull/7", "draft": False,
+                "head": {"sha": self.repo.git("rev-parse", "HEAD")},
+                "base": {"ref": "main"}}}))
+            return self.repo.run("ci", "--event", str(event))
+        # The change is unread: the hand-back is taken back, so no pass yet.
+        self.assertNotIn("current-state pass due for:", ci("ready_for_review").stdout)
+        self.repo.write("openspec/changes/good/tasks.md", TASKS + "- [ ] 1.2 More\n")
+        self.repo.git("add", "-A")
+        signed_commit(self, self.repo)
+        r = ci("ready_for_review")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("::notice::current-state pass due for: each doc the pull request "
+                      "changes, and its body and title.", r.stdout)
+        self.assertNotIn("current-state pass due for:", ci("synchronize").stdout)
 
 
 if __name__ == "__main__":
