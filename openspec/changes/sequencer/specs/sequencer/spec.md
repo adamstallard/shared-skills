@@ -104,25 +104,25 @@ other copies.
 ### Requirement: The script reads OpenSpec changes only through the OpenSpec CLI
 
 The script SHALL read each open change's requirements and deltas only
-through OpenSpec's CLI, 1.16.0 or later, from each pull request's head as
-fetched files, never a checkout, because an earlier CLI can take inline
-code that starts a line for a code fence and hide every requirement
-after it. With an older or missing CLI, the script SHALL apply no rule
-that reads a change (modifies, cites, copy duties), and the order's issue
-SHALL say requirements' dependencies were not checked, and why.
+through OpenSpec's CLI, from each pull request's head as fetched files,
+never a checkout. It SHALL use the CLI only at 1.16.1 or later, because an
+earlier CLI can drop requirements without saying so. With an older or missing CLI, the script
+SHALL apply no rule that reads a change (modifies, cites, copy duties),
+and the order's issue SHALL say requirements' dependencies were not
+checked, and why.
 
 #### Scenario: An old CLI checks no requirement
 
 - **WHEN** the script runs where `openspec --version` prints `1.14.3`, and
   two open pull requests hold changes
 - **THEN** no edge comes from a change's files, and the order's issue says
-  `Dependencies between requirements were not checked: OpenSpec 1.16.0 or
+  `Dependencies between requirements were not checked: OpenSpec 1.16.1 or
   later is not installed (this one is 1.14.3).`
 
 ### Requirement: A change that modifies another change's requirement comes after it
 
-A change whose delta modifies, removes or renames a requirement that
-another open change adds SHALL come after that change.
+A change whose delta modifies, removes or renames another open change's
+requirement SHALL come after that change.
 
 #### Scenario: A modifying change waits for the one that adds the requirement
 
@@ -292,8 +292,9 @@ same link, or login and time.
 A run SHALL add to the decided cycles a comment on the order's issue, posted
 after the cycle's question, whose text starts with one of the question's
 options, `#<n> first`: either a comment by a person with write access, or
-one by that person's relay App (the inquisitor's *A relay App is one its
-person's counted relay file lists*), read after its `User says: ` line.
+one by that person's relay App, a bot that posts the person's answers for
+them (the inquisitor's *A relay App is one its person's counted relay file
+lists* says which Apps count), read after its `User says: ` prefix.
 
 #### Scenario: A reply naming an option decides the cycle
 
@@ -646,7 +647,8 @@ issue; the order it publishes SHALL be a recommendation.
 The script SHALL put each question of judgement, such as which member of a
 cycle goes first, through the inquisitor skill as a question the sequencer
 requires a person to decide (the inquisitor's *A question another skill
-requires skips filters 2 to 4*), and in a session with a person in it the
+requires skips filters 2 and 4*: filter 2, deferrable, and filter 4,
+cheap to reverse), and in a session with a person in it the
 agent SHALL ask it as the inquisitor's *Where the host has a picker, an
 agent asks through it, never in its reply* says.
 
@@ -655,7 +657,11 @@ agent asks through it, never in its reply* says.
 - **WHEN** an agent running the skill in a session with a person in it
   finds an undecided cycle
 - **THEN** it asks the person which member goes first through the picker,
-  as a question the sequencer requires, and no filter 2 to 4 stops it
+  as a question the sequencer requires, and neither filter 2 nor 4 stops
+  it
+- **AND** filter 3, which has the agent take a question's one option of
+  merit itself, does not stop it even when only one member has merit going
+  first, since the sequencer lets only a person choose that member
 
 ### Requirement: In CI a judgement question is posted once on the order's issue
 
@@ -812,9 +818,8 @@ data, and SHALL NOT check out or run code from a pull request's head.
 
 An Igor's worker SHALL be able to run the skill in its own session as any
 agent does, with `order` and the model step, and SHALL ask a judgement
-question in its handback comment, the comment in which its Igor hands the
-item back, since the inquisitor's *A session with no person in it asks in
-a post, a handback or nowhere* lets an Igor worker ask only there. A
+question only where the inquisitor's *A session with no person in it asks
+in a post, a handback or nowhere* lets an Igor worker ask. A
 `publish` that another process runs SHALL accept and apply an edges file a
 worker wrote, while the inputs are unchanged.
 
@@ -827,8 +832,11 @@ worker wrote, while the inputs are unchanged.
 
 #### Scenario: A worker asks about a cycle in its handback comment
 
-- **WHEN** an Igor's worker running the skill finds an undecided cycle
-- **THEN** it asks which member goes first in its handback comment, and
+- **WHEN** an Igor's worker running the skill finds an undecided cycle, in
+  a run igor has not flagged (the inquisitor's *A flagged run's handoff
+  asks no question*)
+- **THEN** it asks which member goes first in its handback comment, the
+  comment in which its Igor hands the item back, and
   opens no post and calls no picker
 
 ### Requirement: Igor's Sequencer role calls the script as any caller does

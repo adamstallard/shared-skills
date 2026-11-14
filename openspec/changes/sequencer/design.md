@@ -134,7 +134,7 @@ a comment on the order's issue as the answer when it was posted after the
 cycle's question and starts with one of those labels. The comment must
 come from a person with write access, or from their relay App, the bot
 that posts a person's answers for them; for a relay App, only the text
-after its `User says: ` line is read. In a session, the agent records the
+after its `User says: ` prefix is read. In a session, the agent records the
 answer the person gave through the picker, the host's question tool, with
 `publish --decide`.
 
@@ -168,14 +168,16 @@ items' bodies.
 giving its place, between markers the script owns, never in a comment**
 (igor#231, decision 1). The decision record's Rationale for *The whole
 order lives in one issue's body* says why not a comment. A block is rewritten only when the order or its reasons change
-(igor#231, decision 2), so a watcher is notified only of a real move. The
+(igor#231, decision 2). The
 script touches nothing outside its markers, so a person may keep their own
 text in the same body. The prose skill ends each body it signs with a
 `prose ✓` footer, a hash of the text above it, and prose's hook reads the
 footer as the body's last line. A new block goes just above that footer
 so it stays last. The block changes the text the footer hashes, so a
-footer already in the body stops matching it. That is harmless: prose
-checks only text an agent is posting, never a body already posted.
+footer already in the body stops matching it. That is harmless: before a
+hand-back, prose's hook reads a posted body's footer only for whether it
+says the body's cold read was put off, never its hash, and the footer stays
+last.
 
 - *Ruled out by a scenario:* keeping the order in comments (*The whole
   order lives in one issue's body*).
@@ -302,9 +304,13 @@ pull request.
 the sequencer requires a person to decide** (#43). The inquisitor has four
 filters, which stop a question before a person sees it: 1, already
 answered; 2, deferrable; 3, not a real question; 4, cheap to reverse. A
-question another skill requires a person to decide skips filters 2 to 4
-(the inquisitor's *A question another skill requires skips filters 2 to
-4*), since those let an agent defer or decide the question itself. In a
+question another skill requires a person to decide skips filters 2 and 4
+(the inquisitor's *A question another skill requires skips filters 2 and
+4*), since those let an agent defer or decide the question itself. Filter 3
+never stops a cycle's question either: the sequencer lets only a person
+choose any of a cycle's members (*A cycle is asked about, never chosen*),
+and filter 3, which has the agent take a question's one option of merit
+itself, never takes an option the requiring skill reserves for a person. In a
 session the question is asked through the picker. In CI it is posted once
 on the order's issue, where the person's answer session, the inquisitor's
 view for answering the questions asked of them, shows it (the answer
@@ -360,5 +366,6 @@ Each bullet says what the spec does if the fact is false.
   silently* covers.
 - **`openspec show --json` gives each delta's operation and title for a
   change read outside a checkout** (task 0.3), as spec-check relies on. If
-  it needs a checkout, the script reads each head into a scratch worktree
-  of the default branch's clone, still running none of its code.
+  it needs a checkout, the script writes each head's change files, read
+  with `git show`, into a scratch directory laid out as an `openspec/`
+  tree and runs the CLI there.
