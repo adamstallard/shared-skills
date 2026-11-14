@@ -1934,6 +1934,18 @@ otherwise drop an unasked draft there, possibly over what the person is
 typing; a subagent that read an untrusted Linear or Discord message could
 plant text the person then sends without seeing where it came from.
 
+**The model writes each draft for whichever is more public: the thread's
+readers or the readers of the question's repository** (answer-session spec:
+*Claude's draft goes to the prompt box, never to a post*). **Beyond that, a
+draft's privacy is the person's to judge:** they read each draft before
+confirming it and decide whether its wording suits where it posts. The
+answer session checks a draft only as it checks every relay post, scanning
+it for credentials (answer-session spec: *A relay post is posted by a host
+command, unvetted*). For a filter 1 decline, the preview also warns when the
+record the draft links to is more private than the thread (answer-session
+spec: *The preview warns when a filter 1 record is more private than the
+thread*).
+
 #### The UI is built from prototype build v0.1-33
 
 **The mod is built from prototype build v0.1-33 alone, approved by use,**
@@ -1981,7 +1993,6 @@ decision-record entry with evidence; this section links to it, and task 6.11
 lists them:**
 
 - how a question's options are parsed from its thread;
-- a draft's privacy;
 - an asker's reply revising the options;
 - the UI of the relay notice shown for the GitHub Actions comment on a pull
   request changing the person's relay file, designed under task 6.1's rule

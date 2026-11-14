@@ -822,15 +822,16 @@ contradicts what design.md assumed.
 - [ ] 6.11 Decide at implementation, and when each choice is made, add
       it to the spec as a requirement with a scenario or, if no test can
       check it, to the answer-session decision record as an entry with
-      evidence; design.md only links to it (design.md: *Some answer-session
-      details are decided at implementation*): how a
-      question's options are parsed from its thread; a draft's privacy,
-      beyond its being written at the privacy of what the question
-      concerns; an asker's reply revising the options; and the UI of the
-      notice for the comment GitHub Actions posts when a pull request
-      changes the person's relay file, designed from the prototype's
-      existing patterns with no prototype round, as task 6.1's rule (c)
-      says of a screen v0.1-33 lacks. Agreeing
+      evidence; design.md only links to that requirement or entry
+      (design.md: *Some answer-session details are decided at
+      implementation*): how a question's options, the choices it offers
+      with what each would change, are parsed from its thread; how the
+      session handles an asker's reply that revises those options; and
+      the UI of the notice for the comment GitHub Actions posts when a
+      pull request changes the person's relay file (answer-session spec:
+      *A relay-notice comment is shown as a notice*), designed from the
+      prototype's existing patterns, as task 6.1's rule (c) says of a
+      screen v0.1-33 lacks. Agreeing
       to a shown recorded answer is already decided (design.md: *Agreeing
       to a recorded answer is a filter 1 decline*), as are agreeing to a
       suggested verdict and citing a lore entry (answer-session spec:
