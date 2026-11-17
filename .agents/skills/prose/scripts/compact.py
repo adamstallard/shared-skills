@@ -90,6 +90,9 @@ ATTR_GROWTH_BYTES = "prose-compact-growth-bytes"
 ATTR_FLAGGED = "prose-compact-flagged"
 ATTR_FLAGGED_SHARE = "prose-compact-flagged-share"
 ATTR_ATTRIBUTION = "prose-compact-attribution"
+# A file with this attribute in .gitattributes is declared verbatim. It is
+# never rewritten, so it is never compacted. prose.py reads the same name.
+ATTR_VERBATIM = "prose-verbatim"
 
 # Exit codes of `prose compact`: the brief was printed (the step is the
 # caller's to do), the result passed, the result failed a check.
@@ -182,7 +185,7 @@ def settings(paths, root):
     when git fails, every path gets the defaults."""
     found = {path: {} for path in paths}
     names = [ATTR_DECLARE, ATTR_GROWTH, ATTR_GROWTH_BYTES, ATTR_FLAGGED, ATTR_FLAGGED_SHARE,
-             ATTR_ATTRIBUTION, "diff"]
+             ATTR_ATTRIBUTION, ATTR_VERBATIM, "diff"]
     if paths and root is not None:
         try:
             result = subprocess.run(
@@ -204,7 +207,7 @@ def settings(paths, root):
         # `-diff`, or `binary`, which sets it, is how a repository tells git
         # a file is binary.
         out[path] = Settings(current, _number(attrs.get(ATTR_GROWTH), DEFAULT_GROWTH),
-                             attrs.get("diff") == "unset",
+                             attrs.get("diff") == "unset" or attrs.get(ATTR_VERBATIM) == "set",
                              declared is not None and declared != "unset",
                              _number(attrs.get(ATTR_FLAGGED), DEFAULT_FLAGGED),
                              attrs.get(ATTR_ATTRIBUTION) == "drop", declared == "unset",

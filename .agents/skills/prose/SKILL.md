@@ -171,7 +171,13 @@ or spec passage it adds to; and every post, whatever its length, except a pull r
 posted inside a review round, whose cold read comes at the hand-back (see
 [Posting](#posting)). The commit message gets none, so a commit that
 changes no comment or doc signs without one. A doc that git diffs as
-binary is skipped, since prose cannot read it.
+binary is skipped, since prose cannot read it. So is verbatim text: a file
+`.gitattributes` sets `prose-verbatim` on, and a doc's block between
+`prose:verbatim begin` and `prose:verbatim end` marker lines. Verbatim text gets no
+pass and no cold read, so nothing is asked, and the trailer says how many
+files and blocks were skipped. Never declare verbatim text yourself: propose
+the line or the markers, and add them on the person's word, in a commit of
+their own. [reference.md](reference.md#verbatim-text) has the details.
 
 **A merge's change is only what the merge itself changed:** the passages where
 the staged result differs from every parent, exactly the hunks `git show`

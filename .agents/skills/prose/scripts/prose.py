@@ -161,7 +161,8 @@ HALF = 12
 # before cold readers wrote understood lines carry none.
 TRAILER = re.compile(r"✓ (?P<tree>[0-9a-f]{%d}):(?P<message>[0-9a-f]{%d})"
                      r"(?:; cold read: (?P<cold>[^;]*)(?:; understood: (?P<understood>[^;]*))?)?"
-                     r"(?:; compacted: (?P<compacted>[^;\n]+))?" % (HALF, HALF))
+                     r"(?:; compacted: (?P<compacted>[^;\n]+))?"
+                     r"(?:; verbatim: (?P<verbatim>[^;\n]+))?" % (HALF, HALF))
 FOOTER_LENGTH = 6
 FOOTER = re.compile(r"^prose ✓ ([0-9a-f]{%d})$" % FOOTER_LENGTH)
 # A pull request body signed inside a review round, with its cold read
@@ -613,16 +614,125 @@ def _combined_touched(scan, root, tree, parents):
     return touched
 
 
+# Text a repository keeps exactly as written. `prose-verbatim` in
+# .gitattributes declares whole files; a marker pair inside a doc declares a
+# block. Verbatim text gets no rewrite and no cold read, and the trailer
+# counts what a commit skipped.
+ATTR_VERBATIM = "prose-verbatim"
+# A marker line holds the marker and nothing else but comment punctuation, so
+# `<!-- prose:verbatim begin -->`, `# prose:verbatim end` and `.. prose:verbatim
+# begin` all count, while a sentence or a backticked mention does not.
+VERBATIM_MARKER = re.compile(r"^[^\w`]*prose:verbatim (begin|end)[^\w`]*$")
+
+
+class Verbatim:
+    """What a check skipped as verbatim: the files declared in .gitattributes
+    and the marked blocks the change touches, each as "path" or
+    "path:first-last"."""
+
+    def __init__(self):
+        self.files, self.blocks = [], []
+
+    def trailer(self):
+        """The trailer's `; verbatim: ...` part, or "" when nothing was skipped."""
+        return verbatim_part(len(self.files), len(self.blocks))
+
+
+def verbatim_part(files, blocks):
+    """The trailer part for this many skipped files and blocks, or ""."""
+    parts = []
+    if files:
+        parts.append(f"{files} file{'' if files == 1 else 's'}")
+    if blocks:
+        parts.append(f"{blocks} block{'' if blocks == 1 else 's'}")
+    return "; verbatim: " + ", ".join(parts) if parts else ""
+
+
+def verbatim_valid(value):
+    """Whether value, the counts after a trailer's `; verbatim: `, are in the
+    one form verbatim_part prints."""
+    found = re.fullmatch(r"(?:([0-9]+) files?)?(?:, )?(?:([0-9]+) blocks?)?", value)
+    if not found or not any(found.groups()):
+        return False
+    files, blocks = (int(group) if group else 0 for group in found.groups())
+    return (bool(found.group(1)) == bool(files) and bool(found.group(2)) == bool(blocks)
+            and value == verbatim_part(files, blocks)[len("; verbatim: "):])
+
+
+def verbatim_part_valid(value):
+    """Whether the verbatim part of a parsed trailer is acceptable: absent
+    (None), or in the form verbatim_valid accepts."""
+    return value is None or verbatim_valid(value)
+
+
+def verbatim_files(paths, root):
+    """The paths of `paths` the staged .gitattributes sets `prose-verbatim` on.
+    Outside a repository, or when git fails, none."""
+    if not paths:
+        return set()
+    try:
+        result = subprocess.run(
+            ["git", "check-attr", "--cached", "-z", "--stdin", ATTR_VERBATIM],
+            cwd=root, input=("\0".join(paths) + "\0").encode("utf-8", "surrogateescape"),
+            capture_output=True, check=False)
+    except OSError:
+        return set()
+    if result.returncode != 0:
+        return set()
+    fields = result.stdout.decode("utf-8", "surrogateescape").split("\0")
+    return {fields[i] for i in range(0, len(fields) - 2, 3) if fields[i + 2] == "set"}
+
+
+def verbatim_blocks(path, text):
+    """[(first, last)] 1-based line pairs of the marked blocks in a doc's
+    text, each from its begin marker to its end marker. A marker inside a
+    code fence is text, so docs about the markers can show them. Refused for
+    a begin with no end, a nested begin, or an end with no begin."""
+    lines = text.split("\n")
+    blocks, begin = [], None
+    for number, (line, fenced) in enumerate(zip(lines, _fenced_lines(lines)), start=1):
+        found = None if fenced else VERBATIM_MARKER.match(line.strip())
+        if not found:
+            continue
+        if found.group(1) == "begin":
+            if begin is not None:
+                raise Refused(f"{path}:{number}: a prose:verbatim begin inside the block "
+                              f"opened at line {begin}; blocks do not nest")
+            begin = number
+        elif begin is None:
+            raise Refused(f"{path}:{number}: a prose:verbatim end with no begin before it")
+        else:
+            blocks.append((begin, number))
+            begin = None
+    if begin is not None:
+        raise Refused(f"{path}:{begin}: a prose:verbatim begin with no end after it")
+    return blocks
+
+
+def mask_verbatim(path, text):
+    """text with each marked block's lines blanked, so what a cold reader is
+    shown never holds verbatim text and every line keeps its number. Only a
+    doc has blocks."""
+    if not is_doc(path) or "prose:verbatim" not in text:
+        return text
+    lines = text.split("\n")
+    for first, last in verbatim_blocks(path, text):
+        for number in range(first, last + 1):
+            lines[number - 1] = ""
+    return "\n".join(lines)
+
+
 # The label the listing shows beside the item holding a YAML file's prose
 # strings, those comment_scan.yaml_prose finds. cold_items and _goals_source
 # tell such an item by it.
 STRING_NOTE = "prose strings"
 
 
-def prose_in(root, parents, read: Callable[[str], str]):
+def prose_in(root, parents, read: Callable[[str], str], verbatim=None):
     """([Item], [flag lines]) for the prose the staged change touches.
 
-    A listing for the pass, not what the trailer hashes: the message, each doc
+    The prose the pass covers (the trailer hashes the staged files and the
+    message, not this list): the message, each doc
     or spec file the diff touches, one item per code file for the comments
     the diff adds to or edits, and one per YAML file for the prose strings it
     adds to or edits. The flags are history-language warnings on those
@@ -630,9 +740,14 @@ def prose_in(root, parents, read: Callable[[str], str]):
     change is diffed against the empty tree; with one, against that parent;
     with two or more, a merge, only what git's combined diff shows the merge
     changed is listed.
+
+    Verbatim text is left out: a file `.gitattributes` sets `prose-verbatim`
+    on, and a doc's marked blocks. When a Verbatim is passed, it is filled
+    with the files and the touched blocks skipped.
     """
     scan = scanner()
     items, flags = [Item("commit message", "", None)], []
+    verbatim = Verbatim() if verbatim is None else verbatim
     if len(parents) > 1:
         touched, entries = merge_changes(scan, root, parents)
         docs = {path: kind for path, kind in entries.items() if is_doc(path)}
@@ -648,6 +763,7 @@ def prose_in(root, parents, read: Callable[[str], str]):
         docs = _changed_docs(root, base)
     for path in docs:
         touched.setdefault(path, set())
+    declared = verbatim_files(sorted(touched), root)
     for path, lines in sorted(touched.items()):
         parts = set(pathlib.PurePosixPath(path).parts)
         doc = is_doc(path)
@@ -655,8 +771,32 @@ def prose_in(root, parents, read: Callable[[str], str]):
         # any of the scanner's SKIP_DIRS, build output included.
         if parts & (VENDORED if doc else scan.SKIP_DIRS):
             continue
+        if path in declared:
+            # Declared verbatim: no item, so no goals and no cold read. A
+            # deleted file is not counted, since nothing of it is left to
+            # skip. A code file with no added lines, such as a mode change,
+            # is not counted either; a doc is counted whatever changed.
+            if not docs.get(path, (False, False))[0] and (doc or lines):
+                verbatim.files.append(path)
+            continue
         if doc:
             deleted, link = docs.get(path, (False, False))
+            text = ""
+            if not deleted and not link and lines:
+                try:
+                    text = read(path)
+                except (OSError, Refused, UnicodeDecodeError):
+                    pass
+            if "prose:verbatim" in text:
+                # Added lines inside a marked block are verbatim; a block the
+                # change touches, by a line or its markers, is counted.
+                blocks = verbatim_blocks(path, text)
+                for first, last in blocks:
+                    if any(first <= number <= last for number in lines):
+                        verbatim.blocks.append(f"{path}:{first}-{last}")
+                lines = {n for n in lines if not any(f <= n <= l for f, l in blocks)}
+                if not lines:
+                    continue
             # A symlink or submodule has no passage to read cold.
             items.append(Item(path, "changed", path, deleted, () if link else _runs(lines)))
             continue
@@ -968,13 +1108,15 @@ def commit_parents(root, amend=False):
     return ([head] if head else []) + merge_heads(root)
 
 
-def check(message, root, amend=False, signing=False):
+def check(message, root, amend=False, signing=False, verbatim=None):
     """(items, flags, trailer line) for the staged change and this message.
 
     The listing's diff is against the commit's parents (commit_parents): one
     parent, or none, is a plain diff; a merge lists only what it changed. The
-    trailer does not depend on it. The pre-commit hook runs after the message
-    is accepted and before anything is listed or hashed.
+    trailer does not depend on that diff. A Verbatim passed in is filled with
+    the verbatim text skipped; the signing call adds the `; verbatim:` part to the trailer.
+    The pre-commit hook runs after the message is accepted and before anything
+    is listed or hashed.
     """
     refuse_non_utf8_commit_encoding(root)
     refuse_non_utf8_message(message)
@@ -985,7 +1127,7 @@ def check(message, root, amend=False, signing=False):
         raise Refused("the commit message is empty; write it first, then run the check on it")
     parents = commit_parents(root, amend)
     run_pre_commit(root, signing)
-    items, flags = prose_in(root, parents, lambda path: read_staged(path, root))
+    items, flags = prose_in(root, parents, lambda path: read_staged(path, root), verbatim)
     return items, flags, snapshot(message, root)
 
 
@@ -1032,7 +1174,8 @@ def verify_staged(line, message, root):
     if not found:
         return False, f"unrecognised: {line.strip()}"
     tree_half, message_half = found.group("tree"), found.group("message")
-    if not counts_valid(found.group("cold"), found.group("understood")):
+    if not counts_valid(found.group("cold"), found.group("understood")) \
+            or not verbatim_part_valid(found.group("verbatim")):
         return False, f"unrecognised: {line.strip()}"
     tree = git(["write-tree"], root).strip()
     if found.group("compacted") is not None:
@@ -1098,7 +1241,8 @@ def verify_commit(sha, root):
         return False, (f"mismatch: the message is stored as {encoding}, and `prose check` "
                        f"signs only UTF-8 messages")
     found = TRAILER.fullmatch(value)
-    if not found or not counts_valid(found.group("cold"), found.group("understood")):
+    if not found or not counts_valid(found.group("cold"), found.group("understood")) \
+            or not verbatim_part_valid(found.group("verbatim")):
         return False, f"unrecognised: {KEY}: {value}"
     if found.group("compacted") is not None:
         # A file listed as compacted must be one this commit changed.
@@ -2463,11 +2607,13 @@ def read_staged(path, root):
 
 
 def staged_text(path, root):
-    """The staged text of the file at path, or "" when none is staged."""
+    """The staged text of the file at path, or "" when none is staged. A
+    doc's verbatim blocks are blanked: the cold reader never sees them."""
     try:
-        return read_staged(path, root)
+        text = read_staged(path, root)
     except Refused:
         return ""
+    return mask_verbatim(path, text)
 
 
 def refuse_unbriefed(cold, record):
@@ -3123,7 +3269,9 @@ def main(argv=None):
             # result block, stops the check before it prints anything.
             read_rules()
             result_block()
-            items, flags, trailer = check(message, args.repo, args.amend, bool(args.token))
+            verbatim = Verbatim()
+            items, flags, trailer = check(message, args.repo, args.amend, bool(args.token),
+                                          verbatim)
             assigned, unused = assign_goals(items, rules)
             refuse_uncovered(assigned, unused, after_first_call=bool(args.token))
             compact = compactor()
@@ -3184,6 +3332,9 @@ def main(argv=None):
                 compacted = compact.compacted_paths(root, args.amend, pass_dir(args.repo))
                 if compacted:
                     trailer += "; compacted: " + ", ".join(compacted)
+                # What was skipped as verbatim is named in the trailer, so a
+                # reviewer sees that some text got no pass.
+                trailer += verbatim.trailer()
                 # The signing call prints only the result block. It is built
                 # before the token is spent, so a block that cannot be built
                 # leaves the token for the same call to run again.
@@ -3201,6 +3352,13 @@ def main(argv=None):
             print_goals(goals, heading=MESSAGE_GOALS)
             print_check(assigned, flags, unused,
                         "--message-goals-file" if args.message_goals_file else "--goals")
+            if verbatim.files or verbatim.blocks:
+                print("\nSkipped as verbatim, with no pass and no cold read; the trailer "
+                      "says so:\n")
+                for path in verbatim.files:
+                    print(f"  {path}  (file)")
+                for block in verbatim.blocks:
+                    print(f"  {block}  (block)")
             # Every staged path, doc or not: a declaration in .gitattributes
             # makes any file current-state. The
             # triggers only advise, so a listing that fails skips them.

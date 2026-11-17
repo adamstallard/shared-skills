@@ -121,6 +121,36 @@ Read the brief yourself only when nothing will read your result: read it as
 if it were all you knew, open no other file, and write the report as it
 asks.
 
+## Verbatim text
+
+Some text is kept exactly as written: a saved chat, a sent message, raw
+notes. Declare it, and the pass and the cold read skip it, so no flagged line
+needs a `kept (asked)` answer.
+
+- **A whole file:** a `prose-verbatim` line in the staged `.gitattributes`,
+  with git's own patterns: `chats/** prose-verbatim`. `-prose-verbatim`
+  takes a file back out. The file is left out of the list of prose `check`
+  prints for the pass, needs no reader goals, is
+  never compacted, and is not hidden from `git diff` or `git grep`, as a `-diff` file is.
+- **A block in a doc:** a line holding only `prose:verbatim begin`, and
+  another holding only `prose:verbatim end`, in any comment syntax:
+  `<!-- prose:verbatim begin -->`, `# prose:verbatim end`,
+  `.. prose:verbatim begin`. A marker inside a code fence, in a sentence or
+  in backticks is text. Blocks do not nest; a begin with no end, an end with
+  no begin and a nested begin make `check` stop with the marker's line number;
+  fix the markers and run it again. The rest of the doc still gets the
+  full pass and its own goals.
+- **The cold reader never sees verbatim text,** not even as context: the
+  brief blanks a block's lines, so a passage beside one loses that context.
+- **The trailer counts what the commit skipped:** `; verbatim: 2 files, 1
+  block`, after any `; compacted:` part. A file counts when it is staged and
+  declared; a block counts when the change adds a line in it or on its
+  markers. A commit that skips nothing has no such part.
+- **`kept (asked)` still means a person chose the line.** No person is asked
+  whether to keep a line of verbatim text, so no such answer is recorded for
+  it. What a reviewer sees is the declaration, in `.gitattributes` or as
+  markers, in the diff.
+
 ## Committing with other skills' trailers, and amending
 
 **When bug-hunter is installed,** the same commit carries bug-hunter's trailer
