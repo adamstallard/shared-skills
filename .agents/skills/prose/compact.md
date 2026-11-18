@@ -33,6 +33,10 @@ already compact; keep the shorter of the two.
 - Links, commands, code, names and numbers, exactly.
 - Each heading listed below as linked or named by other files, with its exact
   text.
+- Each verbatim block listed below, byte for byte and in its order, from its
+  `prose:verbatim begin` marker line to its `prose:verbatim end` line. A
+  person chose to keep that text as written, so never touch it; `prose compact
+  --verify` fails a compaction that changes, reorders or drops a block.
 
 **Answer for every flagged passage.** A script flagged the passages listed
 below: history, repetition, amendment notes, long rejected alternatives,

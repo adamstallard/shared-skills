@@ -94,6 +94,55 @@ ATTR_ATTRIBUTION = "prose-compact-attribution"
 # never rewritten, so it is never compacted. prose.py reads the same name.
 ATTR_VERBATIM = "prose-verbatim"
 
+
+def verbatim_blocks(text, path=""):
+    """[(first, last)] lines of each verbatim block in text, from its begin
+    marker to its end marker, as prose.py finds them for the pass. Raises
+    ValueError for unbalanced markers. A compaction keeps every block byte
+    for byte: _blank_blocks and _outside_blocks keep the flagged-passage and
+    history-marker detectors out of the blocks."""
+    import prose  # here, not at the top: prose.py imports this module
+    try:
+        return prose.verbatim_blocks(path, text)
+    except prose.Refused as error:
+        raise ValueError(str(error))
+
+
+def _outside_blocks(text, markers):
+    """The history markers, as history_markers finds them, that sit on no
+    line of a verbatim block in text. With unbalanced prose:verbatim markers
+    no block is known, so every history marker is kept; prose check refuses such a file
+    before it is committed."""
+    try:
+        held = verbatim_blocks(text)
+    except ValueError:
+        return list(markers)
+    return [marker for marker in markers
+            if not any(first <= marker.line <= last for first, last in held)]
+
+
+def _blank_blocks(text):
+    """text with every character of its verbatim blocks' lines, markers
+    included, made a space, so offsets hold and no detector reads a block or
+    joins it to a paragraph beside it. With unbalanced markers, text as is."""
+    try:
+        held = verbatim_blocks(text)
+    except ValueError:
+        return text
+    lines = text.split("\n")
+    for first, last in held:
+        for number in range(first, last + 1):
+            lines[number - 1] = " " * len(lines[number - 1])
+    return "\n".join(lines)
+
+
+def _block_texts(text, path=""):
+    """(first, last, text) for each verbatim block: its line numbers, and
+    its lines, markers included, as one string."""
+    lines = text.split("\n")
+    return [(first, last, "\n".join(lines[first - 1:last]))
+            for first, last in verbatim_blocks(text, path)]
+
 # Exit codes of `prose compact`: the brief was printed (the step is the
 # caller's to do), the result passed, the result failed a check.
 BRIEF_PRINTED = 4
@@ -170,6 +219,7 @@ class Settings(NamedTuple):
     exempt: bool = False        # `-prose-compact`
     growth_bytes: int = DEFAULT_GROWTH_BYTES
     flagged_share: int = DEFAULT_FLAGGED_SHARE
+    verbatim: bool = False      # `prose-verbatim`: kept as written, never compacted
 
 
 def _number(value, default):
@@ -181,11 +231,16 @@ def settings(paths, root):
     defaults. `prose-compact` declares a doc read often, `-prose-compact`
     exempts one, the numeric attributes replace the growth share, the
     bytes of growth, the flagged bytes and the flagged share, and `prose-compact-attribution=drop`
-    has the compactor drop "who decided" credits. Outside a repository, or
-    when git fails, every path gets the defaults."""
+    has the compactor drop "who decided" credits. `prose-verbatim` is read
+    by prose.py's verbatim_files, so compaction and the pass agree on which
+    files are verbatim; a verbatim file is also marked binary, so it is never
+    compacted, and a refusal from verbatim_files, such as one over
+    .git/info/attributes, raises ValueError. Outside a repository, or when
+    git fails, every path gets the defaults."""
     found = {path: {} for path in paths}
     names = [ATTR_DECLARE, ATTR_GROWTH, ATTR_GROWTH_BYTES, ATTR_FLAGGED, ATTR_FLAGGED_SHARE,
-             ATTR_ATTRIBUTION, ATTR_VERBATIM, "diff"]
+             ATTR_ATTRIBUTION, "diff"]
+    kept_as_written = set()
     if paths and root is not None:
         try:
             result = subprocess.run(
@@ -200,6 +255,11 @@ def settings(paths, root):
                 path, name, value = fields[index:index + 3]
                 if path in found and value != "unspecified":
                     found[path][name] = value
+        import prose  # here, not at the top: prose.py imports this module
+        try:
+            kept_as_written = prose.verbatim_files(list(paths), root)
+        except prose.Refused as error:
+            raise ValueError(str(error))
     out = {}
     for path, attrs in found.items():
         declared = attrs.get(ATTR_DECLARE)
@@ -207,12 +267,13 @@ def settings(paths, root):
         # `-diff`, or `binary`, which sets it, is how a repository tells git
         # a file is binary.
         out[path] = Settings(current, _number(attrs.get(ATTR_GROWTH), DEFAULT_GROWTH),
-                             attrs.get("diff") == "unset" or attrs.get(ATTR_VERBATIM) == "set",
+                             attrs.get("diff") == "unset" or path in kept_as_written,
                              declared is not None and declared != "unset",
                              _number(attrs.get(ATTR_FLAGGED), DEFAULT_FLAGGED),
                              attrs.get(ATTR_ATTRIBUTION) == "drop", declared == "unset",
                              _number(attrs.get(ATTR_GROWTH_BYTES), DEFAULT_GROWTH_BYTES),
-                             _number(attrs.get(ATTR_FLAGGED_SHARE), DEFAULT_FLAGGED_SHARE))
+                             _number(attrs.get(ATTR_FLAGGED_SHARE), DEFAULT_FLAGGED_SHARE),
+                             path in kept_as_written)
     return out
 
 
@@ -633,7 +694,7 @@ def passages(text, path="", root=None, tracked=None):
     path in the repository at root (None outside one, which skips the
     stale-reference check), in order. Passages that overlap are merged, so
     each line belongs to at most one."""
-    text = _lf(text)
+    text = _blank_blocks(_lf(text))
     # The patterns read masked, where code and quotations are spaces; the
     # paragraphs and sentences are read from structure, where they are not.
     masked, structure = _mask(text), _mask(text, fill="x")
@@ -2634,7 +2695,18 @@ def brief(name, state_home, command, given=Given(), stdin=None):
             raise ValueError(f"{where.rel} as staged differs from HEAD's; commit the change you "
                              f"were making first ({STEPS}), then run the first "
                              f"call on the committed file")
+    if settings([where.rel], where.root)[where.rel].verbatim:
+        raise ValueError(f"{where.rel} is declared {ATTR_VERBATIM} in .gitattributes: it is "
+                         f"kept exactly as written, so it is never compacted")
     text = start.text if start else _lf(where.file.read_text(encoding="utf-8"))
+    # Refused before the snapshot is saved: a saved snapshot marks a started
+    # compaction, which blocks committing the file, so it would block the
+    # very commit that fixes the markers.
+    try:
+        blocks = verbatim_blocks(text, where.rel)
+    except ValueError as error:
+        raise ValueError(f"{error}; fix the markers and commit that first, then run the first "
+                         f"call again")
     now = time.time()
     # Snapshots do not expire: a compaction stays started until it retires
     # on commit (in started()) or is abandoned. Each is named for its file's path,
@@ -2663,7 +2735,7 @@ def brief(name, state_home, command, given=Given(), stdin=None):
         except FileNotFoundError:
             pass
 
-    markers = history_markers(text)
+    markers = _outside_blocks(text, history_markers(text))
     held = {}
     for ref in found:
         held.setdefault(ref.needle, []).append(ref.source)
@@ -2677,6 +2749,10 @@ def brief(name, state_home, command, given=Given(), stdin=None):
                      "Keep each, with its exact text:")
         lines += [f"  {needle}  (in {', '.join(sorted(set(files))[:3])})"
                   for needle, files in sorted(held.items())]
+    if blocks:
+        lines.append(f"\nVerbatim blocks ({len(blocks)}); keep each byte for byte, its marker "
+                     f"lines included, and in the same order: "
+                     + ", ".join(f"lines {first}-{last}" for first, last in blocks))
     lines.append("\nCredits: " + (
         "drop each \"who decided\" credit, such as \"(Adam, 2026-10-24)\"; this file's "
         "prose-compact-attribution=drop says so." if setting.drop_attribution else
@@ -2760,9 +2836,33 @@ def check_result(before, after, rel, root, referrers=None, kept=(), file=None):
         lines.append(f"Names that are gone ({len(dropped)}); the reviewer checks each: "
                      + ", ".join(term for _, term in dropped[:60])
                      + (" ..." if len(dropped) > 60 else ""))
-    for marker in history_markers(after, _kept_spans(after, kept)):
+    for marker in _outside_blocks(after, history_markers(after, _kept_spans(after, kept))):
         failures.append(f"history marker left at line {marker.line}: «{marker.words}»")
+    failures += _block_failures(before, after, rel)
     return Report(lines, failures)
+
+
+def _block_failures(before, after, rel):
+    """A failure for each verbatim block of before that after does not hold
+    byte for byte, in the same order, markers included, for markers in after
+    that do not pair up; and for blocks after holds beyond before's."""
+    try:
+        kept = _block_texts(before, rel)
+    except ValueError as error:
+        return [f"verbatim markers in the file before compaction: {error}"]
+    try:
+        now = _block_texts(after, rel)
+    except ValueError as error:
+        return [f"verbatim markers: {error}; keep every verbatim block as it was"]
+    failures = []
+    for number, (first, last, text) in enumerate(kept, start=1):
+        if number > len(now) or now[number - 1][2] != text:
+            failures.append(f"verbatim block {number}, lines {first}-{last} before, was changed, "
+                            f"reordered or dropped; keep it byte for byte, its markers included")
+    if len(now) > len(kept):
+        failures.append(f"the file had {len(kept)} verbatim block(s) and now has {len(now)}; "
+                        f"a compaction adds none")
+    return failures
 
 
 # What gone_terms looks for, beside code spans and headings: a command-line

@@ -106,8 +106,10 @@ Both the `.gitattributes` line and the markers are committed, so a reviewer
 sees them in the diff, and the commit's
 `Prose:` trailer says how many files and blocks it skipped, for example
 `verbatim: 2 files, 1 block`. Everything not declared gets the full pass. Your
-agent never declares text verbatim on its own: it proposes the `.gitattributes`
-line or the markers, and adds them, in a commit of its own, when you agree.
+agent marks text verbatim when you ask, and offers to when you seem annoyed
+that the pass would change some text. It never marks text it is writing, since
+that text needs the pass, and never without your yes. Nothing enforces either
+rule, but the declaration shows in the commit, and anyone can undo it.
 
 ## Docs agents read before working stay compact
 

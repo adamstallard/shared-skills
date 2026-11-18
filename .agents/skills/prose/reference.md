@@ -132,6 +132,12 @@ needs a `kept (asked)` answer.
   takes a file back out. The file is left out of the list of prose `check`
   prints for the pass, needs no reader goals, is
   never compacted, and is not hidden from `git diff` or `git grep`, as a `-diff` file is.
+  Only `.gitattributes`, staged or committed, declares. `check` refuses
+  when `.git/info/attributes`, which no reviewer sees, mentions
+  `prose-verbatim`, or holds any line while a file is declared, since a
+  macro applied there could declare the file without naming `prose-verbatim`. A file that stops being
+  declared, renamed out of its pattern or its line removed, gets the pass
+  on its whole text.
 - **A block in a doc:** a line holding only `prose:verbatim begin`, and
   another holding only `prose:verbatim end`, in any comment syntax:
   `<!-- prose:verbatim begin -->`, `# prose:verbatim end`,
@@ -139,13 +145,26 @@ needs a `kept (asked)` answer.
   in backticks is text. Blocks do not nest; a begin with no end, an end with
   no begin and a nested begin make `check` stop with the marker's line number;
   fix the markers and run it again. The rest of the doc still gets the
-  full pass and its own goals.
+  full pass and its own goals. `check` refuses markers in a doc git diffs as
+  binary, made so by the staged or committed `.gitattributes` (`-diff`,
+  `binary`) or by a NUL byte (UTF-16, UTF-32), since its diff shows no block a change
+  touched; declare the whole file instead.
 - **The cold reader never sees verbatim text,** not even as context: the
-  brief blanks a block's lines, so a passage beside one loses that context.
+  brief shows each block as one line, numbered with the lines it stands for,
+  such as `5-16  [verbatim block: 12 lines not shown]`. A passage beside a
+  block is read without the block's text, but the reader knows text is
+  there.
+- **A compaction keeps each block byte for byte,** markers included: its
+  brief lists the blocks, flags nothing inside them, and `prose compact
+  --verify` fails a compaction that changes, reorders or drops one.
 - **The trailer counts what the commit skipped:** `; verbatim: 2 files, 1
-  block`, after any `; compacted:` part. A file counts when it is staged and
-  declared; a block counts when the change adds a line in it or on its
-  markers. A commit that skips nothing has no such part.
+  block`, after any `; compacted:` part. A file counts when it is declared and
+  the change edits or adds it; a block counts when the change adds or deletes a line in it or
+  on its markers. A doc whose changes all sit inside blocks gets no pass.
+  Text that loses its markers is prose again and gets the pass. A commit
+  that skips nothing has no such part. `verify-staged` and `verify-commit`
+  recompute the counts, from the index or from the commit and the
+  `.gitattributes` it holds, and refuse a value that differs.
 - **`kept (asked)` still means a person chose the line.** No person is asked
   whether to keep a line of verbatim text, so no such answer is recorded for
   it. What a reviewer sees is the declaration, in `.gitattributes` or as
