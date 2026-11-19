@@ -74,7 +74,9 @@ None.
   the answer session's mod, built from the prototype tagged
   `answer-session-ui-approved-v0.1-33`.
 - The answer session posts through the github-app, linear-app and
-  discord-bot skills, discord-bot as merged in shared-skills PR #1.
+  discord-bot skills, discord-bot as merged in shared-skills PR #1, with
+  its `read` changed (task 6.0) to return whether a message's author is a
+  bot and which message it replies to.
   In the session running the answer session, the model posts only as the
   person's relays: the inquisitor's post hook, and a new post hook in each
   of linear-app and discord-bot, block its posts under the person's own

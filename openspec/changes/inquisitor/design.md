@@ -155,6 +155,8 @@ itself with no worker: each reports its files, and the Igor checks them and
 pushes them, refusing one holding an answer, so a worker steered by untrusted text in its
 item can't write a person's answer. An agent that cannot push, for want of credentials
 or of write access to the repository, keeps the file pending and reports it.
+The answer session keeps none, since it records each push it owes and
+retries that push itself.
 
 The spec's *A log file and a miss file have one format* holds the files'
 path, name, keys and encoding. An answer with `input` authority, which
@@ -2023,23 +2025,18 @@ no answer that counts.
 counting again (inquisitor spec: *A replaced answer file stops counting even
 in its own hash group*, scenario *The newest answer naming a file counts*).
 
-#### A named file's answer must be the person's own, added alone
+#### A named file's answer must be the person's own
 
-**Why added alone:** the answer session pushes each answer file in a commit
-of its own, so a file that arrives with others did not come from it. The
-check catches such bundled files only; a copy pushed alone passes it, which
-the record's Constraint on unverified authorship covers. An answer file
-answers a named file only when its `answered_by` is the person that file's
-question tags. A file that tags no one, such as an Igor's handback routed by
-assignment, gives no person to compare with, so any account with write
-access to what its question concerns may answer it.
+An answer file answers a named file only when its `answered_by` is the
+person that file's question tags, since the question was put to that
+person. A file that tags no one gives no person to compare with, so any
+account with write access to what its question concerns may answer it.
 
 *Ruled out by a scenario* (answer-session spec: *The person's answer to a
-named file is their own, added alone*): accepting the risk of a bundled copy
-(scenario *An answer file committed with another file does not count*); and
-answering files that tag no one only through filter 1's hash search
-(scenario *A file that tags no one is answered by an account with write
-access*).
+named file is their own*): letting a file that tags no one be answered
+only by a matching hash in filter 1's search, never through `answers`
+(scenario *A file that tags no one is answered by an
+account with write access*).
 
 #### A named file stays shown until its answer counts
 
@@ -2131,7 +2128,20 @@ the "Use Postgres" file does not drop the retry.
   for a relay post*);
 - a dropped pending answer pushing a handled file (answer-session spec: *A
   handled file closes a questions-branch question*, scenario *Dropping a
-  pending answer pushes no handled file*).
+  pending answer pushes no handled file*);
+- the `log` command keeping a pending copy of a file the answer session
+  pushes, beside the session's own retry (answer-session spec: *The answer
+  session's owed push is its only retry*, scenarios *A push that failed for
+  a moment leaves one answer file* and *A push refused for lack of access
+  is never pushed later*).
+
+**The answer session's retry is the only one for its files.** Were the
+`log` command to keep a pending copy too, a passing failure would give two
+answer files: the session's retry would push one, and the next `log` call
+the copy. After a refusal the person was told was final, the copy would
+still be pushed. The `log` command learns that the answer session is
+calling it from an option only the session passes. An ordinary agent keeps
+the pending copy, since it has no other retry.
 
 #### What the answer session posts by itself
 

@@ -222,35 +222,29 @@ file counting as the person's answer names in `answers`.
   answer file naming it in `answers` has `authority: input`
 - **THEN** the log file counts as unanswered
 
-### Requirement: The person's answer to a named file is their own, added alone
+### Requirement: The person's answer to a named file is their own
 
 An answer file SHALL count as **the person's answer** only when it is the
-answer of the log file it names in `answers`, as the inquisitor's *A named file's answer is the newest answer file naming it* sets it,
-which includes being added alone in its commit. The answer session
+answer of the log file it names in `answers`, as the inquisitor's *A named file's answer is the newest answer file naming it* sets it: its
+`answered_by` must be the person that file tags or, for a file tagging no
+one, an account with write access to what it concerns. The answer session
 SHALL show a named file's answer even where the newest answer file with
 the same question hash is another file.
 
 #### Scenario: An answer file naming the asked person counts
 
-- **WHEN** an answer file names, in `answers`, a log file that tags the
-  person, holds the person as `answered_by`, and is added alone by its
-  commit
+- **WHEN** an answer file holds the person as `answered_by` and names, in
+  `answers`, a log file that tags the person
 - **THEN** it counts as the person's answer
-
-#### Scenario: An answer file committed with another file does not count
-
-- **WHEN** an answer file names the tagged person as `answered_by`, but
-  its commit also adds another file
-- **THEN** it does not count as the person's answer
 
 #### Scenario: A file that tags no one is answered by an account with write access
 
 - **WHEN** a log file about the organization tags no one, and an answer
-  file naming it, added alone, names as `answered_by` an account with write
+  file naming it names as `answered_by` an account with write
   access to the lore repository, which is what an organization's question
   concerns for this rule
-- **THEN** that answer file counts as the person's answer, though no
-  person is tagged
+- **THEN** that answer file counts as the person's answer, this spec's
+  term for a named file's answer, though no one is tagged
 
 #### Scenario: A named file's answer is shown though its hash group's newest differs
 
@@ -1445,6 +1439,28 @@ the answer was relayed but not logged, and why.
   posted once the channel is on, and the edited answer's push fails
 - **THEN** the answer session keeps retrying that push, and the
   "Use Postgres" file does not drop the retry
+
+### Requirement: The answer session's owed push is its only retry
+
+The answer session SHALL pass the `log` command's session option on every
+push, so that its owed push is the only retry of any file it pushes, and a
+file it pushes without recording an owed push, such as the handled file of
+a question with a category, is never retried (the inquisitor's *The
+answer session's files are never kept pending*).
+
+#### Scenario: A push that failed for a moment leaves one answer file
+
+- **WHEN** an owed push of an answer file fails for want of network, and
+  the retry at the next poll succeeds
+- **THEN** the questions branch holds one answer file for that answer,
+  and no later `log` call pushes a second
+
+#### Scenario: A push refused for lack of access is never pushed later
+
+- **WHEN** the `log` command refuses an owed push for lack of access, and
+  the person is told the answer was relayed but not logged
+- **THEN** no later `log` call, on this machine or by any agent, pushes
+  that answer file
 
 ### Requirement: An answer whose thread is unreachable here is logged at once
 

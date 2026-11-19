@@ -422,7 +422,9 @@ that contradicts what design.md assumed too.
         question about the organization or project. The command
         fetches and pushes again when rejected because the branch moved,
         and keeps the file pending, pushing it with the next file for
-        that branch, when it cannot push otherwise.
+        that branch, when it cannot push otherwise; called with its
+        session option, which the answer session passes on every push, it
+        keeps no pending copy and reports why the push failed.
       - A picker question's file is pushed once answered, and a record
         more visible than its source only once the person answering
         confirmed the warning, then with no link into the source
@@ -813,11 +815,10 @@ that contradicts what design.md assumed too.
           pending*);
         - filter 1's search grouping every answer file by hash; among
           answer files naming one file, the newest is its answer and the older ones show as superseded in the search too; only an answer file that names, as `answered_by`, the person the named
-          file tags, and whose
-          commit adds it alone counts as
+          file tags counts as
           a named file's answer (design.md: *`answers` decides a named
           file's answer; the search groups by hash*; *A named file's
-          answer must be the person's own, added alone*);
+          answer must be the person's own*);
         - a file that tags no one answered only by an account with write
           access to what its question concerns: the repository its
           `repository` key names, or else the lore repository;
@@ -832,6 +833,8 @@ that contradicts what design.md assumed too.
           record once the post goes out, the record dropped when it never
           went out (design.md: *The push order for a questions-branch
           answer*);
+        - every push passing the `log` command's session option, so
+          that the owed push is the only retry;
         - the answer file pushed only after the thread is checked, none
           for an answer held back or dropped, and at once only for one
           whose channel is off or not subscribed, including one whose
@@ -927,7 +930,9 @@ that contradicts what design.md assumed too.
       `openspec/specs/gh-post/decisions.md`, and archiving leaves them as
       they are. Write no `.agents/skills/inquisitor/DECISIONS.md`. Since
       design.md and tasks.md are archived with the change and not read
-      again, point each requirement's citation of a measurement task 0.N
-      at its measured result, each citation of a design.md section
-      whose reason a decision record entry now gives at that entry, and
-      each other citation of design.md at the archived design.md
+      again, repoint these citations: each requirement's citation of a
+      measurement task 0.N, and each decision record's Evidence link to
+      tasks.md, at its measured result; each citation of a design.md
+      section whose reason a decision record entry now gives, at that
+      entry; and each other citation of design.md, at the archived
+      design.md

@@ -1130,10 +1130,10 @@ hash group* says how a replaced answer file supersedes.
 ### Requirement: A named file's answer is the newest answer file naming it
 
 The answer of a **named file**, one an answer file names in `answers`,
-SHALL be the newest answer file naming it that would count, added alone in
-its commit, whose `answered_by` is the person its question tags or, if it
-tags no one, an account with write access to what it concerns (design.md:
-*A named file's answer must be the person's own, added alone*). Only these
+SHALL be the newest answer file naming it that would count and whose
+`answered_by` is the person its question tags or, if it tags no one, an
+account with write access to what it concerns (design.md: *A named file's
+answer must be the person's own*). Only these
 files decide whether a named file is answered: an answer file that hash
 grouping supersedes still answers the file it names.
 
@@ -1152,15 +1152,6 @@ grouping supersedes still answers the file it names.
   and an answer file that counts names only the first in `answers`
 - **THEN** that answer file is the first file's answer and not the
   second's, though the two files' questions have one hash
-
-#### Scenario: A copied answer file does not take a named file over
-
-- **WHEN** someone pushes another question's answer file, with its `answers` changed to name an
-  unanswered file, in one commit with
-  other files
-- **THEN** the copy, not being added alone in its commit, is not that
-  file's answer, and the file stays shown to
-  the person
 
 ### Requirement: A replaced answer file stops counting even in its own hash group
 
@@ -2340,8 +2331,9 @@ When a push to a questions branch is rejected because the branch moved, the
 script SHALL fetch and push again. When it cannot push for any other
 reason, such as no credentials or no write access to that repository, it
 SHALL keep the file pending beside its verdict records, with mode 0600, and
-push it with the next file it pushes to that branch; the agent's report
-SHALL say the question is not yet logged, and why.
+push it with the next file it pushes to that branch, save as *The answer
+session's files are never kept pending* says; the agent's report SHALL say
+the question is not yet logged, and why.
 
 #### Scenario: A rejected push to the questions branch is retried
 
@@ -2358,6 +2350,23 @@ SHALL say the question is not yet logged, and why.
 - **AND** the next `log` call that can push to that branch pushes the
   pending file with its own
 
+### Requirement: The answer session's files are never kept pending
+
+Called with its session option, which only the answer session passes,
+the `log` command SHALL keep no pending copy of a file it cannot push,
+and SHALL tell the answer session why the push failed, leaving the
+file's retry to the session (answer-session spec: *The answer session's
+owed push is its only retry*).
+
+#### Scenario: A file the answer session cannot push leaves no pending copy
+
+- **WHEN** the answer session calls the `log` command with its session
+  option, and the push fails for want of network or of write access
+- **THEN** the command keeps no pending copy and reports why the push
+  failed
+- **AND** the next `log` call that pushes to that branch pushes only its
+  own file
+
 ### Requirement: No record goes somewhere more visible than its source
 
 A record's **source** SHALL be the thread its question was asked or its
@@ -2372,7 +2381,8 @@ more visible* allows, and the agent SHALL then tell the person why.
 
 - **WHEN** a question about an organization is raised by work in a private
   repository, and the team's lore repository is internal or public, or its
-  visibility cannot be read
+  visibility cannot be read, and the person answering has not confirmed
+  the record
 - **THEN** the script refuses to push it, and the agent tells the person
   why
 
@@ -2462,15 +2472,16 @@ the person the question was not logged.
 ### Requirement: A file on a questions branch never changes once pushed
 
 The agent SHALL never change a file on a questions branch once pushed: a
-later answer SHALL be a new log file holding the question and
-the answer, in its own commit.
+later answer SHALL be a new answer file holding the question and the
+answer, naming the earlier file as *An answer file names the unanswered
+file it answers* says.
 
 #### Scenario: A later answer on the questions branch is a new file
 
 - **WHEN** a person answers, in the session, a question already logged
   without an answer on a questions branch
 - **THEN** the agent pushes a new log file, with the question and the
-  answer, in its own commit, and the earlier file is unchanged
+  answer, and the earlier file is unchanged
 
 ### Requirement: A way-of-working answer goes to the person's memory, not a log
 
