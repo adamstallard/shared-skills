@@ -61,9 +61,10 @@ including a result that contradicts what design.md assumed.
 - [ ] 2.10 Count an edge only when a writer opened every item whose text
       sets it, and list the rest as not counted
 - [ ] 2.11 List each explicit link that names an outside item as not
-      counted, with the outside item in inline code and no edge set: on
-      its item's line, or with the edges that do not count when the order
-      does not hold the item
+      counted, setting no edge and writing the outside item as plain
+      `owner/repo#N` text: on the line of the item that has the link, or
+      in the list of edges not counted when the order does not hold that
+      item
 
 ## 3. Publishing
 

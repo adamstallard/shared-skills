@@ -307,27 +307,28 @@ repository in full SHALL be read as its `#<number>`.
 
 ### Requirement: A link to another repository's item is listed as not counted
 
-An explicit link that names an outside item SHALL set no edge, make no
-item wait and bring no issue into the order. The order's issue SHALL list
+An explicit link naming an outside item SHALL set no edge, make no item
+wait and bring no issue into the order. The order's issue SHALL list
 it as not counted, on the line of the item that has the link or, where the
-order does not hold that item, beside the edges *Only edges set by writers
-count* lists as not counted, and SHALL write the outside item
-`<owner>/<repo>#<number>` as inline code. The script SHALL read nothing
-about an outside item and edit nothing in its repository.
+order does not hold that item, in its list of edges not counted, and SHALL
+write the outside item as plain `<owner>/<repo>#<number>` text, which
+GitHub turns into a link. The script SHALL make no request to an outside
+item's repository.
 
 #### Scenario: A Depends on line naming another repository is listed and orders nothing
 
 - **WHEN** pull request #12's body holds the line
   `Depends on #9 and octo/lib#7`
 - **THEN** #12 comes after #9, and #12's line in the order's issue says
-  `` not counted: depends on `octo/lib#7`, in another repository ``
+  `not counted: depends on octo/lib#7, in another repository`, where
+  GitHub shows `octo/lib#7` as a link, as it does on every such line
 
 #### Scenario: A blocked-by relation to another repository's issue is listed
 
 - **WHEN** GitHub records pull request #14 as blocked by the issue
   `octo/lib#7`
 - **THEN** #14's line says
-  `` not counted: blocked by `octo/lib#7`, in another repository ``
+  `not counted: blocked by octo/lib#7, in another repository`
 
 #### Scenario: A Builds on line naming another repository is listed
 
@@ -335,7 +336,7 @@ about an outside item and edit nothing in its repository.
   `Builds on: claims (octo/lib#31)`, in the repository
   adamstallard/shared-skills
 - **THEN** #64's line says
-  `` not counted: builds on `octo/lib#31`, in another repository ``
+  `not counted: builds on octo/lib#31, in another repository`
 
 #### Scenario: A link to another repository's item makes no item wait
 
@@ -349,14 +350,13 @@ about an outside item and edit nothing in its repository.
 - **WHEN** open issue #12's only explicit link is the body line
   `Depends on octo/lib#7`, and no open pull request closes #12
 - **THEN** the order does not hold #12, and the order's issue lists
-  `` #12: depends on `octo/lib#7`, in another repository `` as not counted
+  `#12: depends on octo/lib#7, in another repository` as not counted
 
-#### Scenario: Nothing about another repository's item is read or written
+#### Scenario: The script makes no request about another repository's item
 
 - **WHEN** pull request #12's body says `Depends on octo/lib#7`
 - **THEN** the script makes no request about `octo/lib#7`, gives it no
-  position, edits no body in `octo/lib`, and lists the link whether
-  `octo/lib#7` is open or closed
+  position, and lists the link whether `octo/lib#7` is open or closed
 
 ### Requirement: Only edges set by writers count
 

@@ -209,12 +209,14 @@ counted, on the line of the item that has the link.** An item that outside
 work blocks appears in the order as if ready, with the link beside it. The
 decision record's Rationale for *A link to another repository's item is
 listed as not counted* says why such a link makes no item wait, and why
-the outside item is written as inline code.
+the outside item is written as `owner/repo#number`, which GitHub turns
+into a link.
 
 - **The script reads nothing about an outside item,** so the link is
   listed whether that item is open or closed.
 - **The link is listed whether or not a writer opened the item that has
-  it,** since a link that moves nothing needs no writer check.
+  it,** since a link that moves nothing needs no writer check. The
+  reference it puts in the order's issue is one that item already makes.
 - **An issue whose only link names an outside item is not in the order,**
   as an issue linked to nothing is not. The order's issue lists its link
   with the edges that do not count.
