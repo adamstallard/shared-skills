@@ -5,8 +5,7 @@ Before an agent puts a question to a person, in any task, the question
 passes four filters: already answered, deferrable, not a real question, and
 cheap to reverse. Two runs of the skill's script prove the filters ran, and
 two hooks check that proof before a question reaches the picker or a GitHub
-post. The skill records each answer and
-each choice where a later agent finds it, logs each question it asks and
+post. The skill records each answer where a later agent finds it, logs each question it asks and
 each miss, and proposes lore from answers that generalize. It works in any
 session, and also serves the igor project's AI teammates, the Igors, and the
 workers they start.
@@ -187,46 +186,31 @@ posts*).
 - **THEN** it runs the first call again with only the other question, and
   records a verdict for that one alone
 
-### Requirement: An agent records its own choice where the question's answer is recorded
+### Requirement: An agent's own choice goes in the work's decision document or its report
 
 Under filters 3 and 4, a rhetorical question excepted, the agent SHALL
-record its choice and why **where the question's answer is recorded**: the
-decision document about the question's subject in the repository the
-question concerns, such as the current change's spec; else a log file with
-`authority: agent`, pushed as *A question is pushed to the questions branch
-of what it concerns* says; or, for a way-of-working question, that person's
-memory or user-level `CLAUDE.md`.
+record its choice and why in the decision document about the question's
+subject in the repository the question concerns, such as the current
+change's spec, or, for a way-of-working question, in that person's memory
+or user-level `CLAUDE.md`; where none fits, only in its report. It SHALL
+push no file for its own choice to a questions branch, so a later agent
+runs filters 3 and 4 afresh.
 
-#### Scenario: An agent's choice with no document is logged as its own
+#### Scenario: An agent's choice with no document goes only in its report
 
 - **WHEN** the agent decides a question about `o/api` under filter 4, and
   no decision document fits
-- **THEN** it pushes a log file with `authority: agent` to the questions
-  branch of `o/api`, and filter 1 treats that file as an answer for a later
-  agent, labelled as the agent's choice
+- **THEN** it states its choice and reason in its report, and pushes
+  nothing to a questions branch
+- **AND** a later agent with the same question finds no record of the
+  choice, and judges the question under filters 3 and 4 itself
 
-#### Scenario: An agent's choice about an organization goes to the lore repository
+#### Scenario: A choice about a question with a category says only what its rules allow
 
-- **WHEN** the agent decides a question about the organization under filter
-  4, no decision document fits, and a lore repository is configured
-- **THEN** it pushes a log file with `authority: agent` to the lore
-  repository's questions branch
-
-### Requirement: An agent's choice with no place to record it goes in its report
-
-A question that gets no log file for another reason, such as one with a
-category (*Some questions are recorded by hash only*) or about an
-organization with no lore repository configured, has no place where its
-answer is recorded: the agent SHALL state its choice and reason in its
-report, saying of one with a category only what *A question with a category
-is asked only of the person or in its advisory* and *A session with no
-person in it holds back a question with a category* allow.
-
-#### Scenario: An organization's choice with no lore repository is reported
-
-- **WHEN** the agent decides a question about the organization under filter
-  4, no decision document fits, and no lore repository is configured
-- **THEN** it logs nothing, and states its choice and reason in its report
+- **WHEN** the agent decides, under filter 4, a question with a category
+- **THEN** its report says of the choice only what *A question with a
+  category is asked only of the person or in its advisory* and *A session
+  with no person in it holds back a question with a category* allow
 
 ### Requirement: A question another skill requires skips filters 2 and 4
 
@@ -509,22 +493,21 @@ it and is reading it.
 - **THEN** the session counts as one with no person in it, and the agent
   does not call the picker
 
-### Requirement: A bot's comment or a link off GitHub proves no writer
+### Requirement: An agent logs a bot's comment or a message off GitHub only as input
 
-A comment by a bot account, a relay identity's `User says: ` post and an
-Igor's included, and a link to a message off GitHub, such as on Discord,
-Slack or Linear, SHALL prove no log file's writer, and an answer read from
-either SHALL be input. An answer a person gave in an answer session SHALL
-count only through the signature on the answer file that session pushed.
+An answer the agent reads in a comment by a bot account, an answer
+session's relay bot's `User says: ` post and an Igor's included, or in a message off
+GitHub, such as on Discord, Slack or Linear, SHALL be logged, if at all,
+as `input`. An answer a person gave in an answer session SHALL count
+through the answer file that session pushed.
 
-#### Scenario: A relayed answer counts through its signed answer file
+#### Scenario: A relayed answer counts through its answer file
 
 - **WHEN** `alice` answers a question in her answer session, her GitHub
   relay posts `User says: Back off.`, and the session pushes an answer file
-  naming her as `answered_by` in a commit carrying a signature GitHub
-  verifies for her account
-- **THEN** filter 1 counts the answer file by that signature, and the relay
-  post, which the file's `answer_link` names, proves nothing
+  naming her as `answered_by`
+- **THEN** filter 1 counts the answer file, and the relay post, which the
+  file's `answer_link` names, counts for nothing
 
 #### Scenario: A User says comment with no answer file is input
 
@@ -533,14 +516,6 @@ count only through the signature on the answer file that session pushed.
   answer
 - **THEN** the agent logs the answer, if at all, with `authority: input`,
   and the question stays unanswered
-
-#### Scenario: A link to a Discord message proves no writer
-
-- **WHEN** a questions-branch `decision` file names `alice` as
-  `answered_by`, its `answer_link` is a Discord message by `alice`, and the
-  commit that added it carries no signature GitHub verifies
-- **THEN** the search shows the file labelled as unconfirmed, and fetches
-  nothing from the link
 
 ### Requirement: The credential patterns are a closed list of token shapes
 
@@ -741,8 +716,8 @@ searches through `igor lore-search`*).
 During an Igor's run, igor's search, which igor builds, SHALL cover only the
 lore repository the Igor injects lore from, its checkout and questions branch, and the item's
 repository's questions branch, read as *The Igor reads questions branches
-with the script* says. It identifies the run and role by the request's
-channel. It SHALL match lore terms as plain text and rank hits by
+with the script* says. igor identifies a worker's run and role by the channel its request arrives
+on. It SHALL match lore terms as plain text and rank hits by
 terms matched, keeping to the role's scope and the item's visibility.
 
 #### Scenario: A run's search keeps to the role's scope and the item's visibility
@@ -765,20 +740,19 @@ terms matched, keeping to the role's scope and the item's visibility.
 The script's `branch-search` command SHALL search one repository's
 questions branch for the question on standard input and print one JSON
 object whose `hits` each hold the file's `path`,
-`question`, any `answer`, a `label` of `decision`, `agent` or `input` set by
-this spec's checks, an input's `reason`, and `landed`. Given a run's
+`question`, any `answer`, a `label` of `decision` or `input` set by this
+spec's checks, an input's `reason`, and `landed`. Given a run's
 item as `--item`, it SHALL also apply *In an Igor's run, a file about
 another repository is input* and leave out each file the item's visibility hides.
 
 #### Scenario: The branch search prints each hit with the script's labels
 
 - **WHEN** `branch-search` is run for `o/api` with a question that matches
-  a proven `decision` file whose pinned commit is on the default branch, an
-  `authority: agent` file and a `decision` file with no proven writer
+  a `decision` file that counts, whose pinned commit is on the default
+  branch, and a `decision` file whose `answered_by` has no write access
 - **THEN** it prints `{"version": 1, "repository": "o/api", "hits": [...]}`,
-  the three hits labelled `decision` with `landed: true`, `agent`, and
-  `input` with the `reason` `unconfirmed`, each with its `path`, `question`
-  and `answer`
+  the first hit labelled `decision` with `landed: true` and the second
+  `input` with the `reason` `unconfirmed`, each with its `path`, `question` and `answer`
 - **AND** an unanswered file is an `input` hit whose `reason` is
   `unanswered`, and a miss file one whose `reason` is `miss`, holding its
   `filter` and `said`
@@ -795,8 +769,9 @@ another repository is input* and leave out each file the item's visibility hides
 #### Scenario: Given a run's item, the branch search applies the run's rules
 
 - **WHEN** `branch-search` is run with `--item o/web`, `o/web` being
-  public, on a lore repository's questions branch, and a proven `decision`
-  file about the public `o/doc` and a file about a private repository match
+  public, on a lore repository's questions branch, and two files match: a
+  `decision` file that would count, about the public `o/doc`, and a file
+  about a private repository
 - **THEN** the first is an `input` hit whose `reason` is `unconfirmed`, and
   the second is in no hit
 
@@ -813,7 +788,7 @@ During an Igor's run, the Igor SHALL run its worker's version of
 item's repository's questions branch and its lore repository's, and return
 the output to the worker over `igor lore-search`'s channel. The worker
 SHALL NOT fetch or verify either branch, and igor SHALL hold no copy of
-their matching, file format or proof rules. A call that fails or times out
+their matching, file format or authority rules. A call that fails or times out
 SHALL be reported as a source not searched.
 
 #### Scenario: A worker's search gets the item's questions branch from its Igor
@@ -862,8 +837,7 @@ Filter 1 SHALL treat a search hit as an earlier answer only when it is a
 decision document on the default branch of the question's repository, the
 decision block of an issue whose author has write access to it, an in-scope
 `active` lore entry, or counted by *A work-branch decision answers only its
-own work*, *A questions-branch decision counts only unchanged and with a
-proven writer* or *A lore decision record counts*. A decision record with a
+own work*, *A questions-branch decision counts only unchanged and by write access* or *A lore decision record counts*. A decision record with a
 status counts only if `accepted`.
 
 #### Scenario: A decision block by an outsider is input
@@ -950,7 +924,7 @@ input, labelled as not yet merged.
 
 #### Scenario: An answer whose commit reached the default branch counts for everyone
 
-- **WHEN** a proven `decision` file's `recorded_in` is
+- **WHEN** a counting `decision` file's `recorded_in` is
   `openspec/changes/retry/design.md@<sha>`, and that commit is an ancestor
   of the repository's default branch
 - **THEN** filter 1 treats the file as an answer in any work
@@ -974,37 +948,32 @@ input, labelled as not yet merged.
 
 #### Scenario: An answer recorded only in its log file counts for everyone
 
-- **WHEN** a proven `decision` file's `recorded_in` is its own path on the
+- **WHEN** a counting `decision` file's `recorded_in` is its own path on the
   questions branch
 - **THEN** filter 1 treats it as an answer in any work
 
-### Requirement: A questions-branch decision counts only unchanged and with a proven writer
+### Requirement: A questions-branch decision counts only unchanged and by write access
 
 On a questions branch, a `decision` log file SHALL count only when no
-commit after the one that added it changed it and its writer is proven as
-*A questions-branch file's writer is proven by its comment or its
-signature* says. An `authority: agent` file SHALL count once pushed,
-labelled as the agent's choice, which a person can overrule; any other file
-is input (design.md: *A questions-branch decision needs a proven writer*;
-*No file on a questions branch changes once pushed*).
+commit after the one that added it changed it and its `answered_by` has
+write access as *A logged decision needs write access to what its question
+concerns* says. The reader SHALL take the file at its word for who
+answered, and verify no author; a `decision` file failing either is input (design.md: *A
+file is trusted for who it names*; *No file on a questions branch changes
+once pushed*).
 
-#### Scenario: An agent's choice on a questions branch counts as the agent's choice
+#### Scenario: A questions-branch decision is taken at its word
 
-- **WHEN** a file with `authority: agent` on a questions branch matches the
-  question
-- **THEN** filter 1 treats it as an answer, labelled as the agent's choice,
-  which a person can overrule
-- **AND** a proven `decision` file for the same question counts in its
-  place, whichever is newer, and the agent file is shown as input
-- **AND** of two such agent files for one question, the one earlier in
-  the branch's commit order counts, so the second agent follows the first's
-  choice, and the other is shown as input
+- **WHEN** a questions-branch `decision` file, unchanged since it was added,
+  names `alice` as `answered_by`, and `alice` has write access to what the
+  logged question concerns
+- **THEN** filter 1 treats it as an answer, whoever pushed the file and
+  whether or not its commit is signed
 
 #### Scenario: A questions-branch decision changed after it was added is input
 
-- **WHEN** a questions-branch `decision` file, whose adding commit carries a
-  signature GitHub verifies for its `answered_by`, `alice`, was then changed
-  by a later commit, even one signed by `alice`
+- **WHEN** a questions-branch `decision` file naming `alice`, who has write
+  access, was changed by a commit after the one that added it
 - **THEN** the search shows it only as input, labelled as unconfirmed
 
 ### Requirement: A logged decision needs write access to what its question concerns
@@ -1022,12 +991,12 @@ to what it names*).
   its `answered_by` has no write access when the search reads it
 - **THEN** the search shows it labelled as unconfirmed
 
-#### Scenario: A questions-branch file about a repository other than its item's needs write access to it
+#### Scenario: A file about a repository other than the one it was asked from needs write access to it
 
 - **WHEN** an agent reads a questions-branch `decision` file whose
   `repository` is `o/api`, whose `asked_from` is `o/web`, and whose
   `answer_link` is its `answered_by`'s comment on a pull request of `o/api`
-- **THEN** the link can prove the writer, and the write access checked is
+- **THEN** the write access checked is
   `answered_by`'s to `o/api`, not to the lore repository
 - **AND** if `answered_by` can write to the lore repository but not to
   `o/api`, the search shows the file labelled as unconfirmed
@@ -1052,71 +1021,6 @@ SHALL count as no write access.
   `answered_by`'s permission on `o/api` cannot be read
 - **THEN** the search shows the file labelled as unconfirmed
 
-### Requirement: A questions-branch file's writer is proven by its comment or its signature
-
-A questions-branch file's writer SHALL be proven only in one of two ways:
-its `answer_link` is the github.com URL of a comment or review, on an issue
-or pull request of the repository its `repository` or `asked_from` names or
-of the file's own repository, that holds the answer the file records and
-was written by `answered_by`, as GitHub gives its author; or the commit
-adding the file carries a signature GitHub verifies for `answered_by`.
-
-#### Scenario: A questions-branch decision linking its comment is an answer
-
-- **WHEN** a questions-branch `decision` file, unchanged since it was added,
-  names `alice` as `answered_by` and links her GitHub comment holding the
-  answer it records, and `alice` has write access to what the logged
-  question concerns
-- **THEN** filter 1 treats it as an answer
-- **AND** so it does when the file links no comment but its adding commit
-  carries a signature GitHub verifies for `alice`'s account
-
-#### Scenario: A questions-branch decision with no proven writer is input
-
-- **WHEN** a questions-branch `decision` file names `alice` as
-  `answered_by`, links no comment, and its commit has no signature GitHub
-  verifies for `alice`, though its author email is hers
-- **THEN** the search shows it labelled as unconfirmed
-
-### Requirement: A reader counts no signature GitHub may have made
-
-A signature GitHub made itself SHALL count only once task 0.22 shows that
-GitHub never verifies such a commit for an account that did not make it,
-and a reader that cannot tell whether GitHub made a signature SHALL count
-no signature at all, the person's own included.
-
-#### Scenario: A signature GitHub may have made proves no writer
-
-- **WHEN** a questions-branch `decision` file names `alice` as
-  `answered_by`, links no comment, and was added by a commit carrying a
-  signature GitHub verifies for `alice`, which `alice` made, but the reader
-  cannot tell whether GitHub made it
-- **THEN** the search shows the file labelled as unconfirmed
-- **AND** so it shows, until task 0.22 settles it, a file whose commit
-  GitHub signed itself, such as one from its web editor
-
-### Requirement: A linked comment holds the answer only when the reduced texts are equal
-
-A reader SHALL take a linked comment to **hold the answer** a log file
-records only when the two whole texts are equal once each is reduced as *A
-question's text and hash are built one way* reduces a question in a post.
-No model judges it.
-
-#### Scenario: A comment holds the answer once both texts are reduced
-
-- **WHEN** a questions-branch `decision` file records the answer
-  `Back off, capped at a minute.`, and links a comment of its
-  `answered_by`'s whose text is `**Back off**, capped at a minute.`
-- **THEN** the comment holds the answer the file records
-
-#### Scenario: A comment that only contains the recorded answer does not hold it
-
-- **WHEN** a questions-branch `decision` file records the answer
-  `merge it.`, and links a comment of its `answered_by`'s whose text is
-  `Do not merge it.`
-- **THEN** the comment does not hold the answer, and the search shows the
-  file labelled as unconfirmed
-
 ### Requirement: An answer logged from a comment is the comment's whole text
 
 Whoever logs an answer from a comment, whether the skill's script, an
@@ -1132,82 +1036,59 @@ link only identifies the comment.
 - **THEN** the file's answer is those two lines, word for word, whatever
   answer text the agent passed
 
-### Requirement: Among files with the same question, only the newest proven answer counts
+### Requirement: Among files with the same question, only the newest answer counts
 
 Filter 1's search SHALL group a questions branch's log files by question,
 whether or not a file holds `answers`: by the hash of the whole text under
 `## Question`, reduced as *A question's text and hash are built one way*
 reduces a question in a post. Among a group's files that would each count,
-only the newest by its proof SHALL count, and each other SHALL be shown as
-input, labelled as superseded.
+only the newest SHALL count, and each other SHALL be shown as input,
+labelled as superseded.
 
 #### Scenario: The newest answer to a question counts
 
 - **WHEN** a questions branch holds two `decision` files with the same
-  question, each proven by a linked comment and unchanged since it was
-  added, and the second's comment is newer than the first's
+  question, each unchanged since it was added and naming a person with
+  write access, and the second was added by a later commit
 - **THEN** filter 1 treats the second as the answer, and shows the first as
   input, labelled as superseded
 
-### Requirement: A file is as new as its proof, and supersedes only if it would count
+### Requirement: A file is as new as the commit that added it, and supersedes only if it would count
 
-A file's newness SHALL be its proof's date: for a comment link, GitHub's
-`lastEditedAt`, or `createdAt` if never edited; for a signature, the
-earlier of the signed commit's committer date and the time this machine
-first fetched the commit that added the file. A file that would not count,
-such as an `input`, unanswered or unproven one, SHALL supersede nothing;
-*A replaced answer file stops counting even in its own hash group* says
-how a replaced answer file supersedes.
-
-#### Scenario: A re-pushed copy of an older answer does not count
-
-- **WHEN** someone pushes, after a maintainer's newer proven answer, a copy
-  of an older proven `decision` file under a new name, linking the older
-  comment
-- **THEN** filter 1 treats the newer answer as the answer, since its
-  comment is newer, and shows the copy labelled as superseded
-
-#### Scenario: A reaction does not make an older answer newer
-
-- **WHEN** two proven `decision` files with the same question link
-  comments created on 1 and 2 March, neither edited, and someone reacts to
-  the 1 March comment on 3 March
-- **THEN** the 1 March file's newness is still 1 March, its `createdAt`,
-  and filter 1 treats the 2 March file as the answer
-- **AND** if the 1 March comment's text were edited on 3 March, its
-  newness would become 3 March, but it would prove its file's writer only
-  if it still held the answer that file records
+A file's newness SHALL be the place, in its branch's commit order, of the
+commit that added it. A file that would not count, such as an `input` or
+unanswered one or one whose `answered_by` lacks write access, SHALL
+supersede nothing; *A replaced answer file stops counting even in its own
+hash group* says how a replaced answer file supersedes.
 
 #### Scenario: A later input file supersedes no answer
 
-- **WHEN** a questions branch holds a proven `decision` file and,
+- **WHEN** a questions branch holds a `decision` file that counts and,
   added after it, an `input` file with the same question
 - **THEN** filter 1 treats the `decision` file as the answer, and shows the
   `input` file labelled as input
 
-#### Scenario: A signature dated in the future is dated by its first fetch
+#### Scenario: A commit's date does not make a file newer
 
-- **WHEN** a signed `decision` file's commit carries a committer date a
-  year ahead, this machine first fetched it on 1 March, and a proven answer
-  with the same question is signed on 2 March
-- **THEN** the first file's newness is 1 March, and filter 1 treats the 2
-  March file as the answer
+- **WHEN** a `decision` file's commit carries a committer date a year
+  ahead, and a second `decision` file with the same question is added by a
+  later commit dated today
+- **THEN** filter 1 treats the second file as the answer
 
-### Requirement: A named file's answer is the newest proven answer file naming it
+### Requirement: A named file's answer is the newest answer file naming it
 
-A named file's answer SHALL be the newest answer file naming it in `answers`
-that would count, proven to be the answer of the person the named file's
-question tags or, if that file tags no one, of an account with write access
-to what its question concerns, and added alone in its commit (design.md: *A
-named file's answer must be the person's own, added alone*). Only these
+The answer of a **named file**, one an answer file names in `answers`,
+SHALL be the newest answer file naming it that would count, added alone in
+its commit, whose `answered_by` is the person its question tags or, if it
+tags no one, an account with write access to what it concerns (design.md:
+*A named file's answer must be the person's own, added alone*). Only these
 files decide whether a named file is answered: an answer file that hash
 grouping supersedes still answers the file it names.
 
 #### Scenario: An untagged file's answer from an account with write access counts
 
 - **WHEN** a questions-branch file that tags no one is named in `answers`
-  by an answer file whose commit carries a signature GitHub verifies for
-  `alice`, and the named file logs a question about the organization, and
+  by an answer file naming `alice` as `answered_by`, and the named file logs a question about the organization, and
   `alice` has write access to the lore repository
 - **THEN** that answer file is the named file's answer
 - **AND** for a named file whose `repository` key is `o/api`, the answer
@@ -1216,14 +1097,14 @@ grouping supersedes still answers the file it names.
 #### Scenario: An answer naming one file does not answer another with the same question
 
 - **WHEN** two unanswered questions-branch files hold the same question,
-  and a proven answer file names only the first in `answers`
+  and an answer file that counts names only the first in `answers`
 - **THEN** that answer file is the first file's answer and not the
   second's, though the two files' questions have one hash
 
 #### Scenario: A copied answer file does not take a named file over
 
-- **WHEN** someone pushes a copy of a proven answer file from another
-  question, naming an unanswered file in `answers`, in one commit with
+- **WHEN** someone pushes another question's answer file, with its `answers` changed to name an
+  unanswered file, in one commit with
   other files
 - **THEN** the copy, not being added alone in its commit, is not that
   file's answer, and the file stays shown to
@@ -1240,7 +1121,7 @@ decides a named file's answer; the search groups by hash*).
 #### Scenario: The newest answer naming a file counts
 
 - **WHEN** two answer files with different question text both name the same
-  file in `answers`, each would count, and the second's proof is newer
+  file in `answers`, each would count, and the second was added later
 - **THEN** the second is the named file's answer, and the search shows the
   first as input, labelled as superseded, though their hashes differ
 - **AND** the search shows the second as its own hash group's answer
@@ -1251,8 +1132,7 @@ decides a named file's answer; the search groups by hash*).
 ### Requirement: In an Igor's run, a file about another repository is input
 
 During an Igor's run, a questions-branch file whose `repository` key names
-a repository other than the run's item's SHALL be shown as input, labelled
-unconfirmed, whatever its proofs, unless the item's visibility hides it, as
+a repository other than the run's item's SHALL be shown as input, labelled unconfirmed, whoever it names, unless the item's visibility hides it, as
 *A run's lore search keeps to the Igor's lore repository and scope* says
 (design.md: *Questions-branch files and `project:` entries in a run's
 search*).
@@ -1261,7 +1141,7 @@ search*).
 
 - **WHEN** during an Igor's run on an item in `o/web`, a questions-branch
   `decision` file whose `repository` key names `o/api` matches the question,
-  and every proof of its writer holds
+  and its `answered_by` has write access to `o/api`
 - **THEN** the search shows the file as input, labelled unconfirmed
 - **AND** a file about the organization, holding no `repository`, is not
   about another repository, so this rule leaves it to the other checks
@@ -1825,6 +1705,42 @@ SHA-256 of that text as UTF-8, in lowercase hex.
 - **THEN** its text, built by these four steps as one part, is "Back off,
   capped at a minute.", one line
 
+### Requirement: Inline markup is reduced to its text one way
+
+Where this spec reduces **inline markup** to text, a code span, emphasis,
+strong emphasis or strikethrough SHALL become its inner text; a link or
+image its link text or alt text; an autolink its URL; a backslash escape
+the escaped character; and an HTML tag nothing, the text between tags
+staying. Nothing else SHALL change.
+
+#### Scenario: Each kind of inline markup reduces to its text
+
+- **WHEN** a question reads ``Use `retry()` in ~~v1~~ *v2*, see
+  <https://example.com> and \*this\* <b>now</b>?``
+- **THEN** its text is `Use retry() in v1 v2, see https://example.com and
+  *this* now?`
+
+### Requirement: A sentence and a question's terms are defined
+
+A **sentence** SHALL run from its paragraph's start, or the end of the
+sentence before it, to the first `.`, `?` or `!` that whitespace or the
+paragraph's end follows. A question's **terms** SHALL be the words of its
+text, split at every character that is neither a Unicode letter nor a digit,
+lowercased, each counted once.
+
+#### Scenario: A question's sentence ends at its question mark
+
+- **WHEN** a paragraph of a post reads `We cap at v1.2 today. Should
+  retries back off? I think so.`
+- **THEN** its question's sentence is `Should retries back off?`, the `.`
+  in `v1.2` ending no sentence
+
+#### Scenario: A question's terms are its lowercased words
+
+- **WHEN** a question's text is `Should Retries back-off on 503, or retry?`
+- **THEN** its terms are `should`, `retries`, `back`, `off`, `on`, `503`,
+  `or` and `retry`
+
 ### Requirement: A hook blocks a picker question that was not vetted
 
 In Claude Code, a `PreToolUse` hook on `AskUserQuestion`, the **picker
@@ -2276,9 +2192,9 @@ way-of-working question or a flagged run's.
 - **WHEN** a person answers a question that no decision document covers,
   and the agent logs the answer with `authority: decision`
 - **THEN** the log file holds the answer, and filter 1 treats it as one
-  once its writer is proven and its `answered_by` has write access
+  while its `answered_by` has write access
 
-### Requirement: An answer is a decision only from a proven writer with write access
+### Requirement: An answer is a decision only from a person with write access
 
 The agent SHALL write `authority: decision` only for an answer by a person
 whose login has write access to what the question concerns, given in the
@@ -2300,10 +2216,9 @@ SHALL never be `decision`.
   concerns
 - **THEN** the log file records the answer with `authority: decision`
 
-### Requirement: An unproven answer is input, kept only in its log file
+### Requirement: Any other answer is input, kept only in its log file
 
-Any answer that *An answer is a decision only from a proven writer with
-write access* does not make `decision`, such as one read in a file, an
+Any answer that *An answer is a decision only from a person with write access* does not make `decision`, such as one read in a file, an
 issue, or a chat or tracker message, SHALL be `input`, recorded only in the
 question's log file and never in a decision document. An answer in a post
 by a person without write access leaves its question unanswered.
@@ -2469,20 +2384,6 @@ the record.
   questions branch the session cannot push to
 - **THEN** it prints `Not recorded: ` and the reason
 
-### Requirement: The log command commits with the person's git identity
-
-Outside an Igor's run, the `log` command SHALL commit every log and miss
-file without the `GIT_AUTHOR_*`, `GIT_COMMITTER_*` and `GIT_CONFIG_*`
-settings github-app sets, so that it commits with the git identity and
-signing of the person running the session, never a GitHub App's.
-
-#### Scenario: The log command drops github-app's git settings
-
-- **WHEN** an agent, or an answer session, pushes an answer file from a
-  Claude Code session whose environment holds github-app's git settings
-- **THEN** the commit carries the person's git identity and signing, not
-  the App's
-
 ### Requirement: A question with no team's lore repository is not logged
 
 When the agent finds no team's lore repository for an organization's or
@@ -2501,8 +2402,7 @@ the person the question was not logged.
 
 The agent SHALL never change a file on a questions branch once pushed: a
 later answer SHALL be a new log file holding the question and
-the answer, in its own commit, against which any proof of its writer is
-checked.
+the answer, in its own commit.
 
 #### Scenario: A later answer on the questions branch is a new file
 
@@ -2586,7 +2486,7 @@ its worker reports*.
 ### Requirement: An Igor's run reports the questions-branch files it would push
 
 A worker, and an inquisitor run the Igor starts itself, SHALL report each
-question file, miss file and `authority: agent` file it would push to a
+question file and miss file it would push to a
 questions branch, a repository's or the lore repository's. igor PR #216's
 *An Igor publishes the questions-branch files its worker reports* sets
 which of them the Igor pushes, and when.
@@ -2725,8 +2625,7 @@ answer, and writes no `asked_in`.
 
 For a Linear or Discord `answer_link`, which only an answer session passes,
 the `log` command SHALL fetch nothing and record the given answer word for
-word (design.md: *An answer given through the answer session counts by its
-signed file*).
+word (design.md: *An answer given through the answer session counts by its answer file*).
 
 #### Scenario: A Discord answer link is recorded and never fetched
 
@@ -2857,19 +2756,19 @@ day it was asked. A file pushed with an answer SHALL also hold
 
 ### Requirement: An agent's own choice is written at the question's privacy
 
-An agent's own choice, and a file with `answered_by: agent` for a question
-never asked, such as a filter-3 or filter-4 choice, SHALL be written at the
-privacy of what the question concerns, as *A question is written at the
-privacy of what it concerns* requires of a question.
+An agent's own choice under filter 3 or 4 SHALL be written, in a decision
+document or its report, at the privacy of what the question concerns, as
+*A question is written at the privacy of what it concerns* requires of a
+question.
 
 #### Scenario: An agent's choice leaves out more private context
 
 - **WHEN** an agent working in a public repository decides there, under
   filter 4, a question about that repository, and its reason is how a
   private backend handles a request
-- **THEN** the log file, with `answered_by: agent`, gives the reason as what
-  some private backend might do, and does not name the backend or quote its
-  code
+- **THEN** the change's spec, where it records the choice, gives the reason
+  as what some private backend might do, and does not name the backend or
+  quote its code
 
 ### Requirement: A person's answer is recorded in their words or not at all
 
@@ -2985,15 +2884,13 @@ writes only outside an Igor's run.
 #### Scenario: An answered log file's keys
 
 - **WHEN** a log file is pushed with an answer
-- **THEN** it holds `answered_by`, a GitHub login or `agent`; `authority`,
-  `decision`, `input` or `agent`; and `recorded_in`, where the question's
+- **THEN** it holds `answered_by`, a GitHub login; `authority`, `decision`
+  or `input`; and `recorded_in`, where the question's
   answer is recorded, as a path from that repository's root or a URL, never
   a lore entry
 - **AND** a `recorded_in` naming a decision document on a branch other than
   the default one pins it to the commit recording the answer, as
   `<path>@<the commit's full hash>`
-- **AND** for a question never asked, such as an agent's choice under
-  filter 3 or 4, `asked` is the day the agent decided it
 
 #### Scenario: Where an answer_link may be written
 
@@ -3063,13 +2960,15 @@ writes only outside an Igor's run.
 - **WHEN** the agent logs a miss against filter 1 for a question logged on
   a questions branch
 - **THEN** the miss file is under `misses/` there, and its frontmatter
-  holds only `asked`, `filter: "1"`, `said`, and `repository` and
+  holds only `asked`, `filter: "1"`, `said`, `said_by`, and `repository` and
   `asked_from` as below
 - **AND** `repository`, `asked_from` and `asked` are as in the question's
   log file; `filter`, `"1"` to `"4"`, is the filter that should have
   stopped the question; `said` is what the person said, in their words or
-  in one sentence, with any place they named, such as a spec's path; and
-  the body is the question under `## Question`
+  in one sentence, with any place they named, such as a spec's path;
+  `said_by` is that person's GitHub login, or for a miss an answer session
+  logs, the login of the person running it; and the body is the question
+  under `## Question`
 - **AND** for a miss an answer session logs, `repository` and `asked_from`
   are as the `answer-session` spec's *A miss records who judged it and where
   it was asked from* gives, `said`, when it logs the miss by itself or with
@@ -3088,10 +2987,8 @@ writes only outside an Igor's run.
   answer comes, the answer under `## Answer`: for a github.com
   `answer_link`, the comment's text, as *An answer logged from a comment is
   the comment's whole text* says; for a Linear or Discord one, the text the
-  answer session relayed, `User says: ` included; for any other answer a
-  person gave, their words, such as the picker option they chose or the text
-  they typed, each word for word; and for an agent's own choice, that choice
-  in one sentence (design.md: *A logged answer is the person's own words*)
+  answer session relayed, `User says: ` included; and for any other answer a person gave, their words, such as the picker option they chose or the text
+  they typed, each word for word (design.md: *A logged answer is the person's own words*)
 
 #### Scenario: A whole comment fits as the answer
 
@@ -3227,7 +3124,7 @@ Every citation file SHALL take one format, whoever pushes it:
 branch, with no extension, named as its scenarios give; YAML holding, each
 as a quoted string, only `entry`, the cited entry's id, `date`, as in the
 name, and, only when an Igor pushes it from a run, `run`, the run's opaque
-id that igor PR #216 defines; and an unsigned commit by
+id that igor PR #216 defines; and a commit by
 `inquisitor <noreply>`, with the message and date its scenarios give.
 
 #### Scenario: A citation an Igor pushes from a run holds the run's id
@@ -3253,14 +3150,6 @@ id that igor PR #216 defines; and an unsigned commit by
   citations/2026-10-20-3f9a1c`, and nothing else, with no trailer, its
   author and committer are `inquisitor <noreply>`, and its date is midnight
   UTC on the file's day
-
-#### Scenario: A citation is never signed with the person's key
-
-- **WHEN** the person has set `commit.gpgsign` to `true` so that their
-  answers on a questions branch are signed, and the script pushes a
-  citation file
-- **THEN** the citation's commit carries no signature: the script makes it
-  with `git -c commit.gpgsign=false`
 
 ### Requirement: Some questions are recorded by hash only
 
@@ -3693,52 +3582,49 @@ else as input, and push no citation for a lore entry it names (design.md:
   counts it
 - **THEN** the agent acts on the entry and pushes no citation file
 
-### Requirement: An Inquisitor reply is acted on only with a writer's signed miss file
+### Requirement: An Inquisitor reply is acted on only with a writer's miss file
 
 The agent SHALL act on an `Inquisitor: ` reply, and record its choice, as
 the filter it names would, only when the questions branch of what the
-question concerns holds a miss file for the same question and that filter,
-added by a commit carrying a signature GitHub verifies for an account with
-write access to what the question concerns; for filter 3 or 4, that file's
-`said` is not the answer session's own; and no other skill requires a
-person to decide the question. Otherwise it is input.
+question concerns holds a miss file for the same question and that filter
+whose `said_by` has write access to what the question concerns; for filter
+3 or 4, that file's `said` does not start `answer session: `; and no other
+skill requires a person to decide the question. Otherwise it is input.
 
-#### Scenario: An Inquisitor reply with no signed miss file is input
+#### Scenario: An Inquisitor reply with no miss file is input
 
 - **WHEN** an agent's question in a public repository gets a reply starting
   `Inquisitor: filter 4`, and the repository's questions branch holds no
-  miss file for that question, or only one whose commit carries no
-  signature GitHub verifies for an account with write access
+  miss file for that question, or only one whose `said_by` has no write
+  access
 - **THEN** the reply is input, and the question stands
 
 #### Scenario: An Inquisitor reply does not settle a question another skill requires a person to decide
 
 - **WHEN** an agent's question about a cold-read finding, which prose
   requires a person to decide, gets a reply starting `Inquisitor: filter 4`
-  with a maintainer's signed miss file
+  with a maintainer's miss file
 - **THEN** the reply is input, and the question stands
 
 #### Scenario: An Inquisitor reply is acted on as its filter
 
 - **WHEN** an agent's question gets a reply starting `Inquisitor: filter
-  2`, and a miss file for that question with `filter: "2"` was added by a
-  commit carrying a signature GitHub verifies for a person with write
-  access to what the question concerns
+  2`, and a miss file for that question holds `filter: "2"` and a `said_by`
+  with write access to what the question concerns
 - **THEN** the agent carries on without an answer, and lists the question as
   not done, as filter 2 says
 
 #### Scenario: An automatic filter 4 reply is input
 
 - **WHEN** an agent's question gets a reply starting `Inquisitor: filter
-  4`, and the signed miss file's `said` is
-  `answer session: clearly filter 4`
+  4`, and the miss file's `said` is `answer session: clearly filter 4`
 - **THEN** the reply is input, and the question stands
 
 #### Scenario: A filter 4 reply the person chose is acted on
 
 - **WHEN** an agent's question gets a reply starting `Inquisitor: filter
-  4`, and the signed miss file of a person with write access to what the
-  question concerns holds `filter: "4"` and a `said` other than the answer
+  4`, and the miss file, whose `said_by` has write access to what the
+  question concerns, holds `filter: "4"` and a `said` other than the answer
   session's own
 - **THEN** the agent chooses one option, and records what it chose and why,
   as filter 4 says

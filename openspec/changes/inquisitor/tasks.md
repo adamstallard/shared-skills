@@ -49,20 +49,11 @@ that contradicts what design.md assumed too.
       script tells an Igor's run by `IGOR_RUN`*)
 - [ ] 0.10 Whether the agent can open, and write in, a repository's private
       security advisory, and what access that needs
-- [x] 0.11 GitHub's API gives a comment's or review's author, and whether a
-      commit's signature is verified and for which account (design.md: *A
-      questions-branch decision needs a proven writer*). It does: GraphQL's
-      `IssueComment` has `author { login }`, `createdAt` and
-      `lastEditedAt`, and a commit's `signature { isValid state signer {
-      login } wasSignedByGitHub }`, which for a merge commit on
-      shared-skills' main read `VALID`, signed by GitHub's `web-flow`
-      (2026-11-04). A person's own signature was not queried (task 0.22
-      covers it). Reviews and review comments were not queried; GitHub
-      documents the same `author`, `createdAt` and `lastEditedAt` on them
-      through GraphQL's `Comment` interface. A comment is dated by
-      `lastEditedAt`, or `createdAt` if never edited, and REST's
-      `updated_at` is never read (design.md: *The newest proven answer
-      counts*)
+- [x] 0.11 GitHub's API gives a comment's or review's author, which the
+      `log` command reads with a linked comment's text. It does: GraphQL's
+      `IssueComment` has `author { login }` (2026-11-04). Reviews and
+      review comments were not queried; GitHub documents the same `author`
+      on them through GraphQL's `Comment` interface
 - [x] 0.12 Whether an Igor's worker can run this skill, with a lore clone
       and `inquisitor.json` in reach. It can't, nor once igor PRs #174 and
       #175 land, by their specs, unchecked since neither is built
@@ -141,19 +132,6 @@ that contradicts what design.md assumed too.
       If
       GitHub reports it, they are built as the spec states them; if not,
       the repository's owner decides what to build
-- [ ] 0.22 What a reader needs to count a commit's signature as a
-      person's own (design.md: *A signature GitHub may have made waits on
-      task 0.22*). It measures two things:
-      - Whether a commit GitHub signs itself, from its web editor or
-        contents API, is verified for an account other than its author's.
-        That would let anyone with push access make a commit verified for
-        another person.
-      - How a reader tells a signature GitHub made from the person's own,
-        such as GraphQL's `wasSignedByGitHub`. If it can't tell, no
-        signature counts.
-
-      Until this shows GitHub never verifies such a commit for
-      someone who didn't make it, a signature GitHub made proves nothing
 - [ ] 0.23 That the URL an asking agent records as `asked_in` (design.md:
       *A log file follows its thread message by exact link*), and the
       handback comment URL an Igor records (design.md: *Each Igor log file
@@ -167,16 +145,6 @@ that contradicts what design.md assumed too.
       write and compare. Until measured, the asking agent records the URL
       its post command returns, and the answer session compares it as
       written
-- [ ] 0.24 How setup can tell ahead of time that a commit the script
-      pushes to a questions branch will be verified for the person
-      (design.md: *Setup checks questions-branch commits are the
-      person's*): git's `commit.gpgsign` and `user.signingkey` in the
-      clone it pushes from, the signing keys GitHub lists for the account, and whether
-      the committer email is a verified address there; and that the `log`
-      command, run with github-app's `GIT_AUTHOR_*`, `GIT_COMMITTER_*` and
-      `GIT_CONFIG_*` settings removed, commits as the person in a project
-      wired for an App. Until measured, setup shows the check as not
-      checked
 - [ ] 0.25 How GitHub, Linear and Discord each report a relay post refused
       for its text, such as its length, against one refused for lack of
       permission. This is the mapping the answer-session spec's *A refusal
@@ -212,10 +180,9 @@ that contradicts what design.md assumed too.
       installed for the Igor's own process, not only for its workers, so
       the Igor can run `branch-search` (inquisitor spec: *The Igor reads
       questions branches with the script*), and whether the Igor's App
-      token can read a collaborator's permission and a commit's signature
-      signer. Without the first, the call fails and the worker's search
-      names each questions branch as not searched; without the second,
-      every hit but an agent's choice is `input`
+      token can read a collaborator's permission. Without the first, the
+      call fails and the worker's search names each questions branch as
+      not searched; without the second, every hit is `input`
 - [ ] 0.30 That `CLAUDE_CODE_NO_FLICKER=1 claude --name Answers '/answer'`
       starts Claude Code named `Answers`, in its fullscreen layout, and
       runs `/answer` (answer-session spec: *Two commands open an answer
@@ -322,32 +289,24 @@ that contradicts what design.md assumed too.
           igor's `scopeMatches` gives it (igor's);
         - a decision record counted only when `accepted`;
         - a change's own decisions counted within that change;
-        - a questions-branch `decision` file counted only with its
-          writer proven by a linked comment or a verified signature
-          (design.md: *A questions-branch decision needs a proven
-          writer*), the comment holding the answer when its text equals
-          the file's once both are reduced (design.md: *A linked comment
-          holds the answer only when the texts are equal*);
-        - a bot account's comment, a `User says: ` one included, never
-          proving a writer (design.md: *An answer given through the
-          answer session counts by its signed file*);
+        - a questions-branch `decision` file counted only unchanged and
+          when its `answered_by` has write access, the file taken at its
+          word for who answered (design.md: *A file is trusted for who it
+          names*);
         - an answer whose `recorded_in` pins a commit counted for other
           work only once that commit has landed (design.md: *An answer
           recorded on a work branch counts for other work once it
           lands*);
         - only the newest answer counting among a question's files on a
-          questions branch, a signature dated no later than when this
-          machine first fetched its commit (design.md: *The newest proven
-          answer counts*);
+          questions branch, by the order of the commits that added them
+          (design.md: *The newest answer counts*);
         - a file's visibility taken from the more private of whichever
           of `repository` and `asked_from` it holds (design.md: *Every
           questions-branch file names where it was asked from*);
         - during an Igor's run, a file about a repository other than the
           item's shown as input (by `branch-search`, given the run's
           item; design.md: *Questions-branch
-          files and `project:` entries in a run's search*);
-        - an `agent` file on a questions branch counted once pushed,
-          labelled as the agent's choice.
+          files and `project:` entries in a run's search*).
       - It reports each source it did not search, and when a fetch last
         updated each clone's remote-tracking default branch.
 - [ ] 2.3b `branch-search`, which searches one repository's `questions`
@@ -360,8 +319,8 @@ that contradicts what design.md assumed too.
       waits for igor's agreement
 - [ ] 2.4 The `log` command, writing one file per question or miss in the
       format of *A log file and a miss file have one format*.
-      - `authority` is `decision`, `input` or `agent`, with
-        `answered_by: agent` for an agent's choice.
+      - `authority` is `decision` or `input`. An agent's own choice
+        under filter 3 or 4 gets no file.
       - A log file for a question also asked in a post holds that post's
         URL as `asked_in`: a Linear or Discord one only on a private
         repository's questions branch, a GitHub one only on a questions
@@ -399,16 +358,13 @@ that contradicts what design.md assumed too.
         - with a Linear or Discord `answer_link`, recorded as given, its
           link never fetched, and only where the questions branch's
           repository is private; elsewhere the file is written without
-          the link (design.md: *An answer given through the answer
-          session counts by its signed file*);
+          the link (design.md: *An answer given through the answer session counts by its answer file*);
         - any other answer a person gave, without an `answer_link`, in
           their own words as given (design.md: *A logged answer is the
           person's own words*).
       - A file is pushed to the `questions` branch of the repository the
         question is about, or of the team's lore repository for a
-        question about the organization or project, committed with the
-        person's git identity and signing (inquisitor spec: *The log
-        command commits with the person's git identity*). The command
+        question about the organization or project. The command
         fetches and pushes again when rejected because the branch moved,
         and keeps the file pending, pushing it with the next file for
         that branch, when it cannot push otherwise.
@@ -430,9 +386,7 @@ that contradicts what design.md assumed too.
       filter 1 stops a question with a lore entry, or when the person in
       the answer session cites an `active` entry in scope, a reason 2
       decline with filter 1 naming one included (design.md: *A person's
-      cite pushes a citation file*). It commits with
-      `git -c commit.gpgsign=false`, so a person's signing setup never
-      signs a citation with their key (design.md: *A citation's commit
+      cite pushes a citation file*). Its commit names no person (design.md: *A citation's commit
       names no person*). It sends none for a question with a category,
       none to a lore repository more visible than the repository the
       question concerns, and none for a cited entry not `active` or out
@@ -680,14 +634,9 @@ that contradicts what design.md assumed too.
       off and checked again at each opening; the Linear key in the
       keychain; `~/.local/bin/answer`; the check that each subscribed or
       lore repository's `questions` branch takes the person's direct push;
-      the optional step that creates a lore repository, its clone and its
+      and the optional step that creates a lore repository, its clone and its
       configuration entry (design.md: *Setup checks direct pushes, and can
-      create a lore repository*); and the check that commits to each
-      questions branch are signed and use the person's identity, never an
-      App's, made by resolving what the `log` command would commit with
-      once the github-app variables are removed, warning how to fix it
-      when not (design.md: *Setup checks questions-branch commits are the
-      person's*)
+      create a lore repository*)
 - [ ] 6.3 Polling: the four sources, only while open, the catch-up on
       opening, 60 seconds or GitHub's `X-Poll-Interval`, conditional
       requests, poll positions, and the questions branch of every
@@ -698,7 +647,8 @@ that contradicts what design.md assumed too.
       prints, the `Re: ` line on GitHub
       and Linear posts, post ids, editing in place, the thread read before
       a question is shown and before each post, the preview showing where
-      the answer will be recorded, and each confirmed answer pushed as a new signed log file, and again as a new one when its relayed answer
+      the answer will be recorded, an answer whose own last line starts `Re: ` sent back for rewording,
+      and each confirmed answer pushed as a new log file, and again as a new one when its relayed answer
       is edited (design.md: *Editing a relay post*);
       discord-bot's warnings shown after each Discord relay post and edit;
       and, off GitHub, the relayed text logged with the relay post's URL
@@ -758,7 +708,7 @@ that contradicts what design.md assumed too.
           prefix on GitHub*).
       - SKILL.md tells an agent to act on a `Recorded answer: ` reply only
         once filter 1 counts its record, and on an `Inquisitor: ` reply
-        only when a writer's signed miss file proves it, and for filter 3
+        only when a miss file whose `said_by` has write access backs it, and for filter 3
         or 4 only when that file's `said` is not the answer session's own
         (design.md: *What an asking agent does with an automatic reply*).
       - The tests cover:
@@ -801,9 +751,9 @@ that contradicts what design.md assumed too.
           time (design.md: *An answer that cannot reach its thread is kept
           pending*);
         - filter 1's search grouping every answer file by hash; among
-          answer files naming one file, the newest is its answer and the
-          older ones lose in the search too; only an answer file whose
-          proof is the person's and whose commit adds it alone counts as
+          answer files naming one file, the newest is its answer and the older ones show as superseded in the search too; only an answer file that names, as `answered_by`, the person the named
+          file tags, and whose
+          commit adds it alone counts as
           a named file's answer (design.md: *`answers` decides a named
           file's answer; the search groups by hash*; *A named file's
           answer must be the person's own, added alone*);

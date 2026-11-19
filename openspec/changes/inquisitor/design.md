@@ -147,9 +147,13 @@ its answer.** The person answering first sees where the record will go
 picker question is not logged at all: the agent's report says so. A
 Linear or Discord thread is its own record until the answer comes.
 
-A file with `authority: decision` needs a proven writer. A worker pushes nothing, and neither does an inquisitor run the Igor starts
-itself with no worker: the Igor pushes and checks the files they report, so a worker steered by untrusted text in its item can't
-forge a person's answer. An agent that cannot push, for want of credentials
+A file is taken at its word for who it names (*A file is trusted for who it
+names*).
+
+A worker pushes nothing, and neither does an inquisitor run the Igor starts
+itself with no worker: each reports its files, and the Igor checks them and
+pushes them, refusing one holding an answer, so a worker steered by untrusted text in its
+item can't write a person's answer. An agent that cannot push, for want of credentials
 or of write access to the repository, keeps the file pending and reports it.
 
 The spec's *A log file and a miss file have one format* holds the files'
@@ -231,8 +235,8 @@ maintainer's login by typing it into their own file.
 
 The answer session gives a person one place to answer the questions asked of
 them on GitHub, Linear and Discord. A relay identity, the person's own bot on
-each surface, posts each answer in the question's thread, and a signed
-answer file on a questions branch records it. The session's interface is a Claude Code
+each surface, posts each answer in the question's thread, and an answer file
+on a questions branch records it. The session's interface is a Claude Code
 mod built from the
 approved prototype build v0.1-33 (*The UI is built from prototype build
 v0.1-33*). A UI approved by use is not specified, so nothing here describes
@@ -301,9 +305,8 @@ thread holding several questions keeps a state for each; in a review thread
 a post answering the comment that starts the thread leaves it out. On
 Discord a relay post replies to its question.
 
-A relay post proves nothing to filter 1: an answer the person gave in the
-answer session counts only through the signed answer file the session pushes
-(*An answer given through the answer session counts by its signed file*).
+A relay post counts for nothing in filter 1 (*An answer given through the
+answer session counts by its answer file*).
 The thread's state is still read from relay posts, which is sound only while
 nothing but the answer session starts a post with a reserved prefix. Until
 github-app refuses to hand out a relay's token, any agent on the machine can
@@ -1098,7 +1101,7 @@ conditions.
 The spec's *A work-branch decision answers only its own work* sets the
 conditions: the branch is in the repository itself, not a fork, and the pull
 request's author, or with no pull request the person running the session,
-has write access. No signature is required.
+has write access.
 
 **Why:** without those conditions, an outside contributor could commit a
 decision that stops the agent's questions. Pushing a branch to the repository
@@ -1114,11 +1117,14 @@ belongs to may never merge. A squash or rebase merge never makes the pinned
 commit an ancestor of the default branch, so a merged pull request whose
 document is on the default branch counts as landed too.
 
-#### An agent's choice counts for later agents
+#### An agent's own choice is not logged
 
-An `authority: agent` file stops a later agent's question once pushed, shown
-labelled as the agent's choice, which a person can overrule, so two agents
-do not make opposite choices on the same question.
+**An agent's choice under filter 3 or 4 goes into the work's decision
+document where one fits, and otherwise only into the agent's report; no file
+for it is pushed to a questions branch.** A logged choice would stop later
+agents from judging the question again when something around it has changed,
+and the only way to remove it would be for a person to read a question and
+answer that no person should have to read. A later agent runs filters 3 and 4 afresh.
 
 #### An answer without authority stays in its log file
 
@@ -1126,35 +1132,27 @@ An `input` answer never goes into a decision document, because on the
 current work's branch a decision document counts as an answer, so the
 agent's own write would turn input into a decision.
 
-#### An agent logs `decision` only for an answer it can prove
-
-A signature on a commit made in the person's session proves only an answer
-the person gave in that session.
-
 #### No file on a questions branch changes once pushed
 
-A later answer is a new file holding the question and the answer, so the
-proof on its own adding commit covers everything it says.
+A later answer is a new file holding the question and the answer, so a file
+says one thing for good, and a reader can tell a file changed after its
+push, which counts for nothing, from one as pushed.
 
-#### A questions-branch decision needs a proven writer
+#### A file is trusted for who it names
 
-The spec's *A questions-branch file's writer is proven by its comment or its
-signature* holds the two proofs, because anyone who can push can write any
-`answered_by`, and GitHub takes a commit's author login from the author
-email, which the committer sets. The signature needs a one-time
-commit-signing setup on the person's machine; the agent commits from their
-session, so they never sign an answer by hand. The `log` command commits
-without the github-app skill's git settings, which would make the commit the
-bot's and unsigned (the inquisitor decision record's *Rationale: The log
-command commits with the person's git identity*; *Setup checks
-questions-branch commits are the person's*).
+**The spec trusts the person an answer file names in `answered_by` and a miss
+file in `said_by`, and checks only that the named person has write access to what the question
+concerns. Nothing in the skill verifies authorship.** A repository's admin
+who wants more enforces it: GitHub's rule requiring signed commits on the
+`questions` branch, or the admin's own checks on those two keys.
 
-*Ruled out by a scenario* (same requirement): matching the commit's author
-login to `answered_by`, which anyone with push access can forge (scenario *A
-questions-branch decision with no proven writer is input*); and treating
-every `questions`-branch file as input, so the branch could never settle a
-question (scenario *A questions-branch decision linking its comment is an
-answer*).
+*Recorded:* `openspec/specs/inquisitor/decisions.md`, *Constraint: Nothing
+in the skill verifies who wrote a questions-branch file* and *Rationale: A
+questions-branch decision counts only unchanged and by write access*.
+
+Three rules limit what a file can say, whoever pushes it: a worker logs no answer,
+the Igor refuses a worker's file that claims more than a worker may, and the
+`log` command fetches a linked GitHub comment's own text.
 
 #### A questions-branch decision counts by write access to what it names
 
@@ -1172,19 +1170,12 @@ as `o/api`, is input, even on the lore repository's questions branch. A
 permission that cannot be read counts as no authority.
 
 *Ruled out by a scenario* (inquisitor spec: *A logged decision needs write
-access to what its question concerns*, scenario *A questions-branch file about
-a repository other than its item's needs write access to it*): checking the
+access to what its question concerns*, scenario *A file about a repository other than the one it was asked from needs write access to it*): checking the
 lore repository's writers for every file, which lets a lore writer decide for
 a repository they cannot change; and a design in which `repository` names
 where an organization's question was asked and a reader tells the cases apart
 by comparing it with `asked_from`: that design judges a file about the Igor's
 own item's repository by the lore repository's writers.
-
-#### A signature GitHub may have made waits on task 0.22
-
-*Recorded:* `openspec/specs/inquisitor/decisions.md`, *Rationale: A reader
-counts no signature GitHub may have made*. Task 0.22 records how a reader
-tells a signature GitHub made from the person's own.
 
 #### A logged answer is the person's own words
 
@@ -1210,9 +1201,8 @@ marks make needless.
 
 #### The `log` command reads its inputs and the linked comments itself
 
-The command does not check who passed an `answer_link` or an `asked_in`: who
-passed a link proves nothing about who wrote the answer, and any proof of the
-writer comes from the linked comment or the commit's signature.
+The command does not check who passed an `answer_link`: it
+fetches a linked GitHub comment itself and records that comment's own text.
 
 **Why** inputs go in a 0600 file, never arguments: a question's text and its
 answer passed as arguments are readable by every user of a shared host.
@@ -1229,24 +1219,15 @@ same to a person, and an escape is one more form every reader must undo
 section's heading*, scenario *A question holding a closing section's heading
 is refused*).
 
-#### A linked comment holds the answer only when the texts are equal
 
-No model judges the comparison. The spec's requirement *A linked comment
-holds the answer only when the reduced texts are equal* gives the full
-reduction.
-
-*Ruled out by a scenario:* counting a comment that contains the answer, which
-let "merge it." match "Do not merge it." (scenario *A comment that only
-contains the recorded answer does not hold it*).
 
 #### An answer typed on another surface counts only through a decision document
 
 A linked answer is only a github.com comment or review, since only there is
 a comment's author a GitHub login a reader can check, so an answer typed
 directly on Linear or Discord can't be one. An answer typed in the answer
-session and relayed to Linear or Discord counts through its commit's
-signature (*An answer given through the answer session counts by its signed
-file*).
+session and relayed to Linear or Discord counts through its answer file (*An
+answer given through the answer session counts by its answer file*).
 
 #### Citations go to the lore repository's questions branch
 
@@ -1287,9 +1268,7 @@ igor PR #153's trailers is #153's to settle (*What igor must provide*).
 
 #### A citation's commit names no person
 
-Its fixed author, day-only date and lack of signature say nothing about who
-asked. `git -c commit.gpgsign=false` keeps a person's signing setup for the
-writer proof from signing a citation with their key.
+Its fixed author and day-only date say nothing about who asked.
 
 *Recorded:* `openspec/specs/inquisitor/decisions.md`, *Constraint: GitHub's
 events API shows each citation push's pusher and time to anyone who can see
@@ -1455,8 +1434,8 @@ more visible than X, or it would test nothing.
 **Why** visibility limits what a run sees: a worker could otherwise repost
 what it read about a private repository into a more public item.
 
-**Why** a file about another repository is input in a run: proofs show who
-answered, not that the answer belongs to the item's repository.
+**Why** a file about another repository is input in a run: *Every
+questions-branch file names where it was asked from* gives the reason.
 
 #### Every questions-branch file names where it was asked from
 
@@ -1523,9 +1502,8 @@ from that file.
 igor PR #216's requirement *An Igor publishes the questions-branch files its
 worker reports* holds these rules for both changes. The Igor pushes a file
 about the item's repository to that repository's questions branch, and any
-other to the lore repository's. It pushes only a file
-holding no answer, one with `authority: agent` and `answered_by: agent`, or
-a miss file, at a path not already on the branch (decision 21); every file
+other to the lore repository's. It pushes only a question file holding no answer or a miss file, and either
+only at a path not already on the branch (decision 21); every file
 passes igor PR #217's credential matcher, which matches known secrets'
 values such as the seat token (decision 28); and it reads the lore
 repository's visibility at every push (decision 37). This change also needs
@@ -1634,22 +1612,6 @@ person's other channels stay on.** Where no check can read a relay identity's
 right to post, the first refused post turns the channel off (spec: *Setup
 checks each relay identity before its channels are used*).
 
-#### Setup checks questions-branch commits are the person's
-
-**Setup checks that questions-branch answer files are committed as the
-person, with a signing key GitHub verifies for their account, never as a
-GitHub App, because an answer given through the session counts only through
-its commit's signature.**
-
-*Ruled out by a scenario:* a machine counting an answer file it pushed itself
-as answered without the signature every other machine needs (answer-session
-spec: *A questions-branch answer file records the answer as given*, scenario
-*An unsigned log file of a Discord-relayed answer is input*); and committing
-as the App with a warning that such answers do not count, since the person's
-answers would then never count (inquisitor spec: *The log command commits
-with the person's git identity*, scenario *The log command drops github-app's
-git settings*).
-
 #### Setup checks direct pushes, and can create a lore repository
 
 **Setup checks that each `questions` branch takes the person's direct push,
@@ -1699,24 +1661,23 @@ alone: the prefix marks a relay post, and nothing reads a relay identity's
 other posts (answer-session spec: *Relay posts start with a reserved prefix*,
 scenario *A relay identity's post without a prefix is not read*).
 
-#### An answer given through the answer session counts by its signed file
+#### An answer given through the answer session counts by its answer file
 
-**A relay post proves nothing to filter 1, on GitHub, Linear or Discord: an
-answer the person gave in the answer session counts only through the answer
-file the session pushes, in a commit signed with the person's key.** The
+**A relay post counts for nothing in filter 1, on GitHub, Linear or Discord:
+an answer the person gave in the answer session counts through the answer
+file the session pushes.** The
 session pushes it to the questions branch of what the question concerns, so
 an answer to a repository question counts as a decision whichever surface it
 was given on. No committed file lists a person's bots, and no reader has to
-learn which App wrote a comment. A person's own GitHub comment, under their
-own login, still proves its writer by its link. The relay post's URL is the
-file's `answer_link`, which proves nothing and, off GitHub, is never fetched.
+learn which App wrote a comment. The relay post's URL is the file's
+`answer_link`, which off GitHub is never fetched.
 
 *Ruled out by a scenario:* counting a `User says: ` comment by its author
-(inquisitor spec: *A bot's comment or a link off GitHub proves no writer*,
+(inquisitor spec: *An agent logs a bot's comment or a message off GitHub only as input*,
 scenario *A User says comment with no answer file is input*); and counting
 every answer relayed off GitHub as input (answer-session spec: *A
-questions-branch answer file records the answer as given*, scenario *A signed
-log file of a Discord-relayed answer is a decision*).
+questions-branch answer file records the answer as given*, scenario *A log
+file of a Discord-relayed answer is a decision*).
 
 #### github-app refuses `token`, `run`, `credential get` and `wire` for a relay identity
 
@@ -2017,7 +1978,7 @@ the item.
 Editing an automatic post turns it into the person's words, starting
 `User says: `, because the person confirmed its new text. An edit pushes a
 new log file, since a questions-branch file never changes and the branch
-would otherwise keep the first answer; *The newest proven answer counts* says
+would otherwise keep the first answer; *The newest answer counts* says
 which file counts.
 
 #### A rephrased answer carries its rephrasing
@@ -2056,25 +2017,17 @@ holding `answers`, so that the Igor adds the key itself and #216 pushes only
 what the Igor writes; *Open Questions* carries that request.
 
 *Ruled out by a scenario:* keeping hash matching beside `answers`, which
-gives machines different answers (inquisitor spec: *A named file's answer is
-the newest proven answer file naming it*, scenario *An answer naming one file
+gives machines different answers (inquisitor spec: *A named file's answer is the newest answer file naming it*, scenario *An answer naming one file
 does not answer another with the same question*).
 
-#### The newest proven answer counts
+#### The newest answer counts
 
-**Why newest by proof:** ordering by the commit's place in the branch would
-let anyone with push access re-push a copy of an older proven file and revert
-a newer answer. If a file that would not count could supersede, a person
-without write access, whose answer to a handback an Igor logs as `input`,
-would undo a maintainer's answer.
-
-A file proven by the comment it links is as new as that comment's GraphQL
-`lastEditedAt`, or `createdAt` if it was never edited. A file proven by its
-signature is as new as the earlier of the signed commit's committer date and
-the time this machine first fetched that commit (spec: *A file is as new as
-its proof, and supersedes only if it would count*). The
-inquisitor's decision record gives the reasons under that requirement's
-title.
+**A file is as new as the commit that added it, in the branch's commit
+order** (spec: *A file is as new as the commit that added it, and supersedes
+only if it would count*). A commit's own dates are whatever its committer
+sets, so they order nothing. If a file that would not count could supersede,
+a person without write access, whose answer to a handback an Igor logs as
+`input`, would undo a maintainer's answer.
 
 #### `answers` decides a named file's answer; the search groups by hash
 
@@ -2095,13 +2048,14 @@ in its own hash group*, scenario *The newest answer naming a file counts*).
 
 #### A named file's answer must be the person's own, added alone
 
-**Why the commit test:** a copy of an answer the person gave to another
-question carries their proof too, so a copy pushed in one commit with other
-files could otherwise become a named file's answer. The test guards against
-such bundled copies only. A file that tags no one, such as an Igor's handback
-routed by assignment, names no person whose proof could be asked for, so
-write access to what its question concerns, the test of `decision` authority
-for a questions-branch file, stands in for that proof.
+**Why added alone:** the answer session pushes each answer file in a commit
+of its own, so a file that arrives with others did not come from it. The
+check catches such bundled files only; a copy pushed alone passes it, which
+the record's Constraint on unverified authorship covers. An answer file
+answers a named file only when its `answered_by` is the person that file's
+question tags. A file that tags no one, such as an Igor's handback routed by
+assignment, gives no person to compare with, so any account with write
+access to what its question concerns may answer it.
 
 *Ruled out by a scenario* (answer-session spec: *The person's answer to a
 named file is their own, added alone*): accepting the risk of a bundled copy
@@ -2228,7 +2182,7 @@ with no person seeing it.
 
 **Why:** the line `The person chose this filter.` tells a reader of the
 thread that a person, not the answer session, chose the filter. An asking
-agent tells by the signed miss file instead (*What an asking agent does with
+agent tells by the miss file instead (*What an asking agent does with
 an automatic reply*).
 
 ### Incoming questions, declining and handled files
@@ -2238,7 +2192,7 @@ an automatic reply*).
 **Only an agent's question gets an automatic `Inquisitor: ` reply, so any
 doubt counts a question as a person's: no person then gets a reply nobody
 wrote.** The answer-session spec defines both kinds. A questions-branch log
-file counts as an agent's because only the inquisitor's script writes one.
+file counts as an agent's.
 An agent's question posted with a person's own credentials counts as a
 person's, since the answer session cannot tell the two apart. A relayed
 question, a `User asks: ` or `User says: ` post by a bot account, is a
@@ -2307,13 +2261,11 @@ person** (*No automatic post repeats one in its chain of replies*).
 
 **An agent acts by itself on an `Inquisitor: ` reply naming filter 2, which
 only defers; on one naming filter 3 or 4, which decide a question, only when
-the person chose it; and on any of them only when a signed miss file proves
-it.** The answer session pushes a miss file with every such reply, in a
-commit signed with the person's key. The file shows who stands behind the
-reply, the agent checks that account's write access, and the file's `said`
-shows whether the
-session or the person chose the filter. The reply's own text and author
-prove nothing: without the file, anyone who can comment could post
+the person chose it; and on any of them only when a miss file backs it.**
+The answer session pushes a miss file with such a reply wherever the visibility rules let it record one. The file's
+`said_by` names who stands behind the reply, the agent checks that account's
+write access, and the file's `said` shows whether the session or the person
+chose the filter. The reply's own text and author count for nothing: without the file, anyone who can comment could post
 `Inquisitor: filter 4` and have an agent decide a maintainer's question.
 The inquisitor spec holds the conditions; *What the answer session does by
 itself* gives why filters 3 and 4 need the person. Where no miss is
@@ -2411,12 +2363,12 @@ queue as a new question.
 file:** the asking agent acts on such a reply only when the person chose the
 filter, so the question is still open and its questions-branch file stays
 shown until the person handles it
-(inquisitor spec: *An Inquisitor reply is acted on only with a writer's
-signed miss file*).
+(inquisitor spec: *An Inquisitor reply is acted on only with a writer's miss file*).
 
-**A reader takes a handled file at its word, with no proven writer,** though
-an answer file needs one. The inquisitor decision record's Constraint on a
-rewritable `questions` branch gives what that costs.
+**A reader takes a handled file, which names no person, as the answer
+session's,** as it takes an answer file at its word. The
+inquisitor decision record's Constraint on a rewritable `questions` branch
+gives what that costs.
 
 *Ruled out by a scenario:* the asking agent marking its own file handled, or
 deciding the close, which would need proof of the post's author
@@ -2681,35 +2633,28 @@ the directory where spec-trace's CI fails on an untagged one.**
 
 ### For the repository's owner to decide
 
-- **Can an agent's choice be planted?** An `authority: agent` file stops a
-  later agent's question with no proven writer, so anyone who can push, or
-  a worker steered by untrusted text in its item, whose Igor pushes the file
-  it reports, can plant one. Should such
-  a file need a proof, or is being overruled by a person enough?
-- **Does the answer session post an agent's choice by itself?** An agent's
-  choice counts as an answer, so filter 1 in the answer session posts
-  `Recorded answer: ` linking it and logs a miss against the asker. Should
-  the session show an agent's choice beside the question instead?
-- **Does a confirmed answer whose own last line starts `Re: ` need a
-  guard?** In a review thread a relay post answering the starting comment
-  carries no `Re: ` line of its own, so such a last line reads as naming
-  another question.
-- **What exactly are "inline markup", a "sentence" and a question's
-  "terms"?** They decide a question's hash and its matches; the spec gives
-  inline markup only by example.
+- **Who decides a thread question that got an automatic filter 3 or 4 reply
+  and that no questions-branch file holds?** The thread's state lists it as
+  handled, apart from the queue, and the asking agent treats the reply as
+  input, so nobody is asked.
+- **Does an automatic filter 2 reply go out where privacy keeps its miss off
+  the questions branch?** The reply's handled file closes the
+  questions-branch file on every machine, yet the
+  asking agent may not act on a reply with no miss file.
+- **What does an answer decide when the person confirms it without its
+  record, declining the warning that the questions branch is more visible
+  than the thread?** The relay
+  post is input to the asking agent, and the handled file closes the
+  question everywhere, so the agent has to ask again.
 
 ### Facts measured before building
 
 Tasks 0.4 to 0.14 measure these facts before anything is built (tasks 0.1 to
 0.3 are under *What the hook relies on, not yet measured*). Each bullet says
 what the spec does if the fact is false. Task 0.12 is measured (*What task
-0.12 measured*). Task 0.11 is measured for an issue comment and for a signature
-GitHub made: GitHub's GraphQL API gives an
-`IssueComment`'s `author { login }`, `createdAt` and `lastEditedAt`, and a
-commit's `signature { isValid state signer { login } wasSignedByGitHub }`. A
-person's own signature was not queried, and task 0.22 checks how one reads.
-Reviews and review comments were not queried; GitHub documents `author`,
-`createdAt` and `lastEditedAt` on them.
+0.12 measured*). Task 0.11 is measured for an issue comment: GitHub's GraphQL API
+gives an `IssueComment`'s `author { login }`. Reviews and review comments
+were not queried; GitHub documents `author` on them.
 
 - **Can an agent without push access read another person's permission on a
   repository?** (task 0.4) If not, wherever the agent lacks push access, every
@@ -2758,7 +2703,7 @@ Reviews and review comments were not queried; GitHub documents `author`,
 
 ### Facts the answer session relies on
 
-**Tasks 0.15 to 0.24 measure facts the answer session relies on. Each task,
+**Tasks 0.15 to 0.21 and 0.23 measure facts the answer session relies on. Each task,
 in tasks.md, says what the spec does if its measurement goes against it.
 Tasks 0.18 and 0.19, which check that a command the mod runs reaches no tool
 hook and that a mod keeps polling while idle or in the background, instead
@@ -2767,10 +2712,8 @@ task 0.21, which tasks.md's task 0.21 lists, are not built until it is
 measured, and what to build for them is decided then.** The other tasks cover
 GitHub's notifications endpoint, how Linear and Discord show mentions and
 replies, how the Linear relay posts a comment, how setup checks a relay's
-access to each channel, how a reader tells a signature GitHub made from a
-person's own, whether an asking agent's recorded `asked_in` URL is the one the
-answer session reads, and how setup can tell that a questions-branch commit
-will be verified for the person.
+access to each channel, and whether an asking agent's recorded `asked_in` URL
+is the one the answer session reads.
 
 Task 0.25 records how each surface reports two kinds of refusal of a relay
 post: one for its text, such as its length, and one for lack of permission.
@@ -2900,7 +2843,7 @@ to its 149.
   repository's questions branch and its lore repository's, and return the
   JSON to the worker over the channel `igor lore-search` uses** (*The Igor
   reads questions branches by running the script*). igor copies none of
-  those branches' matching, file format or proof rules, and runs the
+  those branches' matching, file format or authority rules, and runs the
   version of the script its workers run. #216 should drop the authority
   checks and the questions-branch visibility rule it has igor apply.
   Task 0.29 measures whether the Igor's host has Python and the skill for
@@ -2908,7 +2851,7 @@ to its 149.
 - **#216 should drop its decisions 45, 77 and 78,** under which an Igor
   reads relay files. No relay file exists: the Igor logs a bot account's
   comment on a handback, a `User says: ` one included, as `input`, and the
-  answer session's signed answer file, which names the Igor's log file in
+  answer session's answer file, which names the Igor's log file in
   `answers`, is what counts.
 - **#216 should refuse a worker's file holding `handled` or `closes`,** as it
   refuses one holding `asked_from`. #216 pushes any worker file with no
@@ -2964,6 +2907,9 @@ to its 149.
   - #202's spec puts a decision about several repositories in the lore
     repository. Filter 1 reads the lore repository's decision records where
     #202 puts them (task 7.0).
+- **igor issue #211's body should record that a question about one
+  repository goes to that repository's `questions` branch,** which its decisions 18 and 43 still log in `.inquisitor/questions/`,
+  committed with the work.
 - **igor issue #211's body should record that the post hook vets every post,
   handbacks included** (*No exemption for an Igor's handback*), **and that
   filter 1 counts no repository's `DECISIONS.md` as a decision document**,
@@ -3000,7 +2946,7 @@ to its 149.
   later change would choose. Without it, an answer typed directly on such a
   surface counts only through a decision document, such as the scribe's
   record; one typed in the answer session and relayed there counts through its
-  log file's signature.
+  answer file.
 
 ### Left to implementation
 
@@ -3008,6 +2954,4 @@ to its 149.
   requirement with a scenario, or a decision-record entry with evidence,
   when it is made. *Some answer-session details are decided at
   implementation* lists them and what is decided around them.
-- **Where a machine keeps when it first fetched a questions-branch commit,**
-  which *The newest proven answer counts* bounds a signature's date by. It
-  holds no question text.
+

@@ -29,13 +29,11 @@ inquisitor's, or that spec's, *Title*:
   igor's marker* defines one.
 - A **questions branch** is a repository's orphan branch `questions`,
   which holds its question and miss files (the inquisitor's Purpose).
-- `answers`, `asked_in`, `asked_from`, `answer_link`, `answered_by` (who
-  answered), `authority` (`decision`, `input` or `agent`) and
-  `recorded_in` (where the answer is recorded) are log-file keys (the
-  inquisitor's *A log file and a miss file have one format*). A
-  file is **proven** to be a writer's by its linked comment or its
-  commit's signature (the inquisitor's *A questions-branch file's writer
-  is proven by its comment or its signature*).
+- `answers` (the file answered), `asked_in` (the post asked in),
+  `asked_from` (the repository asked from), `answer_link` (a link to the
+  answer), `answered_by` (who answered), `authority` (`decision` or `input`) and `recorded_in` (where
+  the answer is recorded) are log-file keys (the inquisitor's *A log file
+  and a miss file have one format*).
 - discord-bot's **header options** are `--agent`, `--session` and
   `--project`.
 - **The picker** is Claude Code's question tool, `AskUserQuestion`.
@@ -220,29 +218,28 @@ file counting as the person's answer names in `answers`.
 ### Requirement: The person's answer to a named file is their own, added alone
 
 An answer file SHALL count as **the person's answer** only when it is the
-answer of the log file it names in `answers`, as the inquisitor's *A named
-file's answer is the newest proven answer file naming it* sets it,
+answer of the log file it names in `answers`, as the inquisitor's *A named file's answer is the newest answer file naming it* sets it,
 which includes being added alone in its commit. The answer session
 SHALL show a named file's answer even where the newest answer file with
 the same question hash is another file.
 
-#### Scenario: An answer file proven to be the asked person's counts
+#### Scenario: An answer file naming the asked person counts
 
-- **WHEN** an answer file naming a log file that tags the person is proven
-  the person's and its commit adds it alone, even one that copies their
-  answer to another question with their comment link
+- **WHEN** an answer file names, in `answers`, a log file that tags the
+  person, holds the person as `answered_by`, and is added alone by its
+  commit
 - **THEN** it counts as the person's answer
 
 #### Scenario: An answer file committed with another file does not count
 
-- **WHEN** an answer file is proven to be the tagged person's, but its
-  commit also adds another file
+- **WHEN** an answer file names the tagged person as `answered_by`, but
+  its commit also adds another file
 - **THEN** it does not count as the person's answer
 
 #### Scenario: A file that tags no one is answered by an account with write access
 
 - **WHEN** a log file about the organization tags no one, and an answer
-  file naming it, added alone, is proven to be an account's with write
+  file naming it, added alone, names as `answered_by` an account with write
   access to the lore repository, which is what an organization's question
   concerns for this rule
 - **THEN** that answer file counts as the person's answer, though no
@@ -274,8 +271,7 @@ GitHub channel, SHALL have one poll position of its own: the
 Two questions SHALL count as **the same question** when they have the
 same hash. The inquisitor spec defines a post's question text and its
 hash; a log file's question is the text under its `## Question`, hashed
-as that spec's *Among files with the same question, only the newest
-proven answer counts* says.
+as that spec's *Among files with the same question, only the newest answer counts* says.
 
 #### Scenario: Two questions with one hash are the same question
 
@@ -487,15 +483,12 @@ in; each opening SHALL rerun any check that failed or never ran.
   reported to the person* says, and the team stays off until a check at
   a later opening passes
 
-### Requirement: Setup opens on an incomplete configuration and checks questions-branch commits
+### Requirement: Setup opens on an incomplete configuration
 
 The answer session SHALL run setup in place of the queue while
 `answer_session` is missing or no surface in it has both a `relay` and a
 subscription, and on `/answer setup`. Setup SHALL offer the channels the
-person can read, and save every channel whatever its checks found. It
-SHALL warn, with the fix, when the `log` command's questions-branch
-commits would not be the person's, signed with a key GitHub verifies,
-showing that check as not checked when it cannot tell.
+person can read, and save every channel the person chose, whatever its checks found.
 
 #### Scenario: Setup offers the person's channels
 
@@ -511,30 +504,6 @@ showing that check as not checked when it cannot tell.
   `answer_session` section, or one in which no surface has both a `relay`
   and a subscription
 - **THEN** setup runs in place of the queue
-
-#### Scenario: Unsigned or unverified commits get a warning
-
-- **WHEN** setup finds that the person's commits to a questions branch
-  would be unsigned, or signed with a key GitHub does not list for their
-  account
-- **THEN** setup warns that their answer files will not count, says how to
-  fix it, and saves the configuration
-- **AND** the warning turns nothing off, and setup reruns the check at
-  each opening until it passes
-
-#### Scenario: Setup checks commits as the log command makes them
-
-- **WHEN** the Claude Code session's environment sets `GIT_AUTHOR_NAME` to
-  a GitHub App's bot and turns signing off through `GIT_CONFIG_*`
-- **THEN** setup checks the identity and signing `log` would commit with
-  once github-app's `GIT_AUTHOR_*`, `GIT_COMMITTER_*` and `GIT_CONFIG_*`
-  settings are removed
-
-#### Scenario: A commit check setup cannot make is not checked
-
-- **WHEN** setup cannot tell whether questions-branch commits would be
-  the person's and signed, such as while offline
-- **THEN** setup shows that check as not checked, never as passed
 
 #### Scenario: Setup runs again on request
 
@@ -1101,6 +1070,21 @@ a relay post SHALL name its question by replying to it.
   `Re: ` and that reply's URL
 - **AND** a relay post answering the review comment that starts the
   thread has no `Re: ` line, and names that comment
+
+### Requirement: An answer whose own last line starts with Re is reworded, not posted
+
+The answer session SHALL NOT post an answer whose own last line starts
+with `Re: `, which a reader would take for the line naming a question, and
+SHALL ask the person to reword it.
+
+#### Scenario: An answer ending in its own Re line is sent back for rewording
+
+- **WHEN** the person confirms an answer whose last line is
+  `Re: https://github.com/o/api/issues/7#issuecomment-1`
+- **THEN** the answer session posts nothing and pushes no file, and asks
+  the person to reword the answer
+- **AND** an answer holding `Re: ` anywhere but at the start of its last
+  line is posted as usual
 
 ### Requirement: A relay post is posted by a host command, unvetted
 
@@ -2103,28 +2087,17 @@ it posted as the relay, and the command fetches no post.
 - **THEN** the `log` command logs as the answer the text the session
   posted as the relay, `User says: ` included, and nothing fetches the file's
   `answer_link`, that Linear comment's URL
-- **AND** the file counts only through its commit's signature
 
-#### Scenario: A signed log file of a Discord-relayed answer is a decision
+#### Scenario: A log file of a Discord-relayed answer is a decision
 
 - **WHEN** the person answers a question about a private repository asked
-  in a Discord thread, the session relays it on Discord, GitHub
-  verifies a signature for `answered_by` on the commit adding the log
-  file, which no later commit changed, and `answered_by` has write
-  access to what the question concerns
+  in a Discord thread, the session relays it on Discord, no later commit
+  changes the answer file the session pushes, and its `answered_by` has write access to what the
+  question concerns
 - **THEN** the file's answer is the text sent to discord-bot, before any
-  mention is rewritten; its `authority` is what the inquisitor's *An
-  answer is a decision only from a proven writer with write access* sets
-  for a session answer; filter 1 counts it a decision only through that
-  signature, by the inquisitor's *A bot's comment or a link off GitHub
-  proves no writer*; and its Discord `answer_link` proves nothing
-
-#### Scenario: An unsigned log file of a Discord-relayed answer is input
-
-- **WHEN** the same answer is logged by a commit that carries no
-  signature GitHub verifies
-- **THEN** filter 1 shows the file as input, labelled unconfirmed, as the
-  inquisitor's spec labels a `decision` file whose writer is not proven
+  mention is rewritten; its `authority` is `decision`, as the inquisitor's
+  *An answer is a decision only from a person with write access* sets; filter 1 counts the file a decision; and nothing
+  fetches its Discord `answer_link`
 
 ### Requirement: A handled file closes a questions-branch question
 

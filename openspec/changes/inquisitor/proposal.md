@@ -29,9 +29,8 @@ agent asks it again.
   produces lessons, each sent where it applies: the skill, a team's lore, or
   one person's memory.
 - An answer session gives a person one place to answer the questions asked
-  of them on GitHub, Linear and Discord. A relay identity posts each answer
-  for them, and a file on the questions branch, in a commit signed
-  with the person's key, records it as theirs. The answer session runs the four filters on each incoming
+  of them on GitHub, Linear and Discord. A relay identity, the person's own bot on
+  each surface, posts each answer for them, and a file on the questions branch records it as theirs. The answer session runs the four filters on each incoming
   question too: it answers what is already recorded, replies to an agent's
   question that another filter clearly stops, and lets the person decline
   a question, logging a miss where one is due.

@@ -3,9 +3,15 @@
 ## Constraints
 
 - **Constraint: Anyone with write access to a repository can rewrite or delete its unprotected `questions` branch.**
-  Because: the branch takes direct pushes, so setup asks for no protection of it, and the cost is accepted: a rewrite can delete records, or drop a newer answer so that an older signed one counts again, and a pushed handled file, which needs no proven writer, can close a question so that the person never sees it, but none of these can forge a decision, since a `decision` file counts only unchanged and with a proven writer.
+  Because: the branch takes direct pushes, so setup asks for no protection of it, and the cost is accepted: a rewrite can delete records, or drop a newer answer so that an older one counts again, and a pushed handled file can close a question so that the person never sees it.
   Evidence: `git push --force` replaces a branch even when the push loses commits, https://git-scm.com/docs/git-push
   Holds while: setup asks for no protection of a `questions` branch.
+  Paths: .agents/skills/inquisitor/
+
+- **Constraint: Nothing in the skill verifies who wrote a questions-branch file, so anyone who can push to the branch can name any author.**
+  Because: a reader checks only that the named person has write access to what the question concerns, and enforcement is left to each repository's admin, who can require signed commits on the branch or run their own checks on the files' `answered_by` and `said_by` keys.
+  Evidence: GitHub's branch protection can "Require signed commits", https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches#require-signed-commits
+  Holds while: the spec trusts who a question, answer or miss file says wrote it.
   Paths: .agents/skills/inquisitor/
 
 - **Constraint: GitHub's events API shows each citation push's pusher and time to anyone who can see the lore repository.**
@@ -27,28 +33,20 @@
   Evidence: work committed on one branch is not in another branch's files until it is merged into it, https://git-scm.com/book/en/v2/Git-Branching-Basic-Branching-and-Merging
 
 - **Rationale: The Igor reads questions branches with the script.**
-  A worker holds no GitHub credential, and counting a decision needs GitHub's answer on write access and a commit's signature. The Igor already runs `gh`, `git` and `claude` as child processes, so the script is one more program run the same way, and igor needs no second implementation of the rules.
+  A worker holds no GitHub credential, and counting a decision needs GitHub's answer on write access. The Igor already runs `gh`, `git` and `claude` as child processes, so the script is one more program run the same way, and igor needs no second implementation of the rules.
   Evidence: igor spawns its helper programs as child processes, https://github.com/adamstallard/igor/blob/7d969cd6ab7820e143c2802a9ead44b3a91332b0/src/gh.ts
 
-- **Rationale: The log command commits with the person's git identity.**
-  An answer given in a session counts only through its commit's signature, and in a session set up for a GitHub App the github-app skill's settings make every commit the bot's and unsigned, so the `log` command commits without them, or the person's answers would never count.
-  Evidence: github-app's `agent_env` sets `commit.gpgsign=false` and the bot's `GIT_AUTHOR_*` and `GIT_COMMITTER_*`, https://github.com/adamstallard/shared-skills/blob/02c0a7782bc0392f5c1f5d8e3af0188cf84a9f0d/.agents/skills/github-app/scripts/github_app.py#L499-L523
+- **Rationale: A questions-branch decision counts only unchanged and by write access.**
+    Write access is the authority to decide for a repository, and a file changed after its push no longer says what was pushed. A commit's signature would not show who answered: most answers are logged by an agent in the person's own session, and git signs with the configured key whatever the commit holds, so a signed file says only whose session pushed it. Where the admin requires signed commits, a file naming someone who did not answer is itself signed by whoever pushed it, which shows who forged it.
+  Evidence: `git commit -S` signs the commit with the committer's key, whatever its content, https://git-scm.com/docs/git-commit#Documentation/git-commit.txt--Sltkey-idgt
 
 - **Rationale: Filter 1 hides every lore entry outside the question's scope.**
   igor and the inquisitor must read a lore entry's scope alike, and igor matches a `project:` scope by a repository's short name. A project whose repositories have other names would need a mapping file in the lore repository, read by both, which nothing provides.
   Evidence: `scopeMatches` in igor's `src/firing.ts`, https://github.com/adamstallard/igor/blob/main/src/firing.ts
 
-- **Rationale: A file is as new as its proof, and supersedes only if it would count.**
-  The signer sets a commit's committer date, so a signature dated by it alone would let a proven writer, or a skewed clock, date a commit far in the future and outrank every later answer for good. Bounding it by this machine's first fetch costs this: two machines that first fetched a file at different times can order it differently against a file pushed between those fetches.
-  A comment is dated by GraphQL's `lastEditedAt`, or `createdAt` if it was never edited, because GitHub documents `lastEditedAt` as the time of the last edit; REST's `updated_at` is never read. Anyone's edit makes the comment newer, but it also changes the text, and a link proves a writer only while the comment holds the answer the file records, so an edit cannot make an old answer the newest. Reviews and review comments carry the same fields, since both types implement GraphQL's `Comment` interface.
+- **Rationale: A file is as new as the commit that added it, and supersedes only if it would count.**
+  A commit's dates are whatever its committer sets, so they cannot order answers; the branch's commit order changes only when the branch is rewritten, which the Constraint on a rewritable `questions` branch covers.
   Evidence: the committer date is whatever the committer's environment sets, https://git-scm.com/docs/git-commit#_commit_information
-  Evidence: GitHub's GraphQL reference documents `lastEditedAt` as "The moment the editor made the last edit", https://docs.github.com/en/graphql/reference/issues#object-issuecomment
-  Evidence: GitHub's GraphQL schema lists `PullRequestReview` and `PullRequestReviewComment` among the types implementing `Comment`, read by introspection on 2026-11-13, https://docs.github.com/en/graphql/reference/pulls#object-pullrequestreview
-
-- **Rationale: A reader counts no signature GitHub may have made.**
-  GitHub signs the commits it makes itself, such as one from its web editor. If GitHub verified such a commit for an account that did not make it, anyone with push access could make a commit that proves another person's answer.
-  Evidence: "GitHub will automatically use GPG to sign commits you make using the web interface", https://docs.github.com/en/authentication/managing-commit-signature-verification/about-commit-signature-verification
-  Evidence: task 0.11 read a merge commit on shared-skills' main as `VALID`, signed by `web-flow` with `wasSignedByGitHub` set, on 2026-11-04, https://github.com/web-flow.gpg
 
 - **Rationale: The script tells an Igor's run by IGOR_RUN.**
   The script matches the variable's exact name and value, since a prefix match would take a seat's token variable, `IGOR_RUN_TOKEN`, for a run marker.
