@@ -44,6 +44,11 @@
   igor and the inquisitor must read a lore entry's scope alike, and igor matches a `project:` scope by a repository's short name. A project whose repositories have other names would need a mapping file in the lore repository, read by both, which nothing provides.
   Evidence: `scopeMatches` in igor's `src/firing.ts`, https://github.com/adamstallard/igor/blob/main/src/firing.ts
 
+- **Rationale: A log file and a miss file have one format.**
+  Of this requirement, the scenario *Where an asked_in may be written* fixes one form for a Discord or Linear message's URL because the forms the surfaces give differ. Discord returns no URL for a message, only ids, so the asking agent and the answer session each build it; a message that starts a thread has two addresses, its parent channel's and one inside the thread, where a placeholder message points back to it; and `discordapp.com` answers 301 to the same path on `discord.com`. Linear returns a comment's URL with the issue's title slug, and renaming the issue changed that slug in every comment's URL, so a URL recorded before a rename would match nothing after it. This was measured on 2026-11-19 on a test Discord thread and a test Linear issue, and task 0.23 in the change's tasks.md holds the result.
+  Evidence: the 2026-11-19 measurement, recorded in task 0.23, [tasks.md](../../changes/inquisitor/tasks.md)
+  Evidence: Discord's message object carries `id` and `channel_id` and no URL, https://discord.com/developers/docs/resources/message#message-object
+
 - **Rationale: A file is as new as the commit that added it, and supersedes only if it would count.**
   A commit's dates are whatever its committer sets, so they cannot order answers; the branch's commit order changes only when the branch is rewritten, which the Constraint on a rewritable `questions` branch covers.
   Evidence: the committer date is whatever the committer's environment sets, https://git-scm.com/docs/git-commit#_commit_information

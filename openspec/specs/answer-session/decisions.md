@@ -60,6 +60,11 @@
   Evidence: the approved prototype's `tool.call` handler for `propose_reply` refuses such a call, in `answer-session/hooks/register.tsx`, fc3c35f
   Evidence: Claude Code's hooks reference says a subagent's tool events carry "the `agent_id` and `agent_type` common input fields that identify the subagent", https://code.claude.com/docs/en/hooks
 
+- **Rationale: An agent's question comes from a bot account or a log file.**
+  This covers the bot-account half of the rule: a message counts as a bot account's by a mark the surface, not the account, sets on its author. On Linear an app user's comment has `user.app` `true`, with `botActor` and `externalUser` null, so a reader checking `botActor` would count every agent as a person; on Discord a bot's message has `author.bot` `true`, and a person's user object has no `bot` key. Both were read back from the API on 2026-11-19, and tasks 0.16 and 0.17 in the change's tasks.md hold the results: of 77 comments in a test team, the 5 an app identity posted had `user.app` `true` and the other 72 `false`, and every message a bot posted in a test thread had `author.bot` `true`. That a person's Linear account cannot take on `app` rests only on the schema's description, untested, and a Discord webhook's message and GitHub's mark (task 0.21) are not measured.
+  Evidence: Linear's GraphQL schema describes `User.app` as "Whether this account represents an installed application rather than a person", https://linear.app/developers/graphql
+  Evidence: Discord documents `bot` on its user object, https://discord.com/developers/docs/resources/user#user-object
+
 - **Rationale: Whom a message reaches is set by its mentions.**
   The rule gives an Igor's question to the person who should answer it, because an Igor mentions that person first. Igor issue #229 sets the order, and igor's specs do not state it: an Igor mentions its operator, the person who runs it, first only when it stops for a reason it detects itself, then the assignee and the creator; every other handback, a question included, mentions the assignee and then the creator.
   Evidence: igor issue #229, https://github.com/adamstallard/igor/issues/229

@@ -1714,8 +1714,9 @@ concerns* rules out.
 #### Which cross-machine cases are accepted
 
 **A case between two machines of the same person whose worst outcome is a
-question shown twice or asked again is accepted, and gets no rule of its
-own.** "Asked again" means an asking agent asks a question again, and
+question shown twice or asked again, or a post repeated, is accepted, and
+gets no rule of its own.** "Asked again" means an asking agent asks a question again because one
+machine has not yet seen what the other recorded, and
 "shown twice" means the person sees one question twice; either costs the
 person only a second look, and an entry cited twice only adds to igor's
 count. A case that could record a wrong answer, close a question wrongly,
@@ -1904,10 +1905,10 @@ lists them:**
 #### The thread is the durable record of an answer
 
 The thread is fetched again before each relay post, so an answer relayed from
-another machine is never posted twice. On GitHub, recognising a relay post by
+another machine is posted twice only when both post before either fetches. On GitHub, recognising a relay post by
 the App that wrote it is built only once task 0.21 is measured (answer-session spec: *Relay
-posts start with a reserved prefix*), so on GitHub this section holds from
-then on. A relay post names its question by its
+posts start with a reserved prefix*); until then no relay posts on GitHub,
+and this section does not apply there. A relay post names its question by its
 `Re: ` line on GitHub and Linear, and by replying to it on Discord.
 
 **Why:** the thread is the one place every machine, and the asker, can read.
@@ -2243,18 +2244,23 @@ and the agent checks that account's write access, since a readable miss can
 be pushed for someone else, as an Igor pushes its worker's.
 
 **Where privacy would withhold a readable miss, the session pushes a
-hash-only miss file.** Every miss file, readable or not, is named by one
-hash of the question's text, the URL of the message asking it and the
-filter. So the asking agent, which cannot tell from a reply which kind the
-session wrote, makes one path lookup, and the same question, message and
-filter never give two files. A hash-only one has empty frontmatter and no
-body, so it shows nothing but the time of its push and who pushed it. A later version of the format can give it keys, and a reader of miss files
-takes whatever keys one holds. Task 0.23 sets the one form of a thread URL both sides hash, and a
-question edited after the reply no longer matches, so its reply is
-input, which the agent reads but does not act on. The asking agent knows the question's text, the URL and the filter, and
-computes the same hash. The file
-names no one: being on the branch is its authority, since only an account
-with push access can put it there. For an organization's question that
+hash-only miss file.** A miss file that backs a reply, readable or not, is
+named by a hash of the surface and that reply's own message id: the name is
+only a lookup key, and the file authorizes one thing, a particular reply,
+which its id identifies exactly. The session posts the reply, takes its id
+from the surface, then pushes the file; the asking agent hashes the id of
+the reply it sees and makes one path lookup, whichever kind the session
+wrote. No question text is hashed, so nothing a surface or a posting skill
+changes in a message's text can break the lookup. A forged `Inquisitor: `
+post is another message with another id, so no file matches it. An earlier design named the file by the asking message
+and the filter; where one comment holds several questions, a forged reply
+about another of them, naming the same filter, would have matched. The agent
+looks on the questions branch of what its question concerns, each time it
+reads the reply: between the reply and the push it finds no file, and the
+reply is input. A miss with no reply authorizes nothing and is named by its
+question's log file path, or with no log file by its message's URL. A hash-only miss file has empty frontmatter and no
+body, so it shows nothing but the time of its push and who pushed it. A hash-only file holds no `said_by`: being on the branch is its authority, since only an account
+with push access can put it there, and only an answer session writes one. For an organization's question that
 branch is the lore repository's, whose writers are who decides such a
 question. A readable miss stays the form wherever privacy allows one, for
 its value as a log. Where the session has no questions branch to push a miss file of either form
@@ -2478,7 +2484,11 @@ scenario *A miss goes to the questions branch*).
 
 **A log file follows the thread message its `asked_in` links by that exact
 link, because a link names one message, so every machine pairs the same file
-with the same message.**
+with the same message.** The asking agent, which writes `asked_in`, and the
+answer session, which builds the URL from what it polls, write a Discord or
+Linear URL in the one form the inquisitor spec's scenario *Where an asked_in may be written* gives
+(*Recorded:* inquisitor record, *Rationale: A log file and a miss file have
+one format*). Task 0.23 has still to compare GitHub's URL forms.
 
 *Ruled out by a scenario:* judging every log file on its own, so the person
 sees each question twice (answer-session spec: *A log file follows the thread
@@ -2697,8 +2707,11 @@ box*).
 
 - **Do Linear and Discord return a posted line's words unchanged?** (task
   0.28) The answer session finds a person-required line by its fixed wording
-  after reducing markup. If a surface changes the words, such as by escaping
-  the parentheses, the session matches the form task 0.28 records instead.
+  after reducing markup. If a surface changes the words, such as by escaping the parentheses, the
+  session matches the form task 0.28 records instead. Task 0.28 is still to
+  run. Task 0.23 found that Linear returns a comment's text as sent,
+  parentheses included, and escapes `[` and `]` only in an issue
+  description, so a line in a Linear comment comes back unchanged.
 - **Do only reading Linear MCP tools have names starting `get_`, `list_` or
   `search_`?** (task 0.27) linear-app's post hook lets those tools through in
   the holder and blocks the rest, so a tool of another name fails closed. If
@@ -2818,8 +2831,8 @@ to its 149.
   comment on a handback, a `User says: ` one included, as `input`, and the
   answer session's answer file, which names the Igor's log file in
   `answers`, is what counts.
-- **The Igor must run the script's `miss-check` for its worker,** with its
-  own credentials and in the version its workers run, and return the JSON
+- **The Igor must run the script's `miss-check` for its worker,** on the repository, surface and id of the reply the worker read in its item's thread, with its own credentials and in the
+  version its workers run, and return the JSON
   over the channel `igor lore-search` uses (*The Igor checks a reply's miss
   file for its worker*). A worker holds no credential and fetches no
   questions branch, and `branch-search` never shows a hash-only miss file,

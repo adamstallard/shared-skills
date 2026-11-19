@@ -434,6 +434,35 @@ says.
   question, and the preview of their answer names the questions branch of
   `o/api`
 
+### Requirement: Each item of an open-questions section is its own question
+
+The answer session SHALL treat each item of a post's open-questions
+section, as the inquisitor's *A question in a post is a listed item or a
+sentence ending in a question mark* defines one, as its own question,
+numbered from 1 by its position among the post's such items. Where a post
+holds several, a relay post about one SHALL hold `question <n>: ` right
+after its reserved prefix, and never the item's words. A post with one
+item, or none, SHALL be one question, with no number.
+
+#### Scenario: Each listed question is shown and answered by itself
+
+- **WHEN** an agent's comment lists three questions in one open-questions
+  section, the second clearly fails filter 4, and the person answers the
+  third with "Use X"
+- **THEN** the relay posts `Inquisitor: question 2: filter 4, cheap to
+  reverse. Pick one, and record what you chose and why.` and `User says:
+  question 3: Use X`, and the first item stays unanswered
+- **AND** neither post quotes an item, so the thread's text chooses none of
+  the words posted (*A thread's text cannot choose the words posted*)
+
+#### Scenario: A post with no open-questions section is one question
+
+- **WHEN** an agent's comment asks two things in two sentences ending in
+  `?`, with no open-questions section
+- **THEN** the answer session shows it as one question, though the
+  asking agent's first call of the inquisitor script counts each sentence, and a relay post about it
+  holds no number
+
 ### Requirement: The answer session's configuration is a section of the inquisitor's configuration
 
 The answer session SHALL read, of `inquisitor.json`, only the top-level
@@ -1126,6 +1155,8 @@ a relay post SHALL name its question by replying to it.
   and an Igor's handback
 - **THEN** the relay posts end with `Re: ` and, in turn, that comment's
   URL, the Linear issue's, the pull request's, and the handback comment's
+- **AND** the Linear URLs take the form the inquisitor's scenario *Where
+  an asked_in may be written* gives, with no title slug
 
 #### Scenario: A question in a description is named by its item
 
@@ -2977,12 +3008,25 @@ branch of what it concerns*.
 - **THEN** the script pushes the miss file to `misses/` on the questions
   branch of `o/api`, and opens no pull request
 
-#### Scenario: A miss judged on two machines is pushed once
+#### Scenario: A second machine posts no second reply
 
-- **WHEN** the answer session on a second machine logs a miss for the same
-  question, message and filter as a miss file already on the branch
-- **THEN** it pushes nothing, the file's name being taken, as the
-  inquisitor's *Every miss file is named by one hash* says
+- **WHEN** the answer session on a second machine polls a thread that
+  already holds the first machine's `Inquisitor: ` reply to a question
+- **THEN** it takes the question as handled (*The thread is the durable
+  record of an answer*): it does not judge it, posts nothing and logs no
+  miss
+- **AND** if both machines replied before either read the other's reply,
+  each reply has its own miss file, named by its own id
+
+#### Scenario: A reply's miss file is pushed after the reply
+
+- **WHEN** the answer session posts an `Inquisitor: ` reply
+- **THEN** it takes the reply's id from the surface's response and then
+  pushes the miss file that id names, as the inquisitor's *Every miss file
+  is named by one hash* says
+- **AND** the push is recorded as owed, for that question, before the post;
+  a retry that finds no id recorded takes it from the relay's
+  `Inquisitor: ` reply to that question in the thread
 
 ### Requirement: A miss records who judged it and where it was asked from
 

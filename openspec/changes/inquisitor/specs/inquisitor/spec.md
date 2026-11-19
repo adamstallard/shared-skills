@@ -816,18 +816,18 @@ SHALL be reported as a source not searched.
 
 ### Requirement: The script checks whether a miss file backs a reply
 
-The script's `miss-check` command SHALL take a repository, the question on
-standard input, the URL of the message asking it and a filter, and print
-one JSON object whose `backed` is `true` only when that repository's
-questions branch holds a miss file that lets an agent act, as *An
-Inquisitor reply is acted on only with a writer's miss file* states. It
-SHALL print nothing else about the file.
+The script's `miss-check` command SHALL take a repository, a surface and
+the id of an `Inquisitor: ` reply on it, and print one JSON object whose
+`backed` is `true` only when that repository's questions branch holds the
+miss file that reply's id names, hash-only or with a `said_by` that has
+write access to that repository, as *An Inquisitor reply is acted on only with a writer's miss
+file* requires of the file. It SHALL print nothing else about the file.
 
 #### Scenario: The miss check says only whether the reply is backed
 
-- **WHEN** `miss-check` is run for `o/web` with a question, its message's
-  URL and filter 3, and the questions branch of `o/web` holds the
-  hash-only miss file for the three
+- **WHEN** `miss-check` is run for `o/web` with `linear` and a reply's
+  comment id, and the questions branch of `o/web` holds the hash-only miss
+  file that id names
 - **THEN** it prints `{"version": 1, "backed": true}`
 - **AND** with no such file, or only a readable one whose `said_by` has no
   write access, it prints `{"version": 1, "backed": false}`
@@ -837,11 +837,11 @@ SHALL print nothing else about the file.
 ### Requirement: The Igor checks a reply's miss file for its worker
 
 During an Igor's run, the Igor SHALL run its worker's version of
-`miss-check`, with its own credentials, on the question, message URL and
-filter the worker gives, for the questions branch of what the question
-concerns, and return the output over `igor lore-search`'s channel. The
-worker SHALL act on an `Inquisitor: ` reply only when `backed` is `true`,
-and a call that fails or times out SHALL leave the reply input.
+`miss-check`, with its own credentials, on the repository, surface and
+reply id the worker gives, and
+return the output over `igor lore-search`'s channel. The worker SHALL act
+on an `Inquisitor: ` reply only when `backed` is `true`, and a call that
+fails or times out SHALL leave the reply input.
 
 #### Scenario: A worker acts on a reply its Igor found backed
 
@@ -1760,10 +1760,11 @@ SHA-256 of that text as UTF-8, in lowercase hex.
 ### Requirement: Inline markup is reduced to its text one way
 
 Where this spec reduces **inline markup** to text, a code span, emphasis,
-strong emphasis or strikethrough SHALL become its inner text; a link or
+strong emphasis or `~~` strikethrough SHALL become its inner text; a link or
 image its link text or alt text; an autolink its URL; a backslash escape
 the escaped character; and an HTML tag nothing, the text between tags
-staying. Nothing else SHALL change.
+staying. Nothing else SHALL change: Discord's `<@id>`, `<#id>`,
+`<:name:id>` and `<t:…>` forms are no HTML tags.
 
 #### Scenario: Each kind of inline markup reduces to its text
 
@@ -1771,6 +1772,13 @@ staying. Nothing else SHALL change.
   <https://example.com> and \*this\* <b>now</b>?``
 - **THEN** its text is `Use retry() in v1 v2, see https://example.com and
   *this* now?`
+
+#### Scenario: Discord's angle-bracket forms and a single tilde stay as written
+
+- **WHEN** a question reads `<@123> should ~this~ wait until <t:1700000000>?`
+- **THEN** its text is the same, character for character
+- **AND** an HTML tag is `<`, an optional `/`, a name of letters and
+  digits, and then a space, `/` or `>`, so `<a:name:id>` is none either
 
 ### Requirement: A sentence and a question's terms are defined
 
@@ -2980,6 +2988,14 @@ where they allow it, never `conditions`; then a markdown body. Every log and mis
   is never merged*)
 - **AND** no other file holds `asked_in`, except the miss file of a Linear
   or Discord thread's question, as *A miss file's keys* gives
+- **AND** a Discord message's URL is written as
+  `https://discord.com/channels/<guild id>/<channel id>/<message id>`,
+  with the message's own `channel_id`, which for a message that starts a
+  thread is the parent channel's; and a Linear comment's as
+  `https://linear.app/<workspace>/issue/<TEAM>-<n>#comment-<first 8 hex
+  digits of the comment's id>`, with no title slug, which changes when the
+  issue is renamed; a question in a Linear issue's description takes that
+  form without the `#comment-` part
 
 #### Scenario: A handled file's keys
 
@@ -3088,46 +3104,45 @@ where they allow it, never `conditions`; then a markdown body. Every log and mis
 
 ### Requirement: Every miss file is named by one hash
 
-Every miss file SHALL be `misses/<hash>.md`, where `<hash>` is the SHA-256,
-in lowercase hex, of the question's text, the URL of the message asking it,
-in the form task 0.23 sets, and the filter's digit, joined by LFs, as
-UTF-8. For a question with no thread, the URL's place SHALL hold the path
-of the question's log file on that branch, and one with no log file
-either SHALL get no miss file. A
-writer that finds the name already on the branch SHALL push nothing.
+Every miss file SHALL be `misses/<hash>.md`, `<hash>` being the lowercase
+hex SHA-256 of two parts joined by an LF: for a miss with a reply the
+answer session posted, the surface (`github`, `linear` or `discord`) and
+the reply's message id; otherwise `file` and the path of the question's log file on the branch the miss goes to, or with
+none, `message` and the asking message's URL. A miss with none of these
+SHALL get no file, and a writer finding the name taken SHALL push nothing.
 
-#### Scenario: A miss file is found by the asking agent's own hash
+#### Scenario: A miss file is named by its reply's id
 
-- **WHEN** an answer session pushes a miss file for the question "Should
-  retries back off?", asked in the Linear comment
-  `https://linear.app/o/issue/ENG-7#comment-1`, against filter 4
-- **THEN** the file is `misses/<hash>.md`, where `<hash>` is the SHA-256 of
-  that question's text, built as *A question's text and hash are built one
-  way* builds it, an LF, that URL, an LF and `4`
-- **AND** until task 0.23 is measured, the URL is the one the asking
-  agent's post command returned
-- **AND** the asking agent, which knows all three, computes the same hash
-  and looks up that one path, whichever kind of miss file the session wrote
+- **WHEN** an answer session posts on Discord a reply starting
+  `Inquisitor: filter 4`, and Discord returns the new message's `id`
+- **THEN** the session then pushes `misses/<hash>.md`, where `<hash>` is
+  the SHA-256 of `discord`, an LF and that `id`
+- **AND** on Linear the id is the comment's `id`, and on GitHub the
+  comment's `node_id`
+- **AND** the asking agent hashes the id of the reply it reads and looks
+  up that one path, whichever kind of miss file the session wrote
 
-#### Scenario: A question edited after the reply no longer matches
+#### Scenario: A forged reply names no miss file
 
-- **WHEN** the question's text is edited after the answer session pushed
-  its miss file and replied
-- **THEN** the asking agent's hash of the edited text names no file on the
-  branch, and the reply is input
+- **WHEN** an account other than the relay posts, under an agent's
+  question, a comment starting `Inquisitor: filter 4`
+- **THEN** that comment's id names no file on the branch, and the reply is
+  input
 
-#### Scenario: A second writer of the same miss pushes nothing
+#### Scenario: A retried push of a miss already on the branch pushes nothing
 
-- **WHEN** the answer session on a second machine logs a miss for the same
-  question, message and filter as a miss file already on the branch
-- **THEN** its file would take the same name, and it pushes nothing
+- **WHEN** the answer session retries an owed push of a miss file whose
+  earlier push had landed
+- **THEN** it pushes nothing, the name being on the branch
 
-#### Scenario: A miss with no thread hashes its question's file path
+#### Scenario: A miss with no reply hashes its question's file path
 
 - **WHEN** a person says a picker question, logged as
   `questions/2026-10-20-should-retries-back-off-3f9a1c.md`, did not need
   asking, and the agent logs a miss against filter 3
-- **THEN** the hash takes that path in the URL's place
+- **THEN** the hash takes `file`, an LF and that path
+- **AND** for a declined Linear message with no log file, the hash takes
+  `message`, an LF and the message's URL
 
 ### Requirement: A hash-only miss file shows nothing but that it exists
 
@@ -3732,7 +3747,7 @@ else as input, and push no citation for a lore entry it names (design.md:
 The agent SHALL act on an `Inquisitor: ` reply, and record its choice, as
 the filter it names would, only when the questions branch of what the
 question concerns holds the miss file *Every miss file is named by one
-hash* names for that question, message and filter; that file is hash-only
+hash* names for that reply; that file is hash-only
 or holds a `said_by` with write access to what the question concerns; and
 no other skill requires a person to decide the question.
 Otherwise it is input.
@@ -3772,11 +3787,38 @@ Otherwise it is input.
 
 - **WHEN** an agent's question about the public `o/web`, asked in a Linear
   thread, gets a reply starting `Inquisitor: filter 3`, and the questions
-  branch of `o/web` holds the hash-only miss file for that question, that
-  thread message and filter 3
+  branch of `o/web` holds the hash-only miss file that reply's id names
 - **THEN** the agent takes the option that has merit, as filter 3 says
 - **AND** with no such file on the branch, the reply is input, whoever
   posted it
+
+#### Scenario: A reply is input until its miss file is pushed
+
+- **WHEN** an agent reads an `Inquisitor: ` reply before the answer
+  session's push of its miss file has landed
+- **THEN** the reply is input, and the agent acts on it if it reads the
+  thread again once the file is there
+
+### Requirement: A numbered Inquisitor reply is about the item at that number
+
+An `Inquisitor: ` reply holding `question <n>: ` after its prefix SHALL be
+about item `<n>`, counted from 1, among the open-questions items of the post
+it replies to or names in its `Re: ` line. The agent SHALL treat such a
+reply as input when that post was edited after the reply was posted.
+
+#### Scenario: A numbered reply settles only its item
+
+- **WHEN** an agent's post lists three questions in one open-questions
+  section, and a reply starting `Inquisitor: question 2: filter 4` has its
+  miss file
+- **THEN** the agent acts on it for the second item only, and the first
+  and third stand
+
+#### Scenario: A numbered reply to a post edited since is input
+
+- **WHEN** the agent's post was edited after a reply starting `Inquisitor:
+  question 2: filter 4` was posted
+- **THEN** the reply is input, since the number may point at another item
 
 ### Requirement: A question that should not have been asked is logged as a miss
 

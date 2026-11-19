@@ -84,7 +84,14 @@ that contradicts what design.md assumed too.
       that the identity can edit its own comment; and that Linear marks a
       comment's author as an app user in a form no person's account can
       take on. If any fails, Linear
-      stays off and the README says so
+      stays off and the README says so. Measured 2026-11-19 as an app
+      identity on a test issue: a host command's GraphQL `commentCreate` returns the
+      comment's `id` and `url`, while the Linear MCP's tools return only
+      the `id`; the identity edits its own comment; a reply holds its
+      parent's id; and an app user's comment has `user.app` `true` and a
+      null `botActor`, the 5 test comments among the team's 77, the other
+      72 having `user.app` `false`. Not measured: mentions of the person or the relay,
+      and anything read with the person's key
 - [ ] 0.17 That a `discord-bot` identity, as merged in shared-skills PR #1,
       can read a subscribed channel's history and threads, see a mention
       of the person's user id and a reply to the relay's message, and edit
@@ -93,7 +100,12 @@ that contradicts what design.md assumed too.
       that a relay whose `check` reports
       `messageContent` `true` reads a message that doesn't mention the bot
       (design.md: *The Discord relay needs the Message Content intent*).
-      If any fails, Discord stays off and the README says so
+      If any fails, Discord stays off and the README says so. Measured
+      2026-11-19 in a test thread: the identity reads a channel's history
+      and a thread's, a reply holds a `message_reference` to its message,
+      the identity edits its own message, and a bot's message has
+      `author.bot` `true`. Not measured: a mention of the person's user
+      id, a webhook's message, and the Message Content read
 - [ ] 0.18 That a command the mod runs with `$.process.run` reaches no
       `PreToolUse` hook, so no post hook, on GitHub, Linear or Discord,
       sees a relay post (design.md:
@@ -145,14 +157,29 @@ that contradicts what design.md assumed too.
       Linear and Discord. Compare an issue comment's URL with a pull
       request comment's, `html_url` with the notifications API's URL,
       `discord.com` with `discordapp.com`, and a Linear URL before and
-      after the issue is renamed. Where they differ, define one canonical form, which both sides
-      write, compare, and use in the hash that names a miss file (inquisitor
-      spec: *Every miss file is named by one hash*), and
-      record whether Linear and Discord return a posted question's words
-      unchanged, since that hash takes them too; if they come back changed,
-      record the form each returns, which the hash then takes. Until measured, the asking agent records the URL
-      its post command returns, and the answer session compares it as
-      written
+      after the issue is renamed. Where they differ, define one canonical
+      form, which both sides write and compare. Record too whether Linear
+      and Discord return a posted question's words unchanged. That
+      matters only to matching questions (filter 1 and the answer-session
+      spec's *The same question means the same hash*): no miss file's name
+      takes a question's words. Measured 2026-11-19 on a test
+      Linear issue and a test Discord thread:
+      - a Discord message's URL is
+        `https://discord.com/channels/<guild id>/<channel id>/<message
+        id>`, with the message's own `channel_id`; a message that starts
+        a thread keeps its parent channel's address, and a reader that
+        meets, inside the thread, Discord's placeholder for that message
+        follows the placeholder's `message_reference`; `discordapp.com`
+        answers 301 to the same path on `discord.com`;
+      - a Linear comment's `url` holds the issue's title slug and changes
+        when the issue is renamed, so the canonical form drops the slug:
+        `https://linear.app/<workspace>/issue/<TEAM>-<n>#comment-<first 8
+        hex digits of the comment's id>`;
+      - Linear returns a comment's text unchanged, and escapes an issue
+        description's (`[` comes back as `\[`); Discord drops whitespace at the end of the whole message, and
+        discord-bot rewrites `@name` to `<@id>` before it
+        sends.
+      Not measured: every GitHub comparison, and an Igor's handback URL
 - [ ] 0.25 How GitHub, Linear and Discord each report a relay post refused
       for its text, such as its length, against one refused for lack of
       permission. This is the mapping the answer-session spec's *A refusal
@@ -325,8 +352,9 @@ that contradicts what design.md assumed too.
       output for a fixed branch with a stored copy, field for field, so a
       change to the format fails until the stored copy is changed, which
       waits for igor's agreement
-- [ ] 2.3c `miss-check`, which says whether a questions branch holds the
-      miss file that backs an `Inquisitor: ` reply (inquisitor spec: *The
+- [ ] 2.3c `miss-check`, which takes a repository, a surface and a reply's
+      id and says whether that repository's questions branch holds the
+      miss file that backs that `Inquisitor: ` reply (inquisitor spec: *The
       script checks whether a miss file backs a reply*). Its JSON is part
       of the contract with igor, under task 2.3b's test
 - [ ] 2.4 The `log` command, writing one file per question or miss in the
@@ -573,7 +601,10 @@ that contradicts what design.md assumed too.
       The Discord relay posts with no header option and with mention
       rewriting on, because discord-bot always posts that way (design.md:
       *Discord relay posts: no header, mentions
-      that ping*)
+      that ping*). discord-bot's `read` drops each message's
+      `author.bot` and reply reference, which the answer session needs to
+      tell a bot's message and a reply to a relay post, as task 0.17 found
+      on 2026-11-19; this task changes `read` to return both
 - [ ] 6.1 The mod, built into the inquisitor skill from the tag
       `answer-session-ui-approved-v0.1-33` on shared-skills (build v0.1-33,
       commit fc3c35f; `ui-approved-v0.1-33` in the repository's owner's local prototype
@@ -731,8 +762,7 @@ that contradicts what design.md assumed too.
       - SKILL.md tells an agent to act on a `Recorded answer: ` reply only
         once filter 1 counts its record, and on an `Inquisitor: ` reply
         only when a miss file backs it: one whose `said_by` has write
-        access, or the hash-only miss file for that question, message and
-        filter
+        access, or the hash-only miss file, each named by the reply's id
         (design.md: *What an asking agent does with an automatic reply*).
       - The tests cover:
         - the handled file, pushed whenever the answer session closes a
