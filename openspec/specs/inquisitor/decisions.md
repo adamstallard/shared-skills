@@ -2,11 +2,11 @@
 
 ## Constraints
 
-- **Constraint: Until its work merges, a repository's log file is invisible to parallel work, so an agent on another branch may ask the same question again.**
-  Because: a change's questions belong in its history and merge with it.
-  Evidence: work committed on one branch is not in another branch's files until it is merged into it, https://git-scm.com/book/en/v2/Git-Branching-Basic-Branching-and-Merging
-  Holds while: one repository's questions are committed with the work under `.inquisitor/questions/`.
-  Paths: .agents/skills/inquisitor/scripts/inquisitor.py
+- **Constraint: Anyone with write access to a repository can rewrite or delete its unprotected `questions` branch.**
+  Because: the branch takes direct pushes, so setup asks for no protection of it, and the cost is accepted: a rewrite can delete records, or drop a newer answer so that an older signed one counts again, and a pushed handled file, which needs no proven writer, can close a question so that the person never sees it, but none of these can forge a decision, since a `decision` file counts only unchanged and with a proven writer.
+  Evidence: `git push --force` replaces a branch even when the push loses commits, https://git-scm.com/docs/git-push
+  Holds while: setup asks for no protection of a `questions` branch.
+  Paths: .agents/skills/inquisitor/
 
 - **Constraint: GitHub's events API shows each citation push's pusher and time to anyone who can see the lore repository.**
   Because: that repository is never more visible than the question's, so the pusher is shown only to people who may already see the question.
@@ -14,33 +14,25 @@
   Holds while: a citation is pushed with a person's own credentials.
   Paths: .agents/skills/inquisitor/scripts/inquisitor.py
 
-- **Constraint: Someone who can push to a person's open pull request, such as a maintainer GitHub's "allow edits by maintainers" lets push to it, can change the person's relay file under it, and the change counts once merged.**
-  Because: the relay notice mentions the person for that push, so they can close the pull request.
-  Evidence: GitHub lets maintainers push to a fork's pull request branch when its author allows edits, https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/working-with-forks/allowing-changes-to-a-pull-request-branch-created-from-a-fork
-  Holds while: a reader ties a relay file to its person by who last changed it on the default branch.
-  Paths: .agents/skills/inquisitor/
-
-- **Constraint: Anyone who can rewrite the lore repository's default branch can restore an older relay file of the person's own, listing an App the person removed, so removing a compromised App from the file does not stop it speaking for the person.**
-  Because: uninstalling the App or revoking its key does stop it, and the README says to do that.
-  Evidence: `git push --force` replaces a branch even when the push loses commits, so a rewrite can drop the commit that removed the App, https://git-scm.com/docs/git-push
-  Holds while: a relay file counts by who last changed it on the default branch.
-  Paths: .agents/skills/inquisitor/
-
 - **Constraint: A rule that depends on igor states its end state, with no clause for an igor state before the igor change it needs lands.**
   Because: igor has published no release, so there is no released igor state for an interim design to serve.
   Evidence: igor's releases page listed none on 2026-11-09, https://github.com/adamstallard/igor/releases
   Holds while: igor has published no release.
   Paths: openspec/specs/inquisitor/spec.md, openspec/specs/answer-session/spec.md
 
-## Rejected
-
-- **Rejected: Counting a relay file's pull request only when all its commits are the person's.**
-  Facing: someone else pushing to a person's open pull request to change their relay file.
-  Lost because: neither a commit nor its pull request in GitHub's API names who pushed it, and the events API, which does, keeps only recent events, https://docs.github.com/en/rest/activity/events.
-  Instead: a reader counts the file only when its last default-branch change came from its login, and the relay notice mentions the person when someone else pushes to their pull request.
-  Paths: .agents/skills/inquisitor/
-
 ## Rationale
+
+- **Rationale: A question is pushed to the questions branch of what it concerns.**
+  Committed with the work, a question's file would be invisible to other work until that work merged, and lost if the work were abandoned; a general question would ride in an unrelated pull request; and an answer session could not write the answer, since it cannot commit to another agent's work branch. A branch of its own, pushed with no pull request, has none of these costs, and needs no review, since a question's authority comes from who answered it.
+  Evidence: work committed on one branch is not in another branch's files until it is merged into it, https://git-scm.com/book/en/v2/Git-Branching-Basic-Branching-and-Merging
+
+- **Rationale: The Igor reads questions branches with the script.**
+  A worker holds no GitHub credential, and counting a decision needs GitHub's answer on write access and a commit's signature. The Igor already runs `gh`, `git` and `claude` as child processes, so the script is one more program run the same way, and igor needs no second implementation of the rules.
+  Evidence: igor spawns its helper programs as child processes, https://github.com/adamstallard/igor/blob/7d969cd6ab7820e143c2802a9ead44b3a91332b0/src/gh.ts
+
+- **Rationale: The log command commits with the person's git identity.**
+  An answer given in a session counts only through its commit's signature, and in a session set up for a GitHub App the github-app skill's settings make every commit the bot's and unsigned, so the `log` command commits without them, or the person's answers would never count.
+  Evidence: github-app's `agent_env` sets `commit.gpgsign=false` and the bot's `GIT_AUTHOR_*` and `GIT_COMMITTER_*`, https://github.com/adamstallard/shared-skills/blob/02c0a7782bc0392f5c1f5d8e3af0188cf84a9f0d/.agents/skills/github-app/scripts/github_app.py#L499-L523
 
 - **Rationale: Filter 1 hides every lore entry outside the question's scope.**
   igor and the inquisitor must read a lore entry's scope alike, and igor matches a `project:` scope by a repository's short name. A project whose repositories have other names would need a mapping file in the lore repository, read by both, which nothing provides.
@@ -54,7 +46,7 @@
   Evidence: GitHub's GraphQL schema lists `PullRequestReview` and `PullRequestReviewComment` among the types implementing `Comment`, read by introspection on 2026-11-13, https://docs.github.com/en/graphql/reference/pulls#object-pullrequestreview
 
 - **Rationale: A reader counts no signature GitHub may have made.**
-  GitHub signs the commits it makes itself, such as one from its web editor. If GitHub verified such a commit for an account that did not make it, anyone with push access could make a commit that proves another person's answer or relay file.
+  GitHub signs the commits it makes itself, such as one from its web editor. If GitHub verified such a commit for an account that did not make it, anyone with push access could make a commit that proves another person's answer.
   Evidence: "GitHub will automatically use GPG to sign commits you make using the web interface", https://docs.github.com/en/authentication/managing-commit-signature-verification/about-commit-signature-verification
   Evidence: task 0.11 read a merge commit on shared-skills' main as `VALID`, signed by `web-flow` with `wasSignedByGitHub` set, on 2026-11-04, https://github.com/web-flow.gpg
 

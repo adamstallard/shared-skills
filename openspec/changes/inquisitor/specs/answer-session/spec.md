@@ -2,8 +2,7 @@
 
 The answer session is the part of the inquisitor in which a person does
 nothing but answer the questions asked of them, from the GitHub, Linear and
-Discord channels they subscribe to and from lore repositories' questions
-branches. Its user interface is a Claude Code mod shipped with the
+Discord channels they subscribe to and from questions branches. Its user interface is a Claude Code mod shipped with the
 inquisitor skill; this spec names that interface only by what it does,
 never by how it looks or which keys it takes.
 
@@ -28,9 +27,8 @@ inquisitor's, or that spec's, *Title*:
   file** is an unanswered questions-branch log file whose `asked_in`
   links a handback, as *A handback is an igor- App's comment holding
   igor's marker* defines one.
-- A person's **relay file** is `relays/<login>.yaml` in a lore repository,
-  listing their relay identities (the inquisitor's *A relay file names the
-  bots that post for its person*).
+- A **questions branch** is a repository's orphan branch `questions`,
+  which holds its question and miss files (the inquisitor's Purpose).
 - `answers`, `asked_in`, `asked_from`, `answer_link`, `answered_by` (who
   answered), `authority` (`decision`, `input` or `agent`) and
   `recorded_in` (where the answer is recorded) are log-file keys (the
@@ -118,26 +116,25 @@ channel or thread holding it.
 
 ### Requirement: A relayed question is a person's question
 
-The answer session SHALL treat as a **relayed question** any message
-starting `User says: ` or `User asks: ` that a bot account posted on any
-surface, and SHALL count it as the question of a person the session
-cannot name, unless a relay App posted it on GitHub: then it is the
-question of the person whose counted relay file lists that App (the
-inquisitor's *A relay App is one its person's counted relay file lists*),
-which is built only once task 0.21 is measured (tasks.md).
+The answer session SHALL treat as a **relayed question** any question asked
+of the person in a message starting `User says: ` or `User asks: ` that a
+bot account posted on any surface, and SHALL count it as a person's question. It SHALL show the
+posting bot account's name as who the question is from; the name proves
+nothing.
 
-#### Scenario: A relayed question from a listed relay App is that person's
+#### Scenario: A relayed question is a person's, whoever's relay posted it
 
-- **WHEN** a GitHub comment starting `User says: ` from the relay App that
-  Maya's relay file lists mentions the person
-- **THEN** it counts as Maya's question
-
-#### Scenario: A relayed question from an App no relay file lists is a person's
-
-- **WHEN** a GitHub comment starting `User asks: ` from an App no relay
-  file lists tags the person, and clearly fails filter 4
+- **WHEN** a GitHub comment starting `User asks: ` from an App tags the
+  person, and clearly fails filter 4
 - **THEN** it counts as a person's question, so nothing is posted by
   itself and filter 4's verdict is only suggested
+
+#### Scenario: A relayed question is shown as from its relay bot's account
+
+- **WHEN** the App `maya-relay` posts a comment starting `User asks: `
+  that tags the person
+- **THEN** the session shows the question as from `maya-relay`, and no
+  check or record treats that name as proof of who asked
 
 ### Requirement: An agent's question comes from a bot account or a log file
 
@@ -210,7 +207,7 @@ pending answer whose channel was off returns to the queue* says.
 
 ### Requirement: An unanswered log file holds no answer the person gave
 
-On a lore repository's questions branch, the answer session SHALL count
+On a questions branch, the answer session SHALL count
 as **an unanswered log file** one that holds no answer and that no answer
 file counting as the person's answer names in `answers`.
 
@@ -511,11 +508,11 @@ showing that check as not checked when it cannot tell.
 
 #### Scenario: Unsigned or unverified commits get a warning
 
-- **WHEN** setup finds that the person's commits to a configured lore
-  repository's questions branch would be unsigned, or signed with a key
-  GitHub does not list for their account
-- **THEN** setup warns that their answer files without a link will not
-  count, says how to fix it, and saves the rest
+- **WHEN** setup finds that the person's commits to a questions branch
+  would be unsigned, or signed with a key GitHub does not list for their
+  account
+- **THEN** setup warns that their answer files will not count, says how to
+  fix it, and saves the configuration
 - **AND** the warning turns nothing off, and setup reruns the check at
   each opening until it passes
 
@@ -539,75 +536,50 @@ showing that check as not checked when it cannot tell.
   complete
 - **THEN** setup runs, showing the saved subscriptions as chosen
 
-### Requirement: Setup proposes the person's relay file and its notice workflow
+### Requirement: Setup checks each questions branch takes the person's direct pushes
 
-In each lore repository serving a subscribed GitHub channel, setup SHALL
-open, as the person by host command, each pull request below the person
-does not have open:
+Setup SHALL check, for each subscribed repository and each configured lore
+repository, that its `questions` branch accepts the person's direct push, reading the
+branch's rules and the person's permission,
+showing the failure and its fix where a rule on the branch would refuse
+one, and showing the check as not checked when it cannot tell. It SHALL
+ask for no protection of the branch.
 
-- their relay file, with a new `# confirmed by` date, if it is missing,
-  lacks a relay of theirs or would not count;
-- a missing `.github/workflows/relay-notice.yml`.
+#### Scenario: A rule that refuses direct pushes is shown with its fix
 
-It SHALL report links, never push to the default branch, say when
-relayed answers there count and what a refused notice pull request loses,
-then carry on.
+- **WHEN** a subscribed repository has a rule requiring a pull request for
+  every change to its `questions` branch
+- **THEN** setup shows that the person's answers there cannot be recorded,
+  and says to exempt the branch from that rule
 
-#### Scenario: Setup proposes the person's relays to the lore repository
+#### Scenario: An unprotected or missing questions branch passes
 
-- **WHEN** setup runs for a person subscribed to `o/api`, a configured lore
-  repository serves `o`, and its default branch has no
-  `relays/<the person's login>.yaml`
-- **THEN** setup opens, through the person's `gh` login, a pull request
-  writing that file: first the line `# confirmed by <login> on <date>`,
-  then the relay's App slug under `github` and any Linear or Discord
-  relay's id under `linear` or `discord`. It reports the link. It also
-  says that the person's relayed answers there count only as input, not
-  as the person's answers, until the merged file reaches the copy a reader
-  checks: its lore clone as last fetched, or in an Igor, the lore commit
-  igor last applied (inquisitor spec: *A relay file is read as last
-  fetched, or as igor last applied it*). And it says they become
-  input again if anyone else later changes the file (inquisitor spec: *A
-  reader counts a relay file only when its person made its last change*)
-- **AND** setup opens it as a host command, like a relay post, with a
-  fixed title and body the script writes and no word of the model's
+- **WHEN** a subscribed repository's `questions` branch has no protection,
+  or does not exist yet, and the person can push to the repository
+- **THEN** the check passes, and setup asks for no protection
 
-#### Scenario: Setup opens no second relay pull request
+### Requirement: Setup can create a lore repository
 
-- **WHEN** setup runs again while the person's earlier relay-file pull
-  request is still open
-- **THEN** setup opens no other pull request, and reports the open one's
-  link
+Setup SHALL offer, as a step the person may skip, to create a lore
+repository for a team that wants its organization or project questions
+recorded. It SHALL create only the repository, at the visibility the person
+picks, a local clone of it, and the person's `lore` configuration entry
+naming that clone and what it serves, and nothing in igor's entry format.
+Repository questions SHALL need no lore repository and no igor.
 
-#### Scenario: Setup proposes nothing when the relays are listed
+#### Scenario: Setup creates the repository and its configuration entry
 
-- **WHEN** the person's relay file on the default branch, last changed by
-  a pull request they authored, lists each of their relay identities on
-  every surface configured, and the notice workflow is there
-- **THEN** setup opens no pull request
+- **WHEN** the person accepts the step, names the owner `o` to serve and
+  picks private
+- **THEN** setup creates a private repository, clones it, and adds to
+  `inquisitor.json`'s `lore` an entry holding the clone's `path` and
+  `owners: ["o"]`, and writes no entry, role or other igor file into the
+  repository
 
-#### Scenario: Setup proposes the file again after someone else changed it
+#### Scenario: Without a lore repository, repository questions are still recorded
 
-- **WHEN** the person's relay file lists each of their relay identities
-  but was last changed by another person's pull request, so it does not
-  count
-- **THEN** setup opens a pull request rewriting it with a new
-  `# confirmed by <login> on <date>` first line, which changes the file
-  even when the relays listed are the same
-
-#### Scenario: Setup proposes the notice workflow
-
-- **WHEN** the default branch lacks the notice workflow, and the person
-  has no pull request open adding it
-- **THEN** setup opens a separate pull request adding the inquisitor's
-  `relay-notice.yml`, and reports its link
-
-#### Scenario: A refused notice pull request does not stop setup
-
-- **WHEN** GitHub refuses the notice pull request because the person's
-  `gh` login lacks the `workflow` scope
-- **THEN** setup says so, says the person will not be told of changes to
-  their relay file there, and carries on
+- **WHEN** the person skips the step, and answers a question about `o/api`
+- **THEN** the answer is recorded on the questions branch of `o/api`
 
 ### Requirement: Two commands open an answer session
 
@@ -654,8 +626,8 @@ unanswered one of these, and nothing else:
    to a relay post;
 3. a pull request there requesting their review, or an issue there
    assigned to them;
-4. a log file on a configured lore repository's questions branch whose
-   question tags the person and which no handled file names.
+4. a log file, on a questions branch the session fetches, whose question
+   tags the person and which no handled file names.
 
 #### Scenario: An agent's mention is a question
 
@@ -672,8 +644,8 @@ unanswered one of these, and nothing else:
 
 #### Scenario: A questions-branch file that tags the person is a question
 
-- **WHEN** a configured lore repository's questions branch holds an
-  unanswered log file, with no `asked_in`, whose question tags the person
+- **WHEN** a subscribed repository's questions branch holds an unanswered
+  log file, with no `asked_in`, whose question tags the person
 - **THEN** it is shown as a question asked of the person
 
 ### Requirement: Handled and answer files set how a questions-branch file shows
@@ -935,21 +907,6 @@ such item is shown on its own.
   `igor-` slug
 - **THEN** the link is not followed, and the log file is shown on its own
 
-### Requirement: A relay-notice comment is shown as a notice
-
-A `github-actions[bot]` comment whose first line is the relay notice's,
-as the inquisitor's *A pull request that changes a relay file mentions
-its person* gives it, SHALL be shown as a notice, not a question, with
-nothing posted on it and no miss logged, once task 0.21 is measured
-(tasks.md); nothing of it is built before then.
-
-#### Scenario: A relay notice is shown, never answered
-
-- **WHEN** the relay-notice workflow comments on a pull request in the
-  lore repository, mentioning the person, with its fixed first line
-- **THEN** the answer session shows the comment as a notice, posts nothing
-  on it, and logs no miss
-
 ### Requirement: A question is resolved once answered or declined
 
 A question SHALL count as **resolved** once it is answered and, if a
@@ -988,8 +945,9 @@ The answer session SHALL poll only while it is open in the holder, and
 nothing SHALL poll while none is open. It SHALL poll each channel that
 is on when it opens and about every 60 seconds after, for everything
 since its poll position, or the last 14 days without one, saving each
-poll position in the state folder, and at each poll SHALL fetch every
-configured lore repository's questions branch.
+poll position in the state folder, and at each poll SHALL fetch the
+questions branch of every subscribed repository and configured lore
+repository.
 
 #### Scenario: Opening catches up
 
@@ -1006,8 +964,8 @@ configured lore repository's questions branch.
 #### Scenario: Each poll fetches the questions branches
 
 - **WHEN** the answer session polls its channels
-- **THEN** it fetches every configured lore repository's questions branch
-  too
+- **THEN** it fetches the questions branch of every subscribed repository
+  and configured lore repository too
 
 #### Scenario: Nothing polls without an open answer session in the holder
 
@@ -1261,7 +1219,6 @@ check SHALL still show as not checked.
 - **THEN** the answer returns to the queue, kept, and setup still shows
   the posting check as not checked
 
-
 ### Requirement: A pending answer no check returns waits for the person
 
 A pending answer that *A pending answer whose channel was off returns to
@@ -1322,8 +1279,8 @@ questions-branch file.
 
 ### Requirement: A questions-branch answer's file is pushed after its post
 
-When the fetch before posting an answer to a questions-branch file's
-question finds no new message, the answer session SHALL record the
+When an answer gets an answer file, and the fetch made before posting it
+finds no new message, the answer session SHALL record the
 **owed push**, with the answer and the thread, in the state folder; post;
 add the post's URL to the record; then push the answer file with that URL
 as its `answer_link`, retrying a failed push at each poll and opening
@@ -1397,29 +1354,15 @@ the answer was relayed but not logged, and why.
 - **THEN** the answer session keeps retrying that push, and the
   "Use Postgres" file does not drop the retry
 
-### Requirement: The log command commits with the person's git identity
-
-The answer session SHALL run the `log` command without the
-`GIT_AUTHOR_*`, `GIT_COMMITTER_*` and `GIT_CONFIG_*` settings github-app
-sets, so that it commits with the person's git identity and signing,
-never a GitHub App's.
-
-#### Scenario: The log command drops github-app's git settings
-
-- **WHEN** the answer session pushes an answer file from a Claude Code
-  session whose environment holds github-app's git settings
-- **THEN** the commit carries the person's git identity and signing, not
-  the App's
-
 ### Requirement: An answer whose thread is unreachable here is logged at once
 
 For a question a questions-branch file holds, an answer whose channel is
 off or not subscribed here SHALL have its answer file, with no
 `answer_link` and holding the answer as confirmed, pushed at once, when
 it is confirmed or once a refused post turned the channel off, without
-fetching its thread first, unless *No answer file goes to a more visible
-lore repository* withholds the file. Any other pending answer SHALL push
-no file before its post.
+fetching its thread first, unless *No answer file goes somewhere more
+visible than its thread unconfirmed* withholds the file. Any other pending
+answer SHALL push no file before its post.
 
 #### Scenario: An answer to a questions-branch question is logged at once
 
@@ -1494,8 +1437,8 @@ When an edit leaves a `User says: ` answer to a questions-branch log
 file's question, the answer session SHALL push a new log file if that
 file is unanswered or answered only by answer files it pushed for this
 relayed answer's earlier texts. The new file names the log file in
-`answers`, as *A questions-branch question is answered by a new log
-file* does, holding the earlier answer file's question or, if none, the
+`answers`, as *An answer is recorded by a new log file* does, holding the
+earlier answer file's question or, if none, the
 question the person saw. Earlier files SHALL stay unchanged; the newest
 counts.
 
@@ -1648,7 +1591,8 @@ answered.
   record, each channel's and the notifications feed's poll position,
   each check's last result, relay post ids, the question on screen, the
   answers held as answered, not relayed, each owed answer-file,
-  handled-file, miss-file or citation-file push, and the lock
+  handled-file, miss-file or citation-file push, its clone of each
+  subscribed repository's questions branch, and the lock
 
 #### Scenario: Filter 1 never searches the state folder
 
@@ -1701,7 +1645,6 @@ adds no question text, once, with no owed push or retry.
   model judges has a category, and the handled file's push fails
 - **THEN** nothing is posted, no owed push was recorded, and the push is
   not retried
-
 
 ### Requirement: One answer session runs on each machine
 
@@ -1890,7 +1833,7 @@ outside any tool call.
 - **THEN** the relay posts it through discord-bot, no hook sees the post,
   and the person is asked for nothing more
 - **AND** an answer the person confirms to a GitHub question is posted by
-  their relay App, never through their `gh` login
+  their GitHub relay identity, never through their `gh` login
 
 #### Scenario: The model's Linear comment as another identity is blocked
 
@@ -1962,8 +1905,7 @@ Discussion: <the discussion in one sentence>
 with its `Re: ` line where *A GitHub or Linear relay post names its
 question in a Re line* requires one. The model SHALL draft both
 added lines for the more public of the thread's audience and the
-readers of the repository the question concerns. The asking agent,
-logging the answer, SHALL record both in its log file.
+readers of the repository the question concerns.
 
 #### Scenario: A rephrasing is drafted for the more public audience
 
@@ -1978,23 +1920,15 @@ logging the answer, SHALL record both in its log file.
 - **WHEN** the model has drafted a rephrasing the person has not confirmed
 - **THEN** the answer session posts nothing
 
-#### Scenario: The asker logs the rephrasing
-
-- **WHEN** an agent records the answer to its question from a relay post
-  that gives a rephrased question
-- **THEN** its log file holds the rephrased question under
-  `## Rephrased question` and the summary under `## Discussion`
-
-### Requirement: A questions-branch question is answered by a new log file
+### Requirement: An answer is recorded by a new log file
 
 Handled files aside, the answer session SHALL write a log file only to
-answer an unanswered questions-branch question or log an edited answer
-to one, shown from its branch or from its `asked_in` thread, where the
-answer is also relayed. The `log` command SHALL push it, naming the
-answered file in `answers`, copying `asked_from` and any `repository`,
-with any relay post's URL as `answer_link` unless the command withholds
-it. Shown from its branch with no thread, it SHALL get no ask-back or
-edit.
+record an answer the person confirmed, or an edit of one. The `log`
+command SHALL push it beside the unanswered file holding the question,
+naming that file in `answers` and copying its `asked_from` and any
+`repository`, or, where no file holds the question, to the questions branch
+of what it concerns, with any relay post's URL as `answer_link`. A question
+shown from its branch with no thread SHALL get no ask-back or edit.
 
 #### Scenario: A questions-branch question is answered by a new file
 
@@ -2002,10 +1936,8 @@ edit.
 - **THEN** the `log` command pushes to that branch, in a commit
   `inquisitor: log <file>`, a new log file holding the question and the
   answer and naming the earlier file as this requirement sets, under the
-  inquisitor's *A file on a questions branch never changes once pushed*
-  and *An organization's question is pushed to its lore repository's
-  questions branch*; it posts nothing, and leaves the earlier file
-  unchanged
+  inquisitor's *A file on a questions branch never changes once pushed*;
+  it posts nothing, and leaves the earlier file unchanged
 
 #### Scenario: A questions-branch question asked in a post is answered in both places
 
@@ -2014,6 +1946,24 @@ edit.
 - **THEN** the relay posts the answer in the thread, and the script
   pushes a new log file recording that relay post as *A questions-branch
   answer file records the answer as given* says
+
+#### Scenario: An answer to a question no file holds is recorded too
+
+- **WHEN** the person answers, from its Discord thread, a question about
+  the private `o/api` that no questions-branch file holds
+- **THEN** the relay posts the answer in the thread, and the `log` command
+  pushes to the questions branch of `o/api` a log file holding the
+  question the person saw and the answer, with no `answers`, and with
+  `repository` and `asked_from` set as *A miss records who judged it and
+  where it was asked from* sets a miss's
+
+#### Scenario: An answer the session cannot place is relayed, not recorded
+
+- **WHEN** the person answers a question that no questions-branch file
+  holds, and either it concerns no repository, organization or project the
+  session's model can tell, or the person cannot push to the questions
+  branch of what it concerns
+- **THEN** the answer is relayed in its thread, and no log file is pushed
 
 #### Scenario: A fourth-source question with no thread gets no ask-back or edit
 
@@ -2030,20 +1980,21 @@ edit.
 - **THEN** the answer is relayed in the thread, and a log file naming the
   closed file in `answers` is pushed
 
-### Requirement: No answer file goes to a more visible lore repository
+### Requirement: No answer file goes somewhere more visible than its thread unconfirmed
 
-When the lore repository is more visible than the repository whose
-thread the answer was given in, a Linear or Discord thread counting as a
-private repository's, the answer session SHALL push no answer file; the
-answer stays in the thread where it was given. It SHALL instead push,
-through the `log` command's handled option, a handled file naming the
-questions-branch file, when *A handled file is pushed once its close
-takes effect* says.
+When the questions branch is more visible than the thread the answer is
+given in, a Linear or Discord thread counting as a private repository's,
+the answer session SHALL push an answer file only once the person confirms
+the preview's warning. Unconfirmed, the answer stays in the thread, and it
+SHALL push, through the `log` command's handled option, a handled file
+naming each questions-branch file holding the question, at the time *A
+handled file is pushed once its close takes effect* gives.
 
 #### Scenario: An answer typed in a private thread stays there
 
 - **WHEN** the person answers a question asked in a private repository's
-  thread, which a questions-branch file on a public lore repository holds
+  thread, which a questions-branch file on a public lore repository holds,
+  and confirms the answer without the record
 - **THEN** the answer is relayed in the thread; no answer file is pushed
   to the lore repository, where it would show the answer to readers the
   private repository does not have; and a handled file naming the
@@ -2051,14 +2002,51 @@ takes effect* says.
 - **AND** the handled file names only the file it closes, and adds no
   answer or question text
 
-#### Scenario: An answer typed in a Linear thread stays out of a lore repository that is not private
+#### Scenario: An answer typed in a Linear thread is recorded publicly once confirmed
 
-- **WHEN** the person answers, from its Linear thread, a thread copy that
-  an unanswered log file holds, in a lore repository that was private
-  when that file was pushed and is internal now
-- **THEN** the answer is relayed in the thread; no answer file is pushed,
-  since the lore repository's visibility now is what counts; and a
-  handled file naming the log file is pushed
+- **WHEN** the person answers, from its Linear thread, a question about
+  the public `o/web`, and confirms the preview's warning that the record
+  is more visible than that thread
+- **THEN** the answer is relayed in the thread, and the answer file is
+  pushed to the questions branch of `o/web`, holding no link to the thread
+
+### Requirement: The preview shows where an answer will be recorded
+
+Before the person confirms an answer, or a decline that logs a miss, the
+answer session SHALL show, with the post's preview, the repository whose
+questions branch will hold the record and that repository's visibility, or
+that nothing will be recorded and why. When that branch is more visible
+than the thread, the preview SHALL warn of it, naming the thread, and let
+the person confirm with the record or without it.
+
+#### Scenario: The preview names the branch and its visibility
+
+- **WHEN** the person is about to confirm an answer to a question about
+  the private `o/api`, asked in an issue of `o/api`
+- **THEN** the preview shows that the question and the answer will be
+  recorded on the questions branch of `o/api`, which is private
+
+#### Scenario: The preview warns before a record more visible than its thread
+
+- **WHEN** the person is about to confirm an answer, given in a Discord
+  thread, to a question about the public `o/web`
+- **THEN** the preview warns that the record on the questions branch of
+  `o/web` is public and that Discord thread is not, and offers confirming
+  the answer with the record or without it
+
+#### Scenario: A decline's preview shows where its miss will be recorded
+
+- **WHEN** the person is about to decline, for filter 3, a question about
+  the public `o/web` asked in a Linear thread
+- **THEN** the preview warns that the miss on the questions branch of
+  `o/web` is public and that Linear thread is not, and offers confirming
+  the decline with the miss or without it
+
+#### Scenario: The preview says when nothing will be recorded
+
+- **WHEN** the person is about to confirm an answer to a question with a
+  category, or one whose questions branch they cannot push to
+- **THEN** the preview says the answer will not be recorded, and why
 
 ### Requirement: A questions-branch answer file records the answer as given
 
@@ -2104,8 +2092,8 @@ sent to the relay's skill, and the command fetches nothing.
 
 #### Scenario: A questions-branch answer relayed on Linear keeps its link unfetched
 
-- **WHEN** a private lore repository's unanswered log file holds a
-  question the person answers from its Linear thread
+- **WHEN** the person answers, from its Linear thread, a question about a
+  private repository
 - **THEN** the `log` command logs as the answer the text sent to the
   relay's skill, `User says: ` included, and nothing fetches the file's
   `answer_link`, that Linear comment's URL
@@ -2113,8 +2101,8 @@ sent to the relay's skill, and the command fetches nothing.
 
 #### Scenario: A signed log file of a Discord-relayed answer is a decision
 
-- **WHEN** the person answers a question a private lore repository's
-  questions branch holds, the session relays it on Discord, GitHub
+- **WHEN** the person answers a question about a private repository asked
+  in a Discord thread, the session relays it on Discord, GitHub
   verifies a signature for `answered_by` on the commit adding the log
   file, which no later commit changed, and `answered_by` has write
   access to what the question concerns
@@ -2122,9 +2110,8 @@ sent to the relay's skill, and the command fetches nothing.
   mention is rewritten; its `authority` is what the inquisitor's *An
   answer is a decision only from a proven writer with write access* sets
   for a session answer; filter 1 counts it a decision only through that
-  signature, by the inquisitor's *A link off GitHub proves no writer,
-  but a relayed answer's signature can*; and its Discord `answer_link`
-  proves nothing
+  signature, by the inquisitor's *A bot's comment or a link off GitHub
+  proves no writer*; and its Discord `answer_link` proves nothing
 
 #### Scenario: An unsigned log file of a Discord-relayed answer is input
 
@@ -2256,7 +2243,6 @@ the person's words.
 - **WHEN** the answer session lists a question it answered for the person
 - **THEN** it shows the post as made by the answer session, not as the
   person's answer
-
 
 ### Requirement: The person answers for what their relay posts
 
@@ -2461,10 +2447,12 @@ a miss.
 
 #### Scenario: A decline's citation is pushed when its miss is not
 
-- **WHEN** the person's filter 1 decline of a question about a private
-  repository, whose team's lore repository is public, names an `active`
-  entry of a private lore repository whose scope covers the question
-- **THEN** no miss file is written, and the answer session pushes one
+- **WHEN** the person's filter 1 decline names an `active` entry of a
+  private lore repository, whose scope covers the question; the question is
+  about the organization and was asked in a private repository's thread;
+  and the team's lore repository, where its miss would go, is public
+- **THEN** no miss file is written, that branch being more visible than
+  the thread, and the answer session pushes one
   citation file, to that entry's lore repository
 
 ### Requirement: A decline with nothing posted closes a thread copy on this machine only
@@ -2507,8 +2495,8 @@ logged at the decline SHALL stay when the question is reopened.
 
 #### Scenario: A declined questions-branch file is not offered for reopening
 
-- **WHEN** the person declined, as the conversation is over, a question
-  from a lore repository's questions branch
+- **WHEN** the person declined, with nothing to answer, a question
+  from a questions branch
 - **THEN** a handled file is pushed for it, and no way to reopen it is
   offered
 
@@ -2564,8 +2552,8 @@ as before any relay post.
 #### Scenario: A relayed question gets a recorded answer by itself
 
 - **WHEN** a GitHub comment tagging the person starts `User asks: `, from
-  the relay App of Maya, another person, and a capability decision
-  record on the repository's default branch decides it
+  another person's relay, and a capability decision record on the
+  repository's default branch decides it
 - **THEN** the relay posts a recorded answer naming the question, and no
   miss is logged, as for any person's question
 
@@ -2651,7 +2639,6 @@ post only what the person relays or confirms.
 - **THEN** the recorded answer is shown beside it, and nothing is posted
   by itself
 
-
 ### Requirement: Agreeing to a shown recorded answer is a filter 1 decline
 
 The person may agree to a recorded answer shown beside a question: a
@@ -2688,7 +2675,6 @@ Agreeing takes no note, so its miss's `said` is
 
 - **WHEN** the person agrees to a recorded answer shown for a question,
   asked by a person or an agent, in a private repository's GitHub thread
-  whose lore repository is private
 - **THEN** a miss against filter 1 is logged
 
 ### Requirement: A lore entry posted as a recorded answer gets a citation file
@@ -2758,7 +2744,7 @@ entry pushes nothing.
 When the answer session answers an agent's question by itself under
 filter 1, it SHALL log a miss against filter 1, since the asking agent's
 own filter 1 should have found the record, as *The answer session logs
-its misses on the team's lore repository's questions branch* says; a
+its misses on the questions branch of what the question concerns* says; a
 person's question it answers by itself logs none.
 
 #### Scenario: A person's question is answered by itself too
@@ -2943,20 +2929,19 @@ question SHALL get no automatic post.
   person chose says they chose it* sets, and a miss against filter 4 is
   logged
 
-### Requirement: The answer session logs its misses on the team's lore repository's questions branch
+### Requirement: The answer session logs its misses on the questions branch of what the question concerns
 
 The answer session SHALL log each miss as a miss file, whether or not
 the asker logged the question, and the inquisitor script SHALL push it,
-duplicates included, to the team's lore repository's questions branch,
-under the inquisitor's *An organization's question is pushed to its lore
-repository's questions branch*.
+duplicates included, to the questions branch of what the question
+concerns, under the inquisitor's *A question is pushed to the questions
+branch of what it concerns*.
 
 #### Scenario: A miss goes to the questions branch
 
-- **WHEN** the answer session logs a miss for a question about `o/api`,
-  which a configured lore repository serves
-- **THEN** the script pushes the miss file to `misses/` on that lore
-  repository's questions branch, and opens no pull request
+- **WHEN** the answer session logs a miss for a question about `o/api`
+- **THEN** the script pushes the miss file to `misses/` on the questions
+  branch of `o/api`, and opens no pull request
 
 #### Scenario: A miss judged on two machines is pushed twice
 
@@ -3004,8 +2989,7 @@ answer session logs*).
 #### Scenario: A miss on a Linear question holds the thread's URL
 
 - **WHEN** the person's decline for the inquisitor is of a question about
-  `o/api` asked in a Linear thread, and a private lore repository serves
-  `o`
+  the private `o/api` asked in a Linear thread
 - **THEN** the miss file holds `repository: "o/api"`, `asked_from:
   "o/api"` and, as `asked_in`, the Linear thread's URL, which the
   inquisitor's *A log file and a miss file have one format* allows, so it
@@ -3019,17 +3003,17 @@ when any of these holds:
 
 - the question has a category;
 - it concerns no repository and was asked from none;
-- it has no team's lore repository;
-- that lore repository is more visible than the question's repository
-  or thread (a GitHub thread is exactly as visible as its repository,
-  and a Linear or Discord thread counts as private);
-- with no thread, it is more visible than the questions-branch file.
+- it concerns an organization or project with no team's lore repository;
+- the person has not confirmed it, and the questions branch is more
+  visible than the question's thread, a Linear or Discord thread being
+  private, or, for a question shown from a questions-branch file with no
+  thread, more visible than that file.
 
-#### Scenario: No lore repository means no miss file
+#### Scenario: No place for the miss means no miss file
 
-- **WHEN** the answer session would log a miss for a question about a
-  repository no configured lore repository serves, or about no
-  repository
+- **WHEN** the answer session would log a miss for a question about an
+  organization no configured lore repository serves, or about no
+  repository, organization or project
 - **THEN** no miss file is written, the person is told why, and the
   question still closes
 
@@ -3040,18 +3024,26 @@ when any of these holds:
 - **THEN** nothing is posted, and the person is told why no miss file is
   written
 
-#### Scenario: A more visible lore repository gets no miss
+#### Scenario: A more visible questions branch gets no miss unconfirmed
 
-- **WHEN** a public lore repository serves a question that concerns a
-  private repository or is asked in a private repository's GitHub thread,
-  or a lore repository that is not private serves one asked on Linear or
-  Discord
-- **THEN** the person is told why no miss file is written
+- **WHEN** a question about a public repository is asked in a private
+  repository's GitHub thread, or on Linear or Discord, and the session
+  judges it automatically or the person declines without the miss
+- **THEN** no miss file is written, and the reply is input to the asking
+  agent
+
+#### Scenario: A confirmed miss goes to the more visible branch
+
+- **WHEN** the person declines, for filter 3, a question about the public
+  `o/web` asked in a Linear thread, and confirms the miss
+- **THEN** the miss file is pushed to the questions branch of `o/web`, as
+  the inquisitor's *The answerer's confirmation can send a record somewhere
+  more visible* says, holding no link into the thread
 
 #### Scenario: A file's visibility stands in for a missing thread
 
-- **WHEN** a public lore repository serves a questions-branch question
-  with no thread, about a public repository, from a file the
-  inquisitor's *A log or miss file is as private as its more private
-  repository* ranks private
-- **THEN** no miss file is written
+- **WHEN** a question with no thread is shown from a questions-branch
+  file that the inquisitor's *A log or miss file is as private as its more
+  private repository* ranks private, and its miss would go to a public lore
+  repository's questions branch
+- **THEN** no miss file is written unless the person confirms it

@@ -14,9 +14,9 @@ Record each result that a requirement rests on as Evidence in its
 capability's decision record, and the rest in design.md: *What the hook
 relies on, not yet measured* for 0.1 to 0.3, both *Configuration* and *Facts measured
 before building* for 0.4, *Facts measured
-before building* for 0.5 to 0.14, and *Facts the answer session relies on*
-for 0.15 to 0.28, including a result that
-contradicts what design.md assumed.
+before building* for 0.5 to 0.14, *Facts the answer session relies on*
+for 0.15 to 0.28, and *What igor must provide* for 0.29. Record a result
+that contradicts what design.md assumed too.
 
 - [ ] 0.1 A `PreToolUse` hook with matcher `AskUserQuestion` fires before the
       picker opens
@@ -122,26 +122,17 @@ contradicts what design.md assumed.
 - [ ] 0.21 Whether GitHub's API reports, for a comment, the slug of the
       GitHub App that wrote it, in a form no account can take on, such as
       the author login `<slug>[bot]` with type `Bot`, or
-      `performed_via_github_app` (design.md: *Only a listed relay App
-      speaks for a person on GitHub*). These are not built until it is
+      `performed_via_github_app`. These are not built until it is
       measured:
-      - the inquisitor's *A relayed answer counts as its person's own
-        comment*, with the relayed-answer proof of a questions-branch
-        file's writer;
-      - the inquisitor's *An Inquisitor reply is acted on only from a
-        writer's relay App* and *A relay App's automatic post is no one's
-        answer*;
       - on GitHub, the answer-session's *Relay posts start with a
-        reserved prefix* and the relay-App attribution in *A relayed
-        question is a person's question*;
+        reserved prefix*;
       - on GitHub, the question state *The thread is the durable record
         of an answer* reads from relay posts, which needs relay posts
         recognised;
       - task 6.4's GitHub relaying, which needs that question state;
       - on GitHub, each rule that reads a `[bot]` author login: *A
-        handback is an igor- App's comment holding igor's marker*, *An
-        agent's question comes from a bot account or a log file* and *A
-        relay-notice comment is shown as a notice*;
+        handback is an igor- App's comment holding igor's marker* and *An
+        agent's question comes from a bot account or a log file*;
       - on GitHub, the rules that need to tell an agent's question:
         *Whom a message reaches is set by its mentions* and the
         automatic `Inquisitor: ` reply of *Filters 2 to 4 judge every
@@ -150,25 +141,18 @@ contradicts what design.md assumed.
       If
       GitHub reports it, they are built as the spec states them; if not,
       the repository's owner decides what to build
-- [ ] 0.22 What a reader, the code that checks whether an App is a
-      person's relay App, needs to tie a relay file to its person
-      (design.md: *Who last changed a relay file ties it to its person*).
-      It measures three things:
-      - That GitHub's API gives, for the newest commit that changed
-        `relays/<login>.yaml`, the merged pull request it came from and
-        that pull request's author, after a merge commit, a squash and a
-        rebase alike, such as through `commits/<sha>/pulls`.
+- [ ] 0.22 What a reader needs to count a commit's signature as a
+      person's own (design.md: *A signature GitHub may have made waits on
+      task 0.22*). It measures two things:
       - Whether a commit GitHub signs itself, from its web editor or
         contents API, is verified for an account other than its author's.
         That would let anyone with push access make a commit verified for
-        another person, and it also bears on *A questions-branch decision
-        needs a proven writer*.
+        another person.
       - How a reader tells a signature GitHub made from the person's own,
         such as GraphQL's `wasSignedByGitHub`. If it can't tell, no
         signature counts.
 
-      If the pull request can't be read, only a signature proves the
-      file. Until this shows GitHub never verifies such a commit for
+      Until this shows GitHub never verifies such a commit for
       someone who didn't make it, a signature GitHub made proves nothing
 - [ ] 0.23 That the URL an asking agent records as `asked_in` (design.md:
       *A log file follows its thread message by exact link*), and the
@@ -184,10 +168,10 @@ contradicts what design.md assumed.
       its post command returns, and the answer session compares it as
       written
 - [ ] 0.24 How setup can tell ahead of time that a commit the script
-      pushes to a lore questions branch will be verified for the person
+      pushes to a questions branch will be verified for the person
       (design.md: *Setup checks questions-branch commits are the
-      person's*): git's `commit.gpgsign` and `user.signingkey` in the lore
-      clone, the signing keys GitHub lists for the account, and whether
+      person's*): git's `commit.gpgsign` and `user.signingkey` in the
+      clone it pushes from, the signing keys GitHub lists for the account, and whether
       the committer email is a verified address there; and that the `log`
       command, run with github-app's `GIT_AUTHOR_*`, `GIT_COMMITTER_*` and
       `GIT_CONFIG_*` settings removed, commits as the person in a project
@@ -224,6 +208,14 @@ contradicts what design.md assumed.
       form each surface returns, which the answer session then matches
       (answer-session spec: *A question with a person-required line gets
       no filter 2 to 4 reply*)
+- [ ] 0.29 Whether an Igor's host has Python and the inquisitor skill
+      installed for the Igor's own process, not only for its workers, so
+      the Igor can run `branch-search` (inquisitor spec: *The Igor reads
+      questions branches with the script*), and whether the Igor's App
+      token can read a collaborator's permission and a commit's signature
+      signer. Without the first, the call fails and the worker's search
+      names each questions branch as not searched; without the second,
+      every hit is `input`
 
 ## 1. Shared post reader
 
@@ -303,15 +295,18 @@ contradicts what design.md assumed.
       verdicts and their fields, an `ask`'s related earlier decision, the
       person-required line printed for an `ask` naming the skill that
       requires it (inquisitor spec: *A question another skill requires
-      carries a person-required line*), the
+      carries a person-required line*), the record line printed for a
+      picker `ask` (inquisitor spec: *A picker question shows where its
+      answer will be recorded*), the
       three categories recorded by hash only, the refusals, and the records
       the hooks read, each deleted once it is more than 2 hours old
 - [ ] 2.3 Filter 1's search. Items marked igor's are applied by
       `igor lore-search`, which igor PR #216 builds.
       - It searches decision documents, issues through `gh`, the
-        repository's question log and misses, and configured lore
-        clones' entries, `questions` branch and decision records at igor
-        PR #202's path, fetched and read with `git show`.
+        repository's `questions` branch, and configured lore clones'
+        entries, `questions` branch and decision records at igor PR
+        #202's path, each `questions` branch
+        fetched, and every branch read with `git show`.
       - It matches as plain text and ranks by terms matched, with a cap
         it reports.
       - During an Igor's run it searches lore only through `igor
@@ -328,11 +323,13 @@ contradicts what design.md assumed.
           writer*), the comment holding the answer when its text equals
           the file's once both are reduced (design.md: *A linked comment
           holds the answer only when the texts are equal*);
-        - a relayed answer counted only from an App the person's
-          `relays/<login>.yaml` lists, and only when that file's last
-          change came from that person, and never from a slug starting with `igor-`
-          (design.md: *Only a listed relay App speaks for a person on
-          GitHub*; *An Igor's App is never a relay App*);
+        - a bot account's comment, a `User says: ` one included, never
+          proving a writer (design.md: *An answer given through the
+          answer session counts by its signed file*);
+        - an answer whose `recorded_in` pins a commit counted for other
+          work only once that commit has landed (design.md: *An answer
+          recorded on a work branch counts for other work once it
+          lands*);
         - only the newest answer counting among a question's files on a
           questions branch, a signature dated no later than when this
           machine first fetched its commit (design.md: *The newest proven
@@ -341,19 +338,29 @@ contradicts what design.md assumed.
           of `repository` and `asked_from` it holds (design.md: *Every
           questions-branch file names where it was asked from*);
         - during an Igor's run, a file about a repository other than the
-          item's shown as input (igor's; design.md: *Questions-branch
+          item's shown as input (by `branch-search`, given the run's
+          item; design.md: *Questions-branch
           files and `project:` entries in a run's search*);
-        - an `agent` file on a questions branch always input.
+        - an `agent` file on a questions branch counted once pushed,
+          labelled as the agent's choice.
       - It reports each source it did not search, and when a fetch last
         updated each clone's remote-tracking default branch.
+- [ ] 2.3b `branch-search`, which searches one repository's `questions`
+      branch and prints its hits as JSON, each labelled by task 2.3's
+      checks (inquisitor spec: *The script searches a questions branch and
+      prints labelled hits as JSON*). The JSON is the contract with igor,
+      whose Igor runs the command for its worker: a test compares the
+      output for a fixed branch with a stored copy, field for field, so a
+      change to the format fails until the stored copy is changed, which
+      waits for igor's agreement
 - [ ] 2.4 The `log` command, writing one file per question or miss in the
       format of *A log file and a miss file have one format*.
       - `authority` is `decision`, `input` or `agent`, with
         `answered_by: agent` for an agent's choice.
       - A log file for a question also asked in a post holds that post's
-        URL as `asked_in`: a Linear or Discord one only in a private lore
-        repository, a GitHub one only in a lore repository no more visible
-        than the repository it points into (design.md: *`answer_link` and
+        URL as `asked_in`: a Linear or Discord one only on a private
+        repository's questions branch, a GitHub one only on a questions
+        branch no more visible than the repository it points into (design.md: *`answer_link` and
         `asked_in` are withheld where they would leak*). Igor-worker mode
         writes no `asked_in`, because each Igor log file follows its own
         handback comment (design.md: *Each Igor log file follows its own
@@ -385,20 +392,26 @@ contradicts what design.md assumed.
         - with a github.com `answer_link`, read from the linked comment
           and recorded word for word;
         - with a Linear or Discord `answer_link`, recorded as given, its
-          link never fetched, and only where the lore repository is
-          private; elsewhere the file is written without the link
-          (design.md: *Questions-branch answers relayed on Linear or
-          Discord*);
+          link never fetched, and only where the questions branch's
+          repository is private; elsewhere the file is written without
+          the link (design.md: *An answer given through the answer
+          session counts by its signed file*);
         - any other answer a person gave, without an `answer_link`, in
           their own words as given (design.md: *A logged answer is the
           person's own words*).
-      - A file goes in the repository's `.inquisitor/` for a question
-        about it, by a pull request when it is not the repository
-        holding the current work; or it is pushed to the team's lore
-        repository's `questions` branch for a question about the
-        organization or project, fetching and pushing again when
-        rejected because the branch moved, and logging nothing when
-        rejected otherwise.
+      - A file is pushed to the `questions` branch of the repository the
+        question is about, or of the team's lore repository for a
+        question about the organization or project, committed with the
+        person's git identity and signing (inquisitor spec: *The log
+        command commits with the person's git identity*). The command
+        fetches and pushes again when rejected because the branch moved,
+        and keeps the file pending, pushing it with the next file for
+        that branch, when it cannot push otherwise.
+      - A picker question's file is pushed once answered, and a record
+        more visible than its source only once the person answering
+        confirmed the warning, then with no link into the source
+        (design.md: *Nothing goes somewhere more visible than its
+        source*).
       - The secret scan, over raw markdown with link targets included, and
         the visibility refusal.
       - It refuses, saying why, a question holding a line that is exactly
@@ -445,10 +458,10 @@ contradicts what design.md assumed.
       entry into the run's report for the Igor to propose, as igor PR
       #216 is asked to (design.md: *A
       general answer is proposed as a provisional lore entry*)
-- [ ] 2.8 `relay-notice.yml`, a lore repository's workflow template,
-      modelled on the `templates/seat-notice.yml` that igor PR #171
-      specifies (design.md:
-      *A notice workflow mentions a relay file's person*)
+- [ ] 2.8 A test pinned to an igor commit that checks the lore entry
+      format `lore` copies: the `entries/<id>.md` path, the id pattern and
+      the frontmatter fields igor's lore store requires (inquisitor spec:
+      *A proposed lore entry's path, fields and id follow igor's rules*)
 - [ ] 2.9 Two refusals not built in tasks 1.3 and 2.4:
       - the `log` command's input file, refused unless it has mode 0600
         in a private directory;
@@ -511,7 +524,8 @@ contradicts what design.md assumed.
       (answer-session spec: *The person answers for what their relay posts*), the
       questions other skills require a person to decide (the agent runs
       only filters 1 and 3 on them), the
-      person-required line copied exactly from the second call, preparing,
+      person-required line and a picker question's record line copied
+      exactly from the second call, preparing,
       holding a question that blocks no step until the round's end while
       going on with its recommended answer, batching and tagging, the order with prose, logging answers and
       misses, the three categories recorded by hash only, what a headless
@@ -528,8 +542,7 @@ contradicts what design.md assumed.
       as a relay, any agent on the person's machine can print a relay
       App's token and post `User says: ` unseen by the post hook
       (design.md: *github-app refuses `token`, `run`, `credential get` and
-      `wire` for a relay identity*). It says too that uninstalling a
-      compromised relay App, or revoking its key, stops it
+      `wire` for a relay identity*).
 - [ ] 5.3 A row in the README's skills table, and `inquisitor` in its list of
       skills that turn on a hook
 - [ ] 5.4 `manage-skills` installs it and wires its hooks: check with
@@ -537,10 +550,10 @@ contradicts what design.md assumed.
 - [ ] 5.5 github-app's `SKILL.md`: every example that runs `python3 $G`
       sets `G` in the same command, or writes the script's full path, so
       the post hooks don't block it (design.md: *Posts sent through the github-app skill's script*)
-- [ ] 5.6 prose's file filter skips files under `.inquisitor/` (inquisitor
-      spec: *prose's pass skips files under .inquisitor/*), shipping with the skill,
-      because the skill writes `.inquisitor/` files from gate two, this
-      change's implementation, on
+- [ ] 5.6 `README.md` says that anyone with write access to a repository
+      can rewrite or delete its unprotected `questions` branch, and that
+      setup asks for no protection of it (the inquisitor decision record's
+      constraint on an unprotected `questions` branch)
 - [ ] 5.7 Change bug-hunter's SKILL.md so that Step 9 runs each
       recommendation in its report through the inquisitor skill's four
       filters before asking about it: a root cause, a finding too large
@@ -643,7 +656,8 @@ contradicts what design.md assumed.
       - (c) A screen the spec needs that v0.1-33 lacks is designed in this
         task from the prototype's existing patterns, in no new visual
         style, with no prototype round of its own: setup, the lock
-        message, the relay notice, a post's failure and discord-bot's
+        message, where an answer will be recorded and its warning, a
+        post's failure and discord-bot's
         warnings, why no miss was logged, a channel that is off, and the
         pending list, which reuses the approved queue's screens
         (design.md: *An answer that cannot reach its thread is kept
@@ -659,27 +673,26 @@ contradicts what design.md assumed.
       the candidates; each relay check; saving the file with the person's
       own keys kept; a failed identity's surface or a failed channel left
       off and checked again at each opening; the Linear key in the
-      keychain; `~/.local/bin/answer`; the pull request writing the
-      person's `relays/<login>.yaml` in each serving lore repository
-      (design.md: *One relay file per person*) and the one adding
-      `relay-notice.yml` where missing; and the check, resolving what the
-      `log` command would commit with once the github-app variables are
-      removed, that commits to each lore questions branch are signed and
-      use the person's identity, never an App's, warning how to fix it
+      keychain; `~/.local/bin/answer`; the check that each subscribed or
+      lore repository's `questions` branch takes the person's direct push;
+      the optional step that creates a lore repository, its clone and its
+      configuration entry (design.md: *Setup checks direct pushes, and can
+      create a lore repository*); and the check that commits to each
+      questions branch are signed and use the person's identity, never an
+      App's, made by resolving what the `log` command would commit with
+      once the github-app variables are removed, warning how to fix it
       when not (design.md: *Setup checks questions-branch commits are the
-      person's*). Filter 1 and every check that reads a comment's author
-      read each `relays/<login>.yaml` from the lore clone's default
-      branch, counted only when its last change came from its person
-      (design.md: *Who last changed a relay file ties it to its person*)
+      person's*)
 - [ ] 6.3 Polling: the four sources, only while open, the catch-up on
       opening, 60 seconds or GitHub's `X-Poll-Interval`, conditional
-      requests, poll positions, and the lore questions branches
+      requests, poll positions, and the questions branch of every
+      subscribed repository and configured lore repository
 - [ ] 6.4 Relaying: posts with the four reserved prefixes through the
       relay identity's skill as host commands, the `Re: ` line on GitHub
       and Linear posts, post ids, editing in place, the thread read before
-      a question is shown and before each post, and a questions-branch
-      question answered by a new log file, and again by a new one when its
-      relayed answer is edited (design.md: *Editing a relay post*);
+      a question is shown and before each post, the preview showing where
+      the answer will be recorded, and each confirmed answer pushed as a new signed log file, and again as a new one when its relayed answer
+      is edited (design.md: *Editing a relay post*);
       discord-bot's warnings shown after each Discord relay post and edit;
       and, off GitHub, the relayed text logged with the relay post's URL
       as an unfetched `answer_link`
@@ -738,10 +751,9 @@ contradicts what design.md assumed.
           prefix on GitHub*).
       - SKILL.md tells an agent to act on a `Recorded answer: ` reply only
         once filter 1 counts its record, and on an `Inquisitor: ` reply
-        only when it names filter 2, or names filter 3 or 4 and its last
-        line apart from a `Re: ` line says the person chose it (design.md:
-        *What an asking agent does with an automatic reply*; *A post the
-        person chose says so*).
+        only when a writer's signed miss file proves it, and for filter 3
+        or 4 only when that file's `said` is not the answer session's own
+        (design.md: *What an asking agent does with an automatic reply*).
       - The tests cover:
         - the handled file, pushed whenever the answer session closes a
           question a questions-branch file holds, from that branch or
@@ -806,9 +818,10 @@ contradicts what design.md assumed.
           for an answer held back or dropped, and at once only for one
           whose channel is off or not subscribed, including one whose
           refused post turned it off;
-        - no answer file, and a handled file instead, where the lore
-          repository is more visible than the thread the answer was given
-          in, a Linear or Discord thread counting as private;
+        - where the questions branch is more visible than the thread the
+          answer was given in, a Linear or Discord thread counting as
+          private, an answer file only once the person confirmed the
+          warning, and a handled file instead without it;
         - the `log` command refusing an `answers` that names no file on
           the branch;
         - an answer file holding the question the person saw and naming
@@ -845,13 +858,8 @@ contradicts what design.md assumed.
       evidence; design.md only links to that requirement or entry
       (design.md: *Some answer-session details are decided at
       implementation*): how a question's options, the choices it offers
-      with what each would change, are parsed from its thread; how the
-      session handles an asker's reply that revises those options; and
-      the UI of the notice for the comment GitHub Actions posts when a
-      pull request changes the person's relay file (answer-session spec:
-      *A relay-notice comment is shown as a notice*), designed from the
-      prototype's existing patterns, as task 6.1's rule (c) says of a
-      screen v0.1-33 lacks. Agreeing
+      with what each would change, are parsed from its thread; and how the
+      session handles an asker's reply that revises those options. Agreeing
       to a shown recorded answer is already decided (design.md: *Agreeing
       to a recorded answer is a filter 1 decline*), as are agreeing to a
       suggested verdict and citing a lore entry (answer-session spec:

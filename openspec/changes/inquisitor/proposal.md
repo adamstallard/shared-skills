@@ -17,9 +17,12 @@ agent asks it again.
   that blocks the agent's work is asked at once. Any other waits until the
   agent hands its work back to a person or ends its turn, and the agent goes
   on meanwhile with the answer it recommends. The waiting questions are then
-  asked together, through the picker or in a post. Each one asked is logged with where
-  its answer is recorded, in the repository or the team's lore repository it
-  concerns, so the next agent finds the answer instead of asking.
+  asked together, through the picker or in a post. Each one asked is logged, with where
+  its answer is recorded, on a branch named `questions` of the repository
+  it concerns, or of the team's lore repository, which holds the entries
+  agents are given as lore, so the next agent finds the
+  answer instead of asking. The person answering sees where the record
+  will go, and how visible that place is, before they answer.
 - A hook blocks a question in the picker, or in a GitHub post, that has not
   been through the filters.
 - A person's "that was obvious" is logged as a miss. Reviewing the misses
@@ -27,7 +30,8 @@ agent asks it again.
   one person's memory.
 - An answer session gives a person one place to answer the questions asked
   of them on GitHub, Linear and Discord. A relay identity posts each answer
-  for them. The answer session runs the four filters on each incoming
+  for them, and a file on the questions branch, in a commit signed
+  with the person's key, records it as theirs. The answer session runs the four filters on each incoming
   question too: it answers what is already recorded, replies to an agent's
   question that another filter clearly stops, and lets the person decline
   a question, logging a miss where one is due.
@@ -104,14 +108,11 @@ None.
   As prose's reader does today, it reads an unquoted `--body` or `-b` of
   one plain word, such as `--body hi`. prose's hook, which calls the
   reader, gains all of these changes.
-- In each repository where it runs, the skill writes `.inquisitor/`. In a
-  team's lore repository, it pushes to an orphan branch named `questions`,
-  and the answer session's setup proposes, by pull request, the person's
-  `relays/<login>.yaml` on its default branch, and a `relay-notice.yml`
-  workflow that mentions a relay file's person on a pull request changing
-  it.
-- prose: its pass skips files under `.inquisitor/`, because a log or miss
-  file quotes a question, and what a person said, word for word.
+- In each repository a question concerns, and in a team's lore repository,
+  the skill pushes to an orphan branch named `questions`, with no pull
+  request. A repository may also hold `.inquisitor/reviewers`, the logins
+  a posted question may tag. The answer session's setup can create a lore
+  repository for a team that wants one.
 - github-app: its SKILL.md's examples hold the skill's script path in the
   shell variable `G`. They set `G` in the same command as each use, or write
   the script's full path, since the shared post reader reads `$G` only when
