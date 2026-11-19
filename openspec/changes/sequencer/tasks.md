@@ -22,11 +22,7 @@ including a result that contradicts what design.md assumed.
 - [ ] 0.6 Whether a workflow run's `GITHUB_TOKEN` can read another
       account's permission on the repository, and the members of a team
       CODEOWNERS names
-- [ ] 0.7 Whether a "blocked by" relation to another repository's issue
-      can be read through GitHub's API with a workflow run's `GITHUB_TOKEN`
-- [ ] 0.8 Whether a workflow run's `GITHUB_TOKEN` can read the state of an
-      issue or pull request in another public repository
-- [ ] 0.9 Whether an issue transferred into a repository keeps the
+- [ ] 0.7 Whether an issue transferred into a repository keeps the
       creation time it had
 
 ## 1. Reading the repository
@@ -34,8 +30,7 @@ including a result that contradicts what design.md assumed.
 - [ ] 1.1 `.agents/skills/sequencer/scripts/sequencer.py`, checked by
       `pyright --strict`: read the open issues and pull requests through
       `gh`, with creation times, closing references, blocked-by
-      relations, requested reviewers, drafts and changed files, and
-      whether each outside item an explicit link names is open
+      relations, requested reviewers, drafts and changed files
 - [ ] 1.2 Find each open change on the default branch and on each open pull
       request's head, and the pull request it belongs to
 - [ ] 1.3 Read each change's deltas through OpenSpec's CLI, 1.16.1 or later,
@@ -61,16 +56,14 @@ including a result that contradicts what design.md assumed.
 - [ ] 2.7 Model-step checked pairs and edges: validate, record with the two changes' hashes,
       keep or drop them on later runs, and refuse edges computed against
       other inputs
-- [ ] 2.8 The statements of what the order did not check, blocked-by
-      relations to other repositories included
+- [ ] 2.8 The statements of what the order did not check
 - [ ] 2.9 A test that two runs on the same inputs give byte-identical text
 - [ ] 2.10 Count an edge only when a writer opened every item whose text
-      sets it, and a gate only when a writer opened the item holding its
-      link, and list the rest as not counted
-- [ ] 2.11 Gates: a gate for each explicit link naming an open outside
-      item, moving no item, with the outside item in inline code; when
-      the outside item's state cannot be read, the gate is kept, with a
-      reason that says so
+      sets it, and list the rest as not counted
+- [ ] 2.11 List each explicit link that names an outside item as not
+      counted, with the outside item in inline code and no edge set: on
+      its item's line, or with the edges that do not count when the order
+      does not hold the item
 
 ## 3. Publishing
 

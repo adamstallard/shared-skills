@@ -14,8 +14,7 @@ Terms used throughout, as the spec defines them:
   lines and a proposal's `Builds on:` lines) and the model step's rule,
   below.
 - **An outside item** is an issue or pull request in another repository
-  that an explicit link names. **A gate** is an item's wait on an open
-  outside item, and is not an edge.
+  that an explicit link names.
 - One item is **opened earlier** than another when GitHub's creation time
   for it is earlier.
 - **A copy duty** sets no edge. Where two changes modify one requirement,
@@ -202,38 +201,33 @@ shares its files, and rebases once, onto it, rather than after every
 merge. A merge wait follows the order the other rules and the
 tiebreak give, and never changes it.
 
-### A link to another repository's item is a gate
+### A link to another repository's item is listed as not counted
 
 **An explicit link that names another repository's issue or pull request
-gives the item a gate: its line says it waits on that outside item while
-the outside item is open. The outside item gets no place in the order.**
-The script orders one repository's work. The only thing it reads about an
-outside item is whether it is open.
+sets no edge and makes no item wait. The order's issue lists it as not
+counted, on the line of the item that has the link.** An item that outside
+work blocks appears in the order as if ready, with the link beside it. The
+decision record's Rationale for *A link to another repository's item is
+listed as not counted* says why such a link makes no item wait, and why
+the outside item is written as inline code.
 
-- **A gate moves no item,** as a merge wait moves none. An outside item has
-  no position to come after, and the gated item's line already tells a
-  reader not to start on it.
-- **An issue whose only link is a gate is in the order,** since its line is
-  where the gate is shown.
-- **A gate counts only when an account with write access opened the item
-  holding the link,** the rule for every explicit link (*Only edges set by writers count*).
-- **An outside item whose state cannot be read still gates, and the reason
-  says the state could not be read.** A private repository, a missing item
-  and a refused token all look the same to the script, and treating any of
-  them as closed would present an unread item as done.
-- **A loop through another repository is not a cycle.** Finding one would
-  mean reading the outside item's links, and ordering it would mean placing
-  an item the order does not hold.
-- **The outside item is written as inline code;** the decision record's
-  Rationale for *An explicit link to another repository's item is a gate*
-  says why.
-- **Nothing in this repository runs when an outside item closes.** The
-  next run removes the gate, and the workflow runs at least once a day.
+- **The script reads nothing about an outside item,** so the link is
+  listed whether that item is open or closed.
+- **The link is listed whether or not a writer opened the item that has
+  it,** since a link that moves nothing needs no writer check.
+- **An issue whose only link names an outside item is not in the order,**
+  as an issue linked to nothing is not. The order's issue lists its link
+  with the edges that do not count.
+- **Only the order's issue lists the link.** The item's block says what
+  the item waits on, and a link not counted is no wait.
+- **A "blocked by" relation to another repository's issue is listed when
+  the token can read the relation, and is missing from the order's issue
+  when it cannot.** No task measures which, because no place in the order
+  depends on it.
 
-- *Ruled out by a scenario:* placing another repository's item in the order
-  (*An explicit link to another repository's item is a gate*).
-- *Ruled out by a scenario:* treating an outside item that cannot be read as
-  closed (*A gate whose outside item cannot be read stays, and says so*).
+- *Ruled out by a scenario:* holding an item until another repository's
+  item closes, and placing another repository's item in the order (both
+  by *A link to another repository's item is listed as not counted*).
 
 ### Only writers' edges count
 
@@ -291,10 +285,10 @@ to, the pull request an issue shares a place with when several close it,
 the order of a cycle's members and the cycle's own place. Within one
 repository it gives the order of the numbers, since GitHub numbers issues
 and pull requests as they are created, except perhaps for an issue
-transferred in (task 0.9). Every item of this order is in one repository,
-so the repository name never decides a place here. It is in the key, and
-in the data below, so that neither depends on all items sharing a
-repository.
+transferred in (task 0.7). Every item of this order is in one repository,
+so the repository name never decides a place here. The name is in the
+key, and in the data the next section describes, so that neither would
+need changing for an order that spans repositories.
 
 - *Ruled out by a scenario:* asking a person about each unordered pair
   (*Items no rule orders keep the order they were opened in*).
@@ -303,9 +297,9 @@ repository.
 
 **`order --json`, an edges file and the checked pairs and code edges
 stored in the order's issue name each item by its repository and number
-together; published text writes `#<number>`.** A gate in `order --json`
-names an outside item, which a number alone cannot do, so every item is
-named the one way.
+together; published text writes `#<number>`.** A link to an outside item names
+that item in `order --json`, which a number alone cannot do, so
+every item is named the one way.
 
 - *Ruled out by a scenario:* naming an item in an edges file by number
   alone (*Data names an item by its repository and number*).
@@ -403,7 +397,7 @@ workflow file.
 - **A large repository's first publish edits many bodies.** Each item gets
   one edit, and later runs edit only blocks whose text changes.
 
-Tasks 0.1 to 0.9 measure nine facts before building.
+Seven facts are unmeasured; tasks 0.1 to 0.7 measure them before building.
 
 ### Facts measured before building
 
@@ -440,17 +434,7 @@ Each bullet says what the spec does if the fact is false.
   or organization member with only read access counts as a writer. If the
   token cannot expand a team, the team counts as one reviewer, and the
   order names one next review for the whole team.
-- **A "blocked by" relation to another repository's issue can be read with
-  the workflow's token** (task 0.7). If not, such a relation sets no gate,
-  and the order says that blocked-by relations to other repositories were
-  not read (*Blocked-by relations to other repositories that cannot be
-  read are named as not read*); `Depends on` lines still set gates.
-- **The workflow's token can read whether an issue or pull request in
-  another public repository is open** (task 0.8). If not, a workflow run
-  removes no gate when its outside item closes: each gate stays, with a
-  reason saying its state could not be read (*A gate whose outside item
-  cannot be read stays, and says so*).
 - **An issue transferred into the repository keeps the creation time it
-  had** (task 0.9). The script uses the creation time GitHub reports
+  had** (task 0.7). The script uses the creation time GitHub reports
   either way. If a transfer resets it, a transferred issue sorts by the
   time of its transfer.

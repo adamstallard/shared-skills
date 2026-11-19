@@ -37,9 +37,7 @@ These terms hold throughout this spec:
   and *A Depends on line names items by number, with or without their
   repository* define.
 - **An outside item** is an issue or pull request in another repository
-  that an explicit link names. **A gate**, set by *An explicit link to
-  another repository's item is a gate*, is an item's wait on an open
-  outside item, with a reason as an edge has, and is not an edge.
+  that an explicit link names.
 - **An edge** is a rule's finding that one item comes after another, with
   its **reason**. **A cycle** is a set of items whose edges lead from each
   back to itself. **A merge wait**, set by *Pull requests that change the
@@ -68,8 +66,7 @@ These terms hold throughout this spec:
 
 The order SHALL hold each open pull request, each open issue that an
 explicit link or a pull request's closing reference connects to another
-item, and each open issue with a gate, and no other issue; the order's
-issue is never an item.
+item, and no other issue; the order's issue is never an item.
 
 #### Scenario: An issue linked to nothing is not ordered
 
@@ -82,12 +79,6 @@ issue is never an item.
 - **WHEN** open issue #12's body has the line `Depends on #9`
 - **THEN** the order holds both #12 and #9
 
-#### Scenario: An issue whose only link is a gate is ordered
-
-- **WHEN** open issue #12's only explicit link is the body line
-  `Depends on octo/lib#7`, and `octo/lib#7` is open
-- **THEN** the order holds #12
-
 #### Scenario: The order's issue is never ordered
 
 - **WHEN** the order's issue is #40, and #12's body has the line
@@ -99,8 +90,7 @@ issue is never an item.
 Where open pull requests close an issue by GitHub's closing references,
 the issue SHALL share the position of the earliest opened of those that
 writers opened, and its block SHALL name that pull request.
-Every edge to or from the issue, and every gate of the issue, SHALL apply
-to that pull request instead.
+Every edge to or from the issue SHALL apply to that pull request instead.
 A closing reference from an author who is not a writer SHALL neither move
 an issue nor bring one into the order.
 
@@ -124,12 +114,6 @@ an issue nor bring one into the order.
 
 - **WHEN** #50 closes issue #43, and #70's body says `Depends on #43`
 - **THEN** #70 comes after #50
-
-#### Scenario: A closed-by issue's gate moves onto its pull request
-
-- **WHEN** #50 closes issue #43, #43's body says `Depends on octo/lib#7`,
-  and `octo/lib#7` is open
-- **THEN** #50's line and block give the gate on `octo/lib#7`
 
 #### Scenario: An outside author's closing reference moves nothing
 
@@ -321,98 +305,67 @@ repository in full SHALL be read as its `#<number>`.
 - **WHEN** the only `Depends on #9` in #12's body is inside a code fence
 - **THEN** it gives no edge
 
-### Requirement: An explicit link to another repository's item is a gate
+### Requirement: A link to another repository's item is listed as not counted
 
-Where an explicit link names an outside item, the item holding the link
-SHALL get a gate while the outside item is open: its line in the order's
-issue and its block SHALL say it waits on the outside item, written
-`<owner>/<repo>#<number>` as inline code, with the gate's reason. A gate
-SHALL move no item in the order and count in no reviewer's ranking. The
-order SHALL never hold an outside item, and the script SHALL read nothing
-about one but whether it is open.
+An explicit link that names an outside item SHALL set no edge, make no
+item wait and bring no issue into the order. The order's issue SHALL list
+it as not counted, on the line of the item that has the link or, where the
+order does not hold that item, beside the edges *Only edges set by writers
+count* lists as not counted, and SHALL write the outside item
+`<owner>/<repo>#<number>` as inline code. The script SHALL read nothing
+about an outside item and edit nothing in its repository.
 
-#### Scenario: A Depends on line naming another repository gates the item
+#### Scenario: A Depends on line naming another repository is listed and orders nothing
 
-- **WHEN** #12's body holds the line `Depends on octo/lib#7`, and
-  `octo/lib#7` is open
-- **THEN** #12's line and block say
-  `` waits on `octo/lib#7`: depends on it ``
+- **WHEN** pull request #12's body holds the line
+  `Depends on #9 and octo/lib#7`
+- **THEN** #12 comes after #9, and #12's line in the order's issue says
+  `` not counted: depends on `octo/lib#7`, in another repository ``
 
-#### Scenario: A blocked-by relation to another repository's issue gates the item
+#### Scenario: A blocked-by relation to another repository's issue is listed
 
-- **WHEN** GitHub records #14 as blocked by the open issue `octo/lib#7`,
-  and the token can read that relation
-- **THEN** #14's line and block say
-  `` waits on `octo/lib#7`: blocked by it ``
+- **WHEN** GitHub records pull request #14 as blocked by the issue
+  `octo/lib#7`
+- **THEN** #14's line says
+  `` not counted: blocked by `octo/lib#7`, in another repository ``
 
-#### Scenario: A Builds on line naming another repository gates the pull request
+#### Scenario: A Builds on line naming another repository is listed
 
 - **WHEN** #64's change's `proposal.md` says
   `Builds on: claims (octo/lib#31)`, in the repository
-  adamstallard/shared-skills, and `octo/lib#31` is open
-- **THEN** #64's line and block say
-  `` waits on `octo/lib#31`: builds on it ``
+  adamstallard/shared-skills
+- **THEN** #64's line says
+  `` not counted: builds on `octo/lib#31`, in another repository ``
 
-#### Scenario: A gate moves no item
+#### Scenario: A link to another repository's item makes no item wait
 
-- **WHEN** #12 has a gate on `octo/lib#7`, no edge connects #12 and #15,
-  and #12 was opened earlier
-- **THEN** #12 comes before #15
+- **WHEN** pull request #12's body says `Depends on octo/lib#7`, the issue
+  `octo/lib#7` is open, no edge connects #12 and pull request #15, and
+  #12 was opened earlier
+- **THEN** #12 comes before #15, and #12's block names no wait
 
-#### Scenario: A closed outside item gates nothing
+#### Scenario: An issue whose only link names another repository is not ordered
 
-- **WHEN** #12's body holds the line `Depends on octo/lib#7`, and
-  `octo/lib#7` is closed
-- **THEN** #12 has no gate, and its line and block do not name
-  `octo/lib#7`
+- **WHEN** open issue #12's only explicit link is the body line
+  `Depends on octo/lib#7`, and no open pull request closes #12
+- **THEN** the order does not hold #12, and the order's issue lists
+  `` #12: depends on `octo/lib#7`, in another repository `` as not counted
 
-#### Scenario: An outside item is never placed
+#### Scenario: Nothing about another repository's item is read or written
 
-- **WHEN** #12 has a gate on `octo/lib#7`
-- **THEN** the order gives `octo/lib#7` no position, and the script edits
-  no body in `octo/lib`
-
-#### Scenario: A loop through another repository is not a cycle
-
-- **WHEN** #12's body says `Depends on octo/lib#7`, and the body of the
-  open `octo/lib#7` says `Depends on adamstallard/shared-skills#12`
-- **THEN** #12 has a gate on `octo/lib#7`, and the order lists no cycle
-
-### Requirement: A gate whose outside item cannot be read stays, and says so
-
-Where the script cannot read whether an outside item is open, because the
-item is private or missing or the token is refused, the gate SHALL stay,
-and its reason SHALL end `; its state could not be read`.
-
-#### Scenario: A private repository's item still gates
-
-- **WHEN** #12's body holds the line `Depends on octo/secret#3`, and
-  reading `octo/secret#3` returns not found
-- **THEN** #12's line and block say
-  `` waits on `octo/secret#3`: depends on it; its state could not be read ``
-
-### Requirement: Blocked-by relations to other repositories that cannot be read are named as not read
-
-Where the token cannot read "blocked by" relations to other repositories'
-issues, such a relation SHALL set no gate, and the order's issue SHALL say
-`Blocked-by relations to other repositories were not read.`
-
-#### Scenario: An unreadable blocked-by relation sets no gate
-
-- **WHEN** GitHub records #14 as blocked by `octo/lib#7`, and the token
-  cannot read blocked-by relations to other repositories
-- **THEN** #14 has no gate, and the order's issue says `Blocked-by
-  relations to other repositories were not read.`
+- **WHEN** pull request #12's body says `Depends on octo/lib#7`
+- **THEN** the script makes no request about `octo/lib#7`, gives it no
+  position, edits no body in `octo/lib`, and lists the link whether
+  `octo/lib#7` is open or closed
 
 ### Requirement: Only edges set by writers count
 
 An edge SHALL count only when a writer opened every item whose text sets
 it. For an edge from changes' files or the model step, those items are both
 changes' pull requests; for a `Depends on` or `Builds on:` line, the item
-holding the line; for a blocked-by relation, the blocked item. A gate SHALL
-count only when a writer opened the item holding its link. The order's
-issue SHALL list the edges and gates that do not count, naming each one's
-author.
+holding the line; for a blocked-by relation, the blocked item. The order's
+issue SHALL list the edges that do not count, each with the account that
+opened the item setting it.
 
 #### Scenario: A Depends on line from an outside author is not counted
 
@@ -427,14 +380,6 @@ author.
   requirement titled as a sentence in #82's `design.md`
 - **THEN** #82 does not come after #121, and the order's issue lists that
   edge as not counted, opened by `zed`
-
-#### Scenario: A gate from an outside author is not counted
-
-- **WHEN** issue #120, opened by `zed` who has no write access, says
-  `Depends on octo/lib#7`, and `octo/lib#7` is open
-- **THEN** #120 has no gate, the order does not hold #120, and the
-  order's issue lists `` #120 waits on `octo/lib#7` `` as not counted,
-  opened by `zed`
 
 ### Requirement: Pull requests that change the same files merge one after another
 
@@ -1206,9 +1151,9 @@ that names an item by number alone.
 
 ### Requirement: The script prints the order for callers without editing anything
 
-`order` SHALL print the order, each item's position, its edges and gates
-with reasons, the cycles, the copy duties, the names both changes'
-`tasks.md` files hold, for the model step,
+`order` SHALL print the order, each item's position, its edges with
+reasons, the links to outside items, the cycles, the copy duties, the
+names each pair of changes' `tasks.md` files both hold, for the model step,
 and the hash of the inputs, as JSON with `--json`, and SHALL write to no
 issue or pull request; `publish` SHALL be the only command that edits.
 

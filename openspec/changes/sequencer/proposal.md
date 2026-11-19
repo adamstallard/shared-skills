@@ -21,9 +21,9 @@ Igor's Sequencer role (adamstallard/igor#231).
   model, and gives a reason for each place a rule decides. A change that
   modifies or names another change's requirement comes after it, and an
   item comes after what GitHub's "blocked by" relations, its `Depends on`
-  lines or its change's `Builds on:` lines say it waits on. An issue or
-  pull request in another repository is never placed; an item linked to
-  one is marked as waiting on it while it is open.
+  lines or its change's `Builds on:` lines say it waits on. Such a
+  link to another repository's issue or pull request places nothing: the
+  order only lists it, marked as not counted.
   Where two changes modify one requirement, the
   order says which must copy the other's new scenarios before archiving.
   Pull requests that change the same files get a merge order. Items that
@@ -40,8 +40,8 @@ Igor's Sequencer role (adamstallard/igor#231).
   The repository chooses how its model step runs: not at all, by one API
   call with no tools on the repository's API key, or by an Igor.
 
-design.md's *Decisions* gives the reason for each rule, and its *Open
-Questions* lists the facts to measure before building.
+design.md's *Decisions* gives the reason for each rule, and its *Facts
+measured before building* lists the facts the first tasks measure.
 The capability's decision record, `openspec/specs/sequencer/decisions.md`,
 holds what no test can express, each entry with its evidence: constraints
 no test can check, alternatives no requirement guards against, and reasons
