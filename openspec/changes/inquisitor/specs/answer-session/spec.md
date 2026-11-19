@@ -799,10 +799,7 @@ set by its mentions* says (igor #229).
 
 A log file whose `asked_in` links a thread message this machine reads
 SHALL follow that message by exact link, taking whatever the answer
-session decides about it, and is never shown on its own, except after an
-automatic filter 3 or 4 reply the answer session posts on that message,
-which closes no questions-branch file (*A handled file closes a
-questions-branch question*).
+session decides about it, and is never shown on its own.
 
 #### Scenario: A questions-branch file follows the message it links
 
@@ -1972,25 +1969,19 @@ shown from its branch with no thread SHALL get no ask-back or edit.
 
 ### Requirement: No answer file goes somewhere more visible than its thread unconfirmed
 
-When the questions branch is more visible than the thread the answer is
-given in, a Linear or Discord thread counting as a private repository's,
-the answer session SHALL push an answer file only once the person confirms
-the preview's warning. Unconfirmed, the answer stays in the thread, and it
-SHALL push, through the `log` command's handled option, a handled file
-naming each questions-branch file holding the question, at the time *A
-handled file is pushed once its close takes effect* gives.
+When the questions branch the answer file would go to is more visible than
+the thread the answer is given in, a Linear or Discord thread counting as a private repository's,
+the answer session SHALL post the answer and push its answer file only
+once the person confirms the preview's warning. Until then it SHALL post
+nothing; a reworded answer needs the same confirmation.
 
-#### Scenario: An answer typed in a private thread stays there
+#### Scenario: An answer is not posted without its record
 
 - **WHEN** the person answers a question asked in a private repository's
   thread, which a questions-branch file on a public lore repository holds,
-  and confirms the answer without the record
-- **THEN** the answer is relayed in the thread; no answer file is pushed
-  to the lore repository, where it would show the answer to readers the
-  private repository does not have; and a handled file naming the
-  questions-branch file is pushed
-- **AND** the handled file names only the file it closes, and adds no
-  answer or question text
+  and does not confirm the preview's warning
+- **THEN** nothing is posted and no file is pushed, the question stays in
+  the queue, and the person may reword the answer and confirm it
 
 #### Scenario: An answer typed in a Linear thread is recorded publicly once confirmed
 
@@ -2006,8 +1997,9 @@ Before the person confirms an answer, or a decline that logs a miss, the
 answer session SHALL show, with the post's preview, the repository whose
 questions branch will hold the record and that repository's visibility, or
 that nothing will be recorded and why. When that branch is more visible
-than the thread, the preview SHALL warn of it, naming the thread, and let
-the person confirm with the record or without it.
+than the thread, the preview SHALL warn of it, naming the thread: the
+person confirms an answer with its record or rewords it, and confirms a
+decline's miss or leaves it to a hash-only miss file.
 
 #### Scenario: The preview names the branch and its visibility
 
@@ -2022,7 +2014,7 @@ the person confirm with the record or without it.
   thread, to a question about the public `o/web`
 - **THEN** the preview warns that the record on the questions branch of
   `o/web` is public and that Discord thread is not, and offers confirming
-  the answer with the record or without it
+  the answer with the record or rewording it
 
 #### Scenario: A decline's preview shows where its miss will be recorded
 
@@ -2030,7 +2022,7 @@ the person confirm with the record or without it.
   the public `o/web` asked in a Linear thread
 - **THEN** the preview warns that the miss on the questions branch of
   `o/web` is public and that Linear thread is not, and offers confirming
-  the decline with the miss or without it
+  the miss or declining with a hash-only miss file
 
 #### Scenario: The preview says when nothing will be recorded
 
@@ -2102,16 +2094,15 @@ it posted as the relay, and the command fetches no post.
 ### Requirement: A handled file closes a questions-branch question
 
 When a decline, a recorded answer or an `Inquisitor: ` reply takes a
-question off the queue, which an automatic filter 3 or 4 reply does not,
-the session SHALL push, only through the `log` command's handled option, a
-**handled file** for each unanswered questions-branch log file holding
-the question that no handled file names: one the question was shown from, or whose `asked_in` links that question's message. A
-handled file closes only the file it names, on every machine, and answers
-nothing.
+question off the queue, the session SHALL push, only through the `log`
+command's handled option, a **handled file** for each unanswered questions-branch log file that no
+handled file names and that holds the question: one the question was shown from, or whose `asked_in` links that question's
+message. A handled file closes only the file it names, on every machine,
+and answers nothing.
 
-#### Scenario: An automatic filter 2 reply pushes a handled file
+#### Scenario: An automatic reply pushes a handled file
 
-- **WHEN** the answer session's own filter 2 reply goes out on a thread
+- **WHEN** the answer session's own filter 2, 3 or 4 reply goes out on a thread
   copy an unanswered log file holds
 - **THEN** a handled file naming that log file is pushed through the
   `log` command's handled option
@@ -2119,14 +2110,6 @@ nothing.
   decline, agreeing included, with a thread or without, being the only
   writer of handled files under the inquisitor's *Only an answer session
   writes a handled file*
-
-#### Scenario: An automatic filter 3 or 4 reply pushes no handled file
-
-- **WHEN** the answer session's own filter 4 reply goes out on a thread
-  copy an unanswered log file holds
-- **THEN** it pushes no handled file, and the log file stays unanswered
-  and shown until the person handles it
-- **AND** the same holds for filter 3's reply
 
 #### Scenario: A handled file closes only the file it names
 
@@ -2423,15 +2406,15 @@ once, to the entry's own lore repository, under *A person's cite of an
 active entry in scope pushes a citation file*, whether or not it pushes
 a miss.
 
-#### Scenario: A decline's citation is pushed when its miss is not
+#### Scenario: A decline's citation is pushed when no readable miss is
 
 - **WHEN** the person's filter 1 decline names an `active` entry of a
   private lore repository, whose scope covers the question; the question is
   about the organization and was asked in a private repository's thread;
-  and the team's lore repository, where its miss would go, is public
-- **THEN** no miss file is written, that branch being more visible than
-  the thread, and the answer session pushes one
-  citation file, to that entry's lore repository
+  and the team's lore repository, where its miss would go, is public, and
+  the person has not confirmed the miss
+- **THEN** the miss is a hash-only miss file, that branch being more
+  visible than the thread, and the answer session pushes one citation file, to that entry's lore repository
 
 ### Requirement: A decline with nothing posted closes a thread copy on this machine only
 
@@ -2800,8 +2783,7 @@ handled file. On GitHub, this is built only once task 0.21 is measured.
   the first, and `Inquisitor: filter 4, cheap to reverse. Pick one, and
   record what you chose and why.` on the second
 - **AND** when an unanswered questions-branch log file holds either
-  question, only the thread copy is listed as handled, as this
-  requirement sets
+  question, a handled file closes it
 
 #### Scenario: An unclear case goes to the person
 
@@ -2910,8 +2892,8 @@ question SHALL get no automatic post.
 ### Requirement: The answer session logs its misses on the questions branch of what the question concerns
 
 The answer session SHALL log each miss as a miss file, whether or not
-the asker logged the question, and the inquisitor script SHALL push it,
-duplicates included, to the questions branch of what the question
+the asker logged the question, and the inquisitor script SHALL push it
+to the questions branch of what the question
 concerns, under the inquisitor's *A question is pushed to the questions
 branch of what it concerns*.
 
@@ -2921,11 +2903,12 @@ branch of what it concerns*.
 - **THEN** the script pushes the miss file to `misses/` on the questions
   branch of `o/api`, and opens no pull request
 
-#### Scenario: A miss judged on two machines is pushed twice
+#### Scenario: A miss judged on two machines is pushed once
 
-- **WHEN** the answer session on a second machine logs a miss whose
-  question and filter match a miss file already on the branch
-- **THEN** it pushes its miss file too
+- **WHEN** the answer session on a second machine logs a miss for the same
+  question, message and filter as a miss file already on the branch
+- **THEN** it pushes nothing, the file's name being taken, as the
+  inquisitor's *Every miss file is named by one hash* says
 
 ### Requirement: A miss records who judged it and where it was asked from
 
@@ -2935,7 +2918,7 @@ files SHALL copy their most private `asked_from` and any `repository`,
 with no miss if their `repository` keys differ. Any other miss SHALL hold
 as `repository` the repository the question concerns, if any, and as
 `asked_from` its GitHub thread's repository, or on Linear or Discord
-that same repository, else no miss (design.md: *Misses the
+that same repository, else no readable miss (design.md: *Misses the
 answer session logs*).
 
 #### Scenario: An automatic miss is marked as the answer session's
@@ -2961,8 +2944,8 @@ answer session logs*).
   file holds
 - **THEN** the miss file holds `asked_from: "o/web"` and no `repository`
 - **AND** an organization's question on Linear or Discord that no
-  questions-branch file holds gets no miss file, having no repository to
-  name in `asked_from`
+  questions-branch file holds gets only a hash-only miss file, having no
+  repository to name in `asked_from`
 
 #### Scenario: A miss on a Linear question holds the thread's URL
 
@@ -2980,12 +2963,11 @@ The answer session SHALL write no miss file, telling the person why,
 when any of these holds:
 
 - the question has a category;
-- it concerns no repository and was asked from none;
+- it concerns no repository, organization or project;
 - it concerns an organization or project with no team's lore repository;
-- the person has not confirmed it, and the questions branch is more
-  visible than the question's thread, a Linear or Discord thread being
-  private, or, for a question shown from a questions-branch file with no
-  thread, more visible than that file.
+- it was shown from a questions-branch file with no thread, the branch its
+  miss would go to is more visible than that file, and the person has not
+  confirmed the miss.
 
 #### Scenario: No place for the miss means no miss file
 
@@ -3002,14 +2984,6 @@ when any of these holds:
 - **THEN** nothing is posted, and the person is told why no miss file is
   written
 
-#### Scenario: A more visible questions branch gets no miss unconfirmed
-
-- **WHEN** a question about a public repository is asked in a private
-  repository's GitHub thread, or on Linear or Discord, and the session
-  judges it automatically or the person declines without the miss
-- **THEN** no miss file is written, and the reply is input to the asking
-  agent
-
 #### Scenario: A confirmed miss goes to the more visible branch
 
 - **WHEN** the person declines, for filter 3, a question about the public
@@ -3025,3 +2999,30 @@ when any of these holds:
   private repository* ranks private, and its miss would go to a public lore
   repository's questions branch
 - **THEN** no miss file is written unless the person confirms it
+
+### Requirement: A miss more visible than its thread is pushed as a hash-only file
+
+Where the questions branch is more visible than the question's thread, a
+Linear or Discord thread being private, and the person has not confirmed
+the miss, the answer session SHALL push the hash-only miss file the
+inquisitor's *A hash-only miss file shows nothing but that it exists*
+defines. It SHALL post an `Inquisitor: ` reply by itself only where it
+has a branch to push that reply's miss file to, readable or hash-only, and
+otherwise SHALL show the person the question.
+
+#### Scenario: A more visible questions branch gets a hash-only miss unconfirmed
+
+- **WHEN** a question about a public repository is asked in a private
+  repository's GitHub thread, or on Linear or Discord, and the session
+  judges it automatically or the person declines without confirming the
+  miss
+- **THEN** the session pushes a hash-only miss file to the public
+  repository's questions branch, and any `Inquisitor: ` reply goes out as
+  it would with a readable miss
+
+#### Scenario: With no place for any miss file, no reply goes out by itself
+
+- **WHEN** an agent's question about an organization no configured lore
+  repository serves clearly fails filter 4
+- **THEN** the session posts no reply by itself, and shows the person the
+  question

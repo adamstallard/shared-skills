@@ -321,12 +321,11 @@ risks, and the spec answers each:
 
 - **A thread's text reaches the model that judges it.** So the model writes
   no word of an automatic post, and a crafted question can at worst choose
-  which fixed reply or which record is posted. Even that matters, since
-  filter 3's and 4's replies tell the asking agent to decide the question
-  itself, so a crafted thread could have an agent decide a question no
-  person saw. The agent therefore acts by itself only on filter 2's reply,
-  which only defers, or on one the person chose (*What an asking agent does
-  with an automatic reply*).
+  which fixed reply or which record is posted. Filter 3's and 4's replies tell the asking agent to decide the question
+  itself. The agent acts on one only when a miss file backs it, which a
+  crafted thread cannot supply; it already ran both filters, so the reply is
+  a second judgment that one option has merit or that the choice is cheap to
+  reverse (*What an asking agent does with an automatic reply*).
 - **A record can be more private than the thread.** A recorded answer is
   posted by itself only when its record is no more private than the thread;
   otherwise the person sees it and decides.
@@ -1002,7 +1001,8 @@ person may send an answer's log file, or a decline's miss file, somewhere
 more visible. A confirmed miss file is what lets the asking agent act on the
 decline's reply (*What an asking agent does with an automatic reply*). The file then holds no
 link into the source and names its own branch's repository as `asked_from`,
-so it is exactly as visible as its branch. A session with no person in it has
+so it is exactly as visible as its branch. A miss sent there leaves out
+`asked_by`, which would publish the asker's account from the private thread. A session with no person in it has
 nobody to confirm, so there the ranking stands.
 
 The script also opens no lore pull request to a lore repository more visible
@@ -1219,8 +1219,6 @@ same to a person, and an escape is one more form every reader must undo
 section's heading*, scenario *A question holding a closing section's heading
 is refused*).
 
-
-
 #### An answer typed on another surface counts only through a decision document
 
 A linked answer is only a github.com comment or review, since only there is
@@ -1425,9 +1423,12 @@ gives why the Igor runs the script and the worker does not.
 
 #### Questions-branch files and `project:` entries in a run's search
 
-These scope rules are igor PR #216's (decisions 25, 27, 42, 44, 53 and 54);
-the spec points to them. A `project:X` entry is hidden in a run whose item's
-repository is more visible than X (decisions 53 and 54), so the spec's
+The scope rules for lore entries are igor PR #216's (decisions 44, 53 and
+54); the spec points to them. For a questions-branch file the script applies
+this change's two run rules itself, on a file about another repository and
+on visibility, given the run's item (*The Igor reads questions
+branches by running the script*). A `project:X` entry is hidden in a run whose item's
+repository is more visible than X's repository (decisions 53 and 54), so the spec's
 scenario of a `project:` entry inside an Igor sets the item's repository no
 more visible than X, or it would test nothing.
 
@@ -1439,7 +1440,8 @@ questions-branch file names where it was asked from* gives the reason.
 
 #### Every questions-branch file names where it was asked from
 
-**Every questions-branch log and miss file but a handled one holds
+**Every questions-branch log and miss file but a handled or hash-only one
+holds
 `asked_from`, the repository the question was asked from. Outside an Igor's
 run the script writes it. During a run the script writes none: the Igor
 sets it after its format check, and refuses a worker's file that already
@@ -2082,8 +2084,9 @@ Discord `asked_in` counts as private.
 An answer's text leaks as its link does. So where the questions branch is
 more visible than the thread an answer was given in, an answer file is
 written only once the person confirms the preview's warning, and then with
-no link into the thread; without that confirmation a handled file closes any questions-branch
-file holding the question (answer-session spec: *No answer file goes
+no link into the thread; without that confirmation the answer is not
+posted; the person can reword it to suit the more visible place, and then
+confirms (answer-session spec: *No answer file goes
 somewhere more visible than its thread unconfirmed*).
 
 Into a Linear or Discord thread, whose readers the session cannot check, the
@@ -2181,9 +2184,7 @@ with no person seeing it.
 #### A post the person chose says so
 
 **Why:** the line `The person chose this filter.` tells a reader of the
-thread that a person, not the answer session, chose the filter. An asking
-agent tells by the miss file instead (*What an asking agent does with
-an automatic reply*).
+thread that a person, not the answer session, chose the filter.
 
 ### Incoming questions, declining and handled files
 
@@ -2259,17 +2260,33 @@ person** (*No automatic post repeats one in its chain of replies*).
 
 #### What an asking agent does with an automatic reply
 
-**An agent acts by itself on an `Inquisitor: ` reply naming filter 2, which
-only defers; on one naming filter 3 or 4, which decide a question, only when
-the person chose it; and on any of them only when a miss file backs it.**
-The answer session pushes a miss file with such a reply wherever the visibility rules let it record one. The file's
-`said_by` names who stands behind the reply, the agent checks that account's
-write access, and the file's `said` shows whether the session or the person
-chose the filter. The reply's own text and author count for nothing: without the file, anyone who can comment could post
-`Inquisitor: filter 4` and have an agent decide a maintainer's question.
-The inquisitor spec holds the conditions; *What the answer session does by
-itself* gives why filters 3 and 4 need the person. Where no miss is
-pushed, the reply is input.
+**An agent acts on an `Inquisitor: ` reply, one the answer session posted by itself included, only when a miss file backs it.** The reply's own text and author
+count for nothing: commenting on a public repository is open to anyone, so
+without the file anyone could post `Inquisitor: filter 4` and have an agent
+decide a maintainer's question. Pushing to the questions branch takes write
+access. A readable miss file names in `said_by` who stands behind the reply,
+and the agent checks that account's write access, since a readable miss can
+be pushed for someone else, as an Igor pushes its worker's.
+
+**Where privacy would withhold a readable miss, the session pushes a
+hash-only miss file.** Every miss file, readable or not, is named by one
+hash of the question's text, the URL of the message asking it and the
+filter. So the asking agent, which cannot tell from a reply which kind the
+session wrote, makes one path lookup, and the same question, message and
+filter never give two files. A hash-only one has empty frontmatter and no
+body, so it shows nothing but the time of its push and who pushed it. A later version of the format can give it keys, and a reader of miss files
+takes whatever keys one holds. Task 0.23 sets the one form of a thread URL both sides hash, and a
+question edited after the reply no longer matches, so its reply is
+input, which the agent reads but does not act on. The asking agent knows the question's text, the URL and the filter, and
+computes the same hash. The file
+names no one: being on the branch is its authority, since only an account
+with push access can put it there. For an organization's question that
+branch is the lore repository's, whose writers are who decides such a
+question. A readable miss stays the form wherever privacy allows one, for
+its value as a log. Where the session has no questions branch to push a miss file of either form
+to, the
+session posts no reply by itself and shows the person the question, so an
+agent never acts on a bare reply.
 
 An agent pushes no citation for a lore entry a `Recorded answer: ` reply
 names, since the answer session pushed any that was due, so one question
@@ -2359,12 +2376,6 @@ asking agent's own filter 1 would count that record: the record is then in
 the thread, and an asker that cannot count it and asks again reaches the
 queue as a new question.
 
-**An automatic filter 3 or 4 reply closes nothing and pushes no handled
-file:** the asking agent acts on such a reply only when the person chose the
-filter, so the question is still open and its questions-branch file stays
-shown until the person handles it
-(inquisitor spec: *An Inquisitor reply is acted on only with a writer's miss file*).
-
 **A reader takes a handled file, which names no person, as the answer
 session's,** as it takes an answer file at its word. The
 inquisitor decision record's Constraint on a rewritable `questions` branch
@@ -2430,7 +2441,7 @@ provide*.
 
 *Ruled out by a scenario:* pushing a decline's citation only when its miss is
 pushed (answer-session spec: *A filter 1 decline cites its lore entry once*,
-scenario *A decline's citation is pushed when its miss is not*). When two
+scenario *A decline's citation is pushed when no readable miss is*). When two
 machines decline one question, each pushes a citation, so the entry is cited
 twice, which *Which cross-machine cases are accepted* accepts.
 
@@ -2457,15 +2468,19 @@ no thread is a filter 1 decline*); and no miss on an agent's question
 
 **The answer session pushes each miss straight to the questions branch of
 what the question concerns, whether or not the asker logged the question.**
-The fixed `said` of an automatic miss lets a review of misses, and an asking
-agent, tell the session's judgement from a person's word. Where
+The fixed `said` of an automatic miss lets a review of misses tell the session's judgement from a
+person's word. A readable miss file names in `asked_by` the account that
+posted the question, since which asker keeps asking what it should have
+filtered is what a reader of misses wants first, and the key reveals nothing
+new, since the account already shows on the question in its thread. A hash-only miss file holds no such key. Where
 questions-branch files hold the question, its miss or answer file copies the
 most private `asked_from` among them, and their `repository` if they hold one, so it is
 as private as they are and about the same thing; files naming different
 repositories get no miss. A miss or answer file with no such file names its
 GitHub thread's repository in `asked_from`. A Linear or Discord thread has no
 repository, so there the repository the question concerns stands in, and an
-organization's question asked there gets no miss.
+organization's question asked there gets only a hash-only miss file, having
+no repository for a readable one to name in `asked_from`.
 
 A miss's push, like a handled file's, is recorded as owed before the post
 that leads to it and retried at each poll and opening, since once the post
@@ -2475,9 +2490,7 @@ lost miss back.
 *Ruled out by a scenario:* keeping misses in the state folder, which would
 make it a personal question log (answer-session spec: *The answer session
 logs its misses on the questions branch of what the question concerns*,
-scenario *A miss goes to the questions branch*); and pushing a miss only when
-no matching one is on the branch, which is matching on words (scenario *A
-miss judged on two machines is pushed twice*).
+scenario *A miss goes to the questions branch*).
 
 ### Linking log files to threads, and handbacks
 
@@ -2631,22 +2644,6 @@ the directory where spec-trace's CI fails on an untagged one.**
 
 ## Open Questions
 
-### For the repository's owner to decide
-
-- **Who decides a thread question that got an automatic filter 3 or 4 reply
-  and that no questions-branch file holds?** The thread's state lists it as
-  handled, apart from the queue, and the asking agent treats the reply as
-  input, so nobody is asked.
-- **Does an automatic filter 2 reply go out where privacy keeps its miss off
-  the questions branch?** The reply's handled file closes the
-  questions-branch file on every machine, yet the
-  asking agent may not act on a reply with no miss file.
-- **What does an answer decide when the person confirms it without its
-  record, declining the warning that the questions branch is more visible
-  than the thread?** The relay
-  post is input to the asking agent, and the handled file closes the
-  question everywhere, so the agent has to ask again.
-
 ### Facts measured before building
 
 Tasks 0.4 to 0.14 measure these facts before anything is built (tasks 0.1 to
@@ -2793,19 +2790,12 @@ to its 149.
     one as this change does. For a questions-branch file it passes on the label
     `branch-search` gives, in place of the authority checks its decision 34
     has igor run.
-  - A questions-branch file's scope: every role whose Igor uses that lore
-    repository, and only a run whose item's repository is no more visible than
-    the more private of whichever of `repository` and `asked_from` it holds
-    (its decisions 25, 27 and 42).
+  - What the Igor checks before it pushes a questions-branch file, the
+    destination's visibility among them (its decisions 37 and 42).
   - Its `graceful-handoff` and `work-triage` deltas: igor's side of a flagged
     run, its handoff, its host file and the release of a held item.
-- **#216's lore-firing spec should judge a file by whichever of
-  `repository` and `asked_from` it holds.** Its *An Igor runs its worker's
-  lore searches* makes a file "as visible as the more private of the
-  repositories its `repository` and `asked_from` keys name, and as its
-  `repository` alone when it holds no `asked_from`". That misses a file with
-  no `repository`, so it should read: as the more private of the repositories
-  named by whichever of the two keys the file holds. Its push condition that
+- **#216's push condition should judge a file by the more private of
+  whichever of `repository` and `asked_from` it holds.** Its push condition that
   the destination is no more visible "than the repository its `repository`
   key names" applies only to a file holding one. Its *Lore reaches the worker
   unbidden, beside a search it may run* cites this change's rule (#216 calls
@@ -2844,8 +2834,10 @@ to its 149.
   JSON to the worker over the channel `igor lore-search` uses** (*The Igor
   reads questions branches by running the script*). igor copies none of
   those branches' matching, file format or authority rules, and runs the
-  version of the script its workers run. #216 should drop the authority
-  checks and the questions-branch visibility rule it has igor apply.
+  version of the script its workers run. #216 should drop two things `branch-search`
+  now does: the authority checks, and the visibility rule that its *An Igor
+  runs its worker's lore searches* applies to questions-branch files. Its
+  checks before a push stay.
   Task 0.29 measures whether the Igor's host has Python and the skill for
   the Igor's own process, and what its token can read.
 - **#216 should drop its decisions 45, 77 and 78,** under which an Igor
@@ -2853,6 +2845,9 @@ to its 149.
   comment on a handback, a `User says: ` one included, as `input`, and the
   answer session's answer file, which names the Igor's log file in
   `answers`, is what counts.
+- **#216 should refuse a worker's miss file holding `said_by`, and any
+  hash-only miss file a worker reports,** since either would let a steered worker
+  lend authority to an `Inquisitor: ` reply that anyone posted.
 - **#216 should refuse a worker's file holding `handled` or `closes`,** as it
   refuses one holding `asked_from`. #216 pushes any worker file with no
   `authority` as an unanswered question file, so a worker steered by item
@@ -2907,26 +2902,6 @@ to its 149.
   - #202's spec puts a decision about several repositories in the lore
     repository. Filter 1 reads the lore repository's decision records where
     #202 puts them (task 7.0).
-- **igor issue #211's body should record that a question about one
-  repository goes to that repository's `questions` branch,** which its decisions 18 and 43 still log in `.inquisitor/questions/`,
-  committed with the work.
-- **igor issue #211's body should record that the post hook vets every post,
-  handbacks included** (*No exemption for an Igor's handback*), **and that
-  filter 1 counts no repository's `DECISIONS.md` as a decision document**,
-  as the inquisitor spec's definition of a decision document rules, where
-  #211's decision 1.1 still lists one. #211 proposes
-  this skill and the Igor inquisitor role, and its body lists five open
-  questions:
-  - Three concern only the role, which is out of scope (*The Igor inquisitor
-    role is out of scope*): the role itself, which nobody has claimed; how
-    long it waits before following up; and whether a team discussion, such as
-    a chat channel or a shared document, is a new kind of surface for Igor,
-    beside the tracker and the code host.
-  - The fourth, when an Igor's worker can run the skill, is this change's
-    Igor-worker mode, which waits on this section.
-  - The fifth, whether the post hook can tell a handback comment from other
-    posts, needs no answer, since the hook vets every post.
-
 ### What other changes must provide
 
 - **The github-app skill's `token`, `run`, `credential get` and `wire`

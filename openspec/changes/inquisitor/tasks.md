@@ -140,9 +140,12 @@ that contradicts what design.md assumed too.
       Linear and Discord. Compare an issue comment's URL with a pull
       request comment's, `html_url` with the notifications API's URL,
       `discord.com` with `discordapp.com`, and a Linear URL before and
-      after the issue is renamed. Where they differ, define one canonical
-      form both sides
-      write and compare. Until measured, the asking agent records the URL
+      after the issue is renamed. Where they differ, define one canonical form, which both sides
+      write, compare, and use in the hash that names a miss file (inquisitor
+      spec: *Every miss file is named by one hash*), and
+      record whether Linear and Discord return a posted question's words
+      unchanged, since that hash takes them too; if they come back changed,
+      record the form each returns, which the hash then takes. Until measured, the asking agent records the URL
       its post command returns, and the answer session compares it as
       written
 - [ ] 0.25 How GitHub, Linear and Discord each report a relay post refused
@@ -321,6 +324,12 @@ that contradicts what design.md assumed too.
       format of *A log file and a miss file have one format*.
       - `authority` is `decision` or `input`. An agent's own choice
         under filter 3 or 4 gets no file.
+      - Every miss file is `misses/<hash>.md` (inquisitor spec: *Every
+        miss file is named by one hash*), and nothing is pushed where the
+        name is taken. A hash-only miss file, one with empty frontmatter
+        and no body, is written only through an option the answer session
+        passes (inquisitor
+        spec: *A hash-only miss file shows nothing but that it exists*).
       - A log file for a question also asked in a post holds that post's
         URL as `asked_in`: a Linear or Discord one only on a private
         repository's questions branch, a GitHub one only on a questions
@@ -338,7 +347,8 @@ that contradicts what design.md assumed too.
         the Igor's record*).
       - On a questions branch, `repository` only on a file about one
         repository, and `asked_from` on every log and miss file except a
-        handled file and a file written during an Igor's run. Outside a
+        handled file, a hash-only miss file and a file written during an
+        Igor's run. Outside a
         run it is the repository holding the current work; on a log or
         miss file the answer session writes, it is the `asked_from` the
         answer session passes to the `log` command (design.md: *Every
@@ -708,8 +718,9 @@ that contradicts what design.md assumed too.
           prefix on GitHub*).
       - SKILL.md tells an agent to act on a `Recorded answer: ` reply only
         once filter 1 counts its record, and on an `Inquisitor: ` reply
-        only when a miss file whose `said_by` has write access backs it, and for filter 3
-        or 4 only when that file's `said` is not the answer session's own
+        only when a miss file backs it: one whose `said_by` has write
+        access, or the hash-only miss file for that question, message and
+        filter
         (design.md: *What an asking agent does with an automatic reply*).
       - The tests cover:
         - the handled file, pushed whenever the answer session closes a
@@ -777,15 +788,16 @@ that contradicts what design.md assumed too.
           refused post turned it off;
         - where the questions branch is more visible than the thread the
           answer was given in, a Linear or Discord thread counting as
-          private, an answer file only once the person confirmed the
-          warning, and a handled file instead without it;
+          private, an answer posted and its file pushed only once the person
+          confirmed the warning, and a miss the person has not confirmed
+          pushed as a hash-only miss file;
         - the `log` command refusing an `answers` that names no file on
           the branch;
         - an answer file holding the question the person saw and naming
           the file it answers (design.md: *An answer file records the
           question the person saw*);
-        - a second machine's miss pushed even when a matching one is on
-          the branch;
+        - a second machine's miss not pushed when its name is on the
+          branch;
         - a miss for a question a questions-branch file holds copying
           that file's `asked_from`, and its `repository` if it has one;
         - a later run naming a file only from the Igor's own record, by

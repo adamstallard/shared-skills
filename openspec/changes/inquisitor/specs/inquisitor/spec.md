@@ -2303,10 +2303,10 @@ SHALL say the question is not yet logged, and why.
 A record's **source** SHALL be the thread its question was asked or its
 answer given in, a Linear or Discord thread counting as a private
 repository, and, for an organization's or project's question, also the
-repository it was asked from. The script SHALL refuse to push a log or miss
-file to a questions branch more visible than its source, save as *The
-answerer's confirmation can send a record somewhere more visible* allows;
-the agent SHALL then log nothing and tell the person why.
+repository it was asked from. The script SHALL refuse to push a log file
+or a miss file with keys to a questions branch more visible than its
+source, save as *The answerer's confirmation can send a record somewhere
+more visible* allows, and the agent SHALL then tell the person why.
 
 #### Scenario: A private repository's question stays out of an internal lore repository
 
@@ -2330,7 +2330,8 @@ more private source, a Discord thread, a Linear thread or a private or
 internal GitHub repository, the script SHALL push the question's log file,
 with its answer, or its miss file to a questions branch more visible than
 that source. The file SHALL then hold no `asked_in` or `answer_link` into
-the source, and its `asked_from` SHALL name the branch's own repository.
+the source, nor a miss's `asked_by`, and its `asked_from` SHALL name the
+branch's own repository.
 Only that person confirms it.
 
 #### Scenario: A confirmed answer from a Discord thread is recorded on a public branch
@@ -2843,16 +2844,15 @@ Every log and miss file SHALL take one format wherever it is written, as the
 scenarios below give: its path, name and slug; UTF-8 with LF line ends; YAML
 frontmatter between two `---` lines, each value a double-quoted string,
 holding only the keys the scenarios list for its kind of file, each only
-where they allow it, never `conditions`; then a markdown body. Every log
-and miss file but a handled one SHALL hold `asked_from`, which the script
-writes only outside an Igor's run.
+where they allow it, never `conditions`; then a markdown body. Every log and miss file but a handled or hash-only one SHALL hold
+`asked_from`; in an Igor's run the Igor sets it.
 
 #### Scenario: Where a file goes and how its slug is made
 
 - **WHEN** the agent logs a question or a miss
-- **THEN** the file is `questions/<name>` or `misses/<name>` on a questions
-  branch, where `<name>` is `<date>-<slug>-<6 random hex
-  digits>.md`, `<date>` is the day the file is first written, as
+- **THEN** a miss file is named as *Every miss file is named by one hash*
+  says, and any other file is `questions/<name>` on a questions branch,
+  where `<name>` is `<date>-<slug>-<6 random hex digits>.md`, `<date>` is the day the file is first written, as
   `yyyy-mm-dd` in UTC, and the hex digits are lowercase
 - **AND** the slug is the question's text in lower case, with each run of
   characters other than `a` to `z` and `0` to `9` made one `-`, cut to at
@@ -2960,14 +2960,17 @@ writes only outside an Igor's run.
 - **WHEN** the agent logs a miss against filter 1 for a question logged on
   a questions branch
 - **THEN** the miss file is under `misses/` there, and its frontmatter
-  holds only `asked`, `filter: "1"`, `said`, `said_by`, and `repository` and
-  `asked_from` as below
+  holds only `asked`, `asked_by`, `filter: "1"`, `said`, `said_by`, and
+  `repository` and `asked_from` as below
 - **AND** `repository`, `asked_from` and `asked` are as in the question's
   log file; `filter`, `"1"` to `"4"`, is the filter that should have
   stopped the question; `said` is what the person said, in their words or
   in one sentence, with any place they named, such as a spec's path;
   `said_by` is that person's GitHub login, or for a miss an answer session
-  logs, the login of the person running it; and the body is the question
+  logs, the login of the person running it; `asked_by` is the account
+  that posted the question, as its thread shows it, left out for a question
+  with no thread; a miss an Igor's worker reports holds neither `asked_by`
+  nor `said_by`, a worker being no person with write access; and the body is the question
   under `## Question`
 - **AND** for a miss an answer session logs, `repository` and `asked_from`
   are as the `answer-session` spec's *A miss records who judged it and where
@@ -3019,6 +3022,71 @@ writes only outside an Igor's run.
 - **THEN** the log file's name holds none of them, and its frontmatter
   still parses to the same text
 
+### Requirement: Every miss file is named by one hash
+
+Every miss file SHALL be `misses/<hash>.md`, where `<hash>` is the SHA-256,
+in lowercase hex, of the question's text, the URL of the message asking it,
+in the form task 0.23 sets, and the filter's digit, joined by LFs, as
+UTF-8. For a question with no thread, the URL's place SHALL hold the path
+of the question's log file on that branch. A
+writer that finds the name already on the branch SHALL push nothing.
+
+#### Scenario: A miss file is found by the asking agent's own hash
+
+- **WHEN** an answer session pushes a miss file for the question "Should
+  retries back off?", asked in the Linear comment
+  `https://linear.app/o/issue/ENG-7#comment-1`, against filter 4
+- **THEN** the file is `misses/<hash>.md`, where `<hash>` is the SHA-256 of
+  that question's text, built as *A question's text and hash are built one
+  way* builds it, an LF, that URL, an LF and `4`
+- **AND** until task 0.23 is measured, the URL is the one the asking
+  agent's post command returned
+- **AND** the asking agent, which knows all three, computes the same hash
+  and looks up that one path, whichever kind of miss file the session wrote
+
+#### Scenario: A question edited after the reply no longer matches
+
+- **WHEN** the question's text is edited after the answer session pushed
+  its miss file and replied
+- **THEN** the asking agent's hash of the edited text names no file on the
+  branch, and the reply is input
+
+#### Scenario: A second writer of the same miss pushes nothing
+
+- **WHEN** the answer session on a second machine logs a miss for the same
+  question, message and filter as a miss file already on the branch
+- **THEN** its file would take the same name, and it pushes nothing
+
+#### Scenario: A miss with no thread hashes its question's file path
+
+- **WHEN** a person says a picker question, logged as
+  `questions/2026-10-20-should-retries-back-off-3f9a1c.md`, did not need
+  asking, and the agent logs a miss against filter 3
+- **THEN** the hash takes that path in the URL's place
+
+### Requirement: A hash-only miss file shows nothing but that it exists
+
+A **hash-only miss file** SHALL be a miss file with empty frontmatter and
+no body, written only by an answer session and committed as *A citation file
+has one format* gives for a citation. Being on the branch is its whole authority.
+
+#### Scenario: A hash-only miss file holds nothing
+
+- **WHEN** an answer session pushes a hash-only miss file
+- **THEN** its frontmatter holds no key and its body is empty, its
+  commit's author and committer are `inquisitor <noreply>`, and filter 1's
+  search never shows the file
+- **AND** a reader that processes miss files accepts this file, reading no
+  key from it
+
+#### Scenario: A hash-only miss file on a lore repository backs an organization's question
+
+- **WHEN** the question is about the organization, and the hash-only miss
+  file is on the team's lore repository's questions branch
+- **THEN** it backs an `Inquisitor: ` reply to that question, since pushing
+  there takes write access to
+  the lore repository, which is what an organization's question concerns
+
 ### Requirement: A log file is read by its frontmatter and its body's end
 
 A reader SHALL count a log file as answered when its frontmatter holds
@@ -3063,9 +3131,10 @@ way as input, labelled as unreadable.
 
 ### Requirement: A questions-branch file named outside the format is unreadable
 
-A reader SHALL show a file under `questions/` or `misses/` on a questions
-branch whose name breaks the `<date>-<slug>-<6 random hex digits>.md` form
-of *A log file and a miss file have one format* only as input labelled
+A reader SHALL show a file under `questions/` on a questions branch whose
+name breaks the `<date>-<slug>-<6 random hex digits>.md` form of *A log
+file and a miss file have one format*, or one under `misses/` whose name is
+not 64 lowercase hex digits and `.md`, only as input labelled
 unreadable, and SHALL post nothing from it, its name included.
 
 #### Scenario: A file name holding a Re line is only unreadable input
@@ -3586,10 +3655,11 @@ else as input, and push no citation for a lore entry it names (design.md:
 
 The agent SHALL act on an `Inquisitor: ` reply, and record its choice, as
 the filter it names would, only when the questions branch of what the
-question concerns holds a miss file for the same question and that filter
-whose `said_by` has write access to what the question concerns; for filter
-3 or 4, that file's `said` does not start `answer session: `; and no other
-skill requires a person to decide the question. Otherwise it is input.
+question concerns holds the miss file *Every miss file is named by one
+hash* names for that question, message and filter; that file is hash-only
+or holds a `said_by` with write access to what the question concerns; and
+no other skill requires a person to decide the question.
+Otherwise it is input.
 
 #### Scenario: An Inquisitor reply with no miss file is input
 
@@ -3614,20 +3684,23 @@ skill requires a person to decide the question. Otherwise it is input.
 - **THEN** the agent carries on without an answer, and lists the question as
   not done, as filter 2 says
 
-#### Scenario: An automatic filter 4 reply is input
+#### Scenario: An automatic filter 4 reply is acted on
 
 - **WHEN** an agent's question gets a reply starting `Inquisitor: filter
-  4`, and the miss file's `said` is `answer session: clearly filter 4`
-- **THEN** the reply is input, and the question stands
-
-#### Scenario: A filter 4 reply the person chose is acted on
-
-- **WHEN** an agent's question gets a reply starting `Inquisitor: filter
-  4`, and the miss file, whose `said_by` has write access to what the
-  question concerns, holds `filter: "4"` and a `said` other than the answer
-  session's own
+  4`, and the miss file's `said` is `answer session: clearly filter 4` and
+  its `said_by` has write access to what the question concerns
 - **THEN** the agent chooses one option, and records what it chose and why,
   as filter 4 says
+
+#### Scenario: A reply backed by a hash-only miss file is acted on
+
+- **WHEN** an agent's question about the public `o/web`, asked in a Linear
+  thread, gets a reply starting `Inquisitor: filter 3`, and the questions
+  branch of `o/web` holds the hash-only miss file for that question, that
+  thread message and filter 3
+- **THEN** the agent takes the option that has merit, as filter 3 says
+- **AND** with no such file on the branch, the reply is input, whoever
+  posted it
 
 ### Requirement: A question that should not have been asked is logged as a miss
 
