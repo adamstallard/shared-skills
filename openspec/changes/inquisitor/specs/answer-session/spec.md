@@ -404,7 +404,7 @@ keychain, and a save SHALL keep keys it does not write.
 
 - **WHEN** setup saves a Linear subscription
 - **THEN** `inquisitor.json` holds the team key and the relay's identity
-  name, the relay's token stays with linear-app, and the person's Linear
+  name, and no token: linear-app holds the relay's token; the person's Linear
   API key, which the answer session reads Linear with, is only in the
   system keychain
 
@@ -421,7 +421,7 @@ the one running it, whose login is the one the inquisitor's *A configured
 login counts only when gh is logged in as it* sets; with no login
 configured, GitHub SHALL be off. A **relay identity** SHALL be the bot of
 a surface's skill, github-app, linear-app or discord-bot, that posts for
-them there, its token staying with that skill.
+the person there, with a token that skill holds.
 
 #### Scenario: A login gh does not confirm turns GitHub off
 
@@ -430,11 +430,10 @@ them there, its token staying with that skill.
 - **THEN** the answer session reads no GitHub channel and posts nothing on
   GitHub
 
-#### Scenario: A relay identity's token stays with its skill
+#### Scenario: No answer-session file holds a relay identity's token
 
 - **WHEN** the answer session posts a relay post on Discord
-- **THEN** discord-bot posts it with the token it holds, and no
-  answer-session file holds that token
+- **THEN** discord-bot posts it with the token it holds, and none of the files the answer session writes holds that token
 
 ### Requirement: Setup checks each relay identity before its channels are used
 
@@ -505,6 +504,13 @@ showing that check as not checked when it cannot tell.
   has been added to a channel
 - **THEN** setup offers `o/api`, `o`, `ENG` and that Discord channel to
   subscribe to
+
+#### Scenario: Setup opens in place of the queue on an incomplete configuration
+
+- **WHEN** the person opens the answer session and `inquisitor.json` has no
+  `answer_session` section, or one in which no surface has both a `relay`
+  and a subscription
+- **THEN** setup runs in place of the queue
 
 #### Scenario: Unsigned or unverified commits get a warning
 
@@ -2056,7 +2062,7 @@ surface; and, as quote lines, the relay post's text word for word, or the
 confirmed answer if unrelayed, with any rephrasing and summary also in
 their own sections. The `log` command SHALL read a GitHub relay post
 itself. For Linear or Discord the answer session SHALL pass it the text
-sent to the relay's skill, and the command fetches nothing.
+it posted as the relay, and the command fetches no post.
 
 #### Scenario: A relayed answer's file records the relay post as where it is recorded
 
@@ -2094,8 +2100,8 @@ sent to the relay's skill, and the command fetches nothing.
 
 - **WHEN** the person answers, from its Linear thread, a question about a
   private repository
-- **THEN** the `log` command logs as the answer the text sent to the
-  relay's skill, `User says: ` included, and nothing fetches the file's
+- **THEN** the `log` command logs as the answer the text the session
+  posted as the relay, `User says: ` included, and nothing fetches the file's
   `answer_link`, that Linear comment's URL
 - **AND** the file counts only through its commit's signature
 
@@ -2122,12 +2128,11 @@ sent to the relay's skill, and the command fetches nothing.
 
 ### Requirement: A handled file closes a questions-branch question
 
-When the answer session closes a question by a decline, a recorded
-answer or an `Inquisitor: ` reply, except a filter 3 or 4 reply it posts
-by itself, it SHALL push, only through the `log` command's handled
-option, one **handled file** naming each unanswered questions-branch log
-file holding the question and named by no handled file: one the question
-was shown from, or whose `asked_in` links the closed message. A
+When a decline, a recorded answer or an `Inquisitor: ` reply takes a
+question off the queue, which an automatic filter 3 or 4 reply does not,
+the session SHALL push, only through the `log` command's handled option, a
+**handled file** for each unanswered questions-branch log file holding
+the question that no handled file names: one the question was shown from, or whose `asked_in` links that question's message. A
 handled file closes only the file it names, on every machine, and answers
 nothing.
 

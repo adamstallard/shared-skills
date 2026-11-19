@@ -17,7 +17,9 @@ rules and a second that signs the result, the inquisitor makes two script calls:
 1. `inquisitor.py vet --questions q.json`, given the picker's `questions`
    array, or `vet --post body.md`, given a post's body, prints the four
    filters, runs filter 1's search for each question, prints the hits, and
-   issues a token holding the questions' hashes, never their text.
+   issues a token holding each question's hash and, for a picker question,
+   its first option's hash, which the second call checks the recommended
+   answer against, never their text.
 2. `inquisitor.py vet --pass <token> --verdicts v.json` records one verdict
    per question, keyed by the SHA-256 of its text.
 
@@ -111,10 +113,11 @@ records nothing.
 **Every repository has an orphan branch named `questions`, its questions
 branch, which holds a file for every question about that repository, and for
 every miss, a question a person said did not need asking. A question's file
-is pushed there directly, with no pull request.** No review is needed, since a question's
-authority comes from who answered it. The inquisitor decision record's
+is pushed there directly, with no pull request.** The inquisitor decision record's
 *Rationale: A question is pushed to the questions branch of what it
-concerns* gives why the files are not committed with the work. The question is written for the privacy of what it concerns before it is asked (spec: *A question is written
+concerns* gives why no review is needed and why the files are not committed
+with the work. The question is worded, before it is asked, to reveal nothing more private
+than what it concerns (spec: *A question is written
 at the privacy of what it concerns*), so its log can sit beside what it
 concerns.
 
@@ -256,13 +259,11 @@ post with one of the four reserved prefixes, `User says: `, `User asks: `,
 `Recorded answer: ` and `Inquisitor: `. Anything holding the relay identity
 could post `User says: `, which marks a question answered on every machine.
 So the skill's
-instructions reserve the prefixes, and on GitHub the post hook blocks a
-tool-call post starting with one; the answer session's posts reach no tool
-hook. The holder is the session whose open answer session holds the
-per-machine lock, which lets only one answer session run on a machine. There,
-each surface's post hook lets a tool call post only as the person's relay and
-never with a reserved prefix, on GitHub, Linear and Discord (*In the holder,
-the model posts only as the person's relays*). In any other session nothing
+instructions reserve the prefixes, and post hooks enforce them: on GitHub in
+every session (*The post hook blocks a reserved prefix on GitHub*), and on
+all three surfaces in the holder, the Claude Code session whose answer
+session holds the per-machine lock (*In the holder, the model posts only as the
+person's relays*). In any other session nothing
 enforces the prefixes on Linear and Discord.
 
 ### Local state, one writer per machine
@@ -288,9 +289,11 @@ old lock or the new one whole. No model is written, for three reasons:
 
 ### What the answer session posts, and what it logs
 
-The mod posts a relay post by running the relay identity's skill as a host
-command, not a tool call of the session's model, so no post hook sees it;
-task 0.18 measures that. The command runs as an argument vector with no
+The mod posts a relay post itself, not through a tool call of the session's
+model, so no post hook sees it; task 0.18 measures that. It runs a host
+command: the relay identity's skill or, on Linear, where linear-app has no
+post command, its own request, sent with the headers linear-app's `headers`
+prints. Either command runs as an argument vector with no
 shell, its text in a file or on standard input, because the person's answer
 and drafts built from a thread's untrusted text reach it. A relay post on
 Linear or GitHub names its question with a last `Re: <URL>` line, so a
@@ -328,10 +331,10 @@ risks, and the spec answers each:
 ### The session's model
 
 The model may ask the person in its reply in a discussion (*A discussion runs
-in the session's own conversation*). It may post through the person's
-relays, but an answer in the person's name it only drafts into the prompt box,
-and the post hooks block any post it tries under the person's own account or
-with a reserved prefix (*In the holder, the model posts only as the person's
+in the session's own conversation*). By its own tool calls it may
+post through the person's relays, with no reserved prefix; an answer in the
+person's name it only drafts into the prompt box
+(*In the holder, the model posts only as the person's
 relays*). The hooks guard only the posting commands and tools they recognise:
 the model's tools can still read the keychain holding the person's Linear key
 and post with it through a command no hook reads, such as `curl`, a gap the
@@ -891,9 +894,10 @@ only as a plain gh command* and *A gh api call writes by its method, fields,
 input or a mutation* state the rules.
 
 **Why:** a read posts nothing, so counting it would block, for every prose
-user, lines such as `gh api … | python3 -c …`. The test follows gh's own
-choice of method (gh-post decision record, *Rationale: A gh api call writes by
-its method, fields, input or a mutation*). `--input` counts as a parameter
+user, lines such as `gh api … | python3 -c …`. The
+gh-post decision record's *Rationale: A gh api call writes by its method,
+fields, input or a mutation* gives why the rule follows gh's own choice of
+method. `--input` counts as a parameter
 whatever gh does with it, failing closed; task 1.3 checks gh's behaviour. A
 word the shell builds, `xargs` or `sh -c` could add a field the reader never
 sees, and a built method or endpoint might be anything, hence the
@@ -1065,10 +1069,9 @@ fork's commit messages may do under each result, and before it is measured.
   fix made in the advisory's temporary private fork, whose commits become
   public with the advisory, is not public first, unless the fork's pull
   request can merge first.
-- A rule with no end at publication would leave a fix's commit message
-  unable to say why the fix was made, even after disclosure, as the
-  inquisitor decision record's *Rationale: A weakness is
-  not described in public text before its advisory is published* shows.
+- The rule ends at publication, so a fix's commit message can then say why
+  the fix was made (the inquisitor decision record's *Rationale: A weakness
+  is not described in public text before its advisory is published*).
 - Until task 0.13 shows that the fork's pull request merges only at
   publication, the person who will publish the advisory can vouch that it
   will, letting the agent commit the regression test in the fork and describe
@@ -1419,10 +1422,9 @@ ban on offering a worker a search tool, which rested only on a worker not
 needing one, is lifted, and a run's search applies firing's scope rule and
 labels an in-scope non-`active` entry as not lore.
 
-**Why** a worker searches at all: igor injects lore into the worker's context
-only when every entry in scope fits a token budget, so an entry holding a
-person's answer can be missing (evidence: the inquisitor decision record's
-*Rationale: In an Igor's run, filter 1 searches through igor*).
+**Why** a worker searches at all: an entry holding a person's answer can be
+missing from the lore igor injects (the inquisitor decision record's
+*Rationale: In an Igor's run, filter 1 searches through igor* gives why).
 
 **Why** only the lore repository the Igor injects from: the Igor checks a
 cited entry, reported by id alone, against that lore repository; another
@@ -1674,8 +1676,7 @@ identity with no service to run.
 #### On Discord one identity both reads and relays
 
 **The answer session reads GitHub and Linear with the person's own `gh`
-login and Linear key, so a relay's token there needs only the right to post
-and nothing the person reads there is read under a bot's name.** On Discord the relay identity both reads and
+login and Linear key.** On Discord the relay identity both reads and
 posts, in the channels it has been added to; the answer-session decision
 record's *Rationale: The answer session reads with the person's credentials,
 except on Discord* gives the reason and its evidence.
@@ -1687,10 +1688,9 @@ relay*).
 
 #### The Discord relay needs the Message Content intent
 
-**The Discord relay reads messages that do not mention the bot, which needs
-Discord's privileged Message Content intent.** The answer-session decision
-record's *Rationale: Setup checks each relay identity before its channels
-are used* gives the evidence.
+**The Discord relay needs Discord's privileged Message Content intent.** The
+answer-session decision record's *Rationale: Setup checks each relay
+identity before its channels are used* gives why, with the evidence.
 
 #### Only the prefixes are reserved, not the identity
 
@@ -1995,9 +1995,9 @@ an `@name` in the answer ping that member, as in a comment of the person's
 own. After each relay post or edit, which can drop a ping, the person sees
 discord-bot's warnings, such as for an `@name` that pinged no one. An
 automatic `Recorded answer: ` post links its record and quotes none of it, so
-no relay post repeats a record's @-mentions. discord-bot already posts without a header unless
-asked for one, so the relay needs no new option (the answer-session
-decision record, *Rationale: An answer is relayed as the person's words*).
+no relay post repeats a record's @-mentions. The relay posts with no header,
+which is discord-bot's default (the answer-session decision record's
+*Rationale: An answer is relayed as the person's words*).
 
 *Ruled out by a scenario* (answer-session spec: *An answer is relayed as the
 person's words*): mention rewriting off, which only stopped a quoted record's
@@ -2384,9 +2384,9 @@ new question*).
 
 #### The answer session writes a handled file on every close of a questions-branch file
 
-**Every close of a question a questions-branch file holds pushes a handled
-file naming that file; without it, the file would stay unanswered and come
-back.** A machine's first poll of a channel reads only its last 14 days, so a
+**Whenever a decline, a recorded answer or an `Inquisitor: ` reply takes out
+of the queue a question a questions-branch file holds, a handled file naming
+that file is pushed; without it, the file would stay unanswered and be shown again.** A machine's first poll of a channel reads only its last 14 days, so a
 machine first polling more than 14 days after the question was asked never
 reads the thread copy, the same question in the thread the file's `asked_in`
 links, and would show the file as new.
@@ -2407,9 +2407,10 @@ asking agent's own filter 1 would count that record: the record is then in
 the thread, and an asker that cannot count it and asks again reaches the
 queue as a new question.
 
-**An automatic filter 3 or 4 reply pushes no handled file,** so the
-questions-branch file stays shown until the person handles it, since the
-asking agent acts on such a reply only when the person chose the filter
+**An automatic filter 3 or 4 reply closes nothing and pushes no handled
+file:** the asking agent acts on such a reply only when the person chose the
+filter, so the question is still open and its questions-branch file stays
+shown until the person handles it
 (inquisitor spec: *An Inquisitor reply is acted on only with a writer's
 signed miss file*).
 
@@ -2432,9 +2433,9 @@ reason 1 decline's close to the copy declined.
 **Closing never compares question hashes, topic repositories or times: a
 handled file closes only the file its `closes` key names, and a thread copy
 closes only by the relay posts in its thread, or on one machine by a decline
-with nothing posted.** Matching on a question's words, on a judgement each
-machine made for itself, or on clocks kept giving two machines different
-answers, and each fix raised another case; exact identity cannot disagree.
+with nothing posted.** Matching on a question's words, on a topic
+repository, which each machine's model judges for itself, or on clocks can give two machines different
+answers; exact identity cannot disagree.
 A file a handled file closed is still unanswered, so an answer given to its
 thread copy, where that copy is open, still pushes a log file answering it.
 
@@ -2562,9 +2563,8 @@ merge rule can pair a message with another asker's file in the same words,
 so that a decline or an answer lands on that asker's question.
 
 *Ruled out by a scenario:* merging such a file with a thread message asking
-the same question, under any set of guards: each left a case that closed or
-answered the wrong asker's question, and matching gives two machines
-different answers (answer-session spec: *A log file with no followed link is
+the same question, whatever extra conditions the merge rule adds
+(answer-session spec: *A log file with no followed link is
 judged on its own*, scenario *A log file whose link was withheld is shown on
 its own*).
 
@@ -2625,8 +2625,7 @@ states both the assignee rule and the first-mention rule.
 
 **Each Igor worker's log file links, in `asked_in`, the handback comment that
 asks its question, so one answer never closes two handbacks' files and the
-newest-handback rule needs no other mechanism; it is the simplest mechanism
-that guarantees this.** The Igor writes `asked_in`, not the worker, because
+newest-handback rule needs no other mechanism.** The Igor writes `asked_in`, not the worker, because
 the comment exists only once the Igor posts it. A later Igor question on an
 item whose earlier question is answered follows the new handback comment,
 which reaches the person as a new message in an answered thread, and an
@@ -2680,16 +2679,37 @@ the directory where spec-trace's CI fails on an untagged one.**
 
 ## Open Questions
 
+### For the repository's owner to decide
+
+- **Can an agent's choice be planted?** An `authority: agent` file stops a
+  later agent's question with no proven writer, so anyone who can push, or
+  a worker steered by untrusted text in its item, whose Igor pushes the file
+  it reports, can plant one. Should such
+  a file need a proof, or is being overruled by a person enough?
+- **Does the answer session post an agent's choice by itself?** An agent's
+  choice counts as an answer, so filter 1 in the answer session posts
+  `Recorded answer: ` linking it and logs a miss against the asker. Should
+  the session show an agent's choice beside the question instead?
+- **Does a confirmed answer whose own last line starts `Re: ` need a
+  guard?** In a review thread a relay post answering the starting comment
+  carries no `Re: ` line of its own, so such a last line reads as naming
+  another question.
+- **What exactly are "inline markup", a "sentence" and a question's
+  "terms"?** They decide a question's hash and its matches; the spec gives
+  inline markup only by example.
+
 ### Facts measured before building
 
 Tasks 0.4 to 0.14 measure these facts before anything is built (tasks 0.1 to
 0.3 are under *What the hook relies on, not yet measured*). Each bullet says
 what the spec does if the fact is false. Task 0.12 is measured (*What task
-0.12 measured*). Task 0.11 is measured too, so a questions-branch file's
-writer can be proven as the spec says: GitHub's GraphQL API gives an
+0.12 measured*). Task 0.11 is measured for an issue comment and for a signature
+GitHub made: GitHub's GraphQL API gives an
 `IssueComment`'s `author { login }`, `createdAt` and `lastEditedAt`, and a
 commit's `signature { isValid state signer { login } wasSignedByGitHub }`. A
 person's own signature was not queried, and task 0.22 checks how one reads.
+Reviews and review comments were not queried; GitHub documents `author`,
+`createdAt` and `lastEditedAt` on them.
 
 - **Can an agent without push access read another person's permission on a
   repository?** (task 0.4) If not, wherever the agent lacks push access, every
@@ -2771,6 +2791,12 @@ box*).
   the holder and blocks the rest, so a tool of another name fails closed. If
   a writing tool has such a name, the hook lists the reading tools by name
   instead.
+- **Does the `answer` command's line work?** (task 0.30) It relies on
+  `CLAUDE_CODE_NO_FLICKER=1` giving the fullscreen layout, on `claude
+  --name`, and on a prompt argument running a slash command. If one fails,
+  the command line in the answer-session spec's *Two commands open an answer
+  session* is changed to what the measurement shows works, before the
+  command is built.
 - **Which App wrote a comment** is measured by both task 0.21 here and igor PR
   #216's task 4.8. The rules that need it wait on task 0.21, which lists
   them.

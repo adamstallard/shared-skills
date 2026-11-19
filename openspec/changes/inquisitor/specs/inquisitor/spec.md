@@ -427,6 +427,13 @@ than its source*).
   visibility of `o/api` cannot be read
 - **THEN** the file counts as private
 
+#### Scenario: An unreadable visibility of where a post goes counts as public
+
+- **WHEN** the agent can read the visibility of neither the repository a
+  post would go to nor the repository the question concerns
+- **THEN** it counts the first as public and the second as private, so
+  nothing about the second is posted in the first
+
 ### Requirement: An organization's question is bounded by the repository it was asked from
 
 A question about an organization or project SHALL be bounded by the
@@ -988,7 +995,10 @@ is input (design.md: *A questions-branch decision needs a proven writer*;
 - **THEN** filter 1 treats it as an answer, labelled as the agent's choice,
   which a person can overrule
 - **AND** a proven `decision` file for the same question counts in its
-  place
+  place, whichever is newer, and the agent file is shown as input
+- **AND** of two such agent files for one question, the one earlier in
+  the branch's commit order counts, so the second agent follows the first's
+  choice, and the other is shown as input
 
 #### Scenario: A questions-branch decision changed after it was added is input
 
@@ -1209,6 +1219,15 @@ grouping supersedes still answers the file it names.
   and a proven answer file names only the first in `answers`
 - **THEN** that answer file is the first file's answer and not the
   second's, though the two files' questions have one hash
+
+#### Scenario: A copied answer file does not take a named file over
+
+- **WHEN** someone pushes a copy of a proven answer file from another
+  question, naming an unanswered file in `answers`, in one commit with
+  other files
+- **THEN** the copy, not being added alone in its commit, is not that
+  file's answer, and the file stays shown to
+  the person
 
 ### Requirement: A replaced answer file stops counting even in its own hash group
 
@@ -2491,14 +2510,6 @@ checked.
   without an answer on a questions branch
 - **THEN** the agent pushes a new log file, with the question and the
   answer, in its own commit, and the earlier file is unchanged
-
-#### Scenario: A copied answer file does not take a named file over
-
-- **WHEN** someone pushes a copy of a proven answer file from another
-  question, naming an unanswered file in `answers`, in one commit with
-  other files
-- **THEN** the copy is not that file's answer, and the file stays shown to
-  the person
 
 ### Requirement: A way-of-working answer goes to the person's memory, not a log
 

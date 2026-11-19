@@ -15,7 +15,7 @@ capability's decision record, and the rest in design.md: *What the hook
 relies on, not yet measured* for 0.1 to 0.3, both *Configuration* and *Facts measured
 before building* for 0.4, *Facts measured
 before building* for 0.5 to 0.14, *Facts the answer session relies on*
-for 0.15 to 0.28, and *What igor must provide* for 0.29. Record a result
+for 0.15 to 0.28 and 0.30, and *What igor must provide* for 0.29. Record a result
 that contradicts what design.md assumed too.
 
 - [ ] 0.1 A `PreToolUse` hook with matcher `AskUserQuestion` fires before the
@@ -215,7 +215,12 @@ that contradicts what design.md assumed too.
       token can read a collaborator's permission and a commit's signature
       signer. Without the first, the call fails and the worker's search
       names each questions branch as not searched; without the second,
-      every hit is `input`
+      every hit but an agent's choice is `input`
+- [ ] 0.30 That `CLAUDE_CODE_NO_FLICKER=1 claude --name Answers '/answer'`
+      starts Claude Code named `Answers`, in its fullscreen layout, and
+      runs `/answer` (answer-session spec: *Two commands open an answer
+      session*). If a part fails, the requirement's command line is
+      changed to what works before it is built
 
 ## 1. Shared post reader
 
@@ -688,7 +693,9 @@ that contradicts what design.md assumed too.
       requests, poll positions, and the questions branch of every
       subscribed repository and configured lore repository
 - [ ] 6.4 Relaying: posts with the four reserved prefixes through the
-      relay identity's skill as host commands, the `Re: ` line on GitHub
+      relay identity's skill as host commands, or on Linear the session's own
+      request, a host command sending the headers linear-app's `headers`
+      prints, the `Re: ` line on GitHub
       and Linear posts, post ids, editing in place, the thread read before
       a question is shown and before each post, the preview showing where
       the answer will be recorded, and each confirmed answer pushed as a new signed log file, and again as a new one when its relayed answer
