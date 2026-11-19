@@ -15,7 +15,7 @@ capability's decision record, and the rest in design.md: *What the hook
 relies on, not yet measured* for 0.1 to 0.3, both *Configuration* and *Facts measured
 before building* for 0.4, *Facts measured
 before building* for 0.5 to 0.14, *Facts the answer session relies on*
-for 0.15 to 0.28 and 0.30, and *What igor must provide* for 0.29. Record a result
+for 0.15 to 0.21, 0.23, 0.25 to 0.28, 0.30 and 0.31, and *What igor must provide* for 0.29. Record a result
 that contradicts what design.md assumed too.
 
 - [ ] 0.1 A `PreToolUse` hook with matcher `AskUserQuestion` fires before the
@@ -223,6 +223,14 @@ that contradicts what design.md assumed too.
       runs `/answer` (answer-session spec: *Two commands open an answer
       session*). If a part fails, the requirement's command line is
       changed to what works before it is built
+- [ ] 0.31 That GitHub's REST and GraphQL APIs both return a comment's
+      `node_id` (GraphQL's `id`), that it is present for every kind of
+      comment the answer session replies to (an issue comment, a pull
+      request comment and a review comment), and that an edit leaves it
+      unchanged (inquisitor spec: *Every miss file is named by one hash*).
+      If not, the GitHub id that names a miss file is changed to one the
+      measurement shows passes these three checks, before miss files are
+      named on GitHub
 
 ## 1. Shared post reader
 

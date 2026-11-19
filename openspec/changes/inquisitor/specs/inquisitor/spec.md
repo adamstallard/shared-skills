@@ -2584,6 +2584,24 @@ authority stops a question*, a bot account's comment being input, and adds
   any `answered_by`, as *A worker logs no answer, and its Igor writes it
   from the comment* says
 
+### Requirement: An Igor writes no second answer file for a handback
+
+The Igor SHALL push nothing for a worker's handback answer when the branch
+already holds an answer file for the same comment: one that names the
+handback question's log file in `answers` and holds, as its `answer_link`
+or `recorded_in`, the comment the worker's file links. One answer would
+otherwise have two answer files.
+
+#### Scenario: An Igor writes no second answer file for a handback
+
+- **WHEN** a person answers an Igor's handback question in the answer
+  session, which pushes an answer file naming the Igor's log file in
+  `answers`, and a worker re-working the item reports a log file with an
+  `answer_link` to the relay post that answer file holds in `recorded_in`
+- **THEN** the Igor pushes nothing for it
+- **AND** when the person later answers again in a new comment, the Igor
+  writes and pushes the answer for that comment
+
 ### Requirement: No log file records a flagged run's question
 
 No log file SHALL record the question that stopped a flagged run, from that
@@ -3117,8 +3135,9 @@ SHALL get no file, and a writer finding the name taken SHALL push nothing.
   `Inquisitor: filter 4`, and Discord returns the new message's `id`
 - **THEN** the session then pushes `misses/<hash>.md`, where `<hash>` is
   the SHA-256 of `discord`, an LF and that `id`
-- **AND** on Linear the id is the comment's `id`, and on GitHub the
-  comment's `node_id`
+- **AND** on Linear the id is the comment's `id`, and on GitHub the reply
+  comment's `node_id`, used to name miss files only once task 0.31 has
+  measured it
 - **AND** the asking agent hashes the id of the reply it reads and looks
   up that one path, whichever kind of miss file the session wrote
 

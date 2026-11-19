@@ -982,7 +982,7 @@ wording's privacy, which is why a picker question is pushed only once it is
 answered.
 
 **That approval can widen.** With a warning that names the more private
-source, a Discord thread, a Linear thread or a private GitHub repository, the
+source, a Discord thread, a Linear thread or a private or internal GitHub repository, the
 person may send an answer's log file, or a decline's miss file, somewhere
 more visible. A confirmed miss file is what lets the asking agent act on the
 decline's reply (*What an asking agent does with an automatic reply*). The file then holds no
@@ -2723,6 +2723,13 @@ box*).
   the command line in the answer-session spec's *Two commands open an answer
   session* is changed to what the measurement shows works, before the
   command is built.
+- **Does a GitHub comment's `node_id` identify it wherever it is read?**
+  (task 0.31) A miss file backing a GitHub reply is named by the reply's
+  `node_id`, which the session takes from its post's response and the
+  asking agent from the comment it reads. If GitHub's REST or GraphQL API
+  lacks it, a kind of comment has none, or an edit changes it, the GitHub id
+  that names a miss file is changed, before miss files are named on GitHub,
+  to one the measurement shows works.
 - **Which App wrote a comment** is measured by both task 0.21 here and igor PR
   #216's task 4.8. The rules that need it wait on task 0.21, which lists
   them.
