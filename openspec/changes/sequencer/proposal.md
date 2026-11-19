@@ -21,10 +21,13 @@ Igor's Sequencer role (adamstallard/igor#231).
   model, and gives a reason for each place a rule decides. A change that
   modifies or names another change's requirement comes after it, and an
   item comes after what GitHub's "blocked by" relations, its `Depends on`
-  lines or its change's `Builds on:` lines say it waits on. Where two changes modify one requirement, the
+  lines or its change's `Builds on:` lines say it waits on. An issue or
+  pull request in another repository is never placed; an item linked to
+  one is marked as waiting on it while it is open.
+  Where two changes modify one requirement, the
   order says which must copy the other's new scenarios before archiving.
   Pull requests that change the same files get a merge order. Items that
-  wait on each other in a loop are a cycle, ordered lowest number first
+  wait on each other in a loop are a cycle, ordered earliest opened first
   unless a person overrides it.
 - One rule, that a change whose code calls another change's code is built
   after it, needs a model. That model step runs where a model is

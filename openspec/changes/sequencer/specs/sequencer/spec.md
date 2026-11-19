@@ -17,19 +17,29 @@ These terms hold throughout this spec:
   teammates of adamstallard/igor, whose Sequencer role adamstallard/igor#231
   specifies.
 - **An item** is an open issue or open pull request that the order holds.
-  An item's **number** is its issue or pull request number.
+  An item's **number** is its issue or pull request number, and its
+  **repository** is the `owner/repo` name of the repository that holds it.
+- One item is **opened earlier** than another when GitHub's creation time
+  for it is earlier. Where the times are equal, the earlier is the one
+  whose repository's name sorts first, then the one with the lower number;
+  within one repository, that is the lower number.
 - **The order's issue** is the one issue whose body holds the whole order.
 - **A change** is an OpenSpec change: a directory under `openspec/changes/`
   other than `archive/`. **An open change** is one on the default branch or
   on an open pull request's head. A change **belongs to** the
-  lowest-numbered open pull request whose diff against its base adds or
+  earliest-opened open pull request whose diff against its base adds or
   changes a file in the change's directory, and the order places the
   change where it places that pull request.
 - **A change's requirement** is a requirement that the change's delta adds,
   or renames onto a new name, and that no spec on the default branch holds.
 - **An explicit link** is a GitHub "blocked by" relation, a `Depends on`
   line in a body, or a `Builds on:` line in a change's `proposal.md`, as *Explicit links order the items they connect*
-  defines.
+  and *A Depends on line names items by number, with or without their
+  repository* define.
+- **An outside item** is an issue or pull request in another repository
+  that an explicit link names. **A gate**, set by *An explicit link to
+  another repository's item is a gate*, is an item's wait on an open
+  outside item, with a reason as an edge has, and is not an edge.
 - **An edge** is a rule's finding that one item comes after another, with
   its **reason**. **A cycle** is a set of items whose edges lead from each
   back to itself. **A merge wait**, set by *Pull requests that change the
@@ -39,7 +49,8 @@ These terms hold throughout this spec:
   itself published and the stored checked pairs and code edges, so that
   publishing does not change it. It does hash the cycle overrides, since
   an override changes the order an edges file was computed against.
-- **A writer** is an account with write access to the repository. Where
+- **A writer** is an account with write access to the repository that
+  holds the item or comment in question. Where
   the workflow's token cannot read permissions, the script instead counts
   the author of an issue, pull request or comment as a writer when
   GitHub's `author_association` on that item is OWNER, MEMBER or
@@ -55,9 +66,10 @@ These terms hold throughout this spec:
 
 ### Requirement: The order holds every open pull request and the issues linked to the work
 
-The order SHALL hold each open pull request, and each open issue that an
+The order SHALL hold each open pull request, each open issue that an
 explicit link or a pull request's closing reference connects to another
-item, and no other issue; the order's issue is never an item.
+item, and each open issue with a gate, and no other issue; the order's
+issue is never an item.
 
 #### Scenario: An issue linked to nothing is not ordered
 
@@ -70,6 +82,12 @@ item, and no other issue; the order's issue is never an item.
 - **WHEN** open issue #12's body has the line `Depends on #9`
 - **THEN** the order holds both #12 and #9
 
+#### Scenario: An issue whose only link is a gate is ordered
+
+- **WHEN** open issue #12's only explicit link is the body line
+  `Depends on octo/lib#7`, and `octo/lib#7` is open
+- **THEN** the order holds #12
+
 #### Scenario: The order's issue is never ordered
 
 - **WHEN** the order's issue is #40, and #12's body has the line
@@ -79,10 +97,11 @@ item, and no other issue; the order's issue is never an item.
 ### Requirement: An issue an open pull request closes takes that pull request's place
 
 Where open pull requests close an issue by GitHub's closing references,
-the issue SHALL share the position of the lowest-numbered of those opened
-by accounts with write access, and its block SHALL name that pull request.
-Every edge to or from the issue SHALL apply to that pull request instead.
-A closing reference from an author without write access SHALL neither move
+the issue SHALL share the position of the earliest opened of those that
+writers opened, and its block SHALL name that pull request.
+Every edge to or from the issue, and every gate of the issue, SHALL apply
+to that pull request instead.
+A closing reference from an author who is not a writer SHALL neither move
 an issue nor bring one into the order.
 
 #### Scenario: A spec pull request and its issue share a place
@@ -91,9 +110,9 @@ an issue nor bring one into the order.
   order
 - **THEN** #43 is third too, and its block says it is closed by #50
 
-#### Scenario: An issue two pull requests close follows the lower-numbered
+#### Scenario: An issue two pull requests close follows the one opened earlier
 
-- **WHEN** #50 and #57 both close issue #43
+- **WHEN** #50 and #57 both close issue #43, and #50 was opened earlier
 - **THEN** #43 shares #50's place, and its block names #50
 
 #### Scenario: A closed-by issue's own link moves onto its pull request
@@ -105,6 +124,12 @@ an issue nor bring one into the order.
 
 - **WHEN** #50 closes issue #43, and #70's body says `Depends on #43`
 - **THEN** #70 comes after #50
+
+#### Scenario: A closed-by issue's gate moves onto its pull request
+
+- **WHEN** #50 closes issue #43, #43's body says `Depends on octo/lib#7`,
+  and `octo/lib#7` is open
+- **THEN** #50's line and block give the gate on `octo/lib#7`
 
 #### Scenario: An outside author's closing reference moves nothing
 
@@ -253,20 +278,13 @@ later is the later in the cycle's order, by rule or by override.
 An item SHALL come after each item that a GitHub "blocked by" relation or a
 `Depends on` line in its body says it waits on, and a change's pull request
 after each pull request its `proposal.md`'s `Builds on:` lines name in this
-repository. A `Depends on` line SHALL be a body line, outside code fences,
-starting `Depends on ` and followed by `#<number>` references separated by
-commas or `and`.
+repository.
 
 #### Scenario: A Depends on line orders two issues
 
 - **WHEN** #12's body holds the line `Depends on #9 and #10`
 - **THEN** #12 comes after #9 and #10, with the reasons `after #9: depends
   on it` and `after #10: depends on it`
-
-#### Scenario: A Depends on line with commas orders each item it names
-
-- **WHEN** #12's body holds the line `Depends on #9, #10, #11`
-- **THEN** #12 comes after #9, #10 and #11
 
 #### Scenario: A Builds on line orders a stacked change
 
@@ -280,18 +298,121 @@ commas or `and`.
 - **WHEN** GitHub records #14 as blocked by #11
 - **THEN** #14 comes after #11, with the reason `after #11: blocked by it`
 
+### Requirement: A Depends on line names items by number, with or without their repository
+
+A `Depends on` line SHALL be a body line, outside code fences, starting
+`Depends on ` and followed by `#<number>` or `<owner>/<repo>#<number>`
+references separated by commas or `and`. A reference that names this
+repository in full SHALL be read as its `#<number>`.
+
+#### Scenario: A Depends on line with commas orders each item it names
+
+- **WHEN** #12's body holds the line `Depends on #9, #10, #11`
+- **THEN** #12 comes after #9, #10 and #11
+
+#### Scenario: A reference naming this repository in full orders like a short one
+
+- **WHEN** #12's body, in the repository adamstallard/shared-skills, holds
+  the line `Depends on adamstallard/shared-skills#9`
+- **THEN** #12 comes after #9, with the reason `after #9: depends on it`
+
 #### Scenario: A Depends on line in a code fence is ignored
 
 - **WHEN** the only `Depends on #9` in #12's body is inside a code fence
 - **THEN** it gives no edge
 
+### Requirement: An explicit link to another repository's item is a gate
+
+Where an explicit link names an outside item, the item holding the link
+SHALL get a gate while the outside item is open: its line in the order's
+issue and its block SHALL say it waits on the outside item, written
+`<owner>/<repo>#<number>` as inline code, with the gate's reason. A gate
+SHALL move no item in the order and count in no reviewer's ranking. The
+order SHALL never hold an outside item, and the script SHALL read nothing
+about one but whether it is open.
+
+#### Scenario: A Depends on line naming another repository gates the item
+
+- **WHEN** #12's body holds the line `Depends on octo/lib#7`, and
+  `octo/lib#7` is open
+- **THEN** #12's line and block say
+  `` waits on `octo/lib#7`: depends on it ``
+
+#### Scenario: A blocked-by relation to another repository's issue gates the item
+
+- **WHEN** GitHub records #14 as blocked by the open issue `octo/lib#7`,
+  and the token can read that relation
+- **THEN** #14's line and block say
+  `` waits on `octo/lib#7`: blocked by it ``
+
+#### Scenario: A Builds on line naming another repository gates the pull request
+
+- **WHEN** #64's change's `proposal.md` says
+  `Builds on: claims (octo/lib#31)`, in the repository
+  adamstallard/shared-skills, and `octo/lib#31` is open
+- **THEN** #64's line and block say
+  `` waits on `octo/lib#31`: builds on it ``
+
+#### Scenario: A gate moves no item
+
+- **WHEN** #12 has a gate on `octo/lib#7`, no edge connects #12 and #15,
+  and #12 was opened earlier
+- **THEN** #12 comes before #15
+
+#### Scenario: A closed outside item gates nothing
+
+- **WHEN** #12's body holds the line `Depends on octo/lib#7`, and
+  `octo/lib#7` is closed
+- **THEN** #12 has no gate, and its line and block do not name
+  `octo/lib#7`
+
+#### Scenario: An outside item is never placed
+
+- **WHEN** #12 has a gate on `octo/lib#7`
+- **THEN** the order gives `octo/lib#7` no position, and the script edits
+  no body in `octo/lib`
+
+#### Scenario: A loop through another repository is not a cycle
+
+- **WHEN** #12's body says `Depends on octo/lib#7`, and the body of the
+  open `octo/lib#7` says `Depends on adamstallard/shared-skills#12`
+- **THEN** #12 has a gate on `octo/lib#7`, and the order lists no cycle
+
+### Requirement: A gate whose outside item cannot be read stays, and says so
+
+Where the script cannot read whether an outside item is open, because the
+item is private or missing or the token is refused, the gate SHALL stay,
+and its reason SHALL end `; its state could not be read`.
+
+#### Scenario: A private repository's item still gates
+
+- **WHEN** #12's body holds the line `Depends on octo/secret#3`, and
+  reading `octo/secret#3` returns not found
+- **THEN** #12's line and block say
+  `` waits on `octo/secret#3`: depends on it; its state could not be read ``
+
+### Requirement: Blocked-by relations to other repositories that cannot be read are named as not read
+
+Where the token cannot read "blocked by" relations to other repositories'
+issues, such a relation SHALL set no gate, and the order's issue SHALL say
+`Blocked-by relations to other repositories were not read.`
+
+#### Scenario: An unreadable blocked-by relation sets no gate
+
+- **WHEN** GitHub records #14 as blocked by `octo/lib#7`, and the token
+  cannot read blocked-by relations to other repositories
+- **THEN** #14 has no gate, and the order's issue says `Blocked-by
+  relations to other repositories were not read.`
+
 ### Requirement: Only edges set by writers count
 
-An edge SHALL count only when every item whose text sets it was opened by an
-account with write access: both changes' pull requests for an edge from
-changes' files or the model step, and the item holding the `Depends on`
-or `Builds on:` line, or the blocked item, for an explicit link. The order's issue SHALL
-list each other edge as not counted, naming the author.
+An edge SHALL count only when a writer opened every item whose text sets
+it. For an edge from changes' files or the model step, those items are both
+changes' pull requests; for a `Depends on` or `Builds on:` line, the item
+holding the line; for a blocked-by relation, the blocked item. A gate SHALL
+count only when a writer opened the item holding its link. The order's
+issue SHALL list the edges and gates that do not count, naming each one's
+author.
 
 #### Scenario: A Depends on line from an outside author is not counted
 
@@ -306,6 +427,14 @@ list each other edge as not counted, naming the author.
   requirement titled as a sentence in #82's `design.md`
 - **THEN** #82 does not come after #121, and the order's issue lists that
   edge as not counted, opened by `zed`
+
+#### Scenario: A gate from an outside author is not counted
+
+- **WHEN** issue #120, opened by `zed` who has no write access, says
+  `Depends on octo/lib#7`, and `octo/lib#7` is open
+- **THEN** #120 has no gate, the order does not hold #120, and the
+  order's issue lists `` #120 waits on `octo/lib#7` `` as not counted,
+  opened by `zed`
 
 ### Requirement: Pull requests that change the same files merge one after another
 
@@ -332,21 +461,30 @@ once, onto the one merged before it.
 
 ### Requirement: Items no rule orders keep the order they were opened in
 
-Among the items whose predecessors are all placed, the lowest-numbered SHALL
-go next, and a cycle SHALL count as one item numbered as its lowest member.
+Among the items that come after no unplaced item through an edge, the one
+opened earliest SHALL go next, and a cycle SHALL count as one item opened when its
+earliest-opened member was.
 No caller, an Igor's Sequencer role included, SHALL ask a person about a
 place this tiebreak or a cycle's rule decides.
 
-#### Scenario: Two unrelated items are placed by number
+#### Scenario: Two unrelated items are placed by when they were opened
 
-- **WHEN** no edge connects #20 and #17
-- **THEN** #17 comes before #20, and neither block gives a reason for that
+- **WHEN** no edge connects #20 and #17, and GitHub's creation time for
+  #20 is the earlier
+- **THEN** #20 comes before #17, and neither block gives a reason for that
   place
 
-#### Scenario: A cycle is placed by its lowest member
+#### Scenario: Two items opened at the same time are placed by number
 
-- **WHEN** #40 and #44 form a cycle, and #42 is connected to neither
-- **THEN** the cycle comes before #42, placed as if numbered #40
+- **WHEN** no edge connects #20 and #17, and GitHub gives both the same
+  creation time
+- **THEN** #17 comes before #20
+
+#### Scenario: A cycle is placed by its earliest-opened member
+
+- **WHEN** #40 and #44 form a cycle, #42 is connected to neither, and the
+  three were opened in number order
+- **THEN** the cycle comes before #42, placed as if opened when #40 was
 
 #### Scenario: An unordered pair raises no question
 
@@ -355,17 +493,17 @@ place this tiebreak or a cycle's rule decides.
 
 ### Requirement: A cycle's members are ordered by rule
 
-The order SHALL place a cycle's members together at one place, lowest number
-first, marked `ordered by rule since <time>` with the time the publish that
+The order SHALL place a cycle's members together at one place, earliest
+opened first, marked `ordered by rule since <time>` with the time the publish that
 first listed the cycle ran, or just `ordered by rule` before any publish
 has listed it, and place each item that comes after any member after
 all of them. A member placed before another member it has an edge after
 SHALL say so in its reason.
 
-#### Scenario: Two changes that cite each other are ordered by number
+#### Scenario: Two changes that cite each other are ordered by when they were opened
 
 - **WHEN** #82's change cites a requirement #85's adds, and #85's cites one
-  #82's adds, and no override is recorded
+  #82's adds, #82 was opened earlier, and no override is recorded
 - **THEN** the order places #82 then #85 at one place, marked
   `ordered by rule since <time>`, and #82's reason says
   `` before #85 by rule, though it cites #85's `<title>` ``
@@ -388,13 +526,13 @@ SHALL say so in its reason.
 The order's issue SHALL keep a list of cycle overrides, each naming the
 member a person with write access put first and linking their comment or,
 for one that `publish --decide` recorded, naming the `--by` login and the
-time. The order SHALL put that member first and the rest by number, and its
-reason SHALL give the same link, or login and time.
+time. The order SHALL put that member first and the rest earliest opened
+first, and its reason SHALL give the same link, or login and time.
 
-#### Scenario: An override puts a higher number first
+#### Scenario: An override puts a later-opened member first
 
 - **WHEN** a person with write access put #85 first, in a cycle where #82
-  and #85 cite each other's requirements
+  and #85 cite each other's requirements and #82 was opened earlier
 - **THEN** #85 comes first, with the reason
   `` before #82, though it cites #82's `<title>`: chosen at <link to the comment> ``,
   and #82 comes after it
@@ -596,7 +734,7 @@ wherever.
 The script SHALL keep the whole order in the body of the open issue labelled
 `sequencer`, creating that issue when none is open and publishing nothing
 when more than one is. It SHALL use such an issue only when its author has
-write access to the repository, and otherwise publish nothing and name
+write access to the issue's repository, and otherwise publish nothing and name
 the issue and its author. Nothing of the order SHALL go in a comment, because `gh issue view`
 shows a body without its comments.
 
@@ -1036,10 +1174,41 @@ apply that file while the inputs are unchanged.
   publishes that file before any input changes
 - **THEN** `publish` takes the edges
 
+### Requirement: Data names an item by its repository and number
+
+`order --json`, an edges file, and the checked pairs and code edges the
+order's issue stores SHALL name each item, and each change's pull request,
+by its repository and its number together. Text the script publishes
+SHALL write an item as `#<number>`. `publish` SHALL refuse an edges file
+that names an item by number alone.
+
+#### Scenario: order --json names an item by repository and number
+
+- **WHEN** a caller runs `order --json` in the repository
+  adamstallard/shared-skills, and the order holds #82
+- **THEN** the output names that item by the repository
+  `adamstallard/shared-skills` and the number 82
+
+#### Scenario: A stored code edge names both items by repository and number
+
+- **WHEN** `publish` stores the model step's edge of #90 after #82 in the
+  order's issue, in the repository adamstallard/shared-skills
+- **THEN** the stored edge names each of the two by the repository
+  `adamstallard/shared-skills` and its number, and the order's line for
+  #90 says `after #82`
+
+#### Scenario: An edges file naming an item by number alone is refused
+
+- **WHEN** an edges file's edge names its two items as 90 and 82, with no
+  repository
+- **THEN** `publish` publishes none of that file's edges, and says which
+  edge it refused
+
 ### Requirement: The script prints the order for callers without editing anything
 
-`order` SHALL print the order, each item's position, its edges with reasons,
-the cycles, the copy duties, the shared names for the model step
+`order` SHALL print the order, each item's position, its edges and gates
+with reasons, the cycles, the copy duties, the names both changes'
+`tasks.md` files hold, for the model step,
 and the hash of the inputs, as JSON with `--json`, and SHALL write to no
 issue or pull request; `publish` SHALL be the only command that edits.
 

@@ -22,13 +22,20 @@ including a result that contradicts what design.md assumed.
 - [ ] 0.6 Whether a workflow run's `GITHUB_TOKEN` can read another
       account's permission on the repository, and the members of a team
       CODEOWNERS names
+- [ ] 0.7 Whether a "blocked by" relation to another repository's issue
+      can be read through GitHub's API with a workflow run's `GITHUB_TOKEN`
+- [ ] 0.8 Whether a workflow run's `GITHUB_TOKEN` can read the state of an
+      issue or pull request in another public repository
+- [ ] 0.9 Whether an issue transferred into a repository keeps the
+      creation time it had
 
 ## 1. Reading the repository
 
 - [ ] 1.1 `.agents/skills/sequencer/scripts/sequencer.py`, checked by
       `pyright --strict`: read the open issues and pull requests through
-      `gh`, with closing references, blocked-by relations, requested
-      reviewers, drafts and changed files
+      `gh`, with creation times, closing references, blocked-by
+      relations, requested reviewers, drafts and changed files, and
+      whether each outside item an explicit link names is open
 - [ ] 1.2 Find each open change on the default branch and on each open pull
       request's head, and the pull request it belongs to
 - [ ] 1.3 Read each change's deltas through OpenSpec's CLI, 1.16.1 or later,
@@ -43,20 +50,27 @@ including a result that contradicts what design.md assumed.
 
 - [ ] 2.1 Modifies and cites edges, with their reasons
 - [ ] 2.2 Copy duties
-- [ ] 2.3 `Depends on` lines, outside code fences, blocked-by relations,
-      and `Builds on:` lines in a change's `proposal.md`
+- [ ] 2.3 `Depends on` lines, outside code fences, with `#<number>` and
+      `<owner>/<repo>#<number>` references, blocked-by relations, and
+      `Builds on:` lines in a change's `proposal.md`
 - [ ] 2.4 Merge waits between pull requests that change a file in common
-- [ ] 2.5 The topological order with the lowest-number tiebreak, cycles
-      grouped, ordered lowest number first and marked `ordered by rule`,
+- [ ] 2.5 The topological order with the earliest-opened tiebreak, cycles
+      grouped, ordered earliest opened first and marked `ordered by rule`,
       and cycle overrides placed as overridden
 - [ ] 2.6 The names both changes' `tasks.md` files hold, for the model step
 - [ ] 2.7 Model-step checked pairs and edges: validate, record with the two changes' hashes,
       keep or drop them on later runs, and refuse edges computed against
       other inputs
-- [ ] 2.8 The statements of what the order did not check
+- [ ] 2.8 The statements of what the order did not check, blocked-by
+      relations to other repositories included
 - [ ] 2.9 A test that two runs on the same inputs give byte-identical text
 - [ ] 2.10 Count an edge only when a writer opened every item whose text
-      sets it, and list the rest as not counted
+      sets it, and a gate only when a writer opened the item holding its
+      link, and list the rest as not counted
+- [ ] 2.11 Gates: a gate for each explicit link naming an open outside
+      item, moving no item, with the outside item in inline code; when
+      the outside item's state cannot be read, the gate is kept, with a
+      reason that says so
 
 ## 3. Publishing
 
@@ -71,7 +85,9 @@ including a result that contradicts what design.md assumed.
       `order --reviewers` for a dry run
 - [ ] 3.5 A test that no command calls a merge, approve, close or reopen
       API
-- [ ] 3.6 `order --json`, which edits nothing
+- [ ] 3.6 `order --json`, which edits nothing, naming each item by
+      repository and number, as the edges file and the stored checked
+      pairs and code edges do
 - [ ] 3.7 Rank a spec pull request ahead of the pull requests that come
       after it, and stop a pull request awaiting a reviewer once their
       review's `commit_id` is its head commit
