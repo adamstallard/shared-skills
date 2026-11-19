@@ -54,7 +54,10 @@ repository serving the repository the question concerns or, for an
 organization's or project's question, serving the repository it was asked
 from (*An organization's question is bounded by the repository it was asked
 from* defines that repository, and *The team's lore repository is the most
-specific one that serves* picks among several).
+specific one that serves* picks among several). For an organization's or project's question
+asked on Linear or Discord, where no repository was asked from, the
+`answer-session` spec's *A Linear or Discord question is placed by what it
+concerns* picks the team's lore repository.
 
 *A session with a person in it* is one a person started and is reading, such
 as an interactive Claude Code session. Any other, such as an Igor worker or
@@ -724,8 +727,7 @@ During an Igor's run, igor's search, which igor builds, SHALL cover only the
 lore repository the Igor injects lore from, its checkout and questions branch, and the item's
 repository's questions branch, read as *The Igor reads questions branches
 with the script* says. igor identifies a worker's run and role by the channel its request arrives
-on. It SHALL match lore terms as plain text and rank hits by
-terms matched, keeping to the role's scope and the item's visibility.
+on. It SHALL keep to the role's scope and the item's visibility.
 
 #### Scenario: A run's search keeps to the role's scope and the item's visibility
 
@@ -3090,7 +3092,8 @@ Every miss file SHALL be `misses/<hash>.md`, where `<hash>` is the SHA-256,
 in lowercase hex, of the question's text, the URL of the message asking it,
 in the form task 0.23 sets, and the filter's digit, joined by LFs, as
 UTF-8. For a question with no thread, the URL's place SHALL hold the path
-of the question's log file on that branch. A
+of the question's log file on that branch, and one with no log file
+either SHALL get no miss file. A
 writer that finds the name already on the branch SHALL push nothing.
 
 #### Scenario: A miss file is found by the asking agent's own hash
@@ -3213,9 +3216,8 @@ Filter 1 SHALL show as input labelled unreadable, passing neither key to
 any GitHub API call, a file whose `repository` or `asked_from` is not
 `<owner>/<repo>` as the scenarios give, and SHALL show the same way a file lacking an
 `asked_from` it should hold. An
-`answer_link` not in a github.com form the scenarios give SHALL prove no
-writer, and no reader or `log` command SHALL fetch it or pass it to
-GitHub, a Linear or Discord link included.
+`answer_link` not in a github.com form the scenarios give SHALL be fetched
+by no reader or `log` command, nor passed to GitHub, a Linear or Discord link included.
 
 #### Scenario: The forms a repository key and an answer_link must take
 

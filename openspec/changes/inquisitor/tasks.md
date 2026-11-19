@@ -49,8 +49,8 @@ that contradicts what design.md assumed too.
       script tells an Igor's run by `IGOR_RUN`*)
 - [ ] 0.10 Whether the agent can open, and write in, a repository's private
       security advisory, and what access that needs
-- [x] 0.11 GitHub's API gives a comment's or review's author, which the
-      `log` command reads with a linked comment's text. It does: GraphQL's
+- [x] 0.11 GitHub's API gives a comment's or review's text and author. It
+      does: GraphQL's
       `IssueComment` has `author { login }` (2026-11-04). Reviews and
       review comments were not queried; GitHub documents the same `author`
       on them through GraphQL's `Comment` interface
@@ -703,6 +703,9 @@ that contradicts what design.md assumed too.
       - Built in this task:
         - filter 1 on every incoming question and the `Recorded answer:
           ` post;
+        - placing a question asked on Linear or Discord (answer-session
+          spec: *A Linear or Discord question is placed by what it
+          concerns*);
         - filters 2 to 4 and the three fixed `Inquisitor: ` texts, and a
           question carrying a person-required line always shown to the
           person unless filter 1 answers it, the line found by its fixed

@@ -373,6 +373,67 @@ holding the question's thread.
 - **WHEN** a question in an `o/web` issue asks about code in `o/api`
 - **THEN** the repository it concerns is `o/api`
 
+### Requirement: A Linear or Discord question is placed by what it concerns
+
+For a question asked on Linear or Discord, the session's model SHALL judge
+from the question and its thread what it concerns and, for an organization
+or project, which configured lore repository serves it. If it cannot tell
+which, the only configured one SHALL serve it when exactly one is
+configured. A question placed in neither way has **no place**: whatever another
+requirement says, the session SHALL post no reply by itself, show the
+person the question, and post their answer unrecorded.
+
+#### Scenario: The thread shows which lore repository serves the question
+
+- **WHEN** a question in a Discord thread is about how the `web` project,
+  known by its repository `o/web`, names its releases, and of two
+  configured lore repositories one serves `o/web`
+- **THEN** the question concerns that project, and the lore repository
+  serving `o/web` serves it
+
+#### Scenario: The only configured lore repository serves a question the model cannot place
+
+- **WHEN** a question on Linear is about how the team names releases, the
+  session's model can match it to no configured lore repository's `owners`
+  or `repos`, and one lore repository is configured
+- **THEN** that lore repository serves the question, whatever its `owners`
+  and `repos`
+
+#### Scenario: A question with no place gets no automatic reply and no record
+
+- **WHEN** a question on Linear concerns an organization, the session's
+  model cannot tell which of two configured lore repositories serves it,
+  and the person answers it
+- **THEN** the session posted no reply by itself, the person was shown the
+  question, and the answer is relayed in its thread with no log file pushed
+
+### Requirement: A Linear or Discord question in doubt gets no automatic reply
+
+The answer session SHALL post a reply by itself to a question asked on
+Linear or Discord only when the session's model is sure of the place it
+judged, or the place is the only configured lore repository, taken because
+the model could tell none. When the model judged a place and is not sure of
+it, the session SHALL show the person the question, and the preview of
+their answer shows that place. This holds whatever another requirement
+says.
+
+#### Scenario: A reply goes out by itself on the only configured lore repository
+
+- **WHEN** an agent's question on Linear about an organization clearly
+  fails filter 3, the session's model can tell no lore repository for it,
+  and one lore repository is configured
+- **THEN** the session posts filter 3's reply by itself, and the reply's
+  miss file goes to that lore repository's questions branch
+
+#### Scenario: A doubtful placement is shown to the person
+
+- **WHEN** an agent's question on Discord clearly fails filter 4, as
+  *Filters 2 to 4 judge every incoming question* has it, and the session's
+  model judges that it concerns the repository `o/api` but is not sure
+- **THEN** the session posts no reply by itself and shows the person the
+  question, and the preview of their answer names the questions branch of
+  `o/api`
+
 ### Requirement: The answer session's configuration is a section of the inquisitor's configuration
 
 The answer session SHALL read, of `inquisitor.json`, only the top-level
@@ -2931,8 +2992,7 @@ files SHALL copy their most private `asked_from` and any `repository`,
 with no miss if their `repository` keys differ. Any other miss SHALL hold
 as `repository` the repository the question concerns, if any, and as
 `asked_from` its GitHub thread's repository, or on Linear or Discord
-that same repository, else no readable miss (design.md: *Misses the
-answer session logs*).
+the repository it concerns, else the lore repository serving it.
 
 #### Scenario: An automatic miss is marked as the answer session's
 
@@ -2956,9 +3016,13 @@ answer session logs*).
   the organization in an issue of `o/web`, which no questions-branch
   file holds
 - **THEN** the miss file holds `asked_from: "o/web"` and no `repository`
-- **AND** an organization's question on Linear or Discord that no
-  questions-branch file holds gets only a hash-only miss file, having no
-  repository to name in `asked_from`
+
+#### Scenario: A miss on an organization's Linear question names its lore repository
+
+- **WHEN** the person's decline for the inquisitor is of a question about
+  the organization asked in a Linear thread, which no questions-branch
+  file holds and the lore repository `o/lore` serves
+- **THEN** the miss file holds `asked_from: "o/lore"` and no `repository`
 
 #### Scenario: A miss on a Linear question holds the thread's URL
 

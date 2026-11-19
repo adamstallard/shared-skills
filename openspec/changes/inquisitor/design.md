@@ -248,10 +248,9 @@ identities* to *Linking log files to threads, and handbacks*.
 
 ### Polling while open, with the person's credentials
 
-A webhook or Discord's push would need something running while the answer
-session is closed, and the skill runs nothing then, as the answer-session
-decision record's *Rationale: The answer session polls only while it is open*
-shows. So the answer session polls, and only while it is open, catching up on
+The answer session polls, and only while it is open (the answer-session
+decision record's *Rationale: The answer session polls only while it is
+open* gives the reason), catching up on
 what came while it was closed. The answer-session decision
 record's *Rationale: The answer session polls GitHub's notifications and
 comments* gives why polling notifications is cheap. Task 0.15 checks that,
@@ -272,24 +271,12 @@ enforces the prefixes on Linear and Discord.
 
 ### Local state, one writer per machine
 
-There is no TLA+ model. spec-check's SKILL.md says: "Write one when a
-requirement is about concurrency, ordering, a crash between two writes, or a
-protocol between processes." The answer session has such requirements: a
-push it owes after a post, of a log, miss or citation file or of a handled
-file (the file that closes a questions-branch question), survives a crash and
-is retried, and a crash while it writes its lock leaves either the
-old lock or the new one whole. No model is written, for three reasons:
+No TLA+ model is written of the pushes the answer session owes after a post,
+or of its lock, which makes one session per machine the only writer of that
+machine's state. The record gives the reasons.
 
-- The worst outcome of a crash before an owed push is a repeated post or
-  question, which costs the person only a second look; *Which cross-machine
-  cases are accepted* accepts the same outcome between machines.
-- The lock's crash case leaves a whole lock either way.
-- One person uses the answer session, the lock makes one session per machine
-  the only writer of that machine's state, and the state shared across
-  machines is the threads, which each write appends to and each read
-  re-fetches. The interleavings left are two sessions racing for the lock,
-  which an atomic create or replace settles, and another session taking the
-  lock during a post, which the check before each post settles.
+*Recorded:* `openspec/specs/answer-session/decisions.md`, *Rejected: A TLA+
+model of the answer session's owed pushes and lock*.
 
 ### What the answer session posts, and what it logs
 
@@ -786,8 +773,7 @@ backtick, `*`, `?`, `[`, `{`, `~` or `\` is unreadable, since the shell may
 change it before `gh` sees it.
 
 **Why:** these are prose's reader's rules, plus two that prose's hook gains
-too: the alias rule, since an alias such as `c` for `pr comment`, or an
-extension such as `gh dash`, would post unseen; and the write rule (*A gh api
+too: the alias rule; and the write rule (*A gh api
 call counts only when it can write*). An allow-list fails closed: a form it
 cannot read, such as `sh -c '…'` or `eval '…'` around a gh post, is blocked,
 never let through unread. Evidence: the gh-post decision record's
@@ -1216,8 +1202,7 @@ is refused*).
 
 #### An answer typed on another surface counts only through a decision document
 
-A linked answer is only a github.com comment or review, since only there is
-a comment's author a GitHub login a reader can check, so an answer typed
+A linked answer is only a github.com comment or review, since only there does the `log` command fetch the comment's own text, so an answer typed
 directly on Linear or Discord can't be one. An answer typed in the answer
 session and relayed to Linear or Discord counts through its answer file (*An
 answer given through the answer session counts by its answer file*).
@@ -2016,8 +2001,7 @@ does not answer another with the same question*).
 
 **A file is as new as the commit that added it, in the branch's commit
 order** (spec: *A file is as new as the commit that added it, and supersedes
-only if it would count*). A commit's own dates are whatever its committer
-sets, so they order nothing. If a file that would not count could supersede,
+only if it would count*). If a file that would not count could supersede,
 a person without write access, whose answer to a handback an Igor logs as
 `input`, would undo a maintainer's answer.
 
@@ -2383,7 +2367,8 @@ reason 1 decline's close to the copy declined.
 
 #### Closing works by exact identity, never by matching
 
-**Closing never compares question hashes, topic repositories or times: a
+**Closing never compares question hashes, the repositories questions concern,
+or times: a
 handled file closes only the file its `closes` key names, and a thread copy
 closes only by the relay posts in its thread, or on one machine by a decline
 with nothing posted.** Matching on a question's words, on a topic
@@ -2394,7 +2379,7 @@ thread copy, where that copy is open, still pushes a log file answering it.
 
 *Ruled out by a scenario* (answer-session spec: *A handled file closes a
 questions-branch question*): each matching rule above, by question hash, by
-any relay post naming the same question, by topic repository, or by the
+any relay post naming the same question, by the repository a question concerns, or by the
 handled day or commit time against when a copy was asked (scenario *A handled
 file closes only the file it names*); and one handled file per topic
 repository (scenario *Two questions-branch files get two handled files*).
@@ -2468,9 +2453,14 @@ most private `asked_from` among them, and their `repository` if they hold one, s
 as private as they are and about the same thing; files naming different
 repositories get no miss. A miss or answer file with no such file names its
 GitHub thread's repository in `asked_from`. A Linear or Discord thread has no
-repository, so there the repository the question concerns stands in, and an
-organization's question asked there gets only a hash-only miss file, having
-no repository for a readable one to name in `asked_from`.
+repository, so there `asked_from` names the repository the question concerns, and for an
+organization's question the lore repository serving it. For any question
+asked there, the session's model judges from the question and its thread
+what it concerns and which configured lore repository serves it; when it
+cannot tell which lore repository, the only configured one serves it. A
+question placed in neither way has no place: its miss would have no branch,
+so it gets no automatic reply, and its answer is posted and not recorded (answer-session spec: *A Linear or Discord question is placed
+by what it concerns*).
 
 A miss's push, like a handled file's, is recorded as owed before the post
 that leads to it and retried at each poll and opening, since once the post

@@ -26,7 +26,16 @@
   Holds while: the approved layout is the fullscreen one.
   Paths: .agents/skills/inquisitor/
 
+## Rejected
+
+- **Rejected: A TLA+ model of the answer session's owed pushes and lock.**
+  Facing: spec-check's SKILL.md says "Write one when a requirement is about concurrency, ordering, a crash between two writes, or a protocol between processes", and the answer session has such requirements: a push it owes after a post survives a crash and is retried, and a crash while it writes its lock leaves the old lock or the new one whole.
+  Lost because: a push is recorded as owed before its post and retried, so a crash before it loses no file, and its worst outcome, like that of two of one person's machines handling one question, is a repeated post or a question shown twice or asked again, which costs the person a second look; and little is left to interleave, since one person uses the session, the lock makes one session per machine the only writer of that machine's state, and the only state shared between machines is the threads, which each write appends to and each read fetches again; the rule this is weighed against is in [spec-check's SKILL.md](../../../.agents/skills/spec-check/SKILL.md)
+  Instead: scenarios state each crash and two-machine case, and tests check them.
+  Paths: .agents/skills/inquisitor/
+
 ## Rationale
+
 
 - **Rationale: The answer session polls GitHub's notifications and comments.**
   Notifications are what the answer session polls first, and polling them costs little while nothing changes: a conditional request that finds nothing new does not count against the rate limit, and GitHub's `X-Poll-Interval` header sets how long to wait. Task 0.15 checks that the endpoint behaves as documented.
