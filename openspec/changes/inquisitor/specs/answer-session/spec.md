@@ -42,6 +42,13 @@ inquisitor's, or that spec's, *Title*:
 - **The session's model** is the model of the Claude Code session the
   answer session runs in, which judges questions and drafts replies.
 - **Task 0.N** is that task in this change's tasks.md.
+- A **discussion** is the person's exchange with the session's model about
+  one question, and its **discussion record** the copy of both
+  sides' messages kept in the state folder (*Local state is per machine,
+  in the state folder*).
+- **The preview** is what the answer session shows the person before a
+  post goes out: the exact post, where it will be recorded, and any
+  warning.
 
 Any other term is defined in the requirement that sets the term's rule;
 a requirement before that one may already use the term.
@@ -608,6 +615,12 @@ unanswered one of these, and nothing else:
 
 - **WHEN** an agent posts, in a subscribed repository, a question tagging
   `@adamstallard`, the configured login
+- **THEN** the answer session shows it as a question asked of the person
+
+#### Scenario: A message mentioning only the relay is a question
+
+- **WHEN** a message in a subscribed channel mentions the person's relay
+  identity and not the person
 - **THEN** the answer session shows it as a question asked of the person
 
 #### Scenario: An assigned issue or a review request is a question
@@ -1477,8 +1490,8 @@ post naming it in its thread: `User says: ` answered; `Recorded answer: `
 answered, and `Inquisitor: ` handled, for the person, listed apart from
 the queue; `User asks: ` waiting for the asker, whose reply requeues
 it; otherwise unanswered. To the thread's state, this machine adds only
-a pending answer and a close; a local close overrides the thread. Reading
-relay posts on GitHub is built only once task 0.21 is measured.
+its pending answers and closed questions; a question closed here counts as
+closed whatever its thread shows.
 
 #### Scenario: A relay reply marks the question answered on every machine
 
@@ -1970,8 +1983,8 @@ shown from its branch with no thread SHALL get no ask-back or edit.
 ### Requirement: No answer file goes somewhere more visible than its thread unconfirmed
 
 When the questions branch the answer file would go to is more visible than
-the thread the answer is given in, a Linear or Discord thread counting as a private repository's,
-the answer session SHALL post the answer and push its answer file only
+the thread the answer is given in, ranked as the inquisitor's *No record
+goes somewhere more visible than its source* ranks one, the answer session SHALL post the answer and push its answer file only
 once the person confirms the preview's warning. Until then it SHALL post
 nothing; a reworded answer needs the same confirmation.
 
@@ -2761,8 +2774,8 @@ against filters 2 to 4, sending an unclear case to the person. When an
 agent's question with no category and no person-required line clearly
 fails one of those filters where the relay can reply, the answer
 session SHALL itself post the filter's fixed text, log its miss, and list
-the thread's question as handled; a log file holding it is closed only by a
-handled file. On GitHub, this is built only once task 0.21 is measured.
+the thread's question as handled; a log file holding that question is closed
+as *A handled file closes a questions-branch question* states.
 
 #### Scenario: A deferrable agent's question is handled for the person
 
@@ -3002,12 +3015,12 @@ when any of these holds:
 
 ### Requirement: A miss more visible than its thread is pushed as a hash-only file
 
-Where the questions branch is more visible than the question's thread, a
-Linear or Discord thread being private, and the person has not confirmed
-the miss, the answer session SHALL push the hash-only miss file the
+Where the questions branch is more visible than the question's thread,
+ranked as the inquisitor's *No record goes somewhere more visible than its
+source* ranks one, and the miss is unconfirmed, the answer session SHALL push the hash-only miss file the
 inquisitor's *A hash-only miss file shows nothing but that it exists*
 defines. It SHALL post an `Inquisitor: ` reply by itself only where it
-has a branch to push that reply's miss file to, readable or hash-only, and
+has a branch to push that reply's miss file to, and
 otherwise SHALL show the person the question.
 
 #### Scenario: A more visible questions branch gets a hash-only miss unconfirmed

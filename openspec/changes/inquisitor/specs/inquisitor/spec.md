@@ -386,8 +386,9 @@ Visibility SHALL be ranked private, then internal (GitHub's `INTERNAL`),
 then public, and nothing about one repository SHALL go to a **more
 visible** place, with two exceptions the person confirms after a warning: a
 record, as *The answerer's confirmation can send a record somewhere more
-visible* allows, and a recorded answer's link, as the `answer-session`
-spec's *Agreeing to a shown recorded answer is a filter 1 decline* allows.
+visible* allows, and the link to its record in a filter 1 reply the person confirms, as the
+`answer-session` spec's *The preview warns when a filter 1 record is more
+private than the thread* allows.
 
 #### Scenario: A private repository's question goes to no internal or public place
 
@@ -409,6 +410,12 @@ than its source*).
 - **WHEN** a questions-branch file's `repository` is the public `o/web`,
   its `asked_from` is `o/api`, which passes the syntax check, and the
   visibility of `o/api` cannot be read
+- **THEN** the file counts as private
+
+#### Scenario: An asked_in into a repository of unreadable visibility is private
+
+- **WHEN** a questions-branch file's `asked_in` links a comment in
+  `o/api`, and the visibility of `o/api` cannot be read
 - **THEN** the file counts as private
 
 #### Scenario: An unreadable visibility of where a post goes counts as public
@@ -727,9 +734,10 @@ terms matched, keeping to the role's scope and the item's visibility.
   `project:api` and `project:web` entries, a question file naming the public
   `o/doc` and a miss file naming the private `o/api`
 - **THEN** `igor lore-search` returns the `project:web` entry and the
-  `o/doc` file, never the `project:api` entry or the `o/api` file, and only
-  entries whose scope covers the role by firing's scope rule, which includes
-  `project:` entries of each repository the role works (design.md:
+  `o/doc` file. The scope rule of igor PR #216's lore-firing spec covers
+  the `project:` entries of each repository the role works,
+  `project:api` among them, but the item's visibility hides that entry
+  and the `o/api` file (design.md:
   *Questions-branch files and `project:` entries in a run's search*)
 - **AND** it does so under igor PR #216's requirements *Lore reaches the
   worker unbidden, beside a search it may run* and *An Igor runs its
@@ -803,6 +811,48 @@ SHALL be reported as a source not searched.
 - **WHEN** the Igor's `branch-search` call fails or times out
 - **THEN** the worker's search output says the item's repository's
   questions branch was not searched
+
+### Requirement: The script checks whether a miss file backs a reply
+
+The script's `miss-check` command SHALL take a repository, the question on
+standard input, the URL of the message asking it and a filter, and print
+one JSON object whose `backed` is `true` only when that repository's
+questions branch holds a miss file that lets an agent act, as *An
+Inquisitor reply is acted on only with a writer's miss file* states. It
+SHALL print nothing else about the file.
+
+#### Scenario: The miss check says only whether the reply is backed
+
+- **WHEN** `miss-check` is run for `o/web` with a question, its message's
+  URL and filter 3, and the questions branch of `o/web` holds the
+  hash-only miss file for the three
+- **THEN** it prints `{"version": 1, "backed": true}`
+- **AND** with no such file, or only a readable one whose `said_by` has no
+  write access, it prints `{"version": 1, "backed": false}`
+- **AND** when it cannot fetch the branch it exits with an error and
+  prints no `backed`
+
+### Requirement: The Igor checks a reply's miss file for its worker
+
+During an Igor's run, the Igor SHALL run its worker's version of
+`miss-check`, with its own credentials, on the question, message URL and
+filter the worker gives, for the questions branch of what the question
+concerns, and return the output over `igor lore-search`'s channel. The
+worker SHALL act on an `Inquisitor: ` reply only when `backed` is `true`,
+and a call that fails or times out SHALL leave the reply input.
+
+#### Scenario: A worker acts on a reply its Igor found backed
+
+- **WHEN** an Igor worker's question about `o/api` has a reply starting
+  `Inquisitor: filter 4`, and the Igor's `miss-check` for `o/api` prints
+  `backed` as `true`
+- **THEN** the worker chooses one option and records what it chose and
+  why, as filter 4 says, having fetched nothing itself
+
+#### Scenario: A failed miss check leaves the reply input
+
+- **WHEN** the Igor's `miss-check` call fails or times out
+- **THEN** the reply is input to the worker, and the question stands
 
 ### Requirement: igor's search passes on the script's labels
 
@@ -2650,6 +2700,12 @@ the file it answers*).
   `answers` names a file the questions branch does not hold
 - **THEN** it writes nothing and says why
 
+#### Scenario: An answers key naming an answered file is refused
+
+- **WHEN** the `log` command is asked to write an answer file whose
+  `answers` names a log file that already holds an answer
+- **THEN** it writes nothing and says why
+
 #### Scenario: The log command refuses an answer_link of no given form
 
 - **WHEN** the `log` command is given an `answer_link` of
@@ -2715,6 +2771,12 @@ the file it answers*).
   question it logged there unanswered
 - **THEN** the new file names the unanswered file, whose name the agent has
   from pushing it, in `answers`
+
+#### Scenario: A question two unanswered files hold takes two answer files
+
+- **WHEN** an agent records the answer to a question it logged unanswered
+  on a questions branch twice, knowing both files' names
+- **THEN** it pushes two answer files, each naming one of them in `answers`
 
 ### Requirement: A later Igor run names the answered file only from the Igor's record
 
@@ -3465,6 +3527,18 @@ publisher said it merges then (**the publisher's word**; design.md:
 - **WHEN** task 0.13 does not hold, and the agent has the publisher's word
 - **THEN** the agent commits the regression test in the advisory's private
   fork, and on no public branch
+
+#### Scenario: The regression test goes in the fork when task 0.13 holds
+
+- **WHEN** task 0.13 holds, the advisory is unpublished, and the agent
+  lacks the publisher's word
+- **THEN** the agent commits the regression test in the advisory's private
+  fork, and on no public branch
+
+#### Scenario: The regression test lands on a public branch after publication
+
+- **WHEN** the agent can read that the weakness's advisory is published
+- **THEN** it commits the regression test on the public branch
 
 ### Requirement: A commit in an advisory's private fork is described as task 0.13 allows
 

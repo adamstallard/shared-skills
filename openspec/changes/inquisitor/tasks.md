@@ -81,15 +81,19 @@ that contradicts what design.md assumed too.
       mentions of the person and of the relay, and replies to a relay
       comment, in a subscribed team; that it can post a comment as the
       linear-app identity with a host command and learn the comment's URL;
-      and that the identity can edit its own comment. If any fails, Linear
+      that the identity can edit its own comment; and that Linear marks a
+      comment's author as an app user in a form no person's account can
+      take on. If any fails, Linear
       stays off and the README says so
 - [ ] 0.17 That a `discord-bot` identity, as merged in shared-skills PR #1,
       can read a subscribed channel's history and threads, see a mention
       of the person's user id and a reply to the relay's message, and edit
-      its own message; and that a relay whose `check` reports
+      its own message; that Discord marks the author of a bot's or a
+      webhook's message in a form no person's account can take on; and
+      that a relay whose `check` reports
       `messageContent` `true` reads a message that doesn't mention the bot
       (design.md: *The Discord relay needs the Message Content intent*).
-      If it can't, Discord stays off and the README says so
+      If any fails, Discord stays off and the README says so
 - [ ] 0.18 That a command the mod runs with `$.process.run` reaches no
       `PreToolUse` hook, so no post hook, on GitHub, Linear or Discord,
       sees a relay post (design.md:
@@ -120,7 +124,8 @@ that contradicts what design.md assumed too.
       - on GitHub, the question state *The thread is the durable record
         of an answer* reads from relay posts, which needs relay posts
         recognised;
-      - task 6.4's GitHub relaying, which needs that question state;
+      - task 6.4's GitHub relaying, which is every requirement that posts
+        through the relay on GitHub and needs that question state;
       - on GitHub, each rule that reads a `[bot]` author login: *A
         handback is an igor- App's comment holding igor's marker* and *An
         agent's question comes from a bot account or a log file*;
@@ -320,6 +325,10 @@ that contradicts what design.md assumed too.
       output for a fixed branch with a stored copy, field for field, so a
       change to the format fails until the stored copy is changed, which
       waits for igor's agreement
+- [ ] 2.3c `miss-check`, which says whether a questions branch holds the
+      miss file that backs an `Inquisitor: ` reply (inquisitor spec: *The
+      script checks whether a miss file backs a reply*). Its JSON is part
+      of the contract with igor, under task 2.3b's test
 - [ ] 2.4 The `log` command, writing one file per question or miss in the
       format of *A log file and a miss file have one format*.
       - `authority` is `decision` or `input`. An agent's own choice

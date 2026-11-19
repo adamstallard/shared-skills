@@ -1142,9 +1142,7 @@ push, which counts for nothing, from one as pushed.
 
 **The spec trusts the person an answer file names in `answered_by` and a miss
 file in `said_by`, and checks only that the named person has write access to what the question
-concerns. Nothing in the skill verifies authorship.** A repository's admin
-who wants more enforces it: GitHub's rule requiring signed commits on the
-`questions` branch, or the admin's own checks on those two keys.
+concerns. Nothing in the skill verifies authorship.**
 
 *Recorded:* `openspec/specs/inquisitor/decisions.md`, *Constraint: Nothing
 in the skill verifies who wrote a questions-branch file* and *Rationale: A
@@ -1180,9 +1178,7 @@ own item's repository by the lore repository's writers.
 #### A logged answer is the person's own words
 
 **A person's answer is recorded word for word, never as an agent's
-paraphrase, by every writer: the skill's script, the answer session and an
-Igor,** because readers confirm a comment-linked answer by comparing texts,
-so one rule binds writers and readers. The answer text a worker or agent
+paraphrase, by every writer: the skill's script, the answer session and an Igor.** The answer text a worker or agent
 passes with a link only identifies which comment holds the answer.
 Frontmatter `authority` decides whether a log file is answered, so a `##
 Answer` line inside a question's text changes nothing. igor PR #216 records
@@ -1195,8 +1191,7 @@ holding a `## Answer` line of its own.
 
 *Ruled out by a scenario* (inquisitor spec: *A log file and a miss file have
 one format*, scenario *A whole comment fits as the answer*): joining the
-comment onto one line, which breaks the equality test for a comment with list
-items; and a frontmatter key counting the answer's lines, which the quote
+comment onto one line, which changes a comment holding list items; and a frontmatter key counting the answer's lines, which the quote
 marks make needless.
 
 #### The `log` command reads its inputs and the linked comments itself
@@ -1684,8 +1679,8 @@ file of a Discord-relayed answer is a decision*).
 #### github-app refuses `token`, `run`, `credential get` and `wire` for a relay identity
 
 **github-app's `token`, `run`, `credential get` and `wire` commands are to
-refuse an identity marked as a relay, so only the answer session's own posting
-command can post with it.** This change asks github-app for that and ships
+refuse an identity marked as a relay, so a relay's token reaches no program
+but `gh`, whose posts the post hooks see.** This change asks github-app for that and ships
 without it.
 
 **Why:** a relay App's `User says: ` post marks a question answered for the
@@ -1695,8 +1690,7 @@ prints its token to any agent on the machine; `run`,
 configuration.
 
 *Recorded:* `openspec/specs/answer-session/decisions.md`, *Constraint: The post
-hooks, on GitHub, Linear and Discord, and github-app's refusals for a relay
-identity guard against accidents, not against an agent set on forging a
+hooks, on GitHub, Linear and Discord, and the refusals asked of github-app for a relay identity guard against accidents, not against an agent set on forging a
 relayed answer, which can read a relay's credentials from the keychain and
 post with `curl`* and *Constraint: Until github-app refuses `token`, `run`,
 `credential get` and `wire` for a relay identity, any agent on the person's
@@ -1757,9 +1751,7 @@ it,** because a session an app starts from its session list, with no
 terminal, cannot set one. `answer` opens the session fullscreen; `/answer`
 opens it on whichever screen the session is on.
 
-*Recorded:* `openspec/specs/answer-session/decisions.md`, *Constraint: The
-answer session works on Claude Code's main screen too, but nothing is designed
-or built for that screen alone*.
+*Recorded:* `openspec/specs/answer-session/decisions.md`, *Constraint: Nothing is designed or built for the answer session outside Claude Code's fullscreen layout*.
 
 #### A discussion runs in the session's own conversation
 
@@ -1857,11 +1849,9 @@ sets `agentId` on every tool call made outside the main conversation, by a
 subagent or by a side conversation Claude Code forks; task 0.26 checks both.
 A forked side conversation, such as the one that guesses the next prompt,
 could otherwise drop an unasked draft in the prompt box, possibly over what
-the person is typing. The approved prototype refuses such calls (fc3c35f,
-`answer-session/hooks/register.tsx`, the `tool.call` handler for
-`propose_reply`). The answer-session decision record's *Rationale: Claude's
-draft goes to the prompt box, never to a post* gives the reason for
-subagents and its evidence.
+the person is typing. The answer-session decision record's *Rationale: Claude's
+draft goes to the prompt box, never to a post* gives the reason a
+subagent's call is refused, and the evidence.
 
 **The model writes each draft for whichever is more public: the thread's
 readers or the readers of the question's repository** (answer-session spec:
@@ -2536,15 +2526,9 @@ its own*).
 #### A bot's question reaches only the first person it mentions
 
 **A bot's message reaches only the first person it mentions, so each bot
-question has one owner: two people cannot give a bot conflicting answers, and
-the inquisitor never needs to know an operator.** A bot orders its mentions
-by importance. For an Igor the order is set in igor issue #229, which is
-open, and igor's specs do not state it: an Igor mentions its operator first
-only when it stops for a reason it detects itself, then the assignee and the
-creator; every other handback, a question included, mentions the assignee
-and then the creator. The spec states this rule with no interim rule while
-igor's specs leave the order unstated (*igor-dependent rules state the end
-state*).
+question has one owner: two people cannot give a bot conflicting answers.** The answer-session decision record's *Rationale: Whom a message reaches is set
+by its mentions* gives the order an Igor mentions people in. The first-mention rule has no interim form for the time igor's specs
+leave that order unstated (*igor-dependent rules state the end state*).
 
 *Ruled out by a scenario:* a handback reaching the assignee unless it
 mentions only others, which gives a bot question more than one owner
@@ -2649,9 +2633,8 @@ the directory where spec-trace's CI fails on an untagged one.**
 Tasks 0.4 to 0.14 measure these facts before anything is built (tasks 0.1 to
 0.3 are under *What the hook relies on, not yet measured*). Each bullet says
 what the spec does if the fact is false. Task 0.12 is measured (*What task
-0.12 measured*). Task 0.11 is measured for an issue comment: GitHub's GraphQL API
-gives an `IssueComment`'s `author { login }`. Reviews and review comments
-were not queried; GitHub documents `author` on them.
+0.12 measured*). Task 0.11 is measured; its result is in the inquisitor decision record's *Rationale: The
+log command records a linked GitHub comment's own text*.
 
 - **Can an agent without push access read another person's permission on a
   repository?** (task 0.4) If not, wherever the agent lacks push access, every
@@ -2707,8 +2690,8 @@ hook and that a mod keeps polling while idle or in the background, instead
 stop building until the repository's owner decides. The rules that wait on
 task 0.21, which tasks.md's task 0.21 lists, are not built until it is
 measured, and what to build for them is decided then.** The other tasks cover
-GitHub's notifications endpoint, how Linear and Discord show mentions and
-replies, how the Linear relay posts a comment, how setup checks a relay's
+GitHub's notifications endpoint, how Linear and Discord show mentions and replies and mark a bot's message,
+how the Linear relay posts a comment, how setup checks a relay's
 access to each channel, and whether an asking agent's recorded `asked_in` URL
 is the one the answer session reads.
 
@@ -2845,6 +2828,17 @@ to its 149.
   comment on a handback, a `User says: ` one included, as `input`, and the
   answer session's answer file, which names the Igor's log file in
   `answers`, is what counts.
+- **The Igor must run the script's `miss-check` for its worker,** with its
+  own credentials and in the version its workers run, and return the JSON
+  over the channel `igor lore-search` uses (*The Igor checks a reply's miss
+  file for its worker*). A worker holds no credential and fetches no
+  questions branch, and `branch-search` never shows a hash-only miss file,
+  so a worker cannot itself check the file that backs an `Inquisitor: `
+  reply. With the check, *An Inquisitor reply is acted on only with a
+  writer's miss file* covers a worker as it covers any agent, an automatic
+  filter 3 or 4 reply included; no rule is specific to an Igor.
+- **The Igor should write its own answer file for a handback only when the
+  answer session pushed none.** Otherwise one answer has two answer files.
 - **#216 should refuse a worker's miss file holding `said_by`, and any
   hash-only miss file a worker reports,** since either would let a steered worker
   lend authority to an `Inquisitor: ` reply that anyone posted.

@@ -59,6 +59,10 @@
   Evidence: the deployment guide on the service user's `gh` login, https://github.com/adamstallard/igor/blob/8478aec/docs/deployment.md#L112-L115
   Evidence: #175's design, the row for "the Igor's home, lore checkout, `/etc/igor`", https://github.com/adamstallard/igor/blob/908c149/openspec/changes/worker-user/design.md; the worker runs as `claude -p`, https://github.com/adamstallard/igor/blob/8478aec/src/execute.ts#L960-L970; the worker starts in the item's worktree with lore only in its system prompt, https://github.com/adamstallard/igor/blob/8478aec/src/execute.ts#L1595-L1609; and lore is injected whole or not at all under a 4,000-token budget, https://github.com/adamstallard/igor/blob/8478aec/src/firing.ts#L104-L130
 
+- **Rationale: The log command records a linked GitHub comment's own text.**
+  The `log` command fetches a linked comment's text itself, in place of taking the agent's word for it, and GitHub's API gives the comment with its author: GraphQL's `IssueComment` has `author { login }`, measured for an issue comment on 2026-11-04 (task 0.11). Reviews and review comments were not queried; GitHub documents the same `author` on them through GraphQL's `Comment` interface.
+  Evidence: GitHub's GraphQL reference documents `author` on the `Comment` interface, https://docs.github.com/en/graphql/reference/interfaces#comment
+
 - **Rationale: A lore decision record counts.**
   igor PR #202, open, specifies that igor's scribe puts a decision record in the repository the decision concerns, or in the team's lore repository when it spans repositories, so filter 1 reads both.
   Evidence: igor PR #202's decision 5, https://github.com/adamstallard/igor/pull/202

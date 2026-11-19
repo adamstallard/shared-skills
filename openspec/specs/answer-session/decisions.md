@@ -2,7 +2,7 @@
 
 ## Constraints
 
-- **Constraint: The post hooks, on GitHub, Linear and Discord, and github-app's refusals for a relay identity guard against accidents, not against an agent set on forging a relayed answer, which can read a relay's credentials from the keychain and post with `curl`.**
+- **Constraint: The post hooks, on GitHub, Linear and Discord, and the refusals asked of github-app for a relay identity guard against accidents, not against an agent set on forging a relayed answer, which can read a relay's credentials from the keychain and post with `curl`.**
   Because: the hooks stop an agent that uses the skills, as its instructions tell it, and one that works around them has its person's own tools and keychain.
   Evidence: a `PreToolUse` hook sees a tool call's command line, never what a program it starts sends, https://docs.anthropic.com/en/docs/claude-code/hooks
   Holds while: a relay identity's key sits where the person's own agents can read it.
@@ -20,8 +20,8 @@
   Holds while: the session's model runs with the person's tools.
   Paths: .agents/skills/inquisitor/
 
-- **Constraint: The answer session works on Claude Code's main screen too, but nothing is designed or built for that screen alone.**
-  Because: `answer` opens it fullscreen, the layout it is designed for.
+- **Constraint: Nothing is designed or built for the answer session outside Claude Code's fullscreen layout.**
+  Because: `answer` opens the answer session in that layout, the only one approved; `/answer` opens it on whichever screen the session is on, with nothing made for another.
   Evidence: the approved prototype build v0.1-33 is a fullscreen layout, fc3c35f
   Holds while: the approved layout is the fullscreen one.
   Paths: .agents/skills/inquisitor/
@@ -47,8 +47,13 @@
   Evidence: Discord's gateway is a persistent WebSocket connection, https://discord.com/developers/docs/events/gateway
 
 - **Rationale: Claude's draft goes to the prompt box, never to a post.**
-  Only the conversation the person is in may fill their prompt box: a subagent that read an untrusted Linear or Discord message could otherwise plant text the person then sends without seeing where it came from. Claude Code marks a subagent's tool calls with the subagent's id, so `propose_reply` refuses any call carrying an `agentId`.
+  Only the conversation the person is in may fill their prompt box: a subagent that read an untrusted Linear or Discord message could otherwise plant text the person then sends without seeing where it came from. `propose_reply` refuses any call carrying an `agentId`. The spec assumes Claude Code sets one on a subagent's call to a mod's tool, as it sets `agent_id` on a subagent's hook events; task 0.26 measures that.
+  Evidence: the approved prototype's `tool.call` handler for `propose_reply` refuses such a call, in `answer-session/hooks/register.tsx`, fc3c35f
   Evidence: Claude Code's hooks reference says a subagent's tool events carry "the `agent_id` and `agent_type` common input fields that identify the subagent", https://code.claude.com/docs/en/hooks
+
+- **Rationale: Whom a message reaches is set by its mentions.**
+  The rule gives an Igor's question to the person who should answer it, because an Igor mentions that person first. Igor issue #229 sets the order, and igor's specs do not state it: an Igor mentions its operator, the person who runs it, first only when it stops for a reason it detects itself, then the assignee and the creator; every other handback, a question included, mentions the assignee and then the creator.
+  Evidence: igor issue #229, https://github.com/adamstallard/igor/issues/229
 
 - **Rationale: Setup checks each relay identity before its channels are used.**
   The Discord relay reads messages that do not mention the bot, which needs Discord's privileged Message Content intent, so setup checks that `messageContent` is `true`. discord-bot's setup has the person turn the intent on, and its `check` reports `messageContent` from the bot's application flags.

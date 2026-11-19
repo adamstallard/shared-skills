@@ -65,6 +65,10 @@ command* counts as a read.
   `comment`, `review`, `revert`, `close` or `reopen`; `gh issue` with
   `create`, `new`, `edit`, `comment`, `close` or `reopen`; and
   a `gh api` call that can write
+- **AND** `pr`, `issue`, `api` and each verb count only as whole
+  words, with no letter, digit or `_` just before and no letter, digit,
+  `_` or `-` just after, so `--comments` holds no `comment` and
+  `--comment` holds one
 - **AND** of these, the verbs that post text are `create`, `new`, `edit`,
   `comment` and `review`; `revert`, for a pull request only; and `close`
   or `reopen` with a comment
