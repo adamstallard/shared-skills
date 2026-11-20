@@ -161,7 +161,8 @@ HALF = 12
 # before cold readers wrote understood lines carry none.
 TRAILER = re.compile(r"✓ (?P<tree>[0-9a-f]{%d}):(?P<message>[0-9a-f]{%d})"
                      r"(?:; cold read: (?P<cold>[^;]*)(?:; understood: (?P<understood>[^;]*))?)?"
-                     r"(?:; compacted: (?P<compacted>[^;\n]+))?" % (HALF, HALF))
+                     r"(?:; compacted: (?P<compacted>[^;\n]+))?"
+                     r"(?:; verbatim: (?P<verbatim>[^;\n]+))?" % (HALF, HALF))
 FOOTER_LENGTH = 6
 FOOTER = re.compile(r"^prose ✓ ([0-9a-f]{%d})$" % FOOTER_LENGTH)
 # A pull request body signed inside a review round, with its cold read
@@ -459,9 +460,127 @@ def _touched(scan, diff):
     return touched
 
 
-def _changed_docs(root, base):
+HUNK = re.compile(r"^@@ -([0-9]+)(?:,([0-9]+))? \+([0-9]+)(?:,([0-9]+))? @@")
+
+
+def _hunks(scan, diff):
+    """{path: (old path, [(old first, old count, new start, new count)])},
+    keyed by new path, for each file that diff, a zero-context diff,
+    changes, with all of its hunks; the old path is None for an added file. A file
+    the diff deletes is left out."""
+    found, old, path, in_header = {}, None, None, False
+    for line in diff.split("\n"):
+        if line.startswith("diff "):
+            old, path, in_header = None, None, True
+        elif in_header and line.startswith("--- "):
+            target = scan.header_path(line[4:])
+            old = None if target == "/dev/null" else re.sub(r"^a/", "", target)
+        elif in_header and line.startswith("+++ "):
+            target = scan.header_path(line[4:])
+            path = None if target == "/dev/null" else re.sub(r"^b/", "", target)
+        elif line.startswith("@@"):
+            in_header = False
+            hunk = HUNK.match(line)
+            if hunk and path is not None:
+                found.setdefault(path, (old, []))[1].append(
+                    tuple(int(value) if value is not None else 1 for value in hunk.groups()))
+    return found
+
+
+def _marked(path, text):
+    """Whether text holds a prose:verbatim marker, paired or not."""
+    if "prose:verbatim" not in text:
+        return False
+    try:
+        return bool(verbatim_blocks(path, text))
+    except Refused:
+        return True
+
+
+def _wide_marked(root, path, source):
+    """Whether the staged doc at path, or source's, holds a prose:verbatim
+    marker line spelled in UTF-16 or UTF-32, which a UTF-8 read of the doc
+    does not find.
+    A marker in a sentence or in backticks is text, as in any doc."""
+    marker = "prose:verbatim"
+    try:
+        data = subprocess.run(["git", "-c", "core.precomposeUnicode=false", "cat-file", "blob",
+                               f":0:{path}" if source is None else f"{source}:{path}"],
+                              cwd=root, capture_output=True, check=True, env=git_env()).stdout
+    except (OSError, subprocess.CalledProcessError):
+        return False
+    return any(marker.encode(encoding) in data and
+               _marked(path, data.decode(encoding, "replace").lstrip("\ufeff"))
+               for encoding in ("utf-32-le", "utf-32-be", "utf-16-le", "utf-16-be"))
+
+
+def _diff_unset(root, path, source):
+    """Whether the staged .gitattributes, or source's, unset `diff` on path,
+    as `-diff` and `binary` do. As in verbatim_files, the user's attributes
+    file is not read and patterns match case exactly."""
+    where = ["--cached"] if source is None else [f"--source={source}"]
+    try:
+        out = git(["-c", "core.attributesFile=/dev/null", "-c", "core.ignorecase=false",
+                   "check-attr"] + where + ["diff", "--", path], root)
+    except Refused:
+        return False
+    return out.rstrip("\n").endswith(": diff: unset")
+
+
+def _block_deletions(path, hunks, old_text, blocks):
+    """(labels, outside, freed) for how the hunks change a doc's old blocks.
+
+    - labels: for each old block the hunks delete a line of, the
+      "path:first-last" of every new block that holds one of its remaining
+      lines. If lines remain but no new block holds them, the markers were
+      removed, and the label is the old block's range with "(removed)". If
+      no line remains, the labels are the new blocks the replacing lines fall
+      in, or that span where the deleted lines were, else the old block's
+      range with "(removed)".
+    - outside: whether any deleted line sat outside every old block.
+    - freed: the new line numbers of the remaining lines of any old block
+      that no new block holds, because markers were deleted or added; they
+      are prose now.
+    """
+    try:
+        old_blocks = verbatim_blocks(path, old_text) if "prose:verbatim" in old_text else []
+    except Refused:
+        old_blocks = []
+    gone = {n for first, count, _, _ in hunks for n in range(first, first + count)}
+
+    def new_line(number):
+        # Lines after a hunk move by what it added less what it deleted; a
+        # hunk that deletes nothing is anchored after its old line.
+        return number + sum(added - count for first, count, _, added in hunks
+                            if (first + count - 1 if count else first) < number)
+
+    def held(number):
+        return [(f, l) for f, l in blocks if f <= number <= l]
+
+    labels, freed = [], set()
+    outside = any(not any(f <= n <= l for f, l in old_blocks) for n in gone)
+    for first, last in old_blocks:
+        left = [new_line(n) for n in range(first, last + 1) if n not in gone]
+        loose = {n for n in left if not held(n)}
+        freed |= loose
+        if not any(first <= n <= last for n in gone):
+            continue
+        spans = {span for n in left for span in held(n)}
+        if not left:
+            for start_old, count, start, added in hunks:
+                if count and start_old <= last and start_old + count - 1 >= first:
+                    spans |= {(f, l) for f, l in blocks
+                              if any(f <= n <= l for n in range(start, start + added)) or
+                              (not added and f <= start and start + 1 <= l)}
+        labels += [f"{path}:{f}-{l}" for f, l in sorted(spans)] or \
+            [f"{path}:{first}-{last} (removed)"]
+    return labels, outside, freed
+
+
+def _changed_docs(root, base, source=None):
     """{path: (deleted, link)} for each doc or spec whose content the staged
-    change alters. link: what is staged there is a symlink or a submodule,
+    change alters, or, with source, the change from base to that commit.
+    link is True when what is staged there is a symlink or a submodule,
     whose one line is a target path or a commit, not prose.
 
     Read from `--raw`, because the text diff gives no header to a file git
@@ -469,18 +588,8 @@ def _changed_docs(root, base):
     it. A pure rename or a permission change keeps the blob and is left out;
     a type change, such as a file made a symlink, is kept even when the blob
     is the same. A deleted doc is named by its old path."""
-    # --ignore-submodules=none as in prose_in's diff: under a config that
-    # ignores submodules, a bumped submodule would be missing here and read
-    # as a doc.
-    raw = git(scanner().DIFF_CONFIG + [
-        "diff", "--cached", "--raw", "-z", "--no-abbrev", "-M", "-l1000", "--no-relative",
-        "--no-color", "--ignore-submodules=none", base], root)
-    fields = raw.split("\0")
-    found, index = {}, 0
-    while index < len(fields) and fields[index].startswith(":"):
-        old_mode, new_mode, old_blob, new_blob, status = fields[index][1:].split(" ", 4)
-        paths = fields[index + 1:index + (3 if status[:1] in "RC" else 2)]
-        index += 1 + len(paths)
+    found = {}
+    for old_mode, new_mode, old_blob, new_blob, status, paths in _raw(root, base, source):
         # A mode's first two digits are its kind: 10 a file, 12 a symlink,
         # 16 a submodule.
         if old_blob == new_blob and old_mode[:2] == new_mode[:2]:
@@ -489,6 +598,95 @@ def _changed_docs(root, base):
         if is_doc(path):
             found[path] = (status[:1] == "D", new_mode in ("120000", "160000"))
     return found
+
+
+def _attr_tree(root, source):
+    """The tree whose .gitattributes a diff of the change reads: the index's,
+    or source's. Returns "" when the index cannot be written as a tree; git
+    reads an empty attr.tree as the working tree's attributes."""
+    try:
+        return git(["write-tree"], root).strip() if source is None else f"{source}^{{tree}}"
+    except Refused:
+        return ""
+
+
+def _raw(root, base, source=None):
+    """Each entry of the `--raw` diff from base to the index, or to source:
+    (old mode, new mode, old blob, new blob, status, paths), with two paths
+    for a rename or copy, old first."""
+    # --ignore-submodules=none as in prose_in's diff: under a config that
+    # ignores submodules, a bumped submodule would be missing here and read
+    # as a doc.
+    raw = git(scanner().DIFF_CONFIG + ["-c", f"attr.tree={_attr_tree(root, source)}",
+        "diff", "--raw", "-z", "--no-abbrev", "-M", "-l1000", "--no-relative",
+        "--no-color", "--ignore-submodules=none"] + _diff_sides(base, source), root)
+    fields = raw.split("\0")
+    entries, index = [], 0
+    while index < len(fields) and fields[index].startswith(":"):
+        old_mode, new_mode, old_blob, new_blob, status = fields[index][1:].split(" ", 4)
+        paths = fields[index + 1:index + (3 if status[:1] in "RC" else 2)]
+        index += 1 + len(paths)
+        entries.append((old_mode, new_mode, old_blob, new_blob, status, paths))
+    return entries
+
+
+def _undeclared(root, base, source, read):
+    """{new path: every line number} for each file that base declares
+    prose-verbatim and the change no longer does, because it was renamed out
+    of a pattern or its .gitattributes line was removed; a file the change
+    deletes is left out. Its whole text is prose now and gets the pass. A
+    symlink or submodule has no text, so it gets an empty set.
+
+    Only a rename or a changed .gitattributes can end a declaration, so
+    nothing else is looked up."""
+    entries = _raw(root, base, source)
+    moved, modes = {}, {}
+    for _, new_mode, _, _, status, paths in entries:
+        if status[:1] == "R":
+            moved[paths[0]] = paths[1]
+        elif status[:1] == "D":
+            moved[paths[0]] = None
+        modes[paths[-1]] = new_mode
+    attributes = [path for *_, paths in entries for path in paths
+                  if path.rsplit("/", 1)[-1] == ".gitattributes"]
+    if not moved and not attributes:
+        return {}
+    plain = ["-c", "core.precomposeUnicode=false"]
+    try:
+        listing = {}
+        for entry in git(plain + ["ls-tree", "-r", "-z", base], root).split("\0"):
+            if entry:
+                info, name = entry.split("\t", 1)
+                listing[name] = info.split(" ", 1)[0]
+        if not any("prose-verbatim" in git(plain + ["show", f"{base}:{name}"], root)
+                   for name in listing if name.rsplit("/", 1)[-1] == ".gitattributes"):
+            return {}
+    except Refused:
+        return {}
+    names = sorted(listing) if attributes else \
+        [old for old, new in moved.items() if new is not None]
+    # Only the files whose declaration changed matter, so .git/info/
+    # attributes, which applies to both sides alike, is not refused here.
+    was = {moved.get(path, path): path for path in verbatim_files(names, root, base, strict=False)}
+    was.pop(None, None)
+    found = {}
+    for path in sorted(set(was) - verbatim_files(sorted(was), root, source, strict=False)):
+        if modes.get(path, listing.get(was[path], ""))[:2] in ("12", "16"):
+            found[path] = set()
+            continue
+        try:
+            text = read(path)
+        except (OSError, Refused, UnicodeDecodeError):
+            continue
+        found[path] = set(range(1, text.count("\n") + (not text.endswith("\n")) + 1)) \
+            if text else set()
+    return found
+
+
+def _diff_sides(base, source):
+    """The arguments that diff base against the index, or against the commit
+    source when one is given."""
+    return ["--cached", base] if source is None else [base, source]
 
 
 class Item(NamedTuple):
@@ -520,8 +718,10 @@ def _combined_entries(root, tree, parents):
     there is a symlink or a submodule. Each record there is one mode per
     parent and then the result's, the blobs in the same order, one status
     letter per parent, and the path; it starts with one colon per parent."""
-    # -M and -l1000 as in _combined_touched, so both pair the same files.
-    raw = git(scanner().DIFF_CONFIG + [
+    # -M as in _combined_touched, and -l1000 as its scan.DIFF gives, so both
+    # pair the same files.
+    # attr.tree as in _combined_touched: the staged .gitattributes decide.
+    raw = git(scanner().DIFF_CONFIG + ["-c", f"attr.tree={tree}",
         "diff", "--cc", "--raw", "-z", "--no-abbrev", "-M", "-l1000", "--no-relative",
         "--no-color", "--ignore-submodules=none", tree] + parents, root)
     fields, found, count = raw.split("\0"), {}, len(parents) + 1
@@ -539,19 +739,24 @@ def _combined_entries(root, tree, parents):
     return found
 
 
-def merge_changes(scan, root, parents):
+def merge_changes(scan, root, parents, binary=None, written=None):
     """(touched, entries) for a merge: what _combined_touched maps, and, from
     _combined_entries, each path the merge itself changed. A path both sides
-    changed and git merged cleanly differs from every parent, yet `--cc`
-    keeps no hunk of it, so a path counts only with a hunk, or when it is
-    binary, deleted, a symlink or a submodule. The listing and the
-    compaction trigger both read a merge from here."""
+    changed and git merged cleanly differs from every parent, yet the merge
+    wrote none of it and `--cc` keeps no hunk of it; so a path counts only
+    with a hunk, or when it is binary, deleted, a symlink or a submodule.
+    The listing and the compaction trigger both read a merge from here.
+    When binary is a set, each path the combined diff shows as binary is
+    added to it; when written is a set, each path whose staged blob differs
+    from every parent's is added to it."""
     # write-tree fails on an unmerged index; the pre-commit run before this
     # already writes the tree and refuses one, so none reaches here.
     tree = git(["write-tree"], root).strip()
-    touched = _combined_touched(scan, root, tree, parents)
-    entries = {path: kind for path, kind in _combined_entries(root, tree, list(parents)).items()
-               if path in touched or any(kind)}
+    touched = _combined_touched(scan, root, tree, parents, binary)
+    changed = _combined_entries(root, tree, list(parents))
+    if written is not None:
+        written.update(changed)
+    entries = {path: kind for path, kind in changed.items() if path in touched or any(kind)}
     for path in touched:
         entries.setdefault(path, (False, False))
     return touched, entries
@@ -564,7 +769,7 @@ def merge_paths(root, parents):
     return sorted(path for path, (deleted, _) in entries.items() if not deleted)
 
 
-def _combined_touched(scan, root, tree, parents):
+def _combined_touched(scan, root, tree, parents, binary=None):
     """_touched for a merge: each file git's combined diff (`--cc`) shows a
     hunk of, or calls binary, mapped to the staged lines it shows as added:
     those missing from at least one parent, in the hunks `--cc` keeps. `--cc`
@@ -578,10 +783,13 @@ def _combined_touched(scan, root, tree, parents):
     every line of a kept hunk is printed, so counting from the hunk's start
     numbers each one."""
     # scan.DIFF pins git's defaults, so the hunks match `git show` on a
-    # machine with no config; the later --unified=3 replaces its 0. -M pairs
+    # machine with no config; the later --unified=3 replaces its --unified=0. -M pairs
     # a rename a branch made with the other branch's edits to the old path,
     # as the merge did.
-    diff = git(scan.DIFF + ["--unified=3", "--cc", "--submodule=short", "-M", tree]
+    # attr.tree reads the staged .gitattributes, so a working-tree-only
+    # `-diff` does not change what the merge shows.
+    diff = git(scan.DIFF_CONFIG + ["-c", f"attr.tree={tree}"] + scan.DIFF[len(scan.DIFF_CONFIG):]
+               + ["--unified=3", "--cc", "--submodule=short", "-M", tree]
                + list(parents), root)
     width = len(parents)
     header = re.compile(r"^@{%d} (?:-[0-9,]+ ){%d}\+([0-9]+)" % (width + 1, width))
@@ -595,6 +803,8 @@ def _combined_touched(scan, root, tree, parents):
         if in_header and not found:
             if line.startswith("Binary files "):
                 touched.setdefault(path, set())
+                if binary is not None:
+                    binary.add(path)
             continue
         if found:
             in_header, line_number = False, int(found.group(1))
@@ -613,19 +823,215 @@ def _combined_touched(scan, root, tree, parents):
     return touched
 
 
-def prose_in(root, parents, read: Callable[[str], str]):
+# Text a repository keeps exactly as written. `prose-verbatim` in
+# .gitattributes declares whole files; a marker pair inside a doc declares a
+# block. Verbatim text gets no rewrite and no cold read, and the trailer
+# counts what a commit skipped.
+ATTR_VERBATIM = "prose-verbatim"
+# A marker line holds the marker and nothing else but comment punctuation, so
+# `<!-- prose:verbatim begin -->`, `# prose:verbatim end` and `.. prose:verbatim
+# begin` all count, while a sentence or a backticked mention does not.
+VERBATIM_MARKER = re.compile(r"^[^\w`]*prose:verbatim (begin|end)[^\w`]*$")
+
+
+class Verbatim:
+    """What a check skipped as verbatim: the files declared in .gitattributes
+    and the marked blocks the change touches, each as "path" or
+    "path:first-last"."""
+
+    def __init__(self):
+        self.files, self.blocks = [], []
+
+    def trailer(self):
+        """The trailer's `; verbatim: ...` part, or "" when nothing was skipped."""
+        return verbatim_part(len(self.files), len(self.blocks))
+
+
+def verbatim_part(files, blocks):
+    """The trailer part for this many skipped files and blocks, or ""."""
+    parts = []
+    if files:
+        parts.append(f"{files} file{'' if files == 1 else 's'}")
+    if blocks:
+        parts.append(f"{blocks} block{'' if blocks == 1 else 's'}")
+    return "; verbatim: " + ", ".join(parts) if parts else ""
+
+
+def verbatim_valid(value):
+    """Whether value, the counts after a trailer's `; verbatim: `, are in the
+    one form verbatim_part prints."""
+    found = re.fullmatch(r"(?:([0-9]+) files?)?(?:, )?(?:([0-9]+) blocks?)?", value)
+    if not found or not any(found.groups()):
+        return False
+    files, blocks = (int(group) if group else 0 for group in found.groups())
+    return (bool(found.group(1)) == bool(files) and bool(found.group(2)) == bool(blocks)
+            and value == verbatim_part(files, blocks)[len("; verbatim: "):])
+
+
+def verbatim_mismatch(value, verbatim):
+    """The refusal reason, starting `tree:`, when a trailer's verbatim
+    counts differ from those recomputed from git; None when they agree.
+    value is the trailer's counts, None when it has no verbatim part;
+    verbatim is the recomputed Verbatim."""
+    given = f"; verbatim: {value}" if value is not None else ""
+    if given == verbatim.trailer():
+        return None
+    said = value or "nothing"
+    found = verbatim.trailer()[len("; verbatim: "):] or "nothing"
+    return (f"tree: the {KEY}: trailer says verbatim text skipped was {said}, and the change "
+            f"skips {found}; the trailer's counts did not come from `prose check` on this "
+            f"change")
+
+
+def verbatim_part_valid(value):
+    """Whether the verbatim part of a parsed trailer is acceptable: absent
+    (None), or in the form verbatim_valid accepts."""
+    return value is None or verbatim_valid(value)
+
+
+def verbatim_files(paths, root, source=None, strict=True):
+    """The paths of `paths`, relative to the top of the repository, that the
+    staged .gitattributes files set `prose-verbatim` on, or, with source,
+    the .gitattributes files of that commit. Only tracked .gitattributes
+    files declare:
+    the user's and the system's attributes files are not read, and a
+    declaration in $GIT_DIR/info/attributes, which git cannot be told to
+    skip, is refused. Outside a repository, or when git fails, none; with
+    source, which only the verifiers pass, such a failure is refused.
+    strict=False skips the refusal of any line in info/attributes, for a
+    caller comparing two sides it applies to alike."""
+    if not paths:
+        return set()
+    try:
+        top = git(["rev-parse", "--show-toplevel"], root).rstrip("\n")
+    except Refused:
+        if source is not None:
+            raise
+        return set()
+    local = pathlib.Path(top) / git(["rev-parse", "--git-path", "info/attributes"],
+                                    top).rstrip("\n")
+    try:
+        local_lines = [line.strip() for line in
+                       local.read_text(encoding="utf-8", errors="replace").split("\n")]
+    except OSError:
+        local_lines = []
+    if any(ATTR_VERBATIM in line for line in local_lines):
+        raise Refused(f"{local} mentions {ATTR_VERBATIM}, but only a committed .gitattributes "
+                      f"declares verbatim text, so a reviewer sees it; move the line there")
+    where = ["--cached"] if source is None else [f"--source={source}"]
+    try:
+        # Paths are relative to the top, so git runs there; git_env sets
+        # GIT_ATTR_NOSYSTEM, the user's attributes file is pointed away, and
+        # patterns match case exactly on every machine.
+        result = subprocess.run(
+            ["git", "-c", "core.attributesFile=/dev/null", "-c", "core.ignorecase=false",
+             "check-attr"] + where + ["-z", "--stdin", ATTR_VERBATIM],
+            cwd=top, input=("\0".join(paths) + "\0").encode("utf-8", "surrogateescape"),
+            capture_output=True, check=False, env=git_env())
+    except OSError as error:
+        if source is not None:
+            raise Refused(f"git check-attr could not run: {error}")
+        return set()
+    if result.returncode != 0:
+        # Reading a commit's attributes is for a verifier, which must not
+        # take a failure for "nothing declared"; --source needs git 2.40.
+        if source is not None:
+            raise Refused("git check-attr --source failed: "
+                          + result.stderr.decode("utf-8", "replace").strip())
+        return set()
+    fields = result.stdout.decode("utf-8", "surrogateescape").split("\0")
+    found = {fields[i] for i in range(0, len(fields) - 2, 3) if fields[i + 2] == "set"}
+    # info/attributes can apply a macro the committed .gitattributes
+    # defines, and git cannot be told to skip that file, so with any line in
+    # it a declaration may not be the committed one.
+    if strict and found and any(line and not line.startswith("#") for line in local_lines):
+        raise Refused(f"{local} sets attributes, so prose cannot tell whether "
+                      f"{', '.join(sorted(found))} is declared verbatim by a committed "
+                      f".gitattributes; empty that file, or move its lines to .gitattributes")
+    return found
+
+
+def verbatim_blocks(path, text):
+    """[(first, last)] 1-based line pairs of the marked blocks in a doc's
+    text, each from its begin marker to its end marker. A marker inside a
+    code fence is text, so docs about the markers can show them. Refused for
+    a begin with no end, a nested begin, or an end with no begin."""
+    lines = text.split("\n")
+    blocks, begin = [], None
+    # Fences are read as compact.py reads them, indented and longer ones
+    # included, so prose and compaction agree on which lines are code. A
+    # CRLF doc's lines end in a CR, which a closing fence must not hold.
+    bare = [line[:-1] if line.endswith("\r") else line for line in lines]
+    for number, (line, fenced) in enumerate(zip(lines, compactor()._fenced(bare)), start=1):
+        found = None if fenced else VERBATIM_MARKER.match(line.strip())
+        if not found:
+            continue
+        if found.group(1) == "begin":
+            if begin is not None:
+                raise Refused(f"{path}:{number}: a prose:verbatim begin inside the block "
+                              f"opened at line {begin}; blocks do not nest")
+            begin = number
+        elif begin is None:
+            raise Refused(f"{path}:{number}: a prose:verbatim end with no begin before it")
+        else:
+            blocks.append((begin, number))
+            begin = None
+    if begin is not None:
+        raise Refused(f"{path}:{begin}: a prose:verbatim begin with no end after it")
+    return blocks
+
+
+def mask_verbatim(path, text):
+    """text with each marked block's lines blanked, so what a cold reader is
+    shown never holds verbatim text and every line keeps its number. Only a
+    doc has blocks."""
+    if not is_doc(path) or "prose:verbatim" not in text:
+        return text
+    lines = text.split("\n")
+    for first, last in verbatim_blocks(path, text):
+        for number in range(first, last + 1):
+            lines[number - 1] = ""
+    return "\n".join(lines)
+
+
+# The label the listing shows beside the item holding a YAML file's prose
+# strings, those comment_scan.yaml_prose finds. cold_items and _goals_source
+# tell such an item by it.
+STRING_NOTE = "prose strings"
+
+
+def prose_in(root, parents, read: Callable[[str], str], verbatim=None, source=None,
+             comments=True):
     """([Item], [flag lines]) for the prose the staged change touches.
 
-    A listing for the pass, not what the trailer hashes: the message, each doc
-    or spec file the diff touches, and each code comment it adds to or edits.
-    The flags are history-language warnings on those comments. parents are
-    the commit's parents: none diffs against the empty tree; two or more, a
-    merge, list only what git's combined diff shows the merge changed.
+    The prose the pass covers: the message, each doc
+    or spec file the diff touches, one item per code file for the comments
+    the diff adds to or edits, and one per YAML file for the prose strings it
+    adds to or edits. The flags are history-language warnings on those
+    comments and strings. parents are the commit's parents: with none, the
+    change is diffed against the empty tree; with one, against that parent;
+    with two or more, a merge, only what git's combined diff shows the merge
+    changed is listed.
+
+    Verbatim text is left out: a file `.gitattributes` sets `prose-verbatim`
+    on, and a doc's marked blocks. When a Verbatim is passed, it is filled
+    with the files and the touched blocks skipped.
+
+    With source, a commit with at most one parent, the change is that
+    commit's instead of the staged one, read reads the commit's files, and
+    .gitattributes is read from it. comments=False lists no code comments or
+    YAML strings, for a caller that needs only the Verbatim.
     """
     scan = scanner()
     items, flags = [Item("commit message", "", None)], []
+    verbatim = Verbatim() if verbatim is None else verbatim
+    # A merge's hunks are not read for blocks: the combined diff has no one
+    # old side to map them to.
+    hunks_of, base, merge_binary, merge_written = {}, None, set(), set()
     if len(parents) > 1:
-        touched, entries = merge_changes(scan, root, parents)
+        if source is not None:
+            raise Refused("prose_in reads a merge only from the index")
+        touched, entries = merge_changes(scan, root, parents, merge_binary, merge_written)
         docs = {path: kind for path, kind in entries.items() if is_doc(path)}
     else:
         # This module's git(), not the scanner's: its surrogateescape decoding
@@ -634,11 +1040,22 @@ def prose_in(root, parents, read: Callable[[str], str]):
         # --submodule=short shows a submodule as one line; at a code-looking
         # path it is listed as "could not be read".
         base = parents[0] if parents else _empty_tree(root)
-        diff = git(scan.DIFF + ["-M", "--submodule=short", "--cached", base], root)
+        # The diff reads the attributes the change itself holds, staged or
+        # committed, as verbatim_files reads them: a `-diff` in the working
+        # tree alone must not decide which file is binary, nor hide a hunk
+        # from a verifier. _raw reads the same tree, so renames pair alike.
+        diff = git(scan.DIFF_CONFIG + ["-c", f"attr.tree={_attr_tree(root, source)}"]
+                   + scan.DIFF[len(scan.DIFF_CONFIG):] + ["-M", "--submodule=short"]
+                   + _diff_sides(base, source), root)
         touched = _touched(scan, diff)
-        docs = _changed_docs(root, base)
+        hunks_of = _hunks(scan, diff)
+        docs = _changed_docs(root, base, source)
+        if parents:
+            for path, lines in _undeclared(root, base, source, read).items():
+                touched[path] = touched.get(path, set()) | lines
     for path in docs:
         touched.setdefault(path, set())
+    declared = verbatim_files(sorted(touched), root, source)
     for path, lines in sorted(touched.items()):
         parts = set(pathlib.PurePosixPath(path).parts)
         doc = is_doc(path)
@@ -646,34 +1063,98 @@ def prose_in(root, parents, read: Callable[[str], str]):
         # any of the scanner's SKIP_DIRS, build output included.
         if parts & (VENDORED if doc else scan.SKIP_DIRS):
             continue
+        if path in declared:
+            # Declared verbatim: no item, so no goals and no cold read. A
+            # deleted file is not counted, since nothing of it is left to
+            # skip. A code file with no added lines, such as a mode change,
+            # is not counted either; a doc is counted whatever changed.
+            if not docs.get(path, (False, False))[0] and (doc or lines):
+                verbatim.files.append(path)
+            continue
         if doc:
             deleted, link = docs.get(path, (False, False))
+            text = ""
+            # Read even when the change only deletes lines, so markers it
+            # left unpaired are refused now, not at the doc's next edit.
+            if not deleted and not link:
+                try:
+                    text = read(path)
+                except (OSError, Refused, UnicodeDecodeError):
+                    pass
+            # Markers in a doc git diffs as binary are refused: no hunk says
+            # which block a change touched. A doc is binary when the staged or
+            # committed .gitattributes unset `diff`; when it holds a NUL byte,
+            # as UTF-16 and UTF-32 do, even where git diffs it as text; and
+            # when the diff shows no hunk of a changed doc, or a merge's diff
+            # calls it binary. A doc whose text did not read is checked for
+            # wide markers as well.
+            wide = "\0" in text or not text
+            # A merge that took one parent's blob, with another's mode, wrote
+            # no content, so it is not refused, as a one-parent mode change
+            # is not.
+            if path in docs and not deleted and not link and \
+                    (len(parents) < 2 or path in merge_written) and \
+                    (_marked(path, text) or wide and _wide_marked(root, path, source)) and \
+                    (wide or base is not None and path not in hunks_of
+                     or path in merge_binary or _diff_unset(root, path, source)):
+                raise Refused(f"{path}: git diffs this doc as binary (-diff, binary or a NUL "
+                              "byte), so prose cannot tell which verbatim block a change "
+                              "touches; remove its prose:verbatim markers, or declare the "
+                              "whole file prose-verbatim in .gitattributes")
+            old_path, hunks = hunks_of.get(path, (None, []))
+            old_text = ""
+            if base is not None and hunks and old_path is not None:
+                try:
+                    old_text = git(["-c", "core.precomposeUnicode=false", "show",
+                                    f"{base}:{old_path}"], root)
+                except Refused:
+                    pass
+            if "prose:verbatim" in text or "prose:verbatim" in old_text:
+                blocks = verbatim_blocks(path, text) if "prose:verbatim" in text else []
+                # A block the change touches, by a line added or deleted in it
+                # or on its markers, is counted once. Lines added in a block or
+                # deleted from one get no pass; text no block holds now does.
+                labels = [f"{path}:{first}-{last}" for first, last in blocks
+                          if any(first <= number <= last for number in lines)]
+                gone, outside, freed = _block_deletions(path, hunks, old_text, blocks)
+                for label in dict.fromkeys(labels + gone):
+                    verbatim.blocks.append(label)
+                kept = {n for n in lines if not any(f <= n <= l for f, l in blocks)} | freed
+                if (lines or hunks) and not kept and not outside:
+                    continue
+                lines = kept
             # A symlink or submodule has no passage to read cold.
             items.append(Item(path, "changed", path, deleted, () if link else _runs(lines)))
             continue
-        if not scan.scannable(path) or not lines:
+        if not comments or not scan.scannable(path) or not lines:
             continue
         try:
-            source = read(path)
+            code = read(path)
         except (OSError, Refused, UnicodeDecodeError):
             items.append(Item(path, "could not be read", path))
             continue
         # git does not treat a bare CR as a line end. Without this replacement,
         # comments_in would, and every later line number would drift from the
         # diff's.
-        source = re.sub(r"\r(?!\n)", " ", source)
-        comments = scan.comments_touching(path, source, lines)
-        if comments is None:
+        code = re.sub(r"\r(?!\n)", " ", code)
+        found_comments = scan.comments_touching(path, code, lines)
+        if found_comments is None:
             items.append(Item(path, "did not parse", path))
             continue
-        if not comments:
-            continue
-        spans = [f"{c.start}" if c.start == c.end else f"{c.start}-{c.end}" for c in comments]
-        items.append(Item(f"{path}:{','.join(spans)}", "comment", path,
-                          spans=tuple((c.start, c.end) for c in comments)))
-        for comment in comments:
-            for note in scan.history_notes(comment, scan.mask_examples(scan.strip_markers(comment))):
-                flags.append(f"{path}:{note.line}  {note.headline}")
+        # A YAML file's prose strings are an item of their own beside its
+        # comments, since their reader is whoever the file's tool shows them
+        # to, not someone changing the file.
+        for found, note in ((found_comments, "comment"),
+                            (scan.prose_strings_touching(path, code, lines), STRING_NOTE)):
+            if not found:
+                continue
+            spans = [f"{c.start}" if c.start == c.end else f"{c.start}-{c.end}" for c in found]
+            items.append(Item(f"{path}:{','.join(spans)}", note, path,
+                              spans=tuple((c.start, c.end) for c in found)))
+            for comment in found:
+                for flag in scan.history_notes(comment,
+                                               scan.mask_examples(scan.strip_markers(comment))):
+                    flags.append(f"{path}:{flag.line}  {flag.headline}")
     return items, flags
 
 
@@ -953,13 +1434,15 @@ def commit_parents(root, amend=False):
     return ([head] if head else []) + merge_heads(root)
 
 
-def check(message, root, amend=False, signing=False):
+def check(message, root, amend=False, signing=False, verbatim=None):
     """(items, flags, trailer line) for the staged change and this message.
 
     The listing's diff is against the commit's parents (commit_parents): one
     parent, or none, is a plain diff; a merge lists only what it changed. The
-    trailer does not depend on it. The pre-commit hook runs after the message
-    is accepted and before anything is listed or hashed.
+    trailer does not depend on that diff. A Verbatim passed in is filled with
+    the verbatim text skipped; the signing call adds the `; verbatim:` part to the trailer.
+    The pre-commit hook runs after the message is accepted and before anything
+    is listed or hashed.
     """
     refuse_non_utf8_commit_encoding(root)
     refuse_non_utf8_message(message)
@@ -970,7 +1453,7 @@ def check(message, root, amend=False, signing=False):
         raise Refused("the commit message is empty; write it first, then run the check on it")
     parents = commit_parents(root, amend)
     run_pre_commit(root, signing)
-    items, flags = prose_in(root, parents, lambda path: read_staged(path, root))
+    items, flags = prose_in(root, parents, lambda path: read_staged(path, root), verbatim)
     return items, flags, snapshot(message, root)
 
 
@@ -1017,7 +1500,8 @@ def verify_staged(line, message, root):
     if not found:
         return False, f"unrecognised: {line.strip()}"
     tree_half, message_half = found.group("tree"), found.group("message")
-    if not counts_valid(found.group("cold"), found.group("understood")):
+    if not counts_valid(found.group("cold"), found.group("understood")) \
+            or not verbatim_part_valid(found.group("verbatim")):
         return False, f"unrecognised: {line.strip()}"
     tree = git(["write-tree"], root).strip()
     if found.group("compacted") is not None:
@@ -1045,6 +1529,14 @@ def verify_staged(line, message, root):
             f"tree: the {KEY}: trailer does not match the staged files; they changed "
             f"after `prose check`"
         )
+    # The counts are recomputed as the signing call computed them, so a
+    # hand-typed count is refused, not only a malformed one.
+    verbatim = Verbatim()
+    prose_in(root, commit_parents(root), lambda path: read_staged(path, root), verbatim,
+             comments=False)
+    reason = verbatim_mismatch(found.group("verbatim"), verbatim)
+    if reason:
+        return False, reason
     return True, "checked"
 
 
@@ -1083,7 +1575,8 @@ def verify_commit(sha, root):
         return False, (f"mismatch: the message is stored as {encoding}, and `prose check` "
                        f"signs only UTF-8 messages")
     found = TRAILER.fullmatch(value)
-    if not found or not counts_valid(found.group("cold"), found.group("understood")):
+    if not found or not counts_valid(found.group("cold"), found.group("understood")) \
+            or not verbatim_part_valid(found.group("verbatim")):
         return False, f"unrecognised: {KEY}: {value}"
     if found.group("compacted") is not None:
         # A file listed as compacted must be one this commit changed.
@@ -1107,6 +1600,15 @@ def verify_commit(sha, root):
             f"tree: the {KEY}: trailer matches the message but not the commit's files; "
             f"the staged files changed after `prose check`"
         )
+    # The counts are recomputed from the commit against its parent, with the
+    # .gitattributes the commit holds, as the signing call read the index.
+    verbatim = Verbatim()
+    prose_in(root, parents, lambda path: git(
+        ["-c", "core.precomposeUnicode=false", "show", f"{sha}:{path}"], root), verbatim,
+        source=sha, comments=False)
+    reason = verbatim_mismatch(found.group("verbatim"), verbatim)
+    if reason:
+        return False, reason
     return True, "checked"
 
 
@@ -1849,7 +2351,12 @@ def cold_items(assigned):
         if item.path is None or item.deleted or not item.spans:
             continue
         _, _, goals = _goals_source(item, rule)
-        if kind_of(item.path) == "comment":
+        if item.note == STRING_NOTE:
+            for span in item.spans:
+                found.append(ColdItem(f"A string in a YAML file, which its reader is shown as "
+                                      f"text: {item.path}, {_lines(span)}, read under the keys "
+                                      "above it.", tuple(goals), item.path, spans=(span,)))
+        elif kind_of(item.path) == "comment":
             for span in item.spans:
                 found.append(ColdItem(f"A code comment: {item.path}, {_lines(span)}, and the "
                                       "code it sits on.", tuple(goals), item.path, spans=(span,)))
@@ -1980,13 +2487,40 @@ def _section(lines, span, path):
 
 
 def _sits_on(lines, span, path=""):
-    """A comment, the BRIEF_CODE_LINES after it for the code it sits on, and
-    BRIEF_CONTEXT_LINES either side. A fixed reach, with no syntax rules,
-    since each such rule misread some language's code. A docstring is a
-    comment here too."""
+    """The line ranges a comment's brief shows: the comment, the
+    BRIEF_CODE_LINES after it for the code it sits on, and
+    BRIEF_CONTEXT_LINES either side. The reach is fixed, with no syntax
+    rules, because a rule for where a block of code ends misreads some
+    language's code. A docstring is a comment here too. In a YAML file, a comment or prose string also gets
+    each key line it is nested under, so the reader sees what it belongs to."""
     first, last = span
-    return [(max(1, first - BRIEF_CONTEXT_LINES),
-             min(len(lines), last + BRIEF_CODE_LINES + BRIEF_CONTEXT_LINES))]
+    ranges = [(max(1, first - BRIEF_CONTEXT_LINES),
+               min(len(lines), last + BRIEF_CODE_LINES + BRIEF_CONTEXT_LINES))]
+    if pathlib.PurePosixPath(path.rstrip()).suffix.lower() in scanner().YAML_SUFFIXES:
+        ranges += [(number, number) for number in _yaml_parents(lines, first)]
+    return ranges
+
+
+def _yaml_parents(lines, first):
+    """The line numbers of the YAML lines above line number `first` that
+    each enclose the one below: the nearest line indented less than it, then
+    the nearest indented less than that, up to the margin. Blank and comment
+    lines are passed over."""
+    found, indent = [], None
+    for number in range(min(first, len(lines)), 0, -1):
+        line = lines[number - 1]
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        width = len(line) - len(line.lstrip(" "))
+        if indent is None:
+            indent = width
+        elif width < indent:
+            found.append(number)
+            indent = width
+        if indent == 0:
+            break
+    return found
 
 
 def _merged(ranges):
@@ -1999,12 +2533,17 @@ def _merged(ranges):
     return merged
 
 
-def brief_files(items, texts):
+def brief_files(items, texts, blocks=None):
     """The part of a saved cold-read brief after the items: for each file an
     item names, once, in the order first named, the staged lines its items
     need, with their numbers, so the reader needs nothing but the brief. A
     doc passage gets its section, a comment the code it sits on; the lines
-    between are said to be left out. Bytes that are not UTF-8 show as U+FFFD."""
+    between are said to be left out. Bytes that are not UTF-8 show as U+FFFD.
+    blocks maps a path to its verbatim blocks' (first, last) lines. A block
+    that the lines shown for an item reach is replaced, all of it, by one
+    placeholder line numbered with the lines it stands for, so the reader
+    knows text is there and every other line keeps its number."""
+    blocks = blocks or {}
     paths = list(dict.fromkeys(item.path for item in items if item.path))
     if not paths:
         return ""
@@ -2025,14 +2564,33 @@ def brief_files(items, texts):
                 for first, last in item.spans:
                     span = (max(1, min(first, len(lines))), max(1, min(last, len(lines))))
                     ranges += window(lines, span, path)
+        # A window that reaches into a block takes the whole block, so its
+        # placeholder always stands for all of it.
+        # A block's end is not clamped to len(lines): masking blanks a final
+        # end marker with no newline to an empty line, which the pop above
+        # removed as a trailing newline.
+        held = [(first, last) for first, last in blocks.get(path, ()) if first <= len(lines)]
+        ranges = [(min([first] + [b for b, e in held if b <= last and e >= first]),
+                   max([last] + [e for b, e in held if b <= last and e >= first]))
+                  for first, last in ranges]
+        starts = dict(held)
         width = len(str(len(lines)))
         out += ["", f"--- {path} ---"]
         shown = 0
         for first, last in _merged(ranges):
             if first > shown + 1:
                 out.append(f"(lines {shown + 1}-{first - 1} left out)")
-            out += [f"{number:>{width}}  {lines[number - 1]}".rstrip()
-                    for number in range(first, last + 1)]
+            number = first
+            while number <= last:
+                if number in starts:
+                    end = starts[number]
+                    count = end - number + 1
+                    out.append(f"{f'{number}-{end}':>{width}}  [verbatim block: {count} "
+                               f"line{'' if count == 1 else 's'} not shown]")
+                    number = end + 1
+                    continue
+                out.append(f"{number:>{width}}  {lines[number - 1]}".rstrip())
+                number += 1
             shown = last
         if shown < len(lines):
             out.append(f"(lines {shown + 1}-{len(lines)} left out)")
@@ -2061,14 +2619,16 @@ def cold_read_brief(token, items, root=None):
     return "\n".join(lines)
 
 
-def print_cold_read(token, items, next_command, stream=None, root=None, texts=None):
+def print_cold_read(token, items, next_command, stream=None, root=None, texts=None,
+                    blocks=None):
     """Why nothing was signed, what to do, and the brief, between marker lines
     so the agent can pass it on unchanged. texts maps each item's path to its
     staged text. The saved brief goes on with the lines each item needs from
     those texts. The printed brief leaves them out: the agent running this
-    call wrote the texts and needs no copy."""
+    call wrote the texts and needs no copy. blocks maps each path to its
+    verbatim blocks, which the saved brief shows as placeholders."""
     brief = cold_read_brief(token, items, root)
-    files = brief_files(items, texts or {})
+    files = brief_files(items, texts or {}, blocks)
     saved = brief + "\n" + files if files else None
     if files:
         brief += "\n\n" + BRIEF_FILES_NOTE
@@ -2077,7 +2637,8 @@ def print_cold_read(token, items, next_command, stream=None, root=None, texts=No
     print("Give a new agent, one that has not seen this conversation, only the path on the "
           "'Brief file:' line below, telling it to read that file and follow it; don't copy the "
           f"brief into its prompt, or add to it. Save its report to {REPORT_FILE}, "
-          "outside the commit. Fix the places it names, and restage. Then answer every finding "
+          "outside the commit. Fix each place it names with the first fix that works (cut, move, "
+          "reword: rules.md step 4), and restage. Then answer every finding "
           f"in {DISPOSITIONS_FILE}: its first line '{dispositions_header(token)}', then one "
           "line per finding, '<n>. fixed' once you changed the item it is in, or "
           "'<n>. kept (asked): <why>' once a person chose to keep it. Answer every item's "
@@ -2381,8 +2942,8 @@ def unasked_refusal(token, unasked, paths, answers, report, dispositions, items=
                   f"  Kept, because: {answer.reason}"]
     lines += ["", "Ask a person about each, one question per finding or understood line, with "
               "two options: \"Keep as is\" makes its line '<n>. kept (asked): <reason>' (for an "
-              "understood line, 'Item <n>: kept (asked): <reason>'); \"Fix it\" means rewrite "
-              "the passage (and restage it, for a commit) and make its line '<n>. fixed' (or "
+              "understood line, 'Item <n>: kept (asked): <reason>'); \"Fix it\" means cut, "
+              "move or reword the passage, whichever works first (and restage it, for a commit) and make its line '<n>. fixed' (or "
               "'Item <n>: fixed'). Then run the signing call again.",
               "If you cannot ask (a subagent, a background job, no picker), don't sign and don't "
               "commit: leave the change staged, and put this message in your result for "
@@ -2415,11 +2976,25 @@ def read_staged(path, root):
 
 
 def staged_text(path, root):
-    """The staged text of the file at path, or "" when none is staged."""
+    """The staged text of the file at path, or "" when none is staged. A
+    doc's verbatim blocks are blanked: the cold reader never sees them."""
     try:
-        return read_staged(path, root)
+        text = read_staged(path, root)
     except Refused:
         return ""
+    return mask_verbatim(path, text)
+
+
+def staged_blocks(path, root):
+    """The staged doc's verbatim blocks as (first, last) line pairs; none for
+    a file that is not a doc or is not staged."""
+    if not is_doc(path):
+        return []
+    try:
+        text = read_staged(path, root)
+    except Refused:
+        return []
+    return verbatim_blocks(path, text) if "prose:verbatim" in text else []
 
 
 def refuse_unbriefed(cold, record):
@@ -2576,7 +3151,8 @@ def hook_gate(raw):
 
 # The row of rules.md's reader table that gives each kind of listed file its
 # default goals, named by the start of the row's first cell.
-KIND_ROWS = {"comment": "Code comment", "readme": "README", "spec": "Spec", "doc": "Other doc"}
+KIND_ROWS = {"comment": "Code comment", "string": "YAML prose string", "readme": "README",
+             "spec": "Spec", "doc": "Other doc"}
 
 
 def kind_of(path):
@@ -3074,7 +3650,9 @@ def main(argv=None):
             # result block, stops the check before it prints anything.
             read_rules()
             result_block()
-            items, flags, trailer = check(message, args.repo, args.amend, bool(args.token))
+            verbatim = Verbatim()
+            items, flags, trailer = check(message, args.repo, args.amend, bool(args.token),
+                                          verbatim)
             assigned, unused = assign_goals(items, rules)
             refuse_uncovered(assigned, unused, after_first_call=bool(args.token))
             compact = compactor()
@@ -3115,6 +3693,7 @@ def main(argv=None):
                                 f"; understood: {understood}")
                 elif cold:
                     texts = {item.path: staged_text(item.path, args.repo) for item in cold}
+                    blocks = {item.path: staged_blocks(item.path, args.repo) for item in cold}
                     record_brief(args.token, cold, texts, args.repo)
                     if pending:
                         print("prose: the signing call with --cold-read will refuse until each "
@@ -3127,7 +3706,7 @@ def main(argv=None):
                         args.token, args.message_file, args.amend, args.repo, REPORT_FILE,
                         DISPOSITIONS_FILE),
                         root=git(["rev-parse", "--show-toplevel"], args.repo).rstrip("\n"),
-                        texts=texts)
+                        texts=texts, blocks=blocks)
                     return COLD_READ_NEEDED
                 # Each staged file compacted with `prose compact` is named in
                 # the trailer, so every clone's trigger sees the compaction,
@@ -3135,6 +3714,9 @@ def main(argv=None):
                 compacted = compact.compacted_paths(root, args.amend, pass_dir(args.repo))
                 if compacted:
                     trailer += "; compacted: " + ", ".join(compacted)
+                # What was skipped as verbatim is named in the trailer, so a
+                # reviewer sees that some text got no pass.
+                trailer += verbatim.trailer()
                 # The signing call prints only the result block. It is built
                 # before the token is spent, so a block that cannot be built
                 # leaves the token for the same call to run again.
@@ -3152,6 +3734,13 @@ def main(argv=None):
             print_goals(goals, heading=MESSAGE_GOALS)
             print_check(assigned, flags, unused,
                         "--message-goals-file" if args.message_goals_file else "--goals")
+            if verbatim.files or verbatim.blocks:
+                print("\nSkipped as verbatim, with no pass and no cold read; the trailer "
+                      "says so:\n")
+                for path in verbatim.files:
+                    print(f"  {path}  (file)")
+                for block in verbatim.blocks:
+                    print(f"  {block}  (block)")
             # Every staged path, doc or not: a declaration in .gitattributes
             # makes any file current-state. The
             # triggers only advise, so a listing that fails skips them.
@@ -3354,7 +3943,7 @@ def _goals_source(item, rule, message_from="--goals"):
     if item.deleted:
         return ("deleted",), "Deleted, so no reader; nothing to rewrite:", ()
     if rule is None:
-        kind = kind_of(item.path)
+        kind = "string" if item.note == STRING_NOTE else kind_of(item.path)
         label, who, goals = kind_default(kind)
         return (("default", kind),
                 f"Reader goals by default, from the '{label}' row of rules.md's reader "

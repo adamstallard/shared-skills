@@ -744,6 +744,324 @@ def comments_touching(path, source, changed):
     ]
 
 # ---------------------------------------------------------------------------
+# Prose in YAML strings
+# ---------------------------------------------------------------------------
+#
+# Some YAML string values are text a person or an agent reads, such as a list
+# of rules a tool prints to an agent as its instructions, so `prose check`
+# lists them for the same rewrite and cold read a comment gets. A string
+# counts when it is written in sentences: it has at least PROSE_MIN_WORDS
+# words, its first word is capitalised but neither all capitals nor a
+# PowerShell cmdlet, and a sentence ends somewhere in it, as _SENTENCE_END
+# defines. Heading lines at the start with text below them are dropped, a
+# Markdown marker before the first word is skipped, and an opening code span
+# counts as a capitalised word, as yaml_sentence says. Keys, ids, paths,
+# versions, dates, expressions, step names, SQL and most scripts fail that
+# test, so `prose check` lists nothing from an ordinary config file. The
+# exception is a script whose first command is a capitalised word, such as
+# `Rscript` or `Xvfb`. With enough words and a sentence end somewhere, such as
+# the `.` in `echo "Done."`, it passes and is listed, whether a comment opens
+# it or not. Telling such a script from prose would take more than its first
+# word.
+#
+# Measured in November 2026 over 811 YAML files in local clones of about a
+# dozen repositories (CI workflows, OpenSpec configs, app configs, test
+# fixtures), the test listed 29 strings or lists, every one of them sentences
+# someone reads. A second, different set, 517 tracked YAML files in 38 local
+# clones, compares versions of the test: there, dropping a level-1 `# ` line
+# changed none of the 251 strings or lists listed, which were counted, not
+# each read as prose. None of the 57 strings in that set that open with
+# Markdown is listed: globs, package names opening with `_`, issue-template
+# placeholders such as `1. ...`, and eight shell scripts whose `# ` comment
+# line has a command under it. After changing the test, run it over a
+# comparable set of YAML files and read what it newly lists or drops against
+# the second set's counts.
+#
+# A list holding one such string is listed whole, from the key that owns it,
+# because its entries are read together; a single value is listed from its
+# key line. No YAML parser ships with Python, so the parser below is
+# line-based: it knows plain, quoted, block and flow values, and skips what
+# it cannot place, such as an explicit `? key`. A quote left open, which is
+# invalid YAML, runs to the end of the file.
+
+YAML_SUFFIXES = {".yaml", ".yml"}
+PROSE_MIN_WORDS = 6
+# A sentence ends at a `.`, `?` or `!` right after a word, a closing bracket
+# or quote, or the end of a code span or emphasis, with a space or the end of
+# the text after it. So neither a `.` path argument nor a SQL `?` placeholder
+# ends a sentence.
+_SENTENCE_END = re.compile(r"[\w)\]\"'’”`*][.?!][.\"'’”)\]]*(?:\s|$)")
+# A PowerShell cmdlet, such as Write-Host, starts a script, not a sentence.
+# The pattern also rejects a sentence opening with a word such as Self-Hosted,
+# which costs a rare miss to keep PowerShell steps out.
+_CMDLET = re.compile(r"[A-Z][a-z]+-[A-Z]")
+# A mapping key: quoted, or plain up to the first `:` followed by a space or
+# the line's end. A plain key starts with no YAML indicator, except a `-` or
+# `:` with a non-space after it.
+_YAML_KEY = re.compile(r"""(?:"(?:[^"\\]|\\.)*"|'(?:[^']|'')*'|"""
+                       r"""[^\s#'"\[\]{},&*!|>%@`?:-][^#]*?|-[^\s#][^#]*?|:[^\s#][^#]*?)"""
+                       r"""\s*:(?:[ \t]+|$)""")
+_YAML_DASH = re.compile(r"-(?:[ \t]+|$)")
+_YAML_BLOCK = re.compile(r"[|>][0-9+-]*[ \t]*(?:#.*)?$")
+_YAML_PROPERTY = re.compile(r"[&!]\S*[ \t]*")
+_YAML_TRAILING_COMMENT = re.compile(r"[ \t]+#.*$")
+
+
+# A Markdown marker that may open a string before its first word: an ATX
+# heading of level 2 to 6, a bullet or a numbered list item. It is not a
+# word of the text. A single `#` stays on. That matters only for a `#` line
+# that is the string's only line, since yaml_sentence first drops one with
+# text below it. Such a line is more often a shell comment than a title, and
+# the own-line `#` comment scan above lists it as a comment, even inside a
+# block string. Left on, the `#` is the first word and fails the
+# capitalised-word test, so the string `# Run this before every release.`
+# is not listed as a prose string.
+_LEADING_MARKER = re.compile(r"(?:#{2,6}|[-*+]|[0-9]{1,9}[.)])[ \t]+")
+# A heading line of any level, `# ` to `###### `. yaml_sentence drops such
+# lines at the start of the text while text follows them, and tests the text
+# below instead: under a Markdown title it is the body, and under a shell
+# comment it is the commands, tested like any other text, so lowercase ones
+# such as `npm` or `git` fail.
+_HEADING = re.compile(r"#{1,6}[ \t]")
+
+
+def yaml_sentence(text):
+    """Whether a YAML string's text is written in sentences. Heading lines
+    at the start, `# ` to `###### `, are dropped one by one while text
+    follows them, and the text below is tested in its place. Under a
+    Markdown title that text is the body. Under a shell comment in a
+    `run: |` block it is the commands, tested like any other text, so
+    lowercase ones such as `npm` or `git` fail. Then a leading Markdown
+    marker comes off, and emphasis around the first word, so
+    `**Never** push …` and `1. Run …` are read from their first real word;
+    a first word that opens an inline code span counts as capitalised, but
+    a ``` fence does not open one. A heading that is the only line is
+    tested itself: `## ` to `###### ` comes off, and a single `#` stays on
+    as its first word, which fails."""
+    text = text.lstrip()
+    heading, _, below = text.partition("\n")
+    while _HEADING.match(heading) and below.strip():
+        text = below.lstrip()
+        heading, _, below = text.partition("\n")
+    marker = _LEADING_MARKER.match(text)
+    words = text[marker.end() if marker else 0:].split()
+    if len(words) < PROSE_MIN_WORDS or not _SENTENCE_END.search(" ".join(words)):
+        return False
+    if words[0].startswith("`") and not words[0].startswith("``"):
+        return True
+    first = words[0].lstrip("*_").rstrip(",:;.?!").rstrip("*_")
+    return _first_word(first) and not _CMDLET.match(first)
+
+
+def _first_word(word):
+    """Whether a word can open a sentence: letters (an apostrophe or hyphen
+    may join them), the first a capital, with a lowercase letter among them
+    unless it is a single letter such as "A". An all-capitals word starts
+    SQL or a batch script (SELECT, IF, ECHO)."""
+    core = word.rstrip(",:;.?!")
+    return (bool(core) and core[0].isupper()
+            and all(char.isalpha() or char in "'’-" for char in core)
+            and (len(core) == 1 or any(char.islower() for char in core)))
+
+
+def _indent(line):
+    return len(line) - len(line.lstrip(" "))
+
+
+def _quote_close(lines, index, column, quote):
+    """(line index, column just past the close) of a quoted scalar opening at
+    lines[index][column], honouring `\\` escapes in a double-quoted one and
+    `''` in a single-quoted one; (last line index, None) when it never
+    closes."""
+    start = column + 1
+    while index < len(lines):
+        line, position = lines[index], start
+        while position < len(line):
+            char = line[position]
+            if quote == '"' and char == "\\":
+                position += 2
+                continue
+            if char == quote:
+                if quote == "'" and line[position + 1:position + 2] == "'":
+                    position += 2
+                    continue
+                return index, position + 1
+            position += 1
+        index, start = index + 1, 0
+    return len(lines) - 1, None
+
+
+def _quoted_end(lines, index, column, quote):
+    """(last line index, text) of a quoted scalar opening at lines[index][column].
+    A double-quoted string's `\\n` reads as a line break and its other
+    escapes as spaces: _SENTENCE_END needs a space or the end after a `.`,
+    which a raw backslash would block, and yaml_sentence must see the line
+    break after a heading line to pass over it."""
+    last, end = _quote_close(lines, index, column, quote)
+    if last == index:
+        text = lines[index][column + 1:end and end - 1]
+    else:
+        text = " ".join([lines[index][column + 1:]] + lines[index + 1:last]
+                        + [lines[last][:end - 1] if end is not None else lines[last]])
+    if quote != '"':
+        return last, text
+    return last, re.sub(r"\\.", lambda escape: "\n" if escape.group() == "\\n" else " ", text)
+
+
+def _flow_end(lines, index, column):
+    """The last line index of a flow collection opening at lines[index][column].
+    A quote opens a quoted item only where an item starts, after `[`, `{`, `,`
+    or `:`, as in YAML; elsewhere, as in `[don't]`, it is a plain character."""
+    depth, start, previous = 0, column, ""
+    while index < len(lines):
+        line, position = lines[index], start
+        while position < len(line):
+            char = line[position]
+            if char in "\"'" and previous in "[{,:":
+                index, end = _quote_close(lines, index, position, char)
+                if end is None:
+                    return index
+                line, position, previous = lines[index], end, char
+                continue
+            if char == "#" and (position == 0 or line[position - 1] in " \t"):
+                break
+            if char in "[{":
+                depth += 1
+            elif char in "]}":
+                depth -= 1
+                if depth == 0:
+                    return index
+            if not char.isspace():
+                previous = char
+            position += 1
+        index, start = index + 1, 0
+    return len(lines) - 1
+
+
+def _yaml_scalar(lines, index, column, parent):
+    """(last line index, text) of the value starting at lines[index][column],
+    or (last line index, None) when it is no string: empty or only a comment
+    (a nested node follows), an alias, or a flow collection. parent is the
+    column a continuation line must be indented past. value[0] decides the
+    value's kind, so column must be past the blanks before the value, as
+    every caller's is; _YAML_PROPERTY likewise consumes the blanks after an
+    anchor or tag."""
+    value = lines[index][column:]
+    prop = _YAML_PROPERTY.match(value)
+    while prop:
+        value, column = value[prop.end():], column + prop.end()
+        prop = _YAML_PROPERTY.match(value)
+    if not value or value.startswith(("#", "*")):
+        return index, None
+    if value[0] in "[{":
+        return _flow_end(lines, index, column), None
+    if value[0] in "\"'":
+        return _quoted_end(lines, index, column, value[0])
+    if _YAML_BLOCK.match(value):
+        last, parts = index, []
+        for following in range(index + 1, len(lines)):
+            line = lines[following]
+            if line.strip() and _indent(line) <= parent:
+                break
+            if line.strip():
+                last = following
+                parts.append(line.strip())
+        # Lines kept apart, so yaml_sentence can tell a heading line.
+        return last, "\n".join(parts)
+    # A blank line inside a plain value folds into it; the value goes on
+    # while the next line that is not blank is indented past parent.
+    parts, last = [_YAML_TRAILING_COMMENT.sub("", value)], index
+    for following in range(index + 1, len(lines)):
+        line = lines[following]
+        if not line.strip():
+            continue
+        if _indent(line) <= parent or line.lstrip().startswith("#"):
+            break
+        parts.append(_YAML_TRAILING_COMMENT.sub("", line.strip()))
+        last = following
+    return last, " ".join(parts)
+
+
+def yaml_prose(source):
+    """[(first, last)] line spans, numbered from 1 and inclusive, of the prose
+    strings in YAML source: each
+    list holding a sentence, from the key that owns it, and each other
+    sentence value outside such a list, from its key line. Tabs are not YAML
+    indentation, so a line's indent counts spaces only."""
+    lines = source.split("\n")
+    # The empty string after a final newline is no line of the file.
+    if lines and not lines[-1]:
+        lines.pop()
+    # Each open list, by its dash column: [owner line, the line its last
+    # string entry ends on, whether a string entry is a sentence]. An entry
+    # that is a mapping, such as `- name: build`, changes neither.
+    lists, spans = {}, []
+    previous_key = None  # the line of the last `key:` with no value
+
+    def close(deeper_than):
+        for col in sorted(lists):
+            if col > deeper_than:
+                owner, last, prose = lists.pop(col)
+                if prose:
+                    spans.append((owner, last))
+
+    index = 0
+    while index < len(lines):
+        line = lines[index]
+        stripped = line.strip()
+        if (not stripped or stripped.startswith("#") or line.startswith("%")
+                or stripped in ("---", "...") or stripped.startswith(("--- ", "... "))):
+            index += 1
+            continue
+        column = _indent(line)
+        dash = None
+        while True:
+            found = _YAML_DASH.match(line, column)
+            if not found:
+                break
+            dash, column = column, found.end()
+        close(dash if dash is not None else _indent(line) - 1)
+        if dash is not None and dash not in lists:
+            lists[dash] = [previous_key if previous_key is not None else index + 1,
+                           index + 1, False]
+        key = _YAML_KEY.match(line, column)
+        if key:
+            last, text = _yaml_scalar(lines, index, key.end(), column)
+            rest = re.sub(r"^(?:[&!]\S*\s*)+", "", line[key.end():].strip())
+            previous_key = index + 1 if not rest or rest.startswith("#") else None
+            if text is not None and yaml_sentence(text):
+                spans.append((index + 1, last + 1))
+        elif dash is not None:
+            last, text = _yaml_scalar(lines, index, column, dash)
+            previous_key = None
+            if text is not None:
+                lists[dash][1] = last + 1
+                lists[dash][2] = lists[dash][2] or yaml_sentence(text)
+        else:
+            last, previous_key = index, None
+        index = last + 1
+    close(-1)
+    # A value inside a listed list is read with that list, not again alone.
+    return [span for span in sorted(spans)
+            if not any(other != span and other[0] <= span[0] and span[1] <= other[1]
+                       for other in spans)]
+
+
+def prose_strings_touching(path, source, changed):
+    """The prose strings in a YAML file that a diff added to or edited, as
+    Comments of style "string"; [] for any other file. changed is the set of
+    line numbers, from 1, that the diff added."""
+    if pathlib.PurePosixPath(path.rstrip()).suffix.lower() not in YAML_SUFFIXES:
+        return []
+    if source.startswith(BOM):
+        source = source[1:]
+    lines = source.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    return [Comment(path, first, last, "string", lines[first - 1:last],
+                    own_line=True, is_module=False)
+            for first, last in yaml_prose("\n".join(lines))
+            if set(range(first, last + 1)) & changed]
+
+# ---------------------------------------------------------------------------
 # Prose
 # ---------------------------------------------------------------------------
 

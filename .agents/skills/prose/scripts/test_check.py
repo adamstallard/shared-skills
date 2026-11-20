@@ -1030,6 +1030,29 @@ class Check(unittest.TestCase):
         named = self.check_for("--goals-for", "*.py", "fix the parser")
         self.assertEqual(self.goals_by_item(named.stdout)["a.py:2"][1], ["fix the parser"])
 
+    def test_a_yaml_files_prose_strings_are_listed_beside_its_comments(self):
+        self.repo.write("rules.yaml", "# How to merge.\nrules:\n  proposal:\n"
+                        "    - Read the decision record before proposing an approach.\n"
+                        "name: ci\n")
+        result = self.check_for()
+        self.assertEqual(result.returncode, 4, result.stderr)
+        listing = self.listing(result.stdout)
+        self.assertIn("rules.yaml:1  (comment)", listing)
+        self.assertIn("rules.yaml:3-4  (prose strings)", listing)
+        heading, goals = self.goals_by_item(result.stdout)["rules.yaml:3-4"]
+        self.assertIn("from the 'YAML prose string' row of rules.md's reader table", heading)
+        self.assertEqual(goals, ["what to do", "when it applies"])
+
+    def test_a_yaml_change_outside_any_prose_string_lists_none(self):
+        self.repo.write("ci.yml", "name: ci\nrun: npm ci\n")
+        self.repo.commit("base 2\n")
+        self.repo.write("ci.yml", "name: ci\nrun: npm ci --silent\nnote: Runs the suite on "
+                        "every push to main.\n")
+        self.repo.commit("base 3\n")
+        self.repo.write("ci.yml", "name: ci\nrun: npm test\nnote: Runs the suite on "
+                        "every push to main.\n")
+        self.assertNotIn("ci.yml", self.listing(self.check_for().stdout))
+
     def test_a_pattern_that_matches_no_listed_file_is_a_warning(self):
         self.repo.write("docs/a.md", "# T\n")
         goals = self.repo.path.parent / f"{self.repo.path.name}-goals.txt"

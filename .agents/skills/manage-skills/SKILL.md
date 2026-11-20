@@ -49,7 +49,7 @@ python3 $SK list                       # every skill, and its state in each targ
 python3 $SK install bug-hunter         # symlink one or more skills into every target
 python3 $SK install --all              # symlink everything into every target
 python3 $SK install --force <name>     # replace whatever is already there
-python3 $SK install --no-hook <name>   # install without wiring up its hook
+python3 $SK install --no-hook <name>   # turn off and record off the hook of a skill not linked before
 python3 $SK uninstall <name>           # remove the symlink from every target
 python3 $SK doctor                     # find broken, missing, or stale installs
 python3 $SK update                     # git pull the clone, refresh this skill
@@ -95,21 +95,33 @@ holds for `list`, `doctor`, `install`, `uninstall` and `update`.
 **"Skill X isn't working / isn't found"** — `doctor`. It reports per target:
 dangling symlinks, skills linked to a different clone, real directories that
 silently stop tracking `git pull`, and skills installed in one target but
-missing from another. Each finding prints its own fix. Check which target is
+missing from another. When a skill's hooks are on (see Hooks), it also
+reports `UNWIRED` for each hook the skill declares but has not wired, and
+`STRAY` for each wired hook no declaration accounts for. Each finding prints its own fix. Check which target is
 missing it before anything else — a skill in `~/.agents/skills/` but not
 `~/.claude/skills/` is invisible to Claude Code and nowhere else. If `doctor` is
 clean, try it in the same tab first — it may already be picked up. If it's
 still not seen, a new agent tab is the reliable fallback.
 
 **"Update my skills"** — `update`. Symlinked skills track the clone with no
-further action; the command only needs to re-copy this skill into every target.
+further action; the command re-copies this skill into every target. Then, for
+each skill whose hooks are on (see Hooks), it wires any hook the skill now
+declares but has not wired, and prints what it wired. The copy of this skill that runs is the one
+installed before the pull, so a change to `update` itself takes effect on the
+run after.
 With `SHARED_SKILLS_REPO` naming a second clone, `update` pulls that clone and
 leaves this skill as it is: it is refreshed only from the clone bootstrap
 recorded.
 
 **"Turn off the hook" / "stop nagging me about commits"** — `disable-hook <name>`. It
 removes the hook from every platform and *remembers the choice*, so a later
-`install` won't quietly put it back. `enable-hook` clears that. Never hand-edit
+`install` or `update` won't quietly put it back. `enable-hook` clears the
+remembered choice. `install --no-hook` records the same choice, and removes the
+skill's wiring, for each skill it links that was linked to this clone in no
+target before. It leaves the hooks of a skill already linked to this clone as
+they are. For each such skill named on the command line (not under `--all`)
+whose hooks are on, it prints a line saying its hooks were left on and
+pointing at `disable-hook`. Never hand-edit
 `~/.claude/settings.json` or `~/.cursor/hooks.json` to do this — the manager
 matches its own entries by script path and will lose track of a hand-made one.
 
@@ -194,6 +206,14 @@ next `install` or `enable-hook` removes its wiring; until then `doctor` reports
 it as `STRAY`. The same goes for everything a skill wired before when its
 `hook.json` stops yielding any usable hook, including a one-hook manifest that
 names no platform this manager knows.
+
+The mirror case is an entry added to the manifest. While the skill's hooks are
+on, the next `update`, `install` or `enable-hook` wires it, and until then
+`doctor` reports it as `UNWIRED`. A skill's hooks are on when no opt-out is
+recorded for it (`disable-hook` records one, as does `install --no-hook` for
+a skill it links that was linked in no target before), it is
+installed in some target, and either its `default` is `"enabled"` or at least
+one of its hooks is wired, as after `enable-hook`.
 
 Each platform has its own config file, event names and JSON shape, and the
 manager owns all of that — a manifest only names the event it wants per platform.

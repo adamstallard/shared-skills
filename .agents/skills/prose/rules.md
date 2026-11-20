@@ -14,13 +14,14 @@ Rewrite only text you wrote or changed in this change: comments, docs, specs, th
 
 ## The pass
 
-**1. Name the reader's goals**, most probable first: `--goals` for the commit message or the post, and `--goals-for` for each changed doc and spec. Start from this table and adjust it to the text. A row is also the default: `prose check` suggests it for a doc you gave no goals, and gives it to a code comment you gave none.
+**1. Name the reader's goals**, most probable first: `--goals` for the commit message or the post, and `--goals-for` for each changed doc and spec. Start from this table and adjust it to the text. A row is also the default: `prose check` suggests it for a doc you gave no goals, and gives it to a code comment or YAML prose string you gave none.
 
 | Text | Who reads it | Why, most likely first |
 |---|---|---|
 | Commit message | a reviewer; later, someone running `git blame` | what changed and whether to approve it; why a line is the way it is |
 | PR description | the reviewer | what to look at, what's risky, whether it's done |
 | Code comment | someone about to change this code | what it does that the code doesn't show; what breaks if they change it |
+| YAML prose string | whoever a tool shows the string to, often an agent | what to do; when it applies |
 | README | someone new to the thing | what it's for; how to start; what to do when it fails |
 | Spec | an implementer; a reviewer approving the design | what must be true; what's decided vs. open |
 | Other doc (architecture, guide) | someone learning what it describes | how it works now; why it is that way |
@@ -32,9 +33,9 @@ Rewrite only text you wrote or changed in this change: comments, docs, specs, th
 
 **3. Cut** what no goal needs (rules 1, 6 and 8). **Then make what's left quick to read** (rules 3 and 9).
 
-**4. Read it once as the reader,** someone who doesn't know what you meant, and fix every place you'd stop or re-read, or could take the wrong meaning without stopping (rules 3, 4, 5 and 6). In a doc, reread each changed passage inside its section, as that section's reader, before keeping it: a passage that makes sense beside the diff can make none in the section it lands in. When a changed passage repeats a phrase, grep the repository for it. A phrase that recurs across documents with no definition or reason at any use gets fixed at the source: one statement with its reasons, and the others cut or pointed at it (rule 7).
+**4. Read it once as the reader,** someone who doesn't know what you meant, and fix every place you'd stop or re-read, or could take the wrong meaning without stopping (rules 3, 4, 5 and 6). **Fix each stop with the first of these that works:** cut the sentence or phrase, if no goal needs it; move it beside the point it continues, so no point is split around another (rule 3); or reword it, if the new wording reads more easily than the old. Only a rewording adds words (rule 9). In a doc, reread each changed passage inside its section, as that section's reader, before keeping it: a passage that makes sense beside the diff can make none in the section it lands in. When a changed passage repeats a phrase, grep the repository for it. A phrase that recurs across documents with no definition or reason at any use gets fixed at the source: one statement with its reasons, and the others cut or pointed at it (rule 7).
 
-**5. Have it read cold.** Before the signing call, an agent that has never seen the conversation behind the change reads each changed comment block and doc passage, and each post; a pull request body posted between two hand-backs for review (`gh pr create`, `gh pr ready` or `gh pr edit --add-reviewer`) is read cold at the next one instead. The commit message is not read cold. When you sign the same staged files again, as after changing only the message, the signing call reuses the cold read those files were signed with. You read your own text with what you meant already in mind, so you fill its gaps without noticing them. The cold reader reports every place it stopped, reread or guessed, and says for every item, in one line, what it understood: who does each thing, whether it always happens, and whether it is the code's doing or someone else's. The signing call prints the cold reader's brief and signs nothing until you pass the report with `--cold-read <file>`, and an answer to each finding and each understood line with `--dispositions <file>`. A finding is `fixed`, which the script checks by its item having changed, or `kept (asked)`, once a person chose to keep it. An understood line is `matches` when it says what you meant, or else `fixed` or `kept (asked)` in the same way. Fix the places the report names: where the cold reader stopped, reread or guessed, the real reader will too. Treat an understood line that differs from what you meant as a finding: a reader who misreads without stopping reports nothing else, and leaves with the wrong idea. SKILL.md's *The cold read* says how to run it.
+**5. Have it read cold.** Before the signing call, an agent that has never seen the conversation behind the change reads each changed comment block and doc passage, and each post; a pull request body posted between two hand-backs to a reviewer (`gh pr create`, `gh pr ready` or `gh pr edit --add-reviewer`) is read cold at the next hand-back instead. The commit message is not read cold. When you sign the same staged files again, as after changing only the message, the signing call reuses the cold read those files were signed with. You read your own text with what you meant already in mind, so you fill its gaps without noticing them. The cold reader reports every place it stopped, reread or guessed, and says for every item, in one line, what it understood: who does each thing, whether it always happens, and whether it is the code's doing or someone else's. The signing call prints the cold reader's brief and signs nothing until you pass the report with `--cold-read <file>`, and an answer to each finding and each understood line with `--dispositions <file>`. A finding is `fixed`, which the script checks by its item having changed, or `kept (asked)`, once a person chose to keep it. An understood line is `matches` when it says what you meant, or else `fixed` or `kept (asked)` in the same way. Where the cold reader stopped, reread or guessed, the real reader will too, so fix each place the report names as step 4 fixes a stop. Treat an understood line that differs from what you meant as a finding: a reader who misreads without stopping reports nothing else, and leaves with the wrong idea. SKILL.md's *The cold read* says how to run it.
 
 **Never cut:** the why of a decision the code doesn't make obvious; a warning that stops someone repeating a mistake; a stated limit ("not tested on Windows"). These are what a reviewer can't recover from the diff.
 
@@ -73,6 +74,7 @@ Ask of each sentence: would a reader have to go back? If so, rewrite it so they 
 - **A pointer whose one referent is far back.** "It", "there" or "these commands" can have only one possible referent and still send the reader back a paragraph to find it; that trip is a reread too. Name the thing again unless the sentence before named it.
 - **A result before its condition**, in the same sentence or a later one. "X happens when Y" reads as always true until "when" arrives, and so does a paragraph whose last sentence says "only when Y". Start with what the sentence is about and the case it covers, then what happens.
 - **One thing said to be another.** "Each input it leaves out is a hook that can be skipped" makes the reader work out how an input and a hook are connected. Say the connection: "when an input it leaves out changes, the hook can be skipped".
+- **A point split around another.** A sentence that returns to an earlier point after a different one has intervened sends the reader back to find it. Finish one point before starting the next: move the sentence next to the point it continues.
 ```
 Before: The hook reports commits landed without trailers skipped.
 After:  The hook reports commits that landed without a trailer, including skipped ones.
@@ -86,6 +88,13 @@ Before: For the clone and the fetches, no global or system config file is read.
         `http.proxy` there does not reach these commands.
 After:  [The same two sentences.] A proxy set only as `http.proxy` in a global
         or system config file does not reach the clone or the fetches.
+
+Before: A Rationale entry's title ends in a period of its own. Less that period,
+        it equals the title of the requirement it explains. So for a
+        requirement whose title ends in a period, the entry's title ends in two.
+After:  A Rationale entry's title is the title of the requirement it explains,
+        followed by a period of its own. So for a requirement whose title ends
+        in a period, the entry's title ends in two.
 ```
 
 ### 4. A hypothetical reads as one
@@ -129,7 +138,7 @@ After:  # Pins git's trailer settings for this one command, so every trailer pas
 
 ### 6. Each sentence follows from the last
 Stay on the reader's topic. A sentence that jumps to a subject they weren't expecting, or may not know or care about, makes them stop, reread, or ask what it has to do with anything. Leave it out. If they do need the new subject, give it its own paragraph that says what it is and why it matters here, as briefly as rules 1 and 9 ask.
-**A "so" points at what the reader just read.** "So", "because", "which", "therefore" and "thus" each claim that this sentence follows from the one before. When it follows from something earlier, the reader searches the last sentence for a link that isn't there. Put the sentence next to its cause, or name the cause in it.
+**A "so" points at what the reader just read.** "So", "because", "which", "therefore" and "thus" each claim that this sentence follows from the one before. When it follows from something earlier, the reader searches the last sentence for a link that isn't there. Put the sentence next to its cause, or name the cause in it; when the cause is an earlier point that another point interrupted, move the sentence back beside that point (rule 3, *A point split around another*).
 *Why:* every abrupt switch costs the reader a pause to work out the connection, and often there is none for them to find. A connective pointing at the wrong sentence costs the same pause, and the reader blames their own reading first.
 ```
 Before: Run deploy.sh to push the build to staging. WSL1 has a clock-skew bug.
@@ -189,7 +198,7 @@ After:  **Several Igors may draw on one seat (§6.5).** A narrow role's unused
 ```
 
 ### 9. Spend words where they save reading time
-Cut words that cost the reader time and give nothing back: filler, throat-clearing, a point made twice. Add words that save time: the "that" or article that prevents a misreading, a subject named instead of "it", a condition stated before its result. Never shorthand (rule 7).
+Cut words that cost the reader time and give nothing back: filler, throat-clearing, a point made twice. Add words that save time: the "that" or article that prevents a misreading, a subject named instead of "it", a condition stated before its result. To fix a stop, add them only when a cut or a move can't fix it (step 4). Never shorthand (rule 7).
 **One claim per sentence.** A sentence holding a rule, how it works and what follows from it is three sentences. Add words that make one claim read once, but give a second claim a sentence of its own: a sentence lengthened to read once beats a shorter one read twice, and two sentences beat one that carries two claims.
 *Why:* the reader holds the first claim in mind while parsing the next, and goes back for whichever one slipped.
 ```
@@ -224,6 +233,7 @@ Point to a source with a link or a clickable path (`file:line`), not a name the 
 ## How agents cheat on this pass
 
 - Adding a "Note:" or "Clarification:" line instead of rewriting the unclear sentence.
+- Fixing a stop by adding a clause where cutting or moving a sentence would fix it.
 - Going telegraphic ("fixes race w/ cache inval") to look short.
 - Calling text "already clear" without naming its reader's goals.
 - Keeping a sentence because it's true, or because a reviewer might ask.

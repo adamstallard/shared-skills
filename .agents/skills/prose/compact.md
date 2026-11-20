@@ -33,6 +33,10 @@ already compact; keep the shorter of the two.
 - Links, commands, code, names and numbers, exactly.
 - Each heading listed below as linked or named by other files, with its exact
   text.
+- Each verbatim block listed below, byte for byte and in its order, from its
+  `prose:verbatim begin` marker line to its `prose:verbatim end` line. A
+  person chose to keep that text as written, so never touch it; `prose compact
+  --verify` fails a compaction that changes, reorders or drops a block.
 
 **Answer for every flagged passage.** A script flagged the passages listed
 below: history, repetition, amendment notes, long rejected alternatives,
@@ -75,7 +79,17 @@ the pointer, then the file. Keep every section in your rewrite, since a
 person decides each move.
 
 Write plainly: one claim per sentence, the conclusion first, each sentence
-following from the last. Add nothing the document does not already say.
+following from the last. Finish one point before starting the next: when you
+reorder or merge sentences to save words, never split a point around another
+(rule 3 of prose's rules.md, *A point split around another*). Add nothing the
+document does not already say.
+
+A cold reader, an agent that reads your file with no other context, may
+report the words where it stopped, reread or guessed, and those findings may
+come back to you. Fix each with the first that works: cut it, move it beside
+the point it continues, or reword it. A fix works when a reader would no
+longer stop there and no conclusion is lost. Edit only those places, then
+reply as below.
 
 **Reply** with only these lines, then the `Move` and `Stay` lines below for
 any sections listed, and the `Answers:` line when it applies:
