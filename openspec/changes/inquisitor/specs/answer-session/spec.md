@@ -1476,13 +1476,13 @@ inquisitor's *The answer session's files are never kept pending*).
 
 ### Requirement: An answer whose thread is unreachable here is logged at once
 
-For a question a questions-branch file holds, an answer whose channel is
-off or not subscribed here SHALL have its answer file, with no
-`answer_link` and holding the answer as confirmed, pushed at once as a
-retried owed push, when it is confirmed or once a refused post turned
-the channel off, without fetching its thread first, unless *No answer file goes somewhere more
-visible than its thread unconfirmed* withholds the file. Any other pending
-answer SHALL push no file before its post.
+For a question a questions-branch file holds, an answer with no thread,
+or whose channel is off or not subscribed on this machine, SHALL have its
+answer file, with no `answer_link`, pushed as an owed push without
+fetching its thread: once it is confirmed, or when a refused post turns
+the channel off; unless *No answer file goes somewhere more visible than
+its thread unconfirmed* withholds it. An answer with no thread goes on no
+pending list. No other answer SHALL push a file before its post.
 
 #### Scenario: An answer to a questions-branch question is logged at once
 
@@ -1499,6 +1499,14 @@ answer SHALL push no file before its post.
 - **THEN** the push stays owed in the state folder, with no post's URL,
   and is retried at each poll and opening until it lands or its retry
   stops as for any owed push
+
+#### Scenario: A failed push of an answer with no thread is retried
+
+- **WHEN** the person answers a question shown from its questions-branch
+  file, which has no `asked_in`, and the push fails for want of network
+- **THEN** the push stays owed in the state folder and is retried at each
+  poll and opening until it lands or its retry stops as for any owed push,
+  and the answer is not kept pending
 
 #### Scenario: An answer held back by a new message pushes no file
 
@@ -1750,8 +1758,8 @@ recorded by hash only* requires, the answer session SHALL write no
 discussion record or log file, keep its question on screen and pending
 answer only in memory, and name it in the state folder only by its hash
 and the surface's ids for its thread and message. When a questions-branch
-file holds the question, a decline SHALL still push that file's handled
-file, owed and retried as any is, naming that file by its name's hash.
+file holds the question, a decline or an answer SHALL still push that
+file's handled file, naming that file by its name's hash.
 
 #### Scenario: A discussed question holding a secret leaves nothing readable
 
@@ -1762,12 +1770,14 @@ file, owed and retried as any is, naming that file by its name's hash.
   question's or the answer's text, and the question returns unanswered,
   with no pending answer
 
-#### Scenario: An answer to a questions-branch question with a category pushes no file
+#### Scenario: An answer to a questions-branch question with a category pushes only a handled file
 
 - **WHEN** the person answers a questions-branch question the session's
   model judges has a category
-- **THEN** the answer is relayed in its thread, if it can be, with no log
-  file pushed and no owed push recorded
+- **THEN** the answer is relayed in its thread, or kept pending in memory
+  when it cannot be posted there; no log file is pushed, and either way
+  the questions-branch file's handled file is pushed, so the file is not
+  shown again
 
 #### Scenario: A declined questions-branch question with a category gets a handled file, owed
 
@@ -2061,8 +2071,9 @@ shown from its branch with no thread SHALL get no ask-back or edit.
 
 #### Scenario: A questions-branch question is answered by a new file
 
-- **WHEN** the person answers a question of the fourth source
-- **THEN** the `log` command pushes to that branch, in a commit
+- **WHEN** the person answers a question shown from its questions-branch
+  file, which has no `asked_in`
+- **THEN** the `log` command pushes to the branch holding that file, in a commit
   `inquisitor: log <file>`, a new log file holding the question and the
   answer and naming the earlier file as this requirement sets, under the
   inquisitor's *A file on a questions branch never changes once pushed*;
@@ -2262,9 +2273,10 @@ itself; for Linear or Discord the session SHALL pass it the relayed text.
 
 ### Requirement: A handled file closes a questions-branch question
 
-When a decline, a recorded answer or an `Inquisitor: ` reply takes a
-question off the queue, the session SHALL push, only through the `log`
-command's session option, a **handled file** for each unanswered
+When a decline, a `Recorded answer: ` post, an `Inquisitor: ` reply or an
+answer to a question with a category takes a question off the queue, the
+session SHALL push, only through the `log` command's session option, a
+**handled file** for each unanswered
 questions-branch log file that holds the question and that no handled
 file names. A file holds the question when the question was shown from
 it or its `asked_in` links the question's message.

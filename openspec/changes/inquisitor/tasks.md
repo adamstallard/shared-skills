@@ -363,9 +363,10 @@ that contradicts what design.md assumed too. Numbers 0.22, 0.24, 0.27 and
       `igor lore-search`, which igor PR #216 builds.
       - It searches decision documents, issues through `gh`, the
         repository's `questions` branch, and configured lore clones'
-        entries, `questions` branch and decision records at igor PR
-        #202's path, each `questions` branch
-        fetched, and every branch read with `git show`.
+        entries and `questions` branch. It fetches each `questions`
+        branch before searching it, and reads every branch it searches
+        with `git show`, checking none out. Task 7.0 adds the scribe's
+        records.
       - It matches as plain text and ranks by terms matched, with a cap
         it reports.
       - During an Igor's run it searches lore only through `igor

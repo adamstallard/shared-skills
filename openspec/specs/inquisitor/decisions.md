@@ -8,12 +8,6 @@
   Holds while: setup asks for no protection of a `questions` branch.
   Paths: .agents/skills/inquisitor/
 
-- **Constraint: Nothing in the skill verifies who wrote a questions-branch file, so anyone who can push to the branch can name any author.**
-  Because: a reader checks only that the named person has write access to what the question concerns, and enforcement is left to each repository's admin, who can require signed commits on the branch or run their own checks on the files' `answered_by` and `said_by` keys.
-  Evidence: GitHub's branch protection can "Require signed commits", https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches#require-signed-commits
-  Holds while: the spec trusts who a question, answer or miss file says wrote it.
-  Paths: .agents/skills/inquisitor/
-
 - **Constraint: GitHub's events API shows each citation push's pusher and time to anyone who can see the lore repository.**
   Because: that repository is never more visible than the question's, so the pusher is shown only to people who may already see the question.
   Evidence: GitHub's events API lists each push event's actor and time, https://docs.github.com/en/rest/activity/events
@@ -37,8 +31,13 @@
   Evidence: igor spawns its helper programs as child processes, https://github.com/adamstallard/igor/blob/7d969cd6ab7820e143c2802a9ead44b3a91332b0/src/gh.ts
 
 - **Rationale: A questions-branch decision counts only unchanged and by write access.**
-  Write access is the authority to decide for a repository, and that authority covers the file as it was pushed, not a later edit. A commit's signature would not show who answered: most answers are logged by an agent in the person's own session, and git signs with the configured key whatever the commit holds, so a signed file says only whose session pushed it. Where the admin requires signed commits, a file the named person says they never answered carries the signature of whoever pushed it.
+  Write access is the authority to decide for a repository, and that authority covers the file as it was pushed, not a later edit: an edit can change the answer while `answered_by` still names the person who gave the first one. A commit's signature would not show who answered: most answers are logged by an agent in the person's own session, and git signs with the configured key whatever the commit holds, so a signed file says only whose session pushed it. Checking authorship further is left to each repository's admin, who can run their own checks on the files' `answered_by` and `said_by` keys, or require signed commits on the branch, so that a file the named person disowns can be traced to the session that pushed it.
   Evidence: `git commit -S` signs the commit with the committer's key, whatever its content, https://git-scm.com/docs/git-commit#Documentation/git-commit.txt--Sltkey-idgt
+  Evidence: GitHub's branch protection can "Require signed commits", https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches#require-signed-commits
+
+- **Rationale: A work-branch decision answers only its own work.**
+  This entry explains one of the requirement's conditions: the branch must be in the repository itself, not a fork. Pushing a branch to the repository itself needs write access, and a fork's branch does not, so without that condition an outside contributor could commit a decision that stops the agent's questions.
+  Evidence: GitHub's repository roles give the push permission only from the Write role up, https://docs.github.com/en/organizations/managing-user-access-to-your-organizations-repositories/managing-repository-roles/repository-roles-for-an-organization
 
 - **Rationale: Filter 1 hides every lore entry outside the question's scope.**
   igor's lore-firing spec treats scope as visibility and status as review state: an out-of-scope entry is one the asker may not see, while only an `active` entry, one a person reviewed, reaches a worker unasked. So scope hides an entry from the search, and status only labels it, since a search's results are asked for and reach no worker unasked.

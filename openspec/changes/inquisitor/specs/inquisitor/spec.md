@@ -278,6 +278,13 @@ holding the current work, which during an Igor's run is the item's
 repository. A question clearly about another repository SHALL name that one,
 in a run too, where `asked_from` records the item's.
 
+#### Scenario: A question whose repository the agent cannot tell concerns the current work's
+
+- **WHEN** an agent working in `o/web`, or an Igor's worker on an item of
+  `o/web`, cannot tell which repository's code, docs or decisions a
+  question is about
+- **THEN** the repository the question concerns is `o/web`
+
 #### Scenario: In an Igor's run, a question about another repository names it
 
 - **WHEN**, during an Igor's run on an item of `o/web`, the worker has a
@@ -462,8 +469,9 @@ about the person's own way of working SHALL never be posted.
 
 Wherever this spec or the `answer-session` spec compares a log or miss
 file's visibility, it SHALL be that of the more private of the repositories
-its `repository` and `asked_from` keys name. A file whose `asked_in` is a
-Linear or Discord URL SHALL count as private, and so SHALL a file whose
+that its `repository` and `asked_from` keys name and that a GitHub
+`asked_in` URL points into. A file whose `asked_in` is a Linear or Discord URL SHALL
+count as private, and so SHALL a file whose
 `repository`, `asked_from` or `asked_in` fails the check of *A log file's
 repository keys and links are checked before use*.
 
@@ -473,6 +481,8 @@ repository keys and links are checked before use*.
   the public `o/web` and its `asked_from` the private `o/api`
 - **THEN** the file is private, and every visibility rule in this spec and
   the `answer-session` spec treats it as about a private repository
+- **AND** so is a file whose `repository` and `asked_from` are `o/web` and
+  whose `asked_in` links a comment in the private `o/api`
 - **AND** so is a file whose `asked_from` fails the syntax check, which is
   input labelled unreadable
 - **AND** so is a questions-branch file about the organization, holding no

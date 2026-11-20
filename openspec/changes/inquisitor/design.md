@@ -1104,9 +1104,8 @@ conditions: the branch is in the repository itself, not a fork, and the pull
 request's author, or with no pull request the person running the session,
 has write access.
 
-**Why:** without those conditions, an outside contributor could commit a
-decision that stops the agent's questions. Pushing a branch to the repository
-itself already needs write access; a fork's branch does not.
+*Why the branch must not be a fork:* `openspec/specs/inquisitor/decisions.md`,
+*Rationale: A work-branch decision answers only its own work*.
 
 #### An answer recorded on a work branch counts for other work once it lands
 
@@ -1145,9 +1144,9 @@ push, which counts for nothing, from one as pushed.
 file in `said_by`, and checks only that the named person has write access to what the question
 concerns. Nothing in the skill verifies authorship.**
 
-*Recorded:* `openspec/specs/inquisitor/decisions.md`, *Constraint: Nothing
-in the skill verifies who wrote a questions-branch file* and *Rationale: A
-questions-branch decision counts only unchanged and by write access*.
+*Why a commit's signature is no check of authorship:*
+`openspec/specs/inquisitor/decisions.md`, *Rationale: A questions-branch
+decision counts only unchanged and by write access*.
 
 Three rules limit what a file can say, whoever pushes it: a worker logs no answer,
 the Igor refuses a worker's file that claims more than a worker may, and the
@@ -2354,9 +2353,11 @@ new question*).
 
 #### The answer session writes a handled file on every close of a questions-branch file
 
-**Whenever a decline, a recorded answer or an `Inquisitor: ` reply takes out
-of the queue a question a questions-branch file holds, a handled file naming
-that file is pushed; without it, the file would stay unanswered and be shown again.** A machine's first poll of a channel reads only its last 14 days, so a
+**When a question that a questions-branch file holds leaves the queue
+through a decline, a `Recorded answer: ` post, an `Inquisitor: ` reply or
+an answer to a question with a category, the session pushes a handled file
+naming that file. Without it, the file would stay unanswered, and a machine
+that never read the thread copy would show it again.** A machine's first poll of a channel reads only its last 14 days, so a
 machine first polling more than 14 days after the question was asked never
 reads the thread copy, the same question in the thread the file's `asked_in`
 links, and would show the file as new.
