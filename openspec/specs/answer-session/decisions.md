@@ -16,7 +16,7 @@
 
 - **Constraint: Nothing is designed or built for the answer session outside Claude Code's fullscreen layout.**
   Because: the only layout the answer session's prototype has been built and used in is the fullscreen one, so no other layout has a design to build from, and `/answer` typed in another layout shows the session there as it comes, untried.
-  Evidence: the prototype build v0.1-33, the only build used, is a fullscreen layout, fc3c35f
+  Evidence: the approved prototype build v0.1-33 is a fullscreen layout, tag [`answer-session-ui-approved-v0.1-33`](https://github.com/adamstallard/shared-skills/tree/answer-session-ui-approved-v0.1-33) (commit fc3c35f)
   Holds while: the approved layout is the fullscreen one.
   Paths: .agents/skills/inquisitor/
 

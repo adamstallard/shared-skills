@@ -410,6 +410,11 @@ that contradicts what design.md assumed too. Numbers 0.22, 0.24, 0.27 and
       miss file that backs that `Inquisitor: ` reply (inquisitor spec: *The
       script checks whether a miss file backs a reply*). Its JSON is part
       of the contract with igor, under task 2.3b's test
+- [ ] 2.3d `file-answer`, which takes a repository and a questions-branch
+      file's name and prints only that file's answer, or `null` (inquisitor
+      spec: *The script prints one questions-branch file's answer*). Its
+      JSON is part of the contract with
+      igor, under task 2.3b's test
 - [ ] 2.4 The `log` command, writing one file per question or miss in the
       format of *A log file and a miss file have one format*.
       - `authority` is `decision` or `input`. An agent's own choice

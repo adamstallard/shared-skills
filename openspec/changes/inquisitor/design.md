@@ -1224,9 +1224,10 @@ answer given through the answer session counts by its answer file*).
 #### Citations go to the lore repository's questions branch
 
 **A lore entry that stops a question gets a citation file on that lore
-repository's `questions` branch, holding nothing about the question,** so
-even a private question gets one. A categorized question gets none, since the
-cited entry would show what it was about. A stopped question is not asked, so
+repository's `questions` branch, holding nothing about the question,**
+unless the lore repository is more visible than the question's repository,
+since a citation there would show the question exists. A question with a
+category gets none, since the cited entry would show what it was about. A stopped question is not asked, so
 it gets no log file, and its citation is its only record. No log file names a
 lore entry by its id either: an answered log file's `recorded_in`, which says
 where the answer is recorded, is a path or URL, never a lore entry. This
@@ -1376,13 +1377,19 @@ IGOR_RUN*).
 The Igor posts the handback comment holding the worker's question (igor
 #211). When the question concerns a repository more private than the item,
 the Igor instead pushes the question's file to that repository's questions
-branch. The worker opens no post and
+branch, and on each later run passes the worker that one file's answer,
+which the script's `file-answer` prints, marked as not to be quoted in the
+item. The worker opens no post and
 calls no picker, even if task 0.14 finds a `gh` login in its reach.
 
 **Why:** igor gives a worker no credential that can post (the inquisitor's
 decision record, *Rationale: A session with no person in it asks in a post,
 a handback or nowhere*). A `gh` login a worker can still reach would breach
 igor's rule, so the worker does not use it, and task 0.14 reports it.
+
+**Why** a later run reads only that one file's answer: the worker needs the
+answer to go on, and the run's search hides the more private branch, so that
+nothing else of that repository reaches a run on a more visible item.
 
 #### Filter 1 in an Igor's run searches through `igor lore-search`
 
@@ -1838,6 +1845,12 @@ calls: first `question` and `category`, since filter 1 searches a question
 with a category on the machine only; then, shown filter 1's hits, `filter`,
 `hit` and, for Linear or Discord, `place` and `place_sure`.
 The code acts on the accepted fields.
+
+**If task 0.37 finds a mod cannot prompt its own model unattended, work on
+the mod stops, and the answer session is designed as a standalone UI,
+prototyped for the owner's approval.** The approved prototype, build
+v0.1-33, shows a mod filling the prompt box and registering a tool, but not
+prompting its own model.
 
 #### The UI is built from prototype build v0.1-33
 
@@ -2624,21 +2637,21 @@ the directory where spec-trace's CI fails on an untagged one.**
 
 ## Open Questions
 
-- **How does a run on a public item receive an answer recorded on a more
-  private repository's questions branch?** (inquisitor spec: *A worker's
-  question about a more private repository is asked on that repository's
-  questions branch*.) A run searches only its item's repository's and its
-  lore repository's questions branches, and hides any file more private
-  than the item, so the answer never reaches the worker.
+- **Is the person answering an Igor's question about a more private
+  repository told that the answer reaches the run of a more visible item?**
+  (inquisitor spec: *A later run gets only the answer to its Igor's question
+  on a more private repository*.) The answer session's preview names only
+  the private questions branch it records to, so the person answers without
+  knowing.
 
 ### Facts measured before building
 
 The task each bullet names measures its fact before anything is built (tasks 0.1 to
 0.3 are under *What the hook relies on, not yet measured*). Each bullet says
 what the spec does if the fact is false. Task 0.12 is measured (*What task
-0.12 measured*). Task 0.11 is measured for an issue comment only; its
-result is in the inquisitor decision record's *Rationale: The log command
-records a linked GitHub comment's own text*.
+0.12 measured*). Task 0.11, whether GitHub's API gives a comment's or
+review's text and author, is measured for an issue comment only; tasks.md
+gives its result, and a review and a review comment are still to measure.
 
 - **Can an agent without push access read another person's permission on a
   repository?** (task 0.4) If not, wherever the agent lacks push access, every
@@ -2706,10 +2719,9 @@ in tasks.md, says what the spec does if its measurement goes against it.
 Tasks 0.18 and 0.19, which check that a command the mod runs reaches no tool
 hook and that a mod keeps polling while idle or in the background, stop
 building if they fail, until the repository's owner decides; so does task
-0.34 if Claude Code cannot restrict the session's tools. If task 0.37 finds
-a mod cannot prompt its own model unattended, work on the mod stops, and the
-answer session is designed in its place as a standalone UI, prototyped for
-the owner's approval. The rules that wait on
+0.34 if Claude Code cannot restrict the session's tools. Task 0.37's
+fallback is decided (*The model hands its judgements to the code through
+record_verdict*). The rules that wait on
 task 0.21, which tasks.md's task 0.21 lists, are not built until it is
 measured, and what to build for them is decided then.** The other tasks cover
 GitHub's notifications endpoint, how Linear and Discord show mentions and replies and mark a bot's message,
@@ -2758,11 +2770,6 @@ box*).
   lacks it, a kind of comment has none, or an edit changes it, the GitHub id
   that names a miss file is changed, before miss files are named on GitHub,
   to one the measurement shows works.
-- **Can a mod submit a prompt of its own and have the model answer it
-  unattended?** (task 0.37) The prototype has shown only that a mod can
-  fill the prompt box and register a tool. If it cannot, the answer session
-  is designed as a standalone UI instead of a Claude Code mod, and
-  prototyped for the owner's approval like any UI.
 - **Which App wrote a comment** is measured by both task 0.21 here and igor PR
   #216's task 4.8. The rules that need it wait on task 0.21, which lists
   them.
@@ -2873,8 +2880,12 @@ to its 149.
   repository's questions branch, and post a handback
   that says only that the work waits on a question recorded elsewhere**
   (inquisitor spec: *A worker's question about a more private repository
-  is asked on that repository's questions branch*). How a later run on the
-  item receives the answer is open (*Open Questions*).
+  is asked on that repository's questions branch*). It must record the
+  file's name, and on each later run on the item run the script's
+  `file-answer` on that one file and pass an answer it prints to the
+  worker, saying it comes from a more private repository and must not be
+  quoted in the item (*A later run gets only the answer to its Igor's
+  question on a more private repository*).
 - **The Igor must run the script's `branch-search` on the item's
   repository's questions branch and its lore repository's, and return the
   JSON to the worker over the channel `igor lore-search` uses** (*The Igor

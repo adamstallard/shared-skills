@@ -1365,13 +1365,12 @@ string matching the credential patterns.
 
 ### Requirement: A tag line names the person a posted question tags
 
-The person to tag, as *A question in a post tags one person who can
-decide, if there is one* finds them, SHALL be named on the question's
-**tag line**: `@` and
-their login, and nothing else, on a line of its own placed as a
-related-decision line is, after any related-decision and person-required
-lines. The agent adds it after the second call, so the question's text
-leaves it out and its hash stays the one vetted.
+After the second call, the agent SHALL name the person to tag, as *A
+question in a post tags one person who can decide, if there is one* finds
+them, on the question's **tag line**: `@` and their login alone, on a line
+placed as a related-decision line is, after any related-decision and
+person-required lines. The hooks leave the tag line out of the question's
+text, as they do a related-decision line, so the hash stays the one vetted.
 
 #### Scenario: Adding the tag line keeps the vetted hash
 
@@ -1854,7 +1853,8 @@ hook does when it can't read*).
 
 - **WHEN** a question was recorded as `ask` without a related-decision
   line, and the agent then adds `Related: ` and a link to the decision the
-  first call's search found, as the question's last line
+  first call's search found, after the question's text and before any
+  record line (*A picker question shows where its answer will be recorded*)
 - **THEN** the hook matches the question's text as recorded, and lets the
   call through
 
@@ -2246,12 +2246,12 @@ nothing and say so.
 ### Requirement: Every answer is recorded and every asked question logged
 
 The agent SHALL record each answer where its log file's `recorded_in`
-names. Each asked question SHALL be logged as one file on a
-questions branch, never elsewhere. One asked in a GitHub post SHALL be
-logged when asked, except as *An unanswered question goes nowhere more
-visible than its source* says; any other SHALL be logged once answered,
-with its answer, any thread being its record until then. Some questions
-are exempt by their own requirements, such as a way-of-working question.
+names. Unless its own requirement says otherwise, as for a worker's
+question about a more private repository, each asked question SHALL be
+logged as one file on a questions branch: one asked in a GitHub post when
+asked, save as *An unanswered question goes nowhere more visible than its
+source* says, and any other once answered, with its answer, any thread
+being its record until then.
 
 #### Scenario: A question waiting for its answer is already logged
 
@@ -2380,11 +2380,11 @@ alone.
 
 When a push to a questions branch is rejected because the branch moved, the
 script SHALL fetch and push again. When it cannot push for any other
-reason, such as no credentials or no write access to that repository, it
-SHALL keep the file pending beside its verdict records, with mode 0600, and
-push it with the next file it pushes to that branch, save as *The answer
-session's files are never kept pending* says; the agent's report SHALL say
-the question is not yet logged, and why.
+reason, it SHALL keep the file pending beside its verdict records, with
+mode 0600, and push it with the next file it pushes to that branch. No
+picker question whose record line read `Not recorded: ` SHALL be kept
+pending, nor, by its own requirement, an answer-session file. The agent's
+report SHALL say the question is not yet logged, and why.
 
 #### Scenario: A rejected push to the questions branch is retried
 
@@ -2716,6 +2716,52 @@ repository. If the push fails, the question SHALL stay in the run's report.
 - **THEN** the handback comment says only that the work waits on a question
   recorded elsewhere, and the question stays in the run's report, pushed
   nowhere
+
+### Requirement: A later run gets only the answer to its Igor's question on a more private repository
+
+On each later run on an item, for each question file the Igor pushed for
+it to a more private repository, the Igor SHALL run `file-answer` on that
+file, named as the Igor recorded it at the push, and pass any answer to the
+worker as from a more private repository and not to be quoted in the item.
+The run SHALL be shown nothing else from that branch, since the item's
+readers may not read that repository.
+
+#### Scenario: A later run receives the answer to its private question, and nothing else
+
+- **WHEN** a later run starts on the issue of the public `o/web` whose
+  question its Igor pushed to the questions branch of the private `o/api`,
+  and that question file has an answer, as *A named file's answer is the
+  newest answer file naming it* decides
+- **THEN** `file-answer` for that file prints
+  `{"version": 1, "answer": "<the answer>"}`, and the Igor passes the answer
+  to the worker, saying it comes from a more private repository and must
+  not be quoted in the item
+- **AND** the run's `branch-search` still shows no file from the questions
+  branch of `o/api`
+
+#### Scenario: An unanswered private question passes nothing to the run
+
+- **WHEN** no answer file that counts names the question file
+- **THEN** `file-answer` prints `{"version": 1, "answer": null}`, and the
+  Igor passes the worker nothing from `o/api`
+
+### Requirement: The script prints one questions-branch file's answer
+
+The script's `file-answer` command SHALL take a repository and the name of
+a file on its questions branch, and print one JSON object holding only that
+file's answer, as *A named file's answer is the newest answer file naming
+it* decides it, or `null` when it has none.
+
+#### Scenario: The file answer prints the named file's answer and nothing else
+
+- **WHEN** `file-answer` is run for `o/api` and a question file tagging
+  `alice`, which two answer files that would count name in `answers`, the
+  older answered by `alice` and the newer by `bob`, whom it does not tag
+- **THEN** it prints `{"version": 1, "answer": "<alice's answer>"}`, since
+  only the tagged person's file can be its answer, and prints nothing
+  about either answer file
+- **AND** when it cannot fetch the branch it exits with an error and
+  prints no `answer`
 
 ### Requirement: A worker logs no answer, and its Igor writes it from the comment
 
