@@ -367,7 +367,7 @@ them, or one of the git options *git outside its allowlist is unreadable
 on a post-verb line* lists as giving code. A simple command with one
 among its words, wherever it sits, is **given code**, on any line: an
 interpreter's flag in that interpreter's command, a git option in a git
-command, so `git log -c` is given code too, and `wc -c` is not.
+command.
 
 #### Scenario: git's -c gives code on a line with no post verb
 
@@ -376,6 +376,9 @@ command, so `git log -c` is given code too, and `wc -c` is not.
 - **THEN** the reader reports the line as unreadable: `-c` gives `git`
   code, so `git` is no data command and the `gh c` in its text is a gh
   alias
+- **AND** `git log -c` is given code too, since the match is by word
+  whatever git's subcommand, and `wc -c` is not, `wc` being neither git
+  nor an interpreter
 
 ### Requirement: An interpreter given a code flag makes a post-verb line unreadable
 

@@ -401,14 +401,14 @@ the session SHALL have no login configured.
 
 ### Requirement: Nothing about a repository goes somewhere more visible
 
-Visibility SHALL be ranked private, then internal (GitHub's `INTERNAL`),
-then public, and nothing about one repository SHALL go to a **more
-visible** place, except as three rules allow: *The answerer's
-confirmation can send a record somewhere more visible*; for a filter 1
-reply linking a more private record, answer-session's *The preview warns
-when a filter 1 record is more private than the thread*; and *A later run
+Visibility SHALL be ranked private, then internal, then public, and
+nothing about one repository SHALL go to a **more visible** place, except
+under four rules: *The answerer's
+confirmation can send a record somewhere more visible*; *A later run
 gets only the answer to its Igor's question on a more private
-repository*.
+repository*; and answer-session's *The preview warns when a filter 1
+record is more private than the thread* and *A miss more visible than its
+thread is pushed as a hash-only file*.
 
 #### Scenario: A private repository's question goes to no internal or public place
 
@@ -4261,10 +4261,10 @@ reply as input when that post was edited after the reply was posted.
 
 An `Inquisitor: ` reply with no `question <n>: ` SHALL cover every
 question in the post it replies to or names, and the agent SHALL act on
-it for each, since the answer session shows such a post as one question.
-When that post's open-questions section holds more than one item, or one
-item and a question sentence outside it, the answer session answers it by
-number, so the agent SHALL instead treat the reply as input, and every question in the post stays open.
+it for each. When that post's open-questions section holds more than one
+item, or one item and a question sentence outside it, the agent SHALL
+instead treat the reply as input, and every question in the post stays
+open, since the answer session answers such a post by number.
 
 #### Scenario: An unnumbered reply to a post of several listed questions is input
 

@@ -1339,7 +1339,7 @@ repositories they concern.
 Despite its name, Igor-worker mode is how the script runs in any Igor's run,
 including one the Igor starts itself with no worker. Only the `IGOR_RUN`
 value `worker` limits filter 1's sources other than lore to the worker's
-working tree. igor PR #216 sets the variable (at ba154a0). A plain headless
+working tree. igor PR #216 sets the variable (at 59e7561). A plain headless
 session such as `claude -p` has no such variable and searches lore as usual
 (scenario *A headless session without IGOR_RUN searches lore*). The script
 matches `IGOR_RUN`'s exact name and value (the inquisitor's decision record,
@@ -1489,7 +1489,7 @@ the worker's completed report (#216's decisions 19 and 38). It pushes nothing
 to the `questions` branch, citations included, and its question stays on the
 Igor's host. The Igor's handoff, the operator file that holds the question,
 and how the item is released are igor PR #216's (decisions 73, 75, 76, 79 to
-85, 88, 89, 95, 97, 98, 100 and 101 at d3b7740); this change reads nothing
+85, 88, 89, 95, 97, 98, 100 and 101 at 59e7561); this change reads nothing
 from that file.
 
 #### The Igor pushes the questions-branch files its worker reports
@@ -1608,7 +1608,8 @@ checks each relay identity before its channels are used*).
 **Setup checks that each `questions` branch takes the person's direct push,
 and suggests a rule blocking force pushes and deletion where none does.**
 The rule leaves direct pushes allowed, which every log, answer and miss
-file needs, and setup sets nothing itself.
+file needs, and setup sets nothing itself, since setting the rule changes
+repository settings beyond the inquisitor's own files.
 
 *Recorded:* in both the inquisitor and the answer-session decision
 records, since a later change reads only the records of the capabilities
@@ -2952,10 +2953,12 @@ to its 149.
   text could otherwise close, on every machine and for good, whichever file a
   planted `closes` names.
 - **#216's Igor should keep its decision 59's record of each handback,
-  adding each question's concerns line** (*A later run names the answered
-  file from the Igor's record*). Without the record, a later run writes no
-  `answers`; without the line in it, the Igor's `miss-check` has no
-  repository to run on.
+  adding for each question its concerns line, the repository its file went
+  to, and that file name's suffix and date** (*A later run names the
+  answered file from the Igor's record*). Decision 59 keeps only the hash,
+  the comment's id and its time. Without the suffix, date and repository, a
+  later run writes no `answers`; without the line, the Igor's `miss-check`
+  has no repository to run on.
 - **#216's Igor should write `asked_in`** in a worker's log file as the URL of
   the handback comment that asks it, once it has posted that comment. In
   each answer file it writes, it adds `answers`, naming the log file that

@@ -912,8 +912,8 @@ mentions*). On GitHub, this rule is built only once task 0.21 is measured.
 
 A **mention** SHALL be of a user, as `@login` on GitHub, on Linear as task
 0.16 records and on Discord as task 0.17 records, outside code spans, code blocks, quoted lines and links; a team mention counts as
-none. Until its task records that form, Linear or Discord stays off, as
-the task says.
+none. On Linear or Discord, this rule is built only once task 0.16 or
+0.17 records that surface's form.
 
 #### Scenario: A team mention or a mention in code is no mention
 
@@ -2098,8 +2098,7 @@ from choosing what the code does beyond a closed set.
 
 With an answer session open, the model SHALL have only its
 conversation, `propose_reply`, `record_verdict` and Read, Grep and Glob,
-enforced by Claude Code, not a hook, since a model with a shell gets
-around any hook reading its commands (task 0.34); an answer session
+enforced by Claude Code, not a hook (task 0.34); an answer session
 SHALL open only in a session so restricted. The session's code SHALL
 make every post, `log` call and push, and every fetch from a surface,
 since a thread's text can steer the model.
