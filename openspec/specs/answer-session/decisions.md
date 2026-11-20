@@ -21,16 +21,16 @@
   Paths: .agents/skills/inquisitor/
 
 - **Constraint: Nothing is designed or built for the answer session outside Claude Code's fullscreen layout.**
-  Because: `answer` opens the answer session in that layout, the only one approved; `/answer` opens it on whichever screen the session is on, with nothing made for another.
-  Evidence: the approved prototype build v0.1-33 is a fullscreen layout, fc3c35f
+  Because: the only layout the answer session's prototype has been built and used in is the fullscreen one, so no other layout has a design to build from, and `/answer` typed in another layout shows the session there as it comes, untried.
+  Evidence: the prototype build v0.1-33, the only build used, is a fullscreen layout, fc3c35f
   Holds while: the approved layout is the fullscreen one.
   Paths: .agents/skills/inquisitor/
 
 ## Rejected
 
 - **Rejected: A TLA+ model of the answer session's owed pushes and lock.**
-  Facing: spec-check's SKILL.md says "Write one when a requirement is about concurrency, ordering, a crash between two writes, or a protocol between processes", and the answer session has such requirements: a push it owes after a post survives a crash and is retried, and a crash while it writes its lock leaves the old lock or the new one whole.
-  Lost because: a push is recorded as owed before its post and retried, so a crash before it loses no file, and its worst outcome, like that of two of one person's machines handling one question, is a repeated post or a question shown twice or asked again, which costs the person a second look; and little is left to interleave, since one person uses the session, the lock makes one session per machine the only writer of that machine's state, and the only state shared between machines is the threads, which each write appends to and each read fetches again; the rule this is weighed against is in [spec-check's SKILL.md](../../../.agents/skills/spec-check/SKILL.md)
+  Facing: [spec-check's SKILL.md](../../../.agents/skills/spec-check/SKILL.md) says "Write one when a requirement is about concurrency, ordering, a crash between two writes, or a protocol between processes", and the answer session has such requirements: a push it owes after a post survives a crash and is retried, and a crash while it writes its lock leaves the old lock or the new one whole.
+  Lost because: little is left to interleave: a crash between a post and its push loses no file, since the push is recorded as owed first and retried, leaving at worst a repeated post or a question shown twice; the lock is replaced by a rename, which leaves the old file or the new one whole, https://pubs.opengroup.org/onlinepubs/9699919799/functions/rename.html; and two machines' pushes to one questions branch cannot overwrite each other, since git refuses a push that would drop the other's commit, https://git-scm.com/docs/git-push
   Instead: scenarios state each crash and two-machine case, and tests check them.
   Paths: .agents/skills/inquisitor/
 
@@ -51,9 +51,11 @@
 
 - **Rationale: The answer session polls only while it is open.**
   The skill runs nothing while the answer session is closed, and receiving pushed events would need something running then: GitHub and Linear deliver webhooks only to a URL they can reach at any time, and Discord pushes events only over a gateway connection kept open, so a push sent while the session is closed would be lost. Polling needs neither, and catches up on what came while the session was closed when it next opens.
+  Each poll also fetches every questions branch it reads, a fetch each, since a push to a branch creates no notification.
   Evidence: GitHub delivers each webhook to a payload URL as an HTTP request, https://docs.github.com/en/webhooks/using-webhooks/creating-webhooks
   Evidence: Linear's webhooks need a publicly reachable HTTPS URL, https://linear.app/developers/webhooks
   Evidence: Discord's gateway is a persistent WebSocket connection, https://discord.com/developers/docs/events/gateway
+  Evidence: none of GitHub's notification reasons is a push to a branch, https://docs.github.com/en/rest/activity/notifications#about-notification-reasons
 
 - **Rationale: Claude's draft goes to the prompt box, never to a post.**
   Only the conversation the person is in may fill their prompt box: a subagent that read an untrusted Linear or Discord message could otherwise plant text the person then sends without seeing where it came from. `propose_reply` refuses any call carrying an `agentId`. The spec assumes Claude Code sets one on a subagent's call to a mod's tool, as it sets `agent_id` on a subagent's hook events; task 0.26 measures that.
@@ -66,11 +68,20 @@
   Evidence: Discord documents `bot` on its user object, https://discord.com/developers/docs/resources/user#user-object
   Evidence: the 2026-11-19 measurements, recorded in tasks 0.16 and 0.17, [tasks.md](../../changes/inquisitor/tasks.md)
 
+- **Rationale: Until notifications are measured, the poll reads every GitHub question source.**
+  These reads cost rate-limited requests for every subscribed repository and every repository of an owner a subscription names, since a subscription may name an owner, a cost accepted until task 0.15 shows notifications alone suffice. Without them a question could be missed: GitHub notifies a person only for a thread they take part in, watch or are asked to review, so a mention of their relay in a thread they never joined reaches them through no notification.
+  Evidence: GitHub's notification reasons, https://docs.github.com/en/rest/activity/notifications#about-notification-reasons
+  Evidence: the REST rate limit these reads count against, https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api
+
 - **Rationale: Whom a message reaches is set by its mentions.**
-  The rule gives an Igor's question to the person who should answer it, because an Igor mentions that person first. Igor issue #229 sets the order, and igor's specs do not state it: an Igor mentions its operator, the person who runs it, first only when it stops for a reason it detects itself, then the assignee and the creator; every other handback, a question included, mentions the assignee and then the creator.
+  The rule gives an Igor's question to the person who should answer it, because an Igor is to mention that person first. Igor issue #229, open, decides the order, which no igor spec states and igor does not yet build: an Igor mentions its operator, the person who runs it, first only when it stops for a reason it detects itself, then the assignee and the creator; every other handback, a question included, mentions the assignee and then the creator.
   Evidence: igor issue #229, https://github.com/adamstallard/igor/issues/229
 
 - **Rationale: Setup checks each relay identity before its channels are used.**
   The Discord relay reads messages that do not mention the bot, which needs Discord's privileged Message Content intent, so setup checks that `messageContent` is `true`. discord-bot's setup has the person turn the intent on, and its `check` reports `messageContent` from the bot's application flags.
   Evidence: Discord documents Message Content as a privileged intent, https://discord.com/developers/docs/events/gateway#message-content-intent
   Evidence: discord-bot's setup turns it on, https://github.com/adamstallard/shared-skills/commit/369ae16d02898cd68ba98241a7ee685b6492002c; its `check` reads it from the application's flags, https://github.com/adamstallard/shared-skills/commit/f83b167e6b52f8ad7f607bed6133b2d0e19fea6c
+
+- **Rationale: A question with a person-required line gets no filter 2 to 4 reply.**
+  The session finds the line by its fixed wording once markup is reduced, which works only where a surface returns the words as posted. Task 0.23 found on 2026-11-19 that Linear returns a comment's text as sent, parentheses included, and escapes `[` only in an issue description, so the line in a Linear comment comes back unchanged; task 0.28 checks the line itself on Linear and Discord.
+  Evidence: the 2026-11-19 measurement, recorded in task 0.23, [tasks.md](../../changes/inquisitor/tasks.md)

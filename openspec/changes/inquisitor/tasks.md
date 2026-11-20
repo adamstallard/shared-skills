@@ -15,7 +15,7 @@ capability's decision record, and the rest in design.md: *What the hook
 relies on, not yet measured* for 0.1 to 0.3, both *Configuration* and *Facts measured
 before building* for 0.4, *Facts measured
 before building* for 0.5 to 0.14, *Facts the answer session relies on*
-for 0.15 to 0.21, 0.23, 0.25 to 0.28, 0.30 and 0.31, and *What igor must provide* for 0.29. Record a result
+for 0.15 to 0.21, 0.23, 0.25 to 0.28 and 0.30 to 0.32, *Facts measured before building* for 0.33, and *What igor must provide* for 0.29. Record a result
 that contradicts what design.md assumed too.
 
 - [ ] 0.1 A `PreToolUse` hook with matcher `AskUserQuestion` fires before the
@@ -49,11 +49,11 @@ that contradicts what design.md assumed too.
       script tells an Igor's run by `IGOR_RUN`*)
 - [ ] 0.10 Whether the agent can open, and write in, a repository's private
       security advisory, and what access that needs
-- [x] 0.11 GitHub's API gives a comment's or review's text and author. It
-      does: GraphQL's
-      `IssueComment` has `author { login }` (2026-11-04). Reviews and
-      review comments were not queried; GitHub documents the same `author`
-      on them through GraphQL's `Comment` interface
+- [ ] 0.11 GitHub's API gives a comment's or review's text and author.
+      Measured 2026-11-04 for an issue comment only: GraphQL's
+      `IssueComment` has `author { login }`. Not measured: a review and a
+      review comment, for which GitHub documents the same `author` through
+      GraphQL's `Comment` interface
 - [x] 0.12 Whether an Igor's worker can run this skill, with a lore clone
       and `inquisitor.json` in reach. It can't, nor once igor PRs #174 and
       #175 land, by their specs, unchecked since neither is built
@@ -144,7 +144,8 @@ that contradicts what design.md assumed too.
       - on GitHub, the rules that need to tell an agent's question:
         *Whom a message reaches is set by its mentions* and the
         automatic `Inquisitor: ` reply of *Filters 2 to 4 judge every
-        incoming question*.
+        incoming question*, which also waits on task 0.31, since its miss
+        file is named by the reply's `node_id`.
 
       If
       GitHub reports it, they are built as the spec states them; if not,
@@ -231,6 +232,21 @@ that contradicts what design.md assumed too.
       If not, the GitHub id that names a miss file is changed to one the
       measurement shows passes these three checks, before miss files are
       named on GitHub
+- [ ] 0.32 That a mod can learn the Claude Code session id a `PreToolUse`
+      hook receives as `session_id`, so the lock names the session by it
+      and a hook can tell the holder (answer-session spec: *One answer
+      session runs on each machine*). These are not built until it is
+      measured: the holder that *The holder is the session whose answer
+      session holds the lock* defines, and every check that depends on it, in
+      *In the holder, the model posts only as the person's relays*, *The
+      Linear and Discord post hooks pass only the relay's readable posts*
+      and *In the holder, the model logs no answer*. If a mod cannot
+      learn it, the repository's owner decides what to build
+- [ ] 0.33 That the Discord bot token shape in *The credential patterns are
+      a closed list of token shapes* matches the relay's real token: run
+      the pattern against the token discord-bot holds, printing only
+      whether it matched and each part's length, never the token. If it
+      does not match, the pattern is changed to the shape measured
 
 ## 1. Shared post reader
 
@@ -467,7 +483,9 @@ that contradicts what design.md assumed too.
 
       A session with no person in it tags the login only when it has
       write access and the post goes out as someone else, and otherwise
-      tags no one
+      tags no one. The tag goes on the question's tag line, which the
+      question's hash leaves out (inquisitor spec: *A tag line names the
+      person a posted question tags*)
 - [ ] 2.7 `lore`, opening a lore pull request, or a promotion from the
       `questions` branch, or refusing it by visibility or by an id outside
       igor's id rule. During an Igor's run it opens nothing and writes the
@@ -510,7 +528,10 @@ that contradicts what design.md assumed too.
       the holder, it also blocks a post the reader does not report as
       sent through the github-app skill's script as the person's GitHub
       relay identity, named with `--identity` (answer-session spec:
-      *In the holder, the model posts only as the person's relays*)
+      *In the holder, the model posts only as the person's relays*), and
+      the model's `log` call that writes an answer, a miss or a handled
+      file, or whose input it cannot read
+      (answer-session spec: *In the holder, the model logs no answer*)
 - [ ] 3.3 `hook.json` with both hooks, `"default": "enabled"`
 
 ## 4. Tests
@@ -699,12 +720,16 @@ that contradicts what design.md assumed too.
       create a lore repository*)
 - [ ] 6.3 Polling: the four sources, only while open, the catch-up on
       opening, 60 seconds or GitHub's `X-Poll-Interval`, conditional
-      requests, poll positions, and the questions branch of every
-      subscribed repository and configured lore repository
+      requests, poll positions, the questions branch of every
+      subscribed repository and configured lore repository, and each
+      subscribed repository's default branch, which filter 1 searches for
+      decision documents, naming every other repository's as not searched
+      (answer-session spec: *The answer session's filter 1 reads decision
+      documents only from its clones*)
 - [ ] 6.4 Relaying: posts with the four reserved prefixes through the
       relay identity's skill as host commands, or on Linear the session's own
-      request, a host command sending the headers linear-app's `headers`
-      prints, the `Re: ` line on GitHub
+      HTTP request, carrying the token linear-app's `token` command prints,
+      held only in memory and never in a command's arguments, the `Re: ` line on GitHub
       and Linear posts, post ids, editing in place, the thread read before
       a question is shown and before each post, the preview showing where
       the answer will be recorded, an answer whose own last line starts `Re: ` sent back for rewording,

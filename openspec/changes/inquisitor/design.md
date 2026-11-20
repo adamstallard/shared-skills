@@ -282,13 +282,15 @@ model of the answer session's owed pushes and lock*.
 
 ### What the answer session posts, and what it logs
 
-The mod posts a relay post itself, not through a tool call of the session's
-model, so no post hook sees it; task 0.18 measures that. It runs a host
-command: the relay identity's skill or, on Linear, where linear-app has no
-post command, its own request, sent with the headers linear-app's `headers`
-prints. Either command runs as an argument vector with no
-shell, its text in a file or on standard input, because the person's answer
-and drafts built from a thread's untrusted text reach it. A relay post on
+The answer session's Claude Code mod posts a relay post itself as a host
+command, never a tool call of the session's model (task 0.18). On GitHub
+and Discord it runs the relay identity's skill as an argument vector with
+no shell, its text in a file or on standard input, because the person's
+answer and drafts built from a thread's untrusted text reach the command.
+On Linear, where linear-app has no post command, it sends its own HTTP
+request, holding the token linear-app's `token` command prints only in
+memory, never in a command's arguments, which any user of the machine can
+read. A relay post on
 Linear or GitHub names its question with a last `Re: <URL>` line, so a
 thread holding several questions keeps a state for each; in a review thread
 a post answering the comment that starts the thread leaves it out. On
@@ -600,7 +602,11 @@ access to what the question concerns,** since only a person with write access
 can decide. The spec's *A question in a post tags one person who can decide,
 if there is one* sets the order: the approver of the related earlier decision
 the second call recorded, then a login in `.inquisitor/reviewers`, then the
-last committer of the files involved.
+last committer of the files involved. The tag goes on a line of its own,
+which the question's hash leaves out, as it leaves out the related-decision
+line: the script finds whom to tag only at the second call, so a tag inside
+the vetted text would change that text's hash and make the post hook block
+the post until both calls ran again (spec: *A tag line names the person a posted question tags*).
 
 #### The configured login names the person
 
@@ -917,8 +923,9 @@ as a question in a post is reduced for its hash (inline markup becomes its
 text, whitespace is joined), then drops leading whitespace, so ` User says: `
 and `**User says:**` are blocked too.
 
-**Why:** the answer session posts through a host command no tool hook sees,
-so a tool-call post with a reserved prefix is never the answer session's.
+**Why:** only the answer session may start a post with a reserved prefix,
+and it posts through no tool call (*In the holder, the model posts only as
+the person's relays*).
 
 #### No exemption for an Igor's handback
 
@@ -1285,12 +1292,8 @@ default branch*).
 
 #### Scope hides an entry; status only labels it
 
-**Why:** igor treats scope as visibility, so an out-of-scope entry is one the
-asker may not see. Status only labels an entry because a search is not
-injection: the agent asks for a search's results, while igor injects entries
-unasked. igor promises that no unreviewed lesson is injected into a worker
-before it merges, and showing labelled `provisional` and `deprecated` entries
-in a search injects nothing. igor PR #216 decides the same on igor's side.
+*Recorded:* `openspec/specs/inquisitor/decisions.md`, *Rationale: Filter 1
+hides every lore entry outside the question's scope*.
 
 #### A project scope matches the repository's short name
 
@@ -1485,8 +1488,8 @@ from that file.
 
 igor PR #216's requirement *An Igor publishes the questions-branch files its
 worker reports* holds these rules for both changes. The Igor pushes a file
-about the item's repository to that repository's questions branch, and any
-other to the lore repository's. It pushes only a question file holding no answer or a miss file, and either
+about a repository to that repository's questions branch, and one about an
+organization or project to the team's lore repository's. It pushes only an unanswered question file or a miss file, each
 only at a path not already on the branch (decision 21); every file
 passes igor PR #217's credential matcher, which matches known secrets'
 values such as the seat token (decision 28); and it reads the lore
@@ -1550,14 +1553,11 @@ existing `active` entries in the role's scope. The channel a worker reports
 them through, output or outbox, is igor PR #175's, which runs a worker as a
 separate Unix user.
 
-The citation count igor's review shows is not exact. It misses a use when
-the question is more private than the lore repository holding the entry,
-since no citation is pushed to a more visible repository. It counts one use
-twice when two machines each decline the same question under filter 1
-(*Which cross-machine cases are accepted*). When every Igor
-push of its workers' citations failed, it shows "not checked" instead, since
-a count would show none for every entry only Igors cited (#216's decision
-32).
+The citation count igor's review shows is not exact, since no citation goes
+where it would show a more private question exists.
+
+*Recorded:* `openspec/specs/inquisitor/decisions.md`, *Rationale: A lore
+entry that stops a question gets a citation file*.
 
 #### igor-dependent rules state the end state
 
@@ -1691,18 +1691,20 @@ section.
 
 **The answer session polls about every 60 seconds, only while open, and uses
 no webhooks** (*Polling while open, with the person's credentials*).
-Questions-branch log files never appear in notifications, so at each poll it
-fetches the questions branch of every subscribed repository and configured
-lore repository, fetching a subscribed repository's into a clone the state
-folder keeps. Unless task 0.15 shows notifications report every
-GitHub message the session needs, it also reads each subscribed repository's
-new issues and pull requests, their comments, reviews and review-thread
-comments, and the review requests and assignments naming the person, so a
-question of any source is found if notifications miss it. Those reads also
-catch a mention of the relay in a thread the person never subscribed to.
-They cost rate-limited requests for each subscribed repository, and for every
-repository of an owner a subscription names, a cost accepted until task 0.15
-shows notifications alone suffice.
+At each poll it fetches the questions branch of every subscribed repository
+and configured lore repository, and each subscribed repository's default
+branch, a subscribed repository's into a clone of its own that the state
+folder keeps and a lore repository's into its configured clone; filter 1 searches decision
+documents only there, and names any other repository's as not searched,
+since the session holds no clone of it. Unless task 0.15 shows notifications
+report every GitHub message the session needs, it also reads each subscribed
+repository's new issues and pull requests, their comments, reviews and
+review-thread comments, and the review requests and assignments naming the
+person, so a question of any source is found if notifications miss it.
+
+*Recorded:* `openspec/specs/answer-session/decisions.md`, *Rationale: Until
+notifications are measured, the poll reads every GitHub question source*
+and *Rationale: The answer session polls only while it is open*.
 
 #### Local state is per machine, in the state folder
 
@@ -1769,6 +1771,18 @@ text.** The answer session posts every confirmed answer as a host command,
 never as a tool call of the model (task 0.18), and a `PreToolUse` hook sees
 only tool calls. So any tool call carrying a reserved prefix is one the person
 did not confirm, and the hooks need no record of what the person confirmed.
+
+**For the same reason, the model's own `log` call that writes an answer is
+blocked in the holder.** A relay post counts for nothing, but an answer file
+counts, so a model steered by a crafted thread could otherwise push one
+naming the person as `answered_by`. The answer session runs `log` itself,
+outside the model's tool calls, so blocking the model's call costs no
+confirmed answer. It blocks a miss or handled file too, which could back a
+forged reply or close a question. A call that is not the whole command line
+is blocked unread, since an earlier command could rewrite the input file
+after the hook read it (answer-session spec: *In the holder, the model logs
+no answer*). Every holder check needs the hook to know which session it runs
+in, which task 0.32 measures.
 
 **How each hook tells the relay from the person:**
 - On GitHub, the shared post reader reports the identity a github-app script
@@ -2265,10 +2279,15 @@ changes in a message's text can break the lookup. A forged `Inquisitor: `
 post is another message with another id, so no file matches it. An earlier design named the file by the asking message
 and the filter; where one comment holds several questions, a forged reply
 about another of them, naming the same filter, would have matched. The agent
-looks on the questions branch of what its question concerns, each time it
-reads the reply: between the reply and the push it finds no file, and the
-reply is input. A miss with no reply authorizes nothing and is named by its
-question's log file path, or with no log file by its message's URL. A hash-only miss file has empty frontmatter and no
+looks on the questions branch of what its question concerns. For an
+organization's or project's question asked on Linear or Discord, it also
+looks on every lore repository in its configuration. The asking agent picks
+a lore repository from the repository it works in, while the session picks
+by its model's judgement. A file on a branch the agent never checked would
+leave the reply input while the session listed the question as handled. The
+reply's id names one file, so a match on any branch is that reply's miss.
+Finding none, the agent looks three more times, a minute apart, since the
+session pushes the file just after the reply. A hash-only miss file has empty frontmatter and no
 body, so it shows nothing but the time of its push and who pushed it. A hash-only file holds no `said_by`: being on the branch is its authority, since only an account
 with push access can put it there, and only an answer session writes one. For an organization's question that
 branch is the lore repository's, whose writers are who decides such a
@@ -2638,13 +2657,21 @@ the directory where spec-trace's CI fails on an untagged one.**
 
 ## Open Questions
 
+- **Which `project:` lore entries are in scope for an organization's or
+  project's question?** Such a question concerns no repository, and
+  filter 1's scope is `global` plus `project:<short name>`, the short name
+  being that of the repository a question concerns (inquisitor spec: *Filter 1 hides every
+  lore entry outside the question's scope*), so no rule says whether the
+  repository it was asked from, or the project it names, sets the scope.
+
 ### Facts measured before building
 
-Tasks 0.4 to 0.14 measure these facts before anything is built (tasks 0.1 to
+Tasks 0.4 to 0.14 and 0.33 measure these facts before anything is built (tasks 0.1 to
 0.3 are under *What the hook relies on, not yet measured*). Each bullet says
 what the spec does if the fact is false. Task 0.12 is measured (*What task
-0.12 measured*). Task 0.11 is measured; its result is in the inquisitor decision record's *Rationale: The
-log command records a linked GitHub comment's own text*.
+0.12 measured*). Task 0.11 is measured for an issue comment only; its
+result is in the inquisitor decision record's *Rationale: The log command
+records a linked GitHub comment's own text*.
 
 - **Can an agent without push access read another person's permission on a
   repository?** (task 0.4) If not, wherever the agent lacks push access, every
@@ -2690,6 +2717,10 @@ log command records a linked GitHub comment's own text*.
   its working tree. If a worker can post, it still asks only in its handback
   comment, and the credential in its reach is reported to igor as a breach of
   that requirement.
+- **Does the Discord bot token pattern match a real token?** (task 0.33)
+  The credential patterns' Discord shape has no measurement behind it. If
+  the relay's real token does not match, the pattern is changed to the
+  shape measured.
 
 ### Facts the answer session relies on
 
@@ -2719,9 +2750,9 @@ box*).
   0.28) The answer session finds a person-required line by its fixed wording
   after reducing markup. If a surface changes the words, such as by escaping the parentheses, the
   session matches the form task 0.28 records instead. Task 0.28 is still to
-  run. Task 0.23 found that Linear returns a comment's text as sent,
-  parentheses included, and escapes `[` and `]` only in an issue
-  description, so a line in a Linear comment comes back unchanged.
+  run, on both surfaces; for a Linear comment, task 0.23 already found the
+  words come back unchanged (the answer-session record's *Rationale: A
+  question with a person-required line gets no filter 2 to 4 reply*).
 - **Do only reading Linear MCP tools have names starting `get_`, `list_` or
   `search_`?** (task 0.27) linear-app's post hook lets those tools through in
   the holder and blocks the rest, so a tool of another name fails closed. If
@@ -2740,6 +2771,12 @@ box*).
   lacks it, a kind of comment has none, or an edit changes it, the GitHub id
   that names a miss file is changed, before miss files are named on GitHub,
   to one the measurement shows works.
+- **Are three more looks, a minute apart, enough to find a reply's miss
+  file?** (inquisitor spec: *A reply's miss file is looked for wherever the
+  session may have put it*) No task measures this; the count and spacing
+  are a first choice, which use of the answer session tests. If
+  the session's pushes often land later, an asking agent leaves backed
+  replies as input, and the numbers are raised.
 - **Which App wrote a comment** is measured by both task 0.21 here and igor PR
   #216's task 4.8. The rules that need it wait on task 0.21, which lists
   them.
@@ -2828,9 +2865,10 @@ to its 149.
 - **#216 must keep its decision 62:** an Igor whose App's slug lacks the
   `igor-` prefix refuses to start. The answer session tells a handback by
   that prefix (*igor's handback marker*).
-- **igor must push a worker's repository questions to the item's
-  repository's questions branch,** as it pushes the others to the lore
-  repository's, each with its handback comment's URL as `asked_in`. igor's own specs, #216's
+- **igor must push a worker's repository questions to the questions branch
+  of the repository each concerns,** as it pushes a worker's organization
+  and project questions to the team's lore repository's, each file with its
+  handback comment's URL as `asked_in` where it is not withheld. igor's own specs, #216's
   lore-firing delta among them, must change to match.
 - **The Igor must run the script's `branch-search` on the item's
   repository's questions branch and its lore repository's, and return the
@@ -2848,7 +2886,7 @@ to its 149.
   comment on a handback, a `User says: ` one included, as `input`, and the
   answer session's answer file, which names the Igor's log file in
   `answers`, is what counts.
-- **The Igor must run the script's `miss-check` for its worker,** on the repository, surface and id of the reply the worker read in its item's thread, with its own credentials and in the
+- **The Igor must run the script's `miss-check` for its worker,** on the repository, surface and id of the reply the worker read in its item's thread, each time the worker asks for the check, since a worker looks again for a missing file as any agent does, with its own credentials and in the
   version its workers run, and return the JSON
   over the channel `igor lore-search` uses (*The Igor checks a reply's miss
   file for its worker*). A worker holds no credential and fetches no

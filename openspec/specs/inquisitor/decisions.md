@@ -41,7 +41,9 @@
   Evidence: `git commit -S` signs the commit with the committer's key, whatever its content, https://git-scm.com/docs/git-commit#Documentation/git-commit.txt--Sltkey-idgt
 
 - **Rationale: Filter 1 hides every lore entry outside the question's scope.**
+  igor's lore-firing spec treats scope as visibility and status as review state: an out-of-scope entry is one the asker may not see, while only an `active` entry, one a person reviewed, reaches a worker unasked. So scope hides an entry from the search, and status only labels it, since a search's results are asked for and reach no worker unasked.
   igor and the inquisitor must read a lore entry's scope alike, and igor matches a `project:` scope by a repository's short name. A project whose repositories have other names would need a mapping file in the lore repository, read by both, which nothing provides.
+  Evidence: igor PR #216's lore-firing spec at 59e7561, https://github.com/adamstallard/igor/blob/59e75617ad5c650986717b4603fb549ef62d5c05/openspec/changes/lore-search/specs/lore-firing/spec.md#L3-L29
   Evidence: `scopeMatches` in igor's `src/firing.ts`, https://github.com/adamstallard/igor/blob/main/src/firing.ts
 
 - **Rationale: A log file and a miss file have one format.**
@@ -65,8 +67,8 @@
   Evidence: #175's design, the row for "the Igor's home, lore checkout, `/etc/igor`", https://github.com/adamstallard/igor/blob/908c149/openspec/changes/worker-user/design.md; the worker runs as `claude -p`, https://github.com/adamstallard/igor/blob/8478aec/src/execute.ts#L960-L970; the worker starts in the item's worktree with lore only in its system prompt, https://github.com/adamstallard/igor/blob/8478aec/src/execute.ts#L1595-L1609; and lore is injected whole or not at all under a 4,000-token budget, https://github.com/adamstallard/igor/blob/8478aec/src/firing.ts#L104-L130
 
 - **Rationale: The log command records a linked GitHub comment's own text.**
-  The `log` command fetches a linked comment's text itself, in place of taking the agent's word for it, and GitHub's API gives the comment with its author: GraphQL's `IssueComment` has `author { login }`, measured for an issue comment on 2026-11-04 (task 0.11). Reviews and review comments were not queried; GitHub documents the same `author` on them through GraphQL's `Comment` interface.
-  Evidence: GitHub's GraphQL reference documents `author` on the `Comment` interface, https://docs.github.com/en/graphql/reference/interfaces#comment
+  The `log` command fetches a linked comment's text itself, in place of taking the agent's word for it, so the logged answer is what the comment says, whatever the agent copied. GitHub's API returns a comment's text as `body`, which GitHub documents on every kind of comment through GraphQL's `Comment` interface; task 0.11 read it for an issue comment on 2026-11-04, and reviews and review comments are not yet queried.
+  Evidence: GitHub's GraphQL reference documents `body` on the `Comment` interface, https://docs.github.com/en/graphql/reference/interfaces#comment
 
 - **Rationale: A lore decision record counts.**
   igor PR #202, open, specifies that igor's scribe puts a decision record in the repository the decision concerns, or in the team's lore repository when it spans repositories, so filter 1 reads both.
@@ -79,3 +81,8 @@
 - **Rationale: A weakness is not described in public text before its advisory is published.**
   The rule lasts only while the fix is public and the advisory is not, because a blanket rule would leave a fix's commit message unable to say why the fix was made even after disclosure, which prose's rules require of every commit message's body.
   Evidence: prose's rule 14, "Commit subject says what changed; the body says why", https://github.com/adamstallard/shared-skills/blob/02c0a7782bc0392f5c1f5d8e3af0188cf84a9f0d/.agents/skills/prose/rules.md#L228
+
+- **Rationale: A lore entry that stops a question gets a citation file.**
+  Citation files feed igor's review count of each entry's uses, which is inexact: it misses a use whose question is more private than the lore repository, since a citation pushed there would show that the question exists, counts once for each machine that declines one question under filter 1, and shows "not checked" when every Igor push of its workers' citations failed, as igor PR #216's decision 32 accepts.
+  Evidence: GitHub's events API shows each push's pusher and time to anyone who can see the repository, https://docs.github.com/en/rest/activity/events
+  Evidence: igor PR #216, https://github.com/adamstallard/igor/pull/216

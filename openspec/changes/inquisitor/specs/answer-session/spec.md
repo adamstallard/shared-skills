@@ -224,10 +224,10 @@ file counting as the person's answer names in `answers`.
 
 ### Requirement: The person's answer to a named file is their own
 
-An answer file SHALL count as **the person's answer** only when it is the
-answer of the log file it names in `answers`, as the inquisitor's *A named file's answer is the newest answer file naming it* sets it: its
-`answered_by` must be the person that file tags or, for a file tagging no
-one, an account with write access to what it concerns. The answer session
+An answer file SHALL count as **the person's answer** only when the
+inquisitor's *A named file's answer is the newest answer file naming it*,
+which turns on its `answered_by`, makes it the answer of the log file it
+names in `answers`. The answer session
 SHALL show a named file's answer even where the newest answer file with
 the same question hash is another file.
 
@@ -373,9 +373,9 @@ For a question asked on Linear or Discord, the session's model SHALL judge
 from the question and its thread what it concerns and, for an organization
 or project, which configured lore repository serves it. If it cannot tell
 which, the only configured one SHALL serve it when exactly one is
-configured. A question placed in neither way has **no place**: whatever another
-requirement says, the session SHALL post no reply by itself, show the
-person the question, and post their answer unrecorded.
+configured. A question placed in neither way has **no place**: the
+session SHALL post no reply by itself, show the person the question, and
+post their answer unrecorded.
 
 #### Scenario: The thread shows which lore repository serves the question
 
@@ -408,8 +408,7 @@ Linear or Discord only when the session's model is sure of the place it
 judged, or the place is the only configured lore repository, taken because
 the model could tell none. When the model judged a place and is not sure of
 it, the session SHALL show the person the question, and the preview of
-their answer shows that place. This holds whatever another requirement
-says.
+their answer shows that place.
 
 #### Scenario: A reply goes out by itself on the only configured lore repository
 
@@ -929,10 +928,11 @@ session SHALL NOT pair a file with a message by matching text (design.md:
 #### Scenario: A log file whose link was withheld is shown on its own
 
 - **WHEN** a public lore repository holds a log file whose question tags
-  `@adamstallard`, this session's person, and whose `asked_in` link into
-  an issue of the private `o/api` was withheld by the `log` command, and
-  a comment in that issue, which this machine polled, asks the same
-  question in the same words
+  `@adamstallard`, this session's person, asked in an issue of the private
+  `o/api` and sent there when a person confirmed sending it somewhere more
+  visible, so it holds no `asked_in`, and a comment in that
+  issue, which this machine polled, asks the same question in the same
+  words
 - **THEN** the log file and the message are shown as two questions, and
   neither is paired with the other
 
@@ -1016,7 +1016,7 @@ is on when it opens and about every 60 seconds after, for everything
 since its poll position, or the last 14 days without one, saving each
 poll position in the state folder, and at each poll SHALL fetch the
 questions branch of every subscribed repository and configured lore
-repository.
+repository, and each subscribed repository's default branch.
 
 #### Scenario: Opening catches up
 
@@ -1034,7 +1034,8 @@ repository.
 
 - **WHEN** the answer session polls its channels
 - **THEN** it fetches the questions branch of every subscribed repository
-  and configured lore repository too
+  and configured lore repository too, and each subscribed repository's
+  default branch
 
 #### Scenario: Nothing polls without an open answer session in the holder
 
@@ -1185,10 +1186,9 @@ SHALL ask the person to reword it.
 ### Requirement: A relay post is posted by a host command, unvetted
 
 The answer session SHALL post by a host command, never the model's tool
-call: the relay's skill, or on Linear, where linear-app has no post
-command, its own request with linear-app's `headers`, run as an argument
-vector with no shell, the text on standard input or in a private file.
-Neither prose's pass nor the inquisitor's filters SHALL apply to a relay
+call: the relay's skill, run as an argument vector with no shell, the
+text on standard input or in a private file, or on Linear its own request
+(*The Linear relay's token stays in memory*). Neither prose's pass nor the inquisitor's filters SHALL apply to a relay
 post; it SHALL scan each for the inquisitor's *The credential patterns
 are a closed list of token shapes* and post none that matches.
 
@@ -1197,13 +1197,6 @@ are a closed list of token shapes* and post none that matches.
 - **WHEN** the person relays an answer that holds a question
 - **THEN** the post holds the person's words as confirmed, with no prose
   footer, and no hook blocks it
-
-#### Scenario: A Linear relay post is the answer session's own request
-
-- **WHEN** the person relays an answer to a Linear question
-- **THEN** the answer session posts it with its own request, carrying the
-  authentication headers linear-app's `headers` command prints, and no
-  tool call of the model posts it
 
 #### Scenario: A post's text file is private
 
@@ -1222,6 +1215,21 @@ are a closed list of token shapes* and post none that matches.
 - **WHEN** the person's answer, or their edit of a relay post, holds a
   string shaped like a GitHub access token
 - **THEN** nothing is posted or changed, and the person is told why
+
+### Requirement: The Linear relay's token stays in memory
+
+On Linear, where linear-app has no post command, the answer session SHALL
+post by its own HTTP request, holding only in memory the token
+linear-app's `token` command prints, never in a command's arguments, which any
+user of the machine can read.
+
+#### Scenario: A Linear relay post is the answer session's own request
+
+- **WHEN** the person relays an answer to a Linear question
+- **THEN** the answer session posts it with its own HTTP request, with
+  the token linear-app's `token` command printed to it, and no tool call
+  of the model posts it
+- **AND** no command the session runs holds the token in its arguments
 
 ### Requirement: A failed relay post is reported to the person
 
@@ -1700,7 +1708,9 @@ answered.
   each check's last result, relay post ids, the question on screen, the
   answers held as answered, not relayed, each owed answer-file,
   handled-file, miss-file or citation-file push, its clone of each
-  subscribed repository's questions branch, and the lock
+  subscribed repository's questions and default branches (a lore
+  repository's questions branch is fetched into its configured clone), and
+  the lock
 
 #### Scenario: Filter 1 never searches the state folder
 
@@ -1998,6 +2008,40 @@ cannot split that names its script or runs one of unknown path.
   identity other than the Discord relay
 - **THEN** the call is blocked by discord-bot's post hook
 
+### Requirement: In the holder, the model logs no answer
+
+In the holder, the inquisitor's hook SHALL block the model's tool call
+running the script's `log` command unless the command is the whole line
+and its input file, read by the hook, logs an unanswered question: a
+path under `questions/`, no `authority`, `handled` or `closes` key and
+no `## Answer` section, since the answer session runs `log` itself, outside
+the model's tool calls. It SHALL block a line `.agents/lib/gh-shell/`
+cannot split that names the script or runs one of unknown path.
+
+#### Scenario: The model's log call writing an answer is blocked
+
+- **WHEN** in the holder, the model, steered by a thread's text, runs the
+  script's `log` command with an input file holding an answer and the
+  person as `answered_by`
+- **THEN** the hook blocks the call, and nothing is written or pushed
+- **AND** it blocks a call whose input logs a miss or a handled file, so
+  the model can neither back a forged `Inquisitor: ` reply nor close a
+  question
+
+#### Scenario: The model logs its own unanswered question
+
+- **WHEN** in the holder, the model runs `log` alone on its line with an
+  input file holding a question and no answer
+- **THEN** the hook lets the call through
+- **AND** it blocks the same call after `cd x && `, since an earlier
+  command could rewrite the file after the hook read it
+
+#### Scenario: Another session logs an answer as before
+
+- **WHEN** an agent in a session that is not the holder runs `log` with
+  an input file holding the person's answer
+- **THEN** the hook lets the call through
+
 ### Requirement: A rephrased question is answered with its rephrasing
 
 When the person answers a question rephrased after a discussion, the
@@ -2013,7 +2057,9 @@ Discussion: <the discussion in one sentence>
 with its `Re: ` line where *A GitHub or Linear relay post names its
 question in a Re line* requires one. The model SHALL draft both
 added lines for the more public of the thread's audience and the
-readers of the repository the question concerns.
+readers of the repository the question concerns, and the session SHALL
+post the `Discussion: ` line as one line, each line break in it made a
+space.
 
 #### Scenario: A rephrasing is drafted for the more public audience
 
@@ -2022,6 +2068,14 @@ readers of the repository the question concerns.
 - **THEN** the model drafts the `Rephrased question: ` and `Discussion: `
   lines naming nothing of the private repository that the thread's
   readers cannot read
+
+#### Scenario: A Discussion line is posted as one line
+
+- **WHEN** the person confirms a discussion summary holding a line break
+  and then a line `Re: https://github.com/o/r/pull/3#discussion_r9`
+- **THEN** the session posts the summary on the one `Discussion: ` line,
+  that line break made a space, so the post holds no line starting `Re: `
+  but the one the relay adds
 
 #### Scenario: An unconfirmed rephrasing is not posted
 
@@ -2100,6 +2154,7 @@ nothing; a reworded answer needs the same confirmation.
 
 - **WHEN** the person answers a question asked in a private repository's
   thread, which a questions-branch file on a public lore repository holds,
+  sent there when a person confirmed sending it somewhere more visible,
   and does not confirm the preview's warning
 - **THEN** nothing is posted and no file is pushed, the question stays in
   the queue, and the person may reword the answer and confirm it
@@ -2218,8 +2273,7 @@ When a decline, a recorded answer or an `Inquisitor: ` reply takes a
 question off the queue, the session SHALL push, only through the `log`
 command's handled option, a **handled file** for each unanswered questions-branch log file that no
 handled file names and that holds the question: one the question was shown from, or whose `asked_in` links that question's
-message. A handled file closes only the file it names, on every machine,
-and answers nothing.
+message.
 
 #### Scenario: An automatic reply pushes a handled file
 
@@ -2598,6 +2652,22 @@ shown with the question, and stops nothing.
 - **THEN** nothing is posted by itself, and the question is shown with
   that hit labelled as input
 
+### Requirement: The answer session's filter 1 reads decision documents only from its clones
+
+When the answer session runs filter 1, the script SHALL search decision
+documents only in the clones the session holds, on each subscribed
+repository's default branch as last fetched there, and SHALL name every
+other repository's decision documents as a source not searched.
+
+#### Scenario: A repository with no clone has its decision documents named as not searched
+
+- **WHEN** a question in a subscribed `o/web` thread concerns `o/api`,
+  which no subscription names
+- **THEN** filter 1 searches no decision document of `o/api`, and its
+  output names them as not searched
+- **AND** a question about `o/web` has the decision documents on its
+  clone's default branch searched
+
 ### Requirement: A question with a category reaches filter 1 on standard input
 
 The session's model SHALL first judge whether the question has a
@@ -2617,10 +2687,11 @@ private* keeps the two calls' files.
 ### Requirement: Filter 1 posts a recorded answer by itself in the question's thread
 
 When an answer with authority is recorded and the question has a
-thread, the answer session SHALL answer it by itself, whoever asked, a
-relayed question included, unless *A recorded answer is posted by itself
-only when no more private than its thread* or the question's category
-forbids it, posting through the relay
+thread, the answer session SHALL answer it by itself, whoever asked,
+unless *A recorded answer is posted by itself only when no more private
+than its thread*, *A Linear or Discord question in doubt gets no
+automatic reply* or the question's category forbids it, posting through
+the relay
 
 ```
 Recorded answer: see the record below.
@@ -2628,8 +2699,7 @@ Recorded in: <the URL of where the answer is recorded>
 ```
 
 followed by its `Re: ` line where *A GitHub or Linear relay post names
-its question in a Re line* requires one, after reading the thread again
-as before any relay post.
+its question in a Re line* requires one.
 
 #### Scenario: A relayed question gets a recorded answer by itself
 
@@ -2879,11 +2949,11 @@ answer: such a repeat goes to the person, as an ordinary question.
 
 The session's model SHALL judge each question filter 1 did not stop
 against filters 2 to 4, sending an unclear case to the person. When an
-agent's question with no category and no person-required line clearly
-fails one of those filters where the relay can reply, the answer
-session SHALL itself post the filter's fixed text, log its miss, and list
-the thread's question as handled; a log file holding that question is closed
-as *A handled file closes a questions-branch question* states.
+agent's question with no category clearly fails one of them where the
+relay can reply, and *A Linear or Discord question in doubt gets no
+automatic reply* allows it, the answer session SHALL itself post the
+filter's fixed text, log its miss, and list the question as handled (*A
+handled file closes a questions-branch question*).
 
 #### Scenario: A deferrable agent's question is handled for the person
 

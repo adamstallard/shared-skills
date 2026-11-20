@@ -554,6 +554,13 @@ unassigned SHALL be unreadable, its block message saying how to fix it.
 - **AND** `$G` may be unquoted, and `G=<path>;` assigns `G` as
   `G=<path> &&` does
 
+#### Scenario: A gh api call through an assigned G is read
+
+- **WHEN** a hook asks about `G=/abs/github_app.py; python3 "$G" gh api
+  repos/o/r/issues/5/comments -f body='done'`
+- **THEN** the reader returns `done` as the body, as it does for the same
+  `gh api` call made directly
+
 #### Scenario: A quoted assignment to G sets it
 
 - **WHEN** a hook asks about `G="/abs/github_app.py"; python3 "$G" gh pr

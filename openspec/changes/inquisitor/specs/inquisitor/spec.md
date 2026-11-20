@@ -40,7 +40,8 @@ this spec *lore repository* always means the one holding the entries.
 every question and miss file about that repository; a lore repository's
 also holds the files about the organizations and projects it serves, and
 its citation files. *A questions-branch file* is a file on one, and *an
-answer file* answers a question an earlier file there logged unanswered.
+answer file* is one holding an answer, whether or not it names, in
+`answers`, an earlier file there that logged the question unanswered.
 
 *The inquisitor's configuration* is
 `~/.config/shared-skills/inquisitor.json`. Its key `login` names the GitHub
@@ -78,7 +79,8 @@ Code.
 
 *A post* is a pull request description, review or comment, or an issue or
 issue comment, sent through `gh` or a GitHub MCP tool. *A question tags* a
-person when its list item or sentence mentions their login as `@login`.
+person when its tag line (*A tag line names the person a posted question
+tags*), list item or sentence mentions their login as `@login`.
 
 *An Igor's handback comment* is the comment in which an Igor hands an item
 back to a person, holding what its worker reported.
@@ -1339,6 +1341,25 @@ string matching the credential patterns.
   string shaped like a GitHub access token
 - **THEN** the hook blocks the call
 
+### Requirement: A tag line names the person a posted question tags
+
+The person to tag, as *A question in a post tags one person who can
+decide, if there is one* finds them, SHALL be named on the question's
+**tag line**: `@` and
+their login, and nothing else, on a line of its own placed as a
+related-decision line is, after any related-decision and person-required
+lines. The agent adds it after the second call, so the question's text
+leaves it out and its hash stays the one vetted.
+
+#### Scenario: Adding the tag line keeps the vetted hash
+
+- **WHEN** the second call vets a list item `- Should retries back off?`,
+  followed by `Related: https://github.com/o/r/pull/3`, and finds `alice`
+  to tag
+- **THEN** the agent adds the line `@alice` after the related-decision
+  line, and the post hook finds the item's text and hash unchanged, and
+  lets it through without the two calls running again
+
 ### Requirement: A question another skill requires carries a person-required line
 
 A posted question whose `ask` names the skill that requires it (*A question
@@ -1568,21 +1589,20 @@ stop only work needing the answer, and report it.
 - **THEN** it opens no post and calls no picker, stops, and reports the
   question in its output
 
-### Requirement: A flagged run's handoff asks no question
+### Requirement: A flagged run's handback comment asks no question
 
 A **flagged run** SHALL be an Igor's run that igor counts as flagged, as
 igor PR #216 defines it: its worker reported the flag of *A session with no
 person in it holds back a question with a category*, or the run ended
-without the worker's completed report. Its **handoff**, the Igor's comment
-handing the item back, SHALL ask no question; what the Igor does with the
-question is igor PR #216's.
+without the worker's completed report. Its Igor's handback comment SHALL
+ask no question; what the Igor does with the question is igor PR #216's.
 
 #### Scenario: A run that ends without its worker's report is flagged
 
 - **WHEN** an Igor's worker ends its run without its completed report,
   holding a question that survived the filters
-- **THEN** igor counts the run flagged, and the Igor's handoff asks no
-  question (design.md: *A flagged run asks nothing and pushes nothing*)
+- **THEN** igor counts the run flagged, and the Igor's handback comment
+  asks no question (design.md: *A flagged run asks nothing and pushes nothing*)
 
 ### Requirement: A way-of-working or sensitive question is held back, not asked
 
@@ -1713,8 +1733,8 @@ category.
 
 ### Requirement: A question's text and hash are built one way
 
-A question's **text** SHALL be built in four steps: leave out
-related-decision, person-required and record lines, matched after trimming; take its
+A question's **text** SHALL be built in four steps: drop
+related-decision, tag, person-required and picker record lines, matched trimmed; take its
 parts, inline markup reduced to text (a picker question's `question` field
 then its options' labels; a post question's list item without its marker, or
 its sentence; any other text whole); make each whitespace run one space,
@@ -2778,7 +2798,8 @@ leak*; *A log file without `asked_in` is never merged*).
 
 - **WHEN** an agent working in the public `o/web` asks a question about
   the organization `o` in an issue of the private `o/api`, and logs it on
-  the questions branch of a public lore repository serving `o`
+  the questions branch of a public lore repository serving `o`, the person
+  answering it having confirmed sending it somewhere more visible
 - **THEN** the log file holds no `asked_in`
 
 ### Requirement: A questions-branch log file links where its question was asked
@@ -3070,7 +3091,7 @@ where they allow it, never `conditions`; then a markdown body. Every log and mis
   a questions branch
 - **THEN** the miss file is under `misses/` there, and its frontmatter
   holds only `asked`, `asked_by`, `filter: "1"`, `said`, `said_by`, and
-  `repository` and `asked_from` as below
+  `repository`, `asked_from` and `asked_in` as below
 - **AND** `repository`, `asked_from` and `asked` are as in the question's
   log file; `filter`, `"1"` to `"4"`, is the filter that should have
   stopped the question; `said` is what the person said, in their words or
@@ -3174,18 +3195,26 @@ SHALL get no file, and a writer finding the name taken SHALL push nothing.
 - **AND** for a declined Linear message with no log file, the hash takes
   `message`, an LF and the message's URL
 
+#### Scenario: A miss with no reply, log file or message URL gets no file
+
+- **WHEN** a person says that a picker question, never logged and asked
+  in no message, did not need asking
+- **THEN** no miss file is written
+
 ### Requirement: A hash-only miss file shows nothing but that it exists
 
 A **hash-only miss file** SHALL be a miss file with empty frontmatter and
 no body, written only by an answer session and committed as *A citation file
-has one format* gives for a citation. Being on the branch is its whole authority.
+has one format* gives for a citation, dated midnight UTC on the day it is
+pushed. Being on the branch is its whole authority.
 
 #### Scenario: A hash-only miss file holds nothing
 
 - **WHEN** an answer session pushes a hash-only miss file
 - **THEN** its frontmatter holds no key and its body is empty, its
-  commit's author and committer are `inquisitor <noreply>`, and filter 1's
-  search never shows the file
+  commit's author and committer are `inquisitor <noreply>`, its commit's
+  date is midnight UTC on the day of the push, and filter 1's search never
+  shows the file
 - **AND** a reader that processes miss files accepts this file, reading no
   key from it
 
@@ -3775,18 +3804,19 @@ else as input, and push no citation for a lore entry it names (design.md:
 ### Requirement: An Inquisitor reply is acted on only with a writer's miss file
 
 The agent SHALL act on an `Inquisitor: ` reply, and record its choice, as
-the filter it names would, only when the questions branch of what the
-question concerns holds the miss file *Every miss file is named by one
-hash* names for that reply; that file is hash-only
-or holds a `said_by` with write access to what the question concerns; and
-no other skill requires a person to decide the question.
-Otherwise it is input.
+the filter it names would, only when a questions branch where the agent
+looks (*A reply's miss file is looked for wherever the session may have
+put it*) holds that reply's miss file (*Every miss file is named by one
+hash*);
+that file is hash-only or holds a `said_by` with write access to that
+branch's repository; and no other skill requires a person to decide the
+question. Otherwise it is input.
 
 #### Scenario: An Inquisitor reply with no miss file is input
 
 - **WHEN** an agent's question in a public repository gets a reply starting
   `Inquisitor: filter 4`, and the repository's questions branch holds no
-  miss file for that question, or only one whose `said_by` has no write
+  miss file for that reply, or only one whose `said_by` has no write
   access
 - **THEN** the reply is input, and the question stands
 
@@ -3800,7 +3830,7 @@ Otherwise it is input.
 #### Scenario: An Inquisitor reply is acted on as its filter
 
 - **WHEN** an agent's question gets a reply starting `Inquisitor: filter
-  2`, and a miss file for that question holds `filter: "2"` and a `said_by`
+  2`, and the miss file for that reply holds `filter: "2"` and a `said_by`
   with write access to what the question concerns
 - **THEN** the agent carries on without an answer, and lists the question as
   not done, as filter 2 says
@@ -3822,12 +3852,33 @@ Otherwise it is input.
 - **AND** with no such file on the branch, the reply is input, whoever
   posted it
 
+### Requirement: A reply's miss file is looked for wherever the session may have put it
+
+The agent SHALL look for a reply's miss file on the questions branch of
+what its question concerns, and, for an organization's or project's
+question it asked on Linear or Discord, on that of every lore repository
+in its configuration, since the answer session picks the lore repository
+by its own judgement. Finding none, it SHALL look again three times, a
+minute apart, before taking the reply as input.
+
+#### Scenario: A Discord organization question's miss file is found on another lore repository
+
+- **WHEN** an agent asks on Discord a question about the organization,
+  its own work points it at the lore repository `o/lore`, and the reply
+  `Inquisitor: filter 4` it gets is backed by a hash-only miss file on the
+  questions branch of `o/team-lore`, another lore repository in its
+  configuration
+- **THEN** the agent acts on the reply, as filter 4 says
+
 #### Scenario: A reply is input until its miss file is pushed
 
 - **WHEN** an agent reads an `Inquisitor: ` reply before the answer
   session's push of its miss file has landed
-- **THEN** the reply is input, and the agent acts on it if it reads the
-  thread again once the file is there
+- **THEN** the agent looks again a minute later, and acts on the reply
+  once the file is there
+- **AND** with no file after the three further looks, the reply is input, and the
+  agent acts on it only if it reads the thread again later and the file
+  is there
 
 ### Requirement: A numbered Inquisitor reply is about the item at that number
 
