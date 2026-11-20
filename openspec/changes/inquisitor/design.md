@@ -682,11 +682,12 @@ decisions that run's filter 1 did not search.
 
 #### Every verdict record expires after 2 hours
 
-**Every verdict record expires 2 hours after it was made, whatever its
-verdict or category, and the next call or hook to read the records deletes
-it.** Each hook treats a record 2 hours old or older as missing, so deleting
-it removes nothing a hook would accept. On an idle machine, where nothing
-reads the records, an expired record can stay on disk for days. A post edited more than 2 hours after
+The inquisitor spec's *The two calls' files and records stay private* sets
+the expiry, and has an expired record deleted only when a call or hook next
+reads the records. Each hook already treats a record 2 hours old or older as
+missing, so that deletion removes nothing a hook would accept. On an idle
+machine, where nothing reads the records, an expired record can stay on disk
+for days. A post edited more than 2 hours after
 an `ask`, or listing a question deferred more than 2 hours earlier, is vetted
 again, which costs one pair of calls.
 
@@ -1697,14 +1698,14 @@ section.
 
 #### The answer session polls, only while it is open
 
-**The answer session polls about every 60 seconds, only while open, and uses
-no webhooks** (*Polling while open, with the person's credentials*).
-At each poll it fetches the questions branch of every subscribed repository
-and configured lore repository, and each subscribed repository's default
-branch, a subscribed repository's into a clone of its own that the state
-folder keeps and a lore repository's into its configured clone; filter 1 searches decision
-documents only there, and names any other repository's as not searched,
-since the session holds no clone of it. Unless task 0.15 shows notifications
+**The answer session uses no webhooks** (this file's *Polling while open,
+with the person's credentials*); the answer-session spec's *The answer
+session polls only while it is open* sets when it polls and what it
+fetches. It fetches a subscribed repository into a clone of its own that
+the state folder keeps, and a lore repository into the clone the session's
+configuration names for it. Filter 1 searches decision documents only in
+those clones, and names any other repository as not searched, since the
+session holds no clone of it. Unless task 0.15 shows notifications
 report every GitHub message the session needs, it also reads each subscribed
 repository's new issues and pull requests, their comments, reviews and
 review-thread comments, and the review requests and assignments naming the
@@ -1983,11 +1984,13 @@ shows the person where that question will be recorded before they confirm
 
 #### An answer file names every file it answers
 
-**An answer file lists in `answers` every file it answers, by exact name,
-because answering whichever files hold the same words would be matching on
-words, and naming files is exact.** igor PR #216 is asked to refuse a
-worker's file holding `answers`, so that the Igor adds the key itself and
-igor, as #216 specifies it, pushes only what the Igor writes; *Open Questions* carries that request.
+The inquisitor spec's *An answer file names every unanswered file it
+answers* sets the rule. Naming files gives every machine the same answer,
+while answering whichever files hold the same words would give machines
+holding different files different answers. igor PR #216 is asked to refuse
+a worker's file holding `answers`, so that only the Igor, the agent igor
+runs, adds the key, never a worker it starts: igor, as #216 specifies it,
+pushes only what the Igor writes. *Open Questions* carries that request.
 
 *Ruled out by a scenario:* keeping hash matching beside `answers`, which
 gives machines different answers (inquisitor spec: *A named file's answer is the newest answer file naming it*, scenario *An answer naming one file
@@ -2554,9 +2557,10 @@ message this machine does not read is shown on its own*).
 #### A log file without `asked_in` is never merged
 
 **A log file with no `asked_in` is always its own question, never paired with a thread message by matching
-text.** Merging only avoids a duplicate, which is low priority, while any
-merge rule can pair a message with another asker's file in the same words,
-so that a decline or an answer lands on that asker's question.
+text.** Merging only spares the person seeing one question twice,
+which costs them a second look, while any merge rule can pair a message with another asker's file in the same words,
+so that the person's decline, which closes a question unanswered, or
+their answer lands on that asker's question.
 
 *Ruled out by a scenario:* merging such a file with a thread message asking
 the same question, whatever extra conditions the merge rule adds

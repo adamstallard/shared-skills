@@ -425,12 +425,13 @@ thread is pushed as a hash-only file*.
 
 ### Requirement: An unreadable visibility counts against sharing
 
-A visibility that cannot be read SHALL count as private for the repository
-the question concerns, for one an `asked_in` URL points into, and for one a
-log or miss file's `asked_from` names, and as public for a repository whose
-questions branch a file goes to, for a lore repository and for the
-repository a post goes to (design.md: *Nothing goes somewhere more visible
-than its source*).
+A visibility that cannot be read SHALL count as private for a repository
+something comes from: the one the question concerns, one an `asked_in`
+URL points into or an `asked_from` names, and one holding a record or
+decision that a reply or post names. It SHALL count as public for a repository
+something goes to: one whose questions branch a file goes to, or where a
+post goes (design.md: *Nothing goes somewhere more visible than its
+source*).
 
 #### Scenario: A well-formed asked_from whose visibility can't be read is private
 
@@ -451,6 +452,15 @@ than its source*).
   post would go to nor the repository the question concerns
 - **THEN** it counts the first as public and the second as private, so
   nothing about the second is posted in the first
+
+#### Scenario: A lore entry whose repository's visibility can't be read counts as private
+
+- **WHEN** filter 1's match for a question in an issue of the public
+  `o/web` is an entry of the lore repository `o/lore`, whose visibility
+  cannot be read
+- **THEN** `o/lore` counts as private, so no reply or post in `o/web`
+  names or links the entry, save under the exceptions *Nothing about a
+  repository goes somewhere more visible* lists
 
 ### Requirement: A collective's question is bounded by the repository it was asked from
 
@@ -3167,6 +3177,13 @@ the Igor's record*).
 - **THEN** the answer file holds no `answers`, and the earlier file stays
   shown to the person until they answer it
 
+#### Scenario: A later run with two matching files writes no answers key
+
+- **WHEN** an Igor's later run records a person's answer to a handback
+  question whose record holds a suffix and date, and two files on the
+  questions branch carry that suffix and date
+- **THEN** the answer file holds no `answers`
+
 ### Requirement: A log file holds its question and day, and an answer's file its keys
 
 A log file for an asked question SHALL hold the question as asked, any
@@ -3613,6 +3630,13 @@ unreadable, and SHALL post nothing from it, its name included.
   another question's URL
 - **THEN** the search shows it only as input labelled unreadable, and the
   answer session posts no recorded answer linking it
+
+#### Scenario: A miss file not named by a hash is only unreadable input
+
+- **WHEN** a questions branch holds a file under `misses/` named
+  `see-o-api-issue-4.md`
+- **THEN** a reader shows it only as input labelled unreadable, and posts
+  nothing from it, its name included
 
 ### Requirement: A log file's repository keys and links are checked before use
 

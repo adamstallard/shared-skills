@@ -1610,13 +1610,13 @@ inquisitor's *The answer session's files are never kept pending*).
 
 ### Requirement: An answer whose thread is unreachable here is logged at once
 
-For a question a questions-branch file holds, an answer with no thread,
-or whose channel is off or not subscribed on this machine, SHALL have its
-answer file, with no `answer_link`, pushed as an owed push without
-fetching its thread: once it is confirmed, or when a refused post turns
-the channel off; unless *No answer file goes somewhere more visible than
-its thread unconfirmed* withholds it. An answer with no thread goes on no
-pending list. No other answer SHALL push a file before its post.
+When a questions-branch question has no thread, or its channel here is
+off or unsubscribed, the answer file, with no `answer_link`, SHALL be
+pushed as an owed push without fetching the thread, once the answer is
+confirmed or its refused relay post turns the channel off; unless the
+question has a category or *No answer file goes somewhere more visible
+than its thread unconfirmed* withholds it. An answer with no thread is not
+kept pending. No other answer SHALL push a file before its relay post.
 
 #### Scenario: An answer to a questions-branch question is logged at once
 
@@ -1625,6 +1625,14 @@ pending list. No other answer SHALL push a file before its post.
   the surface's refusal of the relay post turns it off
 - **THEN** the `log` command pushes an answer file naming that file, with
   no `answer_link`, and the answer stays pending
+
+#### Scenario: An answer to a question with a category pushes only a handled file
+
+- **WHEN** the person confirms an answer to a question with a category
+  that a questions-branch file holds, while the thread's channel is off
+- **THEN** no answer file is pushed, and that file's handled file is
+  pushed, as *A question with a category leaves no readable record on
+  disk* requires
 
 #### Scenario: A failed push of an answer logged at once is retried
 
