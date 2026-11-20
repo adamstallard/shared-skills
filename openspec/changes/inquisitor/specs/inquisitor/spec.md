@@ -2465,7 +2465,7 @@ more visible* allows, and the agent SHALL then tell the person why.
 When the person answering or declining confirms a warning naming the more
 private source, the script SHALL push the question's answered log file or
 its miss file to a questions branch more visible than that source. The
-file SHALL then hold no `asked_in` or `answer_link` into the source, no
+file SHALL then hold no `asked_in`, `answer_link` or `recorded_in` URL into the source, no
 miss's `asked_by`, no relay post's `Re: ` line in its answer, and as
 `asked_from` the branch's own repository. Only that person confirms it.
 
@@ -2495,13 +2495,13 @@ miss's `asked_by`, no relay post's `Re: ` line in its answer, and as
 
 ### Requirement: An unanswered question goes nowhere more visible than its source
 
-When a post's question would be logged on a questions branch more
-visible than its source, its thread or the repository it was asked from,
-the script SHALL push, keep pending and report for an Igor no file for it
-until a person answers and confirms the record, as *The answerer's
-confirmation can send a record somewhere more visible* allows, since
-nobody can confirm an unanswered question's record. Until then its thread
-SHALL be its only record, and the agent's report SHALL say so.
+A question asked in a post or a handback comment SHALL get no file pushed
+or kept pending on a questions branch more visible than its thread, or
+than the repository it was asked from, until a person answers and confirms
+the record (*The answerer's confirmation can send a record somewhere more
+visible*). A worker cannot read visibility, so its Igor applies this rule
+to the files the worker reports. Outside an
+Igor's run, the agent SHALL report that the question is not yet logged.
 
 #### Scenario: A private repository's organization question is not logged when asked
 
@@ -2538,8 +2538,8 @@ SHALL be its only record, and the agent's report SHALL say so.
 - **WHEN** an Igor worker asks, in its handback comment on an issue of the
   private `o/api`, a question about the organization `o`, and `o/lore` is
   public
-- **THEN** the worker's report holds no file for that question, and its
-  Igor pushes none
+- **THEN** the worker's report holds that question's file, as for any
+  question, and its Igor pushes that file nowhere
 
 ### Requirement: A picker question shows where its answer will be recorded
 
@@ -2990,8 +2990,9 @@ holding a line that is exactly `## Rephrased question`, `## Discussion` or
 
 The `log` command SHALL write an `answer_link` or `asked_in` only where *A
 log file and a miss file have one format* allows, and otherwise write the
-file without it, even where another requirement says the file holds it
-(design.md: *`answer_link` and `asked_in` are withheld where they would
+file without it, even where another requirement says the file holds it.
+A `recorded_in` URL withheld this way SHALL become the file's own path,
+which still names where the answer is recorded (design.md: *`answer_link` and `asked_in` are withheld where they would
 leak*; *A log file without `asked_in` is never merged*).
 
 #### Scenario: A GitHub link into a more private repository is left out
@@ -3002,6 +3003,13 @@ leak*; *A log file without `asked_in` is never merged*).
   public lore repository serving `o`
 - **THEN** the log file pushed there, holding the question and the
   answer, holds no `asked_in`
+
+#### Scenario: A withheld relay URL is not kept as recorded_in
+
+- **WHEN** an answer relayed in a Discord thread is logged, with the
+  person's confirmation, on the questions branch of the public `o/web`
+- **THEN** the file holds no `answer_link`, and its `recorded_in` is its
+  own path, `questions/<name>`, not the relay message's URL
 
 ### Requirement: A questions-branch log file links where its question was asked
 
@@ -4186,8 +4194,8 @@ When a person says, in any words, a question did not need asking, the agent
 SHALL log a **miss**, in the format *A log file and a miss file have one
 format* states, recording at the question's privacy the question, the filter
 that should have stopped it, and what the person said. A question about the
-person's own way of working, or with the category `personal`, gets no miss:
-like its answer, it leaves no readable record on a questions branch.
+person's own way of working, which goes to the person's memory, or one
+with a category, which is recorded only by its hash, gets no miss file.
 
 #### Scenario: "That was obvious" is logged against a filter
 
@@ -4206,10 +4214,10 @@ like its answer, it leaves no readable record on a questions branch.
   elsewhere, generalising private context or leaving it out, and names
   neither the private repository nor its file
 
-#### Scenario: A way-of-working or personal question gets no miss file
+#### Scenario: A way-of-working question or one with a category gets no miss file
 
 - **WHEN** a person says a question about their own way of working, or one
-  recorded with the category `personal`, did not need asking
+  with a category, did not need asking
 - **THEN** no miss file is written
 
 ### Requirement: A miss file goes where its question's file went
