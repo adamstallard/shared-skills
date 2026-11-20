@@ -190,7 +190,7 @@ section, `answer_session`, whose keys the `answer-session` spec defines:
     {"path": "/Users/me/src/api-lore", "repos": ["adamstallard/api"]}
   ],
   "answer_session": {
-    "github": {"relay": "adam-relay", "subscriptions": ["adamstallard", "BrightID/aura"]},
+    "github": {"relay": "adam-relay", "subscriptions": ["octo/api"]},
     "linear": {"relay": "adam-relay", "subscriptions": ["ENG"]},
     "discord": {"relay": "adam-relay", "user": "123456789012345678",
                 "subscriptions": ["987654321098765432"]}
@@ -1250,12 +1250,11 @@ Igor's run holds no run id*, which gives its only keys, `entry` and `date`).
 
 The script writes a questions branch's commits with git's plumbing and
 pushes them without checking the branch out (inquisitor spec: *A question is
-pushed to the questions branch of what it concerns*). prose's and
-bug-hunter's hooks report each commit that lands on HEAD without their
-trailers; no HEAD moves here, so they never see these commits, which carry
-none. igor PR #153 is separate: it would have an Igor push only commits
-carrying those trailers, and exempting its citation commits is #153's to
-settle (*What igor must provide*).
+pushed to the questions branch of what it concerns*), so prose's and
+bug-hunter's trailer hooks never see them (the inquisitor decision
+record's *Rationale* entry for that requirement). igor PR #153 would have
+an Igor push only commits carrying those trailers; whether it exempts an
+Igor's citation commits is #153's to settle (*What igor must provide*).
 
 #### A citation's commit names no person
 
@@ -1439,9 +1438,10 @@ holds
 `asked_from`, the repository the question was asked from. Outside an Igor's
 run the script writes it. During a run the script writes none: the Igor
 sets it after its format check, and refuses a worker's file that already
-has one (#216's decision 42).** This change owns the file format, so
-`asked_from` is among its keys, and readers judge visibility as #216 does,
-from the more private of the keys a file holds.
+has one (#216's decision 42).** The key belongs to this change's file
+format, though the Igor sets it in a run, and a file is as private as the
+most private repository it names (*A log or miss file is as private as its
+more private repository*).
 
 **Why** no worker writes it: a worker steered by its item could write a
 public `repository` on a file about a private repository; `asked_from`
@@ -2221,10 +2221,9 @@ question; elsewhere nothing checks it.
 has already run filter 3, knowing which options the requiring skill lets it
 take itself; the answer session cannot see those options. If the answer
 session applied filters 2 to 4, it could close by itself a question only a
-person may decide. The line is visible text, since Linear and
-Discord have no hidden comments. It starts `Inquisitor: ` like the session's
-own fixed texts, but sits after the question, since a post starting
-`Inquisitor: ` is blocked on GitHub as a reserved prefix. The script prints
+person may decide. The line starts `Inquisitor: ` like the session's
+own fixed texts, but sits after the question, since the post hook blocks a
+GitHub post starting `Inquisitor: `, a prefix reserved for the session. The script prints
 it, so its wording never varies and finding it needs no judgement.
 
 The answer session matches the line's fixed wording after reducing it as a
@@ -2246,11 +2245,11 @@ person** (*No automatic post repeats one in its chain of replies*).
 
 #### What an asking agent does with an automatic reply
 
-**An agent acts on an `Inquisitor: ` reply, one the answer session posted by itself included, only when a miss file backs it.** The reply's own text and author
-count for nothing: commenting on a public repository is open to anyone, so
-without the file anyone could post `Inquisitor: filter 4` and have an agent
-decide a maintainer's question. Pushing to the questions branch takes write
-access. A readable miss file names in `said_by` who stands behind the reply,
+**An agent acts on an `Inquisitor: ` reply only when a miss file on a
+questions branch backs it, even a reply the answer session posted by
+itself.** The inquisitor decision record's *Rationale: An Inquisitor reply
+is acted on only with a writer's miss file* says why. A readable miss file,
+unlike the hash-only one below, names in `said_by` who stands behind the reply,
 and the agent checks that account's write access, since a readable miss can
 be pushed for someone else, as an Igor pushes its worker's.
 

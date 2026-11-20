@@ -145,6 +145,13 @@ agent lists it as not done, and files an issue if it outlives the work.
 - **AND** if the current work ends with the question still unanswered, the
   agent files an issue for it
 
+#### Scenario: A deferred question listed in the reply is not asked there
+
+- **WHEN** an agent in a session with a person in it defers a question
+  under filter 2
+- **THEN** its reply to the person lists the question as not done, asks
+  nothing about it, and opens no question picker for it
+
 ### Requirement: Filters 3 and 4 have the agent decide the question itself
 
 Filter 3, not a real question, SHALL stop a question when fewer than two of
@@ -1399,9 +1406,9 @@ string matching the credential patterns.
 
 After the second call, the agent SHALL name the person to tag, as *A
 question in a post tags one person who can decide, if there is one* finds
-them, on the question's **tag line**: `@` and their login alone, on a line
-placed as a related-decision line is, after any related-decision,
-person-required and concerns lines. The hooks leave the tag line out of the question's
+them, on the question's **tag line**: `@` and a login in GitHub's login
+syntax, alone on a line after any related-decision, person-required and
+concerns lines, which come in that order. The hooks leave the tag line out of the question's
 text, as they do a related-decision line, so the hash stays the one vetted.
 
 #### Scenario: Adding the tag line keeps the vetted hash
@@ -1746,13 +1753,6 @@ SHALL ask nothing about one it lists as deferred.
   working, and the work can go on without the answer
 - **THEN** it goes on with the work, lists the question in no post, files no
   issue for it, and reports that the question waits for the person
-
-#### Scenario: A deferred question listed in the reply is not asked there
-
-- **WHEN** an agent in a session with a person in it defers a question
-  under filter 2
-- **THEN** its reply lists the question as not done, asks nothing about it,
-  and opens no picker for it; the person may answer it later or not at all
 
 ### Requirement: Two calls prove the filters ran
 

@@ -24,7 +24,9 @@
 
 - **Rationale: A question is pushed to the questions branch of what it concerns.**
   Committed with the work, a question's file would be invisible to other work until that work merged, and lost if the work were abandoned; a general question would ride in an unrelated pull request; and an answer session could not write the answer, since it cannot commit to another agent's work branch. A branch of its own, pushed with no pull request, has none of these costs, and needs no review, since a question's authority comes from who answered it.
+  The script commits with git's plumbing and never moves HEAD, because prose's and bug-hunter's hooks report each commit that lands on HEAD without their trailers, and these machine records carry none.
   Evidence: work committed on one branch is not in another branch's files until it is merged into it, https://git-scm.com/book/en/v2/Git-Branching-Basic-Branching-and-Merging
+  Evidence: prose's and bug-hunter's hooks run their trailer checks after every Bash command, [prose's hook.json](../../../.agents/skills/prose/hook.json) and [bug-hunter's hook.json](../../../.agents/skills/bug-hunter/hook.json), and prose's check asks git whether HEAD moved, [check-commit-trailer.sh](../../../.agents/lib/commit-trailer/check-commit-trailer.sh)
 
 - **Rationale: The Igor reads questions branches with the script.**
   A worker holds no GitHub credential, and counting a decision needs GitHub's answer on write access. The Igor already runs `gh`, `git` and `claude` as child processes, so the script is one more program run the same way, and igor needs no second implementation of the rules.
@@ -105,3 +107,7 @@
   A question's text and its answer passed as arguments would be readable by every user of the host, since each process's command line is.
   Evidence: proc(5): with the default `hidepid=0`, "Everybody may access all /proc/pid directories", https://man7.org/linux/man-pages/man5/proc.5.html
   Evidence: proc_pid_cmdline(5): `/proc/pid/cmdline` "holds the complete command line for the process", https://man7.org/linux/man-pages/man5/proc_pid_cmdline.5.html
+
+- **Rationale: An Inquisitor reply is acted on only with a writer's miss file.**
+  The reply's own text and author count for nothing, because anyone can comment on a public repository, so without the file anyone could post a fake automatic reply such as `Inquisitor: filter 4` and have an agent decide a maintainer's question; only an account with write access, a writer, can push to the questions branch.
+  Evidence: GitHub's repository roles give the push permission only from the Write role up, while the Read role can comment on issues and pull requests, https://docs.github.com/en/organizations/managing-user-access-to-your-organizations-repositories/managing-repository-roles/repository-roles-for-an-organization

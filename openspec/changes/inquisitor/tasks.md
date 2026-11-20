@@ -394,9 +394,9 @@ that contradicts what design.md assumed too. Numbers 0.22, 0.24, 0.27 and
         - only the newest answer counting among a question's files on a
           questions branch, by the order of the commits that added them
           (design.md: *The newest answer counts*);
-        - a file's visibility taken from the more private of whichever
-          of `repository` and `asked_from` it holds (design.md: *Every
-          questions-branch file names where it was asked from*);
+        - a file more private than where the result goes left out, its
+          visibility set by *A log or miss file is as private as its more
+          private repository*;
         - during an Igor's run, a file about a repository other than the
           item's shown as input (by `branch-search`, given the run's
           item; design.md: *Questions-branch
@@ -639,7 +639,9 @@ that contradicts what design.md assumed too. Numbers 0.22, 0.24, 0.27 and
       can set; that without it anyone with write access can rewrite or
       delete the branch; and that with it a writer can still push a handled
       file that hides a question from the person (the inquisitor decision record's constraint on guarding a
-      `questions` branch)
+      `questions` branch); and that a CI workflow run on push should skip
+      the `questions` branch, where a check of the project's files, such
+      as spec-trace's, fails, as shared-skills' spec-trace workflow does
 - [ ] 5.7 Change bug-hunter's SKILL.md so that Step 9 runs each
       recommendation in its report through the inquisitor skill's four
       filters before asking about it: a root cause, a finding too large
