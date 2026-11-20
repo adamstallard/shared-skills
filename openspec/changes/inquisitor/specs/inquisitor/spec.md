@@ -392,11 +392,12 @@ the session SHALL have no login configured.
 
 Visibility SHALL be ranked private, then internal (GitHub's `INTERNAL`),
 then public, and nothing about one repository SHALL go to a **more
-visible** place, with two exceptions the person confirms after a warning: a
-record, as *The answerer's confirmation can send a record somewhere more
-visible* allows, and the link to its record in a filter 1 reply the person confirms, as the
-`answer-session` spec's *The preview warns when a filter 1 record is more
-private than the thread* allows.
+visible** place, except as three rules allow: *The answerer's
+confirmation can send a record somewhere more visible*; for a filter 1
+reply linking a more private record, answer-session's *The preview warns
+when a filter 1 record is more private than the thread*; and *A later run
+gets only the answer to its Igor's question on a more private
+repository*.
 
 #### Scenario: A private repository's question goes to no internal or public place
 
@@ -764,6 +765,8 @@ on. It SHALL keep to the role's scope and the item's visibility.
   `project:api` among them, but the item's visibility hides that entry
   and the `o/api` file (design.md:
   *Questions-branch files and `project:` entries in a run's search*)
+- **AND** it returns nothing from any lore repository but the one the Igor
+  injects lore from
 - **AND** it does so under igor PR #216's requirements *Lore reaches the
   worker unbidden, beside a search it may run* and *An Igor runs its
   worker's lore searches* and its decisions 53, 54 and 55
@@ -1731,8 +1734,11 @@ category.
 - **WHEN** the first call is given a questions file with mode 0644
 - **THEN** it refuses, issues no token, and says to write the file with
   mode 0600 in a private directory, such as one `mktemp -d` makes
-- **AND** it refuses a 0600 file in a directory its group can read the
-  same way
+- **AND** it refuses in the same way a 0600 file whose directory the
+  directory's group can read
+- **AND** the second call refuses the verdicts for the token's questions
+  when they are given in such a file, recording nothing and keeping the
+  token
 
 #### Scenario: The records have mode 0600
 
@@ -3417,8 +3423,8 @@ file.
 
 ### Requirement: A log file is read by its frontmatter and its body's end
 
-A reader SHALL count a log file as answered when its frontmatter holds
-`authority`, and only then, and as handled, closed with no answer or
+A reader SHALL count a log file as holding an answer of its own when its
+frontmatter holds `authority`, and only then, and as handled, closed with no answer or
 authority, when it holds `handled`; nothing in a body decides either. A
 handled file closes the one file its `closes` names, and filter 1's search
 never matches it. A reader SHALL read any other log file's body from its
@@ -3562,6 +3568,9 @@ block a post with a question whose latest record has a category.
   the category `secret`
 - **THEN** it refuses, issues no token, and says to pass that question,
   and every other question of the same picker call, on standard input
+- **AND** the second call refuses a verdict given in a file for a
+  question the first call took with a category, recording nothing and
+  keeping the token
 
 #### Scenario: A question holding a secret is recorded by hash only
 

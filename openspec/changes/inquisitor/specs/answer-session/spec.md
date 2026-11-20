@@ -2193,6 +2193,26 @@ decline's miss or declines without a readable one.
   category, or one whose questions branch they cannot push to
 - **THEN** the preview says the answer will not be recorded, and why
 
+### Requirement: The preview says when an answer also reaches a more visible item's run
+
+When the person is about to confirm an answer to a log file that has no
+`asked_in`, and whose `asked_from` names a repository more visible than
+the one whose questions branch holds the file, the preview SHALL add one
+line: the answer is also passed to an Igor's run on an item in the
+repository `asked_from` names, and that run must not quote it in the
+item. Such a file is an Igor worker's question about a repository more
+private than its item, since a question asked in a thread has an
+`asked_in`.
+
+#### Scenario: The preview says an answer also reaches a more visible item's run
+
+- **WHEN** the person is about to confirm an answer to the log file an
+  Igor pushed, for its worker on an issue of the public `o/web`, to the
+  questions branch of the private `o/api`, with no `asked_in` and with
+  `asked_from: "o/web"`
+- **THEN** the preview adds one line saying the answer is also passed to
+  the Igor's run on that issue, and that the run must not quote it there
+
 ### Requirement: A questions-branch answer file records the answer as given
 
 The answer file SHALL hold the question the person saw; the `authority`

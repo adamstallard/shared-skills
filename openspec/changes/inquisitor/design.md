@@ -1330,14 +1330,6 @@ puts the entry in its report, as it does its question and miss files, and the
 Igor opens the pull request, since there the script pushes nothing to a lore
 repository and the Igor already pushes the run's other files.
 
-#### A proposed entry's id follows igor's id rules
-
-**Why** the Igor stops on "id taken": igor reports a collision outside the
-run's scope only as "id taken", which does not say what holds the id. If an
-entry holds it, another id would do; if a rejected candidate, a file under the
-lore repository's `rejected/`, holds it, the entry may not be proposed at all.
-The Igor cannot tell which, so it proposes nothing.
-
 #### Lessons from misses are drafted on request and land by scope
 
 Misses change the skill only through lessons sent by pull request or memory
@@ -1389,7 +1381,11 @@ igor's rule, so the worker does not use it, and task 0.14 reports it.
 
 **Why** a later run reads only that one file's answer: the worker needs the
 answer to go on, and the run's search hides the more private branch, so that
-nothing else of that repository reaches a run on a more visible item.
+nothing else of that repository reaches the later run, on a more visible
+item. The person answering is told in the answer session's preview that
+their answer reaches that later run, so they can word it knowing that
+(answer-session spec: *The preview says when an answer also reaches a more
+visible item's run*).
 
 #### Filter 1 in an Igor's run searches through `igor lore-search`
 
@@ -2636,13 +2632,6 @@ wait for igor PR #216 to merge, since archiving writes the scenarios into
 the directory where spec-trace's CI fails on an untagged one.**
 
 ## Open Questions
-
-- **Is the person answering an Igor's question about a more private
-  repository told that the answer reaches the run of a more visible item?**
-  (inquisitor spec: *A later run gets only the answer to its Igor's question
-  on a more private repository*.) The answer session's preview names only
-  the private questions branch it records to, so the person answers without
-  knowing.
 
 ### Facts measured before building
 

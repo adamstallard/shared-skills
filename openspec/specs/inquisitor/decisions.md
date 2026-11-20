@@ -37,7 +37,7 @@
   Evidence: igor spawns its helper programs as child processes, https://github.com/adamstallard/igor/blob/7d969cd6ab7820e143c2802a9ead44b3a91332b0/src/gh.ts
 
 - **Rationale: A questions-branch decision counts only unchanged and by write access.**
-    Write access is the authority to decide for a repository, and a file changed after its push no longer says what was pushed. A commit's signature would not show who answered: most answers are logged by an agent in the person's own session, and git signs with the configured key whatever the commit holds, so a signed file says only whose session pushed it. Where the admin requires signed commits, a file naming someone who did not answer is itself signed by whoever pushed it, which shows who forged it.
+  Write access is the authority to decide for a repository, and that authority covers the file as it was pushed, not a later edit. A commit's signature would not show who answered: most answers are logged by an agent in the person's own session, and git signs with the configured key whatever the commit holds, so a signed file says only whose session pushed it. Where the admin requires signed commits, a file the named person says they never answered carries the signature of whoever pushed it.
   Evidence: `git commit -S` signs the commit with the committer's key, whatever its content, https://git-scm.com/docs/git-commit#Documentation/git-commit.txt--Sltkey-idgt
 
 - **Rationale: Filter 1 hides every lore entry outside the question's scope.**
@@ -92,3 +92,7 @@
   Exempting a post that carries igor's handback marker would let any agent that adds the marker skip vetting, and would help no real handback: the Igor posts each handback, which igor's specs call a handoff, through its own code, which no tool hook sees, and the worker holds no credential that could post one.
   Evidence: igor's graceful-handoff spec has the Igor post each handoff, https://github.com/adamstallard/igor/blob/7d969cd/openspec/specs/graceful-handoff/spec.md
   Evidence: igor's task-execution spec keeps the surface credential out of the worker's environment, https://github.com/adamstallard/igor/blob/7d969cd/openspec/specs/task-execution/spec.md
+
+- **Rationale: A proposed lore entry's path, fields and id follow igor's rules.**
+  Of this requirement, only its rule for "id taken" needs a reason beyond following igor. During a run the Igor, not its worker, proposes the run's lore entries. When an entry's id is already held by something outside the run's scope, igor reports only "id taken", without saying what holds it. If an entry holds it, another id would do; if a rejected candidate, a file under the lore repository's `rejected/`, holds it, the entry may not be proposed at all. The Igor cannot tell which, so it does not propose that entry under any id.
+  Evidence: igor PR #216's decision 6, https://github.com/adamstallard/igor/blob/59e7561/openspec/changes/lore-search/proposal.md#L166-L180
