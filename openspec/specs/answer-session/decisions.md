@@ -26,6 +26,12 @@
   Holds while: the approved layout is the fullscreen one.
   Paths: .agents/skills/inquisitor/
 
+- **Constraint: GitHub's events API shows each hash-only miss file's pusher and push time to anyone who can see its questions branch, even where that branch is more visible than the miss's thread.**
+  Because: the cost is accepted: the file's name, a hash of the surface and the reply's id, does not identify the thread, so the pusher and time show only that the person judged some question then.
+  Evidence: GitHub's events API lists each push event's actor and time, https://docs.github.com/en/rest/activity/events
+  Holds while: the answer session pushes a hash-only miss file with the person's own credentials.
+  Paths: .agents/skills/inquisitor/
+
 ## Rejected
 
 - **Rejected: A TLA+ model of the answer session's owed pushes and lock.**
@@ -58,8 +64,8 @@
   Evidence: none of GitHub's notification reasons is a push to a branch, https://docs.github.com/en/rest/activity/notifications#about-notification-reasons
 
 - **Rationale: Claude's draft goes to the prompt box, never to a post.**
-  Only the conversation the person is in may fill their prompt box: a subagent that read an untrusted Linear or Discord message could otherwise plant text the person then sends without seeing where it came from. `propose_reply` refuses any call carrying an `agentId`. The spec assumes Claude Code sets one on a subagent's call to a mod's tool, as it sets `agent_id` on a subagent's hook events; task 0.26 measures that.
-  Evidence: the approved prototype's `tool.call` handler for `propose_reply` refuses such a call, in `answer-session/hooks/register.tsx`, fc3c35f
+  The model reads untrusted thread text, which can steer it to write what the person would not say, so its draft goes where the person reads it before anything is sent, never straight to a post. `propose_reply` also refuses a call carrying an `agentId`, keeping out a subagent's draft wherever Claude Code marks the call as a subagent's; a subagent's call without one still lands only in the prompt box. The spec assumes Claude Code sets one on a subagent's call to a mod's tool, as it sets `agent_id` on a subagent's hook events; task 0.26 measures that.
+  Evidence: OWASP names indirect prompt injection, content from external sources that "alters the behavior of the model in unintended or unexpected ways", https://genai.owasp.org/llmrisk/llm01-prompt-injection/
   Evidence: Claude Code's hooks reference says a subagent's tool events carry "the `agent_id` and `agent_type` common input fields that identify the subagent", https://code.claude.com/docs/en/hooks
 
 - **Rationale: An agent's question comes from a bot account or a log file.**

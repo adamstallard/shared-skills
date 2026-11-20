@@ -419,9 +419,10 @@ that contradicts what design.md assumed too.
       - A handled file holds only `handled` and `closes`, the closed
         file's name, with no body (design.md: *The answer session writes
         a handled file on every close of a questions-branch file*). It is
-        written only through the command's handled option, which only the
-        answer session passes; a `handled` or `closes` key is refused
-        without it; the command does not check its caller.
+        written only through the command's session option, which only the
+        answer session passes; a `handled` or `closes` key, or a hash-only
+        miss file, is refused without it; the command does not check its
+        caller.
       - Each answer is written in quote lines (design.md: *A log file's
         answer is written as quote lines*):
         - with a github.com `answer_link`, read from the linked comment
@@ -710,7 +711,8 @@ that contradicts what design.md assumed too.
         and placement of the notice for a post held back because a reply
         arrived
 - [ ] 6.2 The `answer_session` section of `inquisitor.json`, and setup:
-      the candidates; each relay check; saving the file with the person's
+      the person's GitHub login, without which it does not complete; the
+      candidates; each relay check; saving the file with the person's
       own keys kept; a failed identity's surface or a failed channel left
       off and checked again at each opening; the Linear key in the
       keychain; `~/.local/bin/answer`; the check that each subscribed or
@@ -913,7 +915,9 @@ that contradicts what design.md assumed too.
       *Filters 2 to 4 only suggest a verdict on other questions*; *A
       person cites a lore entry by naming it as an answer or a record*)
 - [ ] 6.12 discord-bot's post hook: `PreToolUse` on Bash, which, in the
-      holder, blocks any line `.agents/lib/gh-shell/` cannot read that
+      holder, judges `python3 $D`, with `D` assigned nowhere on the line
+      or assigned that path, as discord-bot's script at its installed
+      path, blocks any line `.agents/lib/gh-shell/` cannot split that
       names `discord_bot.py` or runs a script of unknown path, and passes
       `post`, `edit` and `thread` only as the Discord relay identity with
       readable text and no reserved prefix, and `delete` only as that
@@ -922,8 +926,10 @@ that contradicts what design.md assumed too.
       holder, the model posts only as the person's relays*)
 - [ ] 6.13 linear-app's post hook: `PreToolUse` on Bash and Linear MCP
       tools, which, in the holder, blocks `token`, `headers`, `wire` and
-      any line `.agents/lib/gh-shell/` cannot read that names
-      `linear_app.py` or runs a script of unknown path, and passes a
+      any line `.agents/lib/gh-shell/` cannot split that names
+      `linear_app.py` or runs a script of unknown path, judging `python3
+      $L`, with `L` assigned nowhere on the line or assigned that path, as
+      linear-app's script at its installed path, and passes a
       Linear MCP tool not named `get_…`, `list_…` or `search_…` only
       while Claude Code's MCP configuration shows linear-app wired that
       server to the Linear relay identity, and the tool's text starts

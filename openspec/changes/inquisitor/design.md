@@ -845,9 +845,8 @@ wherever it may come before `gh`. An earlier command still makes the line
 unreadable for a `gh pr` or `gh issue` post, or for a `gh api` write that
 reads a field from a file, since it could change what is posted. Only a path
 ending in `/github_app.py` is read, since the reader cannot know what any other
-script posts. An unset `$G` posts nothing in Claude Code, where each
-command starts a fresh shell, but could in a host whose shell keeps
-variables, such as Cursor; blocking it costs only a rewrite.
+script posts. A line running `python3 $G` with `G` unassigned is blocked, since the
+reader cannot tell which script it runs; that costs only a rewrite.
 
 *Ruled out by a scenario:* blocking every `gh api` call through the script
 (gh-post spec: *The reader reads posts sent through the github-app skill and
@@ -1590,7 +1589,7 @@ departs from #216.
 #### Setup is part of the answer session
 
 **Setup runs inside the answer session: in place of the queue while the
-`answer_session` section is missing or no surface in it has both a `relay` and
+top-level `login` or the `answer_session` section is missing or no surface in it has both a `relay` and
 a subscription, and again on `/answer setup`.** How setup looks is prototyped,
 not specified.
 
@@ -1805,10 +1804,14 @@ in, which task 0.32 measures.
   identity. linear-app's `token` and `headers` are blocked, since the token
   they print posts where no hook reads the text, and so does `wire`, which
   could point the server at another identity.
-- A command line the shared splitter in `.agents/lib/gh-shell/` cannot split
-  exactly is blocked when it names `discord_bot.py` or `linear_app.py`, or
-  runs a script whose path
-  it cannot tell, such as `python3 "$D"`, as the post hooks block an
+- discord-bot's and linear-app's instructions set `D` and `L` to their
+  scripts' installed paths, so each hook judges `python3 $D` or `python3
+  $L` as its script at that path when the line assigns the variable
+  nowhere or assigns it that path.
+- Each of the two hooks blocks a line the shared splitter in
+  `.agents/lib/gh-shell/` cannot split exactly when the line names that
+  hook's script, `discord_bot.py` or `linear_app.py`, or runs a script
+  whose path the splitter cannot tell, as the post hooks block an
   unreadable `gh` line.
 
 **No hook checks where a relay post goes, and the person is accountable for
@@ -2068,15 +2071,16 @@ unanswered*).
 
 **Why:** the URL would point the readers of a more visible questions branch
 into a more private thread. A Discord URL holds the server's and channel's
-ids, a Linear URL the workspace, issue and title, and a github.com link into
+ids, a Linear URL the workspace and issue key, and a github.com link into
 a more private repository leaks the same way. A file that holds a Linear or
 Discord `asked_in` counts as private.
 
 An answer's text leaks as its link does. So where the questions branch is
 more visible than the thread an answer was given in, an answer file is
 written only once the person confirms the preview's warning, and then with
-no link into the thread; without that confirmation the answer is not
-posted; the person can reword it to suit the more visible place, and then
+no link into the thread: the relay post's last line, `Re: ` and a URL into
+the thread, is dropped from its answer. Without that confirmation neither
+the answer nor its file goes out; the person can reword it to suit the more visible place, and then
 confirms (answer-session spec: *No answer file goes
 somewhere more visible than its thread unconfirmed*).
 
@@ -2467,8 +2471,8 @@ naming that record, on every question, so the decline path does the rest
 and no answer log file is pushed.** The record exists and filter 1 found it,
 so a log file pointing to it adds nothing; a later searching agent is
 stopped by the record only if its own filter 1 can read and count it.
-Filter 1 should have stopped the question either way, so a miss is logged,
-on a person's question too.
+A reason 2 decline logs a miss on any question, since the person chose
+the filter themselves, so agreeing logs one on a person's question too.
 
 *Ruled out by a scenario* (answer-session spec: *Agreeing to a shown recorded
 answer is a filter 1 decline*): withholding agreement for a record more

@@ -1079,8 +1079,9 @@ SHALL count as no write access.
 
 Whoever logs an answer from a comment, whether the skill's script, an
 answer session or an Igor, SHALL record the comment's whole text word for
-word as the file's answer, never a paraphrase. Answer text passed with a
-link only identifies the comment.
+word as the file's answer, never a paraphrase, save a `Re: ` line *The
+answerer's confirmation can send a record somewhere more visible* drops.
+Answer text passed with a link is not recorded.
 
 #### Scenario: A comment's whole text is recorded as the answer
 
@@ -2415,14 +2416,12 @@ more visible* allows, and the agent SHALL then tell the person why.
 
 ### Requirement: The answerer's confirmation can send a record somewhere more visible
 
-When the person answering or declining confirms a warning that names the
-more private source, a Discord thread, a Linear thread or a private or
-internal GitHub repository, the script SHALL push the question's log file,
-with its answer, or its miss file to a questions branch more visible than
-that source. The file SHALL then hold no `asked_in` or `answer_link` into
-the source, nor a miss's `asked_by`, and its `asked_from` SHALL name the
-branch's own repository.
-Only that person confirms it.
+When the person answering or declining confirms a warning naming the more
+private source, the script SHALL push the question's answered log file or
+its miss file to a questions branch more visible than that source. The
+file SHALL then hold no `asked_in` or `answer_link` into the source, no
+miss's `asked_by`, no relay post's `Re: ` line in its answer, and as
+`asked_from` the branch's own repository. Only that person confirms it.
 
 #### Scenario: A confirmed answer from a Discord thread is recorded on a public branch
 
@@ -2432,6 +2431,15 @@ Only that person confirms it.
 - **THEN** the log file is pushed to the questions branch of `o/web`,
   holding `asked_from: "o/web"` and neither the thread's URL nor the relay
   message's
+
+#### Scenario: A confirmed answer drops the relay post's Re line
+
+- **WHEN** a person answers, in their answer session, an organization
+  question asked in an issue of the private `o/api`, and confirms sending
+  the record to the public lore repository `o/lore`
+- **THEN** the answer in the log file pushed to the questions branch of
+  `o/lore` is the relay comment's text without its last line,
+  `Re: https://github.com/o/api/issues/7`
 
 #### Scenario: Without the confirmation the record stays as private as its source
 
@@ -2698,7 +2706,7 @@ run or a later one (design.md: *A flagged run asks nothing and pushes nothing*).
 An agent SHALL write no handled file; only an answer session writes one, as
 the `answer-session` spec's *A handled file closes a questions-branch
 question* says. The `log` command SHALL write one only when called with its
-handled option, which the skill's instructions SHALL tell an agent never to
+session option, which the skill's instructions SHALL tell an agent never to
 pass, and SHALL refuse a `handled` or `closes` key passed without it
 (design.md: *The answer session writes a handled file on every close of a
 questions-branch file*).
@@ -2711,16 +2719,16 @@ questions-branch file*).
 - **THEN** the agent pushes no handled file; the answer session that made
   the post pushes it
 
-#### Scenario: The log command refuses a handled key without its handled option
+#### Scenario: The log command refuses a handled key without its session option
 
-- **WHEN** the `log` command is called without its handled option, on a
+- **WHEN** the `log` command is called without its session option, on a
   file whose keys include `handled` or `closes`
 - **THEN** it refuses, and writes nothing
 
-#### Scenario: The skill's instructions forbid the handled option
+#### Scenario: The skill's instructions forbid the session option
 
 - **WHEN** an agent reads the skill's instructions for the `log` command
-- **THEN** they tell it never to pass the handled option
+- **THEN** they tell it never to pass the session option
 
 ### Requirement: The script writes every log and miss file through its log command
 
@@ -2783,7 +2791,8 @@ answer, and writes no `asked_in`.
 
 For a Linear or Discord `answer_link`, which only an answer session passes,
 the `log` command SHALL fetch nothing and record the given answer word for
-word (design.md: *An answer given through the answer session counts by its answer file*).
+word, save a `Re: ` line *The answerer's confirmation can send a record
+somewhere more visible* drops (design.md: *An answer given through the answer session counts by its answer file*).
 
 #### Scenario: A Discord answer link is recorded and never fetched
 
@@ -3181,7 +3190,9 @@ where they allow it, never `conditions`; then a markdown body. Every log and mis
   lines, with their quote marks dropped, as the answer
 - **AND** every answer keeps all its lines, each written as `> ` and the
   line, or `>` alone for a blank line, with line ends made LF and blank
-  lines at its start and end dropped (design.md: *A log file's answer is
+  lines at its start and end dropped; the only other line dropped is a
+  `Re: ` line *The answerer's confirmation can send a record somewhere
+  more visible* drops (design.md: *A log file's answer is
   written as quote lines*)
 
 #### Scenario: A rephrased question's log file holds the rephrasing
@@ -3255,7 +3266,15 @@ SHALL get no file, and a writer finding the name taken SHALL push nothing.
 A **hash-only miss file** SHALL be a miss file with empty frontmatter and
 no body, written only by an answer session and committed as *A citation file
 has one format* gives for a citation, dated midnight UTC on the day it is
-pushed. Being on the branch is its whole authority.
+pushed. Being on the branch is its whole authority. The `log` command
+SHALL write one only when called with its session option, as for a handled
+file.
+
+#### Scenario: The log command refuses a hash-only miss file without its session option
+
+- **WHEN** the `log` command is called without its session option to
+  write a miss file with no keys and no body
+- **THEN** it refuses, and writes nothing
 
 #### Scenario: A hash-only miss file holds nothing
 
@@ -3934,7 +3953,9 @@ minute apart, before taking the reply as input.
 An `Inquisitor: ` reply holding `question <n>: ` after its prefix SHALL be
 about item `<n>`, counted from 1, among the open-questions items of the post
 it replies to or names in its `Re: ` line. The agent SHALL treat such a
-reply as input when that post was edited after the reply was posted.
+reply as input when that post was edited after the reply was posted. It
+SHALL also treat as input an unnumbered reply to a post holding more than
+one question, and every question in that post stays open.
 
 #### Scenario: A numbered reply settles only its item
 
@@ -3949,6 +3970,12 @@ reply as input when that post was edited after the reply was posted.
 - **WHEN** the agent's post was edited after a reply starting `Inquisitor:
   question 2: filter 4` was posted
 - **THEN** the reply is input, since the number may point at another item
+
+#### Scenario: An unnumbered reply to a post of several questions is input
+
+- **WHEN** an agent's post asks two questions, and a reply starting
+  `Inquisitor: filter 4`, with no `question <n>: `, has its miss file
+- **THEN** the reply is input, and both questions stand
 
 ### Requirement: A question that should not have been asked is logged as a miss
 

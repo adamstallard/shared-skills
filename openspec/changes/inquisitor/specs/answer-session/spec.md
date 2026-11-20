@@ -505,7 +505,8 @@ keychain, and a save SHALL keep keys it does not write.
 **The person** SHALL be the one whose questions the answer session shows:
 the one running it, whose login is the one the inquisitor's *A configured
 login counts only when gh is logged in as it* sets; with no login
-configured, GitHub SHALL be off. A **relay identity** SHALL be the bot of
+configured, GitHub SHALL be off and the session SHALL record nothing and post no reply by itself,
+telling the person why. A **relay identity** SHALL be the bot of
 a surface's skill, github-app, linear-app or discord-bot, that posts for
 the person there, with a token that skill holds.
 
@@ -515,6 +516,9 @@ the person there, with a token that skill holds.
   logged in as another account
 - **THEN** the answer session reads no GitHub channel and posts nothing on
   GitHub
+- **AND** it pushes no answer, miss or handled file, hash-only or not,
+  and posts no reply by itself, and each preview says the record needs
+  the person's GitHub login
 
 #### Scenario: No answer-session file holds a relay identity's token
 
@@ -575,10 +579,11 @@ in; each opening SHALL rerun any check that failed or never ran.
 
 ### Requirement: Setup opens on an incomplete configuration
 
-The answer session SHALL run setup in place of the queue while
+The answer session SHALL run setup in place of the queue while `login` or
 `answer_session` is missing or no surface in it has both a `relay` and a
-subscription, and on `/answer setup`. Setup SHALL offer the channels the
-person can read, and save every channel the person chose, whatever its checks found.
+subscription, and on `/answer setup`. Setup SHALL not complete without
+the person's GitHub login, and SHALL offer the channels the person can
+read and save every channel the person chose, whatever its checks found.
 
 #### Scenario: Setup offers the person's channels
 
@@ -591,9 +596,16 @@ person can read, and save every channel the person chose, whatever its checks fo
 #### Scenario: Setup opens in place of the queue on an incomplete configuration
 
 - **WHEN** the person opens the answer session and `inquisitor.json` has no
-  `answer_session` section, or one in which no surface has both a `relay`
-  and a subscription
+  `login`, no `answer_session` section, or one in which no surface has
+  both a `relay` and a subscription
 - **THEN** setup runs in place of the queue
+
+#### Scenario: Setup asks for the GitHub login of a Discord-only person
+
+- **WHEN** the person sets up only Discord, and gives no GitHub login
+- **THEN** setup does not complete, and says the login is needed because
+  every answer file, and every miss file but a hash-only one, names the
+  person by it
 
 #### Scenario: Setup runs again on request
 
@@ -1995,9 +2007,9 @@ cannot split that names its script or runs one of unknown path.
 
 #### Scenario: A line naming discord-bot that cannot be read is blocked
 
-- **WHEN** the holder's model runs `python3 "$D" post` with `D` set in an
-  earlier command, so `.agents/lib/gh-shell/` cannot tell which script
-  runs, or a line naming `discord_bot.py` that it cannot read
+- **WHEN** the holder's model runs a line naming `discord_bot.py` that
+  `.agents/lib/gh-shell/` cannot split, or `python3 "$X" post` with `X`
+  set in an earlier tool call, so it cannot tell which script runs
 - **THEN** the call is blocked by discord-bot's post hook
 
 #### Scenario: A Discord post as another bot is blocked
@@ -2005,6 +2017,26 @@ cannot split that names its script or runs one of unknown path.
 - **WHEN** the holder's model runs discord-bot's `post` command as an
   identity other than the Discord relay
 - **THEN** the call is blocked by discord-bot's post hook
+
+### Requirement: The holder's hooks read discord-bot's and linear-app's documented calls
+
+In the holder, discord-bot's and linear-app's post hooks SHALL judge
+`python3 $D` and `python3 $L`, the calls those skills' instructions
+document, as their scripts at their installed paths, where the line
+assigns `D` or `L` nowhere or assigns it that path, since those
+instructions set each variable to that path.
+
+#### Scenario: The documented discord-bot and linear-app calls are judged as their scripts
+
+- **WHEN** the holder's model runs `python3 $D read --channel agents`, or
+  `python3 $L check`, with `D` and `L` assigned nowhere on the line
+- **THEN** each hook judges the call as its skill's script at its
+  installed path, and lets it through
+- **AND** `python3 $D post` as the Discord relay identity, with text the
+  hook can read, goes through as the same call with the path written out
+  does
+- **AND** `D=/tmp/x.py; python3 $D post` runs a script of unknown path,
+  and is blocked
 
 ### Requirement: In the holder, the model logs no answer
 
@@ -2207,12 +2239,11 @@ decline's miss or leaves it to a hash-only miss file.
 ### Requirement: A questions-branch answer file records the answer as given
 
 The answer file SHALL hold the question the person saw; the `authority`
-the inquisitor's spec sets for an answer given in the session, on any
-surface; and, as quote lines, the relay post's text word for word, or the
-confirmed answer if unrelayed, with any rephrasing and summary also in
-their own sections. The `log` command SHALL read a GitHub relay post
-itself. For Linear or Discord the answer session SHALL pass it the text
-it posted as the relay, and the command fetches no post.
+the inquisitor's spec sets for an answer given in the session; and, as quote lines, the relay post's text, as the inquisitor's
+*An answer logged from a comment is the comment's whole text* sets, or the
+confirmed answer if unrelayed, with any rephrasing and discussion summary
+also in their own sections. The `log` command SHALL read a GitHub relay post
+itself; for Linear or Discord the session SHALL pass it the relayed text.
 
 #### Scenario: A relayed answer's file records the relay post as where it is recorded
 
@@ -2269,16 +2300,17 @@ it posted as the relay, and the command fetches no post.
 
 When a decline, a recorded answer or an `Inquisitor: ` reply takes a
 question off the queue, the session SHALL push, only through the `log`
-command's handled option, a **handled file** for each unanswered questions-branch log file that no
-handled file names and that holds the question: one the question was shown from, or whose `asked_in` links that question's
-message.
+command's session option, a **handled file** for each unanswered
+questions-branch log file that holds the question and that no handled
+file names. A file holds the question when the question was shown from
+it or its `asked_in` links the question's message.
 
 #### Scenario: An automatic reply pushes a handled file
 
 - **WHEN** the answer session's own filter 2, 3 or 4 reply goes out on a thread
   copy an unanswered log file holds
 - **THEN** a handled file naming that log file is pushed through the
-  `log` command's handled option
+  `log` command's session option
 - **AND** it does the same for a `Recorded answer: ` post and for any
   decline, agreeing included, with a thread or without, being the only
   writer of handled files under the inquisitor's *Only an answer session
