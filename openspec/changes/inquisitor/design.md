@@ -259,15 +259,8 @@ there, the relay's included, arrive as notifications.
 
 A relay identity may do other work, but only the answer session starts a
 post with one of the four reserved prefixes, `User says: `, `User asks: `,
-`Recorded answer: ` and `Inquisitor: `. Anything holding the relay identity
-could post `User says: `, which marks a question answered on every machine.
-So the skill's
-instructions reserve the prefixes, and the inquisitor's post hook enforces
-them on GitHub in every session (*The post hook blocks a reserved prefix on
-GitHub*). In the answer session's own Claude Code session the model has no
-tool that posts (*The session's model has no shell, no writing tool and no
-web fetch*). In any other session nothing enforces the prefixes on Linear
-and Discord.
+`Recorded answer: ` and `Inquisitor: ` (*The post hook blocks a reserved
+prefix on GitHub* gives why, and what enforces it).
 
 ### Local state, one writer per machine
 
@@ -299,8 +292,8 @@ answer session counts by its answer file*).
 The thread's state is still read from relay posts, which is sound only while
 nothing but the answer session starts a post with a reserved prefix. Until
 github-app refuses to hand out a relay's token, any agent on the machine can
-post through the App where no hook sees it, a gap the answer-session decision record accepts (*Constraint:
-Until github-app refuses `token`, `run`, `credential get` and `wire`*).
+post through the App where no hook sees it (*github-app refuses `token`,
+`run`, `credential get` and `wire` for a relay identity*).
 
 ### What the answer session does by itself
 
@@ -325,14 +318,9 @@ The person chats with the model in the session's conversation, about the
 question on screen and its answer; the answer session's panel sits at the
 bottom of the screen, above the prompt box, and the rest of the screen is
 that conversation. The model may ask the person
-in its reply (*A discussion runs in the session's own conversation*). It has
-only its conversation, Claude Code's Read, Grep and Glob, and two tools of
-the answer session's: `propose_reply`, which drafts a reply into the prompt
-box, and `record_verdict`, which hands the code its judgement of a message
-in fixed fields. It cannot
-post, run a command, write a file or fetch a URL. The answer session's own
-code does every post, `log` call and push, and every fetch from a surface.
-Coding, testing and committing happen in other Claude Code sessions. The
+in its reply (*A discussion runs in the session's own conversation*). Its
+tools are set in *The session's model has no shell, no writing tool and no
+web fetch*; since it cannot run a command or write a file, coding, testing and committing happen in other Claude Code sessions. The
 prototype has shown that a mod can fill the prompt box and register a tool
 the model calls by name.
 
@@ -661,10 +649,10 @@ The script takes a question with a category, and its verdict, only on
 standard input, never in a file. Outside any repository, the files can't be
 committed.
 
-*Ruled out by a scenario:* the system's temporary directory, such as `/tmp`,
-where a file with the usual mode is readable by every user of the host
-(inquisitor spec: *The two calls' files and records stay private*, scenario
-*A questions file others can read is refused*).
+*Ruled out by a scenario:* putting the files straight in the system's
+temporary directory, such as `/tmp` (inquisitor spec: *The two calls' files and records stay private*, scenario
+*A questions file others can read is refused*; the inquisitor decision
+record's Rationale entry for that requirement gives why).
 
 #### Verdict records live in the user's state folder
 
@@ -918,15 +906,20 @@ reads a `gh pr` or `gh issue` post only as a whole command line (gh-post spec:
 #### The post hook blocks a reserved prefix on GitHub
 
 **The inquisitor's post hook blocks a tool-call post on GitHub whose body
-starts with a reserved prefix** (reserved for the reason *Polling while open,
-with the person's credentials* gives). Before comparing, it reduces the body
+starts with a reserved prefix.** Before comparing, it reduces the body
 as a question in a post is reduced for its hash (inline markup becomes its
 text, whitespace is joined), then drops leading whitespace, so ` User says: `
 and `**User says:**` are blocked too.
 
-**Why:** only the answer session may start a post with a reserved prefix,
-and it posts through no tool call (*A relay post is posted by a host
-command, unvetted*).
+**Why:** anything holding a relay identity could post `User says: `, which
+marks a question answered on every machine. So only the answer session may
+start a post with a reserved prefix, and it posts through a host command,
+which no tool hook sees (*A relay post is posted by a host command,
+unvetted*). The skill's instructions
+reserve the prefixes in every session; in the answer session's own session
+the model has no tool that posts (*The session's model has no shell, no
+writing tool and no web fetch*); in any other session nothing enforces them
+on Linear and Discord.
 
 #### No exemption for an Igor's handback
 
@@ -1199,8 +1192,8 @@ marks make needless.
 The command does not check who passed an `answer_link`: it
 fetches a linked GitHub comment itself and records that comment's own text.
 
-**Why** inputs go in a 0600 file, never arguments: a question's text and its
-answer passed as arguments are readable by every user of a shared host.
+The inquisitor decision record's *Rationale: The log command takes its input
+in a private file* gives why inputs go in a 0600 file, never arguments.
 
 **Why** it refuses a question holding a line `## Rephrased question`,
 `## Discussion` or `## Answer`: a reader takes those lines from a log file's
@@ -1538,7 +1531,8 @@ The Igor keeps one record of each handback: the hashed record of handback
 questions that igor PR #216, still open, is asked to keep in its decision 59;
 a builder relies on it only once #216 merges with decision 59 in it. For each question it
 posted, the record holds the 6-hex-digit suffix and date from the name of the
-log file it pushed, and the question's hash, but no question text. The run
+log file it pushed, the repository it pushed that file to, and the question's
+hash, but no question text. The run
 finds the file by the suffix and date.
 
 **Why:** anyone who can edit a comment can change its text, so the run never
@@ -2264,9 +2258,7 @@ from the surface, then pushes the file; the asking agent hashes the id of
 the reply it sees and makes one path lookup, whichever kind the session
 wrote. No question text is hashed, so nothing a surface or a posting skill
 changes in a message's text can break the lookup. A forged `Inquisitor: `
-post is another message with another id, so no file matches it. An earlier design named the file by the asking message
-and the filter; where one comment holds several questions, a forged reply
-about another of them, naming the same filter, would have matched. The agent
+post is another message with another id, so no file matches it. The agent
 looks on the questions branch of what its question concerns and, for a
 GitHub question, of the repository holding its thread, where the session
 pushes the file when it can't tell what the question concerns. For a collective's question asked on Linear or Discord, it also
@@ -2289,6 +2281,12 @@ hash-only miss file: the file would back no reply, and with no reply to name
 it, it would be named by a hash of the asking message's URL (inquisitor spec:
 *Every miss file is named by one hash*), which anyone who knows that URL
 could compute.
+
+*Ruled out by a scenario:* naming a reply's miss file by the asking comment
+and the filter. Where one comment asks several questions, a forged reply to
+one of them would get the same name as the session's real reply to another
+under the same filter (inquisitor spec: *Every miss
+file is named by one hash*, scenario *A forged reply names no miss file*).
 
 An agent pushes no citation for a lore entry a `Recorded answer: ` reply
 names, since the answer session pushed any that was due, so one question
@@ -2898,10 +2896,15 @@ to its 149.
   comment on a handback, a `User says: ` one included, as `input`, and the
   answer session's answer file, which names the Igor's log file in
   `answers`, is what counts.
-- **The Igor must run the script's `miss-check` for its worker,** on the repository, surface and id of the reply the worker read in its item's thread, each time the worker asks for the check, since a worker looks again for a missing file as any agent does, with its own credentials and in the
-  version its workers run, and return the JSON
-  over the channel `igor lore-search` uses (*The Igor checks a reply's miss
-  file for its worker*). A worker holds no credential and fetches no
+- **The Igor must run the script's `miss-check` for its worker,** with the
+  Igor's own credentials and in the script version its workers run, on the
+  surface and id of the reply the worker read in its item's thread, and
+  return the JSON over the channel `igor lore-search` uses (*The Igor checks
+  a reply's miss file for its worker*). It runs the check each time the
+  worker asks, since a worker looks again for a missing file as any agent
+  does. It runs it only on a repository where any agent would look for that
+  reply's miss file, taking the question from the Igor's own handback record
+  (*The Igor runs a worker's miss check only where an agent would look*). A worker holds no credential and fetches no
   questions branch, and `branch-search` never shows a hash-only miss file,
   so a worker cannot itself check the file that backs an `Inquisitor: `
   reply. With the check, *An Inquisitor reply is acted on only with a

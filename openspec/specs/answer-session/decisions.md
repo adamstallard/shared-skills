@@ -103,3 +103,8 @@
 - **Rationale: The person runs the session, and a relay identity posts for them.**
   A relay identity is the bot of a skill the person already uses, so posting for them needs no service running beside the session: on Discord, discord-bot's script makes its API calls on each run and exits.
   Evidence: [discord-bot's SKILL.md](../../../.agents/skills/discord-bot/SKILL.md)
+
+- **Rationale: The Linear relay's token stays in memory.**
+  A token passed in a command's arguments would be readable by every user of the host, since each process's command line is.
+  Evidence: proc(5): with the default `hidepid=0`, "Everybody may access all /proc/pid directories", https://man7.org/linux/man-pages/man5/proc.5.html
+  Evidence: proc_pid_cmdline(5): `/proc/pid/cmdline` "holds the complete command line for the process", https://man7.org/linux/man-pages/man5/proc_pid_cmdline.5.html

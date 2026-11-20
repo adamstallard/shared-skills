@@ -43,7 +43,7 @@
   igor's lore-firing spec treats scope as visibility and status as review state: an out-of-scope entry is one the asker may not see, while only an `active` entry, one a person reviewed, reaches a worker unasked. So scope hides an entry from the search, and status only labels it, since a search's results are asked for and reach no worker unasked.
   igor and the inquisitor must read a lore entry's scope alike, and igor matches a `project:` scope by a repository's short name. A project whose repositories have other names would need a mapping file in the lore repository, read by both, which nothing provides. A collective's question concerns no repository, so no short name picks a `project:` entry for it, and it sees only `global` entries.
   Evidence: igor PR #216's lore-firing spec at 59e7561, https://github.com/adamstallard/igor/blob/59e75617ad5c650986717b4603fb549ef62d5c05/openspec/changes/lore-search/specs/lore-firing/spec.md#L3-L29
-  Evidence: `scopeMatches` in igor's `src/firing.ts`, https://github.com/adamstallard/igor/blob/main/src/firing.ts
+  Evidence: `scopeMatches` in igor's `src/firing.ts`, https://github.com/adamstallard/igor/blob/7d969cd/src/firing.ts#L40
 
 - **Rationale: A log file and a miss file have one format.**
   Of this requirement, the scenario *Where an asked_in may be written* fixes one form for a Discord or Linear message's URL because the forms the surfaces give differ. Discord returns no URL for a message, only ids, so the asking agent and the answer session each build it; a message that starts a thread has two addresses, its parent channel's and one inside the thread, where a placeholder message points back to it; and `discordapp.com` answers 301 to the same path on `discord.com`. Linear returns a comment's URL with the issue's title slug, and renaming the issue changed that slug in every comment's URL, so a URL recorded before a rename would match nothing after it. This was measured on 2026-11-19 on a test Discord thread and a test Linear issue, and task 0.23 in the change's tasks.md holds the result.
@@ -76,7 +76,7 @@
 
 - **Rationale: A session with no person in it asks in a post, a handback or nowhere.**
   An Igor worker asks only through its Igor, in its handback comment or a file its Igor pushes, because igor gives it no credential that can post: its environment holds only its seat's token, the model-provider credential its work is charged to.
-  Evidence: igor's requirement *The worker is given an explicit environment holding no credential but its seat's*, https://github.com/adamstallard/igor/blob/main/openspec/specs/task-execution/spec.md
+  Evidence: igor's requirement *The worker is given an explicit environment holding no credential but its seat's*, https://github.com/adamstallard/igor/blob/7d969cd/openspec/specs/task-execution/spec.md#L333
 
 - **Rationale: A weakness is not described in public text before its advisory is published.**
   The rule lasts only while the fix is public and the advisory is not, because a blanket rule would leave a fix's commit message unable to say why the fix was made even after disclosure, which prose's rules require of every commit message's body.
@@ -95,3 +95,13 @@
 - **Rationale: A proposed lore entry's path, fields and id follow igor's rules.**
   Of this requirement, only its rule for "id taken" needs a reason beyond following igor. During a run the Igor, not its worker, proposes the run's lore entries. When an entry's id is already held by something outside the run's scope, igor reports only "id taken", without saying what holds it. If an entry holds it, another id would do; if a rejected candidate, a file under the lore repository's `rejected/`, holds it, the entry may not be proposed at all. The Igor cannot tell which, so it does not propose that entry under any id.
   Evidence: igor PR #216's decision 6, https://github.com/adamstallard/igor/blob/59e7561/openspec/changes/lore-search/proposal.md#L166-L180
+
+- **Rationale: The two calls' files and records stay private.**
+  A question's text can name what its asker wants kept private, so neither the files that carry it nor its verdict records may be readable by another user of the host. A file written with the usual umask of 022 gets mode 0644, which every user can read, so the script refuses a file or directory others can read rather than trust the default. A directory made by `mktemp -d` is the owner's alone, unlike the system's temporary directory, which every user shares.
+  Evidence: umask(2): with the usual umask of 022, "0666 & ~022 = 0644; i.e., rw-r--r--", https://man7.org/linux/man-pages/man2/umask.2.html
+  Evidence: mktemp(1) creates a directory with "u+rwx, minus umask restrictions", https://man7.org/linux/man-pages/man1/mktemp.1.html
+
+- **Rationale: The log command takes its input in a private file.**
+  A question's text and its answer passed as arguments would be readable by every user of the host, since each process's command line is.
+  Evidence: proc(5): with the default `hidepid=0`, "Everybody may access all /proc/pid directories", https://man7.org/linux/man-pages/man5/proc.5.html
+  Evidence: proc_pid_cmdline(5): `/proc/pid/cmdline` "holds the complete command line for the process", https://man7.org/linux/man-pages/man5/proc_pid_cmdline.5.html

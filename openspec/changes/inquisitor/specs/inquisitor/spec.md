@@ -95,6 +95,10 @@ filters on a question that stopped its work. In either case the skill's
 script runs in *Igor-worker mode*, as *The script tells an Igor's run by
 IGOR_RUN* says.
 
+*An answer session* is the Claude Code session where a person answers the
+questions asked of them, and *a relay* the bot account that posts what they
+confirm there, as the `answer-session` spec defines both.
+
 *A miss* is a question a person said need not have been asked, or that an
 answer session judged clearly need not have been. *A citation file* records
 that an `active` lore entry whose scope covers a question answered it:
@@ -872,12 +876,11 @@ file* requires of the file. It SHALL print nothing else about the file.
 
 ### Requirement: The Igor checks a reply's miss file for its worker
 
-During an Igor's run, the Igor SHALL run its worker's version of
-`miss-check`, with its own credentials, on the repository, surface and
-reply id the worker gives, and
-return the output over `igor lore-search`'s channel. The worker SHALL act
-on an `Inquisitor: ` reply only when `backed` is `true`, and a call that
-fails or times out SHALL leave the reply input.
+The Igor SHALL run `miss-check`, in the script version its worker runs and
+with the Igor's own credentials, for the reply the worker names, and return
+the output over `igor lore-search`'s channel. The worker SHALL act on the
+reply only when `backed` is `true`, and a failed or timed-out call SHALL
+leave the reply input.
 
 #### Scenario: A worker acts on a reply its Igor found backed
 
@@ -891,6 +894,23 @@ fails or times out SHALL leave the reply input.
 
 - **WHEN** the Igor's `miss-check` call fails or times out
 - **THEN** the reply is input to the worker, and the question stands
+
+### Requirement: The Igor runs a worker's miss check only where an agent would look
+
+The Igor SHALL run a worker's `miss-check` only on a repository where *A
+reply's miss file is looked for wherever the session may have put it* looks
+for that reply's miss file, taking the question from the Igor's handback
+record, and SHALL leave the reply input for any other repository the worker
+names, because a worker steered by its item could name a repository an
+attacker can push to.
+
+#### Scenario: A miss check on a repository the question never concerned is not run
+
+- **WHEN** an Igor worker on an item of `o/api` asks for `miss-check` on
+  `o/other` for a reply to a question whose file, by the Igor's handback
+  record, the Igor pushed to the questions branch of `o/api`
+- **THEN** the Igor runs no `miss-check`, and the reply is input to the
+  worker
 
 ### Requirement: igor's search passes on the script's labels
 
@@ -3052,10 +3072,11 @@ for each key (design.md: *An answer file names every file it answers*).
 
 A later Igor run SHALL know the answered file only from the Igor's handback
 record, one per handback, never from the comment. That record SHALL hold
-each posted question's hash and its file name's 6-hex-digit suffix and date,
-and no question text. If no record holds them, or not exactly one file on
-the branch matches, the Igor SHALL write no `answers` for that run
-(design.md: *A later run names the answered file from the Igor's record*).
+each posted question's hash, the repository its file went to, and that
+file name's 6-hex-digit suffix and date, and no question text. If no record
+holds them, or not exactly one file on the branch matches, the Igor SHALL
+write no `answers` (design.md: *A later run names the answered file from
+the Igor's record*).
 
 #### Scenario: A later run finds the file by the Igor's record
 
