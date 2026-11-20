@@ -270,19 +270,6 @@ GitHub channel, SHALL have one poll position of its own: the
   10:04
 - **THEN** that team's poll position is 10:04
 
-### Requirement: The same question means the same hash
-
-Two questions SHALL count as **the same question** when they have the
-same hash. The inquisitor spec defines a post's question text and its
-hash; a log file's question is the text under its `## Question`, hashed
-as that spec's *Among files with the same question, only the newest answer counts* says.
-
-#### Scenario: Two questions with one hash are the same question
-
-- **WHEN** a miss file on a questions branch holds a question whose hash
-  equals that of the question the answer session logs a miss for
-- **THEN** the two count as the same question
-
 ### Requirement: A thread copy is a question shown from a thread
 
 The answer session SHALL count as a **thread copy** a question it shows

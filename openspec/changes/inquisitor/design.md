@@ -655,7 +655,8 @@ calls prove its pass ran, so no verdict exists without filter 1's search.**
 
 **The files an agent passes to the two calls go in a private directory made
 with `mktemp -d`, outside any repository, each with mode 0600; the script
-refuses a file its group or others can read, or whose directory they can.**
+refuses a file inside a git working tree, one its group or others can read,
+or one whose directory they can read.**
 The script takes a question with a category, and its verdict, only on
 standard input, never in a file. Outside any repository, the files can't be
 committed.
@@ -2265,7 +2266,9 @@ changes in a message's text can break the lookup. A forged `Inquisitor: `
 post is another message with another id, so no file matches it. An earlier design named the file by the asking message
 and the filter; where one comment holds several questions, a forged reply
 about another of them, naming the same filter, would have matched. The agent
-looks on the questions branch of what its question concerns. For a collective's question asked on Linear or Discord, it also
+looks on the questions branch of what its question concerns and, for a
+GitHub question, of the repository holding its thread, where the session
+pushes the file when it can't tell what the question concerns. For a collective's question asked on Linear or Discord, it also
 looks on every lore repository in its configuration. The asking agent picks
 a lore repository from the repository it works in, while the session picks
 by its model's judgement. A file on a branch the agent never checked would

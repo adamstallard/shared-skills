@@ -164,10 +164,11 @@ that contradicts what design.md assumed too. Numbers 0.22, 0.24, 0.27 and
       `discord.com` with `discordapp.com`, and a Linear URL before and
       after the issue is renamed. Where they differ, define one canonical
       form, which both sides write and compare. Record too whether Linear
-      and Discord return a posted question's words unchanged. That
-      matters only to matching questions (filter 1 and the answer-session
-      spec's *The same question means the same hash*): no miss file's name
-      takes a question's words. Measured 2026-11-19 on a test
+      and Discord return a posted question's words unchanged. Whether they
+      do matters only to matching questions by hash (the inquisitor spec's
+      *Among files with the same question, only the newest answer counts*),
+      since a miss file is named by its reply's id, not by a question's
+      words. Measured 2026-11-19 on a test
       Linear issue and a test Discord thread:
       - a Discord message's URL is
         `https://discord.com/channels/<guild id>/<channel id>/<message

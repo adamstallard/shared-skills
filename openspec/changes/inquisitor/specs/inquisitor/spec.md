@@ -463,9 +463,9 @@ about the person's own way of working SHALL never be posted.
 Wherever this spec or the `answer-session` spec compares a log or miss
 file's visibility, it SHALL be that of the more private of the repositories
 its `repository` and `asked_from` keys name. A file whose `asked_in` is a
-Linear or Discord URL SHALL count as private, and a key value failing the
-syntax check of *A log file's repository keys and answer_link are checked
-before use* SHALL count as a private repository.
+Linear or Discord URL SHALL count as private, and so SHALL a file whose
+`repository`, `asked_from` or `asked_in` fails the check of *A log file's
+repository keys and links are checked before use*.
 
 #### Scenario: A file asked from a private repository is private
 
@@ -1723,8 +1723,9 @@ only what *Some questions are recorded by hash only* allows.
 
 The two calls' files and verdict records SHALL have mode 0600, outside any
 repository, in a directory only the agent's user can read. Either call SHALL
-refuse a file its group or others can read, or whose directory they can,
-recording nothing and keeping any token. A picker `ask`'s record SHALL keep
+refuse a file inside a git working tree, one its group or others can read,
+or one whose directory they can read, then recording nothing and keeping
+any token. A picker `ask`'s record SHALL keep
 its field without any option's label. The next call or hook reading the
 records SHALL delete each over 2 hours old, whatever its verdict or
 category.
@@ -1734,8 +1735,9 @@ category.
 - **WHEN** the first call is given a questions file with mode 0644
 - **THEN** it refuses, issues no token, and says to write the file with
   mode 0600 in a private directory, such as one `mktemp -d` makes
-- **AND** it refuses in the same way a 0600 file whose directory the
-  directory's group can read
+- **AND** it refuses in the same way a 0600 file in a directory its group or
+  others can read, and a 0600 file in a private directory inside a git
+  working tree
 - **AND** the second call refuses the verdicts for the token's questions
   when they are given in such a file, recording nothing and keeping the
   token
@@ -3479,14 +3481,15 @@ unreadable, and SHALL post nothing from it, its name included.
 - **THEN** the search shows it only as input labelled unreadable, and the
   answer session posts no recorded answer linking it
 
-### Requirement: A log file's repository keys and answer_link are checked before use
+### Requirement: A log file's repository keys and links are checked before use
 
-Filter 1 SHALL show as input labelled unreadable, passing neither key to
-any GitHub API call, a file whose `repository` or `asked_from` is not
-`<owner>/<repo>` as the scenarios give, and SHALL show the same way a file lacking an
-`asked_from` it should hold. An
-`answer_link` not in a github.com form the scenarios give SHALL be fetched
-by no reader or `log` command, nor passed to GitHub, a Linear or Discord link included.
+Filter 1 SHALL show as input labelled unreadable a file whose `repository`
+or `asked_from` is not `<owner>/<repo>` as the scenarios give, whose
+`asked_in` takes no form *A log file and a miss file have one format*
+gives, or that is an unhandled questions-branch log file with no
+`asked_from`; and as input one whose `answer_link` takes no github.com form
+the scenarios give. No reader or `log` command SHALL fetch, or pass to
+GitHub, any such value.
 
 #### Scenario: The forms a repository key and an answer_link must take
 
@@ -3506,9 +3509,12 @@ by no reader or `log` command, nor passed to GitHub, a Linear or Discord link in
 #### Scenario: A malformed repository key is never sent to GitHub
 
 - **WHEN** a log file's `repository` or `asked_from` is `o/../../user`, or
-  its `answer_link` is `https://github.com/o/r/pull/3?x=../`
+  its `answer_link` or `asked_in` is `https://github.com/o/r/pull/3?x=../`
 - **THEN** filter 1 makes no GitHub API call with that value, and shows the
   file as input
+- **AND** no reader, the answer session included, reads the visibility of
+  the repository that `asked_in` names, or follows it, so the file counts as
+  private
 
 #### Scenario: A questions-branch file needs asked_from but not repository
 
@@ -3933,7 +3939,8 @@ SHALL say so.
 - **WHEN** the agent proposes a lore entry with the id `x`
 - **THEN** the pull request adds `entries/x.md`, whose frontmatter holds
   every field igor's lore-store spec requires for an entry of its status
-  (design.md: *A proposed entry's id follows igor's id rules*)
+  (`openspec/specs/inquisitor/decisions.md`, *Rationale: A proposed lore
+  entry's path, fields and id follow igor's rules*)
 
 #### Scenario: An id outside igor's id rule is refused
 
@@ -4053,9 +4060,11 @@ question. Otherwise it is input.
 ### Requirement: A reply's miss file is looked for wherever the session may have put it
 
 The agent SHALL look for a reply's miss file on the questions branch of
-what its question concerns, and, for a collective's question it asked on Linear or Discord, on that of every lore repository
-in its configuration, since the answer session picks the lore repository
-by its own judgement. Finding none, it SHALL look again three times, a
+what its question concerns, of the repository holding its GitHub thread,
+where the answer session pushes it when it can't tell what the question
+concerns, and, for a collective's question asked on Linear or Discord, of
+every lore repository in its configuration, any of which the session may
+pick. Finding none, it SHALL look again three times, a
 minute apart, before taking the reply as input.
 
 #### Scenario: A Discord organization question's miss file is found on another lore repository
@@ -4066,6 +4075,14 @@ minute apart, before taking the reply as input.
   questions branch of `o/team-lore`, another lore repository in its
   configuration
 - **THEN** the agent acts on the reply, as filter 4 says
+
+#### Scenario: A miss file on the thread's repository is found
+
+- **WHEN** an agent working in `o/web` asks, in an `o/api` issue, a
+  question it judges concerns `o/web`, and the answer session, unable to
+  tell what the question concerns, backs its reply `Inquisitor: filter 3`
+  with a miss file on the questions branch of `o/api`
+- **THEN** the agent acts on the reply, as filter 3 says
 
 #### Scenario: A reply is input until its miss file is pushed
 
