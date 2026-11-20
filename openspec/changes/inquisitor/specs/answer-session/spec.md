@@ -328,7 +328,8 @@ terminal, so its lock does not mark it as a background session.
 **What the question concerns**, **the repository the question concerns**,
 **the team's lore repository** and **more visible** SHALL be as the
 inquisitor's spec defines them, and the session's model SHALL judge what
-a question concerns as that spec has an agent judge it. On GitHub, when
+a question concerns as that spec has an agent judge it, except where *A
+concerns line settles what an agent's question concerns*. On GitHub, when
 it can't tell, the repository the question concerns SHALL be the one
 holding the question's thread.
 
@@ -345,8 +346,9 @@ holding the question's thread.
 
 ### Requirement: A Linear or Discord question is placed by what it concerns
 
-For a question asked on Linear or Discord, the session's model SHALL judge
-from the question and its thread what it concerns and, for a collective's
+For a question asked on Linear or Discord that no concerns line settles,
+the session's model SHALL judge from the question and its thread what it
+concerns and, for a collective's
 question, which configured lore repository serves it. If it cannot tell
 which, the only configured one SHALL serve it when exactly one is
 configured. A question placed in neither way has **no place**: the
@@ -380,28 +382,87 @@ post their answer unrecorded.
 ### Requirement: A Linear or Discord question in doubt gets no automatic reply
 
 The answer session SHALL post a reply by itself to a question asked on
-Linear or Discord only when the session's model is sure of the place it
-judged, or the place is the only configured lore repository, taken because
+Linear or Discord that no concerns line settles, which can only be
+filter 1's recorded answer, only when the session's model is sure of the
+place it judged, or the place is the only configured lore repository, taken because
 the model could tell none. When the model judged a place and is not sure of
 it, the session SHALL show the person the question, and the preview of
 their answer shows that place.
 
-#### Scenario: A reply goes out by itself on the only configured lore repository
+#### Scenario: A recorded answer goes out by itself from the only configured lore repository
 
-- **WHEN** an agent's question on Linear about an organization clearly
-  fails filter 3, the session's model can tell no lore repository for it,
-  and one lore repository is configured
-- **THEN** the session posts filter 3's reply by itself, and the reply's
-  miss file goes to that lore repository's questions branch
+- **WHEN** an agent's question on Linear about an organization carries no
+  concerns line, the session's model can tell no lore repository for it,
+  one lore repository is configured, and an active lore entry there in
+  the question's scope answers it
+- **THEN** the session posts filter 1's recorded answer by itself
 
 #### Scenario: A doubtful placement is shown to the person
 
-- **WHEN** an agent's question on Discord clearly fails filter 4, as
-  *Filters 2 to 4 judge every incoming question* has it, and the session's
-  model judges that it concerns the repository `o/api` but is not sure
+- **WHEN** an agent's question on Discord with no concerns line has a
+  recorded answer filter 1 finds, and the session's model judges that it
+  concerns the repository `o/api` but is not sure
 - **THEN** the session posts no reply by itself and shows the person the
   question, and the preview of their answer names the questions branch of
   `o/api`
+
+### Requirement: A concerns line settles what an agent's question concerns
+
+An agent's question SHALL concern what the inquisitor's concerns line
+after it names, found with markup reduced, and not what the session's
+model judges, when the line names a repository a subscription covers and
+the person has write access to, or, after `lore`, a configured lore
+repository. A post shown as one question SHALL be settled so only when
+every question in it carries such a line and all name the same place. Any
+other line SHALL settle nothing.
+
+#### Scenario: The line, not the model, places the miss
+
+- **WHEN** an agent's question in an `o/api` issue, followed by
+  `Concerns: o/web`, clearly fails filter 4, the person subscribes to
+  `o/web` and has write access there, and the session's model would judge
+  that the question concerns `o/api`
+- **THEN** the session posts filter 4's reply by itself, and pushes its
+  miss file to the questions branch of `o/web`
+
+#### Scenario: A collective's line names its lore repository
+
+- **WHEN** an agent's Discord question about the organization is followed
+  by `Concerns: lore o/team-lore`, a configured lore repository, and the
+  session's model would pick the configured lore repository `o/lore`
+- **THEN** the question is the collective's that `o/team-lore` serves,
+  and its miss file goes to the questions branch of `o/team-lore`
+
+#### Scenario: A line naming a place outside the closed set settles nothing
+
+- **WHEN** an agent's question is followed by `Concerns: o/secret`, which
+  no subscription covers or where the person's permission is below write
+  or cannot be read, or by `Concerns: lore o/other`, which the
+  configuration does not list
+- **THEN** the session's model judges what the question concerns, and the
+  session posts no `Inquisitor: ` reply to it by itself
+
+#### Scenario: A post of two sentence questions naming different repositories settles nothing
+
+- **WHEN** an agent's comment asks two things in sentences ending in `?`,
+  with no open-questions section, one followed by `Concerns: o/web` and
+  the other by `Concerns: o/api`
+- **THEN** no concerns line settles the post, and the session posts no
+  `Inquisitor: ` reply to it by itself
+
+### Requirement: A decline's preview says when the asking agent takes its reply as input
+
+The preview of a person's decline for the inquisitor of an agent's
+question no concerns line settles SHALL say that the asking agent will
+take the reply as input, since the agent looks for the reply's miss file
+only on the branch a concerns line names, and the session follows no line
+for such a question.
+
+#### Scenario: A decline's preview says an unsettled question's reply is input
+
+- **WHEN** the person declines for the inquisitor an agent's question no
+  concerns line settles
+- **THEN** the preview says the asking agent will take the reply as input
 
 ### Requirement: Each item of an open-questions section is its own question
 
@@ -416,8 +477,8 @@ Any other post SHALL be one question, with no number.
 #### Scenario: Each listed question is shown and answered by itself
 
 - **WHEN** an agent's comment lists three questions in one open-questions
-  section, the second clearly fails filter 4, and the person answers the
-  third with "Use X"
+  section, each followed by a concerns line that settles it, the second
+  clearly fails filter 4, and the person answers the third with "Use X"
 - **THEN** the relay posts `Inquisitor: question 2: filter 4, cheap to
   reverse. Pick one, and record what you chose and why.` and `User says:
   question 3: Use X`, and the first item stays unanswered
@@ -608,8 +669,7 @@ Setup SHALL check, for each subscribed repository and each configured lore
 repository, that its `questions` branch accepts the person's direct push, reading the
 branch's rules and the person's permission,
 showing the failure and its fix where a rule on the branch would refuse
-one, and showing the check as not checked when it cannot tell. It SHALL
-ask for no protection of the branch.
+one, and showing the check as not checked when it cannot tell.
 
 #### Scenario: A rule that refuses direct pushes is shown with its fix
 
@@ -622,7 +682,7 @@ ask for no protection of the branch.
 
 - **WHEN** a subscribed repository's `questions` branch has no protection,
   or does not exist yet, and the person can push to the repository
-- **THEN** the check passes, and setup asks for no protection
+- **THEN** the check passes
 
 #### Scenario: Unreadable branch rules leave the check not checked
 
@@ -630,6 +690,42 @@ ask for no protection of the branch.
   rules
 - **THEN** setup shows that repository's direct-push check as not checked,
   never as passed or failed
+
+### Requirement: Setup suggests a rule guarding each questions branch
+
+Where no rule on a subscribed or lore repository's `questions` branch
+blocks both force pushes and deletion, setup SHALL suggest a rule that
+blocks both and allows direct pushes, and SHALL tell a person without
+admin access to the repository to ask an admin to set it, since setting a
+rule takes admin access.
+
+#### Scenario: An unguarded questions branch gets a suggested rule
+
+- **WHEN** a subscribed repository's `questions` branch has no rule, or
+  does not exist yet
+- **THEN** setup suggests a rule for the branch that blocks force pushes
+  and deletion and allows direct pushes
+
+#### Scenario: A person without admin access is told to ask an admin
+
+- **WHEN** a subscribed repository's `questions` branch has no rule
+  blocking force pushes and deletion, and the person's permission there
+  is write
+- **THEN** setup suggests that rule, and tells the person to ask an admin
+  of the repository to set it
+
+#### Scenario: Unreadable branch rules still get the suggestion
+
+- **WHEN** the person's login cannot read a subscribed repository's branch
+  rules
+- **THEN** setup suggests the rule, saying it could not tell whether one
+  is set
+
+#### Scenario: A branch already guarded gets no suggestion
+
+- **WHEN** a rule on a subscribed repository's `questions` branch blocks
+  force pushes and deletion and allows the person's direct push
+- **THEN** the check passes, and setup suggests no rule
 
 ### Requirement: Setup can create a lore repository
 
@@ -1977,7 +2073,8 @@ from choosing what the code does beyond a closed set.
 #### Scenario: A verdict call sets what the code does
 
 - **WHEN** the model calls `record_verdict` for an agent's GitHub
-  question with `question: yes`, `category: none` and `filter: 3`
+  question, which a concerns line settles, with `question: yes`,
+  `category: none` and `filter: 3`
 - **THEN** the session's code posts filter 3's fixed reply as *Filters 2
   to 4 judge every incoming question* says, and the tool itself posts
   nothing
@@ -2980,16 +3077,16 @@ answer: such a repeat goes to the person, as an ordinary question.
 
 The session's model SHALL judge each question filter 1 did not stop
 against filters 2 to 4, sending an unclear case to the person. When an
-agent's question with no category clearly fails one of them where the
-relay can reply, and *A Linear or Discord question in doubt gets no
-automatic reply* allows it, the answer session SHALL itself post the
+agent's question with no category, which a concerns line settles,
+clearly fails one of them where the relay can reply, and *A Linear or
+Discord question in doubt gets no automatic reply* allows it, the answer session SHALL itself post the
 filter's fixed text, log its miss, and list the question as handled (*A
 handled file closes a questions-branch question*).
 
 #### Scenario: A deferrable agent's question is handled for the person
 
-- **WHEN** an agent's question in a subscribed repository clearly can wait
-  until its pull request is reviewed
+- **WHEN** an agent's question in a subscribed repository, followed by
+  its concerns line, clearly can wait until its pull request is reviewed
 - **THEN** the answer session posts through the relay, naming the
   question, `Inquisitor: filter 2, deferrable. Carry on without an
   answer, list this question as not done in the current work, and file
@@ -2999,7 +3096,7 @@ handled file closes a questions-branch question*).
 #### Scenario: Filters 3 and 4 post their fixed texts
 
 - **WHEN** one agent's question in a thread clearly fails filter 3, and
-  another filter 4
+  another filter 4, each followed by a concerns line that settles it
 - **THEN** the relay posts `Inquisitor: filter 3, not a real question.
   Take the option that has merit, and record what you chose and why.` on
   the first, and `Inquisitor: filter 4, cheap to reverse. Pick one, and
@@ -3082,10 +3179,11 @@ shown to the person. The answer session SHALL trust any such line.
 
 ### Requirement: Filters 2 to 4 only suggest a verdict on other questions
 
-On a person's question, a relayed one included, and on an agent's
-question of the fourth source, the answer session SHALL post nothing by
-itself, but show the question with its suggested verdict, unless it
-carries a person-required line. Agreeing to the verdict is a decline
+On a person's question, a relayed one included, on an agent's question
+of the fourth source, a questions-branch log file, and on an agent's
+question no concerns line settles, the answer session SHALL post
+nothing by itself, but show the question with its suggested verdict,
+unless it carries a person-required line. Agreeing to the verdict is a decline
 under the second reason with that filter. A message that is not a
 question SHALL get no automatic post.
 
@@ -3100,6 +3198,13 @@ question SHALL get no automatic post.
 - **WHEN** a fourth-source log file, an agent's question by *An agent's
   question comes from a bot account or a log file*, holds a question that
   clearly fails filter 2
+- **THEN** filter 2 is shown as its suggested verdict, and nothing is
+  posted
+
+#### Scenario: An agent's question without a concerns line only gets a suggestion
+
+- **WHEN** an agent's GitHub question with no concerns line clearly fails
+  filter 2
 - **THEN** filter 2 is shown as its suggested verdict, and nothing is
   posted
 
@@ -3267,9 +3372,10 @@ otherwise SHALL show the person the question.
 
 #### Scenario: A more visible questions branch gets a hash-only miss unconfirmed
 
-- **WHEN** a question about a public repository is asked in a private
-  repository's GitHub thread, or on Linear or Discord, and the session
-  judges it automatically or the person declines with a reply without
+- **WHEN** an agent's question about a public repository, which its
+  concerns line settles, is asked in a private repository's GitHub
+  thread, or on Linear or Discord, and the session replies by itself
+  or the person declines with a reply without
   confirming the miss
 - **THEN** the reply goes out as it would with a readable miss, and the
   session pushes a hash-only miss file to the public repository's

@@ -897,18 +897,17 @@ leave the reply input.
 
 ### Requirement: The Igor runs a worker's miss check only where an agent would look
 
-The Igor SHALL run a worker's `miss-check` only on a repository where *A
-reply's miss file is looked for wherever the session may have put it* looks
-for that reply's miss file, taking the question from the Igor's handback
-record, and SHALL leave the reply input for any other repository the worker
-names, because a worker steered by its item could name a repository an
-attacker can push to.
+The Igor SHALL run a worker's `miss-check` only on the repository its
+handback's concerns line named for the question, taken from the Igor's
+handback record, and SHALL leave the reply input for any other repository
+the worker names, because a worker steered by its item could name a
+repository an attacker can push to.
 
 #### Scenario: A miss check on a repository the question never concerned is not run
 
 - **WHEN** an Igor worker on an item of `o/api` asks for `miss-check` on
-  `o/other` for a reply to a question whose file, by the Igor's handback
-  record, the Igor pushed to the questions branch of `o/api`
+  `o/other` for a reply to a question whose handback, by the Igor's
+  handback record, carried `Concerns: o/api`
 - **THEN** the Igor runs no `miss-check`, and the reply is input to the
   worker
 
@@ -1401,8 +1400,8 @@ string matching the credential patterns.
 After the second call, the agent SHALL name the person to tag, as *A
 question in a post tags one person who can decide, if there is one* finds
 them, on the question's **tag line**: `@` and their login alone, on a line
-placed as a related-decision line is, after any related-decision and
-person-required lines. The hooks leave the tag line out of the question's
+placed as a related-decision line is, after any related-decision,
+person-required and concerns lines. The hooks leave the tag line out of the question's
 text, as they do a related-decision line, so the hash stays the one vetted.
 
 #### Scenario: Adding the tag line keeps the vetted hash
@@ -1472,6 +1471,62 @@ person-required line, or any other question carries one.
   skill, or posts a person-required line on a question whose `ask` names
   no skill
 - **THEN** the post hook blocks each post, naming the question
+
+### Requirement: A question in a post or message names what it concerns on a line of its own
+
+A question asked in a post or in a Linear or Discord message that
+concerns a repository or a collective SHALL carry its **concerns line**:
+`Concerns: ` and that repository as `owner/repo`, or, for a collective's
+question, `Concerns: lore ` and the team's lore repository, and nothing
+else, placed as a related-decision line is, after any related-decision
+and person-required lines and before any tag line. It SHALL be left out where it would name a
+repository more private than the question's thread.
+
+#### Scenario: A question about another repository names it
+
+- **WHEN** an agent working in `o/web` asks, in a pull request comment
+  there, a question about the code of `o/api`, and the second call finds
+  `alice` to tag
+- **THEN** the question is followed by `Concerns: o/api`, then `@alice`
+- **AND** the question's text and hash are as they would be without
+  either line
+
+#### Scenario: A collective's question names its lore repository
+
+- **WHEN** an agent asks on Discord how the organization names releases,
+  and the team's lore repository is `o/lore`
+- **THEN** the question is followed by `Concerns: lore o/lore`
+
+#### Scenario: A line naming a more private repository is left out
+
+- **WHEN** an agent asks, in an issue of the public `o/web`, a
+  collective's question whose team's lore repository is the private
+  `o/lore`
+- **THEN** the question carries no concerns line, and the answer session
+  posts no `Inquisitor: ` reply to it by itself
+
+#### Scenario: A `Concerns:` line holding more than a repository is part of the question
+
+- **WHEN** a question's last line is `Concerns: o/api and o/web`, or
+  `Concerns: o/../../user`, whose name fails the `<owner>/<repo>` syntax
+  of *A log file's repository keys and links are checked before use*
+- **THEN** that line is no concerns line, and the hooks match it as part
+  of the question's text
+
+### Requirement: An Igor writes the concerns line of a question in its handback
+
+In an Igor's handback comment, the Igor SHALL write each question's
+concerns line where *A question in a post or message names what it
+concerns on a line of its own* calls for one, and keep the line, or that
+it left none, in its handback record (*A later Igor run names the
+answered file only from the Igor's record*).
+
+#### Scenario: An Igor's handback names the repository from its record
+
+- **WHEN** an Igor posts a handback on an item of `o/web` asking its
+  worker's question about `o/api`
+- **THEN** the Igor puts `Concerns: o/api` after the question, and its
+  handback record holds that line
 
 ### Requirement: A round's questions are asked together at its end
 
@@ -1803,10 +1858,10 @@ category.
 ### Requirement: A question's text and hash are built one way
 
 A question's **text** SHALL be built in four steps: drop
-related-decision, tag, person-required and picker record lines, matched trimmed; take its
+related-decision, tag, person-required, concerns and picker record lines, matched trimmed; take its
 parts, inline markup reduced to text (a picker question's `question` field
 then its options' labels; a post question's list item without its marker, or
-its sentence; any other text whole); make each whitespace run one space,
+its sentence; any other text whole); make whitespace runs one space,
 trimming each part; join the parts with one LF. Its **hash** SHALL be the
 SHA-256 of that text as UTF-8, in lowercase hex.
 
@@ -3082,8 +3137,9 @@ for each key (design.md: *An answer file names every file it answers*).
 
 A later Igor run SHALL know the answered file only from the Igor's handback
 record, one per handback, never from the comment. That record SHALL hold
-each posted question's hash, the repository its file went to, and that
-file name's 6-hex-digit suffix and date, and no question text. If no record
+each posted question's hash and concerns line, the repository its file
+went to, and that file name's 6-hex-digit suffix and date, and no
+question text. If no record
 holds them, or not exactly one file on the branch matches, the Igor SHALL
 write no `answers` (design.md: *A later run names the answered file from
 the Igor's record*).
@@ -4079,19 +4135,19 @@ else as input, and push no citation for a lore entry it names (design.md:
 ### Requirement: An Inquisitor reply is acted on only with a writer's miss file
 
 The agent SHALL act on an `Inquisitor: ` reply, and record its choice, as
-the filter it names would, only when a questions branch where the agent
-looks (*A reply's miss file is looked for wherever the session may have
-put it*) holds that reply's miss file (*Every miss file is named by one
-hash*);
+the filter it names would, only when the questions branch where the agent
+looks (*A reply's miss file is looked for on the branch its question's
+concerns line names*) holds that reply's miss file (*Every miss file is
+named by one hash*);
 that file is hash-only or holds a `said_by` with write access to that
 branch's repository; and no other skill requires a person to decide the
 question. Otherwise it is input.
 
 #### Scenario: An Inquisitor reply with no miss file is input
 
-- **WHEN** an agent's question in a public repository gets a reply starting
-  `Inquisitor: filter 4`, and the repository's questions branch holds no
-  miss file for that reply, or only one whose `said_by` has no write
+- **WHEN** an agent's question, followed by `Concerns: o/web`, gets a
+  reply starting `Inquisitor: filter 4`, and the questions branch of
+  `o/web` holds no miss file for that reply, or only one whose `said_by` has no write
   access
 - **THEN** the reply is input, and the question stands
 
@@ -4104,56 +4160,62 @@ question. Otherwise it is input.
 
 #### Scenario: An Inquisitor reply is acted on as its filter
 
-- **WHEN** an agent's question gets a reply starting `Inquisitor: filter
-  2`, and the miss file for that reply holds `filter: "2"` and a `said_by`
-  with write access to the repository whose questions branch holds it
+- **WHEN** an agent's question, followed by `Concerns: o/web`, gets a
+  reply starting `Inquisitor: filter 2`, and the miss file for that reply
+  on the questions branch of `o/web` holds `filter: "2"` and a `said_by`
+  with write access to `o/web`
 - **THEN** the agent carries on without an answer, and lists the question as
   not done, as filter 2 says
 
 #### Scenario: An automatic filter 4 reply is acted on
 
-- **WHEN** an agent's question gets a reply starting `Inquisitor: filter
-  4`, and the miss file's `said` is `answer session: clearly filter 4` and
-  its `said_by` has write access to the repository whose questions branch
-  holds it
+- **WHEN** an agent's question, followed by `Concerns: o/web`, gets a
+  reply starting `Inquisitor: filter 4`, and the miss file on the
+  questions branch of `o/web` has `said` `answer session: clearly filter
+  4` and a `said_by` with write access to `o/web`
 - **THEN** the agent chooses one option, and records what it chose and why,
   as filter 4 says
 
 #### Scenario: A reply backed by a hash-only miss file is acted on
 
 - **WHEN** an agent's question about the public `o/web`, asked in a Linear
-  thread, gets a reply starting `Inquisitor: filter 3`, and the questions
+  thread and followed by `Concerns: o/web`, gets a reply starting
+  `Inquisitor: filter 3`, and the questions
   branch of `o/web` holds the hash-only miss file that reply's id names
 - **THEN** the agent takes the option that has merit, as filter 3 says
 - **AND** with no such file on the branch, the reply is input, whoever
   posted it
 
-### Requirement: A reply's miss file is looked for wherever the session may have put it
+### Requirement: A reply's miss file is looked for on the branch its question's concerns line names
 
-The agent SHALL look for a reply's miss file on the questions branch of
-what its question concerns, of the repository holding its GitHub thread,
-where the answer session pushes it when it can't tell what the question
-concerns, and, for a collective's question asked on Linear or Discord, of
-every lore repository in its configuration, any of which the session may
-pick. Finding none, it SHALL look again three times, a
-minute apart, before taking the reply as input.
+The agent SHALL look for a reply's miss file only on the questions branch
+of the repository its question's concerns line names, and SHALL take as
+input every `Inquisitor: ` reply to a question it asked without a
+concerns line.
+Finding none, it SHALL look again three times, a minute apart, before
+taking the reply as input.
 
-#### Scenario: A Discord organization question's miss file is found on another lore repository
+#### Scenario: A collective's miss file is found on the lore repository its line names
 
 - **WHEN** an agent asks on Discord a question about the organization,
-  its own work points it at the lore repository `o/lore`, and the reply
-  `Inquisitor: filter 4` it gets is backed by a hash-only miss file on the
-  questions branch of `o/team-lore`, another lore repository in its
-  configuration
+  followed by `Concerns: lore o/team-lore`, and the reply `Inquisitor:
+  filter 4` it gets is backed by a hash-only miss file on the questions
+  branch of `o/team-lore`
 - **THEN** the agent acts on the reply, as filter 4 says
 
-#### Scenario: A miss file on the thread's repository is found
+#### Scenario: A miss file on the thread's repository backs nothing
 
 - **WHEN** an agent working in `o/web` asks, in an `o/api` issue, a
-  question it judges concerns `o/web`, and the answer session, unable to
-  tell what the question concerns, backs its reply `Inquisitor: filter 3`
-  with a miss file on the questions branch of `o/api`
-- **THEN** the agent acts on the reply, as filter 3 says
+  question followed by `Concerns: o/web`, and the only miss file for its
+  reply `Inquisitor: filter 3` is on the questions branch of `o/api`,
+  with a `said_by` who has write access to `o/api` and not to `o/web`
+- **THEN** the reply is input, and the question stands
+
+#### Scenario: A reply to a question without a concerns line is input
+
+- **WHEN** an agent's question in a post carries no concerns line, and
+  gets a reply starting `Inquisitor: filter 4`
+- **THEN** the reply is input, whatever miss file any branch holds
 
 #### Scenario: A reply is input until its miss file is pushed
 

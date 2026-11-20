@@ -207,13 +207,14 @@ that contradicts what design.md assumed too. Numbers 0.22, 0.24, 0.27 and
       and design.md's *Claude drafts a reply only into the prompt box*
       accepts that case as it accepts a fork's: the draft reaches only the
       prompt box, where the person sees it before anything is sent
-- [ ] 0.28 Post the line `Inquisitor: a person must decide this
-      (required by spec-trace).` in a Linear comment and a Discord message,
-      read each back as the answer session would, and record whether its
-      words come back unchanged once markup is reduced. If not, record the
-      form each surface returns, which the answer session then matches
-      (answer-session spec: *A question with a person-required line gets
-      no filter 2 to 4 reply*)
+- [ ] 0.28 Post the lines `Inquisitor: a person must decide this
+      (required by spec-trace).` and `Concerns: o/web` in a Linear comment
+      and a Discord message, read each back as the answer session would,
+      and record whether their words come back unchanged once markup is
+      reduced. If not, record the form each surface returns, which the
+      answer session then matches (answer-session spec: *A question with a
+      person-required line gets no filter 2 to 4 reply*; *A concerns line
+      settles what an agent's question concerns*)
 - [ ] 0.29 Whether an Igor's host has Python and the inquisitor skill
       installed for the Igor's own process, not only for its workers, so
       the Igor can run `branch-search` (inquisitor spec: *The Igor reads
@@ -606,7 +607,8 @@ that contradicts what design.md assumed too. Numbers 0.22, 0.24, 0.27 and
       questions other skills require a person to decide (the agent runs
       only filters 1 and 3 on them), the
       person-required line and a picker question's record line copied
-      exactly from the second call, preparing,
+      exactly from the second call, the concerns line beside a question in
+      a post or message, preparing,
       holding a question that blocks no step until the round's end while
       going on with its recommended answer, batching and tagging, the order with prose, logging answers and
       misses, the three categories recorded by hash only, what a headless
@@ -631,10 +633,12 @@ that contradicts what design.md assumed too. Numbers 0.22, 0.24, 0.27 and
 - [ ] 5.5 github-app's `SKILL.md`: every example that runs `python3 $G`
       sets `G` in the same command, or writes the script's full path, so
       the post hooks don't block it (design.md: *Posts sent through the github-app skill's script*)
-- [ ] 5.6 `README.md` says that anyone with write access to a repository
-      can rewrite or delete its unprotected `questions` branch, and that
-      setup asks for no protection of it (the inquisitor decision record's
-      constraint on an unprotected `questions` branch)
+- [ ] 5.6 `README.md` says that setup suggests a rule blocking force
+      pushes to a `questions` branch and its deletion, which only an admin
+      can set; that without it anyone with write access can rewrite or
+      delete the branch; and that with it a writer can still push a handled
+      file that hides a question from the person (the inquisitor decision record's constraint on guarding a
+      `questions` branch)
 - [ ] 5.7 Change bug-hunter's SKILL.md so that Step 9 runs each
       recommendation in its report through the inquisitor skill's four
       filters before asking about it: a root cause, a finding too large
@@ -759,7 +763,8 @@ that contradicts what design.md assumed too. Numbers 0.22, 0.24, 0.27 and
       own keys kept; a failed identity's surface or a failed channel left
       off and checked again at each opening; the Linear key in the
       keychain; `~/.local/bin/answer`; the check that each subscribed or
-      lore repository's `questions` branch takes the person's direct push;
+      lore repository's `questions` branch takes the person's direct push,
+      and the suggested rule blocking its force pushes and deletion;
       and the optional step that creates a lore repository, its clone and its
       configuration entry (design.md: *Setup checks direct pushes, and can
       create a lore repository*)
@@ -828,7 +833,8 @@ that contradicts what design.md assumed too. Numbers 0.22, 0.24, 0.27 and
           ` post;
         - placing a question asked on Linear or Discord (answer-session
           spec: *A Linear or Discord question is placed by what it
-          concerns*);
+          concerns*), and placing an agent's question by its concerns line
+          (*A concerns line settles what an agent's question concerns*);
         - filters 2 to 4 and the three fixed `Inquisitor: ` texts, and a
           question carrying a person-required line always shown to the
           person unless filter 1 answers it, the line found by its fixed
@@ -853,8 +859,9 @@ that contradicts what design.md assumed too. Numbers 0.22, 0.24, 0.27 and
           prefix on GitHub*).
       - SKILL.md tells an agent to act on a `Recorded answer: ` reply only
         once filter 1 counts its record, and on an `Inquisitor: ` reply
-        only when a miss file backs it: one whose `said_by` has write
-        access, or the hash-only miss file, each named by the reply's id
+        only when a miss file on the branch its question's concerns line
+        names backs it: one whose `said_by` has write
+        access to that branch's repository, or the hash-only miss file, each named by the reply's id
         (design.md: *What an asking agent does with an automatic reply*).
       - The tests cover:
         - the handled file, pushed whenever the answer session closes a

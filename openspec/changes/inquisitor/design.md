@@ -1531,8 +1531,8 @@ The Igor keeps one record of each handback: the hashed record of handback
 questions that igor PR #216, still open, is asked to keep in its decision 59;
 a builder relies on it only once #216 merges with decision 59 in it. For each question it
 posted, the record holds the 6-hex-digit suffix and date from the name of the
-log file it pushed, the repository it pushed that file to, and the question's
-hash, but no question text. The run
+log file it pushed, the repository it pushed that file to, the question's
+hash and its concerns line, but no question text. The run
 finds the file by the suffix and date.
 
 **Why:** anyone who can edit a comment can change its text, so the run never
@@ -1606,11 +1606,15 @@ checks each relay identity before its channels are used*).
 #### Setup checks direct pushes, and can create a lore repository
 
 **Setup checks that each `questions` branch takes the person's direct push,
-and asks for no protection of the branch.**
+and suggests a rule blocking force pushes and deletion where none does.**
+The rule leaves direct pushes allowed, which every log, answer and miss
+file needs, and setup sets nothing itself.
 
-*Recorded:* `openspec/specs/inquisitor/decisions.md`, *Constraint: Anyone
-with write access to a repository can rewrite or delete its unprotected
-`questions` branch*.
+*Recorded:* in both the inquisitor and the answer-session decision
+records, since a later change reads only the records of the capabilities
+it touches,
+*Constraint: A `questions` branch is guarded against rewriting and deletion
+only where an admin of its repository sets the rule setup suggests*.
 
 **Setup can create a lore repository, as a step the person may skip, for a
 team that wants its collective's questions recorded.** It creates
@@ -2259,16 +2263,29 @@ the reply it sees and makes one path lookup, whichever kind the session
 wrote. No question text is hashed, so nothing a surface or a posting skill
 changes in a message's text can break the lookup. A forged `Inquisitor: `
 post is another message with another id, so no file matches it. The agent
-looks on the questions branch of what its question concerns and, for a
-GitHub question, of the repository holding its thread, where the session
-pushes the file when it can't tell what the question concerns. For a collective's question asked on Linear or Discord, it also
-looks on every lore repository in its configuration. The asking agent picks
-a lore repository from the repository it works in, while the session picks
-by its model's judgement. A file on a branch the agent never checked would
-leave the reply input while the session listed the question as handled. The
-reply's id names one file, so a match on any branch is that reply's miss.
-Finding none, the agent looks three more times, a minute apart, since the
-session pushes the file just after the reply. A hash-only miss file has empty frontmatter and no
+looks for the file only on the questions branch its question's concerns
+line names, and the session pushes it there (inquisitor spec: *A reply's
+miss file is looked for on the branch its question's concerns line
+names*). Finding none, the agent looks three more times, a minute apart,
+since the session pushes the file just after the reply. Were the agent and
+the session each to judge what the question concerns, they could judge
+different repositories: the agent would find no file and take the reply as
+input, while the session listed the question as handled, so nobody would
+answer it. And an agent that also looked on its thread's repository would
+act on a miss backed by a writer there, who may have no write access to
+what the question concerns, though a logged decision needs that access.
+Naming the repository on the concerns line removes both failures.
+
+The session follows a concerns line only when it names a repository a
+subscription covers and the person can write to, or a configured lore
+repository. The model's `place` already comes from a list the session's
+code supplies, so a crafted line steers a miss push no further than a
+crafted thread could. A question no line settles gets no automatic
+`Inquisitor: ` reply, only a suggested verdict; if the person takes that
+verdict as a decline, the asking agent takes the reply as input, and the
+preview says so.
+
+A hash-only miss file has empty frontmatter and no
 body, so it shows nothing but the time of its push and who pushed it. A hash-only file holds no `said_by`: being on the branch is its authority, since only an account
 with push access can put it there, and only an answer session writes one. For a collective's question that
 branch is the lore repository's, whose writers are who decides such a
@@ -2383,9 +2400,10 @@ the thread, and an asker that cannot count it and asks again reaches the
 queue as a new question.
 
 **A reader takes a handled file, which names no person, as the answer
-session's,** as it takes an answer file at its word. The
-inquisitor decision record's Constraint on a rewritable `questions` branch
-gives what that costs.
+session's,** as it takes an answer file at its word. A writer
+can therefore push a handled file that closes a question the person then
+never sees, a cost the inquisitor decision record's Constraint on guarding
+a `questions` branch accepts.
 
 *Ruled out by a scenario:* the asking agent marking its own file handled, or
 deciding the close, which would need proof of the post's author
@@ -2637,30 +2655,6 @@ the directory where spec-trace's CI fails on an untagged one.**
 
 ## Open Questions
 
-### Decisions for the repository's owner
-
-- **Where does an asking agent look for a miss file, and whose write
-  access backs it?** The answer session's model judges for itself what a
-  question concerns, and pushes the miss file backing its automatic
-  `Inquisitor: ` reply to that repository's questions branch. The asking
-  agent looks for that file on these questions branches and no others:
-  the one of what the agent itself judged the question concerns, the one
-  of its GitHub thread's repository and, for a collective's Linear or
-  Discord question, those of every configured lore repository. This leaves two gaps. First, when the
-  agent and the session judge different repositories, the agent finds no
-  file and does not act on the reply, while the session lists the
-  question as handled, so nobody answers it (inquisitor spec: *A reply's
-  miss file is looked for wherever the session may have put it*).
-  Second, the agent accepts a miss on its thread's repository from a
-  writer there, who may lack write access to what the question concerns,
-  while a logged decision needs that access (*A logged decision needs
-  write access to what its question concerns*). Options: accept both
-  gaps; close both by having the
-  asking agent name what its question concerns on a line beside it, which
-  the session uses for the miss and the agent checks write access
-  against; or close the second and widen the first by limiting the agent
-  to its own judgement's branch, dropping the thread fallback.
-
 ### Facts measured before building
 
 The task each bullet names measures its fact before anything is built (tasks 0.1 to
@@ -2761,8 +2755,8 @@ sees it before anything is sent (*Claude drafts a reply only into the prompt
 box*).
 
 - **Do Linear and Discord return a posted line's words unchanged?** (task
-  0.28) The answer session finds a person-required line by its fixed wording
-  after reducing markup. If a surface changes the words, such as by escaping the parentheses, the
+  0.28) The answer session finds a person-required line and a concerns line
+  by their fixed wording after reducing markup. If a surface changes the words, such as by escaping the parentheses, the
   session matches the form task 0.28 records instead. Task 0.28 is still to
   run, on both surfaces: task 0.23 measured a Linear comment's text, not
   this line, and `openspec/specs/answer-session/decisions.md` gives its
@@ -2932,14 +2926,21 @@ to its 149.
   return the JSON over the channel `igor lore-search` uses (*The Igor checks
   a reply's miss file for its worker*). It runs the check each time the
   worker asks, since a worker looks again for a missing file as any agent
-  does. It runs it only on a repository where any agent would look for that
-  reply's miss file, taking the question from the Igor's own handback record
+  does. It runs it only on the repository its handback's concerns line named
+  for the question, taken from the Igor's own handback record
   (*The Igor runs a worker's miss check only where an agent would look*). A worker holds no credential and fetches no
   questions branch, and `branch-search` never shows a hash-only miss file,
   so a worker cannot itself check the file that backs an `Inquisitor: `
   reply. With the check, *An Inquisitor reply is acted on only with a
   writer's miss file* covers a worker as it covers any agent, an automatic
   filter 3 or 4 reply included; no rule is specific to an Igor.
+- **The Igor must put each question's concerns line in its handback
+  comment,** naming the repository the question concerns, or `lore` and
+  the team's lore repository for a collective's question, and leaving it
+  out where that repository is more private than the item's (inquisitor
+  spec: *A question in a post or message names what it concerns on a line
+  of its own*). Without the line, the answer session posts no automatic
+  `Inquisitor: ` reply to the question.
 - **The Igor should write its own answer file for a handback only when the
   answer session pushed none.** Otherwise one answer has two answer files.
 - **#216 should refuse a worker's miss file holding `said_by`, and any
@@ -2950,9 +2951,11 @@ to its 149.
   `authority` as an unanswered question file, so a worker steered by item
   text could otherwise close, on every machine and for good, whichever file a
   planted `closes` names.
-- **#216's Igor should keep its decision 59's record of each handback** (*A
-  later run names the answered file from the Igor's record*). Without
-  the record, a later run writes no `answers`.
+- **#216's Igor should keep its decision 59's record of each handback,
+  adding each question's concerns line** (*A later run names the answered
+  file from the Igor's record*). Without the record, a later run writes no
+  `answers`; without the line in it, the Igor's `miss-check` has no
+  repository to run on.
 - **#216's Igor should write `asked_in`** in a worker's log file as the URL of
   the handback comment that asks it, once it has posted that comment. In
   each answer file it writes, it adds `answers`, naming the log file that

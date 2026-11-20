@@ -32,6 +32,12 @@
   Holds while: the session's Read, Grep and Glob have no path limit, and nothing the model drafts is posted before the person confirms it.
   Paths: .agents/skills/inquisitor/
 
+- **Constraint: A `questions` branch is guarded against rewriting and deletion only where an admin of its repository sets the rule setup suggests.**
+  Because: setting a branch rule takes admin access, which a person subscribing to the repository may lack, and the rule must allow the direct pushes every record needs, so the cost is accepted that a writer can delete or rewrite a branch without the rule, dropping a newer answer so that an older one counts again, and can push a handled file to any branch, closing a question so that the person never sees it.
+  Evidence: a ruleset can "Restrict deletions" and "Block force pushes", https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets#restrict-deletions; of GitHub's repository roles, only Admin can "Manage branch protection rules and repository rulesets", https://docs.github.com/en/organizations/managing-user-access-to-your-organizations-repositories/managing-repository-roles/repository-roles-for-an-organization#permissions-for-each-role; and `git push --force` replaces a branch even when the push loses commits, https://git-scm.com/docs/git-push
+  Holds while: setup suggests the rule and does not set it, and the rule allows direct pushes.
+  Paths: .agents/skills/inquisitor/
+
 ## Rejected
 
 - **Rejected: A TLA+ model of the answer session's owed pushes and lock.**

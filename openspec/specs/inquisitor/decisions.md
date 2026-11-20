@@ -2,10 +2,10 @@
 
 ## Constraints
 
-- **Constraint: Anyone with write access to a repository can rewrite or delete its unprotected `questions` branch.**
-  Because: the branch takes direct pushes, so setup asks for no protection of it, and the cost is accepted: a rewrite can delete records, or drop a newer answer so that an older one counts again, and a pushed handled file can close a question so that the person never sees it.
-  Evidence: `git push --force` replaces a branch even when the push loses commits, https://git-scm.com/docs/git-push
-  Holds while: setup asks for no protection of a `questions` branch.
+- **Constraint: A `questions` branch is guarded against rewriting and deletion only where an admin of its repository sets the rule setup suggests.**
+  Because: setting a branch rule takes admin access, which a person subscribing to the repository may lack, and the rule must allow the direct pushes every record needs, so the cost is accepted that a writer can delete or rewrite a branch without the rule, dropping a newer answer so that an older one counts again, and can push a handled file to any branch, closing a question so that the person never sees it.
+  Evidence: a ruleset can "Restrict deletions" and "Block force pushes", https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets#restrict-deletions; of GitHub's repository roles, only Admin can "Manage branch protection rules and repository rulesets", https://docs.github.com/en/organizations/managing-user-access-to-your-organizations-repositories/managing-repository-roles/repository-roles-for-an-organization#permissions-for-each-role; and `git push --force` replaces a branch even when the push loses commits, https://git-scm.com/docs/git-push
+  Holds while: setup suggests the rule and does not set it, and the rule allows direct pushes.
   Paths: .agents/skills/inquisitor/
 
 - **Constraint: GitHub's events API shows each citation push's pusher and time to anyone who can see the lore repository.**
@@ -51,7 +51,7 @@
   Evidence: Discord's message object carries `id` and `channel_id` and no URL, https://discord.com/developers/docs/resources/message#message-object
 
 - **Rationale: A file is as new as the commit that added it, and supersedes only if it would count.**
-  A commit's dates are whatever its committer sets, so they cannot order answers; the branch's commit order changes only when the branch is rewritten, which the Constraint on a rewritable `questions` branch covers.
+  A commit's dates are whatever its committer sets, so they cannot order answers; the branch's commit order changes only when the branch is rewritten, a cost the Constraint on guarding a `questions` branch accepts.
   Evidence: the committer date is whatever the committer's environment sets, https://git-scm.com/docs/git-commit#_commit_information
 
 - **Rationale: The script tells an Igor's run by IGOR_RUN.**
