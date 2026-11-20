@@ -432,13 +432,13 @@ than its source*).
 
 ### Requirement: A collective's question is bounded by the repository it was asked from
 
-A question about a collective SHALL be bounded by the
+A question about a collective SHALL be bounded, save as *The answerer's
+confirmation can send a record somewhere more visible* allows, by the
 visibility of **the repository it was asked from**: the one holding the
-current work or, for a logged question, the one its file's `asked_from`
-names; one asked in a Linear or Discord thread counts as asked from a
-private repository. An agent working in no git repository SHALL ask such a
-question only of a person in the session, and with none, nowhere. A
-way-of-working question SHALL never be posted.
+current work, or the one a logged question's `asked_from` names, a Linear
+or Discord thread counting as a private repository. An agent in no git
+repository SHALL ask it only of a person in the session. A question
+about the person's own way of working SHALL never be posted.
 
 #### Scenario: An organization's question in private work stays private
 
@@ -2319,11 +2319,13 @@ by a person without write access leaves its question unanswered.
 ### Requirement: A question is pushed to the questions branch of what it concerns
 
 A question about one repository SHALL be pushed straight to that
-repository's questions branch, and one about a collective to
-the team's lore repository's, with no pull request, creating the branch as
-an orphan when it is missing. No other branch SHALL hold a question or miss
-file. Every commit the script makes to a questions branch SHALL have the
-message `inquisitor: log <file>`, and no prose or bug-hunter trailer.
+repository's questions branch, and one about a collective to the team's
+lore repository's, with no pull request, the branch created as an orphan
+if missing. No other branch SHALL hold a question or miss file. The
+script SHALL write each commit to a questions branch with git's plumbing,
+pushing it without checking the branch out, so no HEAD moves and no
+commit-watching hook sees it, with the message `inquisitor: log <file>`
+alone.
 
 #### Scenario: A question about a repository goes to its questions branch
 
@@ -2353,6 +2355,14 @@ message `inquisitor: log <file>`, and no prose or bug-hunter trailer.
   questions branch
 - **THEN** each commit's message is `inquisitor: log <file>` and nothing
   else, with no `Prose:` or `Bug-hunter:` trailer
+
+#### Scenario: A questions-branch commit moves no HEAD
+
+- **WHEN** an agent runs `log` in its checkout of `o/api`, on its work
+  branch, and the script pushes a log file to the questions branch of
+  `o/api`
+- **THEN** the checkout's HEAD, its HEAD reflog and its working tree are
+  as they were, and no commit-watching hook reports the commit
 
 ### Requirement: A file the script cannot push stays pending
 

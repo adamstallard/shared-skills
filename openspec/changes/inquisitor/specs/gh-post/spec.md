@@ -11,8 +11,7 @@ hook judge the same text, and each blocks a post it cannot read.
 The shared post reader, `.agents/lib/gh-shell/`, SHALL tell a hook, for a
 tool call, its post, that it sends no post, or that it is unreadable. A
 post is a body; a title, when the call sets an issue's or a pull request's
-title; whether it creates an issue; and, for a github-app call, its
-identity. prose's posting hook and the
+title; and whether the call creates an issue. prose's posting hook and the
 inquisitor's post hook SHALL read posts only through it.
 
 #### Scenario: Both post hooks read a post through the shared reader

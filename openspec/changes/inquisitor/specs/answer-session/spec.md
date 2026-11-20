@@ -1441,10 +1441,8 @@ the answer was relayed but not logged, and why.
 ### Requirement: The answer session's owed push is its only retry
 
 The answer session SHALL pass the `log` command's session option on every
-push, so that its owed push is the only retry of any file it pushes, and a
-file it pushes without recording an owed push, such as the handled file of
-a question with a category, is never retried (the inquisitor's *The
-answer session's files are never kept pending*).
+push, so that its owed push is the only retry of any file it pushes (the
+inquisitor's *The answer session's files are never kept pending*).
 
 #### Scenario: A push that failed for a moment leaves one answer file
 
@@ -1733,11 +1731,12 @@ answered.
 
 For a question with a category, as the inquisitor's *Some questions are
 recorded by hash only* requires, the answer session SHALL write no
-discussion record, log file or owed push, keep its question on screen
-and pending answer only in memory, so neither outlives the session, and
-name it in the state folder only by its hash and its thread's ids. Its
-decline SHALL still push a questions-branch file's handled file, which
-adds no question text, once, with no owed push or retry.
+discussion record or log file, keep its question on screen and pending
+answer only in memory, so neither outlives the session, and name it in
+the state folder only by its hash and the surface's ids for its thread
+and message. Its decline
+SHALL still push a questions-branch file's handled file, owed and
+retried as any handled file's push is.
 
 #### Scenario: A discussed question holding a secret leaves nothing readable
 
@@ -1755,12 +1754,13 @@ adds no question text, once, with no owed push or retry.
 - **THEN** the answer is relayed in its thread, if it can be, with no log
   file pushed and no owed push recorded
 
-#### Scenario: A declined questions-branch question with a category gets a handled file, unowed
+#### Scenario: A declined questions-branch question with a category gets a handled file, owed
 
 - **WHEN** the person declines a questions-branch question the session's
   model judges has a category, and the handled file's push fails
-- **THEN** nothing is posted, no owed push was recorded, and the push is
-  not retried
+- **THEN** nothing is posted, and the push stays owed in the state folder,
+  holding only the handled file, and is retried at each poll and opening
+  until it succeeds
 
 ### Requirement: One answer session runs on each machine
 
@@ -1909,8 +1909,8 @@ line.
 ### Requirement: The session's model has no shell, no writing tool and no web fetch
 
 In a session with an answer session open, the model SHALL have only its
-conversation, `propose_reply` and read-only file tools, which read and
-search files, enforced by Claude Code, not a hook (task 0.34); an answer
+conversation, `propose_reply` and Claude Code's Read, Grep and Glob,
+enforced by Claude Code, not a hook (task 0.34); an answer
 session SHALL open only in a session so restricted. Its own code SHALL
 make every post, `log` call and push, and every fetch from a surface,
 because a thread's text can steer the model, and a model with a shell
@@ -1933,8 +1933,7 @@ gets around any hook that reads its commands.
 #### Scenario: The model reads and searches files
 
 - **WHEN** the person asks the model what `src/retry.go` does
-- **THEN** the model reads and searches the code with its read-only file
-  tools
+- **THEN** the model reads and searches the code with Read, Grep and Glob
 
 #### Scenario: An unrestricted session opens no answer session
 
@@ -2076,7 +2075,7 @@ questions branch will hold the record and that repository's visibility, or
 that nothing will be recorded and why. When that branch is more visible
 than the thread, the preview SHALL warn of it, naming the thread: the
 person confirms an answer with its record or rewords it, and confirms a
-decline's miss or leaves it to a hash-only miss file.
+decline's miss or declines without a readable one.
 
 #### Scenario: The preview names the branch and its visibility
 
@@ -2220,9 +2219,9 @@ it or its `asked_in` links the question's message.
 
 The answer session SHALL push a handled file once its close takes
 effect: once the post leading to it has gone out, or, with nothing
-posted, once the person confirms the decline. Save for a question with a
-category, it SHALL record the owed push in the state folder before the
-post, drop the record when the post never went out, and retry a failed
+posted, once the person confirms the decline. It SHALL record the owed
+push in the state folder before the post or, with nothing posted, before
+the push, drop the record when the post never went out, and retry a failed
 push at each poll and each opening until it succeeds.
 
 #### Scenario: A failed post pushes no handled file
@@ -3082,9 +3081,9 @@ when any of these holds:
 - the question has a category;
 - it concerns no repository or collective;
 - it concerns a collective with no team's lore repository;
-- it was shown from a questions-branch file with no thread, the branch its
-  miss would go to is more visible than that file, and the person has not
-  confirmed the miss.
+- its decline posts nothing and the person has not confirmed the miss,
+  while the branch its miss would go to is more visible than its thread
+  (with no thread, than the questions-branch file it was shown from).
 
 #### Scenario: No place for the miss means no miss file
 
@@ -3117,13 +3116,21 @@ when any of these holds:
   repository's questions branch
 - **THEN** no miss file is written unless the person confirms it
 
+#### Scenario: A decline that posts nothing gets no hash-only miss
+
+- **WHEN** the person declines an agent's Linear message about the public
+  `o/web` for filter 3, choosing "the agent shouldn't have asked", and
+  does not confirm the miss
+- **THEN** nothing is posted and no miss file is pushed, hash-only or
+  readable, and the person is told why
+
 ### Requirement: A miss more visible than its thread is pushed as a hash-only file
 
-Where the questions branch is more visible than the question's thread,
-ranked as the inquisitor's *No record goes somewhere more visible than its
-source* ranks one, and the miss is unconfirmed, the answer session SHALL push the hash-only miss file the
-inquisitor's *A hash-only miss file shows nothing but that it exists*
-defines. It SHALL post an `Inquisitor: ` reply by itself only where it
+Where the questions branch is more visible than the question's thread
+and the miss is unconfirmed, the answer session SHALL push, after each
+reply it posts, by itself or for the person, a hash-only miss file backing
+that reply, as the inquisitor's *A hash-only miss file shows nothing but
+that it exists* defines one. It SHALL post an `Inquisitor: ` reply by itself only where it
 has a branch to push that reply's miss file to, and
 otherwise SHALL show the person the question.
 
@@ -3131,11 +3138,11 @@ otherwise SHALL show the person the question.
 
 - **WHEN** a question about a public repository is asked in a private
   repository's GitHub thread, or on Linear or Discord, and the session
-  judges it automatically or the person declines without confirming the
-  miss
-- **THEN** the session pushes a hash-only miss file to the public
-  repository's questions branch, and any `Inquisitor: ` reply goes out as
-  it would with a readable miss
+  judges it automatically or the person declines with a reply without
+  confirming the miss
+- **THEN** the reply goes out as it would with a readable miss, and the
+  session pushes a hash-only miss file to the public repository's
+  questions branch
 
 #### Scenario: With no place for any miss file, no reply goes out by itself
 

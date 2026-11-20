@@ -15,8 +15,9 @@ capability's decision record, and the rest in design.md: *What the hook
 relies on, not yet measured* for 0.1 to 0.3, both *Configuration* and *Facts measured
 before building* for 0.4, *Facts measured
 before building* for 0.5 to 0.14, *Facts the answer session relies on*
-for 0.15 to 0.21, 0.23, 0.25, 0.26, 0.28, 0.30, 0.31 and 0.34, *Facts measured before building* for 0.33, and *What igor must provide* for 0.29. Record a result
-that contradicts what design.md assumed too.
+for 0.15 to 0.21, 0.23, 0.25, 0.26, 0.28, 0.30, 0.31 and 0.34, *Facts measured before building* for 0.33, 0.35 and 0.36, and *What igor must provide* for 0.29. Record a result
+that contradicts what design.md assumed too. Numbers 0.22, 0.24, 0.27 and
+0.32 are unused.
 
 - [ ] 0.1 A `PreToolUse` hook with matcher `AskUserQuestion` fires before the
       picker opens
@@ -234,8 +235,8 @@ that contradicts what design.md assumed too.
       whether it matched and each part's length, never the token. If it
       does not match, the pattern is changed to the shape measured
 - [ ] 0.34 How Claude Code restricts a session's tools so that its model
-      has only its conversation, `propose_reply` and read-only file tools,
-      which read and search files: permission settings, a startup option
+      has only its conversation, `propose_reply` and Read, Grep and Glob:
+      permission settings, a startup option
       such as `--allowedTools`, or a mod's own control. Record whether
       Claude Code itself enforces it, not a hook, whether a mod can apply
       it to a session already running, and the exact option the `answer`
@@ -245,6 +246,18 @@ that contradicts what design.md assumed too.
       spec). If no control Claude Code enforces exists, the design falls
       back to hooks and the change cannot be built as written: record it
       and stop for the repository's owner
+- [ ] 0.35 That `python3 "$G" gh pr view 12`, run as a Claude Code tool call
+      after an earlier call ran `G=/tmp/x.py`, posts nothing and runs no
+      script, because each tool call starts a fresh shell. Until then, the
+      gh-post spec's scenario *A gh read through an unset G is no post* is
+      not built. If `G` carries over, the reader reports that read as
+      unreadable instead
+- [ ] 0.36 That a Claude Code session an app starts from its list of
+      sessions, with no terminal attached, cannot set an environment
+      variable for itself. Until then, the answer-session spec's scenario
+      *No environment variable opens the answer session* is not built. If
+      it can set one, record it and stop for the repository's owner to
+      decide whether a variable may open the answer session
 
 ## 1. Shared post reader
 
@@ -408,7 +421,11 @@ that contradicts what design.md assumed too.
         repository, and `asked_from` on every log and miss file except a
         handled file, a hash-only miss file and a file written during an
         Igor's run. Outside a
-        run it is the repository holding the current work; on a log or
+        run it is the repository holding the current work, or the
+        branch's own repository once the person confirms sending the
+        file somewhere more visible, so the file is read at that
+        branch's visibility (inquisitor spec: *The answerer's
+        confirmation can send a record somewhere more visible*); on a log or
         miss file the answer session writes, it is the `asked_from` the
         answer session passes to the `log` command (design.md: *Every
         questions-branch file names where it was asked from*;
@@ -434,7 +451,11 @@ that contradicts what design.md assumed too.
           person's own words*).
       - A file is pushed to the `questions` branch of the repository the
         question is about, or of the team's lore repository for a
-        question about a collective. The command
+        question about a collective. Every commit to a questions branch,
+        `cite`'s included, is written with git's plumbing (`hash-object`,
+        `mktree`, `commit-tree`) and pushed by its commit id, with no
+        checkout, so no HEAD moves (inquisitor spec: *A question is pushed
+        to the questions branch of what it concerns*). The command
         fetches and pushes again when rejected because the branch moved,
         and keeps the file pending, pushing it with the next file for
         that branch, when it cannot push otherwise; called with its
@@ -741,8 +762,8 @@ that contradicts what design.md assumed too.
       that records an answer from a relay post to log its rephrasing and
       summary
 - [ ] 6.6a The session's tool restriction, as task 0.34 found it: the
-      model gets only its conversation, `propose_reply` and read-only
-      file tools, and the answer session opens in no other session
+      model gets only its conversation, `propose_reply` and Read, Grep
+      and Glob, and the answer session opens in no other session
       (answer-session spec: *The session's model has no shell, no writing
       tool and no web fetch*)
 - [ ] 6.7 prose's SKILL.md says that a relay post gets
@@ -866,7 +887,8 @@ that contradicts what design.md assumed too.
           answer was given in, a Linear or Discord thread counting as
           private, an answer posted and its file pushed only once the person
           confirmed the warning, and a miss the person has not confirmed
-          pushed as a hash-only miss file;
+          pushed as a hash-only miss file after a posted reply and, with
+          no reply posted, not pushed;
         - the `log` command refusing an `answers` that names no file on
           the branch;
         - an answer file holding the question the person saw and naming

@@ -330,7 +330,7 @@ question on screen and its answer; the answer session's panel sits at the
 bottom of the screen, above the prompt box, and the rest of the screen is
 that conversation. The model may ask the person
 in its reply (*A discussion runs in the session's own conversation*). It has
-only its conversation, read-only file tools that read and search files, and
+only its conversation, Claude Code's Read, Grep and Glob, and
 `propose_reply`, the answer session's tool that drafts a reply into the
 prompt box. It cannot
 post, run a command, write a file or fetch a URL. The answer session's own
@@ -1253,11 +1253,14 @@ Igor's run holds no run id*, which gives its only keys, `entry` and `date`).
 
 #### Questions-branch commits are machine records
 
-The script makes a questions branch's commits itself, with no agent's `git
-commit`, so prose's and bug-hunter's checks never see these commits, which carry no trailer (inquisitor spec: *A
-question is pushed to the questions branch of what it concerns*). Exempting
-an Igor's citation commits from
-igor PR #153's trailers is #153's to settle (*What igor must provide*).
+The script writes a questions branch's commits with git's plumbing and
+pushes them without checking the branch out (inquisitor spec: *A question is
+pushed to the questions branch of what it concerns*). prose's and
+bug-hunter's hooks report each commit that lands on HEAD without their
+trailers; no HEAD moves here, so they never see these commits, which carry
+none. igor PR #153 is separate: it would have an Igor push only commits
+carrying those trailers, and exempting its citation commits is #153's to
+settle (*What igor must provide*).
 
 #### A citation's commit names no person
 
@@ -1559,9 +1562,6 @@ existing `active` entries in the role's scope. The channel a worker reports
 them through, output or outbox, is igor PR #175's, which runs a worker as a
 separate Unix user.
 
-The citation count igor's review shows is not exact, since no citation goes
-where it would show a more private question exists.
-
 *Recorded:* `openspec/specs/inquisitor/decisions.md`, *Rationale: A lore
 entry that stops a question gets a citation file*.
 
@@ -1744,7 +1744,7 @@ starts is named `Answers`.
 **The answer session opens with `/answer` in any session, or with the
 `answer` terminal command that setup installs; no environment variable opens
 it,** because a session an app starts from its session list, with no
-terminal, cannot set one. `answer` starts Claude Code in its fullscreen
+terminal, cannot set one (task 0.36 measures this). `answer` starts Claude Code in its fullscreen
 layout, with the tool restriction task 0.34 finds; `/answer` opens the
 answer session in whichever layout the session is in, and only where Claude
 Code restricts that session's tools (*The session's model has no shell, no
@@ -1762,24 +1762,24 @@ the rule that an agent asks only through the picker.
 #### The session's model has no shell, no writing tool and no web fetch
 
 **In the session where the answer session is open, the model has only its
-conversation, `propose_reply` and read-only file tools, and Claude Code, not
-a hook, enforces that.** The threat is a crafted message in a subscribed
-channel steering the model into posting, or recording a decision, as the
-person. The answer-session decision record's *Rationale: The session's model
-has no shell, no writing tool and no web fetch* gives why hooks cannot stop a
-model with a shell, and why web fetch is left out. Whatever the model is
-steered to do, the most it can do is draft a reply the person sees before
-anything is sent.
+conversation, `propose_reply` and Claude Code's Read, Grep and Glob, and
+Claude Code, not a hook, enforces that.** The answer-session decision
+record's *Rationale: The session's model has no shell, no writing tool and no
+web fetch* gives the threat, why hooks cannot stop a model with a shell, and
+why web fetch is left out. Task 0.34 measures how Claude Code restricts a
+session's tools. If it offers no control that Claude Code itself enforces,
+the design would fall back to hooks, and the change cannot be built as
+written.
 
 **The answer session's own code does every post, `log` call and push, and
 every fetch from a surface.** It posts each confirmed answer as a host
 command (*What the answer session posts, and what it logs*), so the person's
 confirmation, not a hook, is what lets an answer out.
 
-**Which tools, and how the thread reaches the model, are still open** (*Open
-Questions*). Task 0.34 measures how Claude Code restricts a session's tools.
-If it offers no control that Claude Code itself enforces, the design would
-fall back to hooks, and the change cannot be built as written.
+**The session's code puts a question's thread into the conversation as
+quoted text;** no tool of the model's fetches a thread from its surface
+(answer-session spec: *A discussion runs in the session's own
+conversation*).
 
 **No hook checks where a relay post goes, and the person is accountable for
 what any agent posts as their relay** (answer-session spec: *The person
@@ -1797,9 +1797,9 @@ they decline under filter 1 the draft may fill in the URL of the record that
 answers the question.
 
 **`propose_reply` refuses any call carrying an `agentId`, and takes a call
-without one as the main conversation's.** The spec takes it that Claude Code
-sets `agentId` on every tool call made outside the main conversation, by a
-subagent or by a side conversation Claude Code forks; task 0.26 checks both.
+without one as the main conversation's.** Task 0.26 checks that Claude Code
+sets `agentId` on a call from a subagent or from a side conversation it forks;
+a call that arrives without one still only drafts into the prompt box.
 A forked side conversation, such as the one that guesses the next prompt,
 could otherwise drop an unasked draft in the prompt box, possibly over what
 the person is typing. The answer-session decision record's *Rationale: Claude's
@@ -1910,7 +1910,8 @@ person's words*): mention rewriting off, which only stopped a quoted record's
 @-mentions notifying again, and no post quotes one (scenario *A Discord relay
 post has no header and pings whom the person names*); and failing setup on
 `memberSearch: false`, since the warning at each post tells the person
-(scenario *Refused member search does not fail setup*).
+(answer-session spec: *Setup checks each relay identity before its channels
+are used*, scenario *Refused member search does not fail setup*).
 
 #### The person can ask the asker
 
@@ -2249,7 +2250,11 @@ question. A readable miss stays the form wherever privacy allows one, for
 its value as a log. Where the session has no questions branch to push a miss file of either form
 to, the
 session posts no reply by itself and shows the person the question, so an
-agent never acts on a bare reply.
+agent never acts on a bare reply. A decline that posts nothing gets no
+hash-only miss file: the file would back no reply, and with no reply to name
+it, it would be named by a hash of the asking message's URL (inquisitor spec:
+*Every miss file is named by one hash*), which anyone who knows that URL
+could compute.
 
 An agent pushes no citation for a lore entry a `Recorded answer: ` reply
 names, since the answer session pushed any that was due, so one question
@@ -2329,6 +2334,9 @@ could not tell who wrote the closing post.
 A handled file adds no question text: the closed file's name, which it
 repeats, is already on the same branch. So it never carries a private item's
 question into igor's lore search, and shows nothing the closed file does not.
+A question with a category leaves no readable record on disk, and a handled
+file's owed push holds only that file, so such a question's handled file is
+owed and retried like any other.
 An Igor worker could still forge a handled file and report it for its Igor to
 push; igor refusing to push one is asked of igor PR #216, and is open on its
 side.
@@ -2610,36 +2618,19 @@ the directory where spec-trace's CI fails on an untagged one.**
 
 ## Open Questions
 
-- **Which read-only tools exactly does the answer session's model get?**
-  Reading and searching files, such as Claude Code's Read, Grep and Glob, is
-  decided; whether any other read-only tool joins them is not (answer-session
-  spec: *The session's model has no shell, no writing tool and no web
-  fetch*).
-- **How does the session's code show a thread's contents to the model?** The
-  spec attaches the question and its thread's replies to each discussion
-  message as quoted data (*A discussion runs in the session's own
-  conversation*); whether the session also gives the model a read-only tool
-  of its own for the thread is open.
-- **Should a decline that posts nothing push a hash-only miss file?** Such
-  a miss, on a Linear or Discord question whose branch is more visible, is
-  named by a hash of the private message's URL, not of a reply's id, so
-  anyone who can guess that URL can confirm on the branch that the question
-  was declined, and when (inquisitor spec: *Every miss file is named by one
-  hash*). The answer-session record's Constraint on hash-only miss files
-  says the name does not identify the thread, which this case contradicts.
-  The file backs no reply. The choice is to push none, or to widen the
-  accepted cost.
-- **How does the script commit to a questions branch without an agent's
-  trailer checks seeing it?** *Questions-branch commits are machine
-  records* says prose's and bug-hunter's checks never see these commits,
-  but those checks read the HEAD reflog of the repository an agent runs
-  `log` in. That holds only if the script commits without moving any HEAD
-  there, such as with `git commit-tree` and `git update-ref` or in a
-  separate clone; no requirement says so yet.
+- **How do the model's judgements reach the session's code?** The code acts
+  by itself on what the model judges: whether a question has a category,
+  whether a filter clearly stops it, whether a message is a question, and
+  what a Linear or Discord question concerns. The model's only tool beyond
+  reading files, `propose_reply`, drafts into the prompt box, so no rule
+  says how a judgement reaches the code, or how judging at each poll fits
+  into the person's conversation. A tool that records one verdict from a
+  fixed set would add to the model's fixed list of tools, which only the
+  repository's owner can change.
 
 ### Facts measured before building
 
-Tasks 0.4 to 0.14 and 0.33 measure these facts before anything is built (tasks 0.1 to
+The task each bullet names measures its fact before anything is built (tasks 0.1 to
 0.3 are under *What the hook relies on, not yet measured*). Each bullet says
 what the spec does if the fact is false. Task 0.12 is measured (*What task
 0.12 measured*). Task 0.11 is measured for an issue comment only; its
@@ -2694,6 +2685,16 @@ records a linked GitHub comment's own text*.
   The credential patterns' Discord shape has no measurement behind it. If
   the relay's real token does not match, the pattern is changed to the
   shape measured.
+- **Does an unset `$G` post nothing in Claude Code?** (task 0.35) The
+  shared post reader takes a `gh` read through `$G`, with `G` not assigned
+  in the same command, as no post, because each Claude Code tool call
+  starts a fresh shell, so `$G` is empty and the call fails. If a shell
+  keeps `G` between calls, the reader reports such a read as unreadable, as
+  it already reports a post through such a `$G`.
+- **Can a session an app starts with no terminal set an environment
+  variable?** (task 0.36) No environment variable opens the answer session,
+  because such a session could not set one. If it can, the repository's
+  owner decides whether one may.
 
 ### Facts the answer session relies on
 
@@ -2728,7 +2729,7 @@ box*).
   question with a person-required line gets no filter 2 to 4 reply*).
 - **How does Claude Code restrict a session's tools?** (task 0.34) The
   answer session needs its session's model limited to its conversation,
-  `propose_reply` and read-only file tools, enforced by Claude Code through
+  `propose_reply` and Read, Grep and Glob, enforced by Claude Code through
   permission settings, a startup option such as `--allowedTools`, or a
   mod's own control, never by a hook. If Claude Code offers no such
   control, the design falls back to hooks and the change cannot be built as
